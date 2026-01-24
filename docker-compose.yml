@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # ===================
+  # TypeScript Platform
+  # ===================
+  platform:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=postgres://cognitive:cognitive@postgres:5432/cognitive
+      - QDRANT_URL=http://qdrant:6333
+      - ML_SERVICES_URL=http://ml-services:8000
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
+    volumes:
+      - ./platform/src:/app/src:ro  # Hot reload in dev
+    networks:
+      - cognitive-network
+    restart: unless-stopped
+
+  # ===================
+  # PostgreSQL Database
+  # ===================
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=cognitive
+      - POSTGRES_USER=cognitive
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-cognitive}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cognitive -d cognitive"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - cognitive-network
+    restart: unless-stopped
+
+  # ===================
+  # Qdrant Vector DB
+  # ===================
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    ports:
+      - "6335:6333"
+      - "6336:6334"  # gRPC
+    volumes:
+      - qdrant-data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    networks:
+      - cognitive-network
+    restart: unless-stopped
+
+  # ===================
+  # Python ML Services
+  # ===================
+  ml-services:
+    build:
+      context: ./ml-services
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    volumes:
+      - ml-models:/models
+    networks:
+      - cognitive-network
+    restart: unless-stopped
+    # Note: Ollama runs on host, not in Docker
+
+networks:
+  cognitive-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  qdrant-data:
+  ml-models:

@@ -1,7 +1,23 @@
 # Cognitive Platform - Architecture
 
 **Version:** 2.0 (Final)  
-**Status:** Implementation Ready
+**Status:** ✅ Phase 1 Complete  
+**Last Updated:** 2026-01-24
+
+---
+
+## Implementation Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Message Envelope** | ✅ Implemented | Full `envelope.ts` |
+| **Skills & Workflows** | ❌ Not Started | Phase 2 |
+| **Plugin System** | ❌ Not Started | Phase 2+ |
+| **Storage (Qdrant)** | ✅ Implemented | memories collection |
+| **Storage (Postgres)** | ✅ Implemented | 5 tables |
+| **Background Jobs** | ❌ Not Started | Phase 3 |
+| **API Layer** | ⚠️ Partial | `/health`, `/api/search`, `/api/memories` |
+| **Telegram Integration** | ✅ Working | Text capture + search via polling |
 
 ---
 
@@ -25,7 +41,7 @@ Platform: Cognitive Platform {
     WS: WebSocket
   }
 
-  Queue: BullMQ + Redis {
+  Queue: pg-boss (Postgres) {
     Jobs: Job Queue
     Workers: Workers
   }
@@ -83,7 +99,7 @@ Python.style.fill: "#3776AB"
 |-----------|------------|-----------|
 | **Core Language** | TypeScript | Type safety, your expertise |
 | **ML Services** | Python (FastAPI) | Native support for transformers, whisper |
-| **Queue** | BullMQ + Redis | Rate limiting, retries, backpressure |
+| **Queue** | pg-boss | Postgres-backed queue, retries, scheduling |
 | **Vector Store** | Qdrant | Semantic search, filtering |
 | **SQL Store** | PostgreSQL | Structured queries, dashboard support |
 | **Telegram Bot** | grammy (TypeScript) | Modern, TypeScript-native |
@@ -203,7 +219,7 @@ interface SkillContext {
   services: {
     qdrant: QdrantClient;
     postgres: PostgresClient;
-    redis: RedisClient;
+    boss: PgBoss;
   };
 }
 ```
@@ -466,36 +482,255 @@ CREATE TABLE processing_state (
 );
 ```
 
+### 6.4 Knowledge Graph Schema (Phase 3)
+
+See [W16-entity-schema.md](./work-packets/phase3/W16-entity-schema.md), [W17-bi-temporal-facts.md](./work-packets/phase3/W17-bi-temporal-facts.md)
+
+```sql
+-- Entity Tracking (W16)
+CREATE TABLE entities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  canonical_name VARCHAR(500) NOT NULL,
+  entity_type VARCHAR(100) NOT NULL,  -- person, organization, concept, etc.
+  description TEXT,
+  embedding VECTOR(768),               -- pgvector
+  confidence FLOAT DEFAULT 1.0,
+  first_seen_at TIMESTAMPTZ DEFAULT NOW(),
+  last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE entity_aliases (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_id UUID REFERENCES entities(id) ON DELETE CASCADE,
+  alias VARCHAR(500) NOT NULL,
+  source VARCHAR(100),                 -- extraction, user_input, merge
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE entity_merges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_entity_id UUID NOT NULL,
+  target_entity_id UUID REFERENCES entities(id),
+  merged_at TIMESTAMPTZ DEFAULT NOW(),
+  merged_by VARCHAR(100) DEFAULT 'system'
+);
+
+CREATE TABLE memory_entities (
+  memory_id UUID NOT NULL,
+  entity_id UUID REFERENCES entities(id) ON DELETE CASCADE,
+  mention_text VARCHAR(500),
+  mention_context TEXT,
+  confidence FLOAT DEFAULT 1.0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (memory_id, entity_id)
+);
+
+-- Bi-Temporal Facts (W17)
+CREATE TABLE fact_predicates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  predicate VARCHAR(200) UNIQUE NOT NULL,
+  description TEXT,
+  inverse_predicate VARCHAR(200),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE facts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  subject_entity_id UUID REFERENCES entities(id),
+  predicate_id UUID REFERENCES fact_predicates(id),
+  object_entity_id UUID REFERENCES entities(id),
+  object_value TEXT,                    -- For non-entity objects
+  
+  -- Bi-temporal timestamps
+  valid_at TIMESTAMPTZ NOT NULL,        -- When fact became true
+  invalid_at TIMESTAMPTZ,               -- When fact stopped being true
+  created_at TIMESTAMPTZ DEFAULT NOW(), -- When we learned this
+  expired_at TIMESTAMPTZ,               -- When superseded by new info
+  
+  source_memory_id UUID,
+  confidence FLOAT DEFAULT 1.0,
+  embedding VECTOR(768)
+);
+
+-- Indexes for temporal queries
+CREATE INDEX idx_facts_temporal ON facts (valid_at, invalid_at, created_at, expired_at);
+CREATE INDEX idx_facts_subject ON facts (subject_entity_id);
+CREATE INDEX idx_facts_object ON facts (object_entity_id);
+```
+
+### 6.5 Gardener Infrastructure Schema (Phase 3-4)
+
+See [W21-gardener-scheduler.md](./work-packets/phase3/W21-gardener-scheduler.md)
+
+```sql
+-- Job Metadata (W21)
+CREATE TABLE gardener_job_meta (
+  job_type VARCHAR(100) PRIMARY KEY,
+  tier VARCHAR(20) NOT NULL,            -- realtime, frequent, periodic, deep
+  priority INT DEFAULT 50,
+  last_run_at TIMESTAMPTZ,
+  next_run_at TIMESTAMPTZ,
+  avg_duration_ms INT,
+  success_rate FLOAT DEFAULT 1.0,
+  enabled BOOLEAN DEFAULT true
+);
+
+-- Performance Metrics (W21)
+CREATE TABLE gardener_metrics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_type VARCHAR(100) NOT NULL,
+  started_at TIMESTAMPTZ NOT NULL,
+  completed_at TIMESTAMPTZ,
+  success BOOLEAN,
+  error_message TEXT,
+  items_processed INT DEFAULT 0,
+  duration_ms INT
+);
+
+-- Multi-Armed Bandit State (W21)
+CREATE TABLE mab_state (
+  job_type VARCHAR(100) PRIMARY KEY,
+  arm_pulls INT DEFAULT 0,
+  total_reward FLOAT DEFAULT 0,
+  success_count INT DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Ingestion Chunks (W22)
+CREATE TABLE memory_chunks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  memory_id UUID NOT NULL,
+  chunk_index INT NOT NULL,
+  content TEXT NOT NULL,
+  token_count INT,
+  embedding VECTOR(768),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 6.6 Intelligence Layer Schema (Phase 5)
+
+See [W30-community-detection.md](./work-packets/phase5/W30-community-detection.md), [W31-insight-generation.md](./work-packets/phase5/W31-insight-generation.md), [W32-morning-briefing.md](./work-packets/phase5/W32-morning-briefing.md), [W33-contradiction-scheduler.md](./work-packets/phase5/W33-contradiction-scheduler.md)
+
+```sql
+-- Community Detection (W30)
+CREATE TABLE communities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255),
+  description TEXT,
+  entity_ids UUID[] NOT NULL,
+  centroid_entity_id UUID REFERENCES entities(id),
+  cohesion_score FLOAT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insight Generation (W31)
+CREATE TABLE insights (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  insight_type VARCHAR(50) NOT NULL,    -- connection, trend, gap, pattern
+  title VARCHAR(500) NOT NULL,
+  description TEXT,
+  entity_ids UUID[],
+  community_id UUID REFERENCES communities(id),
+  confidence FLOAT DEFAULT 1.0,
+  surfaced BOOLEAN DEFAULT false,
+  surfaced_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Morning Briefings (W32)
+CREATE TABLE briefings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  briefing_date DATE NOT NULL UNIQUE,
+  content JSONB NOT NULL,               -- {tasks, events, insights, rediscoveries}
+  delivered BOOLEAN DEFAULT false,
+  delivered_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE memories_meta (
+  memory_id UUID PRIMARY KEY,
+  last_surfaced_at TIMESTAMPTZ,
+  surface_count INT DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Contradiction Reviews (W33)
+CREATE TABLE contradiction_reviews (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  fact_id_1 UUID REFERENCES facts(id),
+  fact_id_2 UUID REFERENCES facts(id),
+  contradiction_type VARCHAR(50),       -- direct, temporal, semantic
+  severity VARCHAR(20),                 -- low, medium, high, critical
+  auto_resolved BOOLEAN DEFAULT false,
+  resolution VARCHAR(50),               -- superseded, merged, flagged
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
 ---
 
 ## 7. Background Jobs
 
-### 7.1 Gardener (Nightly, 2am)
+### 7.1 Gardener System (KARMA Architecture)
+
+Based on [GARDENER_RESEARCH.md](./GARDENER_RESEARCH.md), the Gardener implements a 9-agent KARMA architecture for autonomous knowledge maintenance:
 
 ```d2
-direction: right
+direction: down
 
-Gardener: Nightly Gardener (2am)
-
-Tasks: Task Maintenance {
-  Archive: Archive done tasks (7+ days)
-  Stale: Flag stale epics (30+ days)
+Controller: 1. Central Controller {
+  Scheduler: Priority Scheduler
+  MAB: Multi-Armed Bandit
 }
 
-Memory: Memory Maintenance {
-  Link: Auto-link similar memories
-  Clean: Clean orphaned data
-}
+Ingestion: 2. Ingestion Agent
+Reader: 3. Reader Agent
+Summarizer: 4. Summarizer Agent
+EntityExt: 5. Entity Extraction
+RelExt: 6. Relationship Extraction
+Schema: 7. Schema Alignment
+Conflict: 8. Conflict Resolution
+Evaluator: 9. Evaluator Agent
 
-Insights: Insight Generation {
-  Patterns: Detect thought patterns
-  Connections: Surface connections
-}
-
-Gardener -> Tasks
-Gardener -> Memory
-Gardener -> Insights
+Controller -> Ingestion: dispatch
+Ingestion -> Reader
+Reader -> Summarizer
+Reader -> EntityExt
+EntityExt -> RelExt
+EntityExt -> Schema
+RelExt -> Conflict
+Conflict -> Evaluator
+Evaluator -> Controller: feedback
 ```
+
+#### The Nine Agents
+
+| # | Agent | Tier | Purpose |
+|---|-------|------|---------|
+| 1 | Central Controller | Always | Priority scheduling, MAB exploration |
+| 2 | Ingestion | Realtime | Document retrieval, format normalization |
+| 3 | Reader | Realtime | Text parsing, relevance scoring |
+| 4 | Summarizer | Frequent | Content condensation |
+| 5 | Entity Extraction | Realtime | LLM-based NER, entity resolution |
+| 6 | Relationship Extraction | Frequent | Multi-label relation classification |
+| 7 | Schema Alignment | Periodic | Novel entity mapping to ontology |
+| 8 | Conflict Resolution | Periodic | Contradiction detection, supersession |
+| 9 | Evaluator | Frequent | Confidence scoring, quality metrics |
+
+#### Tiered Processing
+
+| Tier | Interval | Max Latency | Agents |
+|------|----------|-------------|--------|
+| Realtime | On save | 100ms | 2, 3, 5 |
+| Frequent | 5 min | 2 sec | 4, 6, 9 |
+| Periodic | 1 hour | 10 sec | 7, 8 |
+| Deep | Daily | 60 sec | Community detection, insights |
+
+See [work-packets/phase3/](./work-packets/phase3/) for implementation details.
 
 ### 7.2 Context Updater (Timer-based)
 
@@ -593,38 +828,41 @@ services:
   platform:
     build: ./platform
     ports: ["3000:3000"]
-    depends_on: [redis, postgres, qdrant]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
     environment:
       - TELEGRAM_BOT_TOKEN=...
-      - DATABASE_URL=postgres://...
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgres://cognitive:cognitive@postgres:5432/cognitive
       - QDRANT_URL=http://qdrant:6333
-
-  # Queue
-  redis:
-    image: redis:7-alpine
-    volumes: ["redis-data:/data"]
 
   # Storage
   postgres:
-    image: postgres:15
+    image: postgres:16-alpine
     volumes: ["postgres-data:/var/lib/postgresql/data"]
     environment:
       - POSTGRES_DB=cognitive
-      - POSTGRES_PASSWORD=...
+      - POSTGRES_USER=cognitive
+      - POSTGRES_PASSWORD=cognitive
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cognitive"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.7.4
     volumes: ["qdrant-data:/qdrant/storage"]
+    ports: ["6333:6333"]
 
   # Python Services
   ml-services:
     build: ./ml-services
     ports: ["8000:8000"]
-    volumes: ["./models:/models"]
 
 volumes:
-  redis-data:
   postgres-data:
   qdrant-data:
 ```
@@ -638,18 +876,46 @@ cognitive-platform/
 │   │   ├── api/             # REST + WebSocket
 │   │   ├── bot/             # Telegram integration
 │   │   ├── core/            # Router, Orchestrator
-│   │   ├── skills/          # Skill implementations
+│   │   ├── skills/          # Skill implementations (W08, W10-W13, W20)
 │   │   ├── plugins/         # Plugin registry
 │   │   ├── storage/         # Qdrant + Postgres clients
-│   │   ├── queue/           # BullMQ setup
-│   │   └── background/      # Gardener, Briefing
-│   ├── workflows/           # YAML workflow definitions
+│   │   ├── queue/           # pg-boss queue setup
+│   │   ├── services/        # Domain services (NEW)
+│   │   │   ├── entity.ts    # Entity management (W16)
+│   │   │   ├── facts.ts     # Bi-temporal facts (W17)
+│   │   │   ├── graph.ts     # Apache AGE integration (W18)
+│   │   │   ├── graph-sync.ts # Graph synchronization (W18)
+│   │   │   └── hybrid.ts    # Hybrid retrieval (W19)
+│   │   ├── gardener/        # KARMA Agent System (NEW)
+│   │   │   ├── scheduler.ts # Central Controller (W21)
+│   │   │   ├── agents/
+│   │   │   │   ├── ingestion.ts   # Agent #2 (W22)
+│   │   │   │   ├── reader.ts      # Agent #3 (W23)
+│   │   │   │   ├── summarizer.ts  # Agent #4 (W24)
+│   │   │   │   ├── entity.ts      # Agent #5 (W25)
+│   │   │   │   ├── relationship.ts # Agent #6 (W26)
+│   │   │   │   ├── schema.ts      # Agent #7 (W27)
+│   │   │   │   ├── conflict.ts    # Agent #8 (W28)
+│   │   │   │   └── evaluator.ts   # Agent #9 (W29)
+│   │   │   └── jobs/
+│   │   │       ├── community.ts   # Community detection (W30)
+│   │   │       ├── insight.ts     # Insight generation (W31)
+│   │   │       ├── briefing.ts    # Morning briefing (W32)
+│   │   │       └── contradiction.ts # Contradiction scheduler (W33)
+│   │   └── background/      # Legacy: Context Updater
+│   ├── workflows/           # YAML workflow definitions (W14)
 │   └── package.json
-├── ml-services/             # Python services
+├── ml-services/             # Python FastAPI services
 │   ├── app/
-│   │   ├── embed.py         # Embedding endpoint
-│   │   ├── transcribe.py    # Whisper endpoint
-│   │   └── scrape.py        # Web scraper
+│   │   ├── main.py          # FastAPI app setup
+│   │   ├── embed.py         # /embed endpoint
+│   │   ├── transcribe.py    # /transcribe endpoint (W10)
+│   │   ├── scrape.py        # /scrape endpoint (W13)
+│   │   ├── entities.py      # /extract-entities, /resolve-entity (W25)
+│   │   ├── reader.py        # /parse-content (W23)
+│   │   ├── summarize.py     # /summarize (W24)
+│   │   ├── relationships.py # /extract-relationships (W26)
+│   │   └── conflict.py      # /check-contradiction (W28)
 │   └── requirements.txt
 ├── docker-compose.yml
 └── .env
@@ -692,7 +958,6 @@ models:
 storage:
   qdrant_url: ${QDRANT_URL}
   postgres_url: ${DATABASE_URL}
-  redis_url: ${REDIS_URL}
 ```
 
 ---

@@ -1,17 +1,29 @@
 # Model Research & Recommendations
 
-**Status:** Phase 0 Research  
-**Purpose:** Select optimal models for Cognitive Platform on M1 Mac
+**Status:** ✅ Phase 0 Complete  
+**Purpose:** Select optimal models for Cognitive Platform on M1 Mac  
+**Last Updated:** 2026-01-24
+
+---
+
+## Implementation Status
+
+| Model | Status | Notes |
+|-------|--------|-------|
+| nomic-embed-text (Embeddings) | ✅ Working | 768-dim via Ollama |
+| llama3 (Summarization) | ⏸️ Deferred | Phase 2 |
+| faster-whisper (Transcription) | ❌ Blocked | Build issues |
+| llava (Vision) | ⏸️ Deferred | Phase 2 |
 
 ---
 
 ## Current Installed Models
 
 ```
-NAME                       SIZE      
-llava:latest               4.7 GB    (Vision LLM)
-nomic-embed-text:latest    274 MB    (Embeddings)
-llama3:latest              4.7 GB    (Text LLM)
+NAME                       SIZE      STATUS
+llava:latest               4.7 GB    (Vision LLM) - Not used yet
+nomic-embed-text:latest    274 MB    (Embeddings) ✅ ACTIVE
+llama3:latest              4.7 GB    (Text LLM) - Not used yet
 ```
 
 ---
