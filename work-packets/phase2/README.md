@@ -12,6 +12,7 @@
 | Phase | Status | Completion |
 |-------|--------|------------|
 | Phase 2 (Core Skills) | ✅ Complete | 100% |
+| Infrastructure (Webhooks) | ✅ Complete | 100% |
 
 ---
 
@@ -124,6 +125,9 @@ Telegram → Queue → Router → Workflow → Skills → Store
 - [x] Tasks extracted with due dates
 - [x] Bot responds with rich feedback
 - [x] TypeScript compiles without errors
+- [x] Telegram webhook configured (Cloudflare Tunnel)
+- [x] Automatic fallback to polling mode
+- [x] Dev workflow optimized (make dev starts everything)
 
 ---
 
@@ -157,22 +161,58 @@ Telegram → Queue → Router → Workflow → Skills → Store
 - Rich feedback for all content types
 - Voice message processing
 
+### Infrastructure & Deployment
+- **Telegram Webhook Setup**: Configured Cloudflare Tunnel for reliable webhook delivery
+  - Replaced Tailscale Funnel (DNS resolution issues with Telegram)
+  - Named tunnel: `bot.revelations.studio` → Webhook mode enabled
+  - Automatic fallback to polling mode if webhook setup fails
+  - Retry logic with exponential backoff (3 attempts, 2-4 second delays)
+  - Graceful shutdown handling for tunnel cleanup
+- **Development Scripts**:
+  - `make dev` - Start Cloudflare Tunnel + Docker (webhook mode)
+  - `make up` - Docker only (polling mode)
+  - `make down` - Stop all services
+  - Tunnel configuration in `scripts/dev.sh`
+- **Environment Configuration**:
+  - Updated `.env` with webhook URL
+  - Updated `.env.example` with tunnel documentation
+  - Updated `platform/.env.example` with Cloudflare comments
+
 ---
 
 ## Quick Start
 
+### With Webhooks (Recommended)
 ```bash
-# Rebuild Docker to get new Python dependencies
-docker compose build ml-services
+# Requires: cloudflared installed (brew install cloudflared)
+# Requires: Cloudflare tunnel configured at ~/.cloudflared/config.yml
 
-# Start services
-docker compose up -d
+make dev
 
-# Test endpoints
-curl http://localhost:8000/health
-curl http://localhost:3001/health
+# This starts:
+# - Cloudflare Tunnel (bot.revelations.studio)
+# - Docker services
+# - Bot in WEBHOOK mode (real-time Telegram updates)
+```
 
-# Test classification
+### Polling Mode (No External Tunnel)
+```bash
+make up
+
+# This starts:
+# - Docker services only
+# - Bot in POLLING mode (checks Telegram every 30s)
+```
+
+### Testing
+```bash
+# Check services
+make health
+
+# Follow logs
+make logs
+
+# Test classification endpoint
 curl -X POST http://localhost:8000/classify \
   -H "Content-Type: application/json" \
   -d '{"text": "Check out https://example.com"}'
