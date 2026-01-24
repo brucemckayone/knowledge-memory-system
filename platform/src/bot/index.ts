@@ -2,7 +2,13 @@ import { Bot } from 'grammy';
 import { config } from '../config.js';
 import { getQueue, QUEUES } from '../queue/index.js';
 import { embed } from '../services/ml.js';
-import { searchMemories } from '../services/qdrant.js';
+import { searchMemories, qdrant, COLLECTIONS } from '../services/qdrant.js';
+import { db } from '../db/index.js';
+import { tasks } from '../db/schema.js';
+import { eq, desc, sql } from 'drizzle-orm';
+
+// Re-export file utilities
+export { getFileUrl } from './files.js';
 
 // Create bot instance
 export const bot = new Bot(config.TELEGRAM_BOT_TOKEN);
@@ -102,17 +108,22 @@ bot.command('start', async (ctx) => {
 // Command: /help
 bot.command('help', async (ctx) => {
   await ctx.reply(
-    `**How to use Cognitive:**\n\n` +
-    `1️⃣ **Capture a thought**\n` +
-    `Just type anything and send it.\n\n` +
-    `2️⃣ **Save a link**\n` +
-    `Send any URL - I'll fetch and summarize it.\n\n` +
-    `3️⃣ **Voice notes**\n` +
-    `Record a voice message - I'll transcribe and save it.\n\n` +
-    `4️⃣ **Search**\n` +
-    `Type "search: kubernetes" to find related memories.\n\n` +
-    `5️⃣ **Context**\n` +
-    `Add me to a group chat - I'll remember conversations.`,
+    `**Cognitive Platform - Commands**\n\n` +
+    `**📝 Capture**\n` +
+    `Just send any message to save it as a memory.\n\n` +
+    `**🔍 Search**\n` +
+    `/search <query> - Find memories\n` +
+    `search: <query> - Inline search\n\n` +
+    `**📋 Tasks**\n` +
+    `/tasks - View pending tasks\n` +
+    `"Remind me to..." - Create task\n\n` +
+    `**📚 Browse**\n` +
+    `/recent - Show recent memories\n` +
+    `/stats - Your stats\n\n` +
+    `**🎤 Voice**\n` +
+    `Send voice messages - I'll transcribe them!\n\n` +
+    `**🔗 Links**\n` +
+    `Send URLs - I'll summarize them!`,
     { parse_mode: 'Markdown' }
   );
 });
@@ -124,14 +135,160 @@ bot.command('search', async (ctx) => {
     await ctx.reply('Usage: /search <query>\n\nExample: /search kubernetes');
     return;
   }
-  
+
   // Send typing indicator while searching
   await ctx.api.sendChatAction(ctx.chat.id, 'typing');
-  
+
   // Perform actual semantic search
   const results = await performSearch(query);
   await ctx.reply(results, { parse_mode: 'Markdown' });
 });
+
+// Command: /tasks - List pending tasks
+bot.command('tasks', async (ctx) => {
+  try {
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+
+    // Fetch pending tasks
+    const pendingTasks = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.status, 'pending'))
+      .orderBy(desc(tasks.createdAt))
+      .limit(10);
+
+    if (pendingTasks.length === 0) {
+      await ctx.reply("✅ No pending tasks! You're all caught up.");
+      return;
+    }
+
+    const taskList = pendingTasks.map((task, i) => {
+      const priorityEmoji = {
+        high: '🔴',
+        medium: '🟡',
+        low: '🟢',
+      }[task.priority || 'medium'];
+
+      const dueStr = task.dueDate
+        ? `📅 ${formatDueDate(task.dueDate)}`
+        : '';
+
+      return `${i + 1}. ${priorityEmoji} ${task.content}\n   ${dueStr}`;
+    }).join('\n\n');
+
+    await ctx.reply(
+      `📋 **Your Tasks (${pendingTasks.length})**\n\n${taskList}`,
+      { parse_mode: 'Markdown' }
+    );
+
+  } catch (error) {
+    console.error('Tasks command error:', error);
+    await ctx.reply('❌ Failed to fetch tasks. Please try again.');
+  }
+});
+
+// Command: /recent - Show recent memories
+bot.command('recent', async (ctx) => {
+  try {
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+
+    // Get recent memories from Qdrant
+    const recent = await qdrant.scroll(COLLECTIONS.MEMORIES, {
+      limit: 5,
+      with_payload: true,
+      with_vector: false,
+    });
+
+    if (!recent.points?.length) {
+      await ctx.reply('📭 No memories found. Send me something to remember!');
+      return;
+    }
+
+    const memories = recent.points.map((p, i) => {
+      const payload = p.payload as Record<string, any>;
+      const typeEmoji: Record<string, string> = {
+        thought: '💭',
+        link: '🔗',
+        task: '📋',
+        question: '❓',
+      };
+
+      const content = (payload.summary || payload.content || '').slice(0, 100);
+      const date = payload.created_at
+        ? new Date(payload.created_at as string).toLocaleDateString()
+        : '';
+
+      return `${i + 1}. ${typeEmoji[payload.type] || '📝'} ${content}${content.length === 100 ? '...' : ''}\n   _${date}_`;
+    }).join('\n\n');
+
+    await ctx.reply(
+      `📚 **Recent Memories**\n\n${memories}`,
+      { parse_mode: 'Markdown' }
+    );
+
+  } catch (error) {
+    console.error('Recent command error:', error);
+    await ctx.reply('❌ Failed to fetch recent memories.');
+  }
+});
+
+// Command: /stats - Show statistics
+bot.command('stats', async (ctx) => {
+  try {
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+
+    // Get collection info from Qdrant
+    const collectionInfo = await qdrant.getCollection(COLLECTIONS.MEMORIES);
+    const pointCount = collectionInfo.points_count || 0;
+
+    // Get task counts
+    const taskCounts = await db
+      .select({
+        status: tasks.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(tasks)
+      .groupBy(tasks.status);
+
+    const pending = taskCounts.find(t => t.status === 'pending')?.count || 0;
+    const completed = taskCounts.find(t => t.status === 'completed')?.count || 0;
+
+    await ctx.reply(
+      `📊 **Your Knowledge Stats**\n\n` +
+      `📚 Memories: ${pointCount}\n` +
+      `📋 Tasks pending: ${pending}\n` +
+      `✅ Tasks completed: ${completed}`,
+      { parse_mode: 'Markdown' }
+    );
+
+  } catch (error) {
+    console.error('Stats command error:', error);
+    await ctx.reply('❌ Failed to fetch stats.');
+  }
+});
+
+/**
+ * Format due date for display
+ */
+function formatDueDate(date: Date): string {
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  if (date.toDateString() === now.toDateString()) {
+    return `Today ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
+
+  if (date.toDateString() === tomorrow.toDateString()) {
+    return `Tomorrow ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
+
+  return date.toLocaleDateString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  });
+}
 
 // Handle text messages
 bot.on('message:text', async (ctx) => {
@@ -160,9 +317,20 @@ bot.on('message:text', async (ctx) => {
 
 // Handle voice messages
 bot.on('message:voice', async (ctx) => {
-  console.log(`🎤 Voice from ${ctx.from?.first_name}: ${ctx.message.voice.duration}s`);
+  const duration = ctx.message.voice.duration;
+  console.log(`🎤 Voice from ${ctx.from?.first_name}: ${duration}s`);
+
+  // Check duration (max 2 minutes)
+  if (duration > 120) {
+    await ctx.reply('⚠️ Voice note too long! Please keep it under 2 minutes.');
+    return;
+  }
+
   // Acknowledge voice receipt
-  await ctx.reply('🎤 Got your voice note! Transcribing...');
+  await ctx.reply(`🎤 Got ${duration}s voice note! Transcribing...`);
+
+  // Queue for processing
+  await queueMessage(ctx);
 });
 
 // Handle photos
@@ -189,25 +357,48 @@ bot.catch((err) => {
 });
 
 /**
- * Set webhook URL with Telegram
+ * Sleep helper for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Set webhook URL with Telegram (with retry for transient errors)
  */
 export async function setupWebhook(): Promise<void> {
   if (!config.WEBHOOK_URL) {
     console.log('⚠️ No WEBHOOK_URL set, skipping webhook setup');
     return;
   }
-  
+
   const webhookUrl = `${config.WEBHOOK_URL}/webhook/telegram`;
-  
-  try {
-    await bot.api.setWebhook(webhookUrl, {
-      drop_pending_updates: true,
-      allowed_updates: ['message', 'edited_message'],
-    });
-    console.log(`✅ Webhook set to: ${webhookUrl}`);
-  } catch (error) {
-    console.error('❌ Failed to set webhook:', error);
-    throw error;
+  const maxRetries = 3;
+  const baseDelay = 2000; // 2 seconds
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await bot.api.setWebhook(webhookUrl, {
+        drop_pending_updates: true,
+        allowed_updates: ['message', 'edited_message'],
+      });
+      console.log(`✅ Webhook set to: ${webhookUrl}`);
+      return;
+    } catch (error) {
+      const err = error as Error;
+      const isTransientError =
+        err.message?.includes('Failed to resolve host') ||
+        err.message?.includes('ECONNREFUSED');
+
+      if (isTransientError && attempt < maxRetries) {
+        const delay = baseDelay * attempt;
+        console.log(`⏳ Webhook attempt ${attempt}/${maxRetries} failed. Retrying in ${delay/1000}s...`);
+        await sleep(delay);
+      } else {
+        console.error('❌ Failed to set webhook:', error);
+        throw error;
+      }
+    }
   }
 }
 

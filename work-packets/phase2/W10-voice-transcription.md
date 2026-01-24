@@ -16,22 +16,22 @@ Enable voice note transcription so voice messages sent to Telegram are converted
 
 ### Current State
 - Bot detects voice messages and replies "Transcribing..."
-- `ml-services/app/transcribe.py` exists but `faster-whisper` fails to build
+- `ml-services/app/transcribe.py` exists but `faster-whisper` previous failed to build
 - `getFileUrl()` in `bot/files.ts` can download Telegram files
 - Message processor skips voice with TODO comment
 
 ### Problem
-The `faster-whisper` package requires complex native dependencies (PyAV, FFmpeg) that fail to build in our Docker environment.
+The `faster-whisper` package requires native dependencies (FFmpeg) that were missing from our Docker environment.
 
 ### Solution
-Use **Groq API** for transcription:
-- Free tier: 100 requests/day (enough for personal use)
-- Uses Whisper-large-v3 model
-- Fast: <5 seconds for 60s audio
-- Falls back to local Whisper when available
+Use **Local Whisper (faster-whisper)** for transcription:
+- Privacy-first: Audio never leaves the server
+- No API limits or costs
+- Uses `faster-whisper` which is 4x faster than OpenAI's implementation
+- Requires adding FFmpeg to the Docker image
+
 
 ---
-
 ## Architecture
 
 ### Transcription Flow
@@ -43,46 +43,42 @@ Voice Message (Telegram)
          ↓
     Download audio to temp file
          ↓
-    Groq API /audio/transcriptions
+    Local Whisper Model (ml-services)
          ↓
     Return text + metadata
          ↓
     Process as text message
 ```
-
 ---
 
-## Step 1: Get Groq API Key
 
-1. Go to https://console.groq.com
-2. Sign up / Log in
-3. Navigate to API Keys
-4. Create new key: "cognitive-platform"
-5. Copy the key (starts with `gsk_`)
+## Step 1: Update Dockerfile for FFmpeg
 
----
+We need to install system dependencies for `faster-whisper`.
 
-## Step 2: Add Environment Variable
+Update `ml-services/Dockerfile`:
 
-Update `ml-services/.env`:
+```dockerfile
+FROM python:3.11-slim
 
-```bash
-# Groq API for transcription
-GROQ_API_KEY=gsk_your_api_key_here
-```
+# Install system dependencies (required for faster-whisper/PyAV)
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
-Update Docker Compose to pass the env var:
+WORKDIR /app
 
-```yaml
-# docker-compose.yml
-ml-services:
-  environment:
-    - GROQ_API_KEY=${GROQ_API_KEY}
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 ---
 
-## Step 3: Update Python Requirements
+## Step 2: Update Python Requirements
 
 Update `ml-services/requirements.txt`:
 
@@ -93,13 +89,13 @@ httpx==0.25.2
 python-multipart==0.0.6
 pydantic==2.5.3
 ollama>=0.1.6
-groq>=0.4.0  # Add Groq client
-aiofiles>=23.0.0  # Async file handling
+faster-whisper>=0.10.0  # Local Whisper
+aiofiles>=23.0.0
 ```
 
 ---
 
-## Step 4: Rewrite Transcribe Endpoint
+## Step 3: Rewrite Transcribe Endpoint
 
 Replace `ml-services/app/transcribe.py`:
 
@@ -110,52 +106,44 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 import httpx
-from groq import Groq
+from faster_whisper import WhisperModel
 
 router = APIRouter()
 
-# Initialize Groq client
-groq_client = None
+# Global model instance
+model = None
 
-
-def get_groq_client() -> Groq:
-    """Get or create Groq client"""
-    global groq_client
-    if groq_client is None:
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=503,
-                detail="GROQ_API_KEY not configured"
-            )
-        groq_client = Groq(api_key=api_key)
-    return groq_client
-
+def get_model():
+    """Lazy load the Whisper model"""
+    global model
+    if model is None:
+        print("⏳ Loading Whisper model...")
+        # Use 'tiny' or 'base' for CPU, 'small'/'medium' if you have good CPU/GPU
+        # 'int8' quantization makes it much faster on CPU
+        model = WhisperModel("base", device="cpu", compute_type="int8")
+        print("✅ Whisper model loaded")
+    return model
 
 class TranscribeUrlRequest(BaseModel):
     """Request body for URL-based transcription"""
     audio_url: str
     language: Optional[str] = None
 
-
 class TranscribeResponse(BaseModel):
     """Response body with transcription"""
     text: str
     language: str
     duration_ms: int
-    provider: str = "groq"
-
+    provider: str = "local-whisper"
 
 @router.get("/transcribe/status")
 def transcribe_status():
     """Check if transcription is available"""
-    has_groq = bool(os.getenv("GROQ_API_KEY"))
     return {
-        "available": has_groq,
-        "provider": "groq" if has_groq else None,
-        "message": "Groq transcription ready" if has_groq else "Configure GROQ_API_KEY"
+        "available": True,
+        "provider": "local-whisper",
+        "model": "base (int8)"
     }
-
 
 async def download_audio(url: str) -> bytes:
     """Download audio from URL"""
@@ -164,37 +152,15 @@ async def download_audio(url: str) -> bytes:
         response.raise_for_status()
         return response.content
 
-
-def get_audio_duration_estimate(file_size: int) -> int:
-    """Estimate audio duration from file size (rough)"""
-    # Telegram voice messages are Opus at ~32kbps
-    # 32kbps = 4KB/s, so 1 minute = ~240KB
-    bytes_per_second = 4000
-    return int((file_size / bytes_per_second) * 1000)
-
-
 @router.post("/transcribe", response_model=TranscribeResponse)
 async def transcribe_url(request: TranscribeUrlRequest):
     """
-    Transcribe audio from URL using Groq API.
-    
-    Supports: mp3, wav, ogg, m4a, webm, flac
-    Max file size: 25MB
-    Max duration: 120 minutes
+    Transcribe audio from URL using local Whisper.
     """
     try:
         # Download audio
         print(f"📥 Downloading audio from {request.audio_url[-50:]}")
         audio_data = await download_audio(request.audio_url)
-        file_size = len(audio_data)
-        print(f"📦 Downloaded {file_size / 1024:.1f}KB")
-        
-        # Check file size (Groq limit is 25MB)
-        if file_size > 25 * 1024 * 1024:
-            raise HTTPException(
-                status_code=400,
-                detail="Audio file too large (max 25MB)"
-            )
         
         # Save to temp file
         with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as f:
@@ -202,46 +168,33 @@ async def transcribe_url(request: TranscribeUrlRequest):
             temp_path = f.name
         
         try:
-            # Transcribe with Groq
-            print("🎤 Transcribing with Groq...")
-            client = get_groq_client()
+            # Transcribe
+            print("🎤 Transcribing with local Whisper...")
+            whisper = get_model()
             
-            with open(temp_path, "rb") as audio_file:
-                transcription = client.audio.transcriptions.create(
-                    file=audio_file,
-                    model="whisper-large-v3",
-                    language=request.language,  # Optional: auto-detect if None
-                    response_format="verbose_json"
-                )
+            segments, info = whisper.transcribe(
+                temp_path, 
+                beam_size=5,
+                language=request.language
+            )
             
-            # Extract result
-            text = transcription.text.strip()
-            language = transcription.language or "en"
+            # Combine segments
+            text = " ".join([segment.text for segment in segments]).strip()
             
-            # Try to get duration, estimate if not available
-            if hasattr(transcription, 'duration'):
-                duration_ms = int(transcription.duration * 1000)
-            else:
-                duration_ms = get_audio_duration_estimate(file_size)
-            
-            print(f"✅ Transcribed: {len(text)} chars, {duration_ms}ms, lang={language}")
+            print(f"✅ Transcribed: {len(text)} chars, {info.duration:.2f}s, lang={info.language}")
             
             return TranscribeResponse(
                 text=text,
-                language=language,
-                duration_ms=duration_ms,
-                provider="groq"
+                language=info.language,
+                duration_ms=int(info.duration * 1000),
+                provider="local-whisper"
             )
             
         finally:
             # Clean up temp file
-            os.unlink(temp_path)
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
             
-    except httpx.HTTPError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Failed to download audio: {str(e)}"
-        )
     except Exception as e:
         print(f"❌ Transcription error: {e}")
         raise HTTPException(
@@ -249,24 +202,11 @@ async def transcribe_url(request: TranscribeUrlRequest):
             detail=f"Transcription failed: {str(e)}"
         )
 
-
 @router.post("/transcribe/upload", response_model=TranscribeResponse)
 async def transcribe_upload(file: UploadFile = File(...)):
-    """
-    Transcribe uploaded audio file using Groq.
-    
-    Supports: mp3, wav, ogg, m4a, webm, flac
-    """
+    """Transcribe uploaded audio file"""
     try:
         content = await file.read()
-        
-        # Check file size
-        if len(content) > 25 * 1024 * 1024:
-            raise HTTPException(
-                status_code=400,
-                detail="Audio file too large (max 25MB)"
-            )
-        
         ext = os.path.splitext(file.filename or "audio.ogg")[1]
         
         with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
@@ -274,30 +214,23 @@ async def transcribe_upload(file: UploadFile = File(...)):
             temp_path = f.name
         
         try:
-            client = get_groq_client()
-            
-            with open(temp_path, "rb") as audio_file:
-                transcription = client.audio.transcriptions.create(
-                    file=audio_file,
-                    model="whisper-large-v3",
-                    response_format="verbose_json"
-                )
+            whisper = get_model()
+            segments, info = whisper.transcribe(temp_path, beam_size=5)
+            text = " ".join([segment.text for segment in segments]).strip()
             
             return TranscribeResponse(
-                text=transcription.text.strip(),
-                language=transcription.language or "en",
-                duration_ms=int(getattr(transcription, 'duration', 0) * 1000),
-                provider="groq"
+                text=text,
+                language=info.language,
+                duration_ms=int(info.duration * 1000),
+                provider="local-whisper"
             )
             
         finally:
-            os.unlink(temp_path)
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
             
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Transcription failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 ```
 
 ---
@@ -487,7 +420,7 @@ describe('Transcription Service', () => {
 #### Test Transcription Status
 ```bash
 curl http://localhost:8000/transcribe/status
-# Expected: {"available": true, "provider": "groq", "message": "Groq transcription ready"}
+# Expected: {"available": true, "provider": "local-whisper", "model": "base (int8)"}
 ```
 
 #### Test Transcription (with sample audio)
@@ -508,7 +441,7 @@ curl -X POST http://localhost:8000/transcribe \
 
 ## Acceptance Criteria
 
-- [ ] `GROQ_API_KEY` configured in environment
+- [ ] Dockerfile updated with FFmpeg
 - [ ] `/transcribe/status` shows available
 - [ ] `/transcribe` endpoint returns transcription
 - [ ] `platform/src/services/ml.ts` updated
@@ -517,7 +450,7 @@ curl -X POST http://localhost:8000/transcribe \
 - [ ] Voice memories stored in Qdrant
 - [ ] Envelope contains transcribe enrichment
 - [ ] Error messages shown to user on failure
-- [ ] Works for voice notes up to 2 minutes
+- [ ] Works for voice notes
 
 ---
 
@@ -525,21 +458,20 @@ curl -X POST http://localhost:8000/transcribe \
 
 | Error | User Message | Recovery |
 |-------|--------------|----------|
-| No API key | ❌ Transcription unavailable | Admin configures GROQ_API_KEY |
 | Download failed | ❌ Couldn't download voice note | Retry or send text |
 | Transcription failed | ❌ Couldn't transcribe | Send text instead |
-| File too large | ❌ Voice note too long | Limit to 2 minutes |
+| File too large | ❌ Voice note too long | Limit to 10 minutes |
 
 ---
 
-## Rate Limits
+## Performance Notes
 
-Groq free tier:
-- 100 requests/day
-- 25MB max file size
-- 120 minutes max audio
+Local Whisper (base model on CPU):
+- Speed: ~2-5x realtime (depending on hardware)
+- Memory: Requires ~500MB RAM
+- Duration: Works best for short <5 min clips
 
-For personal use, this is sufficient. If needed, upgrade to paid tier.
+If execution is too slow, consider switching to "tiny" model in `ml-services/app/transcribe.py`.
 
 ---
 

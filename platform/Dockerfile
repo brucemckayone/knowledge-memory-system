@@ -1,4 +1,34 @@
+# ===================
+# Development stage
+# ===================
+FROM node:20-alpine AS development
+
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy package files
+COPY package.json pnpm-lock.yaml* ./
+
+# Install ALL dependencies (including devDependencies for tsx)
+RUN pnpm install --frozen-lockfile
+
+# Copy source
+COPY . .
+
+# Set environment
+ENV NODE_ENV=development
+ENV PORT=3000
+
+EXPOSE 3000
+
+# Run with tsx for hot reloading (use pnpm exec to ensure tsx is found)
+CMD ["pnpm", "exec", "tsx", "watch", "src/index.ts"]
+
+# ===================
 # Build stage
+# ===================
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -18,8 +48,10 @@ COPY . .
 # Build TypeScript
 RUN pnpm build
 
+# ===================
 # Production stage
-FROM node:20-alpine AS runner
+# ===================
+FROM node:20-alpine AS production
 
 WORKDIR /app
 

@@ -5,11 +5,15 @@ pydantic==2.5.3
 
 # ML / AI
 ollama==0.1.6
-# Using openai-whisper instead of faster-whisper to avoid PyAV build issues
-# openai-whisper==20231117
+faster-whisper>=0.10.0
 
-# HTTP client (for downloading audio)
+# HTTP client (for downloading audio and web scraping)
 httpx==0.25.2
 
 # File uploads
 python-multipart==0.0.6
+
+# Web scraping (W13)
+readability-lxml>=0.8.1
+beautifulsoup4>=4.12.0
+lxml>=5.0.0

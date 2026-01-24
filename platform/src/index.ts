@@ -7,6 +7,7 @@ import { ensureCollections, checkQdrantHealth, qdrant, COLLECTIONS, searchMemori
 import { checkMlHealth, embed } from './services/ml.js';
 import { processMessage } from './workers/message-processor.js';
 import { setupWebhook, startPolling } from './bot/index.js';
+import { registerCoreSkills } from './skills/index.js';
 
 const app = new Hono();
 
@@ -25,7 +26,7 @@ app.get('/health', async (c) => {
   return c.json({
     status: healthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '0.1.0',
+    version: '2.0.0',
     services: {
       database: dbOk ? 'ok' : 'error',
       qdrant: qdrantOk ? 'ok' : 'error',
@@ -149,6 +150,10 @@ async function start() {
   console.log('📋 Starting queue...');
   const boss = await initQueue();
 
+  // Register skills
+  console.log('🧠 Registering skills...');
+  registerCoreSkills();
+
   // Register workers
   await boss.work(
     QUEUES.MESSAGE_PROCESSING,
@@ -159,12 +164,14 @@ async function start() {
 
   // Set up Telegram bot
   if (config.WEBHOOK_URL) {
-    // Try webhook mode
+    // Try webhook mode, fallback to polling if it fails
     try {
       await setupWebhook();
+      console.log('✅ Bot running in webhook mode');
     } catch (error) {
       console.log('⚠️ Webhook setup failed:', (error as Error).message);
-      console.log('   Remove WEBHOOK_URL from .env to use polling mode instead.');
+      console.log('   Falling back to polling mode...');
+      await startPolling();
     }
   } else {
     // Use polling mode (no webhook URL configured)
