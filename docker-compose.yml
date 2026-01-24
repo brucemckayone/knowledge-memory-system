@@ -31,10 +31,12 @@ services:
     restart: unless-stopped
 
   # ===================
-  # PostgreSQL Database
+  # PostgreSQL Database (with pgvector + Apache AGE for Phase 3)
   # ===================
   postgres:
-    image: postgres:16-alpine
+    build:
+      context: ./docker/postgres
+      dockerfile: Dockerfile
     ports:
       - "5433:5432"
     environment:

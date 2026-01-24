@@ -6,6 +6,8 @@ import {
   varchar,
   integer,
   jsonb,
+  real,
+  boolean,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -104,6 +106,155 @@ export const settings = pgTable('settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ============================================
+// PHASE 3: Knowledge Graph Tables
+// ============================================
+
+/**
+ * Entities
+ * 
+ * Canonical knowledge graph nodes representing people, places, concepts, etc.
+ * Core of the knowledge graph with deduplication via aliases and merges.
+ */
+export const entities = pgTable('entities', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  canonicalName: varchar('canonical_name', { length: 500 }).notNull(),
+  entityType: varchar('entity_type', { length: 100 }).notNull(),
+  description: text('description'),
+  properties: jsonb('properties').default({}).notNull(),
+  mergedFrom: uuid('merged_from').array().default([]),
+  confidence: real('confidence').default(1.0).notNull(),
+  // Note: embedding handled directly via SQL (pgvector), not in Drizzle
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).defaultNow().notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const entitiesRelations = relations(entities, ({ many }) => ({
+  aliases: many(entityAliases),
+  memoryLinks: many(memoryEntities),
+}));
+
+/**
+ * Entity Aliases
+ * 
+ * Alternative names for entities (nicknames, abbreviations, typos, merged names)
+ */
+export const entityAliases = pgTable('entity_aliases', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  entityId: uuid('entity_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  alias: varchar('alias', { length: 500 }).notNull(),
+  aliasType: varchar('alias_type', { length: 50 }),
+  source: varchar('source', { length: 100 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const entityAliasesRelations = relations(entityAliases, ({ one }) => ({
+  entity: one(entities, {
+    fields: [entityAliases.entityId],
+    references: [entities.id],
+  }),
+}));
+
+/**
+ * Entity Merges
+ * 
+ * Audit trail of entity deduplication operations
+ */
+export const entityMerges = pgTable('entity_merges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceEntityId: uuid('source_entity_id').notNull(),
+  targetEntityId: uuid('target_entity_id').notNull().references(() => entities.id),
+  mergeReason: text('merge_reason'),
+  mergeMethod: varchar('merge_method', { length: 50 }),
+  similarityScore: real('similarity_score'),
+  mergedAt: timestamp('merged_at', { withTimezone: true }).defaultNow().notNull(),
+  mergedBy: varchar('merged_by', { length: 100 }).default('system'),
+});
+
+/**
+ * Memory Entities
+ * 
+ * Links between memories (Qdrant) and entities (Postgres)
+ */
+export const memoryEntities = pgTable('memory_entities', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  memoryId: uuid('memory_id').notNull(),
+  entityId: uuid('entity_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  mentionText: varchar('mention_text', { length: 500 }),
+  relationship: varchar('relationship', { length: 100 }).default('mentions'),
+  mentionStart: integer('mention_start'),
+  mentionEnd: integer('mention_end'),
+  mentionContext: text('mention_context'),
+  confidence: real('confidence').default(1.0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const memoryEntitiesRelations = relations(memoryEntities, ({ one }) => ({
+  entity: one(entities, {
+    fields: [memoryEntities.entityId],
+    references: [entities.id],
+  }),
+}));
+
+/**
+ * Facts
+ * 
+ * Bi-temporal knowledge triples with four timestamps.
+ * Subject → Predicate → Object
+ */
+export const facts = pgTable('facts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  
+  // Triple
+  subjectEntityId: uuid('subject_entity_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  predicate: varchar('predicate', { length: 255 }).notNull(),
+  objectEntityId: uuid('object_entity_id').references(() => entities.id, { onDelete: 'set null' }),
+  objectValue: text('object_value'),
+  
+  // Event time (when true in reality)
+  validAt: timestamp('valid_at', { withTimezone: true }),
+  invalidAt: timestamp('invalid_at', { withTimezone: true }),
+  
+  // Transaction time (when recorded)
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  expiredAt: timestamp('expired_at', { withTimezone: true }),
+  
+  // Provenance
+  sourceMemoryId: uuid('source_memory_id'),
+  sourceText: text('source_text'),
+  extractionMethod: varchar('extraction_method', { length: 100 }),
+  
+  // Quality
+  confidence: real('confidence').default(1.0),
+});
+
+export const factsRelations = relations(facts, ({ one }) => ({
+  subject: one(entities, {
+    fields: [facts.subjectEntityId],
+    references: [entities.id],
+  }),
+  object: one(entities, {
+    fields: [facts.objectEntityId],
+    references: [entities.id],
+  }),
+}));
+
+/**
+ * Fact Predicates
+ * 
+ * Ontology of relationship types
+ */
+export const factPredicates = pgTable('fact_predicates', {
+  predicate: varchar('predicate', { length: 255 }).primaryKey(),
+  description: text('description'),
+  inversePredicate: varchar('inverse_predicate', { length: 255 }),
+  predicateType: varchar('predicate_type', { length: 50 }),
+  isExclusive: boolean('is_exclusive').default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 // Type exports for use in application
 export type Epic = typeof epics.$inferSelect;
 export type NewEpic = typeof epics.$inferInsert;
@@ -113,3 +264,17 @@ export type ContextSummary = typeof contextSummaries.$inferSelect;
 export type NewContextSummary = typeof contextSummaries.$inferInsert;
 export type ProcessingState = typeof processingState.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
+
+// Phase 3 types
+export type Entity = typeof entities.$inferSelect;
+export type NewEntity = typeof entities.$inferInsert;
+export type EntityAlias = typeof entityAliases.$inferSelect;
+export type NewEntityAlias = typeof entityAliases.$inferInsert;
+export type EntityMerge = typeof entityMerges.$inferSelect;
+export type MemoryEntity = typeof memoryEntities.$inferSelect;
+export type NewMemoryEntity = typeof memoryEntities.$inferInsert;
+export type Fact = typeof facts.$inferSelect;
+export type NewFact = typeof facts.$inferInsert;
+export type FactPredicate = typeof factPredicates.$inferSelect;
+
+

@@ -99,6 +99,43 @@ app.get('/api/search', async (c) => {
   }
 });
 
+// ==================
+// API: Hybrid Search
+// ==================
+import { hybridSearch } from './services/hybrid-search.js';
+
+app.get('/api/hybrid-search', async (c) => {
+  const query = c.req.query('q');
+  const limit = parseInt(c.req.query('limit') || '10');
+  const includeGraph = c.req.query('graph') !== 'false';
+  
+  if (!query) {
+    return c.json({ error: 'Query required' }, 400);
+  }
+
+  try {
+    const results = await hybridSearch(query, {
+      limit,
+      includeGraph,
+    });
+    
+    return c.json({
+      query,
+      count: results.length,
+      results: results.map(r => ({
+        id: r.memoryId,
+        score: r.fusedScore,
+        source: r.source,
+        content: r.content,
+        type: r.type,
+      })),
+    });
+  } catch (error) {
+    console.error('Hybrid search error:', error);
+    return c.json({ error: 'Hybrid search failed' }, 500);
+  }
+});
+
 // ===============
 // API: Memories
 // ===============
