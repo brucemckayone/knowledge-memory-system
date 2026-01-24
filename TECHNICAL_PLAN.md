@@ -12,55 +12,52 @@
 |-------|--------|------------|
 | Phase 0 (Research) | ✅ Done | 100% |
 | Phase 1 (Foundation) | ✅ Complete | 100% |
-| Phase 2 (Core Skills) | 🔴 Not Started | ~10% |
-| Phase 3 (Intelligence) | ❌ Not Started | 0% |
-| Phase 4 (Dashboard) | 🟡 Partial | 20% |
+| Phase 2 (Content Processing) | 📋 Designed | W08-W15 |
+| Phase 3 (Knowledge Graph) | 📋 Designed | W16-W21 |
+| Phase 4 (KARMA Agents) | 📋 Designed | W22-W29 |
+| Phase 5 (Intelligence) | 📋 Designed | W30-W33 |
+| Phase 6 (Dashboard) | ❌ Not Started | Future |
 
 ---
 
 ## 1. Overview
 
-This document outlines the phased implementation approach for the Cognitive Platform. Each phase builds on the previous, delivering incremental value while maintaining a solid foundation.
+This document outlines the phased implementation approach for the Cognitive Platform.
 
 ```d2
 direction: right
 
-Phase0: Phase 0 - Research ✅ {
-  Model selection
-  Benchmarking
+P0: Phase 0 - Research ✅
+P1: Phase 1 - Foundation ✅
+P2: Phase 2 - Content 📋 {
+  Skills
+  Router
+  Scrapers
 }
-
-Phase1: Phase 1 - Foundation ⚠️ {
-  Infrastructure
-  Basic capture
+P3: Phase 3 - Graph 📋 {
+  Entities
+  Facts
+  Controller
 }
-
-Phase2: Phase 2 - Core {
-  Skills and workflows
-  Telegram features
+P4: Phase 4 - KARMA 📋 {
+  9 Agents
+  Ingestion
+  Conflicts
 }
-
-Phase3: Phase 3 - Intelligence {
-  Context entities
-  Gardener
+P5: Phase 5 - Insight 📋 {
+  Communities
   Briefing
+  Ponderer
 }
 
-Phase4: Phase 4 - Polish {
-  Dashboard
-  Refinement
-}
+P0 -> P1 -> P2 -> P3 -> P4 -> P5
 
-Phase0 -> Phase1: 1 week
-Phase1 -> Phase2: 2 weeks
-Phase2 -> Phase3: 2-3 weeks
-Phase3 -> Phase4: 3+ weeks
-
-Phase0.style.fill: "#27AE60"
-Phase1.style.fill: "#F39C12"
-Phase2.style.fill: "#3498DB"
-Phase3.style.fill: "#9B59B6"
-Phase4.style.fill: "#E74C3C"
+P0.style.fill: "#27AE60"
+P1.style.fill: "#F39C12"
+P2.style.fill: "#3498DB"
+P3.style.fill: "#9B59B6"
+P4.style.fill: "#9B59B6"
+P5.style.fill: "#E74C3C"
 ```
 
 ---
@@ -244,163 +241,81 @@ direction: right
 
 ---
 
-## 4. Phase 2: Core Skills & Processing
+## 4. Phase 2: Content Processing
 
-**Goal:** Full workflow system with voice, links, and tasks
+**Goal:** Establish the skill framework and message processing pipeline.
 
-**Duration:** ~2 weeks
-
-### 4.1 Skill Framework
-
-**Deliverables:**
-- [ ] Skill interface and registry
-- [ ] Skill context (access to storage, config)
-- [ ] Base skills: transcribe, classify, summarize, embed
-
-### 4.2 Workflow Engine
-
-**Deliverables:**
-- [ ] YAML workflow parser
-- [ ] Sequential and parallel step execution
-- [ ] Condition evaluation (Jinja-like templating)
-- [ ] Error handling and logging
-
-### 4.3 Core Workflows
-
-| Workflow | Trigger | Skills |
-|----------|---------|--------|
-| process-thought | intent:thought | classify, embed, store |
-| process-link | intent:link | extract-url, fetch, summarize, embed, store |
-| process-task | intent:task | extract-task, create-task |
-| process-voice | raw.type:voice | transcribe, classify, (route to above) |
-
-**Deliverables:**
-- [ ] YAML workflow definitions
-- [ ] Link processor with web fetching
-- [ ] Task extractor with date parsing
-- [ ] Voice transcription integration
-
-### 4.4 Intent Router
-
-**Deliverables:**
-- [ ] LLM-based intent classification
-- [ ] Multi-intent detection
-- [ ] Confidence scoring
-- [ ] Workflow dispatch
-
-### 4.5 Telegram Features
-
-**Deliverables:**
-- [ ] Voice note handling (download + transcribe)
-- [ ] Image/file handling (store reference)
-- [ ] Forwarded message context
-- [ ] Group chat message batching
+| Work Packet | Title | Deliverables |
+|-------------|-------|--------------|
+| **W08** | Skill Framework | `Skill` interface, registry, `SkillContext` |
+| **W09** | LLM Router | Intent classification (`thought`, `task`, `url`) |
+| **W10** | Voice Transcription | Whisper integration for voice notes |
+| **W11** | Link Processing | Fetch, summarize, and embed URLs |
+| **W12** | Task Extraction | Extract tasks with due dates/priorities |
+| **W13** | Web Scraper | Puppeteer/Playwright service |
+| **W14** | Workflow Engine | YAML-defined skill pipelines |
+| **W15** | Enhanced Telegram | Voice, images, forwarded messages |
 
 ---
 
-## 5. Phase 3: Intelligence & Automation
+## 5. Phase 3: Knowledge Graph
 
-**Goal:** Context entities, background jobs, proactive features
+**Goal:** Implement the entities, facts, and graph infrastructure.
 
-**Duration:** 2-3 weeks
-
-### 5.1 Context Entities
-
-```d2
-direction: down
-
-Messages: Incoming Messages
-
-Cache: Message Cache {
-  Per conversation
-  Last 4 messages
-}
-
-Analyze: Analysis Job {
-  Diff with existing
-  Extract significance
-}
-
-Context: Context Entity {
-  Qdrant: Vector summary
-  Postgres: Structured data
-}
-
-Messages -> Cache
-Cache -> Analyze: Every 4 messages
-Analyze -> Context: If significant
-```
-
-**Deliverables:**
-- [ ] Message caching per conversation
-- [ ] Context creation on new chat_id
-- [ ] Summary regeneration logic
-- [ ] Task extraction from conversations
-- [ ] Dual storage (Qdrant + Postgres)
-
-### 5.2 Memory Linking
-
-**Deliverables:**
-- [ ] Auto-linking similar memories (>0.85 similarity)
-- [ ] Temporal linking (adjacent messages)
-- [ ] `related_to` field population
-
-### 5.3 The Gardener
-
-**Schedule:** 2am daily
-
-**Deliverables:**
-- [ ] Archive done tasks (7+ days)
-- [ ] Flag stale epics (30+ days inactive)
-- [ ] Clean orphaned data (failed processing)
-- [ ] Generate insights (pattern detection)
-
-### 5.4 Morning Briefing
-
-**Schedule:** 8am daily
-
-**Deliverables:**
-- [ ] Query tasks due today
-- [ ] Identify stale projects
-- [ ] Random memory rediscovery
-- [ ] Formatted Telegram message
+| Work Packet | Title | Deliverables |
+|-------------|-------|--------------|
+| **W16** | Entity Schema | `entities`, `entity_aliases` tables + identifiers |
+| **W17** | Bi-Temporal Facts | `facts` table with valid/transaction time |
+| **W18** | Apache AGE Graph | Graph traversal and Cypher queries |
+| **W19** | Hybrid Retrieval | RRF combining Vector + Graph + Keyword |
+| **W20** | Entity Extraction | Skill level extraction (pre-agent) |
+| **W21** | Gardener Scheduler | Central Controller & Job Queue (pg-boss) |
 
 ---
 
-## 6. Phase 4: Dashboard & Polish
+## 6. Phase 4: KARMA Agents
 
-**Goal:** Visual interface and refinement
+**Goal:** Deploy the 9-agent autonomous cognitive architecture.
 
-**Duration:** 3+ weeks
+| Work Packet | Agent | Role |
+|-------------|-------|------|
+| **W22** | #2 Ingestion | Chunking, validation, queuing |
+| **W23** | #3 Reader | Content parsing & classification |
+| **W24** | #4 Summarizer | Concise summaries & embeddings |
+| **W25** | #5 Entity Extraction | NER & Entity Resolution |
+| **W26** | #6 Relationship | Extract links between entities |
+| **W27** | #7 Schema Alignment | Ontology mapping & normalization |
+| **W28** | #8 Conflict Resolution | Contradiction detection |
+| **W29** | #9 Evaluator | Quality metrics & MAB feedback |
 
-### 6.1 REST API
+---
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/memories` | GET | Search memories |
-| `/memories/:id` | GET | Get memory details |
-| `/tasks` | GET/POST | List/create tasks |
-| `/tasks/:id` | PATCH | Update task |
-| `/epics` | GET | List epics |
-| `/contexts` | GET | List conversations |
-| `/briefing` | GET | Get today's briefing |
+## 7. Phase 5: Intelligence Layer
 
-### 6.2 WebSocket API
+**Goal:** High-level insights, community detection, and proactive briefing.
 
-**Deliverables:**
-- [ ] Real-time event streaming
-- [ ] Channel subscriptions
-- [ ] Memory/task/context updates
+| Work Packet | Title | Deliverables |
+|-------------|-------|--------------|
+| **W30** | Community Detection | Identify clusters (Leiden/Louvain) |
+| **W31** | Insight Generation | Cross-cluster pattern detection |
+| **W32** | Morning Briefing | "Today's Focus" & Proactive delivery |
+| **W33** | Contradiction Scheduler | Periodic consistency checks |
 
-### 6.3 Desktop Dashboard (Future)
+---
 
-**Technology:** TBD (Tauri? Electron? Web?)
+## 8. Phase 6: Dashboard & Polish
 
-**Features:**
+**Goal:** Visual interface and system refinement.
+
+### 8.1 REST API extensions
+- Enhanced `/memories` with graph filters
+- `/graph/visualize` endpoint
+
+### 8.2 Desktop Dashboard
 - Knowledge graph visualization
 - Task kanban board
-- Search interface
 - Insight feed
+
 
 ---
 
