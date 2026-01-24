@@ -11,11 +11,12 @@
 | Component | Status | Notes |
 |-----------|--------|-------|
 | **Message Envelope** | ✅ Implemented | Full `envelope.ts` |
-| **Skills & Workflows** | ❌ Not Started | Phase 2 |
-| **Plugin System** | ❌ Not Started | Phase 2+ |
+| **Skills & Workflows** | 📋 Designed | Work packets W08-W14 |
+| **Plugin System** | 📋 Designed | Phase 2+ |
 | **Storage (Qdrant)** | ✅ Implemented | memories collection |
-| **Storage (Postgres)** | ✅ Implemented | 5 tables |
-| **Background Jobs** | ❌ Not Started | Phase 3 |
+| **Storage (Postgres)** | ✅ Implemented | Phase 1 tables; Phases 3-5 schemas designed |
+| **Knowledge Graph** | 📋 Designed | Entities, facts, Apache AGE (W16-W20) |
+| **Background Jobs** | 📋 Designed | KARMA agents (W21-W29), Intelligence (W30-W33) |
 | **API Layer** | ⚠️ Partial | `/health`, `/api/search`, `/api/memories` |
 | **Telegram Integration** | ✅ Working | Text capture + search via polling |
 
@@ -767,8 +768,46 @@ See [work-packets/phase3/](./work-packets/phase3/) for implementation details.
 | `/contexts` | GET | List conversation contexts |
 | `/contexts/:id` | GET | Get context details |
 | `/briefing` | GET | Get today's briefing |
+| `/search/hybrid` | POST | Hybrid search (vector + graph + keyword) (W19) |
+| `/entities` | GET | List/search entities (W16) |
+| `/entities/:id` | GET | Get entity with relationships |
+| `/facts` | GET | Query bi-temporal facts (W17) |
+| `/graph/paths` | POST | Find paths between entities (W18) |
+| `/insights` | GET | List surfaced insights (W31) |
 
-### 8.2 WebSocket Events
+### 8.2 ML Service Endpoints (Python FastAPI)
+
+Internal endpoints consumed by the TypeScript platform. See [ml-services/](./ml-services/).
+
+| Endpoint | Method | Work Packet | Description |
+|----------|--------|-------------|-------------|
+| `/embed` | POST | - | Generate 768-dim embeddings |
+| `/transcribe` | POST | W10 | Voice-to-text via Whisper |
+| `/scrape` | POST | W13 | Web content extraction |
+| `/extract-entities` | POST | W25 | LLM-based Named Entity Recognition |
+| `/resolve-entity` | POST | W25 | Resolve alias to canonical entity |
+| `/parse-content` | POST | W23 | Content type classification |
+| `/summarize` | POST | W24 | Generate concise summaries |
+| `/extract-relationships` | POST | W26 | Extract entity relationships |
+| `/check-contradiction` | POST | W28 | Detect fact contradictions |
+
+### 8.3 Hybrid Retrieval (W19)
+
+Combines three search strategies using **Reciprocal Rank Fusion (RRF)**:
+
+```
+score(d) = Σ 1/(k + rank_i(d))   where k=60
+```
+
+| Strategy | Source | Strength |
+|----------|--------|----------|
+| **Vector Search** | Qdrant cosine similarity | Semantic understanding |
+| **Graph Traversal** | Apache AGE path finding | Relationship discovery |
+| **Keyword Search** | Qdrant metadata filtering | Exact term matching |
+
+See [W19-hybrid-retrieval.md](./work-packets/phase3/W19-hybrid-retrieval.md) for implementation.
+
+### 8.4 WebSocket Events
 
 ```typescript
 // Client subscribes to updates
@@ -781,7 +820,7 @@ ws.send({ type: 'subscribe', channels: ['memories', 'tasks'] });
 { type: 'insight:generated', data: { insight } }
 ```
 
-### 8.3 Security
+### 8.5 Security
 
 - **Telegram webhook:** Signature verification using bot token
 - **Local API:** Bearer token authentication (generated on first run)
