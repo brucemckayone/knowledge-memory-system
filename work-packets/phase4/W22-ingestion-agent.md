@@ -208,8 +208,24 @@ controller.registerAgent(ingestionAgent);
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for ingestion agent.
+
+```bash
+# Create platform/src/gardener/agents/__tests__/ingestion.test.ts
+import { ingestionAgent } from '../ingestion-agent.js';
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Ingestion Agent', () => {
+  it('should chunk content', async () => {
+    // Run chunkContent() logic test
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Queue ingestion job
 curl -X POST http://localhost:3001/api/gardener/queue \

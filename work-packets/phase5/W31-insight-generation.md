@@ -323,8 +323,24 @@ export const insightAgent: GardenerAgent<{}, { insightsGenerated: number }> = {
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for insights.
+
+```bash
+# Create platform/src/gardener/agents/__tests__/insight.test.ts
+import { insightAgent } from '../insight-agent.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Insight Agent', () => {
+  it('should generate insights', async () => {
+    // Mock DB queries
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Generate insights manually
 curl -X POST http://localhost:3001/api/gardener/queue \

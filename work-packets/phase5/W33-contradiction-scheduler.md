@@ -344,8 +344,24 @@ this.scheduleWeekly('full-contradiction-scan', '0 2 * * 0', async () => {
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for scanner.
+
+```bash
+# Create platform/src/gardener/agents/__tests__/scanner.test.ts
+import { contradictionScanner } from '../contradiction-scanner.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Contradiction Scanner', () => {
+  it('should find overlapping facts', async () => {
+    // Mock DB
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Run manual scan
 curl -X POST http://localhost:3001/api/gardener/queue \

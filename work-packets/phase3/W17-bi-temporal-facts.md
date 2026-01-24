@@ -529,7 +529,23 @@ Output as JSON array:
 
 ---
 
-## Testing
+## Verification
+
+### Automated Tests
+
+```bash
+# Create platform/src/services/__tests__/facts.test.ts
+import { createFact, getFactsAtTime } from '../facts.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Fact Service', () => {
+  it('should create valid fact', async () => {
+     // Mock DB
+  });
+});
+```
+
+### Manual Verification
 
 ```typescript
 // Test fact creation

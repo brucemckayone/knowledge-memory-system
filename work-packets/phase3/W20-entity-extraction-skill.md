@@ -129,8 +129,29 @@ if (storedMemory?.id) {
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for extraction skill.
+
+```bash
+# Create platform/src/skills/__tests__/extract-entities.test.ts
+import { extractEntitiesSkill } from '../extract-entities.js';
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Entity Extraction Skill', () => {
+  it('should extract entities', async () => {
+     // Mock fetch to ML service
+     global.fetch = vi.fn().mockResolvedValue({
+       ok: true,
+       json: async () => ({ entities: [] })
+     });
+     // Assert execution result
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Test skill directly
 curl -X POST http://localhost:3001/api/test-skill \

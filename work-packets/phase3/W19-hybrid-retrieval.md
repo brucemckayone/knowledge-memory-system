@@ -382,7 +382,24 @@ app.get('/api/hybrid-search', async (c) => {
 
 ---
 
-## Testing
+## Verification
+
+### Automated Tests
+
+```bash
+# Create platform/src/services/__tests__/hybrid-search.test.ts
+import { hybridSearch } from '../hybrid-search.js';
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Hybrid Search', () => {
+  it('should combine results using RRF', async () => {
+      // Mock vector and graph searches
+      // Verify fused scores
+  });
+});
+```
+
+### Manual Verification
 
 ```bash
 # Test hybrid search

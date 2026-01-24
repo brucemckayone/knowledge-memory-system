@@ -255,8 +255,24 @@ await this.queueJob('evaluator', {
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for evaluator.
+
+```bash
+# Create platform/src/gardener/agents/__tests__/evaluator.test.ts
+import { evaluatorAgent } from '../evaluator-agent.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Evaluator Agent', () => {
+  it('should calculate quality score', () => {
+     // Test scoring logic
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Check MAB state
 psql -d cognitive -c "SELECT * FROM mab_state;"

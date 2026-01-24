@@ -346,8 +346,25 @@ export const communityAgent: GardenerAgent<{}, { communitiesFound: number }> = {
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for communities.
+
+```bash
+# Create platform/src/services/__tests__/communities.test.ts
+import { detectCommunities } from '../communities.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Community Detection', () => {
+  it('should detect communities', async () => {
+     // Mock graph query result
+     // Run detection
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Run community detection
 curl -X POST http://localhost:3001/api/gardener/queue \

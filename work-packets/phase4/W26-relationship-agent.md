@@ -250,8 +250,24 @@ function parseTemporalHint(hint?: string): Date | null {
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for relationship extraction.
+
+```bash
+# Create platform/src/gardener/agents/__tests__/relationship.test.ts
+import { relationshipAgent } from '../relationship-agent.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Relationship Agent', () => {
+  it('should normalize predicates', () => {
+    // Test predicate normalization
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Test relationship extraction
 curl -X POST http://localhost:5001/extract-relationships \

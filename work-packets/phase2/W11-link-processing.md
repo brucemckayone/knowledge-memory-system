@@ -541,8 +541,38 @@ if (classification.primary_intent === 'link') {
 
 ## Testing
 
-### Test URL Extraction
+## Verification
 
+### Automated Tests
+
+```bash
+# Create platform/src/skills/core/__tests__/extract-url.test.ts
+import { extractUrlSkill } from '../extract-url.skill.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Extract URL Skill', () => {
+  it('should extract simple URL', async () => {
+    const result = await extractUrlSkill.execute(
+      { text: 'Check https://google.com' }, 
+      {} as any
+    );
+    expect(result.found).toBe(true);
+    expect(result.primary_url).toBe('https://google.com');
+  });
+
+  it('should extract embedded URL', async () => {
+      const result = await extractUrlSkill.execute(
+        { text: 'Link: <https://google.com> inside' }, 
+        {} as any
+      );
+      expect(result.primary_url).toBe('https://google.com');
+    });
+});
+```
+
+### Manual Verification
+
+#### Test URL Extraction
 ```typescript
 // Test in console
 const result = extractUrlSkill.execute(
@@ -552,8 +582,7 @@ const result = extractUrlSkill.execute(
 // Expected: { found: true, urls: [...], primary_url: 'https://example.com/article' }
 ```
 
-### Test End-to-End
-
+#### Test End-to-End
 1. Send message with URL to bot: "Check out https://news.ycombinator.com"
 2. Should receive:
    - "Processing link..."

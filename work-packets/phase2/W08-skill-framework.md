@@ -571,16 +571,38 @@ if (embedResult.success) {
 
 ## Verification
 
-```bash
-# Type check
-cd platform && pnpm typecheck
+### Automated Tests
+Run simple unit tests to verify the skill registry and context creation.
 
+```bash
+# Create platform/src/skills/__tests__/registry.test.ts
+import { registry, createSkillContext } from '../index.js';
+import { embedSkill } from '../core/embed.skill.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Skill Registry', () => {
+  it('should register and retrieve a skill', () => {
+    registry.register(embedSkill);
+    expect(registry.has('embed')).toBe(true);
+    expect(registry.get('embed').name).toBe('embed');
+  });
+
+  it('should throw on missing skill', () => {
+    expect(() => registry.get('missing-skill')).toThrow();
+  });
+});
+
+# Run tests
+pnpm test:unit src/skills
+```
+
+### Manual Verification
+```bash
 # Start and check logs for skill registration
 pnpm dev
 # Should see: "✅ Core skills registered"
 # Should see: "   Available: embed, store-memory, transcribe"
 ```
-
 ---
 
 ## Next Packet

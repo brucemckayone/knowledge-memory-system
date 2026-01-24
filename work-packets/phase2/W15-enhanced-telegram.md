@@ -490,7 +490,22 @@ catch (error) {
 
 ---
 
-## Testing
+## Verification
+
+### Automated Tests
+Run simple notification formatting tests.
+
+```bash
+# Create platform/src/bot/__tests__/notifications.test.ts
+import { formatDueDisplay } from '../notifications.js'; // Export this for testing
+import { describe, it, expect } from 'vitest';
+
+describe('Notifications', () => {
+  it('should format no deadline', () => {
+    expect(formatDueDisplay(undefined)).toBe('No deadline');
+  });
+});
+```
 
 ### Test Commands
 

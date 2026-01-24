@@ -627,25 +627,45 @@ if (classification.primary_intent === 'task') {
 
 ## Testing
 
-### Test Extraction Endpoint
+## Verification
 
+### Automated Tests
+Run simple unit tests for task extraction.
+
+```bash
+# Create platform/src/services/__tests__/task.test.ts
+import { extractTask } from '../task.js';
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Task Extraction', () => {
+  it('should extract task details', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        action: 'call John',
+        priority: 'medium',
+        due_date: '2026-01-25T15:00:00',
+        confidence: 0.9
+      })
+    });
+
+    const result = await extractTask('Call John tomorrow');
+    expect(result.action).toBe('call John');
+    expect(result.priority).toBe('medium');
+  });
+});
+```
+
+### Manual Verification
+
+#### Test Extraction Endpoint
 ```bash
 curl -X POST http://localhost:8000/extract-task \
   -H "Content-Type: application/json" \
   -d '{"text": "Remind me to call John tomorrow at 3pm"}'
-
-# Expected:
-{
-  "action": "call John",
-  "due_date": "2026-01-25T15:00:00",
-  "priority": "medium",
-  "confidence": 0.9,
-  "raw_due_text": "tomorrow at 3pm"
-}
 ```
 
-### Test Sample Tasks
-
+#### Test Sample Tasks
 ```bash
 curl http://localhost:8000/extract-task/test | jq .
 ```

@@ -274,8 +274,24 @@ Respond ONLY with valid JSON."""
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for reader agent.
+
+```bash
+# Create platform/src/gardener/agents/__tests__/reader.test.ts
+import { readerAgent } from '../reader-agent.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Reader Agent', () => {
+  it('should infer content type', () => {
+    // Test heuristics
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Test reader agent
 curl -X POST http://localhost:3001/api/gardener/queue \

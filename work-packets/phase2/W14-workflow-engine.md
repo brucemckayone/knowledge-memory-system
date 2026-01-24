@@ -485,7 +485,23 @@ if (result.success) {
 
 ---
 
-## Testing
+## Verification
+
+### Automated Tests
+Run simple unit tests for the workflow engine.
+
+```bash
+# Create platform/src/workflows/__tests__/engine.test.ts
+import { engine } from '../engine.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Workflow Engine', () => {
+  it('should register workflow', () => {
+    engine.register({ name: 'test-wf', steps: [], triggers: [], description: '', version: '1' });
+    expect(engine.get('test-wf')).toBeDefined();
+  });
+});
+```
 
 ```bash
 # Start the platform

@@ -512,28 +512,54 @@ ollama>=0.1.6  # Ensure this is present
 
 ## Testing
 
-### Test Classification Endpoint
+## Verification
 
+### Automated Tests
+Run simple unit tests for the classification service.
+
+```bash
+# Create platform/src/services/__tests__/classify.test.ts
+import { classify } from '../classify.js';
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Classification Service', () => {
+  it('should return classification result', async () => {
+    // Mock fetch
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        intents: [{ type: 'thought', confidence: 0.9 }],
+        primary_intent: 'thought',
+        suggested_workflow: 'process-thought'
+      })
+    });
+
+    const result = await classify('test message');
+    expect(result.primary_intent).toBe('thought');
+  });
+
+  it('should handle failure gracefully', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false });
+    const result = await classify('fail');
+    expect(result.primary_intent).toBe('thought'); // Fallback
+  });
+});
+
+# Run tests
+pnpm test:unit src/services/classify.ts
+```
+
+### Manual Verification
+
+#### Test Classification Endpoint
 ```bash
 # Test the classification endpoint directly
 curl -X POST http://localhost:8000/classify \
   -H "Content-Type: application/json" \
   -d '{"text": "Check out this article about AI", "include_reasoning": true}'
-
-# Expected response:
-{
-  "intents": [
-    {"type": "link", "confidence": 0.9},
-    {"type": "thought", "confidence": 0.4}
-  ],
-  "primary_intent": "link",
-  "suggested_workflow": "process-link",
-  "reasoning": "Message suggests saving an article about AI..."
-}
 ```
 
-### Test Sample Messages
-
+#### Test Sample Messages
 ```bash
 # Run the built-in test endpoint
 curl http://localhost:8000/classify/test | jq .

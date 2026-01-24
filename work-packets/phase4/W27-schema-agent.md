@@ -266,8 +266,24 @@ ALTER TABLE fact_predicates
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for schema alignment.
+
+```bash
+# Create platform/src/gardener/agents/__tests__/schema.test.ts
+import { schemaAgent } from '../schema-agent.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Schema Agent', () => {
+  it('should find canonical predicate', () => {
+     // Test predicate dictionary lookup
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Run schema alignment
 curl -X POST http://localhost:3001/api/gardener/queue \

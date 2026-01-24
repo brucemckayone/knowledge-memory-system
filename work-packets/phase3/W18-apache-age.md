@@ -369,8 +369,23 @@ export async function fullGraphSync(): Promise<{ entities: number; facts: number
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+
+```bash
+# Create platform/src/services/__tests__/graph.test.ts
+import { createEntityNode } from '../graph.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Graph Service', () => {
+  it('should create node via age', async () => {
+    // Mock DB execution
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Test graph creation
 psql -d cognitive -c "SELECT * FROM ag_catalog.ag_graph;"

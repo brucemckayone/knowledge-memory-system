@@ -586,7 +586,26 @@ psql -d cognitive -f src/db/migrations/003_entities.sql
 
 ---
 
-## Testing
+## Verification
+
+### Automated Tests
+Run simple unit tests for entity service.
+
+```bash
+# Create platform/src/services/__tests__/entities.test.ts
+import { createEntity, resolveEntity } from '../entities.js';
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Entity Service', () => {
+    it('resolveEntity should return existing entity for high similarity', async () => {
+        // Mock DB and ML calls
+        global.embed = vi.fn().mockResolvedValue({ vector: [0.1, 0.2] }); 
+        // ... mocked implementation
+    });
+});
+```
+
+### Manual Verification
 
 ```typescript
 // Test entity creation

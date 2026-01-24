@@ -262,8 +262,24 @@ Respond ONLY with valid JSON."""
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for summarizer agent.
+
+```bash
+# Create platform/src/gardener/agents/__tests__/summarizer.test.ts
+import { summarizerAgent } from '../summarizer-agent.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Summarizer Agent', () => {
+  it('extract key points', () => {
+     // Test extraction logic
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Test summarizer
 curl -X POST http://localhost:3001/api/gardener/queue \

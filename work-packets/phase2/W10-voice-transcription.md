@@ -459,15 +459,38 @@ docker compose logs -f ml-services
 
 ## Testing
 
-### Test Transcription Status
+## Verification
 
+### Automated Tests
+Run simple unit tests for transcription service.
+
+```bash
+# Create platform/src/services/__tests__/ml.test.ts
+import { transcribe } from '../ml.js';
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Transcription Service', () => {
+  it('should call ML service', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ text: 'hello', language: 'en', duration_ms: 1000 })
+    });
+
+    const result = await transcribe('http://test.url');
+    expect(result.text).toBe('hello');
+  });
+});
+```
+
+### Manual Verification
+
+#### Test Transcription Status
 ```bash
 curl http://localhost:8000/transcribe/status
 # Expected: {"available": true, "provider": "groq", "message": "Groq transcription ready"}
 ```
 
-### Test Transcription (with sample audio)
-
+#### Test Transcription (with sample audio)
 ```bash
 # Test with a sample audio URL
 curl -X POST http://localhost:8000/transcribe \
@@ -475,8 +498,7 @@ curl -X POST http://localhost:8000/transcribe \
   -d '{"audio_url": "https://www2.cs.uic.edu/~i101/SoundFiles/StarWars3.wav"}'
 ```
 
-### Test End-to-End
-
+#### Test End-to-End
 1. Send a voice note to your Telegram bot
 2. Should receive "Transcribing..." message
 3. Should receive confirmation with transcribed text preview

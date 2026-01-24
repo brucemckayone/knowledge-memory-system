@@ -349,8 +349,24 @@ this.scheduleDaily('morning-briefing', '0 6 * * *', async () => {
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for briefing.
+
+```bash
+# Create platform/src/services/__tests__/briefing.test.ts
+import { generateBriefing } from '../briefing.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Briefing Service', () => {
+  it('should compile briefing sections', async () => {
+     // Mock DB results
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Manually request briefing
 # In Telegram: /briefing

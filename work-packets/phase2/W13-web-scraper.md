@@ -484,7 +484,30 @@ docker compose logs -f ml-services
 
 ---
 
-## Testing
+## Verification
+
+### Automated Tests
+Run simple unit tests for scraping.
+
+```bash
+# Create platform/src/services/__tests__/scrape.test.ts
+import { scrapeUrl } from '../scrape.js';
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Scrape Service', () => {
+  it('should call scrape endpoint', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ title: 'Test', text: 'content' })
+    });
+
+    const result = await scrapeUrl('http://test.com');
+    expect(result.title).toBe('Test');
+  });
+});
+```
+
+### Manual Verification
 
 ### Test Scrape Endpoint
 

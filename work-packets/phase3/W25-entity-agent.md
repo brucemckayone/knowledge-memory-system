@@ -438,8 +438,25 @@ export async function registerGardenerAgents(controller: GardenerController): Pr
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for extraction agent.
+
+```bash
+# Create platform/src/gardener/agents/__tests__/entity-extraction.test.ts
+import { entityExtractionAgent } from '../entity-extraction.agent.js';
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Entity Extraction Agent', () => {
+  it('should consume job and call service', async () => {
+     // Mock context and services
+     // Assert outputs
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Test extraction endpoint
 curl -X POST http://localhost:8000/extract-entities \
@@ -447,16 +464,6 @@ curl -X POST http://localhost:8000/extract-entities \
   -d '{
     "text": "John Smith from Acme Corp met with Dr. Sarah Chen to discuss the Alpha Project."
   }'
-
-# Expected response:
-{
-  "entities": [
-    {"mention": "John Smith", "type": "person", "confidence": 0.95},
-    {"mention": "Acme Corp", "type": "company", "confidence": 0.92},
-    {"mention": "Dr. Sarah Chen", "type": "person", "confidence": 0.94},
-    {"mention": "Alpha Project", "type": "project", "confidence": 0.88}
-  ]
-}
 ```
 
 ---

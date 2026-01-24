@@ -506,8 +506,26 @@ async function flagForReview(fact1Id: string, fact2Id: string, reason: string): 
 
 ---
 
-## Testing
+## Verification
 
+### Automated Tests
+Run simple unit tests for conflict checking.
+
+```bash
+# Create platform/src/gardener/agents/__tests__/conflict-resolution.test.ts
+import { conflictResolutionAgent } from '../conflict-resolution.agent.js';
+import { describe, it, expect } from 'vitest';
+
+describe('Conflict Resolution Agent', () => {
+  it('should detect contradiction', async () => {
+     // Mock DB with conflicting facts
+     // Run agent
+     // Assert fact superseded
+  });
+});
+```
+
+### Manual Verification
 ```bash
 # Test contradiction endpoint
 curl -X POST http://localhost:8000/check-contradiction \
@@ -516,15 +534,6 @@ curl -X POST http://localhost:8000/check-contradiction \
     "fact1": {"subject": "John", "predicate": "works_at", "object": "Acme"},
     "fact2": {"subject": "John", "predicate": "works_at", "object": "TechCorp"}
   }'
-
-# Expected:
-{
-  "contradicts": true,
-  "type": "structural",
-  "resolution": "supersede",
-  "reasoning": "'works_at' is typically exclusive...",
-  "confidence": 0.85
-}
 ```
 
 ---
