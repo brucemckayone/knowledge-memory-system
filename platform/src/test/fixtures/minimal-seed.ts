@@ -58,6 +58,9 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
       RETURNING id
     `;
 
+    if (!result[0]) {
+      throw new Error('Failed to create person entity');
+    }
     const entityId = result[0].id;
     data.entities.people.push({ id: entityId, name: person.name, aliases: person.aliases });
 
@@ -92,6 +95,9 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
       RETURNING id
     `;
 
+    if (!result[0]) {
+      throw new Error('Failed to create company entity');
+    }
     data.entities.companies.push({ id: result[0].id, name: company.name });
   }
 
@@ -117,6 +123,9 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
       RETURNING id
     `;
 
+    if (!result[0]) {
+      throw new Error('Failed to create project entity');
+    }
     data.entities.projects.push({ id: result[0].id, name: project.name });
   }
 
@@ -142,6 +151,9 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
       RETURNING id
     `;
 
+    if (!result[0]) {
+      throw new Error('Failed to create concept entity');
+    }
     data.entities.concepts.push({ id: result[0].id, name: concept.name });
   }
 
@@ -166,10 +178,19 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
       RETURNING id
     `;
 
+    if (!result[0]) {
+      throw new Error('Failed to create place entity');
+    }
     data.entities.places.push({ id: result[0].id, name: place.name });
   }
 
   // --- Create Facts ---
+
+  // Verify entities exist
+  if (!data.entities.people[0] || !data.entities.people[1] || !data.entities.companies[0] || !data.entities.companies[1] ||
+      !data.entities.projects[0] || !data.entities.places[0] || !data.entities.concepts[0]) {
+    throw new Error('Missing required entities for facts');
+  }
 
   // Employment relationships (works_at) - with one superseded
   const now = new Date();
@@ -180,120 +201,126 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
   const fact1 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_entity_id, valid_at, invalid_at, confidence)
     VALUES (
-      ${data.entities.people[0].id}::uuid,
+      ${data.entities.people[0]!.id}::uuid,
       'works_at',
-      ${data.entities.companies[1].id}::uuid,
+      ${data.entities.companies[1]!.id}::uuid,
       ${sixMonthsAgo},
       ${threeMonthsAgo},
       0.95
     )
     RETURNING id
   `;
+  if (!fact1[0]) {
+    throw new Error('Failed to create fact1');
+  }
   data.facts.push({
-    id: fact1[0].id,
-    subjectId: data.entities.people[0].id,
+    id: fact1[0]!.id,
+    subjectId: data.entities.people[0]!.id,
     predicate: 'works_at',
-    objectId: data.entities.companies[1].id,
+    objectId: data.entities.companies[1]!.id,
   });
 
   const fact2 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_entity_id, valid_at, confidence)
     VALUES (
-      ${data.entities.people[0].id}::uuid,
+      ${data.entities.people[0]!.id}::uuid,
       'works_at',
-      ${data.entities.companies[0].id}::uuid,
+      ${data.entities.companies[0]!.id}::uuid,
       ${threeMonthsAgo},
       0.95
     )
     RETURNING id
   `;
+  if (!fact2[0]) {
+    throw new Error('Failed to create fact2');
+  }
   data.facts.push({
-    id: fact2[0].id,
-    subjectId: data.entities.people[0].id,
+    id: fact2[0]!.id,
+    subjectId: data.entities.people[0]!.id,
     predicate: 'works_at',
-    objectId: data.entities.companies[0].id,
+    objectId: data.entities.companies[0]!.id,
   });
 
   // Sarah works at Acme
   const fact3 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_entity_id, valid_at, confidence)
     VALUES (
-      ${data.entities.people[1].id}::uuid,
+      ${data.entities.people[1]!.id}::uuid,
       'works_at',
-      ${data.entities.companies[0].id}::uuid,
+      ${data.entities.companies[0]!.id}::uuid,
       ${sixMonthsAgo},
       0.9
     )
     RETURNING id
   `;
   data.facts.push({
-    id: fact3[0].id,
-    subjectId: data.entities.people[1].id,
+    id: fact3[0]!.id,
+    subjectId: data.entities.people[1]!.id,
     predicate: 'works_at',
-    objectId: data.entities.companies[0].id,
+    objectId: data.entities.companies[0]!.id,
   });
 
   // Project assignments (works_on)
   const fact4 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_entity_id, valid_at, confidence)
     VALUES (
-      ${data.entities.people[0].id}::uuid,
+      ${data.entities.people[0]!.id}::uuid,
       'works_on',
-      ${data.entities.projects[0].id}::uuid,
+      ${data.entities.projects[0]!.id}::uuid,
       ${threeMonthsAgo},
       0.85
     )
     RETURNING id
   `;
   data.facts.push({
-    id: fact4[0].id,
-    subjectId: data.entities.people[0].id,
+    id: fact4[0]!.id,
+    subjectId: data.entities.people[0]!.id,
     predicate: 'works_on',
-    objectId: data.entities.projects[0].id,
+    objectId: data.entities.projects[0]!.id,
   });
 
   const fact5 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_entity_id, valid_at, confidence)
     VALUES (
-      ${data.entities.people[1].id}::uuid,
+      ${data.entities.people[1]!.id}::uuid,
       'works_on',
-      ${data.entities.projects[0].id}::uuid,
+      ${data.entities.projects[0]!.id}::uuid,
       ${threeMonthsAgo},
       0.85
     )
     RETURNING id
   `;
   data.facts.push({
-    id: fact5[0].id,
-    subjectId: data.entities.people[1].id,
+    id: fact5[0]!.id,
+    subjectId: data.entities.people[1]!.id,
     predicate: 'works_on',
-    objectId: data.entities.projects[0].id,
+    objectId: data.entities.projects[0]!.id,
   });
 
   // Location facts
   const fact6 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_entity_id, valid_at, confidence)
     VALUES (
-      ${data.entities.companies[0].id}::uuid,
+      ${data.entities.companies[0]!.id}::uuid,
       'located_in',
-      ${data.entities.places[0].id}::uuid,
+      ${data.entities.places[0]!.id}::uuid,
       ${sixMonthsAgo},
       0.95
     )
     RETURNING id
   `;
   data.facts.push({
-    id: fact6[0].id,
-    subjectId: data.entities.companies[0].id,
+    id: fact6[0]!.id,
+    subjectId: data.entities.companies[0]!.id,
     predicate: 'located_in',
-    objectId: data.entities.places[0].id,
+    objectId: data.entities.places[0]!.id,
   });
 
   // Role facts (value-based)
   const fact7 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_value, valid_at, confidence)
     VALUES (
-      ${data.entities.people[0].id}::uuid,
+      ${data.entities.people[0]!.id}::uuid,
       'has_role',
       'Senior Engineer',
       ${threeMonthsAgo},
@@ -302,8 +329,8 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
     RETURNING id
   `;
   data.facts.push({
-    id: fact7[0].id,
-    subjectId: data.entities.people[0].id,
+    id: fact7[0]!.id,
+    subjectId: data.entities.people[0]!.id,
     predicate: 'has_role',
     objectValue: 'Senior Engineer',
   });
@@ -311,7 +338,7 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
   const fact8 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_value, valid_at, confidence)
     VALUES (
-      ${data.entities.people[1].id}::uuid,
+      ${data.entities.people[1]!.id}::uuid,
       'has_role',
       'Tech Lead',
       ${sixMonthsAgo},
@@ -320,8 +347,8 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
     RETURNING id
   `;
   data.facts.push({
-    id: fact8[0].id,
-    subjectId: data.entities.people[1].id,
+    id: fact8[0]!.id,
+    subjectId: data.entities.people[1]!.id,
     predicate: 'has_role',
     objectValue: 'Tech Lead',
   });
@@ -330,37 +357,37 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
   const fact9 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_entity_id, valid_at, confidence)
     VALUES (
-      ${data.entities.projects[0].id}::uuid,
+      ${data.entities.projects[0]!.id}::uuid,
       'uses',
-      ${data.entities.concepts[0].id}::uuid,
+      ${data.entities.concepts[0]!.id}::uuid,
       ${threeMonthsAgo},
       0.8
     )
     RETURNING id
   `;
   data.facts.push({
-    id: fact9[0].id,
-    subjectId: data.entities.projects[0].id,
+    id: fact9[0]!.id,
+    subjectId: data.entities.projects[0]!.id,
     predicate: 'uses',
-    objectId: data.entities.concepts[0].id,
+    objectId: data.entities.concepts[0]!.id,
   });
 
   const fact10 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_entity_id, valid_at, confidence)
     VALUES (
-      ${data.entities.projects[0].id}::uuid,
+      ${data.entities.projects[0]!.id}::uuid,
       'uses',
-      ${data.entities.concepts[1].id}::uuid,
+      ${data.entities.concepts[1]!.id}::uuid,
       ${threeMonthsAgo},
       0.85
     )
     RETURNING id
   `;
   data.facts.push({
-    id: fact10[0].id,
-    subjectId: data.entities.projects[0].id,
+    id: fact10[0]!.id,
+    subjectId: data.entities.projects[0]!.id,
     predicate: 'uses',
-    objectId: data.entities.concepts[1].id,
+    objectId: data.entities.concepts[1]!.id,
   });
 
   // Add more facts to reach 20
@@ -368,37 +395,37 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
   const fact11 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_entity_id, valid_at, confidence)
     VALUES (
-      ${data.entities.people[0].id}::uuid,
+      ${data.entities.people[0]!.id}::uuid,
       'knows',
-      ${data.entities.people[1].id}::uuid,
+      ${data.entities.people[1]!.id}::uuid,
       ${sixMonthsAgo},
       0.9
     )
     RETURNING id
   `;
   data.facts.push({
-    id: fact11[0].id,
-    subjectId: data.entities.people[0].id,
+    id: fact11[0]!.id,
+    subjectId: data.entities.people[0]!.id,
     predicate: 'knows',
-    objectId: data.entities.people[1].id,
+    objectId: data.entities.people[1]!.id,
   });
 
   const fact12 = await testDb`
     INSERT INTO facts (subject_entity_id, predicate, object_entity_id, valid_at, confidence)
     VALUES (
-      ${data.entities.people[1].id}::uuid,
+      ${data.entities.people[1]!.id}::uuid,
       'knows',
-      ${data.entities.people[2].id}::uuid,
+      ${data.entities.people[2]!.id}::uuid,
       ${threeMonthsAgo},
       0.85
     )
     RETURNING id
   `;
   data.facts.push({
-    id: fact12[0].id,
-    subjectId: data.entities.people[1].id,
+    id: fact12[0]!.id,
+    subjectId: data.entities.people[1]!.id,
     predicate: 'knows',
-    objectId: data.entities.people[2].id,
+    objectId: data.entities.people[2]!.id,
   });
 
   // --- Create sample memories (as UUIDs for memory_entities linking) ---
@@ -424,11 +451,11 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
   await testDb`
     INSERT INTO memory_entities (memory_id, entity_id, mention_text, relationship, confidence)
     VALUES
-      (${data.memories[0].id}::uuid, ${data.entities.people[0].id}::uuid, 'John Smith', 'mentions', 0.95),
-      (${data.memories[0].id}::uuid, ${data.entities.projects[0].id}::uuid, 'Project Alpha', 'mentions', 0.9),
-      (${data.memories[1].id}::uuid, ${data.entities.people[1].id}::uuid, 'Sarah Chen', 'mentions', 0.95),
-      (${data.memories[1].id}::uuid, ${data.entities.concepts[0].id}::uuid, 'Machine Learning', 'mentions', 0.85),
-      (${data.memories[5].id}::uuid, ${data.entities.projects[0].id}::uuid, 'Project Alpha', 'mentions', 0.9)
+      (${data.memories[0]!.id}::uuid, ${data.entities.people[0]!.id}::uuid, 'John Smith', 'mentions', 0.95),
+      (${data.memories[0]!.id}::uuid, ${data.entities.projects[0]!.id}::uuid, 'Project Alpha', 'mentions', 0.9),
+      (${data.memories[1]!.id}::uuid, ${data.entities.people[1]!.id}::uuid, 'Sarah Chen', 'mentions', 0.95),
+      (${data.memories[1]!.id}::uuid, ${data.entities.concepts[0]!.id}::uuid, 'Machine Learning', 'mentions', 0.85),
+      (${data.memories[5]!.id}::uuid, ${data.entities.projects[0]!.id}::uuid, 'Project Alpha', 'mentions', 0.9)
   `;
 
   return data;

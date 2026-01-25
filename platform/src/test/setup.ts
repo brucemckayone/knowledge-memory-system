@@ -8,7 +8,7 @@
  * when optional dependencies (pgvector, pg_trgm) are not installed.
  */
 
-import { beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { beforeAll, afterAll, vi } from 'vitest';
 import postgres from 'postgres';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
@@ -168,7 +168,7 @@ export function normalizeVector(vec: number[]): number[] {
  */
 export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length) throw new Error('Vectors must be same length');
-  const dotProduct = a.reduce((sum, ai, i) => sum + ai * b[i], 0);
+  const dotProduct = a.reduce((sum, ai, i) => sum + ai * (b[i] ?? 0), 0);
   const magnitudeA = Math.sqrt(a.reduce((sum, v) => sum + v * v, 0));
   const magnitudeB = Math.sqrt(b.reduce((sum, v) => sum + v * v, 0));
   return dotProduct / (magnitudeA * magnitudeB);
@@ -215,6 +215,7 @@ export async function createTestEntity(data: {
       )
       RETURNING id
     `;
+    if (!result[0]) throw new Error('Failed to create entity');
     return { id: result[0].id };
   } else {
     // Insert without embedding when vector extension is not available
@@ -228,6 +229,7 @@ export async function createTestEntity(data: {
       )
       RETURNING id
     `;
+    if (!result[0]) throw new Error('Failed to create entity');
     return { id: result[0].id };
   }
 }
@@ -265,6 +267,7 @@ export async function createTestFact(data: {
     )
     RETURNING id
   `;
+  if (!result[0]) throw new Error('Failed to create fact');
   return { id: result[0].id };
 }
 
@@ -295,6 +298,7 @@ export async function createTestMemoryEntity(data: {
     )
     RETURNING id
   `;
+  if (!result[0]) throw new Error('Failed to create memory entity');
   return { id: result[0].id };
 }
 

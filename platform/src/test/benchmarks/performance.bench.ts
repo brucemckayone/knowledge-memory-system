@@ -9,8 +9,6 @@ import { describe, bench, beforeAll, afterAll } from 'vitest';
 import {
   testDb,
   truncateTables,
-  createTestEntity,
-  createTestFact,
   randomUUID,
   randomEmbedding,
   normalizeVector,
@@ -20,15 +18,15 @@ import {
   ML_SERVICES_URL,
 } from '../setup.js';
 
-// Performance targets from test strategy
-const TARGETS = {
-  entityCreationLatency: 100,      // <100ms
-  factCreationLatency: 100,        // <100ms
-  vectorSearchLatency: 200,        // <200ms for 10k memories
-  hybridSearchLatency: 500,        // <500ms all three sources
-  graphPathFinding: 100,           // <100ms with 10k nodes
-  entityResolutionLatency: 300,    // <300ms including embedding
-};
+// Performance targets from test strategy (used for reference)
+// const TARGETS = {
+//   entityCreationLatency: 100,      // <100ms
+//   factCreationLatency: 100,        // <100ms
+//   vectorSearchLatency: 200,        // <200ms for 10k memories
+//   hybridSearchLatency: 500,        // <500ms all three sources
+//   graphPathFinding: 100,           // <100ms with 10k nodes
+//   entityResolutionLatency: 300,    // <300ms including embedding
+// };
 
 describe('Performance Benchmarks', () => {
   let qdrantAvailable = false;
@@ -86,7 +84,7 @@ describe('Performance Benchmarks', () => {
 
         await testDb`
           INSERT INTO facts (subject_entity_id, predicate, object_entity_id, confidence)
-          VALUES (${subject[0].id}::uuid, 'works_at', ${object[0].id}::uuid, 0.9)
+          VALUES (${subject[0]!.id}::uuid, 'works_at', ${object[0]!.id}::uuid, 0.9)
         `;
       },
       {
@@ -262,7 +260,7 @@ describe('Performance Benchmarks', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text }),
         });
-        const { embedding } = await embedResponse.json();
+        const { embedding } = await embedResponse.json() as { embedding: number[] };
 
         // Store
         const memoryId = randomUUID();

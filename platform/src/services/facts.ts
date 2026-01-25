@@ -151,7 +151,7 @@ export async function findSupersedingFacts(
 /**
  * Expire a fact (mark as incorrect in our records)
  */
-export async function expireFact(factId: string, reason?: string): Promise<void> {
+export async function expireFact(factId: string, _reason?: string): Promise<void> {
   await db
     .update(facts)
     .set({ expiredAt: new Date() })

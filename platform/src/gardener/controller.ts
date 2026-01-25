@@ -291,7 +291,7 @@ class GardenerController {
     }
   }
 
-  private async recordJobComplete(jobId: string, durationMs: number, result: JobResult): Promise<void> {
+  private async recordJobComplete(jobId: string, durationMs: number, _result: JobResult): Promise<void> {
     try {
       await db.execute(sql`
         UPDATE gardener_job_meta

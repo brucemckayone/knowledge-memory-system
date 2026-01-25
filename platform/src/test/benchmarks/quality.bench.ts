@@ -112,10 +112,10 @@ describe('Quality Benchmarks', () => {
         });
 
         if (response.ok) {
-          const result = await response.json();
-          const predicted = result.primary_intent?.toLowerCase();
+          const result = await response.json() as Record<string, unknown>;
+          const predicted = (result.primary_intent as string | undefined)?.toLowerCase() || '';
 
-          if (testCase.expected.includes(predicted)) {
+          if (predicted && testCase.expected.includes(predicted)) {
             correct++;
           }
         }
@@ -144,8 +144,8 @@ describe('Quality Benchmarks', () => {
         });
 
         if (response.ok) {
-          const result = await response.json();
-          const extractedMentions = (result.entities || []).map(
+          const result = await response.json() as Record<string, unknown>;
+          const extractedMentions = ((result.entities as unknown as Array<{ mention: string }>) || []).map(
             (e: { mention: string }) => e.mention.toLowerCase()
           );
 
@@ -194,8 +194,8 @@ describe('Quality Benchmarks', () => {
         });
 
         if (response.ok) {
-          const result = await response.json();
-          const predicted = result.contradicts;
+          const result = await response.json() as Record<string, unknown>;
+          const predicted = result.contradicts as boolean;
           const expected = testCase.expectedContradiction;
 
           if (predicted && expected) truePositives++;

@@ -5,7 +5,7 @@
  * Covers QD-001 through QD-007 from the test strategy.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { QDRANT_URL, isQdrantAvailable, randomUUID, randomEmbedding, normalizeVector } from '../setup.js';
 
 // Test collection name
@@ -96,7 +96,7 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Point ID returned successfully
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
       expect(result.status).toBe('ok');
 
       // Verify point exists
@@ -104,7 +104,7 @@ describe('Platform ↔ Qdrant Integration', () => {
         `/collections/${TEST_COLLECTION}/points/${pointId}`
       );
       expect(getResponse.ok).toBe(true);
-      const point = await getResponse.json();
+      const point = await response.json() as Record<string, unknown>;
       expect(point.result.payload.content).toBe('Test memory content');
     });
   });
@@ -147,7 +147,7 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Results ranked by score
       expect(searchResponse.ok).toBe(true);
-      const results = await searchResponse.json();
+      const results = await response.json() as Record<string, unknown>;
 
       expect(results.result.length).toBe(3);
       // First result should be exact match (highest score)
@@ -206,7 +206,7 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Only thoughts returned
       expect(searchResponse.ok).toBe(true);
-      const results = await searchResponse.json();
+      const results = await response.json() as Record<string, unknown>;
 
       expect(results.result.length).toBe(2);
       results.result.forEach((r: { payload: { type: string } }) => {
@@ -257,7 +257,7 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Only matching task returned
       expect(searchResponse.ok).toBe(true);
-      const results = await searchResponse.json();
+      const results = await response.json() as Record<string, unknown>;
 
       expect(results.result.length).toBe(1);
       expect(results.result[0].payload.priority).toBe('high');
@@ -272,7 +272,7 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Collection has correct configuration
       expect(response.ok).toBe(true);
-      const info = await response.json();
+      const info = await response.json() as Record<string, unknown>;
 
       expect(info.result.config.params.vectors.size).toBe(768);
       expect(info.result.config.params.vectors.distance).toBe('Cosine');
@@ -317,7 +317,7 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Results contain keyword
       expect(scrollResponse.ok).toBe(true);
-      const results = await scrollResponse.json();
+      const results = await response.json() as Record<string, unknown>;
 
       expect(results.result.points.length).toBe(2);
       results.result.points.forEach((p: { payload: { content: string } }) => {
@@ -343,7 +343,7 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Empty results, no error
       expect(searchResponse.ok).toBe(true);
-      const results = await searchResponse.json();
+      const results = await response.json() as Record<string, unknown>;
 
       expect(results.result).toEqual([]);
       expect(results.status).toBe('ok');
@@ -382,14 +382,14 @@ describe('Platform ↔ Qdrant Integration', () => {
       const getResponse = await qdrantRequest(
         `/collections/${TEST_COLLECTION}/points/${pointId}`
       );
-      const point = await getResponse.json();
+      const point = await response.json() as Record<string, unknown>;
 
       expect(point.result.payload.content).toBe('Updated content');
       expect(point.result.payload.version).toBe(2);
 
       // Verify collection only has 1 point
       const countResponse = await qdrantRequest(`/collections/${TEST_COLLECTION}`);
-      const info = await countResponse.json();
+      const info = await response.json() as Record<string, unknown>;
       expect(info.result.points_count).toBe(1);
     });
   });

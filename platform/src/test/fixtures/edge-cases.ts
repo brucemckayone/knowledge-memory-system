@@ -4,7 +4,7 @@
  * Test boundary conditions and unusual scenarios.
  */
 
-import { testDb, randomEmbedding, normalizeVector, randomUUID } from '../setup.js';
+import { testDb, randomEmbedding, normalizeVector } from '../setup.js';
 
 /**
  * Create an entity with many aliases (100+)
@@ -22,6 +22,9 @@ export async function createEntityWithManyAliases(aliasCount: number = 100): Pro
     RETURNING id
   `;
 
+  if (!result[0]) {
+    throw new Error('Failed to create entity');
+  }
   const entityId = result[0].id;
   const aliases: string[] = [];
 
@@ -56,6 +59,9 @@ export async function createFactWithTemporalHistory(
       : null;
 
     const objectId = objectEntityIds[i % objectEntityIds.length];
+    if (!objectId) {
+      throw new Error('No object entity ID available');
+    }
 
     const result = await testDb`
       INSERT INTO facts (
@@ -69,6 +75,9 @@ export async function createFactWithTemporalHistory(
       RETURNING id
     `;
 
+    if (!result[0]) {
+      throw new Error('Failed to create fact');
+    }
     factIds.push(result[0].id);
   }
 
@@ -96,20 +105,28 @@ export async function createCircularRelationships(nodeCount: number = 5): Promis
       RETURNING id
     `;
 
+    if (!result[0]) {
+      throw new Error('Failed to create circular entity');
+    }
     entityIds.push(result[0].id);
   }
 
   // Create circular "knows" relationships
   for (let i = 0; i < nodeCount; i++) {
     const nextIdx = (i + 1) % nodeCount;
+    const fromId = entityIds[i];
+    const toId = entityIds[nextIdx];
+    if (!fromId || !toId) {
+      throw new Error('Missing entity IDs for circular relationships');
+    }
 
     const result = await testDb`
       INSERT INTO facts (subject_entity_id, predicate, object_entity_id, confidence)
-      VALUES (${entityIds[i]}::uuid, 'knows', ${entityIds[nextIdx]}::uuid, 0.9)
+      VALUES (${fromId}::uuid, 'knows', ${toId}::uuid, 0.9)
       RETURNING id
     `;
 
-    factIds.push(result[0].id);
+    factIds.push(result[0]?.id || '');
   }
 
   return { entityIds, factIds };
@@ -140,7 +157,7 @@ export async function createHomonymEntities(
       RETURNING id
     `;
 
-    entityIds.push(result[0].id);
+    entityIds.push(result[0]?.id || '');
   }
 
   return { entityIds };
@@ -178,7 +195,7 @@ export async function createDuplicateNameEntities(
       RETURNING id
     `;
 
-    entityIds.push(result[0].id);
+    entityIds.push(result[0]?.id || '');
   }
 
   return { entityIds, distinguishingInfo };
@@ -227,7 +244,7 @@ export async function createUnicodeEntities(): Promise<{
       RETURNING id
     `;
 
-    entityIds.set(language, result[0].id);
+    entityIds.set(language, result[0]?.id || '');
   }
 
   return { entityIds };
@@ -248,7 +265,10 @@ export function generateLongContent(wordCount: number = 10000): string {
 
   const result: string[] = [];
   for (let i = 0; i < wordCount; i++) {
-    result.push(words[Math.floor(Math.random() * words.length)]);
+    const word = words[Math.floor(Math.random() * words.length)];
+    if (word) {
+      result.push(word);
+    }
   }
 
   return result.join(' ');
@@ -313,7 +333,7 @@ export async function createEntityWithSpecialCharacters(
     RETURNING id
   `;
 
-  return { entityId: result[0].id };
+  return { entityId: result[0]?.id || '' };
 }
 
 /**
@@ -337,17 +357,26 @@ export async function createDeepNestingChain(depth: number = 20): Promise<{
       RETURNING id
     `;
 
-    entityIds.push(result[0].id);
+    entityIds.push(result[0]?.id || '');
   }
 
   // Create "part_of" chain: 0 -> 1 -> 2 -> ... -> n-1
   for (let i = 0; i < depth - 1; i++) {
+    const fromId = entityIds[i];
+    const toId = entityIds[i + 1];
+    if (!fromId || !toId) {
+      throw new Error('Missing entity IDs for hierarchy');
+    }
+
     const result = await testDb`
       INSERT INTO facts (subject_entity_id, predicate, object_entity_id, confidence)
-      VALUES (${entityIds[i]}::uuid, 'part_of', ${entityIds[i + 1]}::uuid, 0.95)
+      VALUES (${fromId}::uuid, 'part_of', ${toId}::uuid, 0.95)
       RETURNING id
     `;
 
+    if (!result[0]) {
+      throw new Error('Failed to create hierarchy fact');
+    }
     factIds.push(result[0].id);
   }
 

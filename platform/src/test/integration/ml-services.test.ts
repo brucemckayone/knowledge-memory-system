@@ -35,16 +35,17 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Returns 768-dimension vector
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      expect(result.embedding).toBeDefined();
-      expect(Array.isArray(result.embedding)).toBe(true);
-      expect(result.embedding.length).toBe(768);
+      const embedding = (result.embedding as unknown as number[]) || [];
+      expect(embedding).toBeDefined();
+      expect(Array.isArray(embedding)).toBe(true);
+      expect(embedding.length).toBe(768);
 
       // All values should be numbers
-      result.embedding.forEach((v: unknown) => {
+      embedding.forEach((v: unknown) => {
         expect(typeof v).toBe('number');
-        expect(Number.isFinite(v)).toBe(true);
+        expect(Number.isFinite(v as number)).toBe(true);
       });
     }, 30000);
 
@@ -67,19 +68,22 @@ describe('Platform ↔ ML Services Integration', () => {
         }),
       ]);
 
-      const result1 = await response1.json();
-      const result2 = await response2.json();
+      const result1 = await response1.json() as Record<string, unknown>;
+      const result2 = await response2.json() as Record<string, unknown>;
+
+      const embed1 = (result1.embedding as unknown as number[]) || [];
+      const embed2 = (result2.embedding as unknown as number[]) || [];
 
       // Then: Embeddings are different
-      expect(result1.embedding).not.toEqual(result2.embedding);
+      expect(embed1).not.toEqual(embed2);
 
       // Calculate cosine similarity - should be low for unrelated texts
-      const dotProduct = result1.embedding.reduce(
-        (sum: number, v: number, i: number) => sum + v * result2.embedding[i],
+      const dotProduct = embed1.reduce(
+        (sum: number, v: number, i: number) => sum + v * (embed2[i] || 0),
         0
       );
-      const mag1 = Math.sqrt(result1.embedding.reduce((s: number, v: number) => s + v * v, 0));
-      const mag2 = Math.sqrt(result2.embedding.reduce((s: number, v: number) => s + v * v, 0));
+      const mag1 = Math.sqrt(embed1.reduce((s: number, v: number) => s + v * v, 0));
+      const mag2 = Math.sqrt(embed2.reduce((s: number, v: number) => s + v * v, 0));
       const similarity = dotProduct / (mag1 * mag2);
 
       // Unrelated texts should have lower similarity
@@ -105,14 +109,15 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Returns array of embeddings
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      expect(result.embeddings).toBeDefined();
-      expect(Array.isArray(result.embeddings)).toBe(true);
-      expect(result.embeddings.length).toBe(3);
+      const embeddings = (result.embeddings as unknown as number[][]) || [];
+      expect(embeddings).toBeDefined();
+      expect(Array.isArray(embeddings)).toBe(true);
+      expect(embeddings.length).toBe(3);
 
       // Each embedding should be 768-dim
-      result.embeddings.forEach((emb: number[]) => {
+      embeddings.forEach((emb: number[]) => {
         expect(emb.length).toBe(768);
       });
     }, 60000);
@@ -132,11 +137,11 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Classified as thought
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.primary_intent).toBeDefined();
-      expect(['thought', 'idea', 'note']).toContain(result.primary_intent.toLowerCase());
-      expect(result.confidence).toBeGreaterThan(0.5);
+      expect(['thought', 'idea', 'note']).toContain((result.primary_intent as string)?.toLowerCase() || '');
+      expect((result.confidence as number) || 0).toBeGreaterThan(0.5);
     }, 30000);
 
     it.skipIf(!mlAvailable)('should classify task correctly', async () => {
@@ -152,9 +157,9 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Classified as task
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      expect(['task', 'reminder', 'todo']).toContain(result.primary_intent.toLowerCase());
+      expect(['task', 'reminder', 'todo']).toContain((result.primary_intent as string)?.toLowerCase() || '');
     }, 30000);
 
     it.skipIf(!mlAvailable)('should classify question correctly', async () => {
@@ -170,9 +175,9 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Classified as question
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      expect(['question', 'query', 'inquiry']).toContain(result.primary_intent.toLowerCase());
+      expect(['question', 'query', 'inquiry']).toContain((result.primary_intent as string)?.toLowerCase() || '');
     }, 30000);
 
     it.skipIf(!mlAvailable)('should classify link correctly', async () => {
@@ -188,9 +193,9 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Classified as link
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      expect(['link', 'url', 'reference']).toContain(result.primary_intent.toLowerCase());
+      expect(['link', 'url', 'reference']).toContain((result.primary_intent as string)?.toLowerCase() || '');
     }, 30000);
   });
 
@@ -208,19 +213,21 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Structured task returned
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.action).toBeDefined();
       expect(typeof result.action).toBe('string');
 
       // Priority should be detected (urgently = high)
-      if (result.priority) {
-        expect(['urgent', 'high', 'critical']).toContain(result.priority.toLowerCase());
+      const priority = result.priority as string | undefined;
+      if (priority) {
+        expect(['urgent', 'high', 'critical']).toContain(priority.toLowerCase());
       }
 
       // Due date might be extracted
-      if (result.due_date) {
-        expect(typeof result.due_date).toBe('string');
+      const dueDate = result.due_date as string | undefined;
+      if (dueDate) {
+        expect(typeof dueDate).toBe('string');
       }
     }, 30000);
   });
@@ -239,13 +246,14 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Entities with positions returned
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      expect(result.entities).toBeDefined();
-      expect(Array.isArray(result.entities)).toBe(true);
+      const entities = (result.entities as unknown as Array<{ type: string; mention: string }>) || [];
+      expect(entities).toBeDefined();
+      expect(Array.isArray(entities)).toBe(true);
 
       // Should find at least person and company
-      const types = result.entities.map((e: { type: string }) => e.type.toLowerCase());
+      const types = entities.map((e: { type: string }) => e.type.toLowerCase());
 
       // Fuzzy assertion - LLM might classify slightly differently
       const hasPerson = types.some((t: string) => ['person', 'people', 'human'].includes(t));
@@ -254,7 +262,7 @@ describe('Platform ↔ ML Services Integration', () => {
       expect(hasPerson || hasOrg).toBe(true);
 
       // Entities should have mention text
-      result.entities.forEach((e: { mention: string }) => {
+      entities.forEach((e: { mention: string }) => {
         expect(e.mention).toBeDefined();
         expect(typeof e.mention).toBe('string');
       });
@@ -273,11 +281,12 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Empty or minimal entity list
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      expect(result.entities).toBeDefined();
+      const entities = (result.entities as unknown as unknown[]) || [];
+      expect(entities).toBeDefined();
       // Might return empty or very few entities
-      expect(result.entities.length).toBeLessThan(3);
+      expect(entities.length).toBeLessThan(3);
     }, 30000);
   });
 
@@ -296,7 +305,7 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Contradiction detected
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.contradicts).toBe(true);
       expect(result.contradiction_type).toBeDefined();
@@ -316,7 +325,7 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: No contradiction
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.contradicts).toBe(false);
     }, 30000);
@@ -346,15 +355,16 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Summary and key points returned
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.summary).toBeDefined();
       expect(typeof result.summary).toBe('string');
-      expect(result.summary.length).toBeLessThan(text.length);
+      expect((result.summary as string)?.length || 0).toBeLessThan(text.length);
 
       // Key points if provided
-      if (result.key_points) {
-        expect(Array.isArray(result.key_points)).toBe(true);
+      const keyPoints = result.key_points as unknown[];
+      if (keyPoints) {
+        expect(Array.isArray(keyPoints)).toBe(true);
       }
     }, 45000);
   });
@@ -373,7 +383,7 @@ describe('Platform ↔ ML Services Integration', () => {
 
       // Then: Title and content returned
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.title).toBeDefined();
       expect(result.content).toBeDefined();

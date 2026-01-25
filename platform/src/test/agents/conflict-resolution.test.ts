@@ -5,10 +5,9 @@
  * Covers CR-001 through CR-008 from the test strategy.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import {
   testDb,
-  deleteFromTables,
   createTestEntity,
   createTestFact,
   getFact,
@@ -32,17 +31,17 @@ describe('Conflict Resolution Agent', () => {
   describe('CR-001: Antonym detection', () => {
     it.skipIf(!mlAvailable)('should detect contradiction for different employers', async () => {
       // Given: Two facts claiming different employers
-      const person = await createTestEntity({
+      await createTestEntity({
         canonicalName: 'Career Person',
         entityType: 'person',
       });
 
-      const company1 = await createTestEntity({
+      await createTestEntity({
         canonicalName: 'Company A',
         entityType: 'company',
       });
 
-      const company2 = await createTestEntity({
+      await createTestEntity({
         canonicalName: 'Company B',
         entityType: 'company',
       });
@@ -59,7 +58,7 @@ describe('Conflict Resolution Agent', () => {
 
       // Then: Contradiction detected
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.contradicts).toBe(true);
       // Type might be 'antonym', 'exclusive', etc.
@@ -127,7 +126,7 @@ describe('Conflict Resolution Agent', () => {
       `;
 
       expect(currentFacts.length).toBe(1);
-      expect(currentFacts[0].company).toBe('New Corp');
+      expect(currentFacts[0]!.company).toBe('New Corp');
     });
   });
 
@@ -146,7 +145,7 @@ describe('Conflict Resolution Agent', () => {
 
       // Then: No contradiction (can know multiple people)
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.contradicts).toBe(false);
     }, 30000);
@@ -167,7 +166,7 @@ describe('Conflict Resolution Agent', () => {
 
       // Then: Numeric contradiction detected
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.contradicts).toBe(true);
       // May be detected as 'numeric' type
@@ -189,7 +188,7 @@ describe('Conflict Resolution Agent', () => {
 
       // Then: Negation/status contradiction detected
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.contradicts).toBe(true);
     }, 30000);
@@ -224,11 +223,11 @@ describe('Conflict Resolution Agent', () => {
       `;
 
       // Note: postgres-js may return JSONB as string, so parse if needed
-      const checkpoint = typeof result[0].checkpoint === 'string'
-        ? JSON.parse(result[0].checkpoint)
-        : result[0].checkpoint;
-      expect(checkpoint.flaggedForReview).toBe(true);
-      expect(checkpoint.reason).toContain('Ambiguous');
+      const checkpoint = typeof result[0]!.checkpoint === 'string'
+        ? JSON.parse(result[0]!.checkpoint as string)
+        : result[0]!.checkpoint;
+      expect((checkpoint as Record<string, unknown>).flaggedForReview).toBe(true);
+      expect(String((checkpoint as Record<string, unknown>).reason)).toContain('Ambiguous');
     });
   });
 
@@ -262,14 +261,14 @@ describe('Conflict Resolution Agent', () => {
 
       // Then: Can resume from where we left off
       // Note: postgres-js may return JSONB as string, so parse if needed
-      const restored = typeof result[0].checkpoint === 'string'
-        ? JSON.parse(result[0].checkpoint)
-        : result[0].checkpoint;
-      expect(restored.processedFactPairs).toBe(50);
-      expect(restored.totalFactPairs).toBe(100);
+      const restored = typeof result[0]!.checkpoint === 'string'
+        ? JSON.parse(result[0]!.checkpoint as string)
+        : result[0]!.checkpoint;
+      expect((restored as Record<string, unknown>).processedFactPairs).toBe(50);
+      expect((restored as Record<string, unknown>).totalFactPairs).toBe(100);
 
       // Would continue from index 50
-      const resumeFrom = restored.lastProcessedPairIndex + 1;
+      const resumeFrom = ((restored as Record<string, unknown>).lastProcessedPairIndex as number) + 1;
       expect(resumeFrom).toBe(50);
     });
   });
@@ -297,13 +296,13 @@ describe('Conflict Resolution Agent', () => {
 
       // Then: LLM reasoning provided
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       expect(result.contradicts).toBe(true);
       // Reasoning should explain why these conflict
       if (result.reasoning) {
         expect(typeof result.reasoning).toBe('string');
-        expect(result.reasoning.length).toBeGreaterThan(10);
+        expect((result.reasoning as string).length).toBeGreaterThan(10);
       }
     }, 30000);
   });

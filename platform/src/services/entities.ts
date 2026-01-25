@@ -171,11 +171,11 @@ export async function resolveEntity(
     // No embedding, fall back to name matching
     const nameMatches = await findEntitiesByName(mention, { limit: 5, type });
     if (nameMatches.length > 0) {
-      const bestMatch = nameMatches[0];
+      const bestMatch = nameMatches[0]!;
       const similarity = (bestMatch as { sim?: number }).sim || bestMatch.similarity || 0;
       if (similarity > THRESHOLD_AUTO_MERGE) {
         await addAliasIfNew(bestMatch.id, mention);
-        
+
         return {
           id: bestMatch.id,
           canonicalName: bestMatch.canonicalName,
@@ -196,10 +196,10 @@ export async function resolveEntity(
     // High confidence match - auto merge
     const highConfidence = candidates.filter(c => c.similarity > THRESHOLD_AUTO_MERGE);
     if (highConfidence.length === 1) {
-      const match = highConfidence[0];
+      const match = highConfidence[0]!;
       await addAliasIfNew(match.id, mention);
       await updateLastSeen(match.id);
-      
+
       return {
         id: match.id,
         canonicalName: match.canonicalName,
@@ -215,10 +215,10 @@ export async function resolveEntity(
       c => c.similarity > THRESHOLD_LLM_VERIFY && c.similarity <= THRESHOLD_AUTO_MERGE
     );
     if (mediumConfidence.length > 0) {
-      const best = mediumConfidence[0];
+      const best = mediumConfidence[0]!;
       await addAliasIfNew(best.id, mention);
       await updateLastSeen(best.id);
-      
+
       return {
         id: best.id,
         canonicalName: best.canonicalName,

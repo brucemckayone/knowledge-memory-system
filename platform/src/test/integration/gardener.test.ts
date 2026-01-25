@@ -5,7 +5,7 @@
  * Covers GC-001 through GC-008 from the test strategy.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { testDb, randomUUID } from '../setup.js';
 
 // Types matching controller.ts

@@ -5,7 +5,7 @@
  * Covers MP-001 through MP-007 from the test strategy.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import {
   testDb,
   randomUUID,
@@ -13,8 +13,7 @@ import {
   isQdrantAvailable,
   ML_SERVICES_URL,
   QDRANT_URL,
-  normalizeVector,
-  randomEmbedding,
+  
 } from '../setup.js';
 
 // Envelope type from the system
@@ -128,12 +127,12 @@ describe('Message Pipeline E2E', () => {
         });
 
         expect(classifyResponse.ok).toBe(true);
-        const classification = await classifyResponse.json();
+        const classification = await classifyResponse.json() as Record<string, unknown>;
 
         envelope.classification = {
-          primaryIntent: classification.primary_intent,
-          confidence: classification.confidence,
-          signals: classification.signals || {},
+          primaryIntent: (classification.primary_intent as string) || 'thought',
+          confidence: (classification.confidence as number) || 0.5,
+          signals: (classification.signals as Record<string, unknown>) || {},
         };
 
         // Step 2: Embed
@@ -144,10 +143,11 @@ describe('Message Pipeline E2E', () => {
         });
 
         expect(embedResponse.ok).toBe(true);
-        const embedResult = await embedResponse.json();
+        const embedResult = await embedResponse.json() as Record<string, unknown>;
 
-        expect(embedResult.embedding).toBeDefined();
-        expect(embedResult.embedding.length).toBe(768);
+        const embedding = (embedResult.embedding as unknown as number[]) || [];
+        expect(embedding).toBeDefined();
+        expect(embedding.length).toBe(768);
 
         // Step 3: Store in Qdrant
         const memoryId = envelope.traceId;
@@ -155,7 +155,7 @@ describe('Message Pipeline E2E', () => {
           memoryId,
           envelope.content.text!,
           envelope.classification?.primaryIntent || 'thought',
-          embedResult.embedding
+          embedding
         );
 
         expect(stored).toBe(true);
@@ -165,15 +165,16 @@ describe('Message Pipeline E2E', () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            vector: embedResult.embedding,
+            vector: embedding,
             limit: 1,
             with_payload: true,
           }),
         });
 
-        const searchResult = await searchResponse.json();
-        expect(searchResult.result[0].id).toBe(memoryId);
-        expect(searchResult.result[0].score).toBeGreaterThan(0.99);
+        const searchResult = await searchResponse.json() as Record<string, unknown>;
+        const resultArray = (searchResult.result as unknown as Array<{ id: string; score: number }>) || [];
+        expect(resultArray[0]?.id).toBe(memoryId);
+        expect(resultArray[0]?.score).toBeGreaterThan(0.99);
       },
       60000
     );
@@ -196,11 +197,11 @@ describe('Message Pipeline E2E', () => {
         });
 
         expect(classifyResponse.ok).toBe(true);
-        const classification = await classifyResponse.json();
+        const classification = await classifyResponse.json() as Record<string, unknown>;
 
         // Should be classified as link
         expect(['link', 'url', 'reference']).toContain(
-          classification.primary_intent.toLowerCase()
+          (classification.primary_intent as string)?.toLowerCase() || ''
         );
 
         // Step 2: Scrape URL
@@ -211,15 +212,17 @@ describe('Message Pipeline E2E', () => {
         });
 
         expect(scrapeResponse.ok).toBe(true);
-        const scrapeResult = await scrapeResponse.json();
+        const scrapeResult = await scrapeResponse.json() as Record<string, unknown>;
 
+        const scrapedTitle = (scrapeResult.title as string) || '';
+        const scrapedContent = (scrapeResult.content as string) || '';
         envelope.enrichments.scraped = {
-          title: scrapeResult.title,
-          content: scrapeResult.content,
+          title: scrapedTitle,
+          content: scrapedContent,
         };
 
         // Step 3: Embed scraped content
-        const textToEmbed = `${scrapeResult.title}\n\n${scrapeResult.content}`.slice(0, 1000);
+        const textToEmbed = `${scrapedTitle}\n\n${scrapedContent}`.slice(0, 1000);
 
         const embedResponse = await fetch(`${ML_SERVICES_URL}/embed`, {
           method: 'POST',
@@ -228,15 +231,16 @@ describe('Message Pipeline E2E', () => {
         });
 
         expect(embedResponse.ok).toBe(true);
-        const embedResult = await embedResponse.json();
+        const embedResult = await embedResponse.json() as Record<string, unknown>;
 
         // Step 4: Store
         const memoryId = envelope.traceId;
+        const linkEmbedding = (embedResult.embedding as unknown as number[]) || [];
         const stored = await storeMemory(
           memoryId,
           textToEmbed,
           'link',
-          embedResult.embedding
+          linkEmbedding
         );
 
         expect(stored).toBe(true);
@@ -260,11 +264,11 @@ describe('Message Pipeline E2E', () => {
       });
 
       expect(classifyResponse.ok).toBe(true);
-      const classification = await classifyResponse.json();
+      const classification = await classifyResponse.json() as Record<string, unknown>;
 
       // Should be classified as task
       expect(['task', 'reminder', 'todo']).toContain(
-        classification.primary_intent.toLowerCase()
+        (classification.primary_intent as string)?.toLowerCase() || ''
       );
 
       // Step 2: Extract task details
@@ -275,18 +279,21 @@ describe('Message Pipeline E2E', () => {
       });
 
       expect(extractResponse.ok).toBe(true);
-      const taskDetails = await extractResponse.json();
+      const taskDetails = await extractResponse.json() as Record<string, unknown>;
 
       expect(taskDetails.action).toBeDefined();
 
       // Step 3: Store task in database
+      const dueDate = taskDetails.due_date ? new Date(taskDetails.due_date as string) : null;
+      const priority = (taskDetails.priority as string | undefined) || 'medium';
+      const taskText = envelope.content.text || '';
       await testDb`
         INSERT INTO tasks (trace_id, content, due_date, priority, status)
         VALUES (
           ${envelope.traceId}::uuid,
-          ${envelope.content.text},
-          ${taskDetails.due_date ? new Date(taskDetails.due_date) : null},
-          ${taskDetails.priority || 'medium'},
+          ${taskText},
+          ${dueDate},
+          ${priority},
           'pending'
         )
       `;
@@ -297,8 +304,8 @@ describe('Message Pipeline E2E', () => {
       `;
 
       expect(tasks.length).toBe(1);
-      expect(tasks[0].content).toBe(envelope.content.text);
-      expect(tasks[0].status).toBe('pending');
+      expect(tasks[0]?.content).toBe(taskText);
+      expect(tasks[0]?.status).toBe('pending');
     }, 60000);
   });
 
@@ -334,11 +341,12 @@ describe('Message Pipeline E2E', () => {
       });
 
       expect(embedResponse.ok).toBe(true);
-      const embedResult = await embedResponse.json();
+      const embedResult = await embedResponse.json() as Record<string, unknown>;
 
       // Verify: Embedding generated
-      expect(embedResult.embedding).toBeDefined();
-      expect(embedResult.embedding.length).toBe(768);
+      const voiceEmbedding = (embedResult.embedding as unknown as number[]) || [];
+      expect(voiceEmbedding).toBeDefined();
+      expect(voiceEmbedding.length).toBe(768);
     }, 60000);
   });
 
@@ -388,7 +396,7 @@ describe('Message Pipeline E2E', () => {
 
       // Then: Should get some classification (fallback behavior)
       expect(classifyResponse.ok).toBe(true);
-      const classification = await classifyResponse.json();
+      const classification = await classifyResponse.json() as Record<string, unknown>;
 
       // Primary intent should be defined (even if low confidence)
       expect(classification.primary_intent).toBeDefined();
@@ -425,8 +433,8 @@ describe('Message Pipeline E2E', () => {
         SELECT * FROM gardener_job_meta WHERE job_id = ${jobId}::uuid
       `;
 
-      expect(job[0].attempts).toBe(2);
-      expect(job[0].last_error).toBeNull();
+      expect(job[0]?.attempts).toBe(2);
+      expect(job[0]?.last_error).toBeNull();
 
       // Simulate successful completion
       await testDb`
@@ -439,7 +447,7 @@ describe('Message Pipeline E2E', () => {
         SELECT * FROM gardener_job_meta WHERE job_id = ${jobId}::uuid
       `;
 
-      expect(completed[0].completed_at).not.toBeNull();
+      expect(completed[0]?.completed_at).not.toBeNull();
     });
   });
 });

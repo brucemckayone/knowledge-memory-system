@@ -5,7 +5,7 @@
  * Covers EE-001 through EE-008 from the test strategy.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import {
   testDb,
   createTestEntity,
@@ -40,10 +40,10 @@ describe('Entity Extraction Agent', () => {
 
       // Then: Both entities extracted
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      const types = result.entities?.map((e: { type: string }) => e.type.toLowerCase()) || [];
-      const mentions = result.entities?.map((e: { mention: string }) => e.mention.toLowerCase()) || [];
+      const types = (result.entities as unknown as Array<{ type: string }>)?.map((e: { type: string }) => e.type.toLowerCase()) || [];
+      const mentions = (result.entities as unknown as Array<{ mention: string }>)?.map((e: { mention: string }) => e.mention.toLowerCase()) || [];
 
       // Should find person
       const hasPerson = types.some((t: string) => t === 'person' || t === 'people');
@@ -72,14 +72,16 @@ describe('Entity Extraction Agent', () => {
 
       // Then: Positions included for at least some entities
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      const entityWithPosition = result.entities?.find(
+      const entities: Array<{ start?: number; end?: number }> =
+        Array.isArray(result.entities) ? (result.entities as Array<{ start?: number; end?: number }>) : [];
+      const entityWithPosition = entities.find(
         (e: { start?: number; end?: number }) => e.start !== undefined && e.end !== undefined
       );
 
       // Position might be provided (LLM-dependent)
-      if (entityWithPosition) {
+      if (entityWithPosition && entityWithPosition.start !== undefined && entityWithPosition.end !== undefined) {
         expect(entityWithPosition.start).toBeGreaterThanOrEqual(0);
         expect(entityWithPosition.end).toBeGreaterThan(entityWithPosition.start);
       }
@@ -117,7 +119,7 @@ describe('Entity Extraction Agent', () => {
 
       // Then: Should suggest merge or link
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       // LLM should recognize this as same person
       expect(['MERGE', 'LINK', 'CREATE']).toContain(result.decision);
@@ -141,9 +143,11 @@ describe('Entity Extraction Agent', () => {
 
       // Then: Entity extracted
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      const personEntity = result.entities?.find((e: { type: string; mention: string }) =>
+      const entitiesData: Array<{ type: string; mention: string }> =
+        Array.isArray(result.entities) ? (result.entities as Array<{ type: string; mention: string }>) : [];
+      const personEntity = entitiesData.find((e: { type: string; mention: string }) =>
         e.type.toLowerCase() === 'person' ||
         e.mention.toLowerCase().includes('sarah')
       );
@@ -166,10 +170,11 @@ describe('Entity Extraction Agent', () => {
 
       // Then: Confidence scores provided
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      const entities = result.entities || [];
-      entities.forEach((e: { confidence?: number }) => {
+      const entitiesList: Array<{ confidence?: number }> =
+        Array.isArray(result.entities) ? (result.entities as Array<{ confidence?: number }>) : [];
+      entitiesList.forEach((e: { confidence?: number }) => {
         if (e.confidence !== undefined) {
           expect(e.confidence).toBeGreaterThanOrEqual(0);
           expect(e.confidence).toBeLessThanOrEqual(1);
@@ -200,9 +205,9 @@ describe('Entity Extraction Agent', () => {
       `;
 
       expect(links.length).toBe(1);
-      expect(links[0].entity_id).toBe(entity.id);
-      expect(links[0].mention_text).toBe('Test Person');
-      expect(parseFloat(links[0].confidence)).toBeCloseTo(0.95, 2);
+      expect(links[0]!.entity_id).toBe(entity.id);
+      expect(links[0]!.mention_text).toBe('Test Person');
+      expect(parseFloat(links[0]!.confidence as unknown as string)).toBeCloseTo(0.95, 2);
     });
   });
 
@@ -220,11 +225,12 @@ describe('Entity Extraction Agent', () => {
 
       // Then: Empty or minimal list, no error
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
-      expect(result.entities).toBeDefined();
+      const entities = (result.entities as unknown as unknown[]) || [];
+      expect(entities).toBeDefined();
       // Should have very few or no entities
-      expect(result.entities.length).toBeLessThanOrEqual(2);
+      expect(entities.length).toBeLessThanOrEqual(2);
     }, 30000);
   });
 

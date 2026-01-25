@@ -122,7 +122,7 @@ describe('Hybrid Search Integration', () => {
 
       // Then: Returns results ranked by vector similarity
       expect(response.ok).toBe(true);
-      const results = await response.json();
+      const results = await response.json() as Record<string, unknown>;
 
       expect(results.result.length).toBeGreaterThan(0);
       expect(results.result[0].id).toBe('mem-1'); // Exact match
@@ -263,7 +263,7 @@ describe('Hybrid Search Integration', () => {
 
       // Then: Entity mention found
       expect(response.ok).toBe(true);
-      const result = await response.json();
+      const result = await response.json() as Record<string, unknown>;
 
       // Should find at least one entity mention
       const mentions = result.entities?.map((e: { mention: string }) =>
@@ -301,7 +301,7 @@ describe('Hybrid Search Integration', () => {
 
       // Then: Vector results returned
       expect(response.ok).toBe(true);
-      const results = await response.json();
+      const results = await response.json() as Record<string, unknown>;
       expect(results.result.length).toBe(1);
       expect(results.result[0].id).toBe('orphan-mem');
     });
@@ -329,7 +329,7 @@ describe('Hybrid Search Integration', () => {
 
       // Then: Only exact match returned
       expect(response.ok).toBe(true);
-      const results = await response.json();
+      const results = await response.json() as Record<string, unknown>;
 
       expect(results.result.points.length).toBe(1);
       expect(results.result.points[0].id).toBe('exact-match');

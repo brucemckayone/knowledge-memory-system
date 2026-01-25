@@ -199,8 +199,6 @@ async function fallbackGraphSearch(
   limit: number
 ): Promise<HybridSearchResult[]> {
   try {
-    const placeholders = entityIds.map((_, i) => `$${i + 1}`).join(', ');
-    
     const result = await db.execute(sql`
       SELECT DISTINCT me.memory_id, COUNT(*) as relevance
       FROM memory_entities me
@@ -336,9 +334,9 @@ function reciprocalRankFusion(
   
   for (const { results, weight } of resultSets) {
     for (let rank = 0; rank < results.length; rank++) {
-      const item = results[rank];
+      const item = results[rank]!;
       const rrfScore = weight / (k + rank + 1);
-      
+
       const existing = scores.get(item.memoryId);
       if (existing) {
         existing.score += rrfScore;
@@ -347,13 +345,13 @@ function reciprocalRankFusion(
       }
     }
   }
-  
+
   // Sort by fused score
   const sorted = Array.from(scores.values())
     .sort((a, b) => b.score - a.score);
-  
+
   return sorted.map(s => ({
-    ...s.item,
+    ...s.item!,
     fusedScore: s.score,
   }));
 }

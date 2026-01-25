@@ -7,15 +7,14 @@
 
 import type { AgentContext, JobResult, GardenerAgent } from '../controller.js';
 import { config } from '../../config.js';
-import { 
-  findSupersedingFacts, 
-  expireFact, 
+import {
+  findSupersedingFacts,
+  expireFact,
   invalidateFact,
-  type Fact 
 } from '../../services/facts.js';
 import { db } from '../../db/index.js';
-import { facts } from '../../db/schema.js';
-import { isNull, and, eq } from 'drizzle-orm';
+import { facts, type Fact } from '../../db/schema.js';
+import { isNull, eq } from 'drizzle-orm';
 
 interface ConflictResult {
   contradicts: boolean;

@@ -94,7 +94,7 @@ export async function findPaths(
     `);
 
     // Parse agtype results into PathResult
-    return (result as unknown as { rows: Array<{ path: unknown }> }).rows.map(row => {
+    return (result as unknown as { rows: Array<{ path: unknown }> }).rows.map(() => {
       // AGE returns paths as complex objects - simplified parsing here
       return {
         nodes: [],
