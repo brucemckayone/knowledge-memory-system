@@ -5,7 +5,7 @@
  * Covers QD-001 through QD-007 from the test strategy.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { QDRANT_URL, isQdrantAvailable, randomUUID, randomEmbedding, normalizeVector } from '../setup.js';
 
 // Test collection name
@@ -104,8 +104,8 @@ describe('Platform ↔ Qdrant Integration', () => {
         `/collections/${TEST_COLLECTION}/points/${pointId}`
       );
       expect(getResponse.ok).toBe(true);
-      const point = await response.json() as Record<string, unknown>;
-      expect(point.result.payload.content).toBe('Test memory content');
+      const point = await getResponse.json() as Record<string, unknown>;
+      expect(((point.result as Record<string, unknown>).payload as Record<string, unknown>).content).toBe('Test memory content');
     });
   });
 
@@ -147,16 +147,16 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Results ranked by score
       expect(searchResponse.ok).toBe(true);
-      const results = await response.json() as Record<string, unknown>;
+      const results = await searchResponse.json() as Record<string, unknown>;
 
-      expect(results.result.length).toBe(3);
+      expect((results.result as Array<Record<string, unknown>>).length).toBe(3);
       // First result should be exact match (highest score)
-      expect(results.result[0].payload.content).toBe('Similar content 1');
-      expect(results.result[0].score).toBeGreaterThan(0.99);
+      expect(((results.result as Array<Record<string, unknown>>)[0]!.payload as Record<string, unknown>).content).toBe('Similar content 1');
+      expect(((results.result as Array<Record<string, unknown>>)[0]!.score as number)).toBeGreaterThan(0.99);
 
       // Scores should be in descending order
-      for (let i = 0; i < results.result.length - 1; i++) {
-        expect(results.result[i].score).toBeGreaterThanOrEqual(results.result[i + 1].score);
+      for (let i = 0; i < (results.result as Array<Record<string, unknown>>).length - 1; i++) {
+        expect(((results.result as Array<Record<string, unknown>>)[i]!.score as number)).toBeGreaterThanOrEqual(((results.result as Array<Record<string, unknown>>)[i + 1]!.score as number));
       }
     });
   });
@@ -206,10 +206,10 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Only thoughts returned
       expect(searchResponse.ok).toBe(true);
-      const results = await response.json() as Record<string, unknown>;
+      const results = await searchResponse.json() as Record<string, unknown>;
 
-      expect(results.result.length).toBe(2);
-      results.result.forEach((r: { payload: { type: string } }) => {
+      expect((results.result as Array<Record<string, unknown>>).length).toBe(2);
+      (results.result as Array<{ payload: { type: string } }>).forEach((r: { payload: { type: string } }) => {
         expect(r.payload.type).toBe('thought');
       });
     });
@@ -257,11 +257,11 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Only matching task returned
       expect(searchResponse.ok).toBe(true);
-      const results = await response.json() as Record<string, unknown>;
+      const results = await searchResponse.json() as Record<string, unknown>;
 
-      expect(results.result.length).toBe(1);
-      expect(results.result[0].payload.priority).toBe('high');
-      expect(results.result[0].payload.status).toBe('pending');
+      expect((results.result as Array<Record<string, unknown>>).length).toBe(1);
+      expect(((results.result as Array<Record<string, unknown>>)[0]!.payload as Record<string, unknown>).priority).toBe('high');
+      expect(((results.result as Array<Record<string, unknown>>)[0]!.payload as Record<string, unknown>).status).toBe('pending');
     });
   });
 
@@ -274,8 +274,12 @@ describe('Platform ↔ Qdrant Integration', () => {
       expect(response.ok).toBe(true);
       const info = await response.json() as Record<string, unknown>;
 
-      expect(info.result.config.params.vectors.size).toBe(768);
-      expect(info.result.config.params.vectors.distance).toBe('Cosine');
+      const infoResult = info.result as Record<string, unknown>;
+      const config = infoResult.config as Record<string, unknown>;
+      const params = config.params as Record<string, unknown>;
+      const vectors = params.vectors as Record<string, unknown>;
+      expect(vectors.size).toBe(768);
+      expect(vectors.distance).toBe('Cosine');
     });
   });
 
@@ -317,10 +321,10 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Results contain keyword
       expect(scrollResponse.ok).toBe(true);
-      const results = await response.json() as Record<string, unknown>;
+      const results = await scrollResponse.json() as Record<string, unknown>;
 
-      expect(results.result.points.length).toBe(2);
-      results.result.points.forEach((p: { payload: { content: string } }) => {
+      expect(((results.result as Record<string, unknown>).points as Array<Record<string, unknown>>).length).toBe(2);
+      ((results.result as Record<string, unknown>).points as Array<{ payload: { content: string } }>).forEach((p: { payload: { content: string } }) => {
         expect(p.payload.content.toLowerCase()).toContain('john');
       });
     });
@@ -343,7 +347,7 @@ describe('Platform ↔ Qdrant Integration', () => {
 
       // Then: Empty results, no error
       expect(searchResponse.ok).toBe(true);
-      const results = await response.json() as Record<string, unknown>;
+      const results = await searchResponse.json() as Record<string, unknown>;
 
       expect(results.result).toEqual([]);
       expect(results.status).toBe('ok');
@@ -382,15 +386,15 @@ describe('Platform ↔ Qdrant Integration', () => {
       const getResponse = await qdrantRequest(
         `/collections/${TEST_COLLECTION}/points/${pointId}`
       );
-      const point = await response.json() as Record<string, unknown>;
+      const point = await getResponse.json() as Record<string, unknown>;
 
-      expect(point.result.payload.content).toBe('Updated content');
-      expect(point.result.payload.version).toBe(2);
+      expect(((point.result as Record<string, unknown>).payload as Record<string, unknown>).content).toBe('Updated content');
+      expect(((point.result as Record<string, unknown>).payload as Record<string, unknown>).version).toBe(2);
 
       // Verify collection only has 1 point
       const countResponse = await qdrantRequest(`/collections/${TEST_COLLECTION}`);
-      const info = await response.json() as Record<string, unknown>;
-      expect(info.result.points_count).toBe(1);
+      const info = await countResponse.json() as Record<string, unknown>;
+      expect((info.result as Record<string, unknown>).points_count).toBe(1);
     });
   });
 });

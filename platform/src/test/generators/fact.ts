@@ -49,7 +49,7 @@ export interface FactGeneratorOptions {
 }
 
 function randomElement<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+  return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
 function randomDate(daysAgo: number = 365): Date {
@@ -247,8 +247,8 @@ export function generateFactGraph(
     }
 
     facts.push(generateFact(
-      entityIds[subjectIdx],
-      entityIds[objectIdx],
+      entityIds[subjectIdx]!,
+      entityIds[objectIdx]!,
       { predicate: randomElement(nonExclusivePredicates) }
     ));
   }

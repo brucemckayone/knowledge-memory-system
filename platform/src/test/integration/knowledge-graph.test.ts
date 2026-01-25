@@ -151,18 +151,13 @@ describe('Entities ↔ Facts ↔ Graph Coherence', () => {
       // Given: No entities
 
       // When: Create entity
-      const entity = await createTestEntity({
+      await createTestEntity({
         canonicalName: 'Graph Test Entity',
         entityType: 'person',
       });
 
       // Then: Node exists in graph
       await new Promise(r => setTimeout(r, 100));
-
-      const neighbors = await testDb`
-        SELECT * FROM get_entity_neighbors(${entity.id}::uuid, 0)
-      `;
-      // Even with no neighbors, the function should work without error
 
       // Verify node count increased
       const nodeCount = await countGraphNodes();
@@ -313,15 +308,15 @@ describe('Entities ↔ Facts ↔ Graph Coherence', () => {
 
       // Create some relationships
       await createTestFact({
-        subjectEntityId: entities[0].id,
+        subjectEntityId: entities[0]!.id,
         predicate: 'knows',
-        objectEntityId: entities[1].id,
+        objectEntityId: entities[1]!.id,
       });
 
       await createTestFact({
-        subjectEntityId: entities[1].id,
+        subjectEntityId: entities[1]!.id,
         predicate: 'knows',
-        objectEntityId: entities[2].id,
+        objectEntityId: entities[2]!.id,
       });
 
       await new Promise(r => setTimeout(r, 300));
@@ -331,7 +326,7 @@ describe('Entities ↔ Facts ↔ Graph Coherence', () => {
       const graphNodeCount = await countGraphNodes();
 
       // Then: Counts should match
-      expect(graphNodeCount).toBe(parseInt(relationalCount[0].count));
+      expect(graphNodeCount).toBe(parseInt(relationalCount[0]!.count as string));
     });
   });
 

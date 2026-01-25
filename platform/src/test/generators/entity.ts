@@ -77,7 +77,7 @@ export interface EntityGeneratorOptions {
 }
 
 function randomElement<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+  return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
 function randomInt(min: number, max: number): number {

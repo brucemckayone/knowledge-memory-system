@@ -5,16 +5,14 @@
  * Covers DB-001 through DB-010 from the test strategy.
  */
 
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   testDb,
-  deleteFromTables,
   createTestEntity,
   createTestFact,
   createTestMemoryEntity,
   getEntity,
   getFact,
-  getActiveFacts,
   randomEmbedding,
   normalizeVector,
   cosineSimilarity,
@@ -22,8 +20,7 @@ import {
   hasVectorExtension,
   hasTrgmExtension,
 } from '../setup.js';
-import { generateEntity, generateSimilarEntities } from '../generators/entity.js';
-import { generateFact, generateFactSupersessionChain } from '../generators/fact.js';
+import { generateEntity } from '../generators/entity.js';
 
 describe('Platform ↔ PostgreSQL Integration', () => {
   // Note: Tests should be self-contained and query only their own data
@@ -54,8 +51,8 @@ describe('Platform ↔ PostgreSQL Integration', () => {
         WHERE id = ${result.id}::uuid
       `;
       expect(entity[0]).toBeDefined();
-      expect(entity[0].canonical_name).toBe(entityData.canonicalName);
-      expect(entity[0].embedding).not.toBeNull();
+      expect(entity[0]!.canonical_name).toBe(entityData.canonicalName);
+      expect(entity[0]!.embedding).not.toBeNull();
     });
 
     it.skipIf(!hasVectorExtension)('should reject entity with wrong dimension embedding', async () => {
@@ -112,7 +109,7 @@ describe('Platform ↔ PostgreSQL Integration', () => {
 
       expect(similar.length).toBe(2);
       // First result should be exact match
-      expect(similar[0].canonical_name).toBe('John Smith');
+      expect(similar[0]!.canonical_name).toBe('John Smith');
     });
 
     it('should distinguish entities with low similarity', async () => {
@@ -218,7 +215,7 @@ describe('Platform ↔ PostgreSQL Integration', () => {
       `;
 
       expect(currentFacts.length).toBe(1);
-      expect(currentFacts[0].company_name).toBe('Second Corp');
+      expect(currentFacts[0]!.company_name).toBe('Second Corp');
     });
   });
 
@@ -245,9 +242,7 @@ describe('Platform ↔ PostgreSQL Integration', () => {
       const now = Date.now();
       const sixMonthsAgo = new Date(now - 180 * 24 * 60 * 60 * 1000);
       const threeMonthsAgo = new Date(now - 90 * 24 * 60 * 60 * 1000);
-      const twoMonthsAgo = new Date(now - 60 * 24 * 60 * 60 * 1000);  // Query point 1
       const oneMonthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);   // Query point 2
-      const future = new Date(now + 30 * 24 * 60 * 60 * 1000);
 
       // Worked at Past Corp from 6 months ago to 3 months ago
       await createTestFact({
@@ -295,10 +290,10 @@ describe('Platform ↔ PostgreSQL Integration', () => {
 
       // Then: Different employers at different times
       expect(pastFacts.length).toBe(1);
-      expect(pastFacts[0].company_name).toBe('Past Corp');
+      expect(pastFacts[0]!.company_name).toBe('Past Corp');
 
       expect(presentFacts.length).toBe(1);
-      expect(presentFacts[0].company_name).toBe('Present Corp');
+      expect(presentFacts[0]!.company_name).toBe('Present Corp');
     });
   });
 
@@ -343,8 +338,8 @@ describe('Platform ↔ PostgreSQL Integration', () => {
       `;
 
       expect(audits.length).toBe(1);
-      expect(audits[0].target_entity_id).toBe(target.id);
-      expect(audits[0].similarity_score).toBe(0.95);
+      expect(audits[0]!.target_entity_id).toBe(target.id);
+      expect(audits[0]!.similarity_score).toBe(0.95);
 
       // Target has merged_from
       const updatedTarget = await getEntity(target.id);
@@ -392,8 +387,8 @@ describe('Platform ↔ PostgreSQL Integration', () => {
       `;
 
       expect(links.length).toBe(2);
-      expect(links[0].canonical_name).toBe('John Smith');
-      expect(links[1].canonical_name).toBe('Project Alpha');
+      expect(links[0]!.canonical_name).toBe('John Smith');
+      expect(links[1]!.canonical_name).toBe('Project Alpha');
     });
   });
 
@@ -424,7 +419,7 @@ describe('Platform ↔ PostgreSQL Integration', () => {
       `;
 
       expect(foundByAlias.length).toBe(1);
-      expect(foundByAlias[0].canonical_name).toBe('Robert Johnson');
+      expect(foundByAlias[0]!.canonical_name).toBe('Robert Johnson');
 
       // All aliases linked
       const allAliases = await testDb`
@@ -458,7 +453,7 @@ describe('Platform ↔ PostgreSQL Integration', () => {
 
       // Then: Should find despite typo
       expect(fuzzyResults.length).toBeGreaterThan(0);
-      expect(fuzzyResults[0].canonical_name).toBe('Christopher Williams');
+      expect(fuzzyResults[0]!.canonical_name).toBe('Christopher Williams');
     });
   });
 
@@ -503,7 +498,7 @@ describe('Platform ↔ PostgreSQL Integration', () => {
         WHERE predicate = 'works_at'
       `;
 
-      expect(predicate[0].is_exclusive).toBe(true);
+      expect(predicate[0]!.is_exclusive).toBe(true);
 
       // Application logic should detect this as a conflict
       // (actual enforcement happens in conflict resolution agent)
@@ -517,7 +512,7 @@ describe('Platform ↔ PostgreSQL Integration', () => {
       `;
 
       // Both facts exist - conflict resolution agent would handle this
-      expect(parseInt(activeEmployments[0].count)).toBe(2);
+      expect(parseInt(activeEmployments[0]!.count as string)).toBe(2);
     });
   });
 
@@ -586,8 +581,8 @@ describe('Platform ↔ PostgreSQL Integration', () => {
 
       // Then: Overlap detected (order by valid_at ensures First Employer < Second Employer)
       expect(overlappingFacts.length).toBe(1);
-      expect(overlappingFacts[0].company1).toBe('First Employer');
-      expect(overlappingFacts[0].company2).toBe('Second Employer');
+      expect(overlappingFacts[0]!.company1).toBe('First Employer');
+      expect(overlappingFacts[0]!.company2).toBe('Second Employer');
     });
   });
 });

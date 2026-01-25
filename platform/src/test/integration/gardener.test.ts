@@ -5,7 +5,7 @@
  * Covers GC-001 through GC-008 from the test strategy.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { testDb, randomUUID } from '../setup.js';
 
 // Types matching controller.ts
@@ -59,9 +59,9 @@ describe('Gardener Controller ↔ Agents Integration', () => {
       `;
 
       expect(result.length).toBe(1);
-      expect(result[0].job_type).toBe('gardener:extract-entities');
-      expect(result[0].tier).toBe('realtime');
-      expect(result[0].priority).toBe(5);
+      expect(result[0]!.job_type).toBe('gardener:extract-entities');
+      expect(result[0]!.tier).toBe('realtime');
+      expect(result[0]!.priority).toBe(5);
     });
   });
 
@@ -118,14 +118,14 @@ describe('Gardener Controller ↔ Agents Integration', () => {
       `;
 
       // Then: Exploration bonus for new agent (low pulls = high uncertainty)
-      expect(scores[0].arm).toBe(newAgent);
-      expect(parseFloat(scores[0].ucb_score)).toBeGreaterThan(2.0);
+      expect(scores[0]!.arm).toBe(newAgent);
+      expect(parseFloat(scores[0]!.ucb_score as string)).toBeGreaterThan(2.0);
 
       // High performer second
-      expect(scores[1].arm).toBe(highPerformer);
+      expect(scores[1]!.arm).toBe(highPerformer);
 
       // Low performer last
-      expect(scores[2].arm).toBe(lowPerformer);
+      expect(scores[2]!.arm).toBe(lowPerformer);
     });
 
     it('should update MAB reward after job completion', async () => {
@@ -144,8 +144,8 @@ describe('Gardener Controller ↔ Agents Integration', () => {
         SELECT * FROM mab_state WHERE arm = ${testArm}
       `;
 
-      expect(state[0].pulls).toBe(11);
-      expect(parseFloat(state[0].total_reward)).toBeCloseTo(9.0, 1);
+      expect(state[0]!.pulls).toBe(11);
+      expect(parseFloat(state[0]!.total_reward as string)).toBeCloseTo(9.0, 1);
     });
   });
 
@@ -213,9 +213,9 @@ describe('Gardener Controller ↔ Agents Integration', () => {
       `;
 
       // Note: postgres-js may return JSONB as string, so parse if needed
-      const checkpoint = typeof result[0].checkpoint === 'string'
-        ? JSON.parse(result[0].checkpoint)
-        : result[0].checkpoint;
+      const checkpoint = typeof result[0]!.checkpoint === 'string'
+        ? JSON.parse(result[0]!.checkpoint as string)
+        : result[0]!.checkpoint;
       expect(checkpoint).toEqual(checkpointData);
     });
 
@@ -240,9 +240,9 @@ describe('Gardener Controller ↔ Agents Integration', () => {
 
       // Then: Checkpoint restored correctly
       // Note: postgres-js may return JSONB as string, so parse if needed
-      const checkpoint = typeof result[0].checkpoint === 'string'
-        ? JSON.parse(result[0].checkpoint)
-        : result[0].checkpoint;
+      const checkpoint = typeof result[0]!.checkpoint === 'string'
+        ? JSON.parse(result[0]!.checkpoint as string)
+        : result[0]!.checkpoint;
       expect(checkpoint).toEqual(checkpointData);
       expect(checkpoint.processedCount).toBe(75);
     });
@@ -304,8 +304,8 @@ describe('Gardener Controller ↔ Agents Integration', () => {
         SELECT * FROM gardener_job_meta WHERE job_id = ${jobId}::uuid
       `;
 
-      expect(result[0].completed_at).not.toBeNull();
-      expect(result[0].duration_ms).toBe(5000);
+      expect(result[0]!.completed_at).not.toBeNull();
+      expect(result[0]!.duration_ms).toBe(5000);
     });
 
     it('should track job attempts', async () => {
@@ -328,7 +328,7 @@ describe('Gardener Controller ↔ Agents Integration', () => {
         SELECT attempts FROM gardener_job_meta WHERE job_id = ${jobId}::uuid
       `;
 
-      expect(result[0].attempts).toBe(2);
+      expect(result[0]!.attempts).toBe(2);
     });
   });
 
@@ -355,11 +355,11 @@ describe('Gardener Controller ↔ Agents Integration', () => {
         SELECT * FROM gardener_job_meta WHERE job_id = ${jobId}::uuid
       `;
 
-      expect(result[0].last_error).toBe(errorMessage);
-      expect(result[0].completed_at).toBeNull(); // Not completed
+      expect(result[0]!.last_error).toBe(errorMessage);
+      expect(result[0]!.completed_at).toBeNull(); // Not completed
 
       // Can be retried (attempts < limit)
-      const canRetry = result[0].attempts < 3; // Assuming limit of 3
+      const canRetry = result[0]!.attempts < 3; // Assuming limit of 3
       expect(canRetry).toBe(true);
     });
 

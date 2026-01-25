@@ -5,7 +5,7 @@
  * Covers HS-001 through HS-007 from the test strategy.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import {
   testDb,
   createTestEntity,
@@ -124,9 +124,9 @@ describe('Hybrid Search Integration', () => {
       expect(response.ok).toBe(true);
       const results = await response.json() as Record<string, unknown>;
 
-      expect(results.result.length).toBeGreaterThan(0);
-      expect(results.result[0].id).toBe('mem-1'); // Exact match
-      expect(results.result[0].score).toBeGreaterThan(0.99);
+      expect((results.result as Array<Record<string, unknown>>).length).toBeGreaterThan(0);
+      expect(((results.result as Array<Record<string, unknown>>)[0] as Record<string, unknown>).id).toBe('mem-1'); // Exact match
+      expect(((results.result as Array<Record<string, unknown>>)[0] as Record<string, unknown>).score).toBeGreaterThan(0.99);
     });
   });
 
@@ -172,7 +172,7 @@ describe('Hybrid Search Integration', () => {
 
       // Then: Should find memories through entity links
       expect(linkedMemories.length).toBe(1);
-      expect(linkedMemories[0].memory_id).toBe(memoryId1);
+      expect(linkedMemories[0]!.memory_id).toBe(memoryId1);
     });
   });
 
@@ -241,19 +241,13 @@ describe('Hybrid Search Integration', () => {
       }));
 
       // Then: Scores are proportional to weights
-      expect(scores1[0].score).toBe(scores2[0].score * 2);
-      expect(scores1[1].score).toBe(scores2[1].score * 2);
+      expect(scores1[0]!.score).toBe(scores2[0]!.score * 2);
+      expect(scores1[1]!.score).toBe(scores2[1]!.score * 2);
     });
   });
 
   describe('HS-005: Entity extraction from query', () => {
     it.skipIf(!mlAvailable)('should resolve entities in query', async () => {
-      // Given: Entity in database
-      const person = await createTestEntity({
-        canonicalName: 'Bruce McKay',
-        entityType: 'person',
-      });
-
       // When: Extract entities from query
       const response = await fetch(`${ML_SERVICES_URL}/extract-entities`, {
         method: 'POST',
@@ -266,7 +260,7 @@ describe('Hybrid Search Integration', () => {
       const result = await response.json() as Record<string, unknown>;
 
       // Should find at least one entity mention
-      const mentions = result.entities?.map((e: { mention: string }) =>
+      const mentions = (result.entities as Array<{ mention: string }> | undefined)?.map((e: { mention: string }) =>
         e.mention.toLowerCase()
       ) || [];
 
@@ -286,7 +280,7 @@ describe('Hybrid Search Integration', () => {
 
       // Verify no entity links
       const links = await testDb`SELECT COUNT(*) as count FROM memory_entities`;
-      expect(parseInt(links[0].count)).toBe(0);
+      expect(parseInt(links[0]!.count as string)).toBe(0);
 
       // When: Vector search
       const response = await fetch(`${QDRANT_URL}/collections/${MEMORIES_COLLECTION}/points/search`, {
@@ -302,8 +296,8 @@ describe('Hybrid Search Integration', () => {
       // Then: Vector results returned
       expect(response.ok).toBe(true);
       const results = await response.json() as Record<string, unknown>;
-      expect(results.result.length).toBe(1);
-      expect(results.result[0].id).toBe('orphan-mem');
+      expect((results.result as Array<Record<string, unknown>>).length).toBe(1);
+      expect(((results.result as Array<Record<string, unknown>>)[0] as Record<string, unknown>).id).toBe('orphan-mem');
     });
   });
 
@@ -331,8 +325,8 @@ describe('Hybrid Search Integration', () => {
       expect(response.ok).toBe(true);
       const results = await response.json() as Record<string, unknown>;
 
-      expect(results.result.points.length).toBe(1);
-      expect(results.result.points[0].id).toBe('exact-match');
+      expect(((results.result as Record<string, unknown>).points as Array<Record<string, unknown>>).length).toBe(1);
+      expect(((results.result as Record<string, unknown>).points as Array<Record<string, unknown>>)[0]!.id).toBe('exact-match');
     });
   });
 });

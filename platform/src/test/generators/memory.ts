@@ -105,17 +105,13 @@ export interface MemoryGeneratorOptions {
 }
 
 function randomElement<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+  return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
 function randomDate(daysAgo: number = 90): Date {
   const now = Date.now();
   const pastMs = daysAgo * 24 * 60 * 60 * 1000;
   return new Date(now - Math.random() * pastMs);
-}
-
-function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-');
 }
 
 /**
