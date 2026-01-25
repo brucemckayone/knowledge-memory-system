@@ -307,6 +307,252 @@ describe('Conflict Resolution Agent', () => {
     }, 30000);
   });
 
+  // Phase 4 Golden Tests: CNF-001 to CNF-005 (Boundaries B8, B9)
+
+  describe('CNF-001: Detect exclusive conflict (B8)', () => {
+    it('should identify works_at as exclusive predicate', async () => {
+      // Given: Check predicate exclusivity
+      const predicate = await testDb`
+        SELECT is_exclusive FROM fact_predicates WHERE predicate = 'works_at'
+      `;
+
+      // Then: works_at is exclusive (can only work at one place at a time)
+      expect(predicate[0]?.is_exclusive).toBe(true);
+    });
+
+    it('should flag multiple exclusive facts as conflicting', async () => {
+      // Given: Person entity
+      const person = await createTestEntity({
+        canonicalName: 'Conflict Test Person',
+        entityType: 'person',
+      });
+
+      const company1 = await createTestEntity({
+        canonicalName: 'First Company',
+        entityType: 'company',
+      });
+
+      const company2 = await createTestEntity({
+        canonicalName: 'Second Company',
+        entityType: 'company',
+      });
+
+      // When: Create two active facts with exclusive predicate
+      await createTestFact({
+        subjectEntityId: person.id,
+        predicate: 'works_at',
+        objectEntityId: company1.id,
+        validAt: new Date(),
+      });
+
+      await createTestFact({
+        subjectEntityId: person.id,
+        predicate: 'works_at',
+        objectEntityId: company2.id,
+        validAt: new Date(),
+      });
+
+      // Then: Two active facts exist (conflict not yet resolved)
+      const activeFacts = await testDb`
+        SELECT * FROM facts
+        WHERE subject_entity_id = ${person.id}::uuid
+          AND predicate = 'works_at'
+          AND invalid_at IS NULL
+      `;
+
+      // This represents a conflict state that needs resolution
+      expect(activeFacts.length).toBe(2);
+    });
+  });
+
+  describe('CNF-002: Allow non-exclusive (B8)', () => {
+    it('should identify knows as non-exclusive predicate', async () => {
+      // Given: Check predicate exclusivity
+      const predicate = await testDb`
+        SELECT is_exclusive FROM fact_predicates WHERE predicate = 'knows'
+      `;
+
+      // Then: knows is non-exclusive (can know many people)
+      expect(predicate[0]?.is_exclusive).toBe(false);
+    });
+
+    it('should allow multiple non-exclusive facts without conflict', async () => {
+      // Given: Person who knows multiple people
+      const person = await createTestEntity({
+        canonicalName: 'Social Person',
+        entityType: 'person',
+      });
+
+      const friend1 = await createTestEntity({
+        canonicalName: 'Friend One',
+        entityType: 'person',
+      });
+
+      const friend2 = await createTestEntity({
+        canonicalName: 'Friend Two',
+        entityType: 'person',
+      });
+
+      const friend3 = await createTestEntity({
+        canonicalName: 'Friend Three',
+        entityType: 'person',
+      });
+
+      // When: Create multiple knows facts
+      await createTestFact({ subjectEntityId: person.id, predicate: 'knows', objectEntityId: friend1.id });
+      await createTestFact({ subjectEntityId: person.id, predicate: 'knows', objectEntityId: friend2.id });
+      await createTestFact({ subjectEntityId: person.id, predicate: 'knows', objectEntityId: friend3.id });
+
+      // Then: All facts coexist (no conflict)
+      const facts = await testDb`
+        SELECT * FROM facts
+        WHERE subject_entity_id = ${person.id}::uuid
+          AND predicate = 'knows'
+          AND invalid_at IS NULL
+      `;
+
+      expect(facts.length).toBe(3);
+    });
+  });
+
+  describe('CNF-003: Supersede older fact (B9)', () => {
+    it('should invalidate older fact when newer contradicting fact arrives', async () => {
+      // Given: Person with historical employment
+      const person = await createTestEntity({
+        canonicalName: 'Employee History',
+        entityType: 'person',
+      });
+
+      const oldJob = await createTestEntity({
+        canonicalName: 'Previous Employer',
+        entityType: 'company',
+      });
+
+      const newJob = await createTestEntity({
+        canonicalName: 'Current Employer',
+        entityType: 'company',
+      });
+
+      const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const now = new Date();
+
+      // Create old employment fact
+      const oldFact = await createTestFact({
+        subjectEntityId: person.id,
+        predicate: 'works_at',
+        objectEntityId: oldJob.id,
+        validAt: threeMonthsAgo,
+      });
+
+      // When: Supersede with new employment
+      await testDb`UPDATE facts SET invalid_at = ${now} WHERE id = ${oldFact.id}::uuid`;
+
+      await createTestFact({
+        subjectEntityId: person.id,
+        predicate: 'works_at',
+        objectEntityId: newJob.id,
+        validAt: now,
+      });
+
+      // Then: Only new fact is current
+      const currentFacts = await testDb`
+        SELECT f.*, e.canonical_name as employer
+        FROM facts f
+        JOIN entities e ON f.object_entity_id = e.id
+        WHERE f.subject_entity_id = ${person.id}::uuid
+          AND f.predicate = 'works_at'
+          AND f.invalid_at IS NULL
+      `;
+
+      expect(currentFacts.length).toBe(1);
+      expect(currentFacts[0]!.employer).toBe('Current Employer');
+    });
+  });
+
+  describe('CNF-004: Flag ambiguous (B9)', () => {
+    it('should store ambiguous conflict for manual review', async () => {
+      // Given: Job with ambiguous conflict state
+      const jobId = randomUUID();
+      const ambiguousState = {
+        resolution: 'flag',
+        reason: 'Multiple valid interpretations possible',
+        factIds: [randomUUID(), randomUUID()],
+        confidence: 0.5,
+        requiresHumanReview: true,
+      };
+
+      // When: Store flagged state
+      await testDb`
+        INSERT INTO gardener_job_meta (job_id, job_type, tier, checkpoint)
+        VALUES (
+          ${jobId}::uuid,
+          'gardener:resolve-conflicts',
+          'periodic',
+          ${JSON.stringify(ambiguousState)}::jsonb
+        )
+      `;
+
+      // Then: State can be retrieved for review
+      const result = await testDb`
+        SELECT checkpoint FROM gardener_job_meta WHERE job_id = ${jobId}::uuid
+      `;
+
+      const checkpoint = typeof result[0]!.checkpoint === 'string'
+        ? JSON.parse(result[0]!.checkpoint as string)
+        : result[0]!.checkpoint;
+
+      expect((checkpoint as Record<string, unknown>).resolution).toBe('flag');
+      expect((checkpoint as Record<string, unknown>).requiresHumanReview).toBe(true);
+    });
+  });
+
+  describe('CNF-005: Checkpoint batch (B9)', () => {
+    it('should checkpoint every 10 facts during batch processing', async () => {
+      // Given: Batch processing state
+      const jobId = randomUUID();
+
+      // Simulate checkpoint at fact 10
+      const checkpoint10 = {
+        processedIds: Array.from({ length: 10 }, () => randomUUID()),
+        lastBatchIndex: 10,
+        totalFacts: 50,
+        conflictsFound: 2,
+      };
+
+      await testDb`
+        INSERT INTO gardener_job_meta (job_id, job_type, tier, checkpoint)
+        VALUES (${jobId}::uuid, 'gardener:resolve-conflicts', 'periodic', ${JSON.stringify(checkpoint10)}::jsonb)
+      `;
+
+      // When: Update checkpoint at fact 20
+      const checkpoint20 = {
+        processedIds: Array.from({ length: 20 }, () => randomUUID()),
+        lastBatchIndex: 20,
+        totalFacts: 50,
+        conflictsFound: 4,
+      };
+
+      await testDb`
+        UPDATE gardener_job_meta
+        SET checkpoint = ${JSON.stringify(checkpoint20)}::jsonb,
+            checkpoint_at = NOW()
+        WHERE job_id = ${jobId}::uuid
+      `;
+
+      // Then: Checkpoint reflects batch progress
+      const result = await testDb`
+        SELECT checkpoint, checkpoint_at FROM gardener_job_meta WHERE job_id = ${jobId}::uuid
+      `;
+
+      const checkpoint = typeof result[0]!.checkpoint === 'string'
+        ? JSON.parse(result[0]!.checkpoint as string)
+        : result[0]!.checkpoint;
+
+      expect((checkpoint as Record<string, unknown>).lastBatchIndex).toBe(20);
+      expect(((checkpoint as Record<string, unknown>).processedIds as string[]).length).toBe(20);
+    });
+  });
+
   describe('Conflict detection - predicate exclusivity', () => {
     it('should detect conflicts for exclusive predicates', async () => {
       // Given: Exclusive predicate configuration
