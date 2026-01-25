@@ -195,6 +195,37 @@ docker compose logs -f ml-services
 
 ---
 
+## Testing
+
+The platform uses **Vitest** for testing with a layered test architecture that supports graceful degradation when optional services are unavailable.
+
+```bash
+cd platform
+pnpm test         # Run all tests
+pnpm test:watch   # Watch mode
+```
+
+### Test Categories
+
+| Category | Path | Dependencies | Purpose |
+|----------|------|--------------|---------|
+| **Integration** | `src/test/integration/` | PostgreSQL | Module boundary tests |
+| **Agent** | `src/test/agents/` | PostgreSQL, ML Services | KARMA agent behavior |
+| **E2E** | `src/test/e2e/` | All services | Full pipeline flows |
+
+### Graceful Degradation
+
+Tests automatically skip when dependencies are unavailable:
+
+- **pgvector** - Vector similarity tests skip if extension not installed
+- **pg_trgm** - Fuzzy search tests skip if extension not installed
+- **ML Services** - Entity extraction tests skip if service not running
+- **Qdrant** - Hybrid search tests skip if not available
+
+This allows running tests locally without the full Docker stack.
+
+---
+
 ## Roadmap
 
 - [x] **Phase 0:** Model research

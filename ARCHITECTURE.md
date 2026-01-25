@@ -1001,7 +1001,111 @@ storage:
 
 ---
 
-## 12. Next Steps
+## 12. Testing Architecture
+
+The platform uses **Vitest 4** with a module boundary testing strategy that validates integration points between components.
+
+### 12.1 Test Structure
+
+```
+platform/src/test/
+├── global-setup.ts      # Database initialization, extension detection
+├── setup.ts             # Per-file setup, utilities, extension flags
+├── generators/          # Test data factories
+│   ├── entity.ts        # Entity test data
+│   └── fact.ts          # Fact test data
+├── integration/         # Module boundary tests
+│   ├── database.test.ts # Platform ↔ PostgreSQL (DB-001 to DB-010)
+│   ├── qdrant.test.ts   # Platform ↔ Qdrant (QD-001 to QD-007)
+│   ├── ml-services.test.ts  # Platform ↔ ML Services (ML-001 to ML-010)
+│   ├── knowledge-graph.test.ts  # Entities ↔ Facts ↔ Graph (KG-001 to KG-007)
+│   ├── hybrid-search.test.ts    # Hybrid retrieval (HS-001 to HS-007)
+│   └── gardener.test.ts         # Gardener controller (GC-001 to GC-010)
+├── agents/              # KARMA agent tests
+│   ├── entity-extraction.test.ts  # Agent #5
+│   └── conflict-resolution.test.ts # Agent #8
+└── e2e/                 # End-to-end pipeline tests
+    └── message-pipeline.test.ts
+```
+
+### 12.2 Test Naming Convention
+
+Tests are numbered by module boundary:
+- **DB-XXX**: Database integration (entities, facts, bi-temporal queries)
+- **QD-XXX**: Qdrant vector storage
+- **ML-XXX**: ML Services (embeddings, NER, summarization)
+- **KG-XXX**: Knowledge graph coherence
+- **HS-XXX**: Hybrid search/retrieval
+- **GC-XXX**: Gardener controller and scheduling
+
+### 12.3 Graceful Degradation
+
+The test infrastructure detects missing PostgreSQL extensions and external services at startup:
+
+```typescript
+// global-setup.ts tracks extension availability
+const extensionAvailability = {
+  vector: false,   // pgvector for embeddings
+  pg_trgm: false,  // Trigram for fuzzy search
+  uuid_ossp: true, // UUID generation
+};
+
+// Tests use skipIf for conditional execution
+describe('DB-002: Entity deduplication', () => {
+  it.skipIf(!hasVectorExtension)('should identify similar entities', async () => {
+    // Vector similarity test - skipped if pgvector unavailable
+  });
+});
+```
+
+**Extension Behavior:**
+
+| Extension | Required For | Fallback |
+|-----------|--------------|----------|
+| `uuid-ossp` | UUID generation | Required, no fallback |
+| `vector` | Embedding similarity | Tests skip, tables created without vector columns |
+| `pg_trgm` | Fuzzy text matching | Tests skip, basic btree indexes used |
+
+**Service Behavior:**
+
+| Service | Required For | Detection |
+|---------|--------------|-----------|
+| PostgreSQL | All tests | Connection check at startup |
+| Qdrant | Vector search tests | Health endpoint check |
+| ML Services | Entity extraction, embeddings | Health endpoint check |
+
+### 12.4 Running Tests
+
+```bash
+# Full test suite (services may skip if unavailable)
+pnpm test
+
+# Specific module boundary
+pnpm test src/test/integration/database.test.ts
+
+# With coverage
+pnpm test --coverage
+
+# Watch mode
+pnpm test:watch
+```
+
+### 12.5 Test Database
+
+Tests use a dedicated `cognitive_test` database that is:
+- Created automatically on first test run
+- Schema created from global-setup.ts (mirrors production)
+- Truncated between tests for isolation
+- Not dropped after tests (for debugging failed tests)
+
+To reset the test database:
+```bash
+PGPASSWORD=postgres psql -U postgres -h localhost -c "DROP DATABASE cognitive_test;"
+```
+
+---
+
+## 13. Next Steps
 
 1. **Model Research** – Benchmark embedding/LLM models on M1
 2. **Scaffold Project** – Create directory structure, Docker setup

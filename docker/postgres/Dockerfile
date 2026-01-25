@@ -4,6 +4,7 @@
 FROM pgvector/pgvector:pg16
 
 # Install build dependencies for Apache AGE
+# postgresql-server-dev-16 contains the header files needed to compile AGE
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
@@ -11,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     flex \
     bison \
+    postgresql-server-dev-16 \
     && rm -rf /var/lib/apt/lists/*
 
 # Clone and build Apache AGE
@@ -26,7 +28,8 @@ RUN apt-get purge -y --auto-remove \
     build-essential \
     git \
     flex \
-    bison
+    bison \
+    postgresql-server-dev-16
 
 # Set up initialization script for AGE
 COPY init-age.sql /docker-entrypoint-initdb.d/

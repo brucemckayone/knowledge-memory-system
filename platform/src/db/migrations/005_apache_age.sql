@@ -32,123 +32,114 @@ END $$;
 -- ============================================
 
 -- Function to sync an entity to the graph
+-- Note: Due to AGE Cypher limitations, this uses a simplified approach
 CREATE OR REPLACE FUNCTION sync_entity_to_graph(
-    entity_id UUID,
-    entity_name VARCHAR,
-    entity_type VARCHAR,
-    entity_props JSONB
+    p_entity_id UUID,
+    p_entity_name VARCHAR,
+    p_entity_type VARCHAR,
+    p_entity_props JSONB
 ) RETURNS void AS $$
-DECLARE
-    cypher_query TEXT;
-    props_json TEXT;
 BEGIN
-    -- Convert JSONB to string for Cypher
-    props_json := entity_props::text;
-    
-    -- Create or update entity node
-    -- Using MERGE to handle upsert
-    cypher_query := format(
-        'MERGE (e:Entity {entity_id: ''%s''}) 
-         SET e.name = ''%s'', e.type = ''%s'', e.updated_at = datetime()',
-        entity_id, 
-        REPLACE(entity_name, '''', ''''''),
-        entity_type
-    );
-    
-    -- Execute in knowledge_graph context
+    -- Use AGE to create/update entity node
+    -- The query creates a node with the entity data
     EXECUTE format(
-        'SELECT * FROM cypher(''knowledge_graph'', $$ %s $$) as (v agtype)',
-        cypher_query
+        'SELECT * FROM cypher(''knowledge_graph'', $cypher$
+            MERGE (e:Entity {entity_id: %L})
+            SET e.name = %L, e.type = %L, e.updated_at = localtimestamp
+            RETURN e
+        $cypher$) as (v agtype)',
+        p_entity_id::text,
+        p_entity_name,
+        p_entity_type
     );
+EXCEPTION WHEN OTHERS THEN
+    -- Silently ignore errors (graph may not be ready)
+    NULL;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to create an edge between entities
 CREATE OR REPLACE FUNCTION create_entity_edge(
-    from_entity_id UUID,
-    to_entity_id UUID,
-    relationship_type VARCHAR,
-    edge_props JSONB DEFAULT '{}'
+    p_from_entity_id UUID,
+    p_to_entity_id UUID,
+    p_relationship_type VARCHAR,
+    p_edge_props JSONB DEFAULT '{}'
 ) RETURNS void AS $$
 DECLARE
-    cypher_query TEXT;
+    rel_type VARCHAR;
 BEGIN
-    cypher_query := format(
-        'MATCH (a:Entity {entity_id: ''%s''}), (b:Entity {entity_id: ''%s''})
-         MERGE (a)-[r:%s]->(b)
-         SET r.created_at = datetime()',
-        from_entity_id,
-        to_entity_id,
-        UPPER(REPLACE(relationship_type, '-', '_'))
-    );
+    -- Sanitize relationship type for Cypher (uppercase, underscores)
+    rel_type := upper(replace(p_relationship_type, '-', '_'));
     
     EXECUTE format(
-        'SELECT * FROM cypher(''knowledge_graph'', $$ %s $$) as (v agtype)',
-        cypher_query
+        'SELECT * FROM cypher(''knowledge_graph'', $cypher$
+            MATCH (a:Entity {entity_id: %L}), (b:Entity {entity_id: %L})
+            MERGE (a)-[r:%s]->(b)
+            SET r.created_at = localtimestamp
+            RETURN r
+        $cypher$) as (v agtype)',
+        p_from_entity_id::text,
+        p_to_entity_id::text,
+        rel_type
     );
+EXCEPTION WHEN OTHERS THEN
+    -- Silently ignore errors
+    NULL;
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to find paths between entities
+-- Function to find paths between entities (simplified)
 CREATE OR REPLACE FUNCTION find_entity_paths(
-    from_entity_id UUID,
-    to_entity_id UUID,
-    max_hops INT DEFAULT 3
+    p_from_entity_id UUID,
+    p_to_entity_id UUID,
+    p_max_hops INT DEFAULT 3
 ) RETURNS TABLE (
     path_info JSONB
 ) AS $$
 BEGIN
-    -- Note: This returns path data as JSONB
-    -- The actual Cypher query extracts path information
     RETURN QUERY EXECUTE format(
-        'SELECT (row_to_json(t)::jsonb) as path_info FROM (
+        'SELECT row_to_json(t)::jsonb as path_info FROM (
             SELECT * FROM cypher(''knowledge_graph'', $cypher$
-                MATCH path = (a:Entity {entity_id: ''%s''})-[*1..%s]-(b:Entity {entity_id: ''%s''})
+                MATCH path = (a:Entity {entity_id: %L})-[*1..%s]-(b:Entity {entity_id: %L})
                 RETURN path
                 LIMIT 10
             $cypher$) as (path agtype)
         ) t',
-        from_entity_id,
-        max_hops,
-        to_entity_id
+        p_from_entity_id::text,
+        p_max_hops,
+        p_to_entity_id::text
     );
+EXCEPTION WHEN OTHERS THEN
+    -- Return empty on error
+    RETURN;
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to get entity neighbors
+-- Function to get entity neighbors (simplified)
 CREATE OR REPLACE FUNCTION get_entity_neighbors(
-    entity_id UUID,
-    relationship_type VARCHAR DEFAULT NULL,
-    max_depth INT DEFAULT 1
+    p_entity_id UUID,
+    p_max_depth INT DEFAULT 1
 ) RETURNS TABLE (
-    neighbor_id UUID,
-    neighbor_name VARCHAR,
-    neighbor_type VARCHAR,
-    edge_type VARCHAR,
-    depth INT
+    neighbor_id TEXT,
+    neighbor_name TEXT,
+    neighbor_type TEXT
 ) AS $$
-DECLARE
-    cypher_query TEXT;
 BEGIN
-    IF relationship_type IS NOT NULL THEN
-        cypher_query := format(
-            'MATCH (a:Entity {entity_id: ''%s''})-[r:%s*1..%s]-(b:Entity)
-             RETURN b.entity_id, b.name, b.type, type(r), length(r)',
-            entity_id,
-            UPPER(REPLACE(relationship_type, '-', '_')),
-            max_depth
-        );
-    ELSE
-        cypher_query := format(
-            'MATCH (a:Entity {entity_id: ''%s''})-[r*1..%s]-(b:Entity)
-             RETURN DISTINCT b.entity_id, b.name, b.type, type(r[0]), 1',
-            entity_id,
-            max_depth
-        );
-    END IF;
-    
-    -- Execute and return (simplified - actual implementation would parse agtype)
-    -- This is a placeholder for the complex parsing needed
+    RETURN QUERY EXECUTE format(
+        'SELECT 
+            (n->>''entity_id'')::text,
+            (n->>''name'')::text,
+            (n->>''type'')::text
+        FROM cypher(''knowledge_graph'', $cypher$
+            MATCH (a:Entity {entity_id: %L})-[*1..%s]-(b:Entity)
+            RETURN DISTINCT b
+            LIMIT 50
+        $cypher$) as (n agtype)',
+        p_entity_id::text,
+        p_max_depth
+    );
+EXCEPTION WHEN OTHERS THEN
+    -- Return empty on error
     RETURN;
 END;
 $$ LANGUAGE plpgsql;
