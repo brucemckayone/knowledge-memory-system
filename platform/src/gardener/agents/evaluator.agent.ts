@@ -240,7 +240,10 @@ async function getRecentJobMetrics(
       LIMIT ${limit}
     `);
 
-    return (result as unknown as { rows: JobMetric[] }).rows.map(r => ({
+    // Handle both { rows: [...] } and direct array responses from drizzle
+    const rows = (result as unknown as { rows?: JobMetric[] })?.rows ??
+                 (Array.isArray(result) ? result as unknown as JobMetric[] : []);
+    return rows.map(r => ({
       ...r,
       agentName: r.agentName.replace('gardener:', ''),
       itemsProcessed: null, // Will be populated from gardener_metrics if available
@@ -273,7 +276,10 @@ async function getAgentStats(): Promise<Map<string, AgentMetrics>> {
       GROUP BY agent_name
     `);
 
-    for (const row of (result as unknown as { rows: AgentMetrics[] }).rows) {
+    // Handle both { rows: [...] } and direct array responses from drizzle
+    const rows = (result as unknown as { rows?: AgentMetrics[] })?.rows ??
+                 (Array.isArray(result) ? result as unknown as AgentMetrics[] : []);
+    for (const row of rows) {
       stats.set(row.agentName, row);
     }
   } catch (error) {

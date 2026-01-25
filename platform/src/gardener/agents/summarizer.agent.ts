@@ -379,7 +379,9 @@ async function findMemoriesNeedingSummary(
       LIMIT ${limit}
     `);
 
-    const rows = (result as unknown as { rows: Array<{ id: string; type: string }> }).rows;
+    // Handle both { rows: [...] } and direct array responses from drizzle
+    const rows = (result as unknown as { rows?: Array<{ id: string; type: string }> })?.rows ??
+                 (Array.isArray(result) ? result as unknown as Array<{ id: string; type: string }> : []);
 
     // Fetch content for each
     const memories: Array<{ id: string; content: string; type: string }> = [];

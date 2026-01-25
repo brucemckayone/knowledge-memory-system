@@ -400,7 +400,10 @@ export async function findNonCanonicalPredicates(): Promise<Array<{ predicate: s
     ORDER BY count DESC
   `);
 
-  return (result as unknown as { rows: Array<{ predicate: string; count: number }> }).rows;
+  // Handle both { rows: [...] } and direct array responses from drizzle
+  const rows = (result as unknown as { rows?: Array<{ predicate: string; count: number }> })?.rows ??
+               (Array.isArray(result) ? result as unknown as Array<{ predicate: string; count: number }> : []);
+  return rows;
 }
 
 /**
@@ -454,10 +457,17 @@ export async function getPredicateStats(): Promise<Array<{
     LIMIT 50
   `);
 
-  return (result as unknown as { rows: Array<{
+  // Handle both { rows: [...] } and direct array responses from drizzle
+  const rows = (result as unknown as { rows?: Array<{
     predicate: string;
     category: string;
     usageCount: number;
     isCanonical: boolean;
-  }> }).rows;
+  }> })?.rows ?? (Array.isArray(result) ? result as unknown as Array<{
+    predicate: string;
+    category: string;
+    usageCount: number;
+    isCanonical: boolean;
+  }> : []);
+  return rows;
 }
