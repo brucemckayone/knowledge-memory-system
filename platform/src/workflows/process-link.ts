@@ -6,6 +6,7 @@ import { fetchWebpageSkill } from '../skills/core/fetch-webpage.skill.js';
 import { summarizeSkill } from '../skills/core/summarize.skill.js';
 import { embedSkill } from '../skills/core/embed.skill.js';
 import { storeMemorySkill } from '../skills/core/store-memory.skill.js';
+import { getController } from '../gardener/controller.js';
 
 export interface ProcessLinkResult {
   success: boolean;
@@ -115,6 +116,29 @@ export async function processLink(
     }, context);
 
     addEnrichment(envelope, 'store', { memory_id: storeResult.memory_id }, storeStart);
+
+    // Queue for KARMA pipeline processing
+    try {
+      const controller = getController();
+      await controller.enqueue({
+        type: 'gardener:ingestion',
+        tier: 'realtime',
+        payload: {
+          memoryId: envelope.trace_id,
+          content: `${fetchResult.title}\n\n${summaryResult.summary}\n\nURL: ${urlResult.primary_url}`,
+          type: 'link',
+          source: envelope.origin.platform,
+          metadata: {
+            url: urlResult.primary_url,
+            domain: fetchResult.domain,
+            title: fetchResult.title,
+          },
+        },
+      });
+    } catch (error) {
+      // Non-fatal: gardener processing can catch up later
+      context.log(`Failed to queue gardener job: ${error}`, 'warn');
+    }
 
     envelope.routing.status = 'completed';
 

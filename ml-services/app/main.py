@@ -10,11 +10,14 @@ from .extract_task import router as extract_task_router
 # Phase 3
 from .extract_entities import router as extract_entities_router
 from .check_contradiction import router as check_contradiction_router
+# Phase 4
+from .reader import router as reader_router
+from .relationships import router as relationships_router
 
 app = FastAPI(
     title="Cognitive ML Services",
-    version="3.0.0",
-    description="ML endpoints for the Cognitive Platform (Phase 3)"
+    version="4.0.0",
+    description="ML endpoints for the Cognitive Platform (Phase 4)"
 )
 
 # CORS for local development
@@ -36,6 +39,9 @@ app.include_router(extract_task_router, tags=["Task Extraction"])
 # Phase 3
 app.include_router(extract_entities_router, tags=["Entity Extraction"])
 app.include_router(check_contradiction_router, tags=["Contradiction Detection"])
+# Phase 4
+app.include_router(reader_router, tags=["Content Reader"])
+app.include_router(relationships_router, tags=["Relationship Extraction"])
 
 
 @app.get("/health")
@@ -44,7 +50,7 @@ def health():
     return {
         "status": "ok",
         "service": "ml-services",
-        "version": "3.0.0",
+        "version": "4.0.0",
         "endpoints": [
             "embed",
             "transcribe",
@@ -53,7 +59,9 @@ def health():
             "summarize",
             "extract-task",
             "extract-entities",
-            "check-contradiction"
+            "check-contradiction",
+            "parse-content",
+            "extract-relationships"
         ]
     }
 
@@ -63,8 +71,8 @@ def root():
     """Root endpoint with API info"""
     return {
         "name": "Cognitive ML Services",
-        "version": "3.0.0",
-        "phase": 3,
+        "version": "4.0.0",
+        "phase": 4,
         "endpoints": {
             "health": "/health",
             "embed": "/embed",
@@ -75,7 +83,9 @@ def root():
             "extract_task": "/extract-task",
             "extract_entities": "/extract-entities",
             "resolve_entity": "/resolve-entity",
-            "check_contradiction": "/check-contradiction"
+            "check_contradiction": "/check-contradiction",
+            "parse_content": "/parse-content",
+            "extract_relationships": "/extract-relationships"
         }
     }
 

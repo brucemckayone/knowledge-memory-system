@@ -8,6 +8,8 @@ import { checkMlHealth, embed } from './services/ml.js';
 import { processMessage } from './workers/message-processor.js';
 import { setupWebhook, startPolling } from './bot/index.js';
 import { registerCoreSkills } from './skills/index.js';
+import { initController } from './gardener/controller.js';
+import { registerAgents } from './gardener/agents/index.js';
 
 const app = new Hono();
 
@@ -190,6 +192,13 @@ async function start() {
   // Register skills
   console.log('🧠 Registering skills...');
   registerCoreSkills();
+
+  // Initialize Gardener (KARMA agents)
+  console.log('🌱 Starting Gardener controller...');
+  const gardener = initController(boss);
+  registerAgents();
+  await gardener.start();
+  console.log('✅ Gardener ready');
 
   // Register workers
   await boss.work(

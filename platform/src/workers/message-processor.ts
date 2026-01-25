@@ -7,6 +7,7 @@ import { bot, getFileUrl } from '../bot/index.js';
 import { createSkillContext } from '../skills/index.js';
 import { processLink } from '../workflows/process-link.js';
 import { processTask, formatDueDate } from '../workflows/process-task.js';
+import { getController } from '../gardener/controller.js';
 
 interface MessageJobData {
   chatId: number;
@@ -207,6 +208,29 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
     });
 
     addEnrichment(envelope, 'store', { memory_id: envelope.trace_id }, storeStart);
+
+    // Queue for KARMA pipeline processing
+    try {
+      const controller = getController();
+      await controller.enqueue({
+        type: 'gardener:ingestion',
+        tier: 'realtime',
+        payload: {
+          memoryId: envelope.trace_id,
+          content: textToEmbed,
+          type: classification.primary_intent,
+          source: envelope.origin.platform,
+          metadata: {
+            conversation_id: envelope.origin.context.conversation_id,
+            sender: envelope.origin.sender,
+          },
+        },
+      });
+      console.log('🌱 Queued for KARMA processing');
+    } catch (error) {
+      // Non-fatal: gardener processing can catch up later
+      console.warn('⚠️ Failed to queue gardener job:', error);
+    }
 
     envelope.routing.status = 'completed';
 
