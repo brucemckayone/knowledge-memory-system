@@ -8,6 +8,15 @@
  * when optional dependencies (pgvector, pg_trgm) are not installed.
  */
 
+// IMPORTANT: Set environment variables BEFORE any imports that might use them
+// This ensures the db module from services uses the test database
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/cognitive_test';
+process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://localhost:8000';
+process.env.QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
+// Provide test defaults for required config values
+process.env.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'test-bot-token-for-testing';
+
 import { beforeAll, afterAll, vi } from 'vitest';
 import postgres from 'postgres';
 import { existsSync, readFileSync } from 'fs';
@@ -116,6 +125,7 @@ export async function truncateTables(...tables: string[]): Promise<void> {
 export async function deleteFromTables(...tables: string[]): Promise<void> {
   // Delete in reverse dependency order to avoid FK violations
   const orderedTables = [
+    'memory_chunks',
     'memory_entities',
     'entity_aliases',
     'entity_merges',
@@ -124,6 +134,7 @@ export async function deleteFromTables(...tables: string[]): Promise<void> {
     'tasks',
     'epics',
     'gardener_job_meta',
+    'gardener_metrics',
     'mab_state',
     'fact_predicates',
   ];

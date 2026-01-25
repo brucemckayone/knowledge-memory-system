@@ -8,6 +8,12 @@
  * availability flags that tests can use to skip appropriately.
  */
 
+// CRITICAL: Set environment variables BEFORE any imports
+// This ensures all modules (including config.ts) use the test database
+process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/cognitive_test';
+process.env.NODE_ENV = 'test';
+process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://localhost:8000';
+
 import postgres from 'postgres';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
@@ -170,7 +176,7 @@ export async function setup() {
       )
     `;
 
-    // Create fact_predicates table
+    // Create fact_predicates table with Phase 4 columns
     await testSql`
       CREATE TABLE IF NOT EXISTS fact_predicates (
         predicate VARCHAR(255) PRIMARY KEY,
@@ -178,9 +184,21 @@ export async function setup() {
         inverse_predicate VARCHAR(255),
         predicate_type VARCHAR(50),
         is_exclusive BOOLEAN DEFAULT FALSE,
+        category VARCHAR(50),
+        aliases TEXT[] DEFAULT '{}',
+        is_canonical BOOLEAN DEFAULT true,
+        usage_count INTEGER DEFAULT 0,
+        last_used_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
       )
     `;
+
+    // Add Phase 4 columns if they don't exist (for existing tables)
+    await testSql`ALTER TABLE fact_predicates ADD COLUMN IF NOT EXISTS category VARCHAR(50)`;
+    await testSql`ALTER TABLE fact_predicates ADD COLUMN IF NOT EXISTS aliases TEXT[] DEFAULT '{}'`;
+    await testSql`ALTER TABLE fact_predicates ADD COLUMN IF NOT EXISTS is_canonical BOOLEAN DEFAULT true`;
+    await testSql`ALTER TABLE fact_predicates ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0`;
+    await testSql`ALTER TABLE fact_predicates ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ`;
 
     // Create facts table (with or without vector column depending on extension availability)
     if (extensionAvailability.vector) {
@@ -271,6 +289,26 @@ export async function setup() {
       )
     `;
 
+    // Create memory_chunks table for chunked content processing
+    await testSql`
+      CREATE TABLE IF NOT EXISTS memory_chunks (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        memory_id TEXT NOT NULL,
+        chunk_index INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        char_count INTEGER NOT NULL,
+        token_estimate INTEGER,
+        overlap_chars INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        processed_at TIMESTAMPTZ,
+        UNIQUE(memory_id, chunk_index)
+      )
+    `;
+
+    // Create indexes for memory_chunks
+    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_chunks_memory ON memory_chunks(memory_id)`;
+    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_chunks_unprocessed ON memory_chunks(memory_id) WHERE processed_at IS NULL`;
+
     // Create mab_state table for multi-armed bandit
     await testSql`
       CREATE TABLE IF NOT EXISTS mab_state (
@@ -283,6 +321,58 @@ export async function setup() {
         created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
         updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
       )
+    `;
+
+    // Drop old gardener_metrics table if it has wrong schema, then recreate
+    // This is needed because migration 006 creates a different schema than 007
+    try {
+      // Check if the table has the old schema (job_type column means old schema)
+      const oldSchemaCheck = await testSql`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'gardener_metrics' AND column_name = 'job_type'
+      `;
+      if (oldSchemaCheck.length > 0) {
+        await testSql`DROP TABLE IF EXISTS gardener_metrics CASCADE`;
+      }
+    } catch {
+      // Table doesn't exist, that's fine
+    }
+
+    // Create gardener_metrics table for evaluator agent (W29)
+    await testSql`
+      CREATE TABLE IF NOT EXISTS gardener_metrics (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        job_id UUID,
+        agent_name VARCHAR(100) NOT NULL,
+        execution_time_ms INTEGER,
+        success BOOLEAN,
+        quality_score REAL,
+        items_processed INTEGER DEFAULT 0,
+        error_message TEXT,
+        agent_specific_metrics JSONB DEFAULT '{}',
+        recorded_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
+    // Create index for gardener_metrics
+    await testSql`CREATE INDEX IF NOT EXISTS idx_gardener_metrics_agent ON gardener_metrics(agent_name)`;
+    await testSql`CREATE INDEX IF NOT EXISTS idx_gardener_metrics_time ON gardener_metrics(recorded_at)`;
+
+    // Create gardener_agent_stats view
+    await testSql`
+      CREATE OR REPLACE VIEW gardener_agent_stats AS
+      SELECT
+        agent_name,
+        COUNT(*) as total_jobs,
+        SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful_jobs,
+        AVG(quality_score) as avg_quality_score,
+        STDDEV(quality_score) as quality_stddev,
+        AVG(execution_time_ms) as avg_execution_time,
+        AVG(items_processed) as avg_items_processed,
+        MAX(recorded_at) as last_run
+      FROM gardener_metrics
+      WHERE recorded_at > NOW() - INTERVAL '7 days'
+      GROUP BY agent_name
     `;
 
     // Create indexes (pg_trgm indexes are conditional on extension availability)
