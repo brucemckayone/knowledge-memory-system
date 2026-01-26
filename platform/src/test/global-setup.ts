@@ -375,6 +375,34 @@ export async function setup() {
       GROUP BY agent_name
     `;
 
+    // Create context_summaries table for conversation tracking
+    await testSql`
+      CREATE TABLE IF NOT EXISTS context_summaries (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        conversation_id VARCHAR(255) UNIQUE NOT NULL,
+        platform VARCHAR(50) NOT NULL,
+        name VARCHAR(255),
+        summary TEXT,
+        message_count INTEGER DEFAULT 0 NOT NULL,
+        participants_json JSONB DEFAULT '[]' NOT NULL,
+        last_analyzed_at TIMESTAMPTZ,
+        last_message_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+      )
+    `;
+
+    // Create context_uuid_audit table for deterministic UUID tracking
+    await testSql`
+      CREATE TABLE IF NOT EXISTS context_uuid_audit (
+        context_uuid UUID PRIMARY KEY,
+        platform VARCHAR(50) NOT NULL,
+        conversation_id VARCHAR(255) NOT NULL,
+        first_seen_at TIMESTAMPTZ DEFAULT NOW(),
+        last_seen_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
     // Create indexes (pg_trgm indexes are conditional on extension availability)
     if (extensionAvailability.pg_trgm) {
       await testSql`CREATE INDEX IF NOT EXISTS idx_entities_canonical_name ON entities USING gin (canonical_name gin_trgm_ops)`;

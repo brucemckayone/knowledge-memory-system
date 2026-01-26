@@ -137,6 +137,8 @@ export async function deleteFromTables(...tables: string[]): Promise<void> {
     'gardener_metrics',
     'mab_state',
     'fact_predicates',
+    'context_uuid_audit',
+    'context_summaries',
   ];
 
   const tablesToDelete = tables.length > 0
