@@ -243,7 +243,7 @@ export const factsRelations = relations(facts, ({ one }) => ({
 
 /**
  * Fact Predicates
- * 
+ *
  * Ontology of relationship types
  */
 export const factPredicates = pgTable('fact_predicates', {
@@ -252,7 +252,27 @@ export const factPredicates = pgTable('fact_predicates', {
   inversePredicate: varchar('inverse_predicate', { length: 255 }),
   predicateType: varchar('predicate_type', { length: 50 }),
   isExclusive: boolean('is_exclusive').default(false),
+  // Phase 4 columns for schema alignment
+  category: varchar('category', { length: 50 }),
+  aliases: text('aliases').array().default([]),
+  isCanonical: boolean('is_canonical').default(true),
+  usageCount: integer('usage_count').default(0),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Context UUID Audit
+ *
+ * Tracks deterministic UUID usage for auditing and drift detection.
+ * Maps generated context UUIDs back to their source platform + conversation_id.
+ */
+export const contextUuidAudit = pgTable('context_uuid_audit', {
+  contextUuid: uuid('context_uuid').primaryKey(),
+  platform: varchar('platform', { length: 50 }).notNull(),
+  conversationId: varchar('conversation_id', { length: 255 }).notNull(),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow(),
 });
 
 // Type exports for use in application
@@ -276,5 +296,6 @@ export type NewMemoryEntity = typeof memoryEntities.$inferInsert;
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
+export type ContextUuidAudit = typeof contextUuidAudit.$inferSelect;
 
 

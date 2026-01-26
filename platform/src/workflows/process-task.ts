@@ -6,6 +6,7 @@ import { createTaskSkill } from '../skills/core/create-task.skill.js';
 import { embedSkill } from '../skills/core/embed.skill.js';
 import { storeMemorySkill } from '../skills/core/store-memory.skill.js';
 import { getController } from '../gardener/controller.js';
+import { ensureContextMapping } from '../services/context-mapping.js';
 
 export interface ProcessTaskResult {
   success: boolean;
@@ -38,14 +39,22 @@ export async function processTask(
       priority: extracted.priority,
     }, extractStart);
 
-    // Step 2: Create task in database
+    // Step 2: Ensure context mapping and create task in database
     context.log('Step 2: Creating task');
     const createStart = Date.now();
+
+    // Generate deterministic UUID from platform:conversation_id
+    const contextUUID = await ensureContextMapping(
+      envelope.origin.platform,
+      envelope.origin.context.conversation_id,
+      envelope.origin.context.conversation_name
+    );
+
     const taskResult = await createTaskSkill.execute({
       action: extracted.action,
       due_date: extracted.due_date,
       priority: extracted.priority,
-      context_id: envelope.origin.context.conversation_id,
+      context_id: contextUUID,
       memory_id: envelope.trace_id,
     }, context);
 
