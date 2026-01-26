@@ -372,6 +372,9 @@ export async function setupWebhook(): Promise<void> {
     return;
   }
 
+  // Initialize bot info (required for handleUpdate in webhook mode)
+  await bot.init();
+
   const webhookUrl = `${config.WEBHOOK_URL}/webhook/telegram`;
   const maxRetries = 3;
   const baseDelay = 2000; // 2 seconds
