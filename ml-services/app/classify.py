@@ -7,14 +7,47 @@ import re
 
 router = APIRouter()
 
-# Intent categories with descriptions
+# Intent categories with descriptions and examples
 INTENT_CATEGORIES = """
-- thought: A general idea, reflection, observation, or note to remember
-- link: Contains a URL or references an article/video/website to save
-- task: Something to do, with or without a deadline (remind, todo, need to, don't forget)
-- question: Asking for information or seeking answers
-- search: Wants to find something in their memory/knowledge base
-- command: A direct bot command (starts with /)
+CATEGORIES:
+- thought: A general idea, reflection, observation, or personal note. No action required.
+- link: Contains a URL or references a website/article/video to save.
+- task: Something requiring action. ALWAYS classify as task if contains: remind, todo, need to, don't forget, should, must, have to, going to, will do, schedule, call, email, buy, send, finish, complete, submit, review.
+- question: Asking for information, seeking answers, or requesting clarification.
+- search: Looking for something in existing memories/notes.
+- command: A direct bot command starting with /
+
+EXAMPLES (use these to guide classification):
+
+Tasks (action required - primary_intent MUST be "task"):
+- "remind me to call John tomorrow" → task
+- "Remind me to verify the E2E-TEST tomorrow at 3pm" → task
+- "need to finish the report by Friday" → task
+- "TODO: review the pull request" → task
+- "don't forget to buy milk" → task
+- "I should email Sarah about the meeting" → task
+- "schedule a dentist appointment" → task
+- "have to submit the proposal" → task
+
+Thoughts (no action, just noting - primary_intent MUST be "thought"):
+- "I've been thinking about career changes" → thought
+- "interesting that AI can write code now" → thought
+- "feeling good about the project progress" → thought
+- "the weather has been nice lately" → thought
+
+Links (primary_intent MUST be "link"):
+- "check out https://example.com" → link
+- "this article is great: example.com/article" → link
+- "watch this video on YouTube" → link
+
+Questions (primary_intent MUST be "question"):
+- "how does the authentication work?" → question
+- "what's the best way to handle errors?" → question
+- "when is the deadline?" → question
+
+Search (primary_intent MUST be "search"):
+- "find my notes about kubernetes" → search
+- "what did I write about React hooks?" → search
 """
 
 CLASSIFICATION_PROMPT = """You are a message intent classifier. Analyze the following message and determine the user's intent(s).

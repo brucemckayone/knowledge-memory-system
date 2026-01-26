@@ -84,6 +84,34 @@ run_psql() {
 }
 
 # =============================================================================
+# Step 0: Pre-Test Cleanup (Always runs to ensure clean state)
+# =============================================================================
+
+cleanup_test_data() {
+  print_header "Step 0: Cleaning Previous Test Data"
+
+  echo -n "Cleaning PostgreSQL test tasks... "
+  run_psql "DELETE FROM tasks WHERE content ILIKE '%E2E-TEST%' OR content ILIKE '%marker:%'" > /dev/null 2>&1
+  echo -e "${GREEN}done${NC}"
+
+  echo -n "Cleaning PostgreSQL test audit entries... "
+  run_psql "DELETE FROM context_uuid_audit WHERE conversation_id IN ('99999', '88888')" > /dev/null 2>&1
+  echo -e "${GREEN}done${NC}"
+
+  echo -n "Cleaning Qdrant test memories... "
+  # Delete test user memories from Qdrant
+  curl -s -X POST "http://localhost:6335/collections/memories/points/delete" \
+    -H "Content-Type: application/json" \
+    -d '{"filter": {"must": [{"key": "user_id", "match": {"any": [99999, 88888]}}]}}' > /dev/null 2>&1
+  echo -e "${GREEN}done${NC}"
+
+  check_pass "Test environment cleaned"
+}
+
+# Run cleanup before any tests
+cleanup_test_data
+
+# =============================================================================
 # Step 1: Infrastructure Health Check
 # =============================================================================
 
