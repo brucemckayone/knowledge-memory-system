@@ -2,11 +2,11 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { config } from './config.js';
 import { checkDatabaseHealth } from './db/index.js';
-import { initQueue, getQueue, QUEUES, shutdownQueue } from './queue/index.js';
+import { initQueue, QUEUES, shutdownQueue } from './queue/index.js';
 import { ensureCollections, checkQdrantHealth, qdrant, COLLECTIONS, searchMemories } from './services/qdrant.js';
 import { checkMlHealth, embed } from './services/ml.js';
 import { processMessage } from './workers/message-processor.js';
-import { setupWebhook, startPolling } from './bot/index.js';
+import { setupWebhook, startPolling, bot } from './bot/index.js';
 import { registerCoreSkills } from './skills/index.js';
 import { initController } from './gardener/controller.js';
 import { registerAgents } from './gardener/agents/index.js';
@@ -44,31 +44,19 @@ app.get('/health', async (c) => {
 // This endpoint is only used when WEBHOOK_URL is configured.
 app.post('/webhook/telegram', async (c) => {
   const body = await c.req.json().catch(() => null);
-  
+
   if (!body) {
     return c.json({ ok: false, error: 'Invalid body' }, 400);
   }
-  
-  // Queue message for memory processing
-  if (body.message?.text || body.message?.voice) {
-    const message = body.message;
-    const boss = getQueue();
-    
-    await boss.send(QUEUES.MESSAGE_PROCESSING, {
-      chatId: message.chat.id,
-      messageId: message.message_id,
-      senderId: message.from.id,
-      senderName: message.from.first_name + (message.from.last_name ? ` ${message.from.last_name}` : ''),
-      senderUsername: message.from.username,
-      text: message.text,
-      voice: message.voice ? {
-        fileId: message.voice.file_id,
-        duration: message.voice.duration,
-      } : undefined,
-      timestamp: new Date(message.date * 1000).toISOString(),
-    });
+
+  // Let Grammy process the update (handles commands, responses, and queuing)
+  try {
+    await bot.handleUpdate(body);
+  } catch (error) {
+    console.error('❌ Bot update error:', error);
+    // Don't fail the webhook - Telegram will retry on 5xx errors
   }
-  
+
   return c.json({ ok: true });
 });
 
