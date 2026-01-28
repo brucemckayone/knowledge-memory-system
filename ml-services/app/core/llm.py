@@ -20,10 +20,10 @@ class LLMService:
         if not api_key:
             raise ValueError("ZAI_API_KEY environment variable is required")
 
-        # Z.AI uses OpenAI-compatible API with custom base_url
+        # Z.AI coding plan uses a different base URL
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://api.z.ai/api/paas/v4/"
+            base_url="https://api.z.ai/api/coding/paas/v4"
         )
 
     def generate(

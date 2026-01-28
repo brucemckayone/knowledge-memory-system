@@ -111,11 +111,18 @@ bot.command('help', async (ctx) => {
     `**Cognitive Platform - Commands**\n\n` +
     `**📝 Capture**\n` +
     `Just send any message to save it as a memory.\n\n` +
+    `**🤖 Chat**\n` +
+    `/chat <message> - Ask me anything!\n\n` +
     `**🔍 Search**\n` +
     `/search <query> - Find memories\n` +
     `search: <query> - Inline search\n\n` +
     `**📋 Tasks**\n` +
     `/tasks - View pending tasks\n` +
+    `/tasks urgent - Show urgent tasks\n` +
+    `/tasks work - Filter by area\n` +
+    `/tasks this week - Filter by time\n` +
+    `/task <number> - View task details\n` +
+    `/complete <number> - Mark task done\n` +
     `"Remind me to..." - Create task\n\n` +
     `**📚 Browse**\n` +
     `/recent - Show recent memories\n` +
@@ -126,6 +133,46 @@ bot.command('help', async (ctx) => {
     `Send URLs - I'll summarize them!`,
     { parse_mode: 'Markdown' }
   );
+});
+
+// Command: /chat - Chat with AI assistant
+bot.command('chat', async (ctx) => {
+  const message = ctx.match;
+  if (!message) {
+    await ctx.reply(
+      '💬 **Chat Mode**\n\n' +
+      'Ask me anything! I can help you with:\n' +
+      '• Answering questions\n' +
+      '• Explaining concepts\n' +
+      '• Brainstorming ideas\n' +
+      '• Writing assistance\n' +
+      '• General conversation\n\n' +
+      'Usage: /chat <your message>\n\n' +
+      'Example: /chat What are the benefits of microservices?',
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
+
+  try {
+    // Send typing indicator while generating response
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+
+    // Import chat function
+    const { chat } = await import('../services/ml.js');
+
+    // Get AI response
+    const response = await chat(message);
+
+    // Send response back to user
+    await ctx.reply(`💬 ${response.response}`);
+  } catch (error) {
+    console.error('Chat error:', error);
+    await ctx.reply(
+      `❌ Sorry, I encountered an error: ${(error as Error).Message}\n\n` +
+      `Note: Chat requires the Z.AI API to be configured with sufficient balance.`
+    );
+  }
 });
 
 // Command: /search
@@ -144,12 +191,116 @@ bot.command('search', async (ctx) => {
   await ctx.reply(results, { parse_mode: 'Markdown' });
 });
 
-// Command: /tasks - List pending tasks
+// Command: /tasks - List pending tasks with optional filters
 bot.command('tasks', async (ctx) => {
   try {
     await ctx.api.sendChatAction(ctx.chat.id, 'typing');
 
-    // Fetch pending tasks
+    const match = ctx.match;
+    const filterText = match ? String(match).trim() : '';
+
+    // If no filter, show basic list
+    if (!filterText) {
+      // Fetch pending tasks
+      const pendingTasks = await db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.status, 'pending'))
+        .orderBy(desc(tasks.createdAt))
+        .limit(10);
+
+      if (pendingTasks.length === 0) {
+        await ctx.reply("✅ No pending tasks! You're all caught up.");
+        return;
+      }
+
+      const taskList = pendingTasks.map((task, i) => {
+        const priorityEmoji = {
+          high: '🔴',
+          medium: '🟡',
+          low: '🟢',
+        }[task.priority || 'medium'];
+
+        const dueStr = task.dueDate
+          ? `📅 ${formatDueDate(task.dueDate)}`
+          : '';
+
+        return `${i + 1}. ${priorityEmoji} ${task.content}\n   ${dueStr}`;
+      }).join('\n\n');
+
+      await ctx.reply(
+        `📋 **Your Tasks (${pendingTasks.length})**\n\n${taskList}\n\n💡 Use /complete <number> to mark a task done`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    // With filter text, use the query service
+    const { queryTasksNatural } = await import('../services/task-query.js');
+    const result = await queryTasksNatural(filterText);
+
+    if (result.total_matched === 0) {
+      await ctx.reply(
+        `📋 No tasks found matching "${filterText}"\n\n` +
+        `💡 Try: /tasks, /tasks urgent, /tasks work, /tasks this week`
+      );
+      return;
+    }
+
+    // Show filtered results with numbering for completion
+    const numberedTasks = result.tasks.slice(0, 10).map((task, i) => {
+      const priorityEmoji = {
+        high: '🔴',
+        medium: '🟡',
+        low: '🟢',
+      }[task.priority || 'medium'];
+
+      let line = `${i + 1}. ${priorityEmoji} ${task.content}`;
+
+      if (task.dueDate) {
+        line += `\n   📅 ${formatDueDate(task.dueDate)}`;
+      }
+
+      if (task.relatedEntities && task.relatedEntities.length > 0) {
+        line += `\n   👥 ${task.relatedEntities.map((e: any) => e.name).join(', ')}`;
+      }
+
+      return line;
+    }).join('\n\n');
+
+    await ctx.reply(
+      `📋 **${result.total_matched} Task${result.total_matched > 1 ? 's' : ''} Found**\n\n${numberedTasks}\n\n💡 Use /complete <number> to mark a task done`,
+      { parse_mode: 'Markdown' }
+    );
+
+  } catch (error) {
+    console.error('Tasks command error:', error);
+    await ctx.reply('❌ Failed to fetch tasks. Please try again.');
+  }
+});
+
+// Command: /complete - Mark a task as done
+bot.command('complete', async (ctx) => {
+  try {
+    const match = ctx.match;
+    if (!match) {
+      await ctx.reply(
+        'Usage: /complete <number>\n\n' +
+        'Example: /complete 1\n\n' +
+        '💡 Use /tasks to see the numbered task list',
+      );
+      return;
+    }
+
+    const taskNumber = parseInt(String(match));
+    if (isNaN(taskNumber) || taskNumber < 1) {
+      await ctx.reply('❌ Invalid task number. Use /complete <number> where number is 1 or greater.');
+      return;
+    }
+
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+
+    // Get last 10 pending tasks
     const pendingTasks = await db
       .select()
       .from(tasks)
@@ -162,28 +313,110 @@ bot.command('tasks', async (ctx) => {
       return;
     }
 
-    const taskList = pendingTasks.map((task, i) => {
-      const priorityEmoji = {
-        high: '🔴',
-        medium: '🟡',
-        low: '🟢',
-      }[task.priority || 'medium'];
+    if (taskNumber > pendingTasks.length) {
+      await ctx.reply(
+        `❌ Task ${taskNumber} not found. Only ${pendingTasks.length} tasks available.\n\n` +
+        `💡 Use /tasks to see the numbered task list`,
+      );
+      return;
+    }
 
-      const dueStr = task.dueDate
-        ? `📅 ${formatDueDate(task.dueDate)}`
-        : '';
+    const task = pendingTasks[taskNumber - 1];
 
-      return `${i + 1}. ${priorityEmoji} ${task.content}\n   ${dueStr}`;
-    }).join('\n\n');
+    // Update task status
+    await db
+      .update(tasks)
+      .set({
+        status: 'completed',
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, task.id));
+
+    const priorityEmoji = {
+      high: '🔴',
+      medium: '🟡',
+      low: '🟢',
+    }[task.priority || 'medium'];
 
     await ctx.reply(
-      `📋 **Your Tasks (${pendingTasks.length})**\n\n${taskList}`,
+      `✅ Task completed:\n\n${priorityEmoji} ${task.content}`,
       { parse_mode: 'Markdown' }
     );
 
   } catch (error) {
-    console.error('Tasks command error:', error);
-    await ctx.reply('❌ Failed to fetch tasks. Please try again.');
+    console.error('Complete command error:', error);
+    await ctx.reply('❌ Failed to complete task. Please try again.');
+  }
+});
+
+// Command: /task - Show details for a specific task
+bot.command('task', async (ctx) => {
+  try {
+    const match = ctx.match;
+    if (!match) {
+      await ctx.reply(
+        'Usage: /task <number>\n\n' +
+        'Example: /task 1\n\n' +
+        '💡 Use /tasks to see the numbered task list',
+      );
+      return;
+    }
+
+    const taskNumber = parseInt(String(match));
+    if (isNaN(taskNumber) || taskNumber < 1) {
+      await ctx.reply('❌ Invalid task number. Use /task <number> where number is 1 or greater.');
+      return;
+    }
+
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+
+    // Get last 10 pending tasks
+    const pendingTasks = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.status, 'pending'))
+      .orderBy(desc(tasks.createdAt))
+      .limit(10);
+
+    if (pendingTasks.length === 0) {
+      await ctx.reply("✅ No pending tasks! You're all caught up.");
+      return;
+    }
+
+    if (taskNumber > pendingTasks.length) {
+      await ctx.reply(
+        `❌ Task ${taskNumber} not found. Only ${pendingTasks.length} tasks available.\n\n` +
+        `💡 Use /tasks to see the numbered task list`,
+      );
+      return;
+    }
+
+    const task = pendingTasks[taskNumber - 1];
+
+    const priorityEmoji = {
+      high: '🔴',
+      medium: '🟡',
+      low: '🟢',
+    }[task.priority || 'medium'];
+
+    let details = `📋 **Task ${taskNumber}**\n\n`;
+    details += `${priorityEmoji} *${task.content}*\n\n`;
+    details += `**Priority:** ${task.priority}\n`;
+    details += `**Status:** ${task.status}\n`;
+
+    if (task.dueDate) {
+      details += `**Due:** ${formatDueDate(task.dueDate)}\n`;
+    }
+
+    details += `**Created:** ${task.createdAt.toLocaleDateString()}\n`;
+    details += `\n💡 Use /complete ${taskNumber} to mark this task done`;
+
+    await ctx.reply(details, { parse_mode: 'Markdown' });
+
+  } catch (error) {
+    console.error('Task command error:', error);
+    await ctx.reply('❌ Failed to fetch task details. Please try again.');
   }
 });
 
@@ -365,6 +598,59 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Set webhook URL with Telegram (with retry for transient errors)
+ *
+ * ⚠️ IMPORTANT: WEBHOOK SETUP CURRENTLY DISABLED DUE TO IPv6 ISSUE ⚠️
+ *
+ * Current Status: Bot is running in POLLING MODE (webhooks not configured)
+ *
+ * The Problem:
+ * - Cloudflare proxied domains (like bot.fartdominance.uk) return BOTH IPv4 (A) and IPv6 (AAAA) records
+ * - Telegram's setWebhook API rejects webhooks that resolve to IPv6-only addresses
+ * - Error: "Bad Request: bad webhook: IPv6-only addresses are not allowed"
+ *
+ * Why This Happens:
+ * - Cloudflare's "Proxied" (orange cloud) DNS records automatically enable IPv6 anycast
+ * - Telegram checks DNS and sees AAAA (IPv6) records alongside A (IPv4) records
+ * - Telegram attempts IPv6 first, fails or rejects it entirely
+ *
+ * Attempted Solutions (didn't work):
+ * 1. Using custom domain (bot.fartdominance.uk) - Cloudflare adds IPv6 automatically
+ * 2. Using trycloudflare.com temporary URLs - Also return IPv6 addresses
+ * 3. Named tunnels with custom CNAMEs - Still get IPv6 from Cloudflare proxy
+ *
+ * Required Solutions (pick one):
+ *
+ * OPTION 1: Configure IPv4-only routing in Cloudflare (RECOMMENDED)
+ * - Go to Cloudflare Dashboard → Network tab
+ * - Find "IPv6 Compatibility" setting
+ * - Either disable globally OR configure per-zone
+ * - Alternative: Use DNS-only (gray cloud) CNAME pointing to tunnel URL
+ *   - Create CNAME: bot → <tunnel-id>.cfargotunnel.com
+ *   - Set Proxy status: "DNS only" (gray cloud, NOT orange)
+ *   - This bypasses Cloudflare proxy, returns only tunnel's IPv4
+ *
+ * OPTION 2: Use non-Cloudflare tunnel/proxy
+ * - Use ngrok (free tier, has IPv4-only option)
+ * - Use localtunnel with IPv4-only flag
+ * - Set up VPS with nginx reverse proxy (IPv4-only)
+ *
+ * OPTION 3: Get dedicated IPv4 address
+ * - Purchase VPS with static IPv4
+ * - Configure A record directly to VPS IP
+ * - Set up TLS certificate (Let's Encrypt)
+ *
+ * Impact of Polling Mode:
+ * - Slightly higher latency (2-3 second delay vs instant webhooks)
+ * - More API calls to Telegram (ongoing polling vs event-driven)
+ * - Rate limit considerations (Telegram allows 30 calls/sec normally)
+ * - Battery usage on mobile devices (Telegram maintains connection)
+ *
+ * For Development: Polling mode is fine and actually more reliable
+ * For Production: MUST switch to webhooks for scale and efficiency
+ *
+ * Tracking: See beads issue: TBD (create task to track this)
+ *
+ * Last Updated: 2025-01-26
  */
 export async function setupWebhook(): Promise<void> {
   if (!config.WEBHOOK_URL) {
