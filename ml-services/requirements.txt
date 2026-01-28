@@ -4,8 +4,7 @@ uvicorn[standard]==0.27.0
 pydantic==2.5.3
 
 # ML / AI
-# ollama==0.1.6  # Replaced with Z.AI API
-openai>=1.0.0
+ollama==0.1.6
 faster-whisper>=0.10.0
 
 # HTTP client (for downloading audio and web scraping)
