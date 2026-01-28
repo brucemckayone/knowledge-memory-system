@@ -8,7 +8,7 @@ W26 Relationship Agent uses this to build the knowledge graph.
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, List
-import ollama
+from .core.llm import llm_client
 import json
 import re
 
@@ -200,8 +200,7 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
             entities=entity_list,
         )
 
-        response = ollama.generate(
-            model="llama3.2:3b",
+        response = llm_client.generate(
             prompt=prompt,
             options={
                 "temperature": 0.1,
@@ -210,7 +209,7 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
         )
 
         # Parse response
-        match = re.search(r'\[[\s\S]*\]', response['response'])
+        match = re.search(r'\[[\s\S]*\]', response)
         if match:
             raw_rels = json.loads(match.group())
 

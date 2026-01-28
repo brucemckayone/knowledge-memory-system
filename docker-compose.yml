@@ -10,7 +10,7 @@ services:
       dockerfile: Dockerfile
       target: development  # Use development stage with devDependencies
     ports:
-      - "3000:3000"
+      - "3001:3001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -18,7 +18,7 @@ services:
         condition: service_started
     environment:
       - NODE_ENV=development
-      - PORT=3000
+      - PORT=3001
       - DATABASE_URL=postgres://cognitive:cognitive@postgres:5432/cognitive
       - QDRANT_URL=http://qdrant:6333
       - ML_SERVICES_URL=http://ml-services:8000
@@ -81,13 +81,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - OLLAMA_HOST=http://host.docker.internal:11434
+      - ZAI_API_KEY=${ZAI_API_KEY}
+      # - OLLAMA_HOST=http://host.docker.internal:11434  # No longer needed
     volumes:
       - ml-models:/models
     networks:
       - cognitive-network
     restart: unless-stopped
-    # Note: Ollama runs on host, not in Docker
 
 networks:
   cognitive-network:

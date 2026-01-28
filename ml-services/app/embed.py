@@ -2,21 +2,27 @@ import os
 from typing import List
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import ollama
+from openai import OpenAI
 
 router = APIRouter()
 
-# Ollama host (host.docker.internal for Docker on Mac)
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+# Z.AI API key
+ZAI_API_KEY = os.getenv("ZAI_API_KEY")
+if not ZAI_API_KEY:
+    raise ValueError("ZAI_API_KEY environment variable is required")
 
-# Configure ollama client
-ollama_client = ollama.Client(host=OLLAMA_HOST)
+# Configure Z.AI embedding client
+# Note: Embeddings use a different base URL than chat completions
+embedding_client = OpenAI(
+    api_key=ZAI_API_KEY,
+    base_url="https://open.bigmodel.cn/api/paas/v4/"
+)
 
 
 class EmbedRequest(BaseModel):
     """Request body for embedding generation"""
     text: str
-    model: str = "nomic-embed-text"
+    model: str = "embedding-3"
 
 
 class EmbedResponse(BaseModel):
@@ -29,7 +35,7 @@ class EmbedResponse(BaseModel):
 class BatchEmbedRequest(BaseModel):
     """Request body for batch embedding"""
     texts: List[str]
-    model: str = "nomic-embed-text"
+    model: str = "embedding-3"
 
 
 class BatchEmbedResponse(BaseModel):
@@ -44,29 +50,28 @@ class BatchEmbedResponse(BaseModel):
 def embed(request: EmbedRequest):
     """
     Generate embedding vector for text.
-    
-    Uses Ollama's embedding API with the specified model.
-    Default model: nomic-embed-text (768 dimensions)
+
+    Uses Z.AI's embedding-3 model with configurable dimensions.
+    Default: 768 dimensions (matches previous nomic-embed-text).
     """
     try:
-        response = ollama_client.embeddings(
-            model=request.model,
-            prompt=request.text
+        # Always use embedding-3 model
+        model = "embedding-3"
+
+        response = embedding_client.embeddings.create(
+            model=model,
+            input=request.text,
+            dimensions=768  # Match previous nomic-embed-text dimensions
         )
-        
-        vector = response["embedding"]
-        
+
+        vector = response.data[0].embedding
+
         return EmbedResponse(
             vector=vector,
-            model=request.model,
+            model=model,
             dimensions=len(vector)
         )
-        
-    except ollama.ResponseError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Ollama error: {str(e)}"
-        )
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -78,29 +83,28 @@ def embed(request: EmbedRequest):
 def embed_batch(request: BatchEmbedRequest):
     """
     Generate embeddings for multiple texts.
-    
-    Processes texts sequentially (Ollama doesn't support batch).
+
+    Z.AI supports true batch requests (more efficient than Ollama's sequential approach).
     """
     try:
-        embeddings = []
-        dimensions = 0
-        
-        for text in request.texts:
-            response = ollama_client.embeddings(
-                model=request.model,
-                prompt=text
-            )
-            vector = response["embedding"]
-            embeddings.append(vector)
-            dimensions = len(vector)
-        
+        model = "embedding-3"
+
+        response = embedding_client.embeddings.create(
+            model=model,
+            input=request.texts,
+            dimensions=768
+        )
+
+        embeddings = [item.embedding for item in response.data]
+        dimensions = len(embeddings[0]) if embeddings else 0
+
         return BatchEmbedResponse(
             embeddings=embeddings,
-            model=request.model,
+            model=model,
             dimensions=dimensions,
             count=len(embeddings)
         )
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -111,15 +115,7 @@ def embed_batch(request: BatchEmbedRequest):
 @router.get("/embed/models")
 def list_models():
     """List available embedding models"""
-    try:
-        models = ollama_client.list()
-        embedding_models = [
-            m["name"] for m in models.get("models", [])
-            if "embed" in m["name"].lower()
-        ]
-        return {"models": embedding_models}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list models: {str(e)}"
-        )
+    return {
+        "models": ["embedding-3"],
+        "default_dimensions": [512, 768, 1024, 1536]
+    }
