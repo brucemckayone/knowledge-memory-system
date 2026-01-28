@@ -1,21 +1,30 @@
 """
 Core LLM Service
-Standardizes Ollama interactions, JSON extraction, and error handling.
+Standardizes Z.AI GLM-4.7 interactions, JSON extraction, and error handling.
 """
 
 import json
 import re
+import os
 from typing import Optional, Dict, Any, Type, TypeVar
 from pydantic import BaseModel
-import ollama
+from openai import OpenAI
 from fastapi import HTTPException
 
 T = TypeVar("T", bound=BaseModel)
 
 class LLMService:
-    def __init__(self, model: str = "llama3.2:3b"):
+    def __init__(self, model: str = "glm-4.7"):
         self.model = model
-        self.client = ollama.Client()
+        api_key = os.getenv("ZAI_API_KEY")
+        if not api_key:
+            raise ValueError("ZAI_API_KEY environment variable is required")
+
+        # Z.AI uses OpenAI-compatible API with custom base_url
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.z.ai/api/paas/v4/"
+        )
 
     def generate(
         self,
@@ -23,23 +32,19 @@ class LLMService:
         options: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Generate text response from LLM.
+        Generate text response from LLM using Z.AI's chat completions API.
         """
         try:
-            response = self.client.generate(
+            response = self.client.chat.completions.create(
                 model=self.model,
-                prompt=prompt,
-                options=options or {
-                    "temperature": 0.1,
-                    "num_predict": 512,
-                }
+                messages=[
+                    {"role": "system", "content": "You are a helpful AI assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=options.get("temperature", 0.1) if options else 0.1,
+                max_tokens=options.get("num_predict", 512) if options else 512,
             )
-            return response['response']
-        except ollama.ResponseError as e:
-            raise HTTPException(
-                status_code=503,
-                detail=f"LLM service unavailable: {str(e)}"
-            )
+            return response.choices[0].message.content
         except Exception as e:
             raise HTTPException(
                 status_code=500,

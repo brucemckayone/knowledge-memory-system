@@ -81,13 +81,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - OLLAMA_HOST=http://host.docker.internal:11434
+      - OLLAMA_HOST=http://host.docker.internal:11434  # For embeddings (local)
+      - ZAI_API_KEY=${ZAI_API_KEY}  # For text generation via Z.AI API
     volumes:
       - ml-models:/models
     networks:
       - cognitive-network
     restart: unless-stopped
-    # Note: Ollama runs on host, not in Docker
+    # Note: Ollama runs on host for embeddings, Z.AI API for LLM
 
 networks:
   cognitive-network:
