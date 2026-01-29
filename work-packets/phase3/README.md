@@ -3,7 +3,7 @@
 **Goal:** Autonomous Knowledge Gardening with 9-Agent KARMA Architecture  
 **Duration:** ~6-8 weeks  
 **Prerequisites:** Phase 2 Complete  
-**Last Updated:** 2026-01-24
+**Last Updated:** 2026-01-29
 
 ---
 
@@ -11,10 +11,32 @@
 
 | Phase | Status | Completion |
 |-------|--------|------------|
-| Phase 2 (Core Skills) | 🔵 In Progress | 0% |
-| Phase 3 (Entity & Temporal) | ⚪ Not Started | 0% |
-| Phase 4 (Gardener Agents) | ⚪ Not Started | 0% |
-| Phase 5 (Intelligence) | ⚪ Not Started | 0% |
+| Phase 2 (Core Skills) | ✅ Complete | 100% |
+| Phase 3 (Entity & Temporal) | ✅ Complete | 80% |
+| Phase 4 (Gardener Agents) | ✅ Complete | 85% |
+| Phase 5 (Intelligence) | ❌ Not Started | 0% |
+
+### Implementation Notes (Last Reviewed: 2026-01-29)
+
+**✅ Phase 3 - Entity & Temporal Foundation (80% Complete):**
+- W16: Entity Schema - ✅ Complete (all 4 tables implemented)
+- W17: Bi-Temporal Facts - ✅ Complete (with enhancements)
+- W18: Apache AGE - ⚠️ Partial (installed but underutilized)
+- W19: Hybrid Retrieval - ✅ Complete (not integrated into workflows)
+- W20: Entity Extraction - ✅ Complete (via KARMA agent)
+- W21: Gardener Scheduler - ✅ Complete (full implementation)
+
+**✅ Phase 4 - Gardener Agents (85% Complete):**
+- All 9 KARMA agents implemented and registered
+- Controller with MAB scheduling working
+- pg-boss job queue fully functional
+- Comprehensive test coverage
+
+**Deviations from Original Plan:**
+- Entity extraction uses KARMA agent architecture instead of skill framework
+- Hybrid search exists but not integrated into workflows
+- Apache AGE installed but only used by hybrid search service
+- Enhanced schema with additional fields beyond original spec
 
 ---
 
@@ -83,27 +105,28 @@ Based on [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md), implementing the full 
 
 ### Phase 3: Entity & Temporal Foundation
 
-| Packet | Name | Dependencies | Est. Time | Status |
-|--------|------|--------------|-----------|--------|
-| [W16](./W16-entity-schema.md) | Entity Schema | Phase 2 | 2-3h | ❌ |
-| [W17](./W17-bi-temporal-facts.md) | Bi-Temporal Facts | W16 | 3-4h | ❌ |
-| [W18](./W18-apache-age.md) | Apache AGE Graph | W16, W17 | 3-4h | ❌ |
-| [W19](./W19-hybrid-retrieval.md) | Hybrid Retrieval | W18 | 3-4h | ❌ |
-| [W20](./W20-entity-extraction-skill.md) | Entity Extraction Skill | W08, W16 | 2-3h | ❌ |
+| Packet | Name | Dependencies | Est. Time | Status | Implementation |
+|--------|------|--------------|-----------|--------|----------------|
+| [W16](./W16-entity-schema.md) | Entity Schema | Phase 2 | 2-3h | ✅ | 4 tables + service ✓ |
+| [W17](./W17-bi-temporal-facts.md) | Bi-Temporal Facts | W16 | 3-4h | ✅ | Temporal queries ✓ |
+| [W18](./W18-apache-age.md) | Apache AGE Graph | W16, W17 | 3-4h | ⚠️ | Installed, underutilized |
+| [W19](./W19-hybrid-retrieval.md) | Hybrid Retrieval | W18 | 3-4h | ✅ | Service exists, not integrated |
+| [W20](./W20-entity-extraction-skill.md) | Entity Extraction Skill | W08, W16 | 2-3h | ✅ | Via KARMA agent ✓ |
+| [W21](./W21-gardener-scheduler.md) | Gardener Scheduler | W16-W20 | 3-4h | ✅ | Full MAB controller ✓ |
 
 ### Phase 4: Gardener Agents (KARMA)
 
-| Packet | Name | Dependencies | Est. Time | Status |
-|--------|------|--------------|-----------|--------|
-| [W21](./W21-gardener-scheduler.md) | Central Controller | W16-W20 | 3-4h | ❌ |
-| [W22](../phase4/W22-ingestion-agent.md) | Ingestion Agent | W21 | 3h | ❌ |
-| [W23](../phase4/W23-reader-agent.md) | Reader Agent | W22 | 3h | ❌ |
-| [W24](../phase4/W24-summarizer-agent.md) | Summarizer Agent | W22 | 2h | ❌ |
-| [W25](./W25-entity-agent.md) | Entity Extraction Agent | W21 | 3h | ❌ |
-| [W26](../phase4/W26-relationship-agent.md) | Relationship Extraction Agent | W25, W17 | 3h | ❌ |
-| [W27](../phase4/W27-schema-agent.md) | Schema Alignment Agent | W17, W26 | 2h | ❌ |
-| [W28](./W28-conflict-resolution.md) | Conflict Resolution Agent | W17 | 3h | ❌ |
-| [W29](../phase4/W29-evaluator-agent.md) | Evaluator Agent | W21, W28 | 2h | ❌ |
+| Packet | Name | Dependencies | Est. Time | Status | Implementation |
+|--------|------|--------------|-----------|--------|----------------|
+| [W21](./W21-gardener-scheduler.md) | Central Controller | W16-W20 | 3-4h | ✅ | Full MAB controller ✓ |
+| [W22](../phase4/W22-ingestion-agent.md) | Ingestion Agent | W21 | 3h | ✅ | Document processing ✓ |
+| [W23](../phase4/W23-reader-agent.md) | Reader Agent | W22 | 3h | ✅ | Metadata extraction ✓ |
+| [W24](../phase4/W24-summarizer-agent.md) | Summarizer Agent | W22 | 2h | ✅ | Multi-granularity ✓ |
+| [W25](./W25-entity-agent.md) | Entity Extraction Agent | W21 | 3h | ✅ | LLM-based NER ✓ |
+| [W26](../phase4/W26-relationship-agent.md) | Relationship Extraction Agent | W25, W17 | 3h | ✅ | Bi-temporal facts ✓ |
+| [W27](../phase4/W27-schema-agent.md) | Schema Alignment Agent | W17, W26 | 2h | ✅ | Ontology alignment ✓ |
+| [W28](./W28-conflict-resolution.md) | Conflict Resolution Agent | W17 | 3h | ✅ | LLM debate ✓ |
+| [W29](../phase4/W29-evaluator-agent.md) | Evaluator Agent | W21, W28 | 2h | ✅ | Quality scoring ✓ |
 
 ### Phase 5: Intelligence & Insights
 

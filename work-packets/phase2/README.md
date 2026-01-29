@@ -3,7 +3,7 @@
 **Goal:** Core Skills & Processing - Full workflow system with voice, links, and tasks
 **Duration:** ~2-3 weeks
 **Prerequisites:** Phase 1 Complete ✅
-**Last Updated:** 2026-01-24
+**Last Updated:** 2026-01-29
 
 ---
 
@@ -13,6 +13,41 @@
 |-------|--------|------------|
 | Phase 2 (Core Skills) | ✅ Complete | 100% |
 | Infrastructure (Webhooks) | ✅ Complete | 100% |
+
+### Implementation Notes (Last Reviewed: 2026-01-29)
+
+**✅ Fully Implemented:**
+- All 14 core skills working (W08)
+- LLM router with Z.AI GLM-4.7 (W09) - Deviates from spec
+- Voice transcription with faster-whisper (W10)
+- Link processing pipeline (W11)
+- Task extraction with due dates (W12)
+- Web scraper integration (W13)
+- Enhanced Telegram bot (W15)
+
+**⏭️ Deferred:**
+- Workflow Engine (W14) - YAML workflows deferred to Phase 3
+
+**Deviations from Original Plan:**
+- **LLM Provider Changed**: Uses Z.AI GLM-4.7 instead of Ollama llama3.2:3b
+  - Better performance and faster response times
+  - API-based instead of local inference
+- **Voice Transcription**: Uses faster-whisper (local) instead of Groq API
+  - Better privacy and no external dependencies
+- **Workflows**: Individual TypeScript workflows exist despite engine deferral
+  - `process-link.ts` and `process-task.ts` work independently
+
+**Skills Verified:**
+- embed.skill.ts, store-memory.skill.ts, transcribe.skill.ts
+- classify.skill.ts, extract-url.skill.ts, fetch-webpage.skill.ts
+- summarize.skill.ts, extract-task.skill.ts, create-task.skill.ts
+
+**ML Services Verified:**
+- `/classify` - Intent classification
+- `/scrape` - Web content extraction
+- `/summarize` - Content summarization
+- `/extract-task` - Task detail extraction
+- `/transcribe` - Voice transcription (with graceful fallback)
 
 ---
 
@@ -105,7 +140,7 @@ Telegram → Queue → Router → Workflow → Skills → Store
 - Platform integration via existing `getFileUrl()`
 
 ### 3. LLM Router
-- Use `llama3.2:3b` for speed (~1s latency)
+- Use Z.AI GLM-4.7 for better performance
 - Return structured JSON with intents
 - Route to appropriate workflow
 
