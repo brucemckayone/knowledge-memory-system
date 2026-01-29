@@ -6,7 +6,7 @@
  */
 
 import type { AgentContext, JobResult, GardenerAgent } from '../controller.js';
-import { config } from '../../config.js';
+import { checkContradiction } from '../../services/ml.js';
 import {
   findSupersedingFacts,
   expireFact,
@@ -84,7 +84,7 @@ export const conflictResolutionAgent: GardenerAgent = {
           if (candidate.id === fact.id) continue;
 
           // Check contradiction via ML service
-          const conflict = await checkContradiction(fact, candidate);
+          const conflict = await checkConflict(fact, candidate);
           
           if (conflict.contradicts) {
             conflictsFound++;
@@ -163,40 +163,28 @@ export const conflictResolutionAgent: GardenerAgent = {
 /**
  * Check if two facts contradict via ML service
  */
-async function checkContradiction(fact1: Fact, fact2: Fact): Promise<ConflictResult> {
+async function checkConflict(fact1: Fact, fact2: Fact): Promise<ConflictResult> {
   try {
-    const response = await fetch(`${config.ML_SERVICES_URL}/check-contradiction`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fact1: {
-          subject: fact1.subjectEntityId,
-          predicate: fact1.predicate,
-          object: fact1.objectEntityId || fact1.objectValue || '',
-          valid_at: fact1.validAt?.toISOString(),
-          invalid_at: fact1.invalidAt?.toISOString(),
-        },
-        fact2: {
-          subject: fact2.subjectEntityId,
-          predicate: fact2.predicate,
-          object: fact2.objectEntityId || fact2.objectValue || '',
-          valid_at: fact2.validAt?.toISOString(),
-          invalid_at: fact2.invalidAt?.toISOString(),
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      return {
-        contradicts: false,
-        type: 'none',
-        resolution: 'coexist',
-        confidence: 0.5,
-        reasoning: 'ML service unavailable',
-      };
-    }
-
-    return await response.json() as ConflictResult;
+    const result = await checkContradiction(
+      {
+        subject: fact1.subjectEntityId,
+        predicate: fact1.predicate,
+        object: fact1.objectEntityId || fact1.objectValue || '',
+        valid_at: fact1.validAt?.toISOString(),
+        invalid_at: fact1.invalidAt?.toISOString(),
+      },
+      {
+        subject: fact2.subjectEntityId,
+        predicate: fact2.predicate,
+        object: fact2.objectEntityId || fact2.objectValue || '',
+        valid_at: fact2.validAt?.toISOString(),
+        invalid_at: fact2.invalidAt?.toISOString(),
+      }
+    );
+    
+    // Map response to internal ConflictResult if needed, or use as is
+    // The ML service returns CheckContradictionResponse which matches ConflictResult structure closely
+    return result as unknown as ConflictResult;
 
   } catch {
     return {

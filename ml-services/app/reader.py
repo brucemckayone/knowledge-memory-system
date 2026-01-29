@@ -8,10 +8,9 @@ W23 Reader Agent uses this to parse memory content.
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, List
-import ollama
-import json
 import re
 from datetime import datetime
+from .core.llm import llm_client
 
 router = APIRouter()
 
@@ -159,38 +158,30 @@ async def parse_content(request: ParseContentRequest):
             hint=request.hint or "none",
         )
 
-        response = ollama.generate(
-            model="llama3.2:3b",
-            prompt=prompt,
-            options={
-                "temperature": 0.1,
-                "num_predict": 512,
-            }
+        # Use LLM Service
+        result = llm_client.generate_json(
+            prompt,
+            options={"num_predict": 512}
         )
 
-        # Parse response
-        match = re.search(r'\{[\s\S]*\}', response['response'])
-        if match:
-            result = json.loads(match.group())
+        # Merge LLM results with quick extractions
+        all_links = list(set(urls + result.get('links', [])))
+        all_dates = list(set(dates + result.get('dates', [])))
+        all_mentions = list(set(at_mentions + result.get('mentions', [])))
+        all_tags = list(set(hashtags + result.get('tags', [])))
 
-            # Merge LLM results with quick extractions
-            all_links = list(set(urls + result.get('links', [])))
-            all_dates = list(set(dates + result.get('dates', [])))
-            all_mentions = list(set(at_mentions + result.get('mentions', [])))
-            all_tags = list(set(hashtags + result.get('tags', [])))
-
-            return ParseContentResponse(
-                content_type=result.get('content_type', quick_type),
-                title=result.get('title', content[:100].strip()),
-                summary=result.get('summary', content[:200].strip()),
-                mentions=all_mentions,
-                dates=all_dates,
-                links=all_links,
-                tags=all_tags,
-                sentiment=result.get('sentiment', 'neutral'),
-                language=result.get('language', 'en'),
-                word_count=word_count,
-            )
+        return ParseContentResponse(
+            content_type=result.get('content_type', quick_type),
+            title=result.get('title', content[:100].strip()),
+            summary=result.get('summary', content[:200].strip()),
+            mentions=all_mentions,
+            dates=all_dates,
+            links=all_links,
+            tags=all_tags,
+            sentiment=result.get('sentiment', 'neutral'),
+            language=result.get('language', 'en'),
+            word_count=word_count,
+        )
 
     except Exception as e:
         print(f"LLM parsing failed: {e}")

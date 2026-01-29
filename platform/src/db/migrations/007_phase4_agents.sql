@@ -86,6 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_memory_summaries_memory ON memory_summaries(memor
 
 -- Gardener metrics for evaluator agent (W29)
 -- Extended metrics table for quality tracking
+DROP TABLE IF EXISTS gardener_metrics CASCADE;
 CREATE TABLE IF NOT EXISTS gardener_metrics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   job_id UUID,

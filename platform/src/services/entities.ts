@@ -112,7 +112,9 @@ export async function findEntitiesByName(
       LIMIT ${limit}
     `);
     
-    return (results as unknown as { rows: Array<Entity & { similarity: number }> }).rows;
+    // Safely handle result structure (postgres vs drizzle types)
+    const rows = (results as unknown as { rows: Array<Entity & { similarity: number }> }).rows || results;
+    return rows as Array<Entity & { similarity?: number }>;
   }
   
   // Simple ILIKE search
@@ -152,7 +154,9 @@ export async function findSimilarEntities(
     LIMIT ${limit}
   `);
   
-  return (results as unknown as { rows: Array<Entity & { similarity: number }> }).rows;
+  // Safely handle result structure
+  const rows = (results as unknown as { rows: Array<Entity & { similarity: number }> }).rows || results;
+  return rows as Array<Entity & { similarity: number }>;
 }
 
 /**

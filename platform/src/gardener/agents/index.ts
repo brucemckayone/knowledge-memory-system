@@ -18,6 +18,9 @@ import { relationshipAgent } from './relationship.agent.js';
 import { schemaAlignmentAgent } from './schema-alignment.agent.js';
 import { evaluatorAgent } from './evaluator.agent.js';
 
+// Phase 5 Agents
+import { patternAnalyzerAgent } from './pattern-analyzer.agent.js';
+
 // Phase 3 exports
 export { entityExtractionAgent } from './entity-extraction.agent.js';
 export { conflictResolutionAgent } from './conflict-resolution.agent.js';
@@ -29,6 +32,9 @@ export { summarizerAgent } from './summarizer.agent.js';
 export { relationshipAgent } from './relationship.agent.js';
 export { schemaAlignmentAgent } from './schema-alignment.agent.js';
 export { evaluatorAgent } from './evaluator.agent.js';
+
+// Phase 5 exports
+export { patternAnalyzerAgent } from './pattern-analyzer.agent.js';
 
 /**
  * All agents in registration order
@@ -49,6 +55,9 @@ export const allAgents = [
 
   // Phase 4: Quality (W29)
   evaluatorAgent,
+
+  // Phase 5: Pattern Learning (Periodic)
+  patternAnalyzerAgent,
 ];
 
 /**
@@ -61,5 +70,5 @@ export function registerAgents(): void {
     controller.registerAgent(agent);
   }
 
-  console.log(`✅ Registered ${allAgents.length} KARMA agents (Phase 3 + 4)`);
+  console.log(`✅ Registered ${allAgents.length} KARMA agents (Phase 3 + 4 + 5)`);
 }

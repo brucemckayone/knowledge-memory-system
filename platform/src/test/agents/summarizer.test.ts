@@ -11,7 +11,18 @@ import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { randomUUID, isMLServiceAvailable } from '../setup.js';
 import { loadPhase4Seed } from '../fixtures/phase4-seed.js';
 import { installMLServiceMock, restoreMLServiceMock } from '../mocks/ml-service.mock.js';
+
+// Mock Qdrant service before importing the agent
+vi.mock('../../services/qdrant.js', () => ({
+  getMemory: vi.fn(),
+  updateVector: vi.fn(),
+  // Other exports can be stubbed
+  qdrant: {},
+  checkQdrantHealth: vi.fn(),
+}));
+
 import { summarizerAgent } from '../../gardener/agents/summarizer.agent.js';
+import * as qdrantService from '../../services/qdrant.js';
 import type { AgentContext } from '../../gardener/controller.js';
 import type PgBoss from 'pg-boss';
 
@@ -39,6 +50,15 @@ describe('W24 Summarizer Agent', () => {
     };
   }
 
+  // Helper to mock Qdrant service functions
+  function mockQdrantService(content: string) {
+    (qdrantService.getMemory as vi.Mock).mockResolvedValue({
+      id: randomUUID(),
+      payload: { content },
+    });
+    (qdrantService.updateVector as vi.Mock).mockResolvedValue(undefined);
+  }
+
   afterEach(() => {
     vi.clearAllMocks();
     restoreMLServiceMock();
@@ -58,40 +78,8 @@ describe('W24 Summarizer Agent', () => {
         },
       });
 
-      // Mock Qdrant fetch to return content
-      const fetchMock = vi.spyOn(global, 'fetch');
-      fetchMock.mockImplementation(async (url) => {
-        const urlStr = url.toString();
-
-        if (urlStr.includes('/collections/memories/points/')) {
-          return {
-            ok: true,
-            json: async () => ({
-              result: { payload: { content: originalContent } },
-            }),
-          } as Response;
-        }
-
-        // For other endpoints, use the ML mock
-        if (urlStr.includes('/summarize')) {
-          return {
-            ok: true,
-            json: async () => ({
-              summary: mockSummary,
-              key_points: ['AI development', 'team collaboration'],
-            }),
-          } as Response;
-        }
-
-        if (urlStr.includes('/embed')) {
-          return {
-            ok: true,
-            json: async () => ({ embedding: Array(768).fill(0.1) }),
-          } as Response;
-        }
-
-        return { ok: true, json: async () => ({}) } as Response;
-      });
+      // Mock Qdrant service directly
+      mockQdrantService(originalContent);
 
       // Given: Long content to summarize
       const memoryId = randomUUID();
@@ -117,32 +105,11 @@ describe('W24 Summarizer Agent', () => {
         summarize: {
           summary: 'A brief summary',
           key_points: ['point 1'],
-          style: 'concise',
         },
       });
 
-      // Mock Qdrant
-      vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
-        const urlStr = url.toString();
-        if (urlStr.includes('/collections/memories/points/')) {
-          return {
-            ok: true,
-            json: async () => ({
-              result: { payload: { content: 'Some thought content here.' } },
-            }),
-          } as Response;
-        }
-        if (urlStr.includes('/summarize')) {
-          return {
-            ok: true,
-            json: async () => ({
-              summary: 'A brief summary',
-              key_points: [],
-            }),
-          } as Response;
-        }
-        return { ok: true, json: async () => ({}) } as Response;
-      });
+      // Mock Qdrant service directly
+      mockQdrantService('Some thought content here.');
 
       // Given: Thought type content
       const memoryId = randomUUID();
@@ -169,32 +136,11 @@ describe('W24 Summarizer Agent', () => {
         summarize: {
           summary: 'Summary of the document.',
           key_points: keyPoints,
-          style: 'bullet',
         },
       });
 
-      // Mock Qdrant
-      vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
-        const urlStr = url.toString();
-        if (urlStr.includes('/collections/memories/points/')) {
-          return {
-            ok: true,
-            json: async () => ({
-              result: { payload: { content: seed.longDocument.content } },
-            }),
-          } as Response;
-        }
-        if (urlStr.includes('/summarize')) {
-          return {
-            ok: true,
-            json: async () => ({
-              summary: 'Summary of the document.',
-              key_points: keyPoints,
-            }),
-          } as Response;
-        }
-        return { ok: true, json: async () => ({}) } as Response;
-      });
+      // Mock Qdrant service directly
+      mockQdrantService(seed.longDocument.content);
 
       // Given: Content with multiple topics
       const memoryId = randomUUID();
@@ -216,42 +162,22 @@ describe('W24 Summarizer Agent', () => {
 
   describe('SUM-003: Update Qdrant embedding', () => {
     it('should call Qdrant PUT for embedding update', async () => {
-      // Track fetch calls
-      const fetchCalls: string[] = [];
+      // Reset mocks
+      (qdrantService.getMemory as vi.Mock).mockResolvedValue({
+        id: randomUUID(),
+        payload: { content: 'Test content for embedding.' },
+      });
+      (qdrantService.updateVector as vi.Mock).mockResolvedValue(undefined);
 
-      vi.spyOn(global, 'fetch').mockImplementation(async (url, init) => {
-        const urlStr = url.toString();
-        fetchCalls.push(`${init?.method || 'GET'} ${urlStr}`);
-
-        if (urlStr.includes('/collections/memories/points/') && init?.method !== 'PUT') {
-          return {
-            ok: true,
-            json: async () => ({
-              result: { payload: { content: 'Test content for embedding.' } },
-            }),
-          } as Response;
-        }
-        if (urlStr.includes('/summarize')) {
-          return {
-            ok: true,
-            json: async () => ({
-              summary: 'Test summary',
-              key_points: ['test'],
-            }),
-          } as Response;
-        }
-        if (urlStr.includes('/embed')) {
-          return {
-            ok: true,
-            json: async () => ({
-              embedding: Array(768).fill(0.1),
-            }),
-          } as Response;
-        }
-        if (urlStr.includes('/collections/memories/points') && init?.method === 'PUT') {
-          return { ok: true, json: async () => ({}) } as Response;
-        }
-        return { ok: true, json: async () => ({}) } as Response;
+      // Install mock for ML service (includes embed)
+      installMLServiceMock({
+        summarize: {
+          summary: 'Test summary',
+          key_points: ['test'],
+        },
+        embed: {
+          vector: Array(768).fill(0.1),
+        },
       });
 
       // Given: Memory to summarize
@@ -264,33 +190,20 @@ describe('W24 Summarizer Agent', () => {
       // When: Process
       const result = await summarizerAgent.execute(context);
 
-      // Then: Qdrant PUT was called
+      // Then: Qdrant updateVector was called
       expect(result.success).toBe(true);
-
-      // Verify embedding PUT was called
-      const putCall = fetchCalls.find(c => c.includes('PUT') && c.includes('/collections/memories/points'));
-      expect(putCall).toBeDefined();
+      expect(qdrantService.updateVector as vi.Mock).toHaveBeenCalled();
     });
   });
 
   describe('SUM-004: ML fallback', () => {
     it('should generate extractive summary when ML fails', async () => {
+      // Mock Qdrant service
+      mockQdrantService('First sentence of the document. Middle content here. Last sentence provides conclusion.');
+
       // Mock ML service to fail
       vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
         const urlStr = url.toString();
-
-        if (urlStr.includes('/collections/memories/points/')) {
-          return {
-            ok: true,
-            json: async () => ({
-              result: {
-                payload: {
-                  content: 'First sentence of the document. Middle content here. Last sentence provides conclusion.',
-                },
-              },
-            }),
-          } as Response;
-        }
 
         if (urlStr.includes('/summarize')) {
           return { ok: false, status: 500 } as Response;
@@ -329,19 +242,13 @@ describe('W24 Summarizer Agent', () => {
         The project uses advanced machine learning techniques.
       `;
 
+      // Mock Qdrant service
+      mockQdrantService(contentWithKeywords);
+
+      // ML service unavailable
       vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
         const urlStr = url.toString();
 
-        if (urlStr.includes('/collections/memories/points/')) {
-          return {
-            ok: true,
-            json: async () => ({
-              result: { payload: { content: contentWithKeywords } },
-            }),
-          } as Response;
-        }
-
-        // ML service unavailable
         if (urlStr.includes('/summarize')) {
           return { ok: false, status: 503 } as Response;
         }

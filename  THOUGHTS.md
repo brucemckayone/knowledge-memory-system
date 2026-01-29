@@ -28,3 +28,6 @@ it could analyse user feed back looking at what is working what is not working b
 it would be also good if the assistant had control over our systems internall like for example a smart home kind of thing. but not just have pressets of which would be good but to also have the ability to suggest things based on what is going on in the house. For example being predictive about lighting for the jobs im doing. Perhaps it could have cameras in the home. it could proces the info and preform actinos. like i am in the kitched turn the lights up. it would have to be system and contenzt aware of the available things it can di within the home perhaps.
 
 It could be awesome if somehow it was linked to the books you are reading like mabye via a kindle
+
+
+i had the following idea three should be a recursivness to the system where the agents or controller is able to analyse the task that it has at hand. it should be able to establish custom workflows to acheive the task that it has been given. It should log and save work flows tracking for patterns to see which ones happen most and haev a good success rate or whatever it is somehow we measure that. when this happens the the system would then save name and modularlize that workflow and make it available to both the user and as a sckill. 

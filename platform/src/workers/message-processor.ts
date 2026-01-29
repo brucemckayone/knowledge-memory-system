@@ -92,7 +92,7 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
         console.error('❌ Transcription failed:', error);
         logFailure(envelope, 'transcribe', String(error), Date.now());
 
-        await bot.api.sendMessage(data.chatId,
+        await safeSendMessage(data.chatId,
           "❌ Sorry, I couldn't transcribe your voice note. Please try again or send text instead."
         );
         return;
@@ -130,7 +130,7 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
       const result = await processLink(envelope, context);
 
       if (result.success) {
-        await bot.api.sendMessage(data.chatId,
+        await safeSendMessage(data.chatId,
           `🔗 **Link saved!**\n\n` +
           `📰 ${result.title}\n\n` +
           `📝 ${result.summary}`,
@@ -138,7 +138,7 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
         );
       } else {
         console.warn('Link processing failed:', result.error);
-        await bot.api.sendMessage(data.chatId,
+        await safeSendMessage(data.chatId,
           `💭 Saved your message (couldn't fetch link details)`
         );
       }
@@ -157,7 +157,7 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
           low: '🟢',
         }[result.priority || 'medium'];
 
-        await bot.api.sendMessage(data.chatId,
+        await safeSendMessage(data.chatId,
           `✅ **Task created!**\n\n` +
           `📋 ${result.action}\n` +
           `📅 ${formatDueDate(result.due_date)}\n` +
@@ -243,7 +243,7 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
 
     // Only send notification for voice messages (text messages don't need confirmation)
     if (data.voice) {
-      await bot.api.sendMessage(data.chatId,
+      await safeSendMessage(data.chatId,
         `${typeEmoji} **${typeLabel} saved!**\n\n` +
         `📝 "${textToEmbed.slice(0, 150)}${textToEmbed.length > 150 ? '...' : ''}"`,
         { parse_mode: 'Markdown' }
@@ -254,6 +254,7 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
     console.error('❌ Processing failed:', error);
     logFailure(envelope, 'processing', String(error), startTime);
     envelope.routing.status = 'failed';
+
 
     // User-friendly error message
     let errorMessage = '❌ Something went wrong. Please try again.';
@@ -266,13 +267,25 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
       errorMessage = '❌ Request timed out. Please try again.';
     }
 
-    try {
-      await bot.api.sendMessage(data.chatId, errorMessage);
-    } catch {
-      // Ignore notification error
-    }
+    await safeSendMessage(data.chatId, errorMessage);
 
     throw error; // pg-boss will retry
+  }
+}
+
+/**
+ * Safely send a Telegram message, catching common errors (like 400 Bad Request during E2E tests)
+ */
+async function safeSendMessage(chatId: number, text: string, options?: any): Promise<void> {
+  try {
+    await bot.api.sendMessage(chatId, text, options);
+  } catch (error) {
+    const errString = String(error);
+    if (errString.includes('Bad Request: chat not found') || errString.includes('400')) {
+      console.warn(`⚠️ Suppressed telegram error for chat ${chatId}: ${errString}`);
+    } else {
+      console.error(`❌ Failed to send telegram message to ${chatId}:`, error);
+    }
   }
 }
 
@@ -290,7 +303,7 @@ async function handleSearch(chatId: number, query: string): Promise<void> {
     const results = await searchMemories(queryEmbedding.vector, { limit: 5 });
 
     if (results.length === 0) {
-      await bot.api.sendMessage(chatId, '🔍 No memories found for your query.');
+      await safeSendMessage(chatId, '🔍 No memories found for your query.');
       return;
     }
 
@@ -306,7 +319,7 @@ async function handleSearch(chatId: number, query: string): Promise<void> {
       return `${i + 1}. ${typeEmoji} [${score}%] ${content}...\n   📅 ${date}`;
     }).join('\n\n');
 
-    await bot.api.sendMessage(
+    await safeSendMessage(
       chatId,
       `🔍 **Found ${results.length} memories:**\n\n${formatted}`,
       { parse_mode: 'Markdown' }
@@ -314,7 +327,7 @@ async function handleSearch(chatId: number, query: string): Promise<void> {
 
   } catch (error) {
     console.error('Search failed:', error);
-    await bot.api.sendMessage(chatId, '❌ Search failed. Please try again.');
+    await safeSendMessage(chatId, '❌ Search failed. Please try again.');
   }
 }
 

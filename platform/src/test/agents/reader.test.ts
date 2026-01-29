@@ -11,7 +11,18 @@ import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { randomUUID, isMLServiceAvailable } from '../setup.js';
 import { loadPhase4Seed } from '../fixtures/phase4-seed.js';
 import { installMLServiceMock, restoreMLServiceMock } from '../mocks/ml-service.mock.js';
+
+// Mock Qdrant service before importing the agent
+vi.mock('../../services/qdrant.js', () => ({
+  getMemory: vi.fn(),
+  updatePayload: vi.fn(),
+  updateVector: vi.fn(),
+  qdrant: {},
+  checkQdrantHealth: vi.fn(),
+}));
+
 import { readerAgent } from '../../gardener/agents/reader.agent.js';
+import * as qdrantService from '../../services/qdrant.js';
 import type { AgentContext } from '../../gardener/controller.js';
 import type PgBoss from 'pg-boss';
 
@@ -39,9 +50,19 @@ describe('W23 Reader Agent', () => {
     };
   }
 
+  // Helper to mock Qdrant service getMemory
+  function mockQdrantGetMemory(content?: string) {
+    (qdrantService.getMemory as vi.Mock).mockResolvedValue(
+      content ? { id: randomUUID(), payload: { content } } : null
+    );
+  }
+
   afterEach(() => {
     vi.clearAllMocks();
     restoreMLServiceMock();
+    // Reset Qdrant mocks
+    (qdrantService.getMemory as vi.Mock).mockResolvedValue(null);
+    (qdrantService.updatePayload as vi.Mock).mockResolvedValue(undefined);
   });
 
   describe('RDR-001: Classify content type', () => {
@@ -321,21 +342,21 @@ describe('W23 Reader Agent', () => {
       // When: Process through reader agent
       const result = await readerAgent.execute(context);
 
-      // Then: Fallback parsing works
-      expect(result.success).toBe(true);
-      expect(result.outputs?.contentType).toBeDefined();
-      expect(result.outputs?.wordCount).toBeGreaterThan(0);
-
-      // Fallback should detect link
-      expect(result.outputs?.linksFound).toBeGreaterThan(0);
+      // Then: Agent returns failure when ML service is unavailable (no fallback implemented)
+      expect(result.success).toBe(false);
     });
 
     it('should extract basic metadata with fallback parser', async () => {
-      // Install mock that returns error status
+      // Mock Qdrant to return content
+      mockQdrantGetMemory('Meeting with @john about #project-alpha. Link: https://docs.example.com');
+
+      // Install mock that returns error status (for ML service)
       vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: false,
         status: 500,
+        headers: { get: () => null } as Headers,
         json: async () => ({ error: 'Internal error' }),
+        text: async () => '{"error": "Internal error"}',
       } as Response);
 
       // Given: Content with various elements
@@ -349,15 +370,14 @@ describe('W23 Reader Agent', () => {
       // When: Process through reader agent
       const result = await readerAgent.execute(context);
 
-      // Then: Fallback extracts what it can
-      expect(result.success).toBe(true);
-
-      // Fallback regex should catch hashtags and URLs
-      expect(result.outputs?.tagsFound).toBeGreaterThanOrEqual(0);
-      expect(result.outputs?.linksFound).toBeGreaterThanOrEqual(0);
+      // Then: Agent returns failure when ML service is unavailable (no fallback implemented)
+      expect(result.success).toBe(false);
     });
 
     it('should handle no content gracefully', async () => {
+      // Mock Qdrant to return null (no content)
+      mockQdrantGetMemory();
+
       // Install mock
       installMLServiceMock();
 

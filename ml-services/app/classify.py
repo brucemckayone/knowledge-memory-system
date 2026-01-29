@@ -1,9 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List, Optional
-import ollama
-import json
-import re
+from .core.llm import llm_client
 
 router = APIRouter()
 
@@ -95,23 +93,6 @@ class ClassifyResponse(BaseModel):
     reasoning: Optional[str] = None
 
 
-def extract_json(text: str) -> dict:
-    """Extract JSON from LLM response"""
-    # Try to find JSON in the response
-    json_match = re.search(r'\{[\s\S]*\}', text)
-    if json_match:
-        try:
-            return json.loads(json_match.group())
-        except json.JSONDecodeError:
-            pass
-
-    # Fallback: try the whole response
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        raise ValueError(f"Could not parse JSON from: {text[:200]}")
-
-
 def validate_classification(data: dict) -> ClassifyResponse:
     """Validate and normalize classification result"""
     valid_intents = {'thought', 'link', 'task', 'question', 'search', 'command'}
@@ -169,19 +150,8 @@ async def classify_message(request: ClassifyRequest):
             message=request.text
         )
 
-        # Call Ollama
-        response = ollama.generate(
-            model="llama3.2:3b",
-            prompt=prompt,
-            options={
-                "temperature": 0.1,  # Low temperature for consistency
-                "num_predict": 256,  # Limit output
-            }
-        )
-
-        # Parse response
-        result_text = response['response']
-        result_json = extract_json(result_text)
+        # Use shared LLM service
+        result_json = llm_client.generate_json(prompt)
 
         # Validate and normalize
         classification = validate_classification(result_json)
@@ -194,24 +164,14 @@ async def classify_message(request: ClassifyRequest):
 
         return classification
 
-    except ollama.ResponseError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"LLM service unavailable: {str(e)}"
-        )
-    except ValueError as e:
-        # JSON parsing failed, return safe default
-        print(f"⚠️ Classification parsing failed: {e}")
+    except Exception as e:
+        # JSON parsing failed or other error, return safe default
+        print(f"⚠️ Classification failed: {e}")
         return ClassifyResponse(
             intents=[Intent(type='thought', confidence=0.5)],
             primary_intent='thought',
             suggested_workflow='process-thought',
-            reasoning="Classification parsing failed, defaulting to thought"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Classification failed: {str(e)}"
+            reasoning="Classification failed, defaulting to thought"
         )
 
 

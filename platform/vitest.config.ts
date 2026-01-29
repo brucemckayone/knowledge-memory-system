@@ -15,6 +15,13 @@ export default defineConfig({
     // Environment
     environment: 'node',
 
+    // Environment variables for tests - ensure services use test database
+    env: {
+      DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/cognitive_test',
+      NODE_ENV: 'test',
+      ML_SERVICES_URL: 'http://localhost:8000',
+    },
+
     // Timeouts - longer for ML service tests
     testTimeout: 30000,
     hookTimeout: 30000,

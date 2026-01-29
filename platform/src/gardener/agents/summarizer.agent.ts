@@ -6,9 +6,10 @@
  */
 
 import type { AgentContext, JobResult, GardenerAgent } from '../controller.js';
-import { config } from '../../config.js';
 import { db } from '../../db/index.js';
 import { sql } from 'drizzle-orm';
+import { summarize, embed } from '../../services/ml.js';
+import { getMemory, updateVector } from '../../services/qdrant.js';
 
 interface SummarizerPayload {
   memoryId?: string;
@@ -186,32 +187,13 @@ async function executeBatch(context: AgentContext): Promise<JobResult> {
  */
 async function generateSummary(content: string, style: string): Promise<SummaryResult> {
   try {
-    const response = await fetch(`${config.ML_SERVICES_URL}/summarize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: content,
-        style,
-        max_length: 200,
-        include_key_points: true,
-      }),
-    });
-
-    if (!response.ok) {
-      return fallbackSummary(content, style);
-    }
-
-    const data = await response.json() as {
-      summary?: string;
-      key_points?: string[];
-    };
-
+    const data = await summarize(content, style);
+    
     return {
       summary: data.summary || content.slice(0, 200),
       key_points: data.key_points || [],
       style,
     };
-
   } catch (error) {
     console.warn('Summary generation failed:', error);
     return fallbackSummary(content, style);
@@ -274,6 +256,9 @@ async function storeSummary(memoryId: string, result: SummaryResult): Promise<vo
 /**
  * Update embedding with summary-enhanced content
  */
+/**
+ * Update embedding with summary-enhanced content
+ */
 async function updateEmbedding(
   memoryId: string,
   content: string,
@@ -284,41 +269,17 @@ async function updateEmbedding(
     const enhancedText = `${summary}\n\n${content}`;
 
     // Generate new embedding
-    const embedResponse = await fetch(`${config.ML_SERVICES_URL}/embed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: enhancedText.slice(0, 8000) }),
-    });
-
-    if (!embedResponse.ok) {
-      console.warn('Embedding generation failed');
-      return;
-    }
-
-    const embedData = await embedResponse.json() as {
-      vector?: number[];
-      embedding?: number[];
-    };
-    const vector = embedData.vector || embedData.embedding;
+    const embedData = await embed(enhancedText.slice(0, 8000));
+    const vector = embedData.vector;
 
     if (!vector || vector.length === 0) {
       return;
     }
 
     // Update in Qdrant
-    await fetch(`${config.QDRANT_URL}/collections/memories/points`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        points: [{
-          id: memoryId,
-          vector,
-          payload: {
-            summary,
-            embedding_updated_at: new Date().toISOString(),
-          },
-        }],
-      }),
+    await updateVector(memoryId, vector, {
+      summary,
+      embedding_updated_at: new Date().toISOString(),
     });
 
     // Mark as updated in database
@@ -336,23 +297,13 @@ async function updateEmbedding(
 /**
  * Fetch memory content from Qdrant
  */
+/**
+ * Fetch memory content from Qdrant
+ */
 async function fetchMemoryContent(memoryId: string): Promise<string> {
   try {
-    const response = await fetch(`${config.QDRANT_URL}/collections/memories/points/${memoryId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) {
-      return '';
-    }
-
-    const data = await response.json() as {
-      result?: { payload?: { content?: string } };
-    };
-
-    return data.result?.payload?.content || '';
-
+    const memory = await getMemory(memoryId);
+    return (memory?.payload?.content as string) || '';
   } catch (error) {
     console.warn('Failed to fetch from Qdrant:', error);
     return '';

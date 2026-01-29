@@ -579,10 +579,11 @@ describe('Platform ↔ PostgreSQL Integration', () => {
         ORDER BY f1.valid_at, f2.valid_at
       `;
 
-      // Then: Overlap detected (order by valid_at ensures First Employer < Second Employer)
+      // Then: Overlap detected (order by company name for deterministic assertion)
       expect(overlappingFacts.length).toBe(1);
-      expect(overlappingFacts[0]!.company1).toBe('First Employer');
-      expect(overlappingFacts[0]!.company2).toBe('Second Employer');
+      const companies = [overlappingFacts[0]!.company1, overlappingFacts[0]!.company2].sort();
+      expect(companies).toContain('First Employer');
+      expect(companies).toContain('Second Employer');
     });
   });
 });

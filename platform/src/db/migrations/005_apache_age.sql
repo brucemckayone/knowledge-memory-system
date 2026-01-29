@@ -15,8 +15,12 @@ BEGIN
     END IF;
 END $$;
 
--- Set search path to include AGE
-SET search_path = ag_catalog, "$user", public;
+-- Set database-wide search path to include AGE (persists across all connections)
+-- This ensures functions created in ag_catalog are always accessible
+ALTER DATABASE cognitive SET search_path = ag_catalog, public, "$user";
+
+-- Set search path for current session
+SET search_path = ag_catalog, public, "$user";
 
 -- Create knowledge graph if not exists
 DO $$

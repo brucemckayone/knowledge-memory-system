@@ -91,13 +91,20 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     throw new Error('Failed to create fact');
   }
 
-  // Store embedding if generated
+  // Store embedding if generated (skip if vector extension not available)
   if (embedding && embedding.length > 0) {
-    await db.execute(sql`
-      UPDATE facts 
-      SET fact_embedding = ${sql.raw(`'[${embedding.join(',')}]'::vector`)}
-      WHERE id = ${fact.id}
-    `);
+    try {
+      await db.execute(sql`
+        UPDATE facts
+        SET fact_embedding = ${sql.raw(`'[${embedding.join(',')}]'::vector`)}
+        WHERE id = ${fact.id}
+      `);
+    } catch (error) {
+      // Vector extension may not be available - that's OK, continue without embedding
+      if (!(error instanceof Error) || !error.message.includes('type "vector" does not exist')) {
+        throw error;
+      }
+    }
   }
 
   return fact.id;

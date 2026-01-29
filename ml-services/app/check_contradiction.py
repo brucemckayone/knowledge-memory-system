@@ -8,9 +8,7 @@ Implements ALICE framework detection with quick heuristics + LLM fallback.
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
-import ollama
-import json
-import re
+from .core.llm import llm_client
 
 router = APIRouter()
 
@@ -173,38 +171,29 @@ async def check_contradiction(request: CheckContradictionRequest):
             fact2_invalid_at=f2.invalid_at or "ongoing",
         )
         
-        response = ollama.generate(
-            model="llama3.2:3b",  # Use faster model
-            prompt=prompt,
-            options={
-                "temperature": 0.1,
-                "num_predict": 512,
-            }
+        # Use LLM service
+        result = llm_client.generate_json(
+            prompt,
+            options={"num_predict": 512}
         )
         
-        # Parse response
-        match = re.search(r'\{[\s\S]*\}', response['response'])
-        if match:
-            result = json.loads(match.group())
-            return CheckContradictionResponse(
-                contradicts=result.get('contradicts', False),
-                type=result.get('type', 'none'),
-                resolution=result.get('resolution', 'coexist'),
-                reasoning=result.get('reasoning', 'LLM analysis'),
-                confidence=min(1.0, max(0.0, result.get('confidence', 0.7))),
-            )
+        return CheckContradictionResponse(
+            contradicts=result.get('contradicts', False),
+            type=result.get('type', 'none'),
+            resolution=result.get('resolution', 'coexist'),
+            reasoning=result.get('reasoning', 'LLM analysis'),
+            confidence=min(1.0, max(0.0, result.get('confidence', 0.7))),
+        )
         
     except Exception:
-        pass
-    
-    # Default: no contradiction detected
-    return CheckContradictionResponse(
-        contradicts=False,
-        type="none",
-        resolution="coexist",
-        reasoning="No contradiction detected",
-        confidence=0.6,
-    )
+        # Default: no contradiction detected if LLM fails
+        return CheckContradictionResponse(
+            contradicts=False,
+            type="none",
+            resolution="coexist",
+            reasoning="No contradiction detected (LLM fallback)",
+            confidence=0.6,
+        )
 
 
 @router.get("/check-contradiction/test")

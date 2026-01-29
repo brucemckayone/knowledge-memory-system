@@ -7,11 +7,12 @@
  * Based on LightRAG research achieving <100 token cost per query.
  */
 
-import { config } from '../config.js';
 import { findConnectedEntities } from './graph.js';
 import { resolveEntity, type EntityType } from './entities.js';
 import { sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
+import { embed, extractEntities } from './ml.js';
+import { searchMemories, scrollPoints, getMemory } from './qdrant.js';
 
 export interface HybridSearchResult {
   memoryId: string;
@@ -54,7 +55,7 @@ export async function hybridSearch(
   const queryEntities = await extractQueryEntities(query);
   
   // Generate embedding for vector search
-  const embedding = await generateEmbedding(query);
+  const embedding = await embed(query).then(res => res.vector).catch(() => []);
   
   // Execute searches in parallel
   const searches: Promise<HybridSearchResult[]>[] = [];
@@ -99,41 +100,26 @@ export async function hybridSearch(
 /**
  * Vector search using Qdrant
  */
+/**
+ * Vector search using Qdrant
+ */
 async function vectorSearch(
   embedding: number[],
   limit: number
 ): Promise<HybridSearchResult[]> {
   try {
-    const response = await fetch(`${config.QDRANT_URL}/collections/memories/points/search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        vector: embedding,
-        limit,
-        with_payload: true,
-      }),
+    const results = await searchMemories(embedding, {
+      limit,
+      with_payload: true,
     });
     
-    if (!response.ok) {
-      console.warn('Vector search failed:', response.status);
-      return [];
-    }
-    
-    const data = await response.json() as {
-      result?: Array<{
-        id: string;
-        score: number;
-        payload?: { content?: string; type?: string };
-      }>;
-    };
-    
-    return (data.result || []).map(r => ({
+    return results.map(r => ({
       memoryId: String(r.id),
       score: r.score,
       source: 'vector' as const,
       fusedScore: 0,
-      content: r.payload?.content || '',
-      type: r.payload?.type || 'unknown',
+      content: (r.payload?.content as string) || '',
+      type: (r.payload?.type as string) || 'unknown',
     }));
   } catch (error) {
     console.warn('Vector search error:', error);
@@ -231,6 +217,9 @@ async function fallbackGraphSearch(
 /**
  * Keyword search using Qdrant payload filtering
  */
+/**
+ * Keyword search using Qdrant payload filtering
+ */
 async function keywordSearch(
   query: string,
   limit: number
@@ -241,41 +230,20 @@ async function keywordSearch(
     
     if (keywords.length === 0) return [];
     
-    const response = await fetch(`${config.QDRANT_URL}/collections/memories/points/scroll`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filter: {
-          should: keywords.map(keyword => ({
-            key: 'content',
-            match: { text: keyword },
-          })),
-        },
-        limit,
-        with_payload: true,
-      }),
-    });
+    const { points } = await scrollPoints({
+      should: keywords.map(keyword => ({
+        key: 'content',
+        match: { text: keyword },
+      })),
+    }, { limit, with_payload: true });
     
-    if (!response.ok) {
-      return [];
-    }
-    
-    const data = await response.json() as {
-      result?: {
-        points?: Array<{
-          id: string;
-          payload?: { content?: string; type?: string };
-        }>;
-      };
-    };
-    
-    return (data.result?.points || []).map((p, i) => ({
+    return (points || []).map((p, i) => ({
       memoryId: String(p.id),
       score: 1 / (i + 1),  // Position-based score
       source: 'keyword' as const,
       fusedScore: 0,
-      content: p.payload?.content || '',
-      type: p.payload?.type || 'unknown',
+      content: (p.payload?.content as string) || '',
+      type: (p.payload?.type as string) || 'unknown',
     }));
     
   } catch (error) {
@@ -287,19 +255,12 @@ async function keywordSearch(
 /**
  * Extract entities from query using LLM
  */
+/**
+ * Extract entities from query using LLM
+ */
 async function extractQueryEntities(query: string): Promise<string[]> {
   try {
-    const response = await fetch(`${config.ML_SERVICES_URL}/extract-entities`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: query }),
-    });
-    
-    if (!response.ok) return [];
-    
-    const data = await response.json() as {
-      entities?: Array<{ mention: string; type: string }>;
-    };
+    const data = await extractEntities(query);
     
     // Resolve entity mentions to IDs
     const entityIds: string[] = [];
@@ -359,21 +320,18 @@ function reciprocalRankFusion(
 /**
  * Helper to get memory by ID from Qdrant
  */
+/**
+ * Helper to get memory by ID from Qdrant
+ */
 async function getMemoryById(id: string): Promise<{ id: string; content: string; type: string } | null> {
   try {
-    const response = await fetch(
-      `${config.QDRANT_URL}/collections/memories/points/${id}`
-    );
-    if (!response.ok) return null;
-    
-    const data = await response.json() as {
-      result?: { id: string; payload?: { content?: string; type?: string } };
-    };
+    const result = await getMemory(id);
+    if (!result) return null;
     
     return {
-      id: data.result?.id || id,
-      content: data.result?.payload?.content || '',
-      type: data.result?.payload?.type || 'unknown',
+      id: String(result.id),
+      content: (result.payload?.content as string) || '',
+      type: (result.payload?.type as string) || 'unknown',
     };
   } catch {
     return null;
@@ -395,22 +353,4 @@ async function getMemoriesForEntity(entityId: string): Promise<string[]> {
   }
 }
 
-/**
- * Generate embedding via ML service
- */
-async function generateEmbedding(text: string): Promise<number[]> {
-  try {
-    const response = await fetch(`${config.ML_SERVICES_URL}/embed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    
-    if (!response.ok) return [];
-    
-    const data = await response.json() as { embedding?: number[]; vector?: number[] };
-    return data.embedding || data.vector || [];
-  } catch {
-    return [];
-  }
-}
+

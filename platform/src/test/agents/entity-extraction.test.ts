@@ -303,26 +303,29 @@ describe('Entity Extraction Agent', () => {
 
   describe('ENT-004: Create new entity for low similarity (<0.75)', () => {
     it('should create new entity when no match above threshold', async () => {
-      // Given: Existing entity
+      // Given: Existing entity with unique name
+      const uniqueSuffix = randomUUID().slice(0, 8);
+      const existingName = `Michael Brown ${uniqueSuffix}`;
+      const newName = `Sarah Johnson ${uniqueSuffix}`;
+
       const existing = await createTestEntity({
-        canonicalName: 'Michael Brown',
+        canonicalName: existingName,
         entityType: 'person',
       });
 
       // When: Create entity for completely different name
       const newEntity = await createTestEntity({
-        canonicalName: 'Sarah Johnson',
+        canonicalName: newName,
         entityType: 'person',
       });
 
       // Then: New entity is created (not merged)
       expect(newEntity.id).not.toBe(existing.id);
 
-      // Verify both entities exist separately
+      // Verify both entities exist separately by querying specific IDs
       const allPersons = await testDb`
         SELECT * FROM entities
-        WHERE entity_type = 'person'
-          AND (canonical_name = 'Michael Brown' OR canonical_name = 'Sarah Johnson')
+        WHERE id IN (${existing.id}::uuid, ${newEntity.id}::uuid)
       `;
 
       expect(allPersons.length).toBe(2);

@@ -8,6 +8,8 @@
 import PgBoss from 'pg-boss';
 import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
+import { config } from '../config.js';
+import { intervalToCron } from '../utils/interval-parser.js';
 
 export interface GardenerJob {
   type: string;
@@ -213,24 +215,36 @@ class GardenerController {
 
   /**
    * Set up scheduled jobs
+   * Uses configurable intervals from environment variables
    */
   private async setupSchedules(): Promise<void> {
     try {
-      // Frequent tier: every 5 minutes
-      await this.boss.schedule('gardener:summarize', '*/5 * * * *', {});
-      await this.boss.schedule('gardener:evaluate', '*/5 * * * *', {});
-      
-      // Periodic tier: every hour
-      await this.boss.schedule('gardener:align-schema', '0 * * * *', {});
-      await this.boss.schedule('gardener:resolve-conflicts', '0 * * * *', {});
-      
-      // Deep tier: daily at 3am
+      // Convert interval strings to cron expressions
+      const frequentCron = intervalToCron(config.GARDENER_FREQUENT_INTERVAL);
+      const periodicCron = intervalToCron(config.GARDENER_PERIODIC_INTERVAL);
+      const deepCron = intervalToCron(config.GARDENER_DEEP_INTERVAL);
+
+      console.log(`📅 Configuring gardener schedules:`);
+      console.log(`   Frequent: ${config.GARDENER_FREQUENT_INTERVAL} (${frequentCron})`);
+      console.log(`   Periodic: ${config.GARDENER_PERIODIC_INTERVAL} (${periodicCron})`);
+      console.log(`   Deep: ${config.GARDENER_DEEP_INTERVAL} (${deepCron})`);
+
+      // Frequent tier: summarizer and evaluator
+      await this.boss.schedule('gardener:summarize', frequentCron, {});
+      await this.boss.schedule('gardener:evaluate', frequentCron, {});
+
+      // Periodic tier: schema alignment and conflict resolution
+      await this.boss.schedule('gardener:align-schema', periodicCron, {});
+      await this.boss.schedule('gardener:resolve-conflicts', periodicCron, {});
+
+      // Deep tier: community detection and insight generation
+      // Note: These use fixed times (3am and 4am) regardless of interval
       await this.boss.schedule('gardener:community-detection', '0 3 * * *', {});
       await this.boss.schedule('gardener:insight-generation', '0 4 * * *', {});
-      
-      console.log('📅 Gardener schedules configured');
+
+      console.log('✅ Gardener schedules configured successfully');
     } catch (error) {
-      console.warn('Failed to set up schedules:', error);
+      console.warn('⚠️  Failed to set up schedules:', error);
     }
   }
 

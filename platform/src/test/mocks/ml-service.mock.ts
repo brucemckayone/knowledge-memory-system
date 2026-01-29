@@ -55,7 +55,7 @@ export interface MockParsedContent {
 export interface MockSummary {
   summary: string;
   key_points: string[];
-  style: string;
+  word_count: number;
 }
 
 export interface MockEmbedding {
@@ -253,14 +253,14 @@ const defaultResponses: Required<MockMLServiceConfig> = {
     return {
       summary,
       key_points: keyPoints,
-      style: 'standard',
+      word_count: words.length,
     };
   },
 
   embed: () => {
     // Generate a consistent mock embedding
-    const embedding = Array.from({ length: 768 }, (_, i) => Math.sin(i * 0.1) * 0.5);
-    return { embedding };
+    const vector = Array.from({ length: 768 }, (_, i) => Math.sin(i * 0.1) * 0.5);
+    return { vector };
   },
 
   resolveEntity: (mention: string, existing: unknown) => {
@@ -297,22 +297,68 @@ const defaultResponses: Required<MockMLServiceConfig> = {
 };
 
 /**
+ * Create a mock response with proper headers
+ */
+function createMockResponse(data: unknown, status = 200): Response {
+  const jsonStr = JSON.stringify(data);
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get: (name: string) => {
+        if (name.toLowerCase() === 'content-type') {
+          return 'application/json';
+        }
+        if (name.toLowerCase() === 'content-length') {
+          return String(jsonStr.length);
+        }
+        return null;
+      },
+    } as Headers,
+    json: async () => data,
+    text: async () => jsonStr,
+  } as Response;
+}
+
+/**
+ * Helper to extract URL and body from fetch input
+ *
+ * fetch() accepts either:
+ * - url: string | URL, init?: RequestInit
+ * - request: Request (which contains both url and body)
+ *
+ * The generated API client uses Request objects, so we need to handle both.
+ */
+async function extractFetchInfo(input: RequestInfo | URL, init?: RequestInit) {
+  let urlStr: string;
+  let bodyStr: string | undefined;
+
+  if (input instanceof Request) {
+    urlStr = input.url;
+    // Request.body is a ReadableStream - we need to clone and read it
+    const clonedRequest = input.clone();
+    bodyStr = await clonedRequest.text();
+  } else {
+    urlStr = input.toString();
+    bodyStr = init?.body as string | undefined;
+  }
+
+  const body = bodyStr ? JSON.parse(bodyStr) : {};
+  return { urlStr, body };
+}
+
+/**
  * Create a mock fetch function for ML service
  */
 export function createMLServiceMock(config: MockMLServiceConfig = {}): Mock {
   const responses = { ...defaultResponses, ...config };
 
-  return vi.fn(async (url: string | URL, init?: RequestInit) => {
-    const urlStr = url.toString();
-    const body = init?.body ? JSON.parse(init.body as string) : {};
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const { urlStr, body } = await extractFetchInfo(input, init);
 
     // Health check
     if (urlStr.includes('/health')) {
-      return {
-        ok: responses.health,
-        status: responses.health ? 200 : 503,
-        json: async () => ({ status: responses.health ? 'ok' : 'unavailable' }),
-      } as Response;
+      return createMockResponse({ status: responses.health ? 'ok' : 'unavailable' }, responses.health ? 200 : 503);
     }
 
     // Extract entities
@@ -320,11 +366,7 @@ export function createMLServiceMock(config: MockMLServiceConfig = {}): Mock {
       const result = typeof responses.extractEntities === 'function'
         ? responses.extractEntities(body.text || body.content || '')
         : responses.extractEntities;
-      return {
-        ok: true,
-        status: 200,
-        json: async () => result,
-      } as Response;
+      return createMockResponse(result);
     }
 
     // Extract relationships
@@ -332,11 +374,7 @@ export function createMLServiceMock(config: MockMLServiceConfig = {}): Mock {
       const result = typeof responses.extractRelationships === 'function'
         ? responses.extractRelationships(body.content || '', body.entities || [])
         : responses.extractRelationships;
-      return {
-        ok: true,
-        status: 200,
-        json: async () => result,
-      } as Response;
+      return createMockResponse(result);
     }
 
     // Detect contradiction
@@ -344,11 +382,7 @@ export function createMLServiceMock(config: MockMLServiceConfig = {}): Mock {
       const result = typeof responses.detectContradiction === 'function'
         ? responses.detectContradiction(body.fact1, body.fact2)
         : responses.detectContradiction;
-      return {
-        ok: true,
-        status: 200,
-        json: async () => result,
-      } as Response;
+      return createMockResponse(result);
     }
 
     // Parse content
@@ -356,11 +390,7 @@ export function createMLServiceMock(config: MockMLServiceConfig = {}): Mock {
       const result = typeof responses.parseContent === 'function'
         ? responses.parseContent(body.content || '')
         : responses.parseContent;
-      return {
-        ok: true,
-        status: 200,
-        json: async () => result,
-      } as Response;
+      return createMockResponse(result);
     }
 
     // Summarize
@@ -368,11 +398,7 @@ export function createMLServiceMock(config: MockMLServiceConfig = {}): Mock {
       const result = typeof responses.summarize === 'function'
         ? responses.summarize(body.text || '')
         : responses.summarize;
-      return {
-        ok: true,
-        status: 200,
-        json: async () => result,
-      } as Response;
+      return createMockResponse(result);
     }
 
     // Embed
@@ -380,11 +406,7 @@ export function createMLServiceMock(config: MockMLServiceConfig = {}): Mock {
       const result = typeof responses.embed === 'function'
         ? responses.embed(body.text || '')
         : responses.embed;
-      return {
-        ok: true,
-        status: 200,
-        json: async () => result,
-      } as Response;
+      return createMockResponse(result);
     }
 
     // Resolve entity
@@ -392,19 +414,11 @@ export function createMLServiceMock(config: MockMLServiceConfig = {}): Mock {
       const result = typeof responses.resolveEntity === 'function'
         ? responses.resolveEntity(body.new_mention || '', body.existing_entity)
         : responses.resolveEntity;
-      return {
-        ok: true,
-        status: 200,
-        json: async () => result,
-      } as Response;
+      return createMockResponse(result);
     }
 
     // Unknown endpoint
-    return {
-      ok: false,
-      status: 404,
-      json: async () => ({ error: 'Not found' }),
-    } as Response;
+    return createMockResponse({ error: 'Not found' }, 404);
   });
 }
 
@@ -430,20 +444,17 @@ export function restoreMLServiceMock(): void {
 export function createFailingMLServiceMock(failingEndpoints: string[]): Mock {
   const baseMock = createMLServiceMock();
 
-  return vi.fn(async (url: string | URL, init?: RequestInit) => {
-    const urlStr = url.toString();
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    // Extract URL for endpoint matching
+    const urlStr = input instanceof Request ? input.url : input.toString();
 
     for (const endpoint of failingEndpoints) {
       if (urlStr.includes(endpoint)) {
-        return {
-          ok: false,
-          status: 500,
-          json: async () => ({ error: `${endpoint} service unavailable` }),
-        } as Response;
+        return createMockResponse({ error: `${endpoint} service unavailable` }, 500);
       }
     }
 
-    return baseMock(url, init);
+    return baseMock(input, init);
   });
 }
 
@@ -453,8 +464,8 @@ export function createFailingMLServiceMock(failingEndpoints: string[]): Mock {
 export function createSlowMLServiceMock(delayMs: number): Mock {
   const baseMock = createMLServiceMock();
 
-  return vi.fn(async (url: string | URL, init?: RequestInit) => {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     await new Promise(resolve => setTimeout(resolve, delayMs));
-    return baseMock(url, init);
+    return baseMock(input, init);
   });
 }

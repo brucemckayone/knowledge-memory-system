@@ -7,7 +7,7 @@
  * Boundary: ML /extract-relationships (B6), Fact creation + bi-temporal (B7)
  */
 
-import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import {
   testDb,
   createTestEntity,
@@ -15,7 +15,7 @@ import {
   isMLServiceAvailable,
   createTestMemoryEntity,
 } from '../setup.js';
-import { loadPhase4Seed } from '../fixtures/phase4-seed.js';
+
 import { installMLServiceMock, restoreMLServiceMock } from '../mocks/ml-service.mock.js';
 import { relationshipAgent } from '../../gardener/agents/relationship.agent.js';
 import { normalizePredicate } from '../../services/predicates.js';
@@ -24,7 +24,7 @@ import type PgBoss from 'pg-boss';
 
 describe('W26 Relationship Agent', () => {
   let mlAvailable = false;
-  const seed = loadPhase4Seed();
+
 
   beforeAll(async () => {
     mlAvailable = await isMLServiceAvailable();
@@ -46,23 +46,34 @@ describe('W26 Relationship Agent', () => {
     };
   }
 
+  beforeEach(() => {
+    // Ensure clean mock state before each test
+    vi.restoreAllMocks();
+  });
+
   afterEach(() => {
-    vi.clearAllMocks();
+    // Restore mocks in correct order
     restoreMLServiceMock();
+    vi.clearAllMocks();
   });
 
   describe('REL-001: Extract relationship', () => {
     it('should extract subject/predicate/object from text', async () => {
-      // Install mock
+      // Use unique names to avoid conflicts with other tests
+      const testId = randomUUID().slice(0, 8);
+      const johnName = `John Smith ${testId}`;
+      const acmeName = `Acme Corp ${testId}`;
+
+      // Install mock with the unique names
       installMLServiceMock({
         extractRelationships: {
           relationships: [
             {
-              subject: 'John Smith',
+              subject: johnName,
               predicate: 'works_at',
-              object: 'Acme Corp',
+              object: acmeName,
               confidence: 0.9,
-              source_text: 'John Smith works at Acme Corp',
+              source_text: `${johnName} works at ${acmeName}`,
             },
           ],
         },
@@ -70,27 +81,27 @@ describe('W26 Relationship Agent', () => {
 
       // Given: Entities linked to memory
       const john = await createTestEntity({
-        canonicalName: 'John Smith',
+        canonicalName: johnName,
         entityType: 'person',
       });
       const acme = await createTestEntity({
-        canonicalName: 'Acme Corp',
+        canonicalName: acmeName,
         entityType: 'company',
       });
 
       const memoryId = randomUUID();
 
       // Link entities to memory
-      await createTestMemoryEntity({ memoryId, entityId: john.id, mentionText: 'John Smith' });
-      await createTestMemoryEntity({ memoryId, entityId: acme.id, mentionText: 'Acme Corp' });
+      await createTestMemoryEntity({ memoryId, entityId: john.id, mentionText: johnName });
+      await createTestMemoryEntity({ memoryId, entityId: acme.id, mentionText: acmeName });
 
       // When: Process through relationship agent
       const context = createMockContext({
         memoryId,
-        content: seed.relationships.content,
+        content: `${johnName} works at ${acmeName}.`,
         entities: [
-          { id: john.id, name: 'John Smith', type: 'person' },
-          { id: acme.id, name: 'Acme Corp', type: 'company' },
+          { id: john.id, name: johnName, type: 'person' },
+          { id: acme.id, name: acmeName, type: 'company' },
         ],
       });
 

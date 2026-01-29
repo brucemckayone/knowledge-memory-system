@@ -6,10 +6,11 @@
  */
 
 import type { AgentContext, JobResult, GardenerAgent, GardenerJob } from '../controller.js';
-import { config } from '../../config.js';
 import { reassembleContent, markAllChunksProcessed } from '../../services/chunks.js';
 import { db } from '../../db/index.js';
 import { sql } from 'drizzle-orm';
+import { parseContent } from '../../services/ml.js';
+import { getMemory, updatePayload } from '../../services/qdrant.js';
 
 interface ReaderPayload {
   memoryId: string;
@@ -128,52 +129,9 @@ export const readerAgent: GardenerAgent = {
   },
 };
 
-/**
- * Call ML service for content parsing
- */
-async function parseContent(content: string, hint?: string): Promise<ParsedContent> {
-  try {
-    const response = await fetch(`${config.ML_SERVICES_URL}/parse-content`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, hint }),
-    });
+// parseContent is imported from services/ml.js
 
-    if (!response.ok) {
-      console.warn(`Parse content returned ${response.status}`);
-      return fallbackParse(content);
-    }
 
-    return await response.json() as ParsedContent;
-
-  } catch (error) {
-    console.warn('Parse content failed:', error);
-    return fallbackParse(content);
-  }
-}
-
-/**
- * Fallback parsing when ML service unavailable
- */
-function fallbackParse(content: string): ParsedContent {
-  const words = content.split(/\s+/);
-  const tags = (content.match(/#\w+/g) || []).map(t => t.slice(1).toLowerCase());
-  const mentions = (content.match(/@\w+/g) || []).map(m => m.slice(1));
-  const urls = content.match(/https?:\/\/[^\s]+/g) || [];
-
-  return {
-    content_type: urls.length > 0 ? 'link' : 'thought',
-    title: content.slice(0, 100),
-    summary: content.slice(0, 200),
-    mentions,
-    dates: [],
-    links: urls,
-    tags,
-    sentiment: 'neutral',
-    language: 'en',
-    word_count: words.length,
-  };
-}
 
 /**
  * Store parsed metadata in database
@@ -221,25 +179,15 @@ async function storeMetadata(memoryId: string, parsed: ParsedContent): Promise<v
  */
 async function updateQdrantPayload(memoryId: string, parsed: ParsedContent): Promise<void> {
   try {
-    const response = await fetch(`${config.QDRANT_URL}/collections/memories/points/${memoryId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payload: {
-          parsed_type: parsed.content_type,
-          tags: parsed.tags,
-          mentions: parsed.mentions,
-          has_links: parsed.links.length > 0,
-          word_count: parsed.word_count,
-          sentiment: parsed.sentiment,
-          parsed_at: new Date().toISOString(),
-        },
-      }),
+    await updatePayload(memoryId, {
+      parsed_type: parsed.content_type,
+      tags: parsed.tags,
+      mentions: parsed.mentions,
+      has_links: parsed.links.length > 0,
+      word_count: parsed.word_count,
+      sentiment: parsed.sentiment,
+      parsed_at: new Date().toISOString(),
     });
-
-    if (!response.ok) {
-      console.warn(`Qdrant update returned ${response.status}`);
-    }
   } catch (error) {
     console.warn('Failed to update Qdrant payload:', error);
   }
@@ -250,21 +198,8 @@ async function updateQdrantPayload(memoryId: string, parsed: ParsedContent): Pro
  */
 async function fetchMemoryContent(memoryId: string): Promise<string> {
   try {
-    const response = await fetch(`${config.QDRANT_URL}/collections/memories/points/${memoryId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) {
-      return '';
-    }
-
-    const data = await response.json() as {
-      result?: { payload?: { content?: string } };
-    };
-
-    return data.result?.payload?.content || '';
-
+    const memory = await getMemory(memoryId);
+    return (memory?.payload?.content as string) || '';
   } catch (error) {
     console.warn('Failed to fetch from Qdrant:', error);
     return '';

@@ -240,7 +240,7 @@ export async function setup() {
       `;
     }
 
-    // Create tasks table
+    // Create tasks table (with Phase 8 enhancements)
     await testSql`
       CREATE TABLE IF NOT EXISTS tasks (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -252,6 +252,14 @@ export async function setup() {
         epic_id UUID,
         context_id UUID,
         memory_id UUID,
+        parent_task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
+        hierarchy_level INTEGER DEFAULT 0 NOT NULL,
+        estimated_duration_minutes INTEGER,
+        duration_confidence REAL,
+        decomposition_reasoning TEXT,
+        auto_suggested_deadline TIMESTAMPTZ,
+        auto_suggested_priority VARCHAR(20),
+        suggestions JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
         completed_at TIMESTAMPTZ,
         updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
@@ -266,6 +274,67 @@ export async function setup() {
         description TEXT,
         status VARCHAR(20) DEFAULT 'active' NOT NULL,
         last_activity_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+      )
+    `;
+
+    // Phase 8: Enhanced Task Management tables
+    // Create task_dependencies table
+    await testSql`
+      CREATE TABLE IF NOT EXISTS task_dependencies (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        depends_on_task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        dependency_type VARCHAR(50) NOT NULL CHECK (dependency_type IN ('blocking', 'prerequisite', 'related')),
+        confidence REAL DEFAULT 1.0,
+        detected_by VARCHAR(50) DEFAULT 'llm',
+        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+        UNIQUE(task_id, depends_on_task_id, dependency_type)
+      )
+    `;
+
+    // Create task_conflicts table
+    await testSql`
+      CREATE TABLE IF NOT EXISTS task_conflicts (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        task_id_1 UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        task_id_2 UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        conflict_type VARCHAR(50) NOT NULL CHECK (conflict_type IN ('temporal', 'resource', 'priority', 'logical')),
+        severity VARCHAR(20) CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+        description TEXT,
+        detected_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+        resolved_at TIMESTAMPTZ,
+        resolution_status VARCHAR(50) DEFAULT 'open' CHECK (resolution_status IN ('open', 'resolved', 'dismissed')),
+        resolution_action VARCHAR,
+        UNIQUE(task_id_1, task_id_2, conflict_type)
+      )
+    `;
+
+    // Create user_preferences table
+    await testSql`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id VARCHAR(255) NOT NULL,
+        preference_key VARCHAR(100) NOT NULL,
+        preference_value JSONB NOT NULL,
+        confidence REAL DEFAULT 0.5,
+        last_observed_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+        sample_count INTEGER DEFAULT 1,
+        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+        UNIQUE(user_id, preference_key)
+      )
+    `;
+
+    // Create processing_state table
+    await testSql`
+      CREATE TABLE IF NOT EXISTS processing_state (
+        conversation_id VARCHAR(255) PRIMARY KEY NOT NULL,
+        pending_messages JSONB DEFAULT '[]'::jsonb NOT NULL,
+        messages_since_update INTEGER DEFAULT 0 NOT NULL,
+        last_processed_at TIMESTAMPTZ,
+        next_analysis_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
         updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
       )
@@ -308,6 +377,43 @@ export async function setup() {
     // Create indexes for memory_chunks
     await testSql`CREATE INDEX IF NOT EXISTS idx_memory_chunks_memory ON memory_chunks(memory_id)`;
     await testSql`CREATE INDEX IF NOT EXISTS idx_memory_chunks_unprocessed ON memory_chunks(memory_id) WHERE processed_at IS NULL`;
+
+    // Create memory_metadata table for reader agent (W23)
+    await testSql`
+      CREATE TABLE IF NOT EXISTS memory_metadata (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        memory_id TEXT NOT NULL UNIQUE,
+        content_type VARCHAR(50),
+        title VARCHAR(500),
+        summary TEXT,
+        extracted_dates JSONB DEFAULT '[]'::jsonb,
+        extracted_links JSONB DEFAULT '[]'::jsonb,
+        extracted_tags TEXT[] DEFAULT '{}',
+        mentioned_entities TEXT[] DEFAULT '{}',
+        word_count INTEGER,
+        language VARCHAR(10),
+        sentiment VARCHAR(20),
+        parsed_at TIMESTAMPTZ DEFAULT NOW(),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_metadata_type ON memory_metadata(content_type)`;
+    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_metadata_memory ON memory_metadata(memory_id)`;
+
+    // Create memory_summaries table for summarizer agent (W24)
+    await testSql`
+      CREATE TABLE IF NOT EXISTS memory_summaries (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        memory_id TEXT NOT NULL,
+        summary_type VARCHAR(50) DEFAULT 'standard',
+        summary TEXT NOT NULL,
+        key_points JSONB DEFAULT '[]'::jsonb,
+        embedding_updated BOOLEAN DEFAULT FALSE,
+        model_used VARCHAR(100),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_summaries_memory ON memory_summaries(memory_id)`;
 
     // Create mab_state table for multi-armed bandit
     await testSql`

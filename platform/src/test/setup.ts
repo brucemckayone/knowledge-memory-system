@@ -101,6 +101,9 @@ export async function truncateAllTables(): Promise<void> {
     facts,
     entities,
     tasks,
+    task_dependencies,
+    task_conflicts,
+    user_preferences,
     epics,
     gardener_job_meta,
     mab_state
@@ -132,6 +135,9 @@ export async function deleteFromTables(...tables: string[]): Promise<void> {
     'facts',
     'entities',
     'tasks',
+    'task_dependencies',
+    'task_conflicts',
+    'user_preferences',
     'epics',
     'gardener_job_meta',
     'gardener_metrics',
@@ -351,8 +357,9 @@ export async function getActiveFacts(entityId: string): Promise<Record<string, u
  * Mock fetch for testing ML services when unavailable
  */
 export function mockMLService(responses: Record<string, unknown>) {
-  return vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
-    const urlStr = url.toString();
+  return vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+    // Handle Request objects (used by generated API client)
+    const urlStr = input instanceof Request ? input.url : input.toString();
     for (const [pattern, response] of Object.entries(responses)) {
       if (urlStr.includes(pattern)) {
         return {

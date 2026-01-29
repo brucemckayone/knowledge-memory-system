@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
-import ollama
 import re
+from .core.llm import llm_client
 
 router = APIRouter()
 
@@ -103,10 +103,10 @@ async def summarize_content(request: SummarizeRequest):
 
         print(f"📝 Summarizing: {request.title}")
 
-        # Call Ollama
-        response = ollama.generate(
-            model="llama3.2:3b",
-            prompt=prompt,
+        # Call LLM Service
+        # We don't use generate_json here because the prompt asks for text format
+        response_text = llm_client.generate(
+            prompt,
             options={
                 "temperature": 0.3,  # Some creativity but mostly factual
                 "num_predict": 512,  # Longer output for summary
@@ -114,7 +114,7 @@ async def summarize_content(request: SummarizeRequest):
         )
 
         # Parse response
-        result = parse_summary_response(response['response'])
+        result = parse_summary_response(response_text)
 
         print(f"✅ Summary: {len(result['summary'])} chars, {len(result['key_points'])} points")
 
@@ -124,18 +124,12 @@ async def summarize_content(request: SummarizeRequest):
             word_count=len(content.split())
         )
 
-    except ollama.ResponseError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"LLM unavailable: {str(e)}"
-        )
     except Exception as e:
         print(f"❌ Summarize error: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Summarization failed: {str(e)}"
         )
-
 
 @router.get("/summarize/test")
 async def test_summarize():

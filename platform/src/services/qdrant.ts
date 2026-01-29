@@ -62,6 +62,25 @@ export async function storeMemory(memory: {
 }
 
 /**
+ * Update vector and payload for a point
+ */
+export async function updateVector(
+  id: string,
+  vector: number[],
+  payload?: Record<string, unknown>
+): Promise<void> {
+  await qdrant.upsert(COLLECTIONS.MEMORIES, {
+    points: [
+      {
+        id,
+        vector,
+        payload,
+      },
+    ],
+  });
+}
+
+/**
  * Search memories by vector similarity
  */
 export async function searchMemories(
@@ -69,18 +88,52 @@ export async function searchMemories(
   options: {
     limit?: number;
     filter?: Record<string, unknown>;
+    with_payload?: boolean;
   } = {}
 ) {
-  const { limit = 5, filter } = options;
+  const { limit = 5, filter, with_payload = true } = options;
 
   const results = await qdrant.search(COLLECTIONS.MEMORIES, {
     vector,
     limit,
-    with_payload: true,
+    with_payload,
     filter: filter as any,
   });
 
   return results;
+}
+
+/**
+ * Scroll points (for keyword search / filtering)
+ */
+export async function scrollPoints(
+  filter: Record<string, unknown>,
+  options: {
+    limit?: number;
+    with_payload?: boolean;
+    offset?: string; // Qdrant scroll API uses offset / point id
+  } = {}
+) {
+  const { limit = 10, with_payload = true, offset } = options;
+
+  const results = await qdrant.scroll(COLLECTIONS.MEMORIES, {
+    filter: filter as any,
+    limit,
+    with_payload,
+    offset,
+  });
+
+  return results;
+}
+
+/**
+ * Update point payload
+ */
+export async function updatePayload(id: string, payload: Record<string, unknown>): Promise<void> {
+  await qdrant.setPayload(COLLECTIONS.MEMORIES, {
+    points: [id],
+    payload,
+  });
 }
 
 /**

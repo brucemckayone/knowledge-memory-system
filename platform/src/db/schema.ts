@@ -33,9 +33,10 @@ export const epicsRelations = relations(epics, ({ many }) => ({
 
 /**
  * Tasks
- * 
+ *
  * Action items extracted from messages.
  * Linked to epics and source memories.
+ * Supports hierarchical decomposition and dependency tracking.
  */
 export const tasks = pgTable('tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -47,16 +48,37 @@ export const tasks = pgTable('tasks', {
   epicId: uuid('epic_id').references(() => epics.id, { onDelete: 'set null' }),
   contextId: uuid('context_id'),  // References Qdrant context entity
   memoryId: uuid('memory_id'),    // References Qdrant memory
+
+  // Hierarchy and decomposition (Migration 010)
+  parentTaskId: uuid('parent_task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  hierarchyLevel: integer('hierarchy_level').default(0).notNull(),
+  estimatedDurationMinutes: integer('estimated_duration_minutes'),
+  durationConfidence: real('duration_confidence'),
+  decompositionReasoning: text('decomposition_reasoning'),
+  autoSuggestedDeadline: timestamp('auto_suggested_deadline', { withTimezone: true }),
+  autoSuggestedPriority: varchar('auto_suggested_priority', { length: 20 }),
+  suggestions: jsonb('suggestions').$type<string[]>(),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
   epic: one(epics, {
     fields: [tasks.epicId],
     references: [epics.id],
   }),
+  parentTask: one(tasks, {
+    fields: [tasks.parentTaskId],
+    references: [tasks.id],
+    relationName: 'taskHierarchy',
+  }),
+  subtasks: many(tasks, { relationName: 'taskHierarchy' }),
+  dependenciesAsTask: many(taskDependencies, { relationName: 'dependencyTasks' }),
+  dependenciesAsDependsOn: many(taskDependencies, { relationName: 'dependencyTargets' }),
+  conflictsAsTask1: many(taskConflicts, { relationName: 'conflictTasks1' }),
+  conflictsAsTask2: many(taskConflicts, { relationName: 'conflictTasks2' }),
 }));
 
 /**
@@ -275,6 +297,89 @@ export const contextUuidAudit = pgTable('context_uuid_audit', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow(),
 });
 
+// ============================================
+// PHASE 5: Task Enhancements Tables
+// ============================================
+
+/**
+ * Task Dependencies
+ *
+ * Tracks prerequisite relationships between tasks.
+ * A task can depend on another via blocking, prerequisite, or related relationships.
+ */
+export const taskDependencies = pgTable('task_dependencies', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  dependsOnTaskId: uuid('depends_on_task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  dependencyType: varchar('dependency_type', { length: 50 }).notNull(),
+  confidence: real('confidence').default(1.0),
+  detectedBy: varchar('detected_by', { length: 50 }).default('llm'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const taskDependenciesRelations = relations(taskDependencies, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskDependencies.taskId],
+    references: [tasks.id],
+    relationName: 'dependencyTasks',
+  }),
+  dependsOnTask: one(tasks, {
+    fields: [taskDependencies.dependsOnTaskId],
+    references: [tasks.id],
+    relationName: 'dependencyTargets',
+  }),
+}));
+
+/**
+ * Task Conflicts
+ *
+ * Tracks detected conflicts between tasks that need resolution.
+ * Conflicts can be temporal, resource, priority, or logical.
+ */
+export const taskConflicts = pgTable('task_conflicts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  taskId1: uuid('task_id_1').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  taskId2: uuid('task_id_2').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  conflictType: varchar('conflict_type', { length: 50 }).notNull(),
+  severity: varchar('severity', { length: 20 }),
+  description: text('description'),
+  detectedAt: timestamp('detected_at', { withTimezone: true }).defaultNow().notNull(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolutionStatus: varchar('resolution_status', { length: 50 }).default('open'),
+  resolutionAction: varchar('resolution_action'),
+});
+
+export const taskConflictsRelations = relations(taskConflicts, ({ one }) => ({
+  task1: one(tasks, {
+    fields: [taskConflicts.taskId1],
+    references: [tasks.id],
+    relationName: 'conflictTasks1',
+  }),
+  task2: one(tasks, {
+    fields: [taskConflicts.taskId2],
+    references: [tasks.id],
+    relationName: 'conflictTasks2',
+  }),
+}));
+
+/**
+ * User Preferences
+ *
+ * Stores learned user behavior patterns for personalized task management.
+ * Each preference has confidence and sample count for quality tracking.
+ */
+export const userPreferences = pgTable('user_preferences', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  preferenceKey: varchar('preference_key', { length: 100 }).notNull(),
+  preferenceValue: jsonb('preference_value').notNull(),
+  confidence: real('confidence').default(0.5),
+  lastObservedAt: timestamp('last_observed_at', { withTimezone: true }).defaultNow().notNull(),
+  sampleCount: integer('sample_count').default(1),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 // Type exports for use in application
 export type Epic = typeof epics.$inferSelect;
 export type NewEpic = typeof epics.$inferInsert;
@@ -298,4 +403,10 @@ export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
 export type ContextUuidAudit = typeof contextUuidAudit.$inferSelect;
 
-
+// Phase 5 types
+export type TaskDependency = typeof taskDependencies.$inferSelect;
+export type NewTaskDependency = typeof taskDependencies.$inferInsert;
+export type TaskConflict = typeof taskConflicts.$inferSelect;
+export type NewTaskConflict = typeof taskConflicts.$inferInsert;
+export type UserPreference = typeof userPreferences.$inferSelect;
+export type NewUserPreference = typeof userPreferences.$inferInsert;

@@ -162,12 +162,12 @@ describe('W29 Evaluator Agent', () => {
       // Given: Job with slightly slow duration (1.5x expected)
       const normalSlowDuration = 3000;
       const mean = 2000;
-      const stddev = mean * 0.5;
+      const stddev = mean * 0.5; // 1000
       const zScore = Math.abs(normalSlowDuration - mean) / stddev;
 
-      // Then: Z-score < 2, not an anomaly
-      expect(zScore).toBe(2); // Exactly at threshold
-      // Jobs at threshold should not be flagged
+      // Then: Z-score = |3000 - 2000| / 1000 = 1, which is < 2 (not an anomaly)
+      expect(zScore).toBe(1); // Below threshold
+      expect(zScore).toBeLessThan(2); // Not flagged as anomaly
     });
   });
 

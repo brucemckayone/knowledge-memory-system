@@ -131,7 +131,7 @@ app.get('/api/hybrid-search', async (c) => {
 // ===============
 app.get('/api/memories', async (c) => {
   const limit = parseInt(c.req.query('limit') || '20');
-  
+
   try {
     // Get recent memories by scrolling
     const results = await qdrant.scroll(COLLECTIONS.MEMORIES, {
@@ -139,7 +139,7 @@ app.get('/api/memories', async (c) => {
       with_payload: true,
       with_vector: false,
     });
-    
+
     return c.json({
       count: results.points.length,
       memories: results.points.map(p => ({
@@ -150,6 +150,42 @@ app.get('/api/memories', async (c) => {
   } catch (error) {
     console.error('Memories list error:', error);
     return c.json({ error: 'Failed to list memories' }, 500);
+  }
+});
+
+// ===============
+// API: Task Query
+// ===============
+import { queryTasksNatural } from './services/task-query.js';
+
+app.post('/api/query/tasks', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { query } = body;
+
+    if (!query || typeof query !== 'string') {
+      return c.json({ error: 'Query parameter required' }, 400);
+    }
+
+    const result = await queryTasksNatural(query);
+
+    return c.json({
+      response: result.response,
+      filters_applied: result.filters_applied,
+      total_matched: result.total_matched,
+      tasks: result.tasks.map(t => ({
+        id: t.id,
+        content: t.content,
+        priority: t.priority,
+        status: t.status,
+        due_date: t.dueDate?.toISOString() || null,
+        created_at: t.createdAt.toISOString(),
+        related_entities: t.relatedEntities,
+      })),
+    });
+  } catch (error) {
+    console.error('Task query error:', error);
+    return c.json({ error: 'Task query failed' }, 500);
   }
 });
 
@@ -217,7 +253,9 @@ async function start() {
     console.log(`\n🌐 Cognitive Platform running on port ${info.port}`);
     console.log(`   Health: http://localhost:${info.port}/health`);
     console.log(`   Search: http://localhost:${info.port}/api/search?q=test`);
+    console.log(`   Hybrid Search: http://localhost:${info.port}/api/hybrid-search?q=test`);
     console.log(`   Memories: http://localhost:${info.port}/api/memories`);
+    console.log(`   Task Query: http://localhost:${info.port}/api/query/tasks`);
     console.log(`   Webhook: http://localhost:${info.port}/webhook/telegram\n`);
   });
 

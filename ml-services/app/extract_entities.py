@@ -5,12 +5,11 @@ Phase 3: LLM-based Named Entity Recognition
 Extracts entities from text using Ollama and returns structured mentions.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
-import ollama
+from typing import List, Dict, Any
 import json
-import re
+from .core.llm import llm_client
 
 router = APIRouter()
 
@@ -95,18 +94,6 @@ class ResolveEntityResponse(BaseModel):
     reasoning: str
 
 
-def parse_entities_json(text: str) -> List[dict]:
-    """Parse JSON array from LLM response"""
-    # Find JSON array in response
-    match = re.search(r'\[[\s\S]*\]', text)
-    if match:
-        try:
-            return json.loads(match.group())
-        except json.JSONDecodeError:
-            pass
-    return []
-
-
 @router.post("/extract-entities", response_model=ExtractEntitiesResponse)
 async def extract_entities(request: ExtractEntitiesRequest):
     """
@@ -117,16 +104,14 @@ async def extract_entities(request: ExtractEntitiesRequest):
     try:
         prompt = ENTITY_EXTRACTION_PROMPT.format(text=request.text)
         
-        response = ollama.generate(
-            model="llama3.2:3b",  # Fast model for extraction
-            prompt=prompt,
-            options={
-                "temperature": 0.1,
-                "num_predict": 1024,
-            }
+        # Use LLM service
+        entities_raw = llm_client.generate_json(
+            prompt, 
+            options={"num_predict": 1024}
         )
         
-        entities_raw = parse_entities_json(response['response'])
+        if not isinstance(entities_raw, list):
+            entities_raw = []
         
         # Validate and normalize
         entities = []
@@ -151,8 +136,12 @@ async def extract_entities(request: ExtractEntitiesRequest):
             text_length=len(request.text),
         )
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+    except Exception:
+        # Return empty list on failure
+        return ExtractEntitiesResponse(
+            entities=[],
+            text_length=len(request.text),
+        )
 
 
 @router.post("/resolve-entity", response_model=ResolveEntityResponse)
@@ -171,20 +160,10 @@ async def resolve_entity(request: ResolveEntityRequest):
             context=request.context[:500],  # Limit context length
         )
         
-        response = ollama.generate(
-            model="llama3.2:3b",  # Use faster model
-            prompt=prompt,
-            options={
-                "temperature": 0.1,
-                "num_predict": 256,
-            }
+        result = llm_client.generate_json(
+            prompt,
+            options={"num_predict": 256}
         )
-        
-        # Parse JSON response
-        result = {}
-        match = re.search(r'\{[\s\S]*\}', response['response'])
-        if match:
-            result = json.loads(match.group())
         
         decision = result.get('decision', 'CREATE').upper()
         if decision not in ['MERGE', 'LINK', 'CREATE']:
