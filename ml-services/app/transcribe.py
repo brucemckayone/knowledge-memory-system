@@ -57,15 +57,6 @@ class TranscribeResponse(BaseModel):
     segments: Optional[list] = None
 
 
-@router.get("/transcribe/status")
-def transcribe_status():
-    """Check if transcription is available"""
-    return {
-        "available": check_whisper_available(),
-        "message": "Whisper transcription available" if check_whisper_available() else "Install faster-whisper to enable transcription"
-    }
-
-
 @router.post("/transcribe", response_model=TranscribeResponse)
 async def transcribe_url(request: TranscribeUrlRequest):
     """
@@ -76,7 +67,7 @@ async def transcribe_url(request: TranscribeUrlRequest):
     """
     try:
         # Download audio file
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(request.audio_url, follow_redirects=True)
             response.raise_for_status()
             audio_data = response.content

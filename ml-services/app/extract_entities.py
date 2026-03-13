@@ -5,7 +5,7 @@ Phase 3: LLM-based Named Entity Recognition
 Extracts entities from text using Ollama and returns structured mentions.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
 import json
@@ -136,12 +136,8 @@ async def extract_entities(request: ExtractEntitiesRequest):
             text_length=len(request.text),
         )
         
-    except Exception:
-        # Return empty list on failure
-        return ExtractEntitiesResponse(
-            entities=[],
-            text_length=len(request.text),
-        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Entity extraction LLM request failed: {str(e)}")
 
 
 @router.post("/resolve-entity", response_model=ResolveEntityResponse)
@@ -182,19 +178,3 @@ async def resolve_entity(request: ResolveEntityRequest):
             confidence=0.5,
             reasoning=f'Error during resolution: {str(e)}',
         )
-
-
-@router.get("/extract-entities/test")
-async def test_extraction():
-    """Test entity extraction with sample text"""
-    sample = """
-    John Smith, the CEO of Acme Corp, announced the new Alpha Project yesterday.
-    He mentioned that Dr. Sarah Chen from the R&D team in San Francisco will lead the initiative.
-    The Q4 Review meeting is scheduled for next week.
-    """
-    
-    result = await extract_entities(ExtractEntitiesRequest(text=sample))
-    return {
-        "input": sample,
-        "entities": [e.model_dump() for e in result.entities],
-    }

@@ -5,7 +5,7 @@ Phase 3: Check if two facts contradict each other
 Implements ALICE framework detection with quick heuristics + LLM fallback.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from .core.llm import llm_client
@@ -110,9 +110,22 @@ def times_overlap(f1: FactData, f2: FactData) -> bool:
     # If no times specified, assume they could overlap
     if not f1.valid_at or not f2.valid_at:
         return True
-    
-    # Simple overlap check
-    return True
+
+    try:
+        from datetime import datetime
+
+        s1 = datetime.fromisoformat(f1.valid_at)
+        s2 = datetime.fromisoformat(f2.valid_at)
+
+        # Treat missing invalid_at as ongoing (far future)
+        far_future = datetime(9999, 12, 31)
+        e1 = datetime.fromisoformat(f1.invalid_at) if f1.invalid_at else far_future
+        e2 = datetime.fromisoformat(f2.invalid_at) if f2.invalid_at else far_future
+
+        return s1 < e2 and s2 < e1
+    except (ValueError, TypeError):
+        # Unparseable dates — assume possible overlap (safe default)
+        return True
 
 
 @router.post("/check-contradiction", response_model=CheckContradictionResponse)
@@ -185,47 +198,5 @@ async def check_contradiction(request: CheckContradictionRequest):
             confidence=min(1.0, max(0.0, result.get('confidence', 0.7))),
         )
         
-    except Exception:
-        # Default: no contradiction detected if LLM fails
-        return CheckContradictionResponse(
-            contradicts=False,
-            type="none",
-            resolution="coexist",
-            reasoning="No contradiction detected (LLM fallback)",
-            confidence=0.6,
-        )
-
-
-@router.get("/check-contradiction/test")
-async def test_contradiction():
-    """Test contradiction detection with sample facts"""
-    tests = [
-        {
-            "fact1": {"subject": "John", "predicate": "works_at", "object": "Acme"},
-            "fact2": {"subject": "John", "predicate": "works_at", "object": "TechCorp"},
-            "expected": "contradiction (structural)"
-        },
-        {
-            "fact1": {"subject": "John", "predicate": "employed", "object": "true"},
-            "fact2": {"subject": "John", "predicate": "unemployed", "object": "true"},
-            "expected": "contradiction (antonym)"
-        },
-        {
-            "fact1": {"subject": "John", "predicate": "knows", "object": "Sarah"},
-            "fact2": {"subject": "John", "predicate": "knows", "object": "Mike"},
-            "expected": "no contradiction (can know multiple)"
-        },
-    ]
-    
-    results = []
-    for test in tests:
-        result = await check_contradiction(CheckContradictionRequest(
-            fact1=FactData(**test["fact1"]),
-            fact2=FactData(**test["fact2"]),
-        ))
-        results.append({
-            "test": test,
-            "result": result.model_dump(),
-        })
-    
-    return {"tests": results}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Contradiction check LLM request failed: {str(e)}")

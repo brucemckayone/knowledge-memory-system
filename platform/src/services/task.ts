@@ -1,4 +1,4 @@
-import { config } from '../config.js';
+import { ml } from './ml-client.js';
 
 export interface ExtractedTask {
   action: string;
@@ -6,11 +6,10 @@ export interface ExtractedTask {
   priority: 'high' | 'medium' | 'low';
   confidence: number;
   raw_due_text?: string;
-  rejection_reason?: string; // Why task was rejected (if empty action)
+  rejection_reason?: string;
 }
 
 export interface ExtractedTaskEnhanced extends ExtractedTask {
-  // Enhanced fields from /extract-task-enhanced endpoint
   is_composite?: boolean;
   subtasks?: Array<{
     action: string;
@@ -40,55 +39,25 @@ export interface ExtractedTaskEnhanced extends ExtractedTask {
  * Returns empty action for rejected/low-quality tasks
  */
 export async function extractTask(text: string): Promise<ExtractedTask> {
-  const response = await fetch(`${config.ML_SERVICES_URL}/extract-task`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Task extraction failed: ${response.statusText}`);
-  }
-
-  return response.json() as Promise<ExtractedTask>;
+  return ml.extractTask(text);
 }
 
 /**
  * Enhanced task extraction with context and preferences
- *
- * Supports task decomposition, dependency extraction, effort estimation,
- * and conflict detection using the enhanced LLM endpoint.
- *
- * @param text - The user's message text
- * @param options - Additional context for better extraction
- * @returns Enhanced extracted task data
  */
 export async function extractTaskEnhanced(
   text: string,
   options: {
     contextMessages?: string[];
     existingTasks?: Array<{ content: string; id?: string }>;
-    userPreferences?: Record<string, any>;
+    userPreferences?: Record<string, unknown>;
     includeReasoning?: boolean;
   } = {}
 ): Promise<ExtractedTaskEnhanced> {
-  const response = await fetch(`${config.ML_SERVICES_URL}/extract-task-enhanced`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text,
-      context_messages: options.contextMessages,
-      existing_tasks: options.existingTasks,
-      user_preferences: options.userPreferences,
-      include_reasoning: options.includeReasoning ?? false,
-    }),
-  });
-
-  if (!response.ok) {
-    // Fall back to basic extraction on error
-    console.warn('Enhanced extraction failed, falling back to basic:', response.statusText);
+  try {
+    return await ml.extractTaskEnhanced(text, options);
+  } catch {
+    console.warn('Enhanced extraction failed, falling back to basic');
     return extractTask(text) as Promise<ExtractedTaskEnhanced>;
   }
-
-  return response.json() as Promise<ExtractedTaskEnhanced>;
 }

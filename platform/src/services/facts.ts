@@ -10,7 +10,7 @@
 import { db } from '../db/index.js';
 import { facts, factPredicates, entities, type Fact } from '../db/schema.js';
 import { eq, and, isNull, sql } from 'drizzle-orm';
-import { config } from '../config.js';
+import { ml } from './ml-client.js';
 
 export interface CreateFactParams {
   subjectEntityId: string;
@@ -224,16 +224,6 @@ export async function getEntityFacts(
 }
 
 /**
- * Query facts at a specific point in time (bi-temporal query)
- */
-export async function getFactsAtTime(queryTime: Date): Promise<Fact[]> {
-  const result = await db.execute(sql`
-    SELECT * FROM facts_at_time(${queryTime}::timestamptz)
-  `);
-  return (result as unknown as { rows: Fact[] }).rows;
-}
-
-/**
  * Search facts by semantic similarity
  */
 export async function searchFacts(
@@ -263,20 +253,6 @@ export async function searchFacts(
     fact: row,
     similarity: row.similarity,
   }));
-}
-
-/**
- * Get the timeline of facts for an entity
- */
-export async function getEntityTimeline(entityId: string): Promise<Fact[]> {
-  return db
-    .select()
-    .from(facts)
-    .where(and(
-      eq(facts.subjectEntityId, entityId),
-      isNull(facts.expiredAt)
-    ))
-    .orderBy(facts.validAt);
 }
 
 /**
@@ -325,18 +301,8 @@ export async function getFactById(factId: string): Promise<(Fact & {
  */
 async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    const response = await fetch(`${config.ML_SERVICES_URL}/embed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    
-    if (!response.ok) {
-      return [];
-    }
-    
-    const data = await response.json() as { embedding?: number[]; vector?: number[] };
-    return data.embedding || data.vector || [];
+    const data = await ml.embed(text);
+    return data.vector || [];
   } catch {
     return [];
   }

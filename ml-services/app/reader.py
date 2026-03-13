@@ -61,6 +61,7 @@ class ParseContentResponse(BaseModel):
     sentiment: str
     language: str
     word_count: int
+    used_fallback: bool = False
 
 
 # Quick heuristics before LLM
@@ -149,6 +150,7 @@ async def parse_content(request: ParseContentRequest):
             sentiment='neutral',
             language='en',
             word_count=word_count,
+            used_fallback=True,
         )
 
     # Use LLM for richer extraction
@@ -181,6 +183,7 @@ async def parse_content(request: ParseContentRequest):
             sentiment=result.get('sentiment', 'neutral'),
             language=result.get('language', 'en'),
             word_count=word_count,
+            used_fallback=False,
         )
 
     except Exception as e:
@@ -198,37 +201,5 @@ async def parse_content(request: ParseContentRequest):
         sentiment='neutral',
         language='en',
         word_count=word_count,
+        used_fallback=True,
     )
-
-
-@router.get("/parse-content/test")
-async def test_parse():
-    """Test content parsing with samples"""
-    samples = [
-        {
-            "content": "Meeting with @john tomorrow at 3pm to discuss the new project proposal",
-            "expected_type": "event"
-        },
-        {
-            "content": "Check out this article: https://example.com/interesting-stuff #tech #reading",
-            "expected_type": "link"
-        },
-        {
-            "content": "Need to remind myself to call mom on her birthday next week",
-            "expected_type": "task"
-        },
-        {
-            "content": "What is the best way to handle async errors in Python?",
-            "expected_type": "question"
-        },
-    ]
-
-    results = []
-    for sample in samples:
-        result = await parse_content(ParseContentRequest(content=sample["content"]))
-        results.append({
-            "sample": sample,
-            "result": result.model_dump(),
-        })
-
-    return {"tests": results}

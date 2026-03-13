@@ -10,6 +10,7 @@ import { config } from '../../config.js';
 import { createFact } from '../../services/facts.js';
 import { normalizePredicate, recordPredicateUsage } from '../../services/predicates.js';
 import { getMemoryEntities } from '../../services/entities.js';
+import { ml } from '../../services/ml-client.js';
 
 interface RelationshipPayload {
   memoryId: string;
@@ -181,26 +182,11 @@ async function extractRelationships(
   entities: Array<{ name: string; type: string }>
 ): Promise<ExtractedRelationship[]> {
   try {
-    const response = await fetch(`${config.ML_SERVICES_URL}/extract-relationships`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content,
-        entities: entities.map(e => ({ name: e.name, type: e.type })),
-      }),
-    });
-
-    if (!response.ok) {
-      console.warn(`Relationship extraction returned ${response.status}`);
-      return [];
-    }
-
-    const data = await response.json() as {
-      relationships?: ExtractedRelationship[];
-    };
-
+    const data = await ml.extractRelationships(
+      content,
+      entities.map(e => ({ name: e.name, type: e.type })),
+    );
     return data.relationships || [];
-
   } catch (error) {
     console.warn('Relationship extraction failed:', error);
     return [];

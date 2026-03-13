@@ -23,7 +23,8 @@ class LLMService:
         # Z.AI coding plan uses a different base URL
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://api.z.ai/api/coding/paas/v4"
+            base_url="https://api.z.ai/api/coding/paas/v4",
+            timeout=30.0,
         )
 
     def generate(
@@ -62,14 +63,6 @@ class LLMService:
         try:
             return json.loads(json_str)
         except json.JSONDecodeError:
-            # Try a bit harder to fix common issues if needed, or fail
-            # For now, simplistic fallback
-            try:
-                # Sometimes LLMs wrap in code blocks ```json ... ```
-                # regex above handles inner content but if it failed to parse...
-                pass 
-            except:
-                pass
             raise ValueError(f"Could not parse JSON from response: {text[:100]}...")
 
     def generate_json(

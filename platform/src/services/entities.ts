@@ -11,7 +11,7 @@
 import { db } from '../db/index.js';
 import { entities, entityAliases, memoryEntities, type Entity } from '../db/schema.js';
 import { eq, ilike, sql, and } from 'drizzle-orm';
-import { config } from '../config.js';
+import { ml } from './ml-client.js';
 
 export type EntityType = 'person' | 'company' | 'project' | 'concept' | 'place' | 'event' | 'other';
 
@@ -351,18 +351,6 @@ export async function getMemoryEntities(memoryId: string): Promise<Entity[]> {
 }
 
 /**
- * Get all memory IDs mentioning an entity
- */
-export async function getEntityMemories(entityId: string): Promise<string[]> {
-  const results = await db
-    .select({ memoryId: memoryEntities.memoryId })
-    .from(memoryEntities)
-    .where(eq(memoryEntities.entityId, entityId));
-  
-  return results.map(r => r.memoryId);
-}
-
-/**
  * Get entity by ID with aliases
  */
 export async function getEntityById(entityId: string): Promise<(Entity & { aliases: string[] }) | null> {
@@ -390,19 +378,8 @@ export async function getEntityById(entityId: string): Promise<(Entity & { alias
  */
 async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    const response = await fetch(`${config.ML_SERVICES_URL}/embed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    
-    if (!response.ok) {
-      console.warn('Embedding generation failed:', response.status);
-      return [];
-    }
-    
-    const data = await response.json() as { embedding?: number[]; vector?: number[] };
-    return data.embedding || data.vector || [];
+    const data = await ml.embed(text);
+    return data.vector || [];
   } catch (error) {
     console.warn('Embedding generation error:', error);
     return [];

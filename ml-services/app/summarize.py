@@ -47,12 +47,9 @@ def parse_summary_response(text: str) -> dict:
         'key_points': []
     }
 
-    # Extract summary
-    summary_match = re.search(
-        r'SUMMARY:\s*(.+?)(?=KEY POINTS:|$)',
-        text,
-        re.DOTALL | re.IGNORECASE
-    )
+    # Flexible summary header: SUMMARY:, ## Summary, **Summary:**, Summary: etc.
+    summary_pattern = r'(?:\#{1,3}\s*)?(?:\*{0,2})summary(?:\*{0,2})\s*:?\s*(.+?)(?=(?:\#{1,3}\s*)?(?:\*{0,2})(?:key\s*points?|main\s*points?|highlights?|takeaways?)(?:\*{0,2})\s*:?|$)'
+    summary_match = re.search(summary_pattern, text, re.DOTALL | re.IGNORECASE)
     if summary_match:
         result['summary'] = summary_match.group(1).strip()
     else:
@@ -60,16 +57,13 @@ def parse_summary_response(text: str) -> dict:
         lines = text.strip().split('\n')
         result['summary'] = lines[0] if lines else text[:200]
 
-    # Extract key points
-    key_points_match = re.search(
-        r'KEY POINTS:\s*(.+)',
-        text,
-        re.DOTALL | re.IGNORECASE
-    )
+    # Flexible key points header
+    key_points_pattern = r'(?:\#{1,3}\s*)?(?:\*{0,2})(?:key\s*points?|main\s*points?|highlights?|takeaways?)(?:\*{0,2})\s*:?\s*(.+)'
+    key_points_match = re.search(key_points_pattern, text, re.DOTALL | re.IGNORECASE)
     if key_points_match:
         points_text = key_points_match.group(1)
-        # Find all bullet points
-        points = re.findall(r'[-•*]\s*(.+?)(?=\n[-•*]|\Z)', points_text, re.DOTALL)
+        # Match bullets (- * •) and numbered lists (1. 1) )
+        points = re.findall(r'(?:[-•*]|\d+[.)]\s*)\s*(.+?)(?=\n(?:[-•*]|\d+[.)])\s|\Z)', points_text, re.DOTALL)
         result['key_points'] = [p.strip() for p in points if p.strip()]
 
     # Fallback if no key points found
@@ -130,36 +124,3 @@ async def summarize_content(request: SummarizeRequest):
             status_code=500,
             detail=f"Summarization failed: {str(e)}"
         )
-
-@router.get("/summarize/test")
-async def test_summarize():
-    """Test summarization with sample content"""
-    sample_content = """
-    Artificial intelligence (AI) is transforming industries worldwide.
-    From healthcare to finance, AI systems are being deployed to automate
-    complex tasks and provide insights that were previously impossible.
-
-    In healthcare, AI is being used for drug discovery, medical imaging
-    analysis, and personalized treatment recommendations. Financial institutions
-    are using AI for fraud detection, algorithmic trading, and risk assessment.
-
-    However, the rapid advancement of AI also raises concerns about job
-    displacement, privacy, and the need for ethical guidelines. Experts
-    emphasize the importance of responsible AI development and the need
-    for regulations to ensure AI benefits society as a whole.
-    """
-
-    try:
-        result = await summarize_content(
-            SummarizeRequest(
-                content=sample_content,
-                title="AI Transformation in Industries"
-            )
-        )
-        return {
-            "success": True,
-            "summary": result.summary,
-            "key_points": result.key_points
-        }
-    except Exception as e:
-        return {"success": False, "error": str(e)}

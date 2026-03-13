@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from .core.llm import llm_client
@@ -165,41 +165,5 @@ async def classify_message(request: ClassifyRequest):
         return classification
 
     except Exception as e:
-        # JSON parsing failed or other error, return safe default
         print(f"⚠️ Classification failed: {e}")
-        return ClassifyResponse(
-            intents=[Intent(type='thought', confidence=0.5)],
-            primary_intent='thought',
-            suggested_workflow='process-thought',
-            reasoning="Classification failed, defaulting to thought"
-        )
-
-
-@router.get("/classify/test")
-async def test_classification():
-    """Test classification with sample messages"""
-    samples = [
-        "I've been thinking about how to improve the onboarding flow",
-        "Check out this article https://example.com/article",
-        "Remind me to call John tomorrow at 3pm",
-        "How does the authentication system work?",
-        "Find my notes about Kubernetes",
-    ]
-
-    results = []
-    for sample in samples:
-        try:
-            result = await classify_message(ClassifyRequest(text=sample, include_reasoning=True))
-            results.append({
-                "message": sample,
-                "primary": result.primary_intent,
-                "workflow": result.suggested_workflow,
-                "intents": [{"type": i.type, "confidence": i.confidence} for i in result.intents]
-            })
-        except Exception as e:
-            results.append({
-                "message": sample,
-                "error": str(e)
-            })
-
-    return {"test_results": results}
+        raise HTTPException(status_code=502, detail=f"Classification LLM request failed: {str(e)}")

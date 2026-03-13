@@ -10,7 +10,7 @@ router = APIRouter()
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
 # Configure ollama client
-ollama_client = ollama.Client(host=OLLAMA_HOST)
+ollama_client = ollama.Client(host=OLLAMA_HOST, timeout=10.0)
 
 
 class EmbedRequest(BaseModel):
@@ -105,21 +105,4 @@ def embed_batch(request: BatchEmbedRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Batch embedding failed: {str(e)}"
-        )
-
-
-@router.get("/embed/models")
-def list_models():
-    """List available embedding models"""
-    try:
-        models = ollama_client.list()
-        embedding_models = [
-            m["name"] for m in models.get("models", [])
-            if "embed" in m["name"].lower()
-        ]
-        return {"models": embedding_models}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list models: {str(e)}"
         )

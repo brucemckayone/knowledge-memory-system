@@ -3,7 +3,7 @@ Chat Endpoint
 Simple conversational AI endpoint for Telegram bot integration.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from .core.llm import llm_client
 
@@ -41,12 +41,4 @@ async def chat(request: ChatRequest):
         return ChatResponse(response=response)
 
     except Exception as e:
-        # Return error as response instead of raising HTTPException
-        # This makes it easier for the bot to handle
-        return ChatResponse(response=f"Sorry, I encountered an error: {str(e)}")
-
-
-@router.get("/chat/health")
-async def health_check():
-    """Health check for chat endpoint"""
-    return {"status": "healthy", "service": "chat"}
+        raise HTTPException(status_code=502, detail=f"Chat LLM request failed: {str(e)}")

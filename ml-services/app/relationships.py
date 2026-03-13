@@ -107,6 +107,7 @@ class Relationship(BaseModel):
 class ExtractRelationshipsResponse(BaseModel):
     relationships: List[Relationship]
     source_content_hash: str
+    used_fallback: bool = False
 
 
 def quick_extract(content: str) -> List[Relationship]:
@@ -189,6 +190,7 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
         return ExtractRelationshipsResponse(
             relationships=deduplicate_relationships(final_rels),
             source_content_hash=str(hash(content))[:12],
+            used_fallback=True,
         )
 
     # Use LLM for richer extraction
@@ -232,6 +234,7 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
             return ExtractRelationshipsResponse(
                 relationships=deduplicate_relationships(final_rels),
                 source_content_hash=str(hash(content))[:12],
+                used_fallback=False,
             )
 
     except Exception as e:
@@ -242,39 +245,5 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
     return ExtractRelationshipsResponse(
         relationships=deduplicate_relationships(final_rels),
         source_content_hash=str(hash(content))[:12],
+        used_fallback=True,
     )
-
-
-@router.get("/extract-relationships/test")
-async def test_relationships():
-    """Test relationship extraction with samples"""
-    samples = [
-        {
-            "content": "John Smith works at Acme Corporation. He reports to Sarah Johnson, who manages the engineering team.",
-            "entities": [{"name": "John Smith"}, {"name": "Sarah Johnson"}, {"name": "Acme Corporation"}],
-        },
-        {
-            "content": "I met with Bob yesterday. He used to work at Google but now lives in Austin and founded a startup called TechVentures.",
-            "entities": [{"name": "Bob"}, {"name": "Google"}, {"name": "TechVentures"}],
-        },
-        {
-            "content": "My friend Alice is married to David. They both studied at MIT and now work at the same company.",
-            "entities": [{"name": "Alice"}, {"name": "David"}, {"name": "MIT"}],
-        },
-    ]
-
-    results = []
-    for sample in samples:
-        entities = [ExtractedEntity(**e) for e in sample["entities"]]
-        result = await extract_relationships(ExtractRelationshipsRequest(
-            content=sample["content"],
-            entities=entities,
-        ))
-        results.append({
-            "sample": sample["content"][:100],
-            "entity_count": len(sample["entities"]),
-            "relationships_found": len(result.relationships),
-            "relationships": [r.model_dump() for r in result.relationships],
-        })
-
-    return {"tests": results}
