@@ -1,5 +1,8 @@
 # Work Packet W29: Evaluator Agent
 
+> **Status: 🔀 Replaced (2026-03)**
+> Quality metrics now recorded by Central Controller directly to `gardener_metrics`. MAB scheduling removed (migration 010). See [Phase 4 README](./README.md) for current architecture.
+
 **Status:** 🔀 Replaced
 **Dependencies:** W21 (Central Controller), W28 (Conflict Resolution)
 **Estimated Time:** 2-3 hours

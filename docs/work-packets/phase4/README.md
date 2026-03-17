@@ -7,7 +7,7 @@
 
 ## Phase Status
 
-**Overall Completion:** ✅ **~75% Complete** (5 of 7 agents fully implemented, 2 replaced)
+**Overall:** ✅ **Mostly Complete** (5 of 7 agents fully implemented, 2 replaced)
 
 | Packet | Name | Status | Dependencies | Implementation |
 |--------|------|--------|--------------|----------------|
@@ -19,7 +19,7 @@
 | W27 | Schema Alignment Agent | ✅ Complete | W17, W26 | Ontology management ✓ |
 | W28 | Conflict Resolution Agent | ⚠️ Partial | W17 | Detection working, LLM debate TODO |
 | W29 | ~~Evaluator Agent~~ | 🔀 Replaced | W21 | Controller records metrics directly |
-| — | Context-Linker Agent | ✅ Complete | W21 | Ingestion sessions, CO_TEMPORAL facts ✓ |
+| [W22b](./W22b-context-linker.md) | Context-Linker Agent | ✅ Complete | W21 | Ingestion sessions, CO_TEMPORAL facts ✓ |
 
 ### Implementation Notes (Last Reviewed: 2026-03-16)
 

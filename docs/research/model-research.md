@@ -11,9 +11,11 @@
 | Model | Status | Notes |
 |-------|--------|-------|
 | nomic-embed-text (Embeddings) | ✅ Working | 768-dim via Ollama |
-| llama3 (Summarization) | ⏸️ Deferred | Phase 2 |
-| faster-whisper (Transcription) | ❌ Blocked | Build issues |
-| llava (Vision) | ⏸️ Deferred | Phase 2 |
+| Z.AI GLM-4.7 (Text generation) | ✅ Working | Replaced llama3 for summarization, classification, and entity extraction (Phase 2+) |
+| faster-whisper (Transcription) | ✅ Working | Build issues resolved; local transcription via Python |
+| llava (Vision) | ⏸️ Deferred | Not yet integrated |
+
+> **Note (2026-03):** The original research recommended Ollama llama3 for text generation. The implementation uses Z.AI GLM-4.7 (API-based) for better performance and reliability, while Ollama remains the embedding provider (nomic-embed-text).
 
 ---
 

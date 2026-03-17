@@ -9,16 +9,16 @@
 
 ## Overall Status
 
-| Phase | Status | Completion |
-|-------|--------|------------|
-| Phase 2 (Core Skills) | ✅ Complete | 100% |
-| Phase 3 (Entity & Temporal) | ✅ Complete | 80% |
-| Phase 4 (Gardener Agents) | ✅ Complete | 85% |
-| Phase 5 (Intelligence) | ❌ Not Started | 0% |
+| Phase | Status |
+|-------|--------|
+| Phase 2 (Core Skills) | ✅ Complete |
+| Phase 3 (Entity & Temporal) | ✅ Mostly Complete |
+| Phase 4 (Gardener Agents) | ✅ Mostly Complete |
+| Phase 5 (Intelligence) | ❌ Not Started |
 
 ### Implementation Notes (Last Reviewed: 2026-01-29)
 
-**✅ Phase 3 - Entity & Temporal Foundation (80% Complete):**
+**✅ Phase 3 - Entity & Temporal Foundation (Mostly Complete):**
 - W16: Entity Schema - ✅ Complete (all 4 tables implemented)
 - W17: Bi-Temporal Facts - ✅ Complete (with enhancements)
 - W18: Apache AGE - ⚠️ Partial (installed but underutilized)
@@ -26,7 +26,7 @@
 - W20: Entity Extraction - ✅ Complete (via KARMA agent)
 - W21: Gardener Scheduler - ✅ Complete (full implementation)
 
-**✅ Phase 4 - Gardener Agents (~75% Complete):**
+**✅ Phase 4 - Gardener Agents (Mostly Complete):**
 - 7 KARMA agents implemented and registered (reader, summarizer, entity-extraction, relationship, conflict-resolution, schema-alignment, context-linker)
 - Ingestion agent and evaluator agent deleted — responsibilities absorbed by reader/context-linker and controller respectively
 - Controller with simple priority + tier defaults (MAB removed in migration 010)

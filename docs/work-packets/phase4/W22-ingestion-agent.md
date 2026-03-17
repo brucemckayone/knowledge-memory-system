@@ -1,5 +1,8 @@
 # Work Packet W22: Ingestion Agent
 
+> **Status: 🔀 Replaced (2026-03)**
+> Chunking responsibilities moved to Reader Agent (W23). Session grouping moved to Context-Linker Agent ([W22b](./W22b-context-linker.md)). See [Phase 4 README](./README.md) for current architecture.
+
 **Status:** 🔀 Replaced
 **Dependencies:** W21 (Central Controller)
 **Estimated Time:** 3-4 hours

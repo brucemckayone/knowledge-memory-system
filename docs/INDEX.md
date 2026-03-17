@@ -6,15 +6,15 @@
 
 ## Project Status
 
-| Phase | Name | Packets | Status | Completion |
-|-------|------|---------|--------|------------|
-| 0 | Research | — | ✅ Done | 100% |
-| 1 | Foundation | W01–W07 | ✅ Complete | 100% |
-| 2 | Core Skills & Processing | W08–W15 | ✅ Complete | 100% |
-| 3 | Entity & Temporal Foundation | W16–W21 | ✅ Complete | 80% |
-| 4 | KARMA Agents | W22–W29 | ✅ Complete | ~75% |
-| 5 | Intelligence & Insights | W30–W33 | ❌ Not Started | 0% |
-| 6 | Multi-Source Ingestion | W34–W42 | ❌ Not Started | 0% |
+| Phase | Name | Packets | Status |
+|-------|------|---------|--------|
+| 0 | Research | — | ✅ Complete |
+| 1 | Foundation | W01–W07 | ✅ Mostly Complete |
+| 2 | Core Skills & Processing | W08–W15 | ✅ Complete |
+| 3 | Entity & Temporal Foundation | W16–W21 | ✅ Mostly Complete |
+| 4 | KARMA Agents | W22–W29 | ✅ Mostly Complete |
+| 5 | Intelligence & Insights | W30–W33 | ❌ Not Started |
+| 6 | Multi-Source Ingestion | W34–W42 | ❌ Not Started |
 
 **Key blockers:**
 - Phase 3: AGE graph traversal underutilized

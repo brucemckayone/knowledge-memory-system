@@ -1,6 +1,8 @@
 # Recursive Knowledge Gardening: Implementation Architecture Guide
 
-A personal knowledge management system that autonomously organizes, deduplicates, and synthesizes knowledge requires orchestrating eight interconnected technical domains. This research provides implementation-ready specifications for building the "gardening" layer on your existing Qdrant + PostgreSQL + Ollama stack.
+A personal knowledge management system that autonomously organizes, deduplicates, and synthesizes knowledge requires orchestrating seven interconnected technical domains. This research provides implementation-ready specifications for building the "gardening" layer on your existing Qdrant + PostgreSQL + Ollama stack.
+
+> **Note (2026-03):** This document has been updated to reflect the system as built. The original research proposed nine agents with MAB scheduling; the implementation uses seven agents with tiered priority scheduling. Research content (entity resolution algorithms, bi-temporal modeling, benchmarks, etc.) remains as-is — it informed the design and is still valid reference material.
 
 ## The core architectural insight
 
@@ -485,46 +487,50 @@ class TemporalEdge:
 
 ## The Gardener pattern: autonomous maintenance
 
-The KARMA framework (arXiv:2502.06472) provides a proven multi-agent architecture achieving **83.1% LLM-verified correctness** on knowledge extraction. For local deployment, a PostgreSQL-backed job queue (PGQueuer or Procrastinate) eliminates external dependencies.
+The KARMA framework (arXiv:2502.06472) provides a proven multi-agent architecture achieving **83.1% LLM-verified correctness** on knowledge extraction. For local deployment, a PostgreSQL-backed job queue (pg-boss in the implementation) eliminates external dependencies.
 
-### Nine-agent KARMA architecture
+### Seven-agent KARMA architecture (as built)
 
-1. **Central Controller** - Priority scheduling using multi-armed bandit exploration
-2. **Ingestion** - Document retrieval and format normalization
-3. **Reader** - Text parsing with relevance scoring
-4. **Summarizer** - Content condensation preserving entities
-5. **Entity Extraction** - LLM-based NER with ontology filtering
-6. **Relationship Extraction** - Multi-label classification
-7. **Schema Alignment** - Novel entity mapping to existing schema
-8. **Conflict Resolution** - LLM-based debate for contradictions
-9. **Evaluator** - Confidence scoring across pipeline
+1. **Central Controller** - Tiered priority scheduling (realtime/frequent/periodic) with per-job metrics recording
+2. **Reader** - Text parsing, chunk reassembly, content type classification, relevance scoring
+3. **Summarizer** - Content condensation preserving entities
+4. **Entity Extraction** - LLM-based NER with ontology filtering
+5. **Relationship Extraction** - Multi-label classification with bi-temporal fact creation
+6. **Schema Alignment** - Novel entity mapping to existing schema
+7. **Conflict Resolution** - Contradiction detection and supersession (LLM debate planned but not yet implemented)
+8. **Context-Linker** - Ingestion session processing, CO_TEMPORAL facts, cross-linking
 
-### PostgreSQL job queue schema
+The original research proposed an Ingestion agent (absorbed by Reader + Context-Linker) and an Evaluator agent with MAB scheduling (absorbed by the Central Controller, which records metrics directly to `gardener_metrics`; MAB was removed in migration 010).
+
+### Job queue implementation
+
+> **As built:** The implementation uses **pg-boss** (a PostgreSQL-backed job queue) instead of the custom `gardener_jobs` table proposed below. pg-boss provides scheduling, retry handling, and monitoring out of the box, eliminating the need for a bespoke queue. The original research schema is preserved below for reference.
 
 ```sql
+-- Original research proposal (not used — pg-boss was chosen instead)
 CREATE TABLE gardener_jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_type VARCHAR(50) NOT NULL,  -- 'entity_refresh', 'conflict_resolve'
     priority INTEGER DEFAULT 0,
     status VARCHAR(20) DEFAULT 'pending',
     payload JSONB NOT NULL,
-    
+
     -- Scheduling
     scheduled_at TIMESTAMPTZ,
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
-    
+
     -- Retry handling
     attempt_count INTEGER DEFAULT 0,
     max_attempts INTEGER DEFAULT 3,
     last_error TEXT,
-    
+
     -- Checkpointing for long-running jobs
     checkpoint JSONB,
-    
+
     -- Idempotency
     idempotency_key VARCHAR(255) UNIQUE,
-    
+
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -613,7 +619,7 @@ async def run_refinement_cycle(target_scope: str):
 │  │  │ Resolution │ │ Maintenance  │ │ Generation    │             ││
 │  │  └────────────┘ └──────────────┘ └───────────────┘             ││
 │  │                       │                                         ││
-│  │  PostgreSQL Job Queue (PGQueuer) + State Machine               ││
+│  │  PostgreSQL Job Queue (pg-boss) + State Machine                ││
 │  └─────────────────────────────────────────────────────────────────┘│
 │                                                                      │
 └─────────────────────────────────────────────────────────────────────┘

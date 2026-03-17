@@ -6,16 +6,18 @@ A local-first, AI-powered personal knowledge system that captures thoughts, link
 
 ---
 
-## ✅ Status: Phase 1 Complete
+## Status: Phases 1–4 Substantially Complete
 
-| Component | Status |
-|-----------|--------|
-| Text capture via Telegram | ✅ Working |
-| Semantic search | ✅ Working |
-| Embeddings (nomic-embed-text) | ✅ Working |
-| Vector storage (Qdrant) | ✅ Working |
-| API endpoints | ✅ Working |
-| Voice transcription | ⚠️ Disabled |
+| Phase | Name | Status |
+|-------|------|--------|
+| 1 | Foundation | ✅ Mostly Complete |
+| 2 | Core Skills & Processing | ✅ Complete |
+| 3 | Entity & Temporal Foundation | ✅ Mostly Complete |
+| 4 | KARMA Agents | ✅ Mostly Complete |
+| 5 | Intelligence & Insights | ❌ Not Started |
+| 6 | Multi-Source Ingestion | ❌ Not Started |
+
+See [docs/INDEX.md](./docs/INDEX.md) for detailed status and blockers.
 
 ---
 
@@ -235,9 +237,11 @@ This allows running tests locally without the full Docker stack.
 
 - [x] **Phase 0:** Model research
 - [x] **Phase 1:** Foundation (text capture + search)
-- [ ] **Phase 2:** Core skills (voice, links, tasks)
-- [ ] **Phase 3:** Intelligence (context, gardener, briefings)
-- [ ] **Phase 4:** Dashboard
+- [x] **Phase 2:** Core Skills & Processing (voice, links, tasks)
+- [x] **Phase 3:** Entity & Temporal Foundation (entities, facts, graph, hybrid retrieval)
+- [x] **Phase 4:** KARMA Agents (7-agent knowledge gardening system)
+- [ ] **Phase 5:** Intelligence & Insights (community detection, briefings)
+- [ ] **Phase 6:** Multi-Source Ingestion (HTTP, files, Obsidian, MCP)
 
 ---
 
