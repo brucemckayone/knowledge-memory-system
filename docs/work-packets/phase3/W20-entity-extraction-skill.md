@@ -14,7 +14,7 @@ Integrate entity extraction into the Phase 2 message processing pipeline as a sk
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 107-138:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 107-138:
 - Extract entities during ingestion
 - Entity types: person, company, project, concept, place, event
 - Store entity-memory links

@@ -45,7 +45,7 @@
 
 ## Architecture Overview
 
-Based on [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md), implementing a 7-agent KARMA architecture:
+Based on [GARDENER_RESEARCH.md](../../research/gardener-research.md), implementing a 7-agent KARMA architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -334,6 +334,6 @@ Errors are typed (`gardener/errors.ts`): throw `PayloadError` for bad input (ter
 ## Related Documents
 
 - [Phase 2 Work Packets](../phase2/README.md)
-- [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) - Source research
-- [ARCHITECTURE.md](../../ARCHITECTURE.md)
-- [TECHNICAL_PLAN.md](../../TECHNICAL_PLAN.md)
+- [GARDENER_RESEARCH.md](../../research/gardener-research.md) - Source research
+- [ARCHITECTURE.md](../../architecture/current.md)
+- [TECHNICAL_PLAN.md](../../INDEX.md)

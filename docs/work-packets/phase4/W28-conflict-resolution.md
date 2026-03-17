@@ -16,7 +16,7 @@ Create the Conflict Resolution Agent that detects contradicting facts, determine
 ## Background
 
 ### Research Reference
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 200-230:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 200-230:
 - ALICE framework achieves 60% detection rate
 - Five contradiction types: Antonym, Numeric, Negation, Structural, Temporal
 - LLM verification for subtle contradictions

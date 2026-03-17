@@ -203,6 +203,6 @@ W34 and W37 can start in parallel (TypeScript and Python respectively).
 
 ## Related Documents
 
-- [ARCHITECTURE.md](../../ARCHITECTURE.md)
-- [TECHNICAL_PLAN.md](../../TECHNICAL_PLAN.md)
+- [ARCHITECTURE.md](../../architecture/current.md)
+- [TECHNICAL_PLAN.md](../../INDEX.md)
 - [Phase 5 README](../phase5/README.md)

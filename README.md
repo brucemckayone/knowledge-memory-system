@@ -126,7 +126,12 @@ knowledge-memory-system/
 │   │   ├── transcribe.py
 │   │   └── main.py    # FastAPI app
 │   └── requirements.txt
-├── work-packets/       # Implementation specs
+├── docs/              # All documentation
+│   ├── INDEX.md       # Master entry point
+│   ├── architecture/  # System design
+│   ├── work-packets/  # Implementation specs
+│   ├── vision/        # Product direction
+│   └── research/      # Technical research
 ├── docker-compose.yml
 └── README.md
 ```
@@ -137,11 +142,11 @@ knowledge-memory-system/
 
 | Document | Purpose |
 |----------|---------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | System design & data flow |
-| [TECHNICAL_PLAN.md](./TECHNICAL_PLAN.md) | Phased implementation plan |
-| [PRODUCT_CONCEPT.md](./PRODUCT_CONCEPT.md) | Vision & features |
-| [MODEL_RESEARCH.md](./MODEL_RESEARCH.md) | ML model selection |
-| [work-packets/](./work-packets/) | Implementation specifications |
+| [docs/INDEX.md](./docs/INDEX.md) | Master index, project status & roadmap |
+| [docs/architecture/current.md](./docs/architecture/current.md) | System design & data flow |
+| [docs/vision/product-concept.md](./docs/vision/product-concept.md) | Vision & features |
+| [docs/research/model-research.md](./docs/research/model-research.md) | ML model selection |
+| [docs/work-packets/](./docs/work-packets/) | Implementation specifications |
 
 ---
 

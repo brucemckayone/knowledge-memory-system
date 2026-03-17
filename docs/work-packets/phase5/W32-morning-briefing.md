@@ -14,7 +14,7 @@ Implement the Morning Briefing feature that compiles insights, tasks, and releva
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 450-480:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 450-480:
 - Proactive morning briefing
 - Personalized content selection
 - Multi-channel delivery

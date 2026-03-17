@@ -14,7 +14,7 @@ Implement insight generation that analyzes communities, patterns, and knowledge 
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 427-449:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 427-449:
 - Pattern detection across memories
 - Cross-community insight generation
 - Surfacing non-obvious connections

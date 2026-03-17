@@ -26,7 +26,7 @@ Implement the Evaluator Agent that validates agent outputs, tracks performance m
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 394-426:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 394-426:
 - Continuous evaluation tier
 - Track agent success rates
 - Update MAB scores

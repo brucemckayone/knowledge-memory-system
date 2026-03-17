@@ -14,7 +14,7 @@ Implement the Summarizer Agent that creates concise summaries of memories, gener
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 370-381:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 370-381:
 - Near-term tier processing (within 1 hour)
 - Generate summaries for long content
 - Update context summaries

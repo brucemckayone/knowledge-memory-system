@@ -14,7 +14,7 @@ Implement hybrid retrieval that combines vector search (Qdrant), graph traversal
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 267-293:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 267-293:
 - Parallel execution of vector and graph searches
 - RRF fusion with k=60 constant
 - LightRAG achieves <100 token cost per query

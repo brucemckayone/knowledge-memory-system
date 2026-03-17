@@ -15,7 +15,7 @@ Create the bi-temporal fact storage system from Graphiti research. Facts are str
 ## Background
 
 ### Research Reference
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 90-183:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 90-183:
 - Four-timestamp model separates event time from transaction time
 - `valid_at` / `invalid_at`: When the fact was true in reality
 - `created_at` / `expired_at`: When you recorded/corrected the fact

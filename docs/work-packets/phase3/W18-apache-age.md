@@ -14,7 +14,7 @@ Install and configure Apache AGE (A Graph Extension for PostgreSQL) to enable Cy
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 295-333:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 295-333:
 - Apache AGE is recommended for PostgreSQL integration
 - Cypher queries can be combined with SQL
 - Community detection uses graph structure

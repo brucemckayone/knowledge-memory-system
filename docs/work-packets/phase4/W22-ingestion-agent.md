@@ -25,7 +25,7 @@ Implement the Ingestion Agent, the first stage of the KARMA pipeline. This agent
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 358-369:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 358-369:
 - Real-time ingestion tier
 - Chunk long documents
 - Queue downstream agents

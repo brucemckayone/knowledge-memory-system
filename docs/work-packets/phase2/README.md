@@ -259,5 +259,5 @@ curl -X POST http://localhost:8000/classify \
 
 - [Phase 1 Work Packets](../phase1/README.md)
 - [Phase 3 Work Packets](../phase3/README.md) - Knowledge Graph
-- [ARCHITECTURE.md](../../ARCHITECTURE.md) - Section 4 (Skills & Workflows)
-- [TECHNICAL_PLAN.md](../../TECHNICAL_PLAN.md) - Section 4 (Phase 2)
+- [ARCHITECTURE.md](../../architecture/current.md) - Section 4 (Skills & Workflows)
+- [TECHNICAL_PLAN.md](../../INDEX.md) - Section 4 (Phase 2)

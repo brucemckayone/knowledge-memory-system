@@ -119,5 +119,5 @@ curl "http://localhost:3001/api/search?q=test"
 ## Related Documents
 
 - [Phase 2 Work Packets](../phase2/README.md)
-- [ARCHITECTURE.md](../../ARCHITECTURE.md)
-- [TECHNICAL_PLAN.md](../../TECHNICAL_PLAN.md)
+- [ARCHITECTURE.md](../../architecture/current.md)
+- [TECHNICAL_PLAN.md](../../INDEX.md)

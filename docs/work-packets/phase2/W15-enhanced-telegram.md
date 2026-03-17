@@ -586,6 +586,6 @@ After completing W08-W15, you have:
 - **Enhanced Telegram** (W15) - Rich user experience
 
 **Next Steps:**
-- Update TECHNICAL_PLAN.md to mark Phase 2 complete
+- Update docs/INDEX.md to mark Phase 2 complete
 - Tag as v0.2.0
 - Plan Phase 3 (Intelligence: Context Entities, Gardener, Briefings)

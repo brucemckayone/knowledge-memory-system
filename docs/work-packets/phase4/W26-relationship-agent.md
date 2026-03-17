@@ -14,7 +14,7 @@ Implement the Relationship Extraction Agent that identifies relationships betwee
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 158-180:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 158-180:
 - Extract relationships as subject-predicate-object triples
 - Bi-temporal validity tracking
 - Confidence scoring

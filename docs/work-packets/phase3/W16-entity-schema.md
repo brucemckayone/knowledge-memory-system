@@ -15,7 +15,7 @@ Create the entity tracking system that forms the foundation of the knowledge gra
 ## Background
 
 ### Research Reference
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 11-86:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 11-86:
 - Entity resolution achieves 87% F1 on benchmarks
 - Three-stage pipeline: blocking → similarity → LLM verification
 - Threshold approach minimizes LLM calls

@@ -571,13 +571,13 @@ A local-first, AI-powered personal knowledge system.
 
 ## Architecture
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for full system design.
+See [ARCHITECTURE.md](../../architecture/current.md) for full system design.
 
 ## Documentation
 
-- [Product Concept](./PRODUCT_CONCEPT.md)
-- [Technical Plan](./TECHNICAL_PLAN.md)
-- [Model Research](./MODEL_RESEARCH.md)
+- [Product Concept](../../vision/product-concept.md)
+- [Technical Plan](../../INDEX.md)
+- [Model Research](../../research/model-research.md)
 ```
 
 ---

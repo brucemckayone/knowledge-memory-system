@@ -14,7 +14,7 @@ Implement the Reader Agent that parses incoming memories, extracts structured in
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 358-369:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 358-369:
 - Real-time parsing of incoming content
 - Content type classification
 - Structured information extraction

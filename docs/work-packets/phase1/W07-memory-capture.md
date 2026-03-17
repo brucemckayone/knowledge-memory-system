@@ -574,4 +574,4 @@ The system now:
 - Morning briefing
 - The Gardener (maintenance)
 
-See [TECHNICAL_PLAN.md](../TECHNICAL_PLAN.md) for the full roadmap.
+See [Documentation Index](../../INDEX.md) for the full roadmap.

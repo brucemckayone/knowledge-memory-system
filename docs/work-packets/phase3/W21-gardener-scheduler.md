@@ -17,7 +17,7 @@ Create the Central Controller agent that orchestrates all Gardener operations. T
 ## Background
 
 ### Research Reference
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 486-500:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 486-500:
 - Priority scheduling (simplified from original MAB design)
 - PostgreSQL job queue (pg-boss already in system)
 - Checkpointing for long-running operations

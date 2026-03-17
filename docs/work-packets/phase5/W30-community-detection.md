@@ -14,7 +14,7 @@ Implement community detection on the knowledge graph to identify clusters of rel
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 305-333:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 305-333:
 - Graph-based community detection
 - Leiden algorithm for clustering
 - Community-aware search

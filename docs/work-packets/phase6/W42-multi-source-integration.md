@@ -171,7 +171,7 @@ describe('MCP Server tools', () => {
 
 ### Documentation Updates
 
-#### ARCHITECTURE.md
+#### docs/architecture/current.md
 
 Add "Multi-Source Ingestion" section:
 
@@ -188,7 +188,7 @@ The system accepts content from multiple sources via the Source Adapter pattern:
 All sources produce IngestJobData → IngestRouter (dedup) → pg-boss queue → Message Processor.
 ```
 
-#### TECHNICAL_PLAN.md
+#### docs/INDEX.md
 
 Update Phase 6 section with W34–W42 summary and status.
 
@@ -223,8 +223,8 @@ pnpm vitest run src/test/e2e/multi-source.test.ts --reporter=verbose
 - [ ] Obsidian round-trip: ingest → process → write-back → user edit → re-ingest
 - [ ] MCP server `search_memories` returns correct results
 - [ ] MCP server `ingest_content` creates searchable content
-- [ ] ARCHITECTURE.md updated with multi-source ingestion section
-- [ ] TECHNICAL_PLAN.md Phase 6 section updated
+- [ ] docs/architecture/current.md updated with multi-source ingestion section
+- [ ] docs/INDEX.md Phase 6 section updated
 - [ ] All Phase 6 work packets linked and cross-referenced correctly
 
 ---
@@ -232,5 +232,5 @@ pnpm vitest run src/test/e2e/multi-source.test.ts --reporter=verbose
 ## Related Documents
 
 - [Phase 6 README](./README.md) — Overview and dependency graph
-- [ARCHITECTURE.md](../../ARCHITECTURE.md) — System architecture (to update)
-- [TECHNICAL_PLAN.md](../../TECHNICAL_PLAN.md) — Roadmap (to update)
+- [ARCHITECTURE.md](../../architecture/current.md) — System architecture (to update)
+- [Documentation Index](../../INDEX.md) — Roadmap (to update)

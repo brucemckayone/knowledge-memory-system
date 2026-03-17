@@ -14,7 +14,7 @@ Implement the Schema Alignment Agent that normalizes predicates to a consistent 
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 382-393:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 382-393:
 - Background tier processing (daily)
 - Normalize predicates to ontology
 - Merge similar relationships

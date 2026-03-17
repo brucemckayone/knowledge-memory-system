@@ -105,5 +105,5 @@ W32 (Morning Briefing) — compiles W31 + W33 outputs for delivery
 
 - [Phase 4 README](../phase4/README.md) — KARMA agents (prerequisite)
 - [Phase 6 README](../phase6/README.md) — Extended vision (next phase)
-- [ARCHITECTURE.md](../../ARCHITECTURE.md)
-- [TECHNICAL_PLAN.md](../../TECHNICAL_PLAN.md)
+- [ARCHITECTURE.md](../../architecture/current.md)
+- [TECHNICAL_PLAN.md](../../INDEX.md)

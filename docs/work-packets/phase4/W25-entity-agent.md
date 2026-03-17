@@ -16,7 +16,7 @@ Create the Entity Extraction Agent that uses LLM-based NER to extract named enti
 ## Background
 
 ### Research Reference
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 494-500:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 494-500:
 - Agent 5: Entity Extraction - LLM-based NER with ontology filtering
 - Achieves 87% F1 on entity resolution benchmarks
 - Three-stage pipeline: blocking → similarity → LLM verification

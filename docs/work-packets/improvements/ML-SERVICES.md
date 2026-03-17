@@ -560,7 +560,7 @@ The ML services layer has critical security holes (CORS wide open, no auth, prom
 
 ## Cross-References
 
-- **Tracker:** `work-packets/IMPROVEMENT_TRACKER.md` — Domain 1
-- **Architecture:** `ARCHITECTURE.md` — ML services data flow
+- **Tracker:** `docs/work-packets/improvements/INDEX.md` — Domain 1
+- **Architecture:** `docs/architecture/current.md` — ML services data flow
 - **Config:** `platform/src/config.ts` — TypeScript-side config
 - **Related domains:** Domain 3 (Message Processing) depends on ML client improvements from WI-RES-1 and WI-TMO-1

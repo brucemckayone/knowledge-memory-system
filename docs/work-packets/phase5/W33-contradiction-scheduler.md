@@ -14,7 +14,7 @@ Implement scheduled contradiction detection that runs nightly to proactively ide
 
 ## Research Reference
 
-From [GARDENER_RESEARCH.md](../GARDENER_RESEARCH.md) lines 197-239:
+From [GARDENER_RESEARCH.md](../../research/gardener-research.md) lines 197-239:
 - ALICE-style contradiction detection
 - Proactive fact validation
 - Confidence decay over time

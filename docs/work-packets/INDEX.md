@@ -96,6 +96,6 @@ Master index for Mnemo implementation work packets.
 
 ## Related Documents
 
-- [ARCHITECTURE.md](../ARCHITECTURE.md) — System design and data flow
-- [TECHNICAL_PLAN.md](../TECHNICAL_PLAN.md) — Phased roadmap
-- [AGENTS.md](../AGENTS.md) — Development workflow and issue tracking
+- [Architecture](../architecture/current.md) — System design and data flow
+- [Documentation Index](../INDEX.md) — Project status and roadmap
+- [AGENTS.md](../../AGENTS.md) — Development workflow and issue tracking

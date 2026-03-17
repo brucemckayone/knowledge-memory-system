@@ -672,7 +672,7 @@ CREATE TABLE contradiction_reviews (
 
 ### 7.1 Gardener System (KARMA Architecture)
 
-Based on [GARDENER_RESEARCH.md](./GARDENER_RESEARCH.md), the Gardener implements a 7-agent KARMA architecture for autonomous knowledge maintenance:
+Based on [GARDENER_RESEARCH.md](../research/gardener-research.md), the Gardener implements a 7-agent KARMA architecture for autonomous knowledge maintenance:
 
 ```d2
 direction: down
