@@ -15,7 +15,6 @@ import {
   learnFromTaskCompletion,
   getLearnedSchedule,
   getUrgencyCalibration,
-  getAllPreferences
 } from '../../services/preferences.js';
 import { db } from '../../db/index.js';
 import { userPreferences } from '../../db/schema.js';
@@ -393,77 +392,4 @@ describe('User Preferences Service', () => {
     });
   });
 
-  describe('getAllPreferences', () => {
-    it('should return empty object for user with no preferences', async () => {
-      const prefs = await getAllPreferences('nonexistent_user');
-      expect(prefs).toEqual({});
-    });
-
-    it('should only return high-confidence preferences', async () => {
-      // Create mix of high and low confidence preferences
-      await updatePreference(testUserId, 'high_conf_1', 'value1', 0.9);
-      await updatePreference(testUserId, 'high_conf_2', 'value2', 0.8);
-      await updatePreference(testUserId, 'low_conf_1', 'value3', 0.4); // Below threshold
-      await updatePreference(testUserId, 'low_conf_2', 'value4', 0.5); // At threshold (not included)
-
-      const prefs = await getAllPreferences(testUserId);
-
-      expect(Object.keys(prefs)).toContain('high_conf_1');
-      expect(Object.keys(prefs)).toContain('high_conf_2');
-      expect(Object.keys(prefs)).not.toContain('low_conf_1');
-    });
-
-    it('should include confidence metadata in returned preferences', async () => {
-      await updatePreference(testUserId, 'test_pref', 'value', 0.85);
-
-      const prefs = await getAllPreferences(testUserId);
-
-      expect(prefs.test_pref).toEqual({
-        value: 'value',
-        confidence: 0.85,
-        sampleCount: 1,
-      });
-    });
-
-    it('should handle complex preference values', async () => {
-      const complexValue = {
-        schedule: {
-          start: '09:00',
-          end: '17:00',
-        },
-        timeZone: 'UTC',
-      };
-
-      await updatePreference(testUserId, 'complex_pref', complexValue, 0.9);
-
-      const prefs = await getAllPreferences(testUserId);
-
-      expect(prefs.complex_pref.value).toEqual(complexValue);
-    });
-  });
-
-  describe('Confidence Threshold Behavior', () => {
-    it('should filter preferences at exactly 0.6 threshold', async () => {
-      await updatePreference(testUserId, 'at_threshold', 'value', 0.6);
-      await updatePreference(testUserId, 'above_threshold', 'value', 0.61);
-      await updatePreference(testUserId, 'below_threshold', 'value', 0.59);
-
-      const prefs = await getAllPreferences(testUserId);
-
-      // 0.6 is included (>= 0.6)
-      expect(Object.keys(prefs)).toContain('at_threshold');
-      expect(Object.keys(prefs)).toContain('above_threshold');
-      expect(Object.keys(prefs)).not.toContain('below_threshold');
-    });
-
-    it('should handle confidence values at boundaries', async () => {
-      await updatePreference(testUserId, 'conf_zero', 'value', 0.0);
-      await updatePreference(testUserId, 'conf_one', 'value', 1.0);
-
-      const prefs = await getAllPreferences(testUserId);
-
-      expect(Object.keys(prefs)).not.toContain('conf_zero');
-      expect(Object.keys(prefs)).toContain('conf_one');
-    });
-  });
 });

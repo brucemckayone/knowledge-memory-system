@@ -43,6 +43,10 @@ describe('W26 Relationship Agent', () => {
       log: vi.fn(),
       checkpoint: vi.fn().mockResolvedValue(undefined),
       restoreCheckpoint: vi.fn().mockResolvedValue(null),
+      traceId: (data.memoryId as string) ?? null,
+      config: {} as any,
+      services: { ml: {} as any, controller: {} as any },
+      signal: AbortSignal.timeout(30000),
     };
   }
 

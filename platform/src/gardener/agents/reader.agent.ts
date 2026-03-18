@@ -6,6 +6,7 @@
  */
 
 import type { AgentContext, JobResult, GardenerAgent, GardenerJob } from '../controller.js';
+import { PayloadError, AgentError } from '../errors.js';
 import { reassembleContent, markAllChunksProcessed } from '../../services/chunks.js';
 import { db } from '../../db/index.js';
 import { sql } from 'drizzle-orm';
@@ -46,8 +47,7 @@ export const readerAgent: GardenerAgent = {
     const payload = job.data as ReaderPayload;
 
     if (!payload.memoryId) {
-      log('Missing required field: memoryId', 'error');
-      return { success: false };
+      throw new PayloadError('Missing required field: memoryId');
     }
 
     log(`Reading memory ${payload.memoryId.slice(0, 8)}...`);
@@ -99,6 +99,7 @@ export const readerAgent: GardenerAgent = {
           tier: 'frequent',
           payload: {
             memoryId: payload.memoryId,
+            content,
             contentType: parsed.content_type,
             wordCount: parsed.word_count,
           },
@@ -123,8 +124,8 @@ export const readerAgent: GardenerAgent = {
       };
 
     } catch (error) {
-      log(`Reader failed: ${error}`, 'error');
-      return { success: false };
+      if (error instanceof AgentError) throw error;
+      throw new AgentError(`Reader failed: ${error}`, true, error);
     }
   },
 };

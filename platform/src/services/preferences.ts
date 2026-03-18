@@ -12,7 +12,7 @@
 
 import { db } from '../db/index.js';
 import { userPreferences } from '../db/schema.js';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 export interface UserPreference {
   id: string;
@@ -59,28 +59,6 @@ export async function getPreference(
     .then(rows => rows[0]);
 
   return pref?.preferenceValue ?? null;
-}
-
-/**
- * Get a user preference with metadata
- */
-export async function getPreferenceWithMeta(
-  userId: string,
-  preferenceKey: string
-): Promise<UserPreference | null> {
-  const pref = await db
-    .select()
-    .from(userPreferences)
-    .where(
-      and(
-        eq(userPreferences.userId, userId),
-        eq(userPreferences.preferenceKey, preferenceKey)
-      )
-    )
-    .limit(1)
-    .then(rows => rows[0]);
-
-  return (pref as UserPreference) ?? null;
 }
 
 /**
@@ -257,78 +235,3 @@ export async function getUrgencyCalibration(userId: string): Promise<UrgencyCali
   };
 }
 
-/**
- * Get all preferences for a user
- * Only returns high-confidence preferences (confidence > 0.6)
- */
-export async function getAllPreferences(userId: string): Promise<Record<string, any>> {
-  const prefs = await db
-    .select()
-    .from(userPreferences)
-    .where(eq(userPreferences.userId, userId));
-
-  const result: Record<string, any> = {};
-  for (const pref of prefs) {
-    // Only return high-confidence preferences (>= 0.6)
-    if (pref.confidence >= 0.6) {
-      result[pref.preferenceKey] = {
-        value: pref.preferenceValue,
-        confidence: pref.confidence,
-        sampleCount: pref.sampleCount,
-      };
-    }
-  }
-
-  return result;
-}
-
-/**
- * Get duration multiplier for a priority level
- * Helps calibrate how long tasks actually take vs estimates
- */
-export async function getDurationMultiplier(
-  userId: string,
-  priority: string
-): Promise<number> {
-  const key = `duration_multiplier_${priority}`;
-  const multiplier = await getPreference(userId, key);
-  return multiplier ?? 1.0; // Default: no adjustment
-}
-
-/**
- * Check if current time is within user's working hours
- */
-export async function isWorkingHour(userId: string): Promise<boolean> {
-  const schedule = await getLearnedSchedule(userId);
-  const now = new Date();
-  const currentHour = now.getHours();
-  const currentDay = now.getDay();
-
-  // Check if today is a working day
-  if (!schedule.workingDays.includes(currentDay)) {
-    return false;
-  }
-
-  // Check if current hour is within working hours
-  const startHour = parseInt(schedule.workingHoursStart.split(':')[0], 10);
-  const endHour = parseInt(schedule.workingHoursEnd.split(':')[0], 10);
-
-  return currentHour >= startHour && currentHour < endHour;
-}
-
-/**
- * Reset a preference (for testing or correction)
- */
-export async function resetPreference(
-  userId: string,
-  preferenceKey: string
-): Promise<void> {
-  await db
-    .delete(userPreferences)
-    .where(
-      and(
-        eq(userPreferences.userId, userId),
-        eq(userPreferences.preferenceKey, preferenceKey)
-      )
-    );
-}

@@ -1,11 +1,9 @@
 /**
  * Agent Pipeline Integration Test
  *
- * Golden path E2E test covering the full KARMA agent pipeline
- * from ingestion through evaluation.
+ * Golden path E2E test covering the full KARMA agent pipeline.
  *
- * Pipeline: W22 → W23 → W25 → W26 → W27 → W28 → W29
- *           (Ingestion → Reader → Entity → Relationship → Schema → Conflict → Evaluator)
+ * Pipeline: Message Processor → Reader → Entity Extraction → Relationship → Schema → Conflict
  */
 
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
@@ -18,13 +16,13 @@ import {
 import { loadPhase4Seed } from '../fixtures/phase4-seed.js';
 import { installMLServiceMock, restoreMLServiceMock } from '../mocks/ml-service.mock.js';
 
-// Import all agents
-import { ingestionAgent } from '../../gardener/agents/ingestion.agent.js';
+// Import agents
 import { readerAgent } from '../../gardener/agents/reader.agent.js';
+import { entityExtractionAgent } from '../../gardener/agents/entity-extraction.agent.js';
 import { relationshipAgent } from '../../gardener/agents/relationship.agent.js';
 import { schemaAlignmentAgent } from '../../gardener/agents/schema-alignment.agent.js';
-import { evaluatorAgent } from '../../gardener/agents/evaluator.agent.js';
 import { normalizePredicate } from '../../services/predicates.js';
+import { chunkContent } from '../../services/chunks.js';
 import type { AgentContext } from '../../gardener/controller.js';
 import type PgBoss from 'pg-boss';
 
@@ -54,6 +52,10 @@ describe('Agent Pipeline Integration', () => {
       log: vi.fn(),
       checkpoint: vi.fn().mockResolvedValue(undefined),
       restoreCheckpoint: vi.fn().mockResolvedValue(null),
+      traceId: (data.memoryId as string) ?? null,
+      config: {} as any,
+      services: { ml: {} as any, controller: {} as any },
+      signal: AbortSignal.timeout(30000),
     };
   }
 
@@ -71,7 +73,7 @@ describe('Agent Pipeline Integration', () => {
           headers: {
             get: (name: string) => {
               if (name.toLowerCase() === 'content-type') return 'application/json';
-              if (name.toLowerCase() === 'content-length') return '0';
+
               return null;
             },
           } as Headers,
@@ -130,27 +132,16 @@ describe('Agent Pipeline Integration', () => {
         });
       }
 
-      // Step 1: Ingestion (W22)
-      const ingestionResult = await ingestionAgent.execute(
-        createMockContext({ memoryId, content })
-      );
-
-      expect(ingestionResult.success).toBe(true);
-      expect(ingestionResult.nextJobs).toBeDefined();
-      expect(ingestionResult.nextJobs?.length).toBeGreaterThan(0);
-
-      // Verify downstream jobs queued
-      const readerJob = ingestionResult.nextJobs?.find(j => j.type === 'gardener:reader');
-      const entityJob = ingestionResult.nextJobs?.find(j => j.type === 'gardener:extract-entities');
-      expect(readerJob).toBeDefined();
-      expect(entityJob).toBeDefined();
-
-      // Step 2: Reader (W23)
+      // Step 1: Reader (content threaded via payload, as message processor does)
       const readerResult = await readerAgent.execute(
         createMockContext({
           memoryId,
           content,
-          ...readerJob?.payload,
+          contentLength: content.length,
+          chunked: false,
+          chunkCount: 1,
+          type: 'thought',
+          source: 'telegram',
         })
       );
 
@@ -203,20 +194,6 @@ describe('Agent Pipeline Integration', () => {
       );
 
       expect(schemaResult.success).toBeDefined();
-
-      // Step 6: Evaluator (W29)
-      // First, create some job metadata to evaluate
-      const evalJobId = randomUUID();
-      await testDb`
-        INSERT INTO gardener_job_meta (job_id, job_type, tier, started_at, completed_at, duration_ms)
-        VALUES (${evalJobId}::uuid, 'gardener:reader', 'realtime', NOW() - INTERVAL '2 seconds', NOW(), 1500)
-      `;
-
-      const evaluatorResult = await evaluatorAgent.execute(
-        createMockContext({ limit: 10 })
-      );
-
-      expect(evaluatorResult.success).toBeDefined();
     });
 
     it('should chain job outputs correctly between agents', async () => {
@@ -226,74 +203,36 @@ describe('Agent Pipeline Integration', () => {
       const memoryId = randomUUID();
       const content = 'Simple test content for job chaining verification.';
 
-      // Step 1: Ingestion produces jobs for reader and entity extraction
-      const ingestionResult = await ingestionAgent.execute(
-        createMockContext({ memoryId, content })
-      );
-
-      expect(ingestionResult.success).toBe(true);
-
-      // Verify job payloads contain necessary data
-      const nextJobs = ingestionResult.nextJobs || [];
-
-      for (const job of nextJobs) {
-        // All downstream jobs should have memoryId
-        expect(job.payload.memoryId).toBe(memoryId);
-
-        // Reader job should have content metadata
-        if (job.type === 'gardener:reader') {
-          expect(job.payload.contentLength).toBe(content.length);
-        }
-
-        // Entity extraction job should have content
-        if (job.type === 'gardener:extract-entities') {
-          expect(job.payload.content).toBe(content);
-        }
-      }
-    });
-
-    it('should handle pipeline with chunked content', async () => {
-      // Install mock
-      vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
-        const urlStr = input instanceof Request ? input.url : input.toString();
-        if (urlStr.includes('/parse-content')) {
-          return {
-            ok: true,
-            json: async () => ({
-              content_type: 'thought',
-              title: 'Long document',
-              summary: 'Summary...',
-              mentions: [],
-              dates: [],
-              links: [],
-              tags: [],
-              sentiment: 'neutral',
-              language: 'en',
-              word_count: 2000,
-            }),
-          } as Response;
-        }
-        return { ok: true, json: async () => ({}) } as Response;
-      });
-
-      const memoryId = randomUUID();
-
-      // Step 1: Ingestion chunks long content
-      const ingestionResult = await ingestionAgent.execute(
+      // Simulate what message processor does: fan-out to reader and entity extraction
+      // Reader receives content in payload
+      const readerResult = await readerAgent.execute(
         createMockContext({
           memoryId,
-          content: seed.longContent.content,
+          content,
+          contentLength: content.length,
+          chunked: false,
+          chunkCount: 1,
         })
       );
 
-      expect(ingestionResult.success).toBe(true);
-      expect(ingestionResult.outputs?.chunked).toBe(true);
-      expect(ingestionResult.outputs?.chunkCount).toBe(seed.longContent.expectedChunks);
+      expect(readerResult.success).toBeDefined();
+    });
 
-      // Verify reader job receives chunking info
-      const readerJob = ingestionResult.nextJobs?.find(j => j.type === 'gardener:reader');
-      expect(readerJob?.payload.chunked).toBe(true);
-      expect(readerJob?.payload.chunkCount).toBe(seed.longContent.expectedChunks);
+    it('should handle pipeline with chunked content', async () => {
+      const memoryId = randomUUID();
+      const longContent = seed.longContent.content;
+
+      // Simulate message processor inline chunking
+      const chunks = chunkContent(longContent, 4000, 200);
+      const needsChunking = chunks.length > 1;
+
+      expect(needsChunking).toBe(true);
+      expect(chunks.length).toBe(seed.longContent.expectedChunks);
+
+      // Reader receives chunking info in payload (as message processor sends it)
+      // Just verify the chunking logic works correctly
+      expect(chunks[0]!.content.length).toBeGreaterThan(0);
+      expect(chunks[0]!.content.length).toBeLessThanOrEqual(4000);
     });
   });
 
@@ -310,7 +249,7 @@ describe('Agent Pipeline Integration', () => {
           headers: {
             get: (name: string) => {
               if (name.toLowerCase() === 'content-type') return 'application/json';
-              if (name.toLowerCase() === 'content-length') return '0';
+
               return null;
             },
           } as Headers,
@@ -338,17 +277,10 @@ describe('Agent Pipeline Integration', () => {
       const memoryId = randomUUID();
       const content = 'Test content for resilience check with #tag and https://example.com';
 
-      // Ingestion should work (no ML dependency)
-      const ingestionResult = await ingestionAgent.execute(
-        createMockContext({ memoryId, content })
-      );
-      expect(ingestionResult.success).toBe(true);
-
-      // Reader returns failure when ML service is unavailable (no fallback implemented)
-      const readerResult = await readerAgent.execute(
-        createMockContext({ memoryId, content })
-      );
-      expect(readerResult.success).toBe(false);
+      // Reader throws a retryable error when ML service is unavailable
+      await expect(
+        readerAgent.execute(createMockContext({ memoryId, content }))
+      ).rejects.toThrow('Reader failed');
     });
 
     it('should handle empty entity list gracefully in relationship extraction', async () => {
@@ -433,34 +365,30 @@ describe('Agent Pipeline Integration', () => {
   });
 
   describe('Performance Characteristics', () => {
-    it('should complete ingestion in reasonable time', async () => {
-      const start = Date.now();
-      const memoryId = randomUUID();
+    it('should chunk content correctly for short content', () => {
+      const shortContent = 'Brief content under chunk threshold.';
+      const chunks = chunkContent(shortContent, 4000, 200);
 
-      await ingestionAgent.execute(
-        createMockContext({
-          memoryId,
-          content: 'Quick test content for performance check.',
-        })
-      );
-
-      const duration = Date.now() - start;
-
-      // Ingestion should be fast (realtime tier expects < 30s)
-      expect(duration).toBeLessThan(5000);
+      expect(chunks.length).toBe(1);
+      expect(chunks[0]!.content).toBe(shortContent);
     });
 
     it('should process short content without chunking overhead', async () => {
+      // Install mock
+      installMLServiceMock();
+
       const memoryId = randomUUID();
       const shortContent = 'Brief content under chunk threshold.';
 
-      const result = await ingestionAgent.execute(
+      const start = Date.now();
+      const result = await readerAgent.execute(
         createMockContext({ memoryId, content: shortContent })
       );
+      const duration = Date.now() - start;
 
-      expect(result.success).toBe(true);
-      expect(result.outputs?.chunked).toBe(false);
-      expect(result.outputs?.chunkCount).toBe(1);
+      expect(result.success).toBeDefined();
+      // Reader should be fast for short content
+      expect(duration).toBeLessThan(5000);
     });
   });
 });

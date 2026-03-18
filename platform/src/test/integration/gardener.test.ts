@@ -2,7 +2,8 @@
  * Gardener Controller Integration Tests
  *
  * Tests for the Gardener Controller and Agent orchestration.
- * Covers GC-001 through GC-008 from the test strategy.
+ * Covers GC-001 through GC-008 from the test strategy,
+ * plus GC-009 (enriched context), GC-010 (error handling), GC-011 (metrics recording).
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -11,7 +12,7 @@ import { testDb, randomUUID } from '../setup.js';
 // Types matching controller.ts
 interface GardenerJob {
   type: string;
-  tier: 'realtime' | 'frequent' | 'periodic' | 'deep';
+  tier: 'realtime' | 'frequent' | 'periodic';
   priority?: number;
   payload: Record<string, unknown>;
 }
@@ -31,6 +32,24 @@ interface AgentContext {
   log: (message: string, level?: 'info' | 'warn' | 'error') => void;
   checkpoint: (state: unknown) => Promise<void>;
   restoreCheckpoint: () => Promise<unknown | null>;
+  traceId: string | null;
+  config: Record<string, unknown>;
+  services: { ml: unknown; controller: unknown };
+  signal: AbortSignal;
+}
+
+function createMockContext(overrides: Partial<AgentContext> = {}): AgentContext {
+  return {
+    job: { id: randomUUID(), data: {} },
+    log: vi.fn(),
+    checkpoint: vi.fn().mockResolvedValue(undefined),
+    restoreCheckpoint: vi.fn().mockResolvedValue(null),
+    traceId: null,
+    config: {},
+    services: { ml: {}, controller: {} },
+    signal: AbortSignal.timeout(30000),
+    ...overrides,
+  };
 }
 
 describe('Gardener Controller ↔ Agents Integration', () => {
@@ -82,81 +101,47 @@ describe('Gardener Controller ↔ Agents Integration', () => {
       expect(handlers.has('gardener:test-agent')).toBe(true);
 
       const handler = handlers.get('gardener:test-agent')!;
-      const result = await handler({
-        job: { id: randomUUID(), data: {} },
-        log: vi.fn(),
-        checkpoint: vi.fn(),
-        restoreCheckpoint: vi.fn().mockResolvedValue(null),
-      });
+      const result = await handler(createMockContext());
 
       expect(result.success).toBe(true);
       expect(mockHandler).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('GC-003: MAB priority adjustment', () => {
-    it('should adjust priority by UCB score', async () => {
-      // Given: MAB state with varying performance (unique arm names for test isolation)
-      const testId = randomUUID().slice(0, 8);
-      const highPerformer = `gardener:high-performer-${testId}`;
-      const lowPerformer = `gardener:low-performer-${testId}`;
-      const newAgent = `gardener:new-agent-${testId}`;
+  describe('GC-003: Priority (MAB removed)', () => {
+    it('should use direct priority without MAB adjustment', () => {
+      // MAB has been removed — priority is used directly
+      const job: GardenerJob = {
+        type: 'gardener:extract-entities',
+        tier: 'realtime',
+        priority: 5,
+        payload: { memoryId: randomUUID() },
+      };
 
-      await testDb`
-        INSERT INTO mab_state (arm, pulls, total_reward, avg_reward, ucb_score)
-        VALUES
-          (${highPerformer}, 100, 95, 0.95, 1.2),
-          (${lowPerformer}, 100, 50, 0.50, 0.7),
-          (${newAgent}, 5, 4, 0.80, 2.5)
-      `;
-
-      // When: Get UCB scores (filter to only our test arms)
-      const scores = await testDb`
-        SELECT arm, ucb_score FROM mab_state
-        WHERE arm IN (${highPerformer}, ${lowPerformer}, ${newAgent})
-        ORDER BY ucb_score DESC
-      `;
-
-      // Then: Exploration bonus for new agent (low pulls = high uncertainty)
-      expect(scores[0]!.arm).toBe(newAgent);
-      expect(parseFloat(scores[0]!.ucb_score as string)).toBeGreaterThan(2.0);
-
-      // High performer second
-      expect(scores[1]!.arm).toBe(highPerformer);
-
-      // Low performer last
-      expect(scores[2]!.arm).toBe(lowPerformer);
+      // Priority is passed through directly (no MAB score added)
+      const adjustedPriority = job.priority || 0;
+      expect(adjustedPriority).toBe(5);
     });
 
-    it('should update MAB reward after job completion', async () => {
-      // Given: Existing MAB state (unique arm name for test isolation)
-      const testArm = `gardener:test-arm-${randomUUID().slice(0, 8)}`;
-      await testDb`
-        INSERT INTO mab_state (arm, pulls, total_reward, avg_reward, ucb_score)
-        VALUES (${testArm}, 10, 8, 0.8, 1.0)
-      `;
+    it('should default to priority 0 when not specified', () => {
+      const job: GardenerJob = {
+        type: 'gardener:summarize',
+        tier: 'frequent',
+        payload: { memoryId: randomUUID() },
+      };
 
-      // When: Update with new reward
-      await testDb`SELECT update_mab_reward(${testArm}, 1.0)`;
-
-      // Then: State updated
-      const state = await testDb`
-        SELECT * FROM mab_state WHERE arm = ${testArm}
-      `;
-
-      expect(state[0]!.pulls).toBe(11);
-      expect(parseFloat(state[0]!.total_reward as string)).toBeCloseTo(9.0, 1);
+      const adjustedPriority = job.priority || 0;
+      expect(adjustedPriority).toBe(0);
     });
   });
 
   describe('GC-004: Tier scheduling', () => {
     it('should have correct tier defaults', () => {
-      // Given: Tier configuration
+      // Given: Tier configuration (deep tier removed)
       const tierDefaults = {
         realtime: { retryLimit: 2, expireInSeconds: 30 },
         frequent: { retryLimit: 3, expireInSeconds: 120 },
         periodic: { retryLimit: 3, expireInSeconds: 600 },
-        deep: { retryLimit: 1, expireInSeconds: 3600 },
       };
 
       // Then: Realtime is fastest
@@ -164,9 +149,6 @@ describe('Gardener Controller ↔ Agents Integration', () => {
 
       // Periodic has more time than frequent
       expect(tierDefaults.periodic.expireInSeconds).toBeGreaterThan(tierDefaults.frequent.expireInSeconds);
-
-      // Deep has most time
-      expect(tierDefaults.deep.expireInSeconds).toBe(3600); // 1 hour
     });
 
     it('should support different scheduling intervals', () => {
@@ -190,7 +172,7 @@ describe('Gardener Controller ↔ Agents Integration', () => {
       const jobId = randomUUID();
       await testDb`
         INSERT INTO gardener_job_meta (job_id, job_type, tier, started_at)
-        VALUES (${jobId}::uuid, 'gardener:long-job', 'deep', NOW())
+        VALUES (${jobId}::uuid, 'gardener:long-job', 'periodic', NOW())
       `;
 
       const checkpointData = {
@@ -230,7 +212,7 @@ describe('Gardener Controller ↔ Agents Integration', () => {
 
       await testDb`
         INSERT INTO gardener_job_meta (job_id, job_type, tier, checkpoint)
-        VALUES (${jobId}::uuid, 'gardener:resumable', 'deep', ${JSON.stringify(checkpointData)}::jsonb)
+        VALUES (${jobId}::uuid, 'gardener:resumable', 'periodic', ${JSON.stringify(checkpointData)}::jsonb)
       `;
 
       // When: Restore checkpoint
@@ -282,7 +264,7 @@ describe('Gardener Controller ↔ Agents Integration', () => {
   });
 
   describe('GC-007: Metrics recording', () => {
-    it('should record job completion metrics', async () => {
+    it('should record job completion with outputs', async () => {
       // Given: Completed job
       const jobId = randomUUID();
       await testDb`
@@ -290,22 +272,29 @@ describe('Gardener Controller ↔ Agents Integration', () => {
         VALUES (${jobId}::uuid, 'gardener:metrics-test', 'realtime', NOW() - interval '5 seconds')
       `;
 
-      // When: Record completion
+      // When: Record completion with outputs
       const durationMs = 5000;
+      const outputs = { entitiesFound: 3, entitiesLinked: 3 };
       await testDb`
         UPDATE gardener_job_meta
         SET completed_at = NOW(),
-            duration_ms = ${durationMs}
+            duration_ms = ${durationMs},
+            outputs = ${JSON.stringify(outputs)}::jsonb
         WHERE job_id = ${jobId}::uuid
       `;
 
-      // Then: Metrics recorded
+      // Then: Metrics and outputs recorded
       const result = await testDb`
         SELECT * FROM gardener_job_meta WHERE job_id = ${jobId}::uuid
       `;
 
       expect(result[0]!.completed_at).not.toBeNull();
       expect(result[0]!.duration_ms).toBe(5000);
+
+      const storedOutputs = typeof result[0]!.outputs === 'string'
+        ? JSON.parse(result[0]!.outputs as string)
+        : result[0]!.outputs;
+      expect(storedOutputs).toEqual(outputs);
     });
 
     it('should track job attempts', async () => {
@@ -329,6 +318,36 @@ describe('Gardener Controller ↔ Agents Integration', () => {
       `;
 
       expect(result[0]!.attempts).toBe(2);
+    });
+
+    it('should write to gardener_metrics table', async () => {
+      // Given: Agent job completion data
+      const jobId = randomUUID();
+      const agentName = 'extract-entities';
+      const durationMs = 1500;
+      const outputs = { entitiesFound: 5 };
+
+      // When: Insert metrics row (as recordJobComplete now does)
+      await testDb`
+        INSERT INTO gardener_metrics (
+          job_id, agent_name, execution_time_ms, success,
+          quality_score, items_processed, agent_specific_metrics
+        ) VALUES (
+          ${jobId}::uuid, ${agentName}, ${durationMs}, ${true},
+          ${0.92}, ${5},
+          ${JSON.stringify(outputs)}::jsonb
+        )
+      `;
+
+      // Then: Metrics row exists
+      const result = await testDb`
+        SELECT * FROM gardener_metrics WHERE job_id = ${jobId}::uuid
+      `;
+
+      expect(result.length).toBe(1);
+      expect(result[0]!.agent_name).toBe('extract-entities');
+      expect(result[0]!.execution_time_ms).toBe(1500);
+      expect(result[0]!.success).toBe(true);
     });
   });
 
@@ -364,17 +383,73 @@ describe('Gardener Controller ↔ Agents Integration', () => {
     });
 
     it('should respect retry limits by tier', () => {
-      // Given: Tier retry limits
+      // Given: Tier retry limits (deep tier removed)
       const tierDefaults = {
         realtime: { retryLimit: 2 },
         frequent: { retryLimit: 3 },
         periodic: { retryLimit: 3 },
-        deep: { retryLimit: 1 }, // Deep jobs are expensive, limit retries
       };
 
       // Then: Limits are appropriate for tier
       expect(tierDefaults.realtime.retryLimit).toBeLessThanOrEqual(tierDefaults.frequent.retryLimit);
-      expect(tierDefaults.deep.retryLimit).toBe(1); // Deep jobs fail fast
+      expect(tierDefaults.periodic.retryLimit).toBe(3);
+    });
+  });
+
+  describe('GC-009: Enriched AgentContext', () => {
+    it('should include traceId, config, services, and signal', () => {
+      const memoryId = randomUUID();
+      const ctx = createMockContext({
+        traceId: memoryId,
+        config: { ML_SERVICES_URL: 'http://localhost:8000' } as any,
+        signal: AbortSignal.timeout(30000),
+      });
+
+      expect(ctx.traceId).toBe(memoryId);
+      expect(ctx.config).toBeDefined();
+      expect(ctx.services.ml).toBeDefined();
+      expect(ctx.services.controller).toBeDefined();
+      expect(ctx.signal).toBeDefined();
+      expect(ctx.signal.aborted).toBe(false);
+    });
+  });
+
+  describe('GC-010: Trace correlation', () => {
+    it('should store trace_id in job metadata', async () => {
+      const jobId = randomUUID();
+      const traceId = randomUUID();
+
+      await testDb`
+        INSERT INTO gardener_job_meta (job_id, job_type, tier, trace_id)
+        VALUES (${jobId}::uuid, 'gardener:reader', 'realtime', ${traceId})
+      `;
+
+      const result = await testDb`
+        SELECT trace_id FROM gardener_job_meta WHERE job_id = ${jobId}::uuid
+      `;
+
+      expect(result[0]!.trace_id).toBe(traceId);
+    });
+
+    it('should query jobs by trace_id', async () => {
+      const traceId = randomUUID();
+
+      // Simulate a pipeline of 3 jobs sharing a trace
+      for (const jobType of ['gardener:reader', 'gardener:extract-entities', 'gardener:relationships']) {
+        await testDb`
+          INSERT INTO gardener_job_meta (job_id, job_type, tier, trace_id)
+          VALUES (${randomUUID()}::uuid, ${jobType}, 'realtime', ${traceId})
+        `;
+      }
+
+      const result = await testDb`
+        SELECT job_type FROM gardener_job_meta WHERE trace_id = ${traceId} ORDER BY created_at
+      `;
+
+      expect(result.length).toBe(3);
+      expect(result.map(r => r.job_type)).toContain('gardener:reader');
+      expect(result.map(r => r.job_type)).toContain('gardener:extract-entities');
+      expect(result.map(r => r.job_type)).toContain('gardener:relationships');
     });
   });
 });

@@ -17,7 +17,7 @@ export default defineConfig({
 
     // Environment variables for tests - ensure services use test database
     env: {
-      DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/cognitive_test',
+      DATABASE_URL: 'postgres://cognitive:cognitive@localhost:5433/cognitive_test',
       NODE_ENV: 'test',
       ML_SERVICES_URL: 'http://localhost:8000',
     },

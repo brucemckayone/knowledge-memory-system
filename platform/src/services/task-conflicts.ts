@@ -191,23 +191,6 @@ export async function detectPriorityConflicts(
 }
 
 /**
- * Detect resource conflicts (same entity mentioned in multiple tasks)
- * This would integrate with memory_entities to find overlapping resources
- */
-export async function detectResourceConflicts(
-  taskId: string,
-  contextId: string
-): Promise<TaskConflict[]> {
-  // TODO: Implement resource conflict detection
-  // This would:
-  // 1. Get entities mentioned in the task
-  // 2. Find other tasks mentioning the same entities
-  // 3. Check if they're scheduled at overlapping times
-  // For now, return empty array
-  return [];
-}
-
-/**
  * Get all open conflicts for a task
  */
 export async function getOpenConflicts(taskId: string): Promise<TaskConflict[]> {

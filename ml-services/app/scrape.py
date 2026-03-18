@@ -160,20 +160,3 @@ async def scrape_url(request: ScrapeRequest):
             status_code=500,
             detail=f"Failed to scrape: {str(e)}"
         )
-
-
-@router.get("/scrape/test")
-async def test_scrape():
-    """Test scraping with a sample URL"""
-    try:
-        result = await scrape_url(
-            ScrapeRequest(url="https://example.com")
-        )
-        return {
-            "success": True,
-            "title": result.title,
-            "word_count": result.word_count,
-            "preview": result.text[:200]
-        }
-    except Exception as e:
-        return {"success": False, "error": str(e)}

@@ -6,6 +6,7 @@
  */
 
 import type { AgentContext, JobResult, GardenerAgent } from '../controller.js';
+import { PayloadError, AgentError } from '../errors.js';
 import { db } from '../../db/index.js';
 import { sql } from 'drizzle-orm';
 import { summarize, embed } from '../../services/ml.js';
@@ -13,6 +14,7 @@ import { getMemory, updateVector } from '../../services/qdrant.js';
 
 interface SummarizerPayload {
   memoryId?: string;
+  content?: string;
   contentType?: string;
   wordCount?: number;
   batchMode?: boolean;  // For scheduled runs
@@ -50,15 +52,14 @@ export const summarizerAgent: GardenerAgent = {
 
     // Single memory mode
     if (!payload.memoryId) {
-      log('Missing required field: memoryId', 'error');
-      return { success: false };
+      throw new PayloadError('Missing required field: memoryId');
     }
 
     log(`Summarizing memory ${payload.memoryId.slice(0, 8)}...`);
 
     try {
-      // Get memory content
-      const content = await fetchMemoryContent(payload.memoryId);
+      // Get memory content — prefer payload, fall back to Qdrant
+      const content = payload.content || await fetchMemoryContent(payload.memoryId);
 
       if (!content) {
         log('No content found', 'warn');
@@ -96,8 +97,8 @@ export const summarizerAgent: GardenerAgent = {
       };
 
     } catch (error) {
-      log(`Summarization failed: ${error}`, 'error');
-      return { success: false };
+      if (error instanceof AgentError) throw error;
+      throw new AgentError(`Summarization failed: ${error}`, true, error);
     }
   },
 };
@@ -173,12 +174,11 @@ async function executeBatch(context: AgentContext): Promise<JobResult> {
     };
 
   } catch (error) {
-    log(`Batch summarization failed: ${error}`, 'error');
-
     // Save checkpoint on failure
     await checkpoint({ processedIds: Array.from(processedIds) });
 
-    return { success: false };
+    if (error instanceof AgentError) throw error;
+    throw new AgentError(`Batch summarization failed: ${error}`, true, error);
   }
 }
 

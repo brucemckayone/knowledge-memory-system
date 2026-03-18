@@ -10,7 +10,7 @@
 
 // CRITICAL: Set environment variables BEFORE any imports
 // This ensures all modules (including config.ts) use the test database
-process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/cognitive_test';
+process.env.DATABASE_URL = 'postgres://cognitive:cognitive@localhost:5433/cognitive_test';
 process.env.NODE_ENV = 'test';
 process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://localhost:8000';
 
@@ -39,10 +39,10 @@ export async function setup() {
   // Connect to default postgres database to create test database
   const adminSql = postgres({
     host: process.env.PGHOST || 'localhost',
-    port: parseInt(process.env.PGPORT || '5432'),
-    database: 'postgres',
-    username: process.env.PGUSER || 'postgres',
-    password: process.env.PGPASSWORD || 'postgres',
+    port: parseInt(process.env.PGPORT || '5433'),
+    database: 'cognitive',
+    username: process.env.PGUSER || 'cognitive',
+    password: process.env.PGPASSWORD || 'cognitive',
   });
 
   try {
@@ -68,10 +68,10 @@ export async function setup() {
   // Connect to test database to set up extensions and schema
   const testSql = postgres({
     host: process.env.PGHOST || 'localhost',
-    port: parseInt(process.env.PGPORT || '5432'),
+    port: parseInt(process.env.PGPORT || '5433'),
     database: TEST_DB_NAME,
-    username: process.env.PGUSER || 'postgres',
-    password: process.env.PGPASSWORD || 'postgres',
+    username: process.env.PGUSER || 'cognitive',
+    password: process.env.PGPASSWORD || 'cognitive',
   });
 
   try {
@@ -340,7 +340,7 @@ export async function setup() {
       )
     `;
 
-    // Create gardener_job_meta table
+    // Create gardener_job_meta table (with trace_id and outputs for observability)
     await testSql`
       CREATE TABLE IF NOT EXISTS gardener_job_meta (
         job_id UUID PRIMARY KEY,
@@ -354,9 +354,15 @@ export async function setup() {
         checkpoint JSONB,
         checkpoint_at TIMESTAMPTZ,
         last_error TEXT,
+        trace_id TEXT,
+        outputs JSONB,
         created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
       )
     `;
+    // Ensure columns exist for existing tables
+    await testSql`ALTER TABLE gardener_job_meta ADD COLUMN IF NOT EXISTS trace_id TEXT`;
+    await testSql`ALTER TABLE gardener_job_meta ADD COLUMN IF NOT EXISTS outputs JSONB`;
+    await testSql`CREATE INDEX IF NOT EXISTS idx_gardener_job_meta_trace ON gardener_job_meta(trace_id)`;
 
     // Create memory_chunks table for chunked content processing
     await testSql`
@@ -414,20 +420,6 @@ export async function setup() {
       )
     `;
     await testSql`CREATE INDEX IF NOT EXISTS idx_memory_summaries_memory ON memory_summaries(memory_id)`;
-
-    // Create mab_state table for multi-armed bandit
-    await testSql`
-      CREATE TABLE IF NOT EXISTS mab_state (
-        arm VARCHAR(100) PRIMARY KEY,
-        pulls INTEGER DEFAULT 0,
-        total_reward REAL DEFAULT 0,
-        avg_reward REAL DEFAULT 0,
-        ucb_score REAL DEFAULT 1.0,
-        last_pulled_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-      )
-    `;
 
     // Drop old gardener_metrics table if it has wrong schema, then recreate
     // This is needed because migration 006 creates a different schema than 007
@@ -509,6 +501,45 @@ export async function setup() {
       )
     `;
 
+    // Create ingestion_sessions table for cross-source context linking
+    await testSql`
+      CREATE TABLE IF NOT EXISTS ingestion_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        sender_id TEXT NOT NULL,
+        session_key TEXT NOT NULL UNIQUE,
+        opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        closed_at TIMESTAMPTZ,
+        member_count INTEGER NOT NULL DEFAULT 0,
+        raw_types TEXT[] NOT NULL DEFAULT '{}',
+        platforms TEXT[] NOT NULL DEFAULT '{}',
+        shared_entities UUID[] DEFAULT '{}',
+        shared_tags TEXT[] DEFAULT '{}',
+        context_summary TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await testSql`CREATE INDEX IF NOT EXISTS idx_sessions_open ON ingestion_sessions(closed_at) WHERE closed_at IS NULL`;
+    await testSql`CREATE INDEX IF NOT EXISTS idx_sessions_sender ON ingestion_sessions(sender_id, opened_at DESC)`;
+
+    // Create ingestion_session_members table
+    await testSql`
+      CREATE TABLE IF NOT EXISTS ingestion_session_members (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id UUID NOT NULL REFERENCES ingestion_sessions(id) ON DELETE CASCADE,
+        memory_id UUID NOT NULL,
+        platform TEXT NOT NULL,
+        raw_type TEXT NOT NULL,
+        content_preview TEXT,
+        ingested_at TIMESTAMPTZ NOT NULL,
+        UNIQUE(session_id, memory_id)
+      )
+    `;
+
+    await testSql`CREATE INDEX IF NOT EXISTS idx_session_members_memory ON ingestion_session_members(memory_id)`;
+    await testSql`CREATE INDEX IF NOT EXISTS idx_session_members_session ON ingestion_session_members(session_id)`;
+
     // Create indexes (pg_trgm indexes are conditional on extension availability)
     if (extensionAvailability.pg_trgm) {
       await testSql`CREATE INDEX IF NOT EXISTS idx_entities_canonical_name ON entities USING gin (canonical_name gin_trgm_ops)`;
@@ -537,25 +568,6 @@ export async function setup() {
           AND (valid_at IS NULL OR valid_at <= query_time)
           AND (invalid_at IS NULL OR invalid_at > query_time)
       $$ LANGUAGE sql STABLE
-    `;
-
-    // Create MAB update function
-    await testSql`
-      CREATE OR REPLACE FUNCTION update_mab_reward(arm_name VARCHAR, reward REAL)
-      RETURNS void AS $$
-      BEGIN
-        INSERT INTO mab_state (arm, pulls, total_reward, avg_reward, ucb_score, last_pulled_at, updated_at)
-        VALUES (arm_name, 1, reward, reward, 1.0, NOW(), NOW())
-        ON CONFLICT (arm) DO UPDATE SET
-          pulls = mab_state.pulls + 1,
-          total_reward = mab_state.total_reward + reward,
-          avg_reward = (mab_state.total_reward + reward) / (mab_state.pulls + 1),
-          ucb_score = (mab_state.total_reward + reward) / (mab_state.pulls + 1) +
-                      sqrt(2 * ln(GREATEST((SELECT SUM(pulls) FROM mab_state), 1)) / (mab_state.pulls + 1)),
-          last_pulled_at = NOW(),
-          updated_at = NOW();
-      END;
-      $$ LANGUAGE plpgsql
     `;
 
     // Insert default predicates

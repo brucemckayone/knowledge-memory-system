@@ -47,6 +47,10 @@ describe('W24 Summarizer Agent', () => {
       log: vi.fn(),
       checkpoint: vi.fn().mockResolvedValue(undefined),
       restoreCheckpoint: vi.fn().mockResolvedValue(null),
+      traceId: (data.memoryId as string) ?? null,
+      config: {} as any,
+      services: { ml: {} as any, controller: {} as any },
+      signal: AbortSignal.timeout(30000),
     };
   }
 
@@ -311,6 +315,10 @@ describe('W24 Summarizer Agent', () => {
           return Promise.resolve();
         }),
         restoreCheckpoint: vi.fn().mockResolvedValue({ processedIds: [] }),
+        traceId: null,
+        config: {} as any,
+        services: { ml: {} as any, controller: {} as any },
+        signal: AbortSignal.timeout(30000),
       };
 
       // Install mock

@@ -1,6 +1,6 @@
 /**
  * Conflict Resolution Agent
- * 
+ *
  * KARMA agent that detects and resolves contradictions between facts.
  * Implements ALICE framework for supersession and expiration.
  */
@@ -14,7 +14,17 @@ import {
 } from '../../services/facts.js';
 import { db } from '../../db/index.js';
 import { facts, type Fact } from '../../db/schema.js';
-import { isNull, eq } from 'drizzle-orm';
+import { isNull, eq, inArray } from 'drizzle-orm';
+import { AgentError } from '../errors.js';
+
+interface FactSummary {
+  id: string;
+  subjectEntityId: string;
+  predicate: string;
+  objectEntityId?: string;
+  objectValue?: string;
+  validAt?: Date;
+}
 
 interface ConflictResult {
   contradicts: boolean;
@@ -30,9 +40,12 @@ export const conflictResolutionAgent: GardenerAgent = {
 
   async execute(context: AgentContext): Promise<JobResult> {
     const { job, log, checkpoint, restoreCheckpoint } = context;
-    const payload = job.data as { 
+    const payload = job.data as {
       factId?: string;
+      factIds?: string[];
+      factSummaries?: FactSummary[];
       checkAll?: boolean;
+      checkRecent?: boolean;
       batchSize?: number;
     };
 
@@ -47,8 +60,29 @@ export const conflictResolutionAgent: GardenerAgent = {
     try {
       // Get facts to check
       let factsToCheck: Fact[];
-      
-      if (payload.factId) {
+
+      if (payload.factIds && payload.factIds.length > 0) {
+        // Batch mode: use pre-fetched summaries if available, else fetch from DB
+        if (payload.factSummaries && payload.factSummaries.length > 0) {
+          // Fetch full facts only for IDs that need them (summaries don't have createdAt etc.)
+          factsToCheck = await db
+            .select()
+            .from(facts)
+            .where(inArray(facts.id, payload.factIds));
+        } else {
+          factsToCheck = [];
+          for (const fid of payload.factIds) {
+            const result = await db
+              .select()
+              .from(facts)
+              .where(eq(facts.id, fid))
+              .limit(1);
+            if (result.length > 0) {
+              factsToCheck.push(result[0]!);
+            }
+          }
+        }
+      } else if (payload.factId) {
         // Check single fact
         const result = await db
           .select()
@@ -85,40 +119,40 @@ export const conflictResolutionAgent: GardenerAgent = {
 
           // Check contradiction via ML service
           const conflict = await checkConflict(fact, candidate);
-          
+
           if (conflict.contradicts) {
             conflictsFound++;
-            
+
             switch (conflict.resolution) {
               case 'supersede':
                 // Newer fact supersedes older
                 const newer = fact.createdAt > candidate.createdAt ? fact : candidate;
                 const older = fact.createdAt > candidate.createdAt ? candidate : fact;
-                
+
                 // Expire the older fact
                 await expireFact(older.id, `Superseded by fact ${newer.id}`);
-                
+
                 // Invalidate at the time the new fact became valid
                 if (newer.validAt) {
                   await invalidateFact(older.id, newer.validAt);
                 }
-                
+
                 superseded++;
                 log(`Superseded fact ${older.id.slice(0,8)} with ${newer.id.slice(0,8)}`);
                 break;
-                
+
               case 'invalidate':
                 // Mark one as wrong
                 await expireFact(candidate.id, 'Invalidated due to conflict');
                 superseded++;
                 break;
-                
+
               case 'flag':
                 // Flag for human review (store in a review queue)
                 flagged++;
                 log(`Flagged conflict between ${fact.id.slice(0,8)} and ${candidate.id.slice(0,8)}`, 'warn');
                 break;
-                
+
               case 'coexist':
                 // No action needed
                 break;
@@ -127,7 +161,7 @@ export const conflictResolutionAgent: GardenerAgent = {
         }
 
         processedIds.add(fact.id);
-        
+
         // Checkpoint every 10 facts
         if (processedIds.size % 10 === 0) {
           await checkpoint({ processedIds: Array.from(processedIds) });
@@ -150,12 +184,11 @@ export const conflictResolutionAgent: GardenerAgent = {
       };
 
     } catch (error) {
-      log(`Conflict resolution failed: ${error}`, 'error');
-      
-      // Save checkpoint on failure
+      // Save checkpoint on failure so we can resume
       await checkpoint({ processedIds: Array.from(processedIds) });
-      
-      return { success: false };
+
+      if (error instanceof AgentError) throw error;
+      throw new AgentError(`Conflict resolution failed: ${error}`, true, error);
     }
   },
 };
@@ -181,7 +214,7 @@ async function checkConflict(fact1: Fact, fact2: Fact): Promise<ConflictResult> 
         invalid_at: fact2.invalidAt?.toISOString(),
       }
     );
-    
+
     // Map response to internal ConflictResult if needed, or use as is
     // The ML service returns CheckContradictionResponse which matches ConflictResult structure closely
     return result as unknown as ConflictResult;

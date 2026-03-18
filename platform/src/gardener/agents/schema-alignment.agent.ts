@@ -6,6 +6,7 @@
  */
 
 import type { AgentContext, JobResult, GardenerAgent } from '../controller.js';
+import { AgentError } from '../errors.js';
 import { db } from '../../db/index.js';
 import { sql } from 'drizzle-orm';
 import {
@@ -145,15 +146,14 @@ export const schemaAlignmentAgent: GardenerAgent = {
       };
 
     } catch (error) {
-      log(`Schema alignment failed: ${error}`, 'error');
-
       // Save checkpoint on failure
       await checkpoint({
         syncedPredicates: Array.from(syncedPredicates),
         normalizedPredicates: Array.from(normalizedPredicates),
       });
 
-      return { success: false };
+      if (error instanceof AgentError) throw error;
+      throw new AgentError(`Schema alignment failed: ${error}`, true, error);
     }
   },
 };

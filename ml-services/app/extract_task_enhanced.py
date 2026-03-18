@@ -10,8 +10,9 @@ Phase 5: Task Processing Pipeline Enhancements
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from .core.llm import llm_client
+from .core.task_utils import get_date_context, parse_flexible_date, validate_priority
 import os
 import re
 
@@ -144,107 +145,6 @@ For relative dates (today is {today}):
 - "at [time]" = that time on appropriate day
 
 Respond ONLY with valid JSON."""
-
-
-def get_date_context() -> dict:
-    """Get date context for LLM prompt"""
-    now = datetime.now()
-    return {
-        "today": now.strftime("%Y-%m-%d %A"),
-        "tomorrow": (now + __import__('datetime').timedelta(days=1)).strftime("%Y-%m-%d"),
-    }
-
-
-def parse_flexible_date(date_str: Optional[str], reference: datetime) -> Optional[str]:
-    """Parse natural language dates with enhanced patterns"""
-    if not date_str:
-        return None
-
-    try:
-        # Try parsing ISO format first
-        dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-        return dt.isoformat()
-    except ValueError:
-        pass
-
-    # Common relative date patterns
-    lower = date_str.lower()
-    now = reference
-
-    # "tomorrow" with optional time
-    if 'tomorrow' in lower:
-        dt = now + __import__('datetime').timedelta(days=1)
-        return dt.replace(hour=9, minute=0, second=0, microsecond=0).isoformat()
-
-    # "today" with optional time
-    if 'today' in lower or 'tonight' in lower:
-        return now.replace(hour=17, minute=0, second=0, microsecond=0).isoformat()
-
-    # "next [day]" pattern
-    next_day_match = re.search(r'next\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)', lower)
-    if next_day_match:
-        day_name = next_day_match.group(1)
-        days_of_week = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-        target_day = days_of_week.index(day_name)
-        current_day = now.weekday()
-        days_ahead = (target_day - current_day + 7) % 7
-        if days_ahead == 0:
-            days_ahead = 7  # Next week, not today
-        dt = now + __import__('datetime').timedelta(days=days_ahead)
-        return dt.replace(hour=9, minute=0, second=0, microsecond=0).isoformat()
-
-    # "in X [days|hours|weeks]"
-    in_match = re.search(r'in\s+(\d+)\s+(hour|day|week)s?', lower)
-    if in_match:
-        amount = int(in_match.group(1))
-        unit = in_match.group(2)
-        if unit == 'hour':
-            dt = now + __import__('datetime').timedelta(hours=amount)
-            return dt.isoformat()
-        elif unit == 'day':
-            dt = now + __import__('datetime').timedelta(days=amount)
-            return dt.replace(hour=9, minute=0, second=0, microsecond=0).isoformat()
-        elif unit == 'week':
-            dt = now + __import__('datetime').timedelta(weeks=amount)
-            return dt.replace(hour=9, minute=0, second=0, microsecond=0).isoformat()
-
-    # "by [day]" pattern
-    by_match = re.search(r'by\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)', lower)
-    if by_match:
-        day_name = by_match.group(1)
-        days_of_week = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-        target_day = days_of_week.index(day_name)
-        current_day = now.weekday()
-        days_ahead = (target_day - current_day + 7) % 7
-        dt = now + __import__('datetime').timedelta(days=days_ahead)
-        return dt.replace(hour=17, minute=0, second=0, microsecond=0).isoformat()
-
-    # "[day] at [time]" pattern
-    at_time_match = re.search(r'at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?', lower)
-    if at_time_match:
-        hour = int(at_time_match.group(1))
-        minute = int(at_time_match.group(2)) if at_time_match.group(2) else 0
-        meridiem = at_time_match.group(3)
-
-        if meridiem == 'pm' and hour < 12:
-            hour += 12
-        elif meridiem == 'am' and hour == 12:
-            hour = 0
-
-        dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        return dt.isoformat()
-
-    return None
-
-
-def validate_priority(priority: str) -> str:
-    """Normalize priority value"""
-    priority = priority.lower().strip()
-    if priority in ('high', 'urgent', 'critical', 'important'):
-        return 'high'
-    if priority in ('low', 'eventually', 'someday'):
-        return 'low'
-    return 'medium'
 
 
 def normalize_dependency_type(dep_type: str) -> str:
@@ -461,69 +361,3 @@ async def extract_task_enhanced(request: ExtractTaskEnhancedRequest):
             raw_due_text=None,
             rejection_reason=f"Extraction failed: {str(e)}"
         )
-
-
-@router.get("/extract-task-enhanced/test")
-async def test_enhanced_extraction():
-    """Test endpoint for enhanced task extraction with sample messages."""
-    samples = [
-        # Complex composite tasks
-        "Plan and execute marketing campaign for Q1 product launch",
-        "Organize team offsite retreat for 20 people including venue, catering, and activities",
-        "Migrate the database to PostgreSQL with zero downtime",
-
-        # Simple tasks
-        "Call John tomorrow at 3pm",
-        "Finish the report by Friday",
-        "Buy groceries on the way home",
-
-        # Tasks with dependencies
-        "After the design is approved, start implementing the frontend",
-        "Once you finish the research, write the summary",
-
-        # Low-quality tests (should be rejected)
-        "verify",
-        "check out",
-        "what's the best way to organize this?",
-    ]
-
-    results = []
-    for sample in samples:
-        try:
-            result = await extract_task_enhanced(ExtractTaskEnhancedRequest(
-                text=sample,
-                include_reasoning=True
-            ))
-            results.append({
-                "input": sample,
-                "action": result.action or "[REJECTED]",
-                "is_composite": result.is_composite,
-                "subtask_count": len(result.subtasks),
-                "due_date": result.due_date,
-                "priority": result.priority,
-                "confidence": result.confidence,
-                "estimated_minutes": result.estimated_duration_minutes,
-                "dependencies": len(result.dependencies),
-                "conflicts": len(result.detected_conflicts),
-                "rejection_reason": result.rejection_reason,
-            })
-        except Exception as e:
-            results.append({"input": sample, "error": str(e)})
-
-    return {"test_results": results}
-
-
-@router.post("/extract-task-enhanced/test-single")
-async def test_single_extraction(request: ExtractTaskEnhancedRequest):
-    """Test endpoint for single message with verbose output."""
-    result = await extract_task_enhanced(request)
-    return {
-        "message": "Enhanced task extraction test",
-        "input": request.text,
-        "result": result,
-        "debug": {
-            "context_messages_count": len(request.context_messages) if request.context_messages else 0,
-            "existing_tasks_count": len(request.existing_tasks) if request.existing_tasks else 0,
-            "has_preferences": request.user_preferences is not None,
-        }
-    }

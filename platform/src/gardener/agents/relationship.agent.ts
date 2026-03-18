@@ -6,11 +6,12 @@
  */
 
 import type { AgentContext, JobResult, GardenerAgent, GardenerJob } from '../controller.js';
-import { config } from '../../config.js';
 import { createFact } from '../../services/facts.js';
 import { normalizePredicate, recordPredicateUsage } from '../../services/predicates.js';
 import { getMemoryEntities } from '../../services/entities.js';
-import { ml } from '../../services/ml-client.js';
+import { ml, MlClientError } from '../../services/ml-client.js';
+import { getMemory } from '../../services/qdrant.js';
+import { PayloadError, MlServiceError, AgentError } from '../errors.js';
 
 interface RelationshipPayload {
   memoryId: string;
@@ -36,8 +37,7 @@ export const relationshipAgent: GardenerAgent = {
     const payload = job.data as RelationshipPayload;
 
     if (!payload.memoryId) {
-      log('Missing required field: memoryId', 'error');
-      return { success: false };
+      throw new PayloadError('Missing required field: memoryId');
     }
 
     log(`Extracting relationships from memory ${payload.memoryId.slice(0, 8)}...`);
@@ -91,7 +91,15 @@ export const relationshipAgent: GardenerAgent = {
       // Create facts for each relationship
       let factsCreated = 0;
       let skipped = 0;
-      const nextJobs: GardenerJob[] = [];
+      const createdFactIds: string[] = [];
+      const createdFactSummaries: Array<{
+        id: string;
+        subjectEntityId: string;
+        predicate: string;
+        objectEntityId?: string;
+        objectValue?: string;
+        validAt: Date;
+      }> = [];
 
       for (const rel of relationships) {
         try {
@@ -134,15 +142,14 @@ export const relationshipAgent: GardenerAgent = {
           await recordPredicateUsage(normalizedPredicate);
 
           factsCreated++;
-
-          // Queue conflict resolution for new facts
-          nextJobs.push({
-            type: 'gardener:resolve-conflicts',
-            tier: 'periodic',
-            payload: {
-              factId,
-              checkRecent: true,
-            },
+          createdFactIds.push(factId);
+          createdFactSummaries.push({
+            id: factId,
+            subjectEntityId: subjectEntity.id,
+            predicate: normalizedPredicate,
+            objectEntityId: objectEntity?.id,
+            objectValue: objectEntity ? undefined : rel.object,
+            validAt,
           });
 
         } catch (error) {
@@ -152,6 +159,20 @@ export const relationshipAgent: GardenerAgent = {
       }
 
       log(`Created ${factsCreated} facts, skipped ${skipped}`);
+
+      // Queue a single batched conflict resolution job for all new facts
+      const nextJobs: GardenerJob[] = [];
+      if (createdFactIds.length > 0) {
+        nextJobs.push({
+          type: 'gardener:resolve-conflicts',
+          tier: 'periodic',
+          payload: {
+            factIds: createdFactIds,
+            factSummaries: createdFactSummaries,
+            checkRecent: true,
+          },
+        });
+      }
 
       return {
         success: true,
@@ -168,8 +189,11 @@ export const relationshipAgent: GardenerAgent = {
       };
 
     } catch (error) {
-      log(`Relationship extraction failed: ${error}`, 'error');
-      return { success: false };
+      if (error instanceof MlClientError) {
+        throw new MlServiceError('Relationship extraction ML failure', error);
+      }
+      if (error instanceof AgentError) throw error;
+      throw new AgentError(`Relationship extraction failed: ${error}`, true, error);
     }
   },
 };
@@ -220,21 +244,8 @@ function getValidAt(temporalHint?: string): Date {
  */
 async function fetchMemoryContent(memoryId: string): Promise<string> {
   try {
-    const response = await fetch(`${config.QDRANT_URL}/collections/memories/points/${memoryId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) {
-      return '';
-    }
-
-    const data = await response.json() as {
-      result?: { payload?: { content?: string } };
-    };
-
-    return data.result?.payload?.content || '';
-
+    const memory = await getMemory(memoryId);
+    return (memory?.payload?.content as string) || '';
   } catch (error) {
     console.warn('Failed to fetch from Qdrant:', error);
     return '';

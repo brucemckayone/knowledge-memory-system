@@ -4,9 +4,10 @@
  * KARMA agent that extracts entities from memories and links them to the graph.
  */
 
-import type { AgentContext, JobResult, GardenerAgent } from '../controller.js';
+import type { AgentContext, JobResult, GardenerAgent, GardenerJob } from '../controller.js';
 import { ml, MlClientError } from '../../services/ml-client.js';
 import { linkEntitiesToMemory } from '../../services/entities.js';
+import { PayloadError, MlServiceError, AgentError } from '../errors.js';
 
 export const entityExtractionAgent: GardenerAgent = {
   name: 'extract-entities',
@@ -17,8 +18,7 @@ export const entityExtractionAgent: GardenerAgent = {
     const payload = job.data as { memoryId: string; content: string; type?: string };
 
     if (!payload.memoryId || !payload.content) {
-      log('Missing required fields: memoryId, content', 'error');
-      return { success: false };
+      throw new PayloadError('Missing required fields: memoryId, content');
     }
 
     log(`Extracting entities from memory ${payload.memoryId.slice(0, 8)}...`);
@@ -36,25 +36,44 @@ export const entityExtractionAgent: GardenerAgent = {
         };
       }
 
-      // Link entities to memory
-      const linkedCount = await linkEntitiesToMemory(payload.memoryId, entities);
-      log(`Linked ${linkedCount} entities to memory`);
+      // Link entities to memory — returns resolved entity details
+      const linkedEntities = await linkEntitiesToMemory(payload.memoryId, entities);
+      log(`Linked ${linkedEntities.length} entities to memory`);
+
+      // Queue relationship extraction if we have enough entities
+      const nextJobs: GardenerJob[] = [];
+      if (linkedEntities.length >= 2) {
+        nextJobs.push({
+          type: 'gardener:relationships',
+          tier: 'frequent',
+          payload: {
+            memoryId: payload.memoryId,
+            content: payload.content,
+            entities: linkedEntities,
+          },
+        });
+        log('Queued relationship extraction');
+      }
 
       return {
         success: true,
+        nextJobs: nextJobs.length > 0 ? nextJobs : undefined,
+        outputs: {
+          entitiesFound: entities.length,
+          entitiesLinked: linkedEntities.length,
+        },
         metrics: {
           confidence: entities.reduce((sum, e) => sum + (e.confidence || 0.8), 0) / entities.length,
-          itemsProcessed: linkedCount,
+          itemsProcessed: linkedEntities.length,
         },
       };
 
     } catch (error) {
       if (error instanceof MlClientError) {
-        log(`ML service error: ${error.message}`, 'warn');
-        return { success: false };
+        throw new MlServiceError('Entity extraction ML failure', error);
       }
-      log(`Entity extraction failed: ${error}`, 'error');
-      return { success: false };
+      if (error instanceof AgentError) throw error;
+      throw new AgentError(`Entity extraction failed: ${error}`, true, error);
     }
   },
 };

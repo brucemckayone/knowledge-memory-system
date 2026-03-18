@@ -298,7 +298,8 @@ export async function linkMemoryToEntity(
 }
 
 /**
- * Link multiple entities to a memory
+ * Link multiple entities to a memory.
+ * Returns the resolved entity details so downstream agents don't need to re-fetch.
  */
 export async function linkEntitiesToMemory(
   memoryId: string,
@@ -309,9 +310,9 @@ export async function linkEntitiesToMemory(
     end?: number;
     confidence?: number;
   }>
-): Promise<number> {
-  let linkedCount = 0;
-  
+): Promise<Array<{ id: string; name: string; type: string }>> {
+  const linked: Array<{ id: string; name: string; type: string }> = [];
+
   for (const entity of extractedEntities) {
     try {
       // Resolve to canonical entity
@@ -320,21 +321,25 @@ export async function linkEntitiesToMemory(
         '',  // No additional context
         entity.type as EntityType
       );
-      
+
       // Link to memory
       await linkMemoryToEntity(memoryId, resolved.id, {
         text: entity.mention,
         start: entity.start,
         end: entity.end,
       });
-      
-      linkedCount++;
+
+      linked.push({
+        id: resolved.id,
+        name: resolved.canonicalName,
+        type: resolved.entityType,
+      });
     } catch (error) {
       console.error(`Failed to link entity "${entity.mention}":`, error);
     }
   }
-  
-  return linkedCount;
+
+  return linked;
 }
 
 /**

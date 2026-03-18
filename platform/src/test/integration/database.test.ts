@@ -64,7 +64,7 @@ describe('Platform ↔ PostgreSQL Integration', () => {
       await expect(
         testDb`
           INSERT INTO entities (canonical_name, entity_type, embedding)
-          VALUES ('Test Entity', 'person', ${embeddingStr}::vector)
+          VALUES ('Test Entity', 'test_entity', ${embeddingStr}::vector)
         `
       ).rejects.toThrow();
     });
@@ -79,13 +79,13 @@ describe('Platform ↔ PostgreSQL Integration', () => {
         i < 760 ? v : v + (Math.random() * 0.001 - 0.0005)
       );
 
-      await createTestEntity({
+      const entity1 = await createTestEntity({
         canonicalName: 'John Smith',
         entityType: 'person',
         embedding: baseEmbedding,
       });
 
-      await createTestEntity({
+      const entity2 = await createTestEntity({
         canonicalName: 'John A. Smith',
         entityType: 'person',
         embedding: normalizeVector(similarEmbedding),
@@ -97,14 +97,13 @@ describe('Platform ↔ PostgreSQL Integration', () => {
       // Then: Similarity should be very high
       expect(similarity).toBeGreaterThan(0.99);
 
-      // Query using vector similarity
+      // Query using vector similarity, scoped to our entities
       const embeddingStr = `[${baseEmbedding.join(',')}]`;
       const similar = await testDb`
         SELECT canonical_name, 1 - (embedding <=> ${embeddingStr}::vector) as similarity
         FROM entities
-        WHERE entity_type = 'person'
+        WHERE id IN (${entity1.id}::uuid, ${entity2.id}::uuid)
         ORDER BY embedding <=> ${embeddingStr}::vector
-        LIMIT 5
       `;
 
       expect(similar.length).toBe(2);

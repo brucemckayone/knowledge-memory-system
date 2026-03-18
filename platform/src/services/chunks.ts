@@ -194,17 +194,6 @@ export async function reassembleContent(memoryId: string): Promise<string> {
 }
 
 /**
- * Mark chunk as processed
- */
-export async function markChunkProcessed(chunkId: string): Promise<void> {
-  await db.execute(sql`
-    UPDATE memory_chunks
-    SET processed_at = NOW()
-    WHERE id = ${chunkId}::uuid
-  `);
-}
-
-/**
  * Mark all chunks for a memory as processed
  */
 export async function markAllChunksProcessed(memoryId: string): Promise<void> {
@@ -213,49 +202,4 @@ export async function markAllChunksProcessed(memoryId: string): Promise<void> {
     SET processed_at = NOW()
     WHERE memory_id = ${memoryId}
   `);
-}
-
-/**
- * Delete chunks for a memory
- */
-export async function deleteChunks(memoryId: string): Promise<void> {
-  await db.execute(sql`
-    DELETE FROM memory_chunks WHERE memory_id = ${memoryId}
-  `);
-}
-
-/**
- * Get unprocessed chunks across all memories
- */
-export async function getUnprocessedChunks(limit: number = 100): Promise<MemoryChunk[]> {
-  const result = await db.execute(sql`
-    SELECT
-      id,
-      memory_id as "memoryId",
-      chunk_index as "chunkIndex",
-      content,
-      char_count as "charCount",
-      token_estimate as "tokenEstimate",
-      overlap_chars as "overlapChars",
-      created_at as "createdAt",
-      processed_at as "processedAt"
-    FROM memory_chunks
-    WHERE processed_at IS NULL
-    ORDER BY created_at
-    LIMIT ${limit}
-  `);
-
-  return (result as unknown as { rows: MemoryChunk[] }).rows;
-}
-
-/**
- * Get chunk count for a memory
- */
-export async function getChunkCount(memoryId: string): Promise<number> {
-  const result = await db.execute(sql`
-    SELECT COUNT(*) as count FROM memory_chunks WHERE memory_id = ${memoryId}
-  `);
-
-  const rows = (result as unknown as { rows: Array<{ count: number }> }).rows;
-  return rows[0]?.count || 0;
 }

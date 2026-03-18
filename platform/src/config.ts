@@ -27,28 +27,16 @@ const envSchema = z.object({
   // Queue
   QUEUE_CONCURRENCY: z.coerce.number().default(2),
 
+  // Rate limiting
+  RATE_LIMIT_MESSAGES_PER_MINUTE: z.coerce.number().default(10),
+
   // Gardener Intervals (for testing/acceleration)
   GARDENER_FREQUENT_INTERVAL: z.string().default('5m'),
   GARDENER_PERIODIC_INTERVAL: z.string().default('1h'),
-  GARDENER_DEEP_INTERVAL: z.string().default('24h'),
 
-  // ================================================================
-  // Phase 5: Enhanced Task Processing Configuration
-  // ================================================================
+  // Ingestion session window (minutes) for cross-source context linking
+  INGESTION_SESSION_WINDOW_MINUTES: z.coerce.number().default(15),
 
-  // Enhanced LLM Configuration
-  ENHANCED_LLM_PROVIDER: z.enum(['zai', 'openai', 'anthropic']).default('zai'),
-  ENHANCED_LLM_MODEL: z.string().default('glm-4.7'),
-  ENHANCED_LLM_API_KEY: z.string().optional(),
-  ENHANCED_LLM_BASE_URL: z.string().url().optional(),
-
-  // Pattern Analysis Configuration
-  GARDENER_PATTERN_ANALYSIS_ENABLED: z.enum(['true', 'false']).transform(x => x === 'true').default('true'),
-  GARDENER_PATTERN_ANALYSIS_INTERVAL: z.string().default('1h'),
-
-  // Semantic Deduplication
-  SEMANTIC_DUPLICATE_ENABLED: z.enum(['true', 'false']).transform(x => x === 'true').default('true'),
-  SEMANTIC_DUPLICATE_THRESHOLD: z.coerce.number().default(0.90),
 });
 
 export type Config = z.infer<typeof envSchema>;

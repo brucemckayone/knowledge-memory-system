@@ -102,22 +102,6 @@ export const contextSummaries = pgTable('context_summaries', {
 });
 
 /**
- * Processing State
- * 
- * Tracks message batching and processing status per conversation.
- * Used by the Context Updater background job.
- */
-export const processingState = pgTable('processing_state', {
-  conversationId: varchar('conversation_id', { length: 255 }).primaryKey(),
-  pendingMessages: jsonb('pending_messages').default('[]').notNull(),
-  messagesSinceUpdate: integer('messages_since_update').default(0).notNull(),
-  lastProcessedAt: timestamp('last_processed_at', { withTimezone: true }),
-  nextAnalysisAt: timestamp('next_analysis_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
-/**
  * Settings
  * 
  * User configuration and preferences.
@@ -178,22 +162,6 @@ export const entityAliasesRelations = relations(entityAliases, ({ one }) => ({
     references: [entities.id],
   }),
 }));
-
-/**
- * Entity Merges
- * 
- * Audit trail of entity deduplication operations
- */
-export const entityMerges = pgTable('entity_merges', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  sourceEntityId: uuid('source_entity_id').notNull(),
-  targetEntityId: uuid('target_entity_id').notNull().references(() => entities.id),
-  mergeReason: text('merge_reason'),
-  mergeMethod: varchar('merge_method', { length: 50 }),
-  similarityScore: real('similarity_score'),
-  mergedAt: timestamp('merged_at', { withTimezone: true }).defaultNow().notNull(),
-  mergedBy: varchar('merged_by', { length: 100 }).default('system'),
-});
 
 /**
  * Memory Entities
@@ -368,6 +336,58 @@ export const taskConflictsRelations = relations(taskConflicts, ({ one }) => ({
  * Stores learned user behavior patterns for personalized task management.
  * Each preference has confidence and sample count for quality tracking.
  */
+// ============================================
+// Ingestion Sessions (Cross-Source Context Linking)
+// ============================================
+
+/**
+ * Ingestion Sessions
+ *
+ * Groups temporally-close items from the same user into sessions.
+ * Enables the context-linker agent to detect cross-item relationships.
+ */
+export const ingestionSessions = pgTable('ingestion_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  senderId: text('sender_id').notNull(),
+  sessionKey: text('session_key').notNull().unique(),
+  openedAt: timestamp('opened_at', { withTimezone: true }).defaultNow().notNull(),
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+  memberCount: integer('member_count').default(0).notNull(),
+  rawTypes: text('raw_types').array().notNull().default([]),
+  platforms: text('platforms').array().notNull().default([]),
+  sharedEntities: uuid('shared_entities').array().default([]),
+  sharedTags: text('shared_tags').array().default([]),
+  contextSummary: text('context_summary'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const ingestionSessionsRelations = relations(ingestionSessions, ({ many }) => ({
+  members: many(ingestionSessionMembers),
+}));
+
+/**
+ * Ingestion Session Members
+ *
+ * Links individual memories to their ingestion session.
+ */
+export const ingestionSessionMembers = pgTable('ingestion_session_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sessionId: uuid('session_id').notNull().references(() => ingestionSessions.id, { onDelete: 'cascade' }),
+  memoryId: uuid('memory_id').notNull(),
+  platform: text('platform').notNull(),
+  rawType: text('raw_type').notNull(),
+  contentPreview: text('content_preview'),
+  ingestedAt: timestamp('ingested_at', { withTimezone: true }).notNull(),
+});
+
+export const ingestionSessionMembersRelations = relations(ingestionSessionMembers, ({ one }) => ({
+  session: one(ingestionSessions, {
+    fields: [ingestionSessionMembers.sessionId],
+    references: [ingestionSessions.id],
+  }),
+}));
+
 export const userPreferences = pgTable('user_preferences', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: varchar('user_id', { length: 255 }).notNull(),
@@ -387,7 +407,6 @@ export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
 export type ContextSummary = typeof contextSummaries.$inferSelect;
 export type NewContextSummary = typeof contextSummaries.$inferInsert;
-export type ProcessingState = typeof processingState.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
 
 // Phase 3 types
@@ -395,7 +414,6 @@ export type Entity = typeof entities.$inferSelect;
 export type NewEntity = typeof entities.$inferInsert;
 export type EntityAlias = typeof entityAliases.$inferSelect;
 export type NewEntityAlias = typeof entityAliases.$inferInsert;
-export type EntityMerge = typeof entityMerges.$inferSelect;
 export type MemoryEntity = typeof memoryEntities.$inferSelect;
 export type NewMemoryEntity = typeof memoryEntities.$inferInsert;
 export type Fact = typeof facts.$inferSelect;
@@ -410,3 +428,9 @@ export type TaskConflict = typeof taskConflicts.$inferSelect;
 export type NewTaskConflict = typeof taskConflicts.$inferInsert;
 export type UserPreference = typeof userPreferences.$inferSelect;
 export type NewUserPreference = typeof userPreferences.$inferInsert;
+
+// Ingestion session types
+export type IngestionSession = typeof ingestionSessions.$inferSelect;
+export type NewIngestionSession = typeof ingestionSessions.$inferInsert;
+export type IngestionSessionMember = typeof ingestionSessionMembers.$inferSelect;
+export type NewIngestionSessionMember = typeof ingestionSessionMembers.$inferInsert;

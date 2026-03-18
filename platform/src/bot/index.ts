@@ -1,4 +1,4 @@
-import { Bot } from 'grammy';
+import { Bot, type Context } from 'grammy';
 import { config } from '../config.js';
 import { getQueue, QUEUES } from '../queue/index.js';
 import { embed } from '../services/ml.js';
@@ -6,6 +6,8 @@ import { searchMemories, qdrant, COLLECTIONS } from '../services/qdrant.js';
 import { db } from '../db/index.js';
 import { tasks } from '../db/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
+import { priorityEmoji } from '../utils/format.js';
+import { rateLimiter } from './rate-limiter.js';
 
 // Re-export file utilities
 export { getFileUrl } from './files.js';
@@ -56,30 +58,48 @@ async function performSearch(query: string): Promise<string> {
 }
 
 /**
- * Queue a message for memory processing
+ * Safely send a typing indicator, suppressing errors if chat is unavailable
  */
-async function queueMessage(ctx: { message: any; from: any }) {
+async function safeSendTyping(ctx: Context): Promise<void> {
+  try {
+    await ctx.api.sendChatAction(ctx.chat!.id, 'typing');
+  } catch { /* non-critical: chat may be deleted or bot blocked */ }
+}
+
+/**
+ * Queue a message for memory processing.
+ * Returns true if successfully queued, false on failure.
+ */
+async function queueMessage(ctx: { message: any; from: any }): Promise<boolean> {
   try {
     const boss = getQueue();
     const message = ctx.message;
-    
+    const text = message.text || message.caption;
+
     await boss.send(QUEUES.MESSAGE_PROCESSING, {
       chatId: message.chat.id,
       messageId: message.message_id,
       senderId: ctx.from.id,
       senderName: ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : ''),
       senderUsername: ctx.from.username,
-      text: message.text,
+      text,
       voice: message.voice ? {
         fileId: message.voice.file_id,
         duration: message.voice.duration,
       } : undefined,
       timestamp: new Date(message.date * 1000).toISOString(),
     });
-    
+
     console.log(`📤 Queued message ${message.message_id} for processing`);
+    return true;
   } catch (error) {
-    console.error('Failed to queue message:', error);
+    const errMsg = String(error);
+    if (errMsg.includes('not started') || errMsg.includes('not initialized')) {
+      console.error('Failed to queue message: pg-boss is not initialized. Ensure the queue is started before processing messages.');
+    } else {
+      console.error('Failed to queue message:', error);
+    }
+    return false;
   }
 }
 
@@ -90,6 +110,9 @@ bot.use(async (ctx, next) => {
   const ms = Date.now() - start;
   console.log(`📨 Update ${ctx.update.update_id} processed in ${ms}ms`);
 });
+
+// Middleware: Rate limiting
+bot.use(rateLimiter);
 
 // Command: /start
 bot.command('start', async (ctx) => {
@@ -126,6 +149,7 @@ bot.command('help', async (ctx) => {
     `"Remind me to..." - Create task\n\n` +
     `**📚 Browse**\n` +
     `/recent - Show recent memories\n` +
+    `/entity <name> - Look up an entity\n` +
     `/stats - Your stats\n\n` +
     `**🎤 Voice**\n` +
     `Send voice messages - I'll transcribe them!\n\n` +
@@ -156,20 +180,36 @@ bot.command('chat', async (ctx) => {
 
   try {
     // Send typing indicator while generating response
-    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+    await safeSendTyping(ctx);
 
     // Import chat function
     const { chat } = await import('../services/ml.js');
 
-    // Get AI response
-    const response = await chat(message);
+    // Build context from knowledge base
+    let contextBlock = '';
+    try {
+      const embedResult = await embed(message);
+      const results = await searchMemories(embedResult.vector, { limit: 3 });
+      if (results.length > 0) {
+        const memories = results
+          .map(r => ((r.payload as any).content || '') as string)
+          .filter(Boolean)
+          .map((m, i) => `${i + 1}. ${m.slice(0, 300)}`);
+        if (memories.length > 0) {
+          contextBlock = '\n\nRelevant context from user\'s knowledge base:\n' + memories.join('\n');
+        }
+      }
+    } catch { /* non-fatal: proceed without context */ }
+
+    const systemPrompt = 'You are a helpful AI assistant for a personal knowledge management system.' + contextBlock;
+    const response = await chat(message, systemPrompt);
 
     // Send response back to user
     await ctx.reply(`💬 ${response.response}`);
   } catch (error) {
     console.error('Chat error:', error);
     await ctx.reply(
-      `❌ Sorry, I encountered an error: ${(error as Error).Message}\n\n` +
+      `❌ Sorry, I encountered an error: ${(error as Error).message}\n\n` +
       `Note: Chat requires the Z.AI API to be configured with sufficient balance.`
     );
   }
@@ -184,7 +224,7 @@ bot.command('search', async (ctx) => {
   }
 
   // Send typing indicator while searching
-  await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+  await safeSendTyping(ctx);
 
   // Perform actual semantic search
   const results = await performSearch(query);
@@ -194,7 +234,7 @@ bot.command('search', async (ctx) => {
 // Command: /tasks - List pending tasks with optional filters
 bot.command('tasks', async (ctx) => {
   try {
-    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+    await safeSendTyping(ctx);
 
     const match = ctx.match;
     const filterText = match ? String(match).trim() : '';
@@ -215,17 +255,13 @@ bot.command('tasks', async (ctx) => {
       }
 
       const taskList = pendingTasks.map((task, i) => {
-        const priorityEmoji = {
-          high: '🔴',
-          medium: '🟡',
-          low: '🟢',
-        }[task.priority || 'medium'];
+        const emoji = priorityEmoji(task.priority);
 
         const dueStr = task.dueDate
           ? `📅 ${formatDueDate(task.dueDate)}`
           : '';
 
-        return `${i + 1}. ${priorityEmoji} ${task.content}\n   ${dueStr}`;
+        return `${i + 1}. ${emoji} ${task.content}\n   ${dueStr}`;
       }).join('\n\n');
 
       await ctx.reply(
@@ -249,13 +285,9 @@ bot.command('tasks', async (ctx) => {
 
     // Show filtered results with numbering for completion
     const numberedTasks = result.tasks.slice(0, 10).map((task, i) => {
-      const priorityEmoji = {
-        high: '🔴',
-        medium: '🟡',
-        low: '🟢',
-      }[task.priority || 'medium'];
+      const emoji = priorityEmoji(task.priority);
 
-      let line = `${i + 1}. ${priorityEmoji} ${task.content}`;
+      let line = `${i + 1}. ${emoji} ${task.content}`;
 
       if (task.dueDate) {
         line += `\n   📅 ${formatDueDate(task.dueDate)}`;
@@ -298,7 +330,7 @@ bot.command('complete', async (ctx) => {
       return;
     }
 
-    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+    await safeSendTyping(ctx);
 
     // Get last 10 pending tasks
     const pendingTasks = await db
@@ -333,14 +365,8 @@ bot.command('complete', async (ctx) => {
       })
       .where(eq(tasks.id, task.id));
 
-    const priorityEmoji = {
-      high: '🔴',
-      medium: '🟡',
-      low: '🟢',
-    }[task.priority || 'medium'];
-
     await ctx.reply(
-      `✅ Task completed:\n\n${priorityEmoji} ${task.content}`,
+      `✅ Task completed:\n\n${priorityEmoji(task.priority)} ${task.content}`,
       { parse_mode: 'Markdown' }
     );
 
@@ -369,7 +395,7 @@ bot.command('task', async (ctx) => {
       return;
     }
 
-    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+    await safeSendTyping(ctx);
 
     // Get last 10 pending tasks
     const pendingTasks = await db
@@ -394,14 +420,8 @@ bot.command('task', async (ctx) => {
 
     const task = pendingTasks[taskNumber - 1];
 
-    const priorityEmoji = {
-      high: '🔴',
-      medium: '🟡',
-      low: '🟢',
-    }[task.priority || 'medium'];
-
     let details = `📋 **Task ${taskNumber}**\n\n`;
-    details += `${priorityEmoji} *${task.content}*\n\n`;
+    details += `${priorityEmoji(task.priority)} *${task.content}*\n\n`;
     details += `**Priority:** ${task.priority}\n`;
     details += `**Status:** ${task.status}\n`;
 
@@ -423,7 +443,7 @@ bot.command('task', async (ctx) => {
 // Command: /recent - Show recent memories
 bot.command('recent', async (ctx) => {
   try {
-    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+    await safeSendTyping(ctx);
 
     // Get recent memories from Qdrant
     const recent = await qdrant.scroll(COLLECTIONS.MEMORIES, {
@@ -465,10 +485,89 @@ bot.command('recent', async (ctx) => {
   }
 });
 
+// Command: /entity - Browse knowledge graph entities
+// In-memory cache for multi-result entity searches (TTL 60s)
+const entitySearchCache = new Map<number, { results: Array<{ id: string; canonicalName: string; entityType: string }>; expires: number }>();
+
+bot.command('entity', async (ctx) => {
+  try {
+    const name = ctx.match ? String(ctx.match).trim() : '';
+
+    if (!name) {
+      await ctx.reply(
+        '🔹 **Entity Lookup**\n\n' +
+        'Usage: /entity <name>\n\n' +
+        'Example: /entity Bruce\n' +
+        'Example: /entity Kubernetes',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    await safeSendTyping(ctx);
+
+    // Check if this is a numeric selection from a previous search
+    const chatId = ctx.chat!.id;
+    const cached = entitySearchCache.get(chatId);
+    const asNumber = parseInt(name);
+    if (cached && !isNaN(asNumber) && cached.expires > Date.now()) {
+      if (asNumber >= 1 && asNumber <= cached.results.length) {
+        const selected = cached.results[asNumber - 1]!;
+        entitySearchCache.delete(chatId);
+
+        const { getEntityProfile: getProfile, formatEntityProfile: formatProfile } = await import('../services/entity-profile.js');
+        const profile = await getProfile(selected.id);
+        if (!profile) {
+          await ctx.reply('❌ Entity no longer exists.');
+          return;
+        }
+        await ctx.reply(formatProfile(profile), { parse_mode: 'Markdown' });
+        return;
+      }
+    }
+
+    const { searchEntities: search, getEntityProfile: getProfile, formatEntityProfile: formatProfile } = await import('../services/entity-profile.js');
+    const results = await search(name, { limit: 10 });
+
+    if (results.length === 0) {
+      await ctx.reply(`🔍 No entities found matching "${name}"`);
+      return;
+    }
+
+    if (results.length === 1) {
+      const profile = await getProfile(results[0]!.id);
+      if (!profile) {
+        await ctx.reply('❌ Failed to load entity profile.');
+        return;
+      }
+      await ctx.reply(formatProfile(profile), { parse_mode: 'Markdown' });
+      return;
+    }
+
+    // Multiple results — show list and cache for selection
+    const list = results.slice(0, 10).map((e, i) =>
+      `${i + 1}. **${e.canonicalName}** (${e.entityType})`
+    ).join('\n');
+
+    entitySearchCache.set(chatId, {
+      results: results.slice(0, 10).map(e => ({ id: e.id, canonicalName: e.canonicalName, entityType: e.entityType })),
+      expires: Date.now() + 60_000,
+    });
+
+    await ctx.reply(
+      `🔍 **${results.length} entities found:**\n\n${list}\n\nReply with /entity <number> to see details`,
+      { parse_mode: 'Markdown' }
+    );
+  } catch (error) {
+    console.error('Entity command error:', error);
+    await ctx.reply('❌ Failed to look up entity. Please try again.');
+  }
+});
+
 // Command: /stats - Show statistics
 bot.command('stats', async (ctx) => {
   try {
-    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+    await safeSendTyping(ctx);
 
     // Get collection info from Qdrant
     const collectionInfo = await qdrant.getCollection(COLLECTIONS.MEMORIES);
@@ -535,7 +634,7 @@ bot.on('message:text', async (ctx) => {
     }
     
     // Send typing indicator while searching
-    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+    await safeSendTyping(ctx);
     
     // Perform actual semantic search
     const results = await performSearch(query);
@@ -545,7 +644,10 @@ bot.on('message:text', async (ctx) => {
   
   // Queue for memory processing
   console.log(`💬 Text from ${ctx.from?.first_name}: ${text.slice(0, 50)}...`);
-  await queueMessage(ctx);
+  const queued = await queueMessage(ctx);
+  if (!queued) {
+    await ctx.reply('⚠️ Couldn\'t process your message right now. Please try again.');
+  }
 });
 
 // Handle voice messages
@@ -563,25 +665,42 @@ bot.on('message:voice', async (ctx) => {
   await ctx.reply(`🎤 Got ${duration}s voice note! Transcribing...`);
 
   // Queue for processing
-  await queueMessage(ctx);
+  const queued = await queueMessage(ctx);
+  if (!queued) {
+    await ctx.reply('⚠️ Couldn\'t process your voice note right now. Please try again.');
+  }
 });
 
 // Handle photos
 bot.on('message:photo', async (ctx) => {
   console.log(`📷 Photo from ${ctx.from?.first_name}`);
-  await ctx.reply('📷 Got your photo! Processing...');
+  if (ctx.message.caption) {
+    const queued = await queueMessage(ctx);
+    if (queued) {
+      await ctx.reply('📷 Photo received — I saved your caption as a memory. Full photo processing coming soon.');
+      return;
+    }
+  }
+  await ctx.reply('📷 Photo processing is coming soon.\n💡 Add a caption and I\'ll save it as a memory.');
 });
 
 // Handle documents
 bot.on('message:document', async (ctx) => {
   console.log(`📄 Document from ${ctx.from?.first_name}: ${ctx.message.document.file_name}`);
-  await ctx.reply('📄 Got your document! Processing...');
+  await ctx.reply('📄 Document processing is coming soon.\n💡 Send text or a voice note and I\'ll save it as a memory.');
 });
 
-// Handle forwarded messages
+// Handle forwarded messages (text forwards are already caught by message:text)
 bot.on('message:forward_origin', async (ctx) => {
   console.log(`↪️ Forwarded message from ${ctx.from?.first_name}`);
-  // Will be processed with forward context
+  if (!ctx.message.text && ctx.message.caption) {
+    const queued = await queueMessage(ctx);
+    if (!queued) {
+      await ctx.reply('⚠️ Couldn\'t process the forwarded message. Please try again.');
+    }
+  } else if (!ctx.message.text && !ctx.message.caption) {
+    await ctx.reply('↪️ Got your forwarded message — I can only process text content for now.');
+  }
 });
 
 // Error handler

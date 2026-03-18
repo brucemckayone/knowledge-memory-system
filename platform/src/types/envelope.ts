@@ -116,7 +116,7 @@ export interface PipelineEntry {
 export interface Routing {
   intents: string[];
   workflows: string[];
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'filtered' | 'duplicate';
 }
 
 // Helper to create a new envelope

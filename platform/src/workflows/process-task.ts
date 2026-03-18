@@ -1,18 +1,16 @@
 import type { Envelope } from '../types/envelope.js';
 import type { SkillContext } from '../skills/types.js';
-import { addEnrichment } from '../core/envelope-factory.js';
+import { addEnrichment, logFailure } from '../core/envelope-factory.js';
 import { extractTaskSkill } from '../skills/core/extract-task.skill.js';
 import { createTaskSkill } from '../skills/core/create-task.skill.js';
 import { embedSkill } from '../skills/core/embed.skill.js';
 import { storeMemorySkill } from '../skills/core/store-memory.skill.js';
 import { getController } from '../gardener/controller.js';
+import { chunkContent, storeChunks } from '../services/chunks.js';
 import { ensureContextMapping } from '../services/context-mapping.js';
 import { checkDuplicate } from '../services/task-deduplication.js';
 import { createDependencies, resolveDependencyByReference } from '../services/task-dependencies.js';
 import { detectTemporalConflicts } from '../services/task-conflicts.js';
-import { db } from '../db/index.js';
-import { tasks } from '../db/schema.js';
-import { eq, and, sql } from 'drizzle-orm';
 
 export interface ProcessTaskResult {
   success: boolean;
@@ -57,26 +55,11 @@ export async function processTask(
     context.log('Step 1: Enhanced task extraction');
     const extractStart = Date.now();
 
-    // Get conversation context for better extraction
-    const contextMessages = await getRecentContextMessages(
-      envelope.origin.context.conversation_id,
-      5 // last 5 messages
-    );
-
-    // Get existing tasks in this context
-    const existingTasks = await getPendingTasksInContext(
-      envelope.origin.context.conversation_id
-    );
-
-    // Get user preferences
-    const userId = envelope.origin.sender.id;
-    const userPreferences = await getUserPreferences(userId);
-
     const extracted = await extractTaskSkill.execute({
       text: content,
-      contextMessages,
-      existingTasks,
-      userPreferences,
+      contextMessages: [],
+      existingTasks: [],
+      userPreferences: {},
       useEnhanced: true,
     }, context);
 
@@ -293,30 +276,59 @@ export async function processTask(
 
     addEnrichment(envelope, 'store', { memory_id: envelope.trace_id }, storeStart);
 
-    // Step 10: Queue for KARMA pipeline
+    // Register in ingestion session for cross-item context linking
+    try {
+      const { registerInSession } = await import('../services/ingestion-context.js');
+      await registerInSession({
+        memoryId: envelope.trace_id,
+        senderId: envelope.origin.sender.id,
+        platform: envelope.origin.platform,
+        rawType: envelope.raw.type,
+        contentPreview: content.slice(0, 200),
+        timestamp: new Date(envelope.created_at),
+      });
+    } catch (error) {
+      context.log(`Failed to register ingestion session: ${error}`, 'warn');
+      logFailure(envelope, 'ingestion_session', String(error), Date.now());
+    }
+
+    // Step 10: Inline KARMA pipeline fan-out
     try {
       const controller = getController();
+
+      // Chunk if needed
+      const chunks = chunkContent(content, 4000, 200);
+      if (chunks.length > 1) {
+        await storeChunks(envelope.trace_id, chunks);
+      }
+
       await controller.enqueue({
-        type: 'gardener:ingestion',
+        type: 'gardener:reader',
         tier: 'realtime',
         payload: {
           memoryId: envelope.trace_id,
-          content: content,
+          content,
+          contentLength: content.length,
+          chunked: chunks.length > 1,
+          chunkCount: chunks.length,
           type: 'task',
           source: envelope.origin.platform,
-          metadata: {
-            task_id: taskResult.task_id,
-            action: extracted.action,
-            due_date: extracted.due_date,
-            priority: extracted.priority,
-            is_composite: extracted.is_composite,
-            subtask_count: taskResult.subtask_ids?.length || 0,
-          },
+        },
+      });
+
+      await controller.enqueue({
+        type: 'gardener:extract-entities',
+        tier: 'realtime',
+        payload: {
+          memoryId: envelope.trace_id,
+          content,
+          type: 'task',
         },
       });
     } catch (error) {
       // Non-fatal: gardener processing can catch up later
-      context.log(`Failed to queue gardener job: ${error}`, 'warn');
+      context.log(`Failed to queue gardener jobs: ${error}`, 'warn');
+      logFailure(envelope, 'gardener_queue', String(error), Date.now());
     }
 
     envelope.routing.status = 'completed';
@@ -336,36 +348,6 @@ export async function processTask(
     envelope.routing.status = 'failed';
     return { success: false, error: String(error) };
   }
-}
-
-/**
- * Get recent context messages for better task extraction
- * Queries Qdrant for recent messages in the conversation
- */
-async function getRecentContextMessages(conversationId: string, limit: number): Promise<string[]> {
-  // TODO: Query Qdrant for recent messages in this conversation
-  // For now, return empty array
-  // Implementation would depend on how message history is stored
-  return [];
-}
-
-/**
- * Get pending tasks in a context
- */
-async function getPendingTasksInContext(conversationId: string): Promise<Array<{ content: string; id?: string }>> {
-  // For context-scoped deduplication, we need the deterministic context UUID
-  // This is a placeholder - the actual implementation would use the context mapping
-  // For now, return empty array
-  return [];
-}
-
-/**
- * Get user preferences for personalized task extraction
- */
-async function getUserPreferences(userId: string): Promise<Record<string, any>> {
-  // TODO: Query user_preferences table
-  // For now, return empty object
-  return {};
 }
 
 /**

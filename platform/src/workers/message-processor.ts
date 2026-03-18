@@ -1,13 +1,15 @@
 import type { Job } from 'pg-boss';
 import { createEnvelope, addEnrichment, logFailure } from '../core/envelope-factory.js';
 import { embed, transcribe } from '../services/ml.js';
-import { storeMemory, searchMemories } from '../services/qdrant.js';
+import { storeMemory } from '../services/qdrant.js';
 import { classify } from '../services/classify.js';
 import { bot, getFileUrl } from '../bot/index.js';
 import { createSkillContext } from '../skills/index.js';
 import { processLink } from '../workflows/process-link.js';
 import { processTask, formatDueDate } from '../workflows/process-task.js';
 import { getController } from '../gardener/controller.js';
+import { priorityEmoji } from '../utils/format.js';
+import { chunkContent, storeChunks } from '../services/chunks.js';
 
 interface MessageJobData {
   chatId: number;
@@ -36,12 +38,6 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
   // Skip if no processable content
   if (!data.text && !data.voice) {
     console.log('⏭️ Skipping: no processable content');
-    return;
-  }
-
-  // Check if this is a search query
-  if (data.text?.toLowerCase().startsWith('search:')) {
-    await handleSearch(data.chatId, data.text.slice(7).trim());
     return;
   }
 
@@ -151,17 +147,11 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
       const result = await processTask(envelope, context);
 
       if (result.success) {
-        const priorityEmoji = {
-          high: '🔴',
-          medium: '🟡',
-          low: '🟢',
-        }[result.priority || 'medium'];
-
         await safeSendMessage(data.chatId,
           `✅ **Task created!**\n\n` +
           `📋 ${result.action}\n` +
           `📅 ${formatDueDate(result.due_date)}\n` +
-          `${priorityEmoji} Priority: ${result.priority}`,
+          `${priorityEmoji(result.priority)} Priority: ${result.priority}`,
           { parse_mode: 'Markdown' }
         );
       } else {
@@ -209,27 +199,68 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
 
     addEnrichment(envelope, 'store', { memory_id: envelope.trace_id }, storeStart);
 
-    // Queue for KARMA pipeline processing
+    // Register in ingestion session for cross-item context linking
+    try {
+      const { registerInSession } = await import('../services/ingestion-context.js');
+      await registerInSession({
+        memoryId: envelope.trace_id,
+        senderId: envelope.origin.sender.id,
+        platform: envelope.origin.platform,
+        rawType: envelope.raw.type,
+        contentPreview: textToEmbed.slice(0, 200),
+        timestamp: new Date(envelope.created_at),
+      });
+    } catch (error) {
+      console.warn('⚠️ Failed to register ingestion session:', error);
+    }
+
+    // Inline KARMA pipeline fan-out (replaces ingestion agent)
     try {
       const controller = getController();
+      const content = textToEmbed;
+      const MAX_CHUNK_SIZE = 4000;
+      const CHUNK_OVERLAP = 200;
+
+      // Chunk content if needed
+      const chunks = chunkContent(content, MAX_CHUNK_SIZE, CHUNK_OVERLAP);
+      const needsChunking = chunks.length > 1;
+
+      if (needsChunking) {
+        console.log(`📦 Chunked into ${chunks.length} parts`);
+        await storeChunks(envelope.trace_id, chunks);
+      }
+
+      // Queue reader agent
       await controller.enqueue({
-        type: 'gardener:ingestion',
+        type: 'gardener:reader',
         tier: 'realtime',
         payload: {
           memoryId: envelope.trace_id,
-          content: textToEmbed,
+          content,
+          contentLength: content.length,
+          chunked: needsChunking,
+          chunkCount: chunks.length,
           type: classification.primary_intent,
           source: envelope.origin.platform,
-          metadata: {
-            conversation_id: envelope.origin.context.conversation_id,
-            sender: envelope.origin.sender,
-          },
         },
       });
-      console.log('🌱 Queued for KARMA processing');
+
+      // Queue entity extraction
+      await controller.enqueue({
+        type: 'gardener:extract-entities',
+        tier: 'realtime',
+        payload: {
+          memoryId: envelope.trace_id,
+          content,
+          type: classification.primary_intent,
+        },
+      });
+
+      console.log('🌱 Queued for KARMA processing (reader + entity extraction)');
     } catch (error) {
       // Non-fatal: gardener processing can catch up later
-      console.warn('⚠️ Failed to queue gardener job:', error);
+      console.warn('⚠️ Failed to queue gardener jobs:', error);
+      logFailure(envelope, 'gardener_queue', String(error), Date.now());
     }
 
     envelope.routing.status = 'completed';
@@ -286,48 +317,6 @@ async function safeSendMessage(chatId: number, text: string, options?: any): Pro
     } else {
       console.error(`❌ Failed to send telegram message to ${chatId}:`, error);
     }
-  }
-}
-
-/**
- * Handle search queries
- */
-async function handleSearch(chatId: number, query: string): Promise<void> {
-  console.log(`🔍 Searching for: "${query}"`);
-
-  try {
-    // Generate query embedding
-    const queryEmbedding = await embed(query);
-
-    // Search Qdrant
-    const results = await searchMemories(queryEmbedding.vector, { limit: 5 });
-
-    if (results.length === 0) {
-      await safeSendMessage(chatId, '🔍 No memories found for your query.');
-      return;
-    }
-
-    // Format results
-    const formatted = results.map((r, i) => {
-      const payload = r.payload as Record<string, unknown>;
-      const score = (r.score * 100).toFixed(1);
-      const content = (payload.content as string)?.slice(0, 100) || 'No content';
-      const type = (payload.type as string) || 'thought';
-      const typeEmoji = { thought: '💭', link: '🔗', task: '📋', question: '❓' }[type] || '📝';
-      const date = new Date(payload.created_at as string).toLocaleDateString();
-
-      return `${i + 1}. ${typeEmoji} [${score}%] ${content}...\n   📅 ${date}`;
-    }).join('\n\n');
-
-    await safeSendMessage(
-      chatId,
-      `🔍 **Found ${results.length} memories:**\n\n${formatted}`,
-      { parse_mode: 'Markdown' }
-    );
-
-  } catch (error) {
-    console.error('Search failed:', error);
-    await safeSendMessage(chatId, '❌ Search failed. Please try again.');
   }
 }
 

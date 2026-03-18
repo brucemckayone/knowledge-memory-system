@@ -11,9 +11,9 @@
 // IMPORTANT: Set environment variables BEFORE any imports that might use them
 // This ensures the db module from services uses the test database
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/cognitive_test';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://cognitive:cognitive@localhost:5433/cognitive_test';
 process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://localhost:8000';
-process.env.QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
+process.env.QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6335';
 // Provide test defaults for required config values
 process.env.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'test-bot-token-for-testing';
 
@@ -50,7 +50,7 @@ export const hasTrgmExtension = extensions.pg_trgm;
 
 // Test database connection
 const TEST_DB_URL = process.env.TEST_DATABASE_URL ||
-  `postgres://${process.env.PGUSER || 'postgres'}:${process.env.PGPASSWORD || 'postgres'}@${process.env.PGHOST || 'localhost'}:${process.env.PGPORT || '5432'}/cognitive_test`;
+  `postgres://${process.env.PGUSER || 'cognitive'}:${process.env.PGPASSWORD || 'cognitive'}@${process.env.PGHOST || 'localhost'}:${process.env.PGPORT || '5433'}/cognitive_test`;
 
 export const testDb = postgres(TEST_DB_URL);
 
@@ -105,8 +105,7 @@ export async function truncateAllTables(): Promise<void> {
     task_conflicts,
     user_preferences,
     epics,
-    gardener_job_meta,
-    mab_state
+    gardener_job_meta
     CASCADE`;
 }
 
@@ -141,7 +140,6 @@ export async function deleteFromTables(...tables: string[]): Promise<void> {
     'epics',
     'gardener_job_meta',
     'gardener_metrics',
-    'mab_state',
     'fact_predicates',
     'context_uuid_audit',
     'context_summaries',

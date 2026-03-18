@@ -79,33 +79,3 @@ export function intervalToCron(interval: string): string {
   }
 }
 
-/**
- * Validate interval string format
- */
-export function isValidInterval(interval: string): boolean {
-  try {
-    parseIntervalToSeconds(interval);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Format seconds to human-readable interval
- * Inverse of parseIntervalToSeconds
- */
-export function formatInterval(seconds: number): string {
-  if (seconds < 60) {
-    return `${seconds}s`;
-  } else if (seconds < 3600) {
-    const minutes = Math.floor(seconds / 60);
-    return `${minutes}m`;
-  } else if (seconds < 86400) {
-    const hours = Math.floor(seconds / 3600);
-    return `${hours}h`;
-  } else {
-    const days = Math.floor(seconds / 86400);
-    return `${days}d`;
-  }
-}

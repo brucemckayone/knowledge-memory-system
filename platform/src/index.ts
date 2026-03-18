@@ -153,6 +153,104 @@ app.get('/api/memories', async (c) => {
   }
 });
 
+// ====================
+// API: Knowledge Graph
+// ====================
+import { getEntityProfile, getEntityMemories, searchEntities } from './services/entity-profile.js';
+import { getEntityFacts, searchFacts, getFactById } from './services/facts.js';
+
+app.get('/api/entities', async (c) => {
+  const query = c.req.query('q');
+  const type = c.req.query('type') as import('./services/entities.js').EntityType | undefined;
+  const limit = parseInt(c.req.query('limit') || '10');
+
+  if (!query) {
+    return c.json({ error: 'Missing query parameter q' }, 400);
+  }
+
+  try {
+    const results = await searchEntities(query, { limit, type });
+    return c.json({ query, count: results.length, entities: results });
+  } catch (error) {
+    console.error('Entity search error:', error);
+    return c.json({ error: 'Entity search failed' }, 500);
+  }
+});
+
+app.get('/api/entities/:id', async (c) => {
+  const id = c.req.param('id');
+
+  try {
+    const profile = await getEntityProfile(id);
+    if (!profile) {
+      return c.json({ error: 'Entity not found' }, 404);
+    }
+    return c.json(profile);
+  } catch (error) {
+    console.error('Entity profile error:', error);
+    return c.json({ error: 'Failed to get entity profile' }, 500);
+  }
+});
+
+app.get('/api/entities/:id/facts', async (c) => {
+  const id = c.req.param('id');
+  const asSubject = c.req.query('asSubject') !== 'false';
+  const asObject = c.req.query('asObject') !== 'false';
+
+  try {
+    const facts = await getEntityFacts(id, { asSubject, asObject });
+    return c.json({ entityId: id, count: facts.length, facts });
+  } catch (error) {
+    console.error('Entity facts error:', error);
+    return c.json({ error: 'Failed to get entity facts' }, 500);
+  }
+});
+
+app.get('/api/entities/:id/memories', async (c) => {
+  const id = c.req.param('id');
+  const limit = parseInt(c.req.query('limit') || '10');
+
+  try {
+    const memories = await getEntityMemories(id, { limit });
+    return c.json({ entityId: id, count: memories.length, memories });
+  } catch (error) {
+    console.error('Entity memories error:', error);
+    return c.json({ error: 'Failed to get entity memories' }, 500);
+  }
+});
+
+app.get('/api/facts', async (c) => {
+  const query = c.req.query('q');
+  const limit = parseInt(c.req.query('limit') || '10');
+
+  if (!query) {
+    return c.json({ error: 'Missing query parameter q' }, 400);
+  }
+
+  try {
+    const results = await searchFacts(query, { limit });
+    return c.json({ query, count: results.length, facts: results });
+  } catch (error) {
+    console.error('Fact search error:', error);
+    return c.json({ error: 'Fact search failed' }, 500);
+  }
+});
+
+app.get('/api/facts/:id', async (c) => {
+  const id = c.req.param('id');
+
+  try {
+    const fact = await getFactById(id);
+    if (!fact) {
+      return c.json({ error: 'Fact not found' }, 404);
+    }
+    return c.json(fact);
+  } catch (error) {
+    console.error('Fact lookup error:', error);
+    return c.json({ error: 'Failed to get fact' }, 500);
+  }
+});
+
 // ===============
 // API: Task Query
 // ===============
@@ -256,6 +354,8 @@ async function start() {
     console.log(`   Hybrid Search: http://localhost:${info.port}/api/hybrid-search?q=test`);
     console.log(`   Memories: http://localhost:${info.port}/api/memories`);
     console.log(`   Task Query: http://localhost:${info.port}/api/query/tasks`);
+    console.log(`   Entities: http://localhost:${info.port}/api/entities?q=name`);
+    console.log(`   Facts: http://localhost:${info.port}/api/facts?q=query`);
     console.log(`   Webhook: http://localhost:${info.port}/webhook/telegram\n`);
   });
 

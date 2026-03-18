@@ -294,55 +294,11 @@ export function getPredicateInfo(predicate: string): PredicateInfo | null {
 }
 
 /**
- * Check if a predicate is exclusive (only one active at a time)
- */
-export function isExclusivePredicate(predicate: string): boolean {
-  const canonical = normalizePredicate(predicate);
-  return CANONICAL_ONTOLOGY[canonical]?.exclusive || false;
-}
-
-/**
- * Get the inverse predicate
- */
-export function getInversePredicate(predicate: string): string | null {
-  const canonical = normalizePredicate(predicate);
-  return CANONICAL_ONTOLOGY[canonical]?.inverse || null;
-}
-
-/**
- * Get predicate category
- */
-export function getPredicateCategory(predicate: string): string | null {
-  const canonical = normalizePredicate(predicate);
-  return CANONICAL_ONTOLOGY[canonical]?.category || null;
-}
-
-/**
  * Check if predicate is in canonical ontology
  */
 export function isCanonicalPredicate(predicate: string): boolean {
   const normalized = predicate.toLowerCase().replace(/\s+/g, '_');
   return !!CANONICAL_ONTOLOGY[normalized];
-}
-
-/**
- * Get all predicates in a category
- */
-export function getPredicatesByCategory(category: string): string[] {
-  return Object.entries(CANONICAL_ONTOLOGY)
-    .filter(([_, info]) => info.category === category)
-    .map(([predicate]) => predicate);
-}
-
-/**
- * Get all categories
- */
-export function getAllCategories(): string[] {
-  const categories = new Set<string>();
-  for (const info of Object.values(CANONICAL_ONTOLOGY)) {
-    categories.add(info.category);
-  }
-  return Array.from(categories);
 }
 
 /**
@@ -400,7 +356,6 @@ export async function findNonCanonicalPredicates(): Promise<Array<{ predicate: s
     ORDER BY count DESC
   `);
 
-  // Handle both { rows: [...] } and direct array responses from drizzle
   const rows = (result as unknown as { rows?: Array<{ predicate: string; count: number }> })?.rows ??
                (Array.isArray(result) ? result as unknown as Array<{ predicate: string; count: number }> : []);
   return rows;
@@ -435,39 +390,4 @@ export async function recordPredicateUsage(predicate: string): Promise<void> {
         last_used_at = NOW()
     WHERE predicate = ${canonical}
   `);
-}
-
-/**
- * Get predicate usage stats
- */
-export async function getPredicateStats(): Promise<Array<{
-  predicate: string;
-  category: string;
-  usageCount: number;
-  isCanonical: boolean;
-}>> {
-  const result = await db.execute(sql`
-    SELECT
-      predicate,
-      category,
-      usage_count as "usageCount",
-      is_canonical as "isCanonical"
-    FROM fact_predicates
-    ORDER BY usage_count DESC
-    LIMIT 50
-  `);
-
-  // Handle both { rows: [...] } and direct array responses from drizzle
-  const rows = (result as unknown as { rows?: Array<{
-    predicate: string;
-    category: string;
-    usageCount: number;
-    isCanonical: boolean;
-  }> })?.rows ?? (Array.isArray(result) ? result as unknown as Array<{
-    predicate: string;
-    category: string;
-    usageCount: number;
-    isCanonical: boolean;
-  }> : []);
-  return rows;
 }

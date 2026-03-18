@@ -47,6 +47,10 @@ describe('W23 Reader Agent', () => {
       log: vi.fn(),
       checkpoint: vi.fn().mockResolvedValue(undefined),
       restoreCheckpoint: vi.fn().mockResolvedValue(null),
+      traceId: (data.memoryId as string) ?? null,
+      config: {} as any,
+      services: { ml: {} as any, controller: {} as any },
+      signal: AbortSignal.timeout(30000),
     };
   }
 
@@ -327,7 +331,7 @@ describe('W23 Reader Agent', () => {
   });
 
   describe('RDR-005: ML fallback parsing', () => {
-    it('should use fallback parsing when ML service fails', async () => {
+    it('should throw retryable error when ML service fails', async () => {
       // Install mock that fails
       vi.spyOn(global, 'fetch').mockRejectedValue(new Error('ML service unavailable'));
 
@@ -339,14 +343,11 @@ describe('W23 Reader Agent', () => {
         content,
       });
 
-      // When: Process through reader agent
-      const result = await readerAgent.execute(context);
-
-      // Then: Agent returns failure when ML service is unavailable (no fallback implemented)
-      expect(result.success).toBe(false);
+      // When/Then: Agent throws a retryable error (pg-boss will retry)
+      await expect(readerAgent.execute(context)).rejects.toThrow('Reader failed');
     });
 
-    it('should extract basic metadata with fallback parser', async () => {
+    it('should throw retryable error on ML 500 response', async () => {
       // Mock Qdrant to return content
       mockQdrantGetMemory('Meeting with @john about #project-alpha. Link: https://docs.example.com');
 
@@ -367,11 +368,8 @@ describe('W23 Reader Agent', () => {
         content,
       });
 
-      // When: Process through reader agent
-      const result = await readerAgent.execute(context);
-
-      // Then: Agent returns failure when ML service is unavailable (no fallback implemented)
-      expect(result.success).toBe(false);
+      // When/Then: Agent throws a retryable error (pg-boss will retry)
+      await expect(readerAgent.execute(context)).rejects.toThrow('Reader failed');
     });
 
     it('should handle no content gracefully', async () => {

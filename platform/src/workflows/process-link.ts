@@ -7,6 +7,7 @@ import { summarizeSkill } from '../skills/core/summarize.skill.js';
 import { embedSkill } from '../skills/core/embed.skill.js';
 import { storeMemorySkill } from '../skills/core/store-memory.skill.js';
 import { getController } from '../gardener/controller.js';
+import { chunkContent, storeChunks } from '../services/chunks.js';
 
 export interface ProcessLinkResult {
   success: boolean;
@@ -117,27 +118,58 @@ export async function processLink(
 
     addEnrichment(envelope, 'store', { memory_id: storeResult.memory_id }, storeStart);
 
-    // Queue for KARMA pipeline processing
+    // Register in ingestion session for cross-item context linking
+    try {
+      const { registerInSession } = await import('../services/ingestion-context.js');
+      await registerInSession({
+        memoryId: envelope.trace_id,
+        senderId: envelope.origin.sender.id,
+        platform: envelope.origin.platform,
+        rawType: envelope.raw.type,
+        contentPreview: content.slice(0, 200),
+        timestamp: new Date(envelope.created_at),
+      });
+    } catch (error) {
+      context.log(`Failed to register ingestion session: ${error}`, 'warn');
+    }
+
+    // Inline KARMA pipeline fan-out
     try {
       const controller = getController();
+      const karmaContent = `${fetchResult.title}\n\n${summaryResult.summary}\n\nURL: ${urlResult.primary_url}`;
+
+      // Chunk if needed
+      const chunks = chunkContent(karmaContent, 4000, 200);
+      if (chunks.length > 1) {
+        await storeChunks(envelope.trace_id, chunks);
+      }
+
       await controller.enqueue({
-        type: 'gardener:ingestion',
+        type: 'gardener:reader',
         tier: 'realtime',
         payload: {
           memoryId: envelope.trace_id,
-          content: `${fetchResult.title}\n\n${summaryResult.summary}\n\nURL: ${urlResult.primary_url}`,
+          content: karmaContent,
+          contentLength: karmaContent.length,
+          chunked: chunks.length > 1,
+          chunkCount: chunks.length,
           type: 'link',
           source: envelope.origin.platform,
-          metadata: {
-            url: urlResult.primary_url,
-            domain: fetchResult.domain,
-            title: fetchResult.title,
-          },
+        },
+      });
+
+      await controller.enqueue({
+        type: 'gardener:extract-entities',
+        tier: 'realtime',
+        payload: {
+          memoryId: envelope.trace_id,
+          content: karmaContent,
+          type: 'link',
         },
       });
     } catch (error) {
       // Non-fatal: gardener processing can catch up later
-      context.log(`Failed to queue gardener job: ${error}`, 'warn');
+      context.log(`Failed to queue gardener jobs: ${error}`, 'warn');
     }
 
     envelope.routing.status = 'completed';
