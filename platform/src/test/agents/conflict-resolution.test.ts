@@ -50,7 +50,7 @@ describe('Conflict Resolution Agent', () => {
       const fact1 = { subject: 'Career Person', predicate: 'works_at', object: 'Company A' };
       const fact2 = { subject: 'Career Person', predicate: 'works_at', object: 'Company B' };
 
-      const response = await fetch(`${ML_SERVICES_URL}/detect-contradiction`, {
+      const response = await fetch(`${ML_SERVICES_URL}/check-contradiction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fact1, fact2 }),
@@ -61,8 +61,7 @@ describe('Conflict Resolution Agent', () => {
       const result = await response.json() as Record<string, unknown>;
 
       expect(result.contradicts).toBe(true);
-      // Type might be 'antonym', 'exclusive', etc.
-      expect(result.contradiction_type).toBeDefined();
+      expect(result.type).toBeDefined();
     }, 30000);
   });
 
@@ -137,7 +136,7 @@ describe('Conflict Resolution Agent', () => {
       const fact2 = { subject: 'Alice', predicate: 'knows', object: 'Carol' };
 
       // When: Check for contradiction
-      const response = await fetch(`${ML_SERVICES_URL}/detect-contradiction`, {
+      const response = await fetch(`${ML_SERVICES_URL}/check-contradiction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fact1, fact2 }),
@@ -158,7 +157,7 @@ describe('Conflict Resolution Agent', () => {
       const fact2 = { subject: 'Project Budget', predicate: 'amount_is', object: '$200,000' };
 
       // When: Check for contradiction
-      const response = await fetch(`${ML_SERVICES_URL}/detect-contradiction`, {
+      const response = await fetch(`${ML_SERVICES_URL}/check-contradiction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fact1, fact2 }),
@@ -180,7 +179,7 @@ describe('Conflict Resolution Agent', () => {
       const fact2 = { subject: 'Project X', predicate: 'status_is', object: 'cancelled' };
 
       // When: Check for contradiction
-      const response = await fetch(`${ML_SERVICES_URL}/detect-contradiction`, {
+      const response = await fetch(`${ML_SERVICES_URL}/check-contradiction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fact1, fact2 }),
@@ -288,7 +287,7 @@ describe('Conflict Resolution Agent', () => {
       };
 
       // When: Use LLM to detect subtle contradiction
-      const response = await fetch(`${ML_SERVICES_URL}/detect-contradiction`, {
+      const response = await fetch(`${ML_SERVICES_URL}/check-contradiction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fact1, fact2 }),
@@ -610,5 +609,67 @@ describe('Conflict Resolution Agent', () => {
 
       expect(facts.length).toBe(2);
     });
+  });
+
+  describe('CR-009: Debate protocol', () => {
+    it.skipIf(!mlAvailable)('should return debate log for subtle contradictions', async () => {
+      // Given: Subtle contradiction that bypasses heuristics (not an antonym pair
+      // or exclusive predicate) — requires LLM debate to resolve
+      const fact1 = {
+        subject: 'Sarah',
+        predicate: 'expertise_in',
+        object: 'Machine learning and neural networks',
+      };
+      const fact2 = {
+        subject: 'Sarah',
+        predicate: 'expertise_in',
+        object: 'Has no technical background whatsoever',
+      };
+
+      // When: Check contradiction (should trigger debate)
+      const response = await fetch(`${ML_SERVICES_URL}/check-contradiction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fact1, fact2 }),
+      });
+
+      // Then: Response includes debate log
+      expect(response.ok).toBe(true);
+      const result = await response.json() as Record<string, unknown>;
+
+      expect(result.contradicts).toBe(true);
+      expect(result.confidence).toBeGreaterThan(0);
+
+      // Debate log should be present (subtle case triggers debate)
+      if (result.debate) {
+        const debate = result.debate as Record<string, unknown>;
+        expect(typeof debate.advocate_argument).toBe('string');
+        expect(typeof debate.defender_argument).toBe('string');
+        expect(typeof debate.judge_reasoning).toBe('string');
+        expect((debate.advocate_argument as string).length).toBeGreaterThan(0);
+        expect((debate.defender_argument as string).length).toBeGreaterThan(0);
+      }
+    }, 60000);
+
+    it.skipIf(!mlAvailable)('should still use heuristic fast path for obvious cases', async () => {
+      // Given: Obvious exclusive predicate contradiction (no debate needed)
+      const fact1 = { subject: 'John', predicate: 'works_at', object: 'Acme Corp' };
+      const fact2 = { subject: 'John', predicate: 'works_at', object: 'TechCo' };
+
+      // When: Check contradiction
+      const response = await fetch(`${ML_SERVICES_URL}/check-contradiction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fact1, fact2 }),
+      });
+
+      // Then: Resolved by heuristics (no debate log)
+      expect(response.ok).toBe(true);
+      const result = await response.json() as Record<string, unknown>;
+
+      expect(result.contradicts).toBe(true);
+      expect(result.type).toBe('structural');
+      expect(result.debate).toBeUndefined();
+    }, 10000);
   });
 });

@@ -11,7 +11,7 @@ Master index for Mnemo implementation work packets.
 | 1 | Foundation | W01–W07 | ✅ Mostly Complete |
 | 2 | Core Skills & Processing | W08–W15 | ✅ Complete |
 | 3 | Entity & Temporal Foundation | W16–W21 | ✅ Mostly Complete |
-| 4 | KARMA Agents | W22–W29 | ✅ Mostly Complete |
+| 4 | KARMA Agents | W22–W29 | ✅ Complete |
 | 5 | Intelligence & Insights | W30–W33 | ❌ Not Started |
 | 6 | Multi-Source Ingestion | W34–W42 | ❌ Not Started |
 
@@ -65,7 +65,7 @@ Master index for Mnemo implementation work packets.
 | [W25](./phase4/W25-entity-agent.md) | Entity Extraction Agent | ✅ Complete |
 | [W26](./phase4/W26-relationship-agent.md) | Relationship Extraction Agent | ✅ Complete |
 | [W27](./phase4/W27-schema-agent.md) | Schema Alignment Agent | ✅ Complete |
-| [W28](./phase4/W28-conflict-resolution.md) | Conflict Resolution Agent | ⚠️ Partial |
+| [W28](./phase4/W28-conflict-resolution.md) | Conflict Resolution Agent | ✅ Complete |
 | [W29](./phase4/W29-evaluator-agent.md) | Evaluator Agent | 🔀 Replaced (controller metrics) |
 | [W22b](./phase4/W22b-context-linker.md) | Context-Linker Agent | ✅ Complete |
 

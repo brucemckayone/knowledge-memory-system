@@ -103,12 +103,21 @@ export interface ExtractRelationshipsResponse {
   used_fallback: boolean;
 }
 
+export interface DebateLog {
+  advocate_argument: string;
+  defender_argument: string;
+  judge_reasoning: string;
+  advocate_saw_contradiction: boolean;
+  defender_saw_coexistence: boolean;
+}
+
 export interface CheckContradictionResponse {
   contradicts: boolean;
   type: string;
   resolution: string;
   reasoning: string;
   confidence: number;
+  debate?: DebateLog;
 }
 
 export interface ParseContentResponse {
@@ -268,7 +277,7 @@ export const ml = {
   },
 
   checkContradiction(fact1: unknown, fact2: unknown) {
-    return mlFetch<CheckContradictionResponse>('/check-contradiction', { fact1, fact2 }, 30_000);
+    return mlFetch<CheckContradictionResponse>('/check-contradiction', { fact1, fact2 }, 60_000);
   },
 
   parseContent(content: string, hint?: string) {

@@ -7,7 +7,7 @@
 
 ## Phase Status
 
-**Overall:** ✅ **Mostly Complete** (5 of 7 agents fully implemented, 2 replaced)
+**Overall:** ✅ **Complete** (6 of 7 agents fully implemented, 2 replaced)
 
 | Packet | Name | Status | Dependencies | Implementation |
 |--------|------|--------|--------------|----------------|
@@ -17,7 +17,7 @@
 | W25 | Entity Extraction Agent | ✅ Complete | W21 | LLM-based NER + resolution ✓ |
 | W26 | Relationship Extraction Agent | ✅ Complete | W25, W17 | Bi-temporal facts ✓ |
 | W27 | Schema Alignment Agent | ✅ Complete | W17, W26 | Ontology management ✓ |
-| W28 | Conflict Resolution Agent | ⚠️ Partial | W17 | Detection working, LLM debate TODO |
+| W28 | Conflict Resolution Agent | ✅ Complete | W17 | Heuristics + LLM debate protocol ✓ |
 | W29 | ~~Evaluator Agent~~ | 🔀 Replaced | W21 | Controller records metrics directly |
 | [W22b](./W22b-context-linker.md) | Context-Linker Agent | ✅ Complete | W21 | Ingestion sessions, CO_TEMPORAL facts ✓ |
 
@@ -208,7 +208,7 @@
 
 ## Known Issues
 
-1. **W28 Conflict Resolution**: LLM debate system not implemented (uses simple LLM call)
+1. ~~**W28 Conflict Resolution**: LLM debate system not implemented~~ ✅ Debate protocol implemented (advocate + defender + judge)
 2. **W25 Entity Extraction**: Simplified implementation (47 lines vs 105 lines in spec)
 3. **ML Service Dependencies**: All agents depend on `ml-services` being running
 4. **No Human Review Interface**: Flagged conflicts have no UI for manual resolution

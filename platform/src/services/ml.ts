@@ -15,6 +15,7 @@ export {
   type ExtractEntitiesResponse,
   type ExtractRelationshipsResponse,
   type CheckContradictionResponse,
+  type DebateLog,
   type ParseContentResponse,
   type ScrapeResponse,
   type TranscribeResponse,

@@ -12,13 +12,13 @@
 | 1 | Foundation | W01–W07 | ✅ Mostly Complete |
 | 2 | Core Skills & Processing | W08–W15 | ✅ Complete |
 | 3 | Entity & Temporal Foundation | W16–W21 | ✅ Mostly Complete |
-| 4 | KARMA Agents | W22–W29 | ✅ Mostly Complete |
+| 4 | KARMA Agents | W22–W29 | ✅ Complete |
 | 5 | Intelligence & Insights | W30–W33 | ❌ Not Started |
 | 6 | Multi-Source Ingestion | W34–W42 | ❌ Not Started |
 
 **Key blockers:**
 - Phase 3: AGE graph traversal underutilized
-- Phase 4: Conflict resolution LLM debate (W28 partial), full pipeline end-to-end hardening needed
+- Phase 4: Full pipeline end-to-end hardening needed
 
 ---
 
