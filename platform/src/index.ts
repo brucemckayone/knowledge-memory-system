@@ -10,6 +10,7 @@ import { setupWebhook, startPolling, bot } from './bot/index.js';
 import { registerCoreSkills } from './skills/index.js';
 import { initController } from './gardener/controller.js';
 import { registerAgents } from './gardener/agents/index.js';
+import { ingestApi } from './routes/ingest.js';
 
 const app = new Hono();
 
@@ -125,6 +126,11 @@ app.get('/api/hybrid-search', async (c) => {
     return c.json({ error: 'Hybrid search failed' }, 500);
   }
 });
+
+// ===============
+// API: Ingest (W35)
+// ===============
+app.route('/api/ingest', ingestApi);
 
 // ===============
 // API: Memories
@@ -287,6 +293,89 @@ app.post('/api/query/tasks', async (c) => {
   }
 });
 
+// ===============
+// API: Briefing (W32)
+// ===============
+import { getLatestBriefing, generateBriefing, persistBriefing } from './services/briefing.js';
+
+app.get('/api/briefing', async (c) => {
+  try {
+    const briefing = await getLatestBriefing();
+    if (!briefing) {
+      return c.json({ error: 'No briefing available' }, 404);
+    }
+    return c.json(briefing);
+  } catch (error) {
+    console.error('Briefing error:', error);
+    return c.json({ error: 'Failed to fetch briefing' }, 500);
+  }
+});
+
+app.post('/api/briefing/generate', async (c) => {
+  try {
+    const briefing = await generateBriefing();
+    const id = await persistBriefing(briefing);
+    return c.json({ id, ...briefing });
+  } catch (error) {
+    console.error('Briefing generation error:', error);
+    return c.json({ error: 'Failed to generate briefing' }, 500);
+  }
+});
+
+// ===============
+// API: Projects (W45)
+// ===============
+import { getActiveProjects, getProjectById } from './services/project-association.js';
+
+app.get('/api/projects', async (c) => {
+  try {
+    const projects = await getActiveProjects();
+    return c.json({ count: projects.length, projects });
+  } catch (error) {
+    console.error('Projects error:', error);
+    return c.json({ error: 'Failed to fetch projects' }, 500);
+  }
+});
+
+app.get('/api/projects/:id', async (c) => {
+  const id = c.req.param('id');
+  try {
+    const project = await getProjectById(id);
+    if (!project) return c.json({ error: 'Project not found' }, 404);
+    return c.json(project);
+  } catch (error) {
+    console.error('Project detail error:', error);
+    return c.json({ error: 'Failed to fetch project' }, 500);
+  }
+});
+
+// ===============
+// API: Insights (W31)
+// ===============
+import { getActiveInsights, dismissInsight } from './services/insights.js';
+
+app.get('/api/insights', async (c) => {
+  const limit = parseInt(c.req.query('limit') || '20');
+  try {
+    const result = await getActiveInsights(limit);
+    return c.json({ count: result.length, insights: result });
+  } catch (error) {
+    console.error('Insights error:', error);
+    return c.json({ error: 'Failed to fetch insights' }, 500);
+  }
+});
+
+app.post('/api/insights/:id/dismiss', async (c) => {
+  const id = c.req.param('id');
+  try {
+    await dismissInsight(id);
+    return c.json({ ok: true });
+  } catch (error) {
+    console.error('Dismiss insight error:', error);
+    return c.json({ error: 'Failed to dismiss insight' }, 500);
+  }
+});
+
 // =========
 // Startup
 // =========
@@ -329,6 +418,13 @@ async function start() {
     processMessage
   );
   console.log('✅ Workers registered');
+
+  // Start file watcher if enabled (W36)
+  if (config.WATCH_ENABLED && config.WATCH_DIR) {
+    const { startFileWatcher } = await import('./services/ingest/adapters/file-watcher.js');
+    await startFileWatcher();
+    console.log('✅ File watcher started');
+  }
 
   // Set up Telegram bot
   if (config.WEBHOOK_URL) {

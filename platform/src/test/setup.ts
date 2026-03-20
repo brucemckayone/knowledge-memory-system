@@ -11,9 +11,9 @@
 // IMPORTANT: Set environment variables BEFORE any imports that might use them
 // This ensures the db module from services uses the test database
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://cognitive:cognitive@localhost:5433/cognitive_test';
-process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://localhost:8000';
-process.env.QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6335';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://cognitive:cognitive@127.0.0.1:5433/cognitive_test';
+process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://127.0.0.1:8000';
+process.env.QDRANT_URL = process.env.QDRANT_URL || 'http://127.0.0.1:6335';
 // Provide test defaults for required config values
 process.env.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'test-bot-token-for-testing';
 
@@ -50,15 +50,15 @@ export const hasTrgmExtension = extensions.pg_trgm;
 
 // Test database connection
 const TEST_DB_URL = process.env.TEST_DATABASE_URL ||
-  `postgres://${process.env.PGUSER || 'cognitive'}:${process.env.PGPASSWORD || 'cognitive'}@${process.env.PGHOST || 'localhost'}:${process.env.PGPORT || '5433'}/cognitive_test`;
+  `postgres://${process.env.PGUSER || 'cognitive'}:${process.env.PGPASSWORD || 'cognitive'}@${process.env.PGHOST || '127.0.0.1'}:${process.env.PGPORT || '5433'}/cognitive_test`;
 
 export const testDb = postgres(TEST_DB_URL);
 
 // ML Services URL
-export const ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://localhost:8100';
+export const ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://127.0.0.1:8000';
 
 // Qdrant URL
-export const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
+export const QDRANT_URL = process.env.QDRANT_URL || 'http://127.0.0.1:6335';
 
 /**
  * Check if ML services are available
@@ -66,7 +66,7 @@ export const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
 export async function isMLServiceAvailable(): Promise<boolean> {
   try {
     const response = await fetch(`${ML_SERVICES_URL}/health`, {
-      signal: AbortSignal.timeout(2000),
+      signal: AbortSignal.timeout(10000),
     });
     return response.ok;
   } catch {
@@ -131,6 +131,7 @@ export async function deleteFromTables(...tables: string[]): Promise<void> {
     'memory_entities',
     'entity_aliases',
     'entity_merges',
+    'contradiction_reviews',
     'facts',
     'entities',
     'tasks',
@@ -143,6 +144,21 @@ export async function deleteFromTables(...tables: string[]): Promise<void> {
     'fact_predicates',
     'context_uuid_audit',
     'context_summaries',
+    'content_hashes',
+    'ingest_sources',
+    'communities',
+    'channel_profiles',
+    'insights',
+    'obsidian_sync_state',
+    'conversation_summaries',
+    'conversation_state',
+    'briefings',
+    'memories_meta',
+    'source_bindings',
+    'association_ambiguities',
+    'project_associations',
+    'ingestion_session_members',
+    'ingestion_sessions',
   ];
 
   const tablesToDelete = tables.length > 0
@@ -262,7 +278,40 @@ export async function createTestFact(data: {
   validAt?: Date;
   invalidAt?: Date;
   confidence?: number;
+  createdAt?: Date;
+  expiredAt?: Date;
 }): Promise<{ id: string }> {
+  if (data.createdAt || data.expiredAt) {
+    // Use explicit created_at/expired_at (needed for temporal pipeline tests)
+    const result = await testDb`
+      INSERT INTO facts (
+        subject_entity_id,
+        predicate,
+        object_entity_id,
+        object_value,
+        valid_at,
+        invalid_at,
+        confidence,
+        created_at,
+        expired_at
+      )
+      VALUES (
+        ${data.subjectEntityId}::uuid,
+        ${data.predicate},
+        ${data.objectEntityId || null}::uuid,
+        ${data.objectValue || null},
+        ${data.validAt || null},
+        ${data.invalidAt || null},
+        ${data.confidence ?? 1.0},
+        ${data.createdAt || new Date()},
+        ${data.expiredAt || null}
+      )
+      RETURNING id
+    `;
+    if (!result[0]) throw new Error('Failed to create fact');
+    return { id: result[0].id };
+  }
+
   const result = await testDb`
     INSERT INTO facts (
       subject_entity_id,

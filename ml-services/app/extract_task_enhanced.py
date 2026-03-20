@@ -235,10 +235,7 @@ async def extract_task_enhanced(request: ExtractTaskEnhancedRequest):
         # Call LLM with enhanced model (more tokens for reasoning)
         result = llm_client.generate_json(
             prompt,
-            options={
-                "num_predict": 1024,  # Allow longer responses
-                "temperature": 0.3,   # Lower temp for consistent extraction
-            }
+            options={"task": "extract_task_enhanced"}
         )
 
         # Extract action

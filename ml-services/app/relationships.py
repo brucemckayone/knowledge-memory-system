@@ -29,7 +29,7 @@ Rules:
 4. Include temporal hints when available (currently, used to, since 2020)
 5. Rate confidence based on how explicit the relationship is
 
-Return JSON array only:
+Return raw JSON array only. Do not wrap in markdown code fences:
 [
   {{
     "subject": "Person or entity name",
@@ -202,19 +202,12 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
             entities=entity_list,
         )
 
-        response = llm_client.generate(
+        raw_rels = llm_client.generate_json(
             prompt=prompt,
-            options={
-                "temperature": 0.1,
-                "num_predict": 1024,
-            }
+            options={"task": "extract_relationships"}
         )
 
-        # Parse response
-        match = re.search(r'\[[\s\S]*\]', response)
-        if match:
-            raw_rels = json.loads(match.group())
-
+        if isinstance(raw_rels, list):
             llm_rels = []
             for r in raw_rels:
                 if isinstance(r, dict) and 'subject' in r and 'predicate' in r and 'object' in r:

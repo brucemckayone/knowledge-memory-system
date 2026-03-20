@@ -37,6 +37,16 @@ const envSchema = z.object({
   // Ingestion session window (minutes) for cross-source context linking
   INGESTION_SESSION_WINDOW_MINUTES: z.coerce.number().default(15),
 
+  // HTTP Ingest API key (W35)
+  MNEMO_API_KEY: z.string().optional(),
+
+  // File watcher (W36)
+  WATCH_DIR: z.string().optional(),
+  WATCH_ENABLED: z.coerce.boolean().default(false),
+
+  // Obsidian (W39)
+  OBSIDIAN_VAULT_PATH: z.string().optional(),
+  OBSIDIAN_ENABLED: z.coerce.boolean().default(false),
 });
 
 export type Config = z.infer<typeof envSchema>;

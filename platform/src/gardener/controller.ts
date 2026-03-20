@@ -237,6 +237,14 @@ class GardenerController {
       await this.boss.schedule('gardener:align-schema', periodicCron, {});
       await this.boss.schedule('gardener:resolve-conflicts', periodicCron, {});
 
+      // Nightly: community detection (midnight), contradiction scanner (1 AM), insights (2 AM)
+      await this.boss.schedule('gardener:community-detection', '0 0 * * *', {});
+      await this.boss.schedule('gardener:contradiction-scanner', '0 1 * * *', {});
+      await this.boss.schedule('gardener:generate-insights', '0 2 * * *', {});
+
+      // Daily: morning briefing (6 AM)
+      await this.boss.schedule('gardener:briefing', '0 6 * * *', {});
+
       console.log('✅ Gardener schedules configured successfully');
     } catch (error) {
       console.warn('⚠️  Failed to set up schedules:', error);
@@ -348,7 +356,6 @@ class GardenerController {
    */
   async getStats(): Promise<{
     jobsByTier: Record<string, number>;
-    mabState: Array<{ arm: string; pulls: number; avgReward: number; ucbScore: number }>;
     recentJobs: Array<{ type: string; status: string; duration: number }>;
   }> {
     try {
@@ -361,12 +368,11 @@ class GardenerController {
           (tierResult as unknown as { rows: Array<{ tier: string; count: number }> }).rows
             .map(r => [r.tier, r.count])
         ),
-        mabState: [],
         recentJobs: [],
       };
     } catch (error) {
       console.warn('Failed to get stats:', error);
-      return { jobsByTier: {}, mabState: [], recentJobs: [] };
+      return { jobsByTier: {}, recentJobs: [] };
     }
   }
 }

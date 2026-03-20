@@ -14,6 +14,11 @@ import {
   createTestFact,
   getEntity,
 } from '../setup.js';
+import {
+  getAllEdges,
+  getEntityDegrees,
+  getSubgraph,
+} from '../../services/graph.js';
 
 // Check if Apache AGE is available
 async function isAGEAvailable(): Promise<boolean> {
@@ -424,6 +429,72 @@ describe('Entities ↔ Facts ↔ Graph Coherence', () => {
       // This test documents that merge record exists and graph can be queried
       const targetEntity = await getEntity(target.id);
       expect(targetEntity!.merged_from).toContain(source.id);
+    });
+  });
+
+  describe('W18: Graph traversal enhancements', () => {
+    describe('getAllEdges', () => {
+      it.skipIf(!ageAvailable)('returns edges from the graph', async () => {
+        const hub = await createTestEntity({ canonicalName: 'Edge Hub', entityType: 'person' });
+        const target = await createTestEntity({ canonicalName: 'Edge Target', entityType: 'person' });
+        await createTestFact({ subjectEntityId: hub.id, predicate: 'knows', objectEntityId: target.id });
+        await new Promise(r => setTimeout(r, 150));
+
+        const edges = await getAllEdges({ limit: 100 });
+        expect(edges.length).toBeGreaterThanOrEqual(1);
+        expect(edges[0]).toHaveProperty('fromEntityId');
+        expect(edges[0]).toHaveProperty('toEntityId');
+        expect(edges[0]).toHaveProperty('type');
+      });
+
+      it('rejects invalid relationship types', async () => {
+        await expect(getAllEdges({ relationshipType: 'DROP TABLE;--' }))
+          .rejects.toThrow('Invalid relationshipType');
+      });
+    });
+
+    describe('getEntityDegrees', () => {
+      it.skipIf(!ageAvailable)('returns degree map for entities', async () => {
+        const hub = await createTestEntity({ canonicalName: 'Degree Hub', entityType: 'person' });
+        const a = await createTestEntity({ canonicalName: 'Degree A', entityType: 'person' });
+        const b = await createTestEntity({ canonicalName: 'Degree B', entityType: 'person' });
+        await createTestFact({ subjectEntityId: hub.id, predicate: 'knows', objectEntityId: a.id });
+        await createTestFact({ subjectEntityId: hub.id, predicate: 'knows', objectEntityId: b.id });
+        await new Promise(r => setTimeout(r, 200));
+
+        const degrees = await getEntityDegrees([hub.id]);
+        expect(degrees).toBeInstanceOf(Map);
+        expect(degrees.get(hub.id)).toBeGreaterThanOrEqual(2);
+      });
+
+      it('rejects invalid entity IDs', async () => {
+        await expect(getEntityDegrees(['not-a-uuid']))
+          .rejects.toThrow('Invalid entityId');
+      });
+    });
+
+    describe('getSubgraph', () => {
+      it('returns empty result for empty seed list', async () => {
+        const result = await getSubgraph([]);
+        expect(result.nodes).toEqual([]);
+        expect(result.edges).toEqual([]);
+      });
+
+      it('rejects invalid seed entity IDs', async () => {
+        await expect(getSubgraph(['invalid']))
+          .rejects.toThrow('Invalid entityId');
+      });
+
+      it.skipIf(!ageAvailable)('returns nodes and edges for valid seeds', async () => {
+        const hub = await createTestEntity({ canonicalName: 'Subgraph Hub', entityType: 'person' });
+        const spoke = await createTestEntity({ canonicalName: 'Subgraph Spoke', entityType: 'person' });
+        await createTestFact({ subjectEntityId: hub.id, predicate: 'knows', objectEntityId: spoke.id });
+        await new Promise(r => setTimeout(r, 150));
+
+        const result = await getSubgraph([hub.id], { maxDepth: 1 });
+        expect(result.nodes.length).toBeGreaterThanOrEqual(1);
+        expect(Array.isArray(result.edges)).toBe(true);
+      });
     });
   });
 });

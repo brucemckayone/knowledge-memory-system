@@ -1,21 +1,31 @@
 /**
  * Global Test Setup
  *
- * Runs once before all tests to initialize test database and services.
- * Creates cognitive_test database and runs migrations.
+ * Runs once before all tests to initialize the test database.
  *
- * Gracefully handles missing extensions (pgvector, pg_trgm) by tracking
- * availability flags that tests can use to skip appropriately.
+ * Strategy:
+ *   1. Create cognitive_test database if not exists
+ *   2. Enable PostgreSQL extensions (track availability for test gating)
+ *   3. Run migration SQL files from db/migrations/ in order
+ *
+ * All table definitions come from migration files — zero hand-written
+ * CREATE TABLE in this file. Migration files are the single source of truth
+ * (derived from schema.ts via db:generate, or hand-written for functions/seeds).
+ *
+ * Extension handling: pgvector and pg_trgm are optional. When unavailable,
+ * migration content is preprocessed to strip extension-dependent SQL
+ * (vector columns, hnsw indexes, trgm indexes). Tests use extension
+ * availability flags to skip appropriately.
  */
 
 // CRITICAL: Set environment variables BEFORE any imports
 // This ensures all modules (including config.ts) use the test database
-process.env.DATABASE_URL = 'postgres://cognitive:cognitive@localhost:5433/cognitive_test';
+process.env.DATABASE_URL = 'postgres://cognitive:cognitive@127.0.0.1:5433/cognitive_test';
 process.env.NODE_ENV = 'test';
-process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://localhost:8000';
+process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://127.0.0.1:8000';
 
 import postgres from 'postgres';
-import { writeFileSync } from 'fs';
+import { writeFileSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 const TEST_DB_NAME = 'cognitive_test';
@@ -36,9 +46,9 @@ const extensionAvailability: ExtensionAvailability = {
 export async function setup() {
   console.log('\n🧪 Setting up test environment...\n');
 
-  // Connect to default postgres database to create test database
+  // ── 1. Create test database ────────────────────────────────────
   const adminSql = postgres({
-    host: process.env.PGHOST || 'localhost',
+    host: process.env.PGHOST || '127.0.0.1',
     port: parseInt(process.env.PGPORT || '5433'),
     database: 'cognitive',
     username: process.env.PGUSER || 'cognitive',
@@ -46,13 +56,10 @@ export async function setup() {
   });
 
   try {
-    // Check if test database exists
     const result = await adminSql`
       SELECT 1 FROM pg_database WHERE datname = ${TEST_DB_NAME}
     `;
-
     if (result.length === 0) {
-      // Create test database
       await adminSql.unsafe(`CREATE DATABASE ${TEST_DB_NAME}`);
       console.log(`✅ Created test database: ${TEST_DB_NAME}`);
     } else {
@@ -65,9 +72,9 @@ export async function setup() {
     await adminSql.end();
   }
 
-  // Connect to test database to set up extensions and schema
+  // ── 2. Enable extensions ───────────────────────────────────────
   const testSql = postgres({
-    host: process.env.PGHOST || 'localhost',
+    host: process.env.PGHOST || '127.0.0.1',
     port: parseInt(process.env.PGPORT || '5433'),
     database: TEST_DB_NAME,
     username: process.env.PGUSER || 'cognitive',
@@ -75,517 +82,37 @@ export async function setup() {
   });
 
   try {
-    // Enable extensions with graceful fallback for missing ones
-    const extensions = [
+    for (const ext of [
       { name: 'uuid-ossp', key: 'uuid_ossp' as const },
       { name: 'vector', key: 'vector' as const },
       { name: 'pg_trgm', key: 'pg_trgm' as const },
-    ];
-
-    for (const ext of extensions) {
+    ]) {
       try {
         await testSql.unsafe(`CREATE EXTENSION IF NOT EXISTS "${ext.name}"`);
         extensionAvailability[ext.key] = true;
         console.log(`✅ Extension "${ext.name}" enabled`);
-      } catch (error) {
+      } catch {
         extensionAvailability[ext.key] = false;
         console.warn(`⚠️  Extension "${ext.name}" not available - tests requiring it will be skipped`);
       }
     }
 
-    // Write extension availability to a temp file for test files to read
+    // btree_gist used by facts temporal constraints (migration 004)
+    try {
+      await testSql.unsafe(`CREATE EXTENSION IF NOT EXISTS btree_gist`);
+    } catch {
+      console.warn('⚠️  Extension btree_gist not available');
+    }
+
+    // Write extension availability for test files to read
     const availabilityPath = join(__dirname, '.extension-availability.json');
     writeFileSync(availabilityPath, JSON.stringify(extensionAvailability, null, 2));
     console.log(`📝 Extension availability written to ${availabilityPath}`);
 
-    // Create entities table (with or without vector column depending on extension availability)
-    if (extensionAvailability.vector) {
-      await testSql`
-        CREATE TABLE IF NOT EXISTS entities (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          canonical_name VARCHAR(500) NOT NULL,
-          entity_type VARCHAR(100) NOT NULL,
-          description TEXT,
-          properties JSONB DEFAULT '{}'::jsonb NOT NULL,
-          merged_from UUID[] DEFAULT '{}',
-          confidence REAL DEFAULT 1.0 NOT NULL,
-          embedding vector(768),
-          first_seen_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-          last_seen_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-          created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-          updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-        )
-      `;
-    } else {
-      await testSql`
-        CREATE TABLE IF NOT EXISTS entities (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          canonical_name VARCHAR(500) NOT NULL,
-          entity_type VARCHAR(100) NOT NULL,
-          description TEXT,
-          properties JSONB DEFAULT '{}'::jsonb NOT NULL,
-          merged_from UUID[] DEFAULT '{}',
-          confidence REAL DEFAULT 1.0 NOT NULL,
-          first_seen_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-          last_seen_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-          created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-          updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-        )
-      `;
-    }
+    // ── 3. Run migration files ─────────────────────────────────
+    await runMigrations(testSql, extensionAvailability);
 
-    // Create entity_aliases table
-    await testSql`
-      CREATE TABLE IF NOT EXISTS entity_aliases (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
-        alias VARCHAR(500) NOT NULL,
-        alias_type VARCHAR(50),
-        source VARCHAR(100),
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-      )
-    `;
-
-    // Create entity_merges table
-    await testSql`
-      CREATE TABLE IF NOT EXISTS entity_merges (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        source_entity_id UUID NOT NULL,
-        target_entity_id UUID NOT NULL REFERENCES entities(id),
-        merge_reason TEXT,
-        merge_method VARCHAR(50),
-        similarity_score REAL,
-        merged_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        merged_by VARCHAR(100) DEFAULT 'system'
-      )
-    `;
-
-    // Create memory_entities table
-    await testSql`
-      CREATE TABLE IF NOT EXISTS memory_entities (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        memory_id UUID NOT NULL,
-        entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
-        mention_text VARCHAR(500),
-        relationship VARCHAR(100) DEFAULT 'mentions',
-        mention_start INTEGER,
-        mention_end INTEGER,
-        mention_context TEXT,
-        confidence REAL DEFAULT 1.0,
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-      )
-    `;
-
-    // Create fact_predicates table with Phase 4 columns
-    await testSql`
-      CREATE TABLE IF NOT EXISTS fact_predicates (
-        predicate VARCHAR(255) PRIMARY KEY,
-        description TEXT,
-        inverse_predicate VARCHAR(255),
-        predicate_type VARCHAR(50),
-        is_exclusive BOOLEAN DEFAULT FALSE,
-        category VARCHAR(50),
-        aliases TEXT[] DEFAULT '{}',
-        is_canonical BOOLEAN DEFAULT true,
-        usage_count INTEGER DEFAULT 0,
-        last_used_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-      )
-    `;
-
-    // Add Phase 4 columns if they don't exist (for existing tables)
-    await testSql`ALTER TABLE fact_predicates ADD COLUMN IF NOT EXISTS category VARCHAR(50)`;
-    await testSql`ALTER TABLE fact_predicates ADD COLUMN IF NOT EXISTS aliases TEXT[] DEFAULT '{}'`;
-    await testSql`ALTER TABLE fact_predicates ADD COLUMN IF NOT EXISTS is_canonical BOOLEAN DEFAULT true`;
-    await testSql`ALTER TABLE fact_predicates ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0`;
-    await testSql`ALTER TABLE fact_predicates ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ`;
-
-    // Create facts table (with or without vector column depending on extension availability)
-    if (extensionAvailability.vector) {
-      await testSql`
-        CREATE TABLE IF NOT EXISTS facts (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          subject_entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
-          predicate VARCHAR(255) NOT NULL,
-          object_entity_id UUID REFERENCES entities(id) ON DELETE SET NULL,
-          object_value TEXT,
-          valid_at TIMESTAMPTZ,
-          invalid_at TIMESTAMPTZ,
-          created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-          expired_at TIMESTAMPTZ,
-          source_memory_id UUID,
-          source_text TEXT,
-          extraction_method VARCHAR(100),
-          confidence REAL DEFAULT 1.0,
-          fact_embedding vector(768)
-        )
-      `;
-    } else {
-      await testSql`
-        CREATE TABLE IF NOT EXISTS facts (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          subject_entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
-          predicate VARCHAR(255) NOT NULL,
-          object_entity_id UUID REFERENCES entities(id) ON DELETE SET NULL,
-          object_value TEXT,
-          valid_at TIMESTAMPTZ,
-          invalid_at TIMESTAMPTZ,
-          created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-          expired_at TIMESTAMPTZ,
-          source_memory_id UUID,
-          source_text TEXT,
-          extraction_method VARCHAR(100),
-          confidence REAL DEFAULT 1.0
-        )
-      `;
-    }
-
-    // Create tasks table (with Phase 8 enhancements)
-    await testSql`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        trace_id UUID,
-        content TEXT NOT NULL,
-        due_date TIMESTAMPTZ,
-        priority VARCHAR(10) DEFAULT 'medium' NOT NULL,
-        status VARCHAR(20) DEFAULT 'pending' NOT NULL,
-        epic_id UUID,
-        context_id UUID,
-        memory_id UUID,
-        parent_task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
-        hierarchy_level INTEGER DEFAULT 0 NOT NULL,
-        estimated_duration_minutes INTEGER,
-        duration_confidence REAL,
-        decomposition_reasoning TEXT,
-        auto_suggested_deadline TIMESTAMPTZ,
-        auto_suggested_priority VARCHAR(20),
-        suggestions JSONB DEFAULT '[]'::jsonb,
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        completed_at TIMESTAMPTZ,
-        updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-      )
-    `;
-
-    // Create epics table
-    await testSql`
-      CREATE TABLE IF NOT EXISTS epics (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        status VARCHAR(20) DEFAULT 'active' NOT NULL,
-        last_activity_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-      )
-    `;
-
-    // Phase 8: Enhanced Task Management tables
-    // Create task_dependencies table
-    await testSql`
-      CREATE TABLE IF NOT EXISTS task_dependencies (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-        depends_on_task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-        dependency_type VARCHAR(50) NOT NULL CHECK (dependency_type IN ('blocking', 'prerequisite', 'related')),
-        confidence REAL DEFAULT 1.0,
-        detected_by VARCHAR(50) DEFAULT 'llm',
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        UNIQUE(task_id, depends_on_task_id, dependency_type)
-      )
-    `;
-
-    // Create task_conflicts table
-    await testSql`
-      CREATE TABLE IF NOT EXISTS task_conflicts (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        task_id_1 UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-        task_id_2 UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-        conflict_type VARCHAR(50) NOT NULL CHECK (conflict_type IN ('temporal', 'resource', 'priority', 'logical')),
-        severity VARCHAR(20) CHECK (severity IN ('low', 'medium', 'high', 'critical')),
-        description TEXT,
-        detected_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        resolved_at TIMESTAMPTZ,
-        resolution_status VARCHAR(50) DEFAULT 'open' CHECK (resolution_status IN ('open', 'resolved', 'dismissed')),
-        resolution_action VARCHAR,
-        UNIQUE(task_id_1, task_id_2, conflict_type)
-      )
-    `;
-
-    // Create user_preferences table
-    await testSql`
-      CREATE TABLE IF NOT EXISTS user_preferences (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        user_id VARCHAR(255) NOT NULL,
-        preference_key VARCHAR(100) NOT NULL,
-        preference_value JSONB NOT NULL,
-        confidence REAL DEFAULT 0.5,
-        last_observed_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        sample_count INTEGER DEFAULT 1,
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        UNIQUE(user_id, preference_key)
-      )
-    `;
-
-    // Create processing_state table
-    await testSql`
-      CREATE TABLE IF NOT EXISTS processing_state (
-        conversation_id VARCHAR(255) PRIMARY KEY NOT NULL,
-        pending_messages JSONB DEFAULT '[]'::jsonb NOT NULL,
-        messages_since_update INTEGER DEFAULT 0 NOT NULL,
-        last_processed_at TIMESTAMPTZ,
-        next_analysis_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-      )
-    `;
-
-    // Create gardener_job_meta table (with trace_id and outputs for observability)
-    await testSql`
-      CREATE TABLE IF NOT EXISTS gardener_job_meta (
-        job_id UUID PRIMARY KEY,
-        job_type VARCHAR(100),
-        tier VARCHAR(20),
-        priority INTEGER DEFAULT 0,
-        started_at TIMESTAMPTZ,
-        completed_at TIMESTAMPTZ,
-        duration_ms INTEGER,
-        attempts INTEGER DEFAULT 0,
-        checkpoint JSONB,
-        checkpoint_at TIMESTAMPTZ,
-        last_error TEXT,
-        trace_id TEXT,
-        outputs JSONB,
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-      )
-    `;
-    // Ensure columns exist for existing tables
-    await testSql`ALTER TABLE gardener_job_meta ADD COLUMN IF NOT EXISTS trace_id TEXT`;
-    await testSql`ALTER TABLE gardener_job_meta ADD COLUMN IF NOT EXISTS outputs JSONB`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_gardener_job_meta_trace ON gardener_job_meta(trace_id)`;
-
-    // Create memory_chunks table for chunked content processing
-    await testSql`
-      CREATE TABLE IF NOT EXISTS memory_chunks (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        memory_id TEXT NOT NULL,
-        chunk_index INTEGER NOT NULL,
-        content TEXT NOT NULL,
-        char_count INTEGER NOT NULL,
-        token_estimate INTEGER,
-        overlap_chars INTEGER DEFAULT 0,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        processed_at TIMESTAMPTZ,
-        UNIQUE(memory_id, chunk_index)
-      )
-    `;
-
-    // Create indexes for memory_chunks
-    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_chunks_memory ON memory_chunks(memory_id)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_chunks_unprocessed ON memory_chunks(memory_id) WHERE processed_at IS NULL`;
-
-    // Create memory_metadata table for reader agent (W23)
-    await testSql`
-      CREATE TABLE IF NOT EXISTS memory_metadata (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        memory_id TEXT NOT NULL UNIQUE,
-        content_type VARCHAR(50),
-        title VARCHAR(500),
-        summary TEXT,
-        extracted_dates JSONB DEFAULT '[]'::jsonb,
-        extracted_links JSONB DEFAULT '[]'::jsonb,
-        extracted_tags TEXT[] DEFAULT '{}',
-        mentioned_entities TEXT[] DEFAULT '{}',
-        word_count INTEGER,
-        language VARCHAR(10),
-        sentiment VARCHAR(20),
-        parsed_at TIMESTAMPTZ DEFAULT NOW(),
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_metadata_type ON memory_metadata(content_type)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_metadata_memory ON memory_metadata(memory_id)`;
-
-    // Create memory_summaries table for summarizer agent (W24)
-    await testSql`
-      CREATE TABLE IF NOT EXISTS memory_summaries (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        memory_id TEXT NOT NULL,
-        summary_type VARCHAR(50) DEFAULT 'standard',
-        summary TEXT NOT NULL,
-        key_points JSONB DEFAULT '[]'::jsonb,
-        embedding_updated BOOLEAN DEFAULT FALSE,
-        model_used VARCHAR(100),
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_summaries_memory ON memory_summaries(memory_id)`;
-
-    // Drop old gardener_metrics table if it has wrong schema, then recreate
-    // This is needed because migration 006 creates a different schema than 007
-    try {
-      // Check if the table has the old schema (job_type column means old schema)
-      const oldSchemaCheck = await testSql`
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'gardener_metrics' AND column_name = 'job_type'
-      `;
-      if (oldSchemaCheck.length > 0) {
-        await testSql`DROP TABLE IF EXISTS gardener_metrics CASCADE`;
-      }
-    } catch {
-      // Table doesn't exist, that's fine
-    }
-
-    // Create gardener_metrics table for evaluator agent (W29)
-    await testSql`
-      CREATE TABLE IF NOT EXISTS gardener_metrics (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        job_id UUID,
-        agent_name VARCHAR(100) NOT NULL,
-        execution_time_ms INTEGER,
-        success BOOLEAN,
-        quality_score REAL,
-        items_processed INTEGER DEFAULT 0,
-        error_message TEXT,
-        agent_specific_metrics JSONB DEFAULT '{}',
-        recorded_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `;
-
-    // Create index for gardener_metrics
-    await testSql`CREATE INDEX IF NOT EXISTS idx_gardener_metrics_agent ON gardener_metrics(agent_name)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_gardener_metrics_time ON gardener_metrics(recorded_at)`;
-
-    // Create gardener_agent_stats view
-    await testSql`
-      CREATE OR REPLACE VIEW gardener_agent_stats AS
-      SELECT
-        agent_name,
-        COUNT(*) as total_jobs,
-        SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful_jobs,
-        AVG(quality_score) as avg_quality_score,
-        STDDEV(quality_score) as quality_stddev,
-        AVG(execution_time_ms) as avg_execution_time,
-        AVG(items_processed) as avg_items_processed,
-        MAX(recorded_at) as last_run
-      FROM gardener_metrics
-      WHERE recorded_at > NOW() - INTERVAL '7 days'
-      GROUP BY agent_name
-    `;
-
-    // Create context_summaries table for conversation tracking
-    await testSql`
-      CREATE TABLE IF NOT EXISTS context_summaries (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        conversation_id VARCHAR(255) UNIQUE NOT NULL,
-        platform VARCHAR(50) NOT NULL,
-        name VARCHAR(255),
-        summary TEXT,
-        message_count INTEGER DEFAULT 0 NOT NULL,
-        participants_json JSONB DEFAULT '[]' NOT NULL,
-        last_analyzed_at TIMESTAMPTZ,
-        last_message_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-      )
-    `;
-
-    // Create context_uuid_audit table for deterministic UUID tracking
-    await testSql`
-      CREATE TABLE IF NOT EXISTS context_uuid_audit (
-        context_uuid UUID PRIMARY KEY,
-        platform VARCHAR(50) NOT NULL,
-        conversation_id VARCHAR(255) NOT NULL,
-        first_seen_at TIMESTAMPTZ DEFAULT NOW(),
-        last_seen_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `;
-
-    // Create ingestion_sessions table for cross-source context linking
-    await testSql`
-      CREATE TABLE IF NOT EXISTS ingestion_sessions (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        sender_id TEXT NOT NULL,
-        session_key TEXT NOT NULL UNIQUE,
-        opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        closed_at TIMESTAMPTZ,
-        member_count INTEGER NOT NULL DEFAULT 0,
-        raw_types TEXT[] NOT NULL DEFAULT '{}',
-        platforms TEXT[] NOT NULL DEFAULT '{}',
-        shared_entities UUID[] DEFAULT '{}',
-        shared_tags TEXT[] DEFAULT '{}',
-        context_summary TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `;
-
-    await testSql`CREATE INDEX IF NOT EXISTS idx_sessions_open ON ingestion_sessions(closed_at) WHERE closed_at IS NULL`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_sessions_sender ON ingestion_sessions(sender_id, opened_at DESC)`;
-
-    // Create ingestion_session_members table
-    await testSql`
-      CREATE TABLE IF NOT EXISTS ingestion_session_members (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        session_id UUID NOT NULL REFERENCES ingestion_sessions(id) ON DELETE CASCADE,
-        memory_id UUID NOT NULL,
-        platform TEXT NOT NULL,
-        raw_type TEXT NOT NULL,
-        content_preview TEXT,
-        ingested_at TIMESTAMPTZ NOT NULL,
-        UNIQUE(session_id, memory_id)
-      )
-    `;
-
-    await testSql`CREATE INDEX IF NOT EXISTS idx_session_members_memory ON ingestion_session_members(memory_id)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_session_members_session ON ingestion_session_members(session_id)`;
-
-    // Create indexes (pg_trgm indexes are conditional on extension availability)
-    if (extensionAvailability.pg_trgm) {
-      await testSql`CREATE INDEX IF NOT EXISTS idx_entities_canonical_name ON entities USING gin (canonical_name gin_trgm_ops)`;
-      await testSql`CREATE INDEX IF NOT EXISTS idx_entity_aliases_alias ON entity_aliases USING gin (alias gin_trgm_ops)`;
-    } else {
-      // Fallback to btree indexes for basic text search
-      await testSql`CREATE INDEX IF NOT EXISTS idx_entities_canonical_name ON entities(canonical_name)`;
-      await testSql`CREATE INDEX IF NOT EXISTS idx_entity_aliases_alias ON entity_aliases(alias)`;
-    }
-    await testSql`CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(entity_type)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_entity_aliases_entity_id ON entity_aliases(entity_id)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_entities_memory_id ON memory_entities(memory_id)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_memory_entities_entity_id ON memory_entities(entity_id)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_facts_subject ON facts(subject_entity_id)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_facts_object ON facts(object_entity_id)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_facts_predicate ON facts(predicate)`;
-    await testSql`CREATE INDEX IF NOT EXISTS idx_facts_active ON facts(expired_at) WHERE expired_at IS NULL`;
-
-    // Create bi-temporal query function
-    await testSql`
-      CREATE OR REPLACE FUNCTION facts_at_time(query_time TIMESTAMPTZ)
-      RETURNS SETOF facts AS $$
-        SELECT * FROM facts
-        WHERE created_at <= query_time
-          AND (expired_at IS NULL OR expired_at > query_time)
-          AND (valid_at IS NULL OR valid_at <= query_time)
-          AND (invalid_at IS NULL OR invalid_at > query_time)
-      $$ LANGUAGE sql STABLE
-    `;
-
-    // Insert default predicates
-    await testSql`
-      INSERT INTO fact_predicates (predicate, description, is_exclusive)
-      VALUES
-        ('works_at', 'Employment relationship', true),
-        ('works_on', 'Project assignment', false),
-        ('located_in', 'Physical location', false),
-        ('has_role', 'Role or title', true),
-        ('knows', 'Personal relationship', false),
-        ('manages', 'Management relationship', false),
-        ('part_of', 'Component relationship', false),
-        ('uses', 'Technology or tool usage', false)
-      ON CONFLICT (predicate) DO NOTHING
-    `;
-
-    console.log('✅ Test database schema created');
+    console.log('✅ Test database schema ready');
   } catch (error) {
     console.error('❌ Failed to set up test schema:', error);
     throw error;
@@ -596,11 +123,100 @@ export async function setup() {
   console.log('\n🎉 Test environment ready!\n');
 }
 
+// ============================================
+// Migration runner
+// ============================================
+
+/**
+ * Preprocess a migration file to handle optional extensions and idempotency.
+ *
+ * - Strips CREATE EXTENSION (already handled above)
+ * - Strips vector columns / hnsw indexes when pgvector is unavailable
+ * - Strips trgm indexes when pg_trgm is unavailable
+ * - Ensures all CREATE INDEX are idempotent (IF NOT EXISTS)
+ */
+function preprocessMigration(content: string, ext: ExtensionAvailability): string {
+  let processed = content;
+
+  // Remove extension creation — handled in step 2
+  processed = processed.replace(/CREATE EXTENSION IF NOT EXISTS[^;]+;\s*\n?/g, '');
+
+  if (!ext.vector) {
+    // Strip vector column definitions
+    processed = processed.replace(/,?\s*\n\s*embedding\s+VECTOR\(\d+\)/gi, '');
+    processed = processed.replace(/,?\s*\n\s*fact_embedding\s+VECTOR\(\d+\)/gi, '');
+    // Strip hnsw indexes on vector columns
+    processed = processed.replace(/CREATE INDEX[^;]*hnsw[^;]*vector_cosine_ops[^;]*;\s*\n?/gi, '');
+  }
+
+  if (!ext.pg_trgm) {
+    // Strip trgm indexes
+    processed = processed.replace(/CREATE INDEX[^;]*gin_trgm_ops[^;]*;\s*\n?/gi, '');
+  }
+
+  // Make all CREATE INDEX idempotent
+  processed = processed.replace(/CREATE INDEX(?!\s+IF\s+NOT\s+EXISTS)/gi, 'CREATE INDEX IF NOT EXISTS');
+  processed = processed.replace(/CREATE UNIQUE INDEX(?!\s+IF\s+NOT\s+EXISTS)/gi, 'CREATE UNIQUE INDEX IF NOT EXISTS');
+
+  return processed;
+}
+
+/**
+ * Run migration SQL files from db/migrations/ in order.
+ *
+ * All tables, functions, triggers, views, and seed data come from these files.
+ * Extension-dependent content is preprocessed to handle missing pgvector/pg_trgm.
+ */
+async function runMigrations(sql: postgres.Sql, ext: ExtensionAvailability) {
+  const migrationsDir = join(__dirname, '../db/migrations');
+  const files = readdirSync(migrationsDir)
+    .filter(f => f.endsWith('.sql'))
+    .sort();
+
+  console.log(`📂 Running ${files.length} migration files...`);
+
+  for (const file of files) {
+    // Skip Apache AGE — optional extension, references wrong DB name
+    // (cognitive vs cognitive_test), and AGE-dependent tests gate themselves.
+    if (file.includes('apache_age')) {
+      console.log(`⏭️  Skipped ${file} (Apache AGE — optional, test-gated)`);
+      continue;
+    }
+
+    // Migration 007 creates an old version of contradiction_reviews (Phase 4).
+    // Migration 013 supersedes it with the Phase 5 schema (different columns).
+    // Since both use CREATE TABLE IF NOT EXISTS, we must drop the old version
+    // before 013 runs so the new schema takes effect.
+    if (file.includes('013_contradiction_reviews')) {
+      await sql.unsafe('DROP TABLE IF EXISTS contradiction_reviews CASCADE');
+    }
+
+    const raw = readFileSync(join(migrationsDir, file), 'utf-8');
+    const content = preprocessMigration(raw, ext);
+
+    try {
+      await sql.unsafe(content);
+      console.log(`✅ ${file}`);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+
+      const isExtensionError =
+        msg.includes('type "vector" does not exist') ||
+        msg.includes('operator class "vector_cosine_ops"') ||
+        msg.includes('operator class "gin_trgm_ops"') ||
+        msg.includes('function similarity');
+
+      if (isExtensionError) {
+        console.warn(`⚠️  ${file} — partial (missing extension): ${msg.slice(0, 80)}`);
+      } else {
+        console.error(`❌ ${file}: ${msg.slice(0, 120)}`);
+      }
+    }
+  }
+}
+
 export async function teardown() {
   console.log('\n🧹 Cleaning up test environment...\n');
-
-  // Optionally drop the test database after all tests
-  // For now, we keep it for debugging failed tests
-
+  // Keep test database for debugging failed tests
   console.log('✅ Test cleanup complete\n');
 }

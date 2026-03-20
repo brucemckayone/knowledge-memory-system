@@ -256,3 +256,60 @@ To support this "Plug-and-Play" future:
 3.  **Agent Runtime**: A standard way to spin up a temporary LLM agent, give it a specific subset of Tools, and let it run a loop.
 
 This structure allows you to build "The Deep Diver" completely independently as a folder in `plugins/deep-diver/` containing its own Logic, Tools, and Prompts, without touching the core platform code.
+
+---
+
+## 8. Self-Healing Codebase ("The Inner Eye")
+
+### Concept
+
+Mnemo turns its own intelligence inward. By interfacing with GitHub and its own error logging/detection systems, the platform can analyse its own codebase — detecting errors, diagnosing root causes, and autonomously creating GitHub issues and PRs with proposed fixes. The memory system maintains a context-aware timeline of errors, fixes, and the intentions behind every change, keeping the project on track and building institutional knowledge about its own evolution.
+
+### Why This Matters
+
+Most error-to-fix cycles are reactive and context-poor: a log line fires, someone investigates from scratch, and the reasoning behind the fix lives only in the developer's head. If Mnemo can observe its own runtime errors, correlate them with recent changes (via git history), understand the original intent behind the code (via its own memory/knowledge graph), and propose targeted fixes — the entire feedback loop tightens dramatically. The memory layer means it never loses context: it knows *why* a piece of code exists, what past errors looked like, and what was tried before.
+
+### Architectural Fit
+
+- **Current State**: KARMA agents already perform background analysis and enrichment. The memory system stores entities, relationships, and context.
+- **Target Module**: `Interpretation Layer` -> `DevOps Plugin` (new).
+- **Phase**: Phase 6+ (Self-Awareness).
+
+### Technical Implementation
+
+1. **Error Ingestion**:
+   - New source adapter for application logs (structured JSON logs from platform + ml-services).
+   - Runtime error events feed into the standard ingestion pipeline, creating `memory` entries with `type: error`.
+   - Stack traces, request context, and environment metadata are captured as entities.
+
+2. **Diagnosis Agent**:
+   - Triggered `on_memory_created` when `type: error`.
+   - Correlates the error with recent git commits (`git log`, `git blame`).
+   - Queries the knowledge graph for related past errors, fixes, and the original intent behind the affected code.
+   - Produces a diagnosis: root cause hypothesis, confidence level, affected components.
+
+3. **Resolution Agent**:
+   - Takes the diagnosis and generates a proposed fix.
+   - Creates a GitHub issue with full context (error, diagnosis, affected files, related past incidents).
+   - Opens a draft PR with the fix, linking back to the issue.
+   - Records the entire error→diagnosis→fix chain in the memory system as a connected subgraph.
+
+4. **Context Timeline**:
+   - The memory system maintains a living timeline: `error → diagnosis → fix → PR → merge → verification`.
+   - Each node links to the intent behind the original code, the intent behind the fix, and any related past incidents.
+   - This timeline is queryable — "what errors have we seen in the ingestion pipeline?" returns a full narrative, not just log lines.
+
+### Plugin Shape
+
+| Aspect | Detail |
+| :--- | :--- |
+| **Plugin Type** | `SelfHealingPlugin` |
+| **Triggers** | `on_memory_created` (type=error), `on_schedule` (periodic log scan) |
+| **New Skills** | `analyse_error`, `correlate_with_history`, `generate_fix`, `create_github_issue`, `create_github_pr`, `record_fix_timeline` |
+
+### Future Code/System Requirements
+
+- **GitHub Integration**: Authenticated GitHub API access for issue/PR creation (likely via GitHub App or PAT).
+- **Log Structured Format**: Platform and ml-services need consistent structured logging to enable reliable error parsing.
+- **Safety Rails**: Human-in-the-loop approval before any PR is merged. The system proposes, a human disposes.
+- **Feedback Loop**: When a human modifies a proposed fix before merging, the system learns from the delta — improving future diagnoses.

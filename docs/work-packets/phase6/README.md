@@ -1,7 +1,7 @@
 # Phase 6: Multi-Source Ingestion
 
 > **Goal:** Expand Mnemo beyond Telegram into a universal second brain — meetings, documents, notes, and developer tools all feed the same knowledge graph.
-> **Status:** ❌ Not Started — 9 work packets (W34–W42) defined below.
+> **Status:** ✅ Complete — 12 work packets (W34–W45) implemented.
 
 ---
 
@@ -142,6 +142,9 @@ Exposes Mnemo as a set of MCP tools that Claude Code can call during development
 | [W40](./W40-obsidian-writeback.md) | Obsidian Write-back Agent | W39 | 5–6h |
 | [W41](./W41-mnemo-mcp-server.md) | Mnemo MCP Server | W35 | 3–4h |
 | [W42](./W42-multi-source-integration.md) | Integration & E2E Testing | W35–W41 | 3–4h |
+| [W43](./W43-processing-profiles.md) | Processing Profile System | W34 | 3–4h |
+| [W44](./W44-conversation-context.md) | Conversation Context Service | W34, W43 | 5–6h |
+| [W45](./W45-project-association.md) | Project Association Agent | W44 | 4–5h |
 
 ### Dependency Graph
 
@@ -152,21 +155,27 @@ W34 (Framework) ──┬── W35 (HTTP API) ──── W41 (MCP Server)
                   │                              │
                   ├── W36 (File Watcher) ── W38 (Meeting Capture)
                   │                              │
-                  └── W39 (Obsidian Read) ── W40 (Write-back)
+                  ├── W39 (Obsidian Read) ── W40 (Write-back)
+                  │                              │
+                  ├── W43 (Profiles) ── W44 (Conversation Context) ── W45 (Project Assoc.)
+                  │                                                          │
+                  └──────────────────────────────────────────────────────────┘
                                                  │
                                           W42 (Integration)
 ```
 
 W34 and W37 can start in parallel (TypeScript and Python respectively).
+W43–W45 form a new chain that can proceed in parallel with W35–W41.
 
 ### Recommended Order
 
 1. **W34** + **W37** in parallel (framework + ML endpoints)
-2. **W35** + **W36** + **W39** (three input sources, all depend on W34)
+2. **W35** + **W36** + **W39** + **W43** (input sources + processing profiles)
 3. **W38** (meeting capture, needs W36 + W37)
-4. **W40** (Obsidian write-back, needs W39)
-5. **W41** (MCP server, needs W35)
-6. **W42** (integration testing, needs everything)
+4. **W44** (conversation context, needs W34 + W43)
+5. **W40** + **W41** (Obsidian write-back + MCP server)
+6. **W45** (project association, needs W44)
+7. **W42** (integration testing, needs everything)
 
 ---
 

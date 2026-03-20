@@ -309,6 +309,27 @@ async def parse_markdown(request: ParseMarkdownRequest):
     )
 ```
 
+### Conversation-Aware Extraction Prompts
+
+For conversation streams (Teams chat, email threads), the extraction prompts receive context from the Conversation Context Service (W44). The ML endpoints accept an optional `context` parameter:
+
+```python
+class ExtractActionsRequest(BaseModel):
+    content: str
+    context: Optional[str] = None       # Sliding window context from W44
+    prompt_hints: Optional[str] = None  # From processing profile (W43)
+    extract_actions: bool = True
+
+# When context is provided, the prompt becomes:
+# "Given this conversation context: {context}
+#  Extract action items from the latest messages: {content}
+#  Additional focus: {prompt_hints}"
+```
+
+This enables extraction prompts like: *"This is from #phoenix-dev. Look for JIRA references (PHOE-xxx), architecture decisions, and task assignments to team members Alice, Bob, and Carol."*
+
+See [Multi-Source Processing Architecture](../../architecture/multi-source-processing.md) for the full design.
+
 ### Python Dependencies
 
 Add to `ml-services/requirements.txt`:

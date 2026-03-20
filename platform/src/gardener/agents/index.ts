@@ -19,6 +19,17 @@ import { schemaAlignmentAgent } from './schema-alignment.agent.js';
 // Context Linking Agent
 import { contextLinkerAgent } from './context-linker.agent.js';
 
+// Phase 5 Agents
+import { contradictionScannerAgent } from './contradiction-scanner.agent.js';
+import { communityDetectionAgent } from './community-detection.agent.js';
+import { insightGenerationAgent } from './insight-generation.agent.js';
+import { briefingAgent } from './briefing.agent.js';
+
+// Phase 6 Agents
+import { vaultWriterAgent } from './vault-writer.agent.js';
+import { projectAssociationAgent } from './project-association.agent.js';
+import { projectRefreshAgent } from './project-refresh.agent.js';
+
 // Phase 3 exports
 export { entityExtractionAgent } from './entity-extraction.agent.js';
 export { conflictResolutionAgent } from './conflict-resolution.agent.js';
@@ -31,6 +42,17 @@ export { schemaAlignmentAgent } from './schema-alignment.agent.js';
 
 // Context linking export
 export { contextLinkerAgent } from './context-linker.agent.js';
+
+// Phase 5 exports
+export { contradictionScannerAgent } from './contradiction-scanner.agent.js';
+export { communityDetectionAgent } from './community-detection.agent.js';
+export { insightGenerationAgent } from './insight-generation.agent.js';
+export { briefingAgent } from './briefing.agent.js';
+
+// Phase 6 exports
+export { vaultWriterAgent } from './vault-writer.agent.js';
+export { projectAssociationAgent } from './project-association.agent.js';
+export { projectRefreshAgent } from './project-refresh.agent.js';
 
 /**
  * All agents in registration order
@@ -50,6 +72,17 @@ export const allAgents = [
 
   // Context Linking
   contextLinkerAgent,
+
+  // Phase 5: Scheduled Scanning
+  contradictionScannerAgent,
+  communityDetectionAgent,
+  insightGenerationAgent,
+  briefingAgent,
+
+  // Phase 6: Obsidian Write-back & Project Association
+  vaultWriterAgent,
+  projectAssociationAgent,
+  projectRefreshAgent,
 ];
 
 /**

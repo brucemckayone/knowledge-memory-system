@@ -9,21 +9,16 @@ router = APIRouter()
 # Max content length for summarization (to fit in context)
 MAX_CONTENT_LENGTH = 8000
 
-SUMMARIZE_PROMPT = """Summarize the following article in 2-3 concise sentences.
-Also extract 3-5 key points as a bullet list.
+SUMMARIZE_PROMPT = """Summarize the following article.
 
 Title: {title}
 
 Content:
 {content}
 
-Format your response as:
-SUMMARY: <your 2-3 sentence summary>
-
-KEY POINTS:
-- <point 1>
-- <point 2>
-- <point 3>
+Return a JSON object with:
+- "summary": 2-3 concise sentences summarizing the article
+- "key_points": array of 3-5 key point strings
 """
 
 
@@ -39,40 +34,6 @@ class SummarizeResponse(BaseModel):
     key_points: List[str]
     word_count: int
 
-
-def parse_summary_response(text: str) -> dict:
-    """Parse LLM response into structured format"""
-    result = {
-        'summary': '',
-        'key_points': []
-    }
-
-    # Flexible summary header: SUMMARY:, ## Summary, **Summary:**, Summary: etc.
-    summary_pattern = r'(?:\#{1,3}\s*)?(?:\*{0,2})summary(?:\*{0,2})\s*:?\s*(.+?)(?=(?:\#{1,3}\s*)?(?:\*{0,2})(?:key\s*points?|main\s*points?|highlights?|takeaways?)(?:\*{0,2})\s*:?|$)'
-    summary_match = re.search(summary_pattern, text, re.DOTALL | re.IGNORECASE)
-    if summary_match:
-        result['summary'] = summary_match.group(1).strip()
-    else:
-        # Fallback: use first paragraph
-        lines = text.strip().split('\n')
-        result['summary'] = lines[0] if lines else text[:200]
-
-    # Flexible key points header
-    key_points_pattern = r'(?:\#{1,3}\s*)?(?:\*{0,2})(?:key\s*points?|main\s*points?|highlights?|takeaways?)(?:\*{0,2})\s*:?\s*(.+)'
-    key_points_match = re.search(key_points_pattern, text, re.DOTALL | re.IGNORECASE)
-    if key_points_match:
-        points_text = key_points_match.group(1)
-        # Match bullets (- * •) and numbered lists (1. 1) )
-        points = re.findall(r'(?:[-•*]|\d+[.)]\s*)\s*(.+?)(?=\n(?:[-•*]|\d+[.)])\s|\Z)', points_text, re.DOTALL)
-        result['key_points'] = [p.strip() for p in points if p.strip()]
-
-    # Fallback if no key points found
-    if not result['key_points']:
-        # Try to extract sentences as points
-        sentences = re.split(r'[.!?]\s+', result['summary'])
-        result['key_points'] = [s.strip() for s in sentences[:3] if s.strip()]
-
-    return result
 
 
 @router.post("/summarize", response_model=SummarizeResponse)
@@ -98,23 +59,21 @@ async def summarize_content(request: SummarizeRequest):
         print(f"📝 Summarizing: {request.title}")
 
         # Call LLM Service
-        # We don't use generate_json here because the prompt asks for text format
-        response_text = llm_client.generate(
-            prompt,
-            options={
-                "temperature": 0.3,  # Some creativity but mostly factual
-                "num_predict": 512,  # Longer output for summary
-            }
-        )
+        result = llm_client.generate_json(prompt, options={"task": "summarize"})
 
-        # Parse response
-        result = parse_summary_response(response_text)
+        summary = result.get("summary", content[:200].strip())
+        key_points = result.get("key_points", [])
 
-        print(f"✅ Summary: {len(result['summary'])} chars, {len(result['key_points'])} points")
+        # Fallback: split summary into sentences if no key points returned
+        if not key_points:
+            sentences = re.split(r'[.!?]\s+', summary)
+            key_points = [s.strip() for s in sentences[:3] if s.strip()]
+
+        print(f"✅ Summary: {len(summary)} chars, {len(key_points)} points")
 
         return SummarizeResponse(
-            summary=result['summary'],
-            key_points=result['key_points'],
+            summary=summary,
+            key_points=key_points,
             word_count=len(content.split())
         )
 

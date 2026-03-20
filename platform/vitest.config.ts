@@ -16,10 +16,12 @@ export default defineConfig({
     environment: 'node',
 
     // Environment variables for tests - ensure services use test database
+    // Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues on Windows
     env: {
-      DATABASE_URL: 'postgres://cognitive:cognitive@localhost:5433/cognitive_test',
+      DATABASE_URL: 'postgres://cognitive:cognitive@127.0.0.1:5433/cognitive_test',
       NODE_ENV: 'test',
-      ML_SERVICES_URL: 'http://localhost:8000',
+      ML_SERVICES_URL: 'http://127.0.0.1:8000',
+      QDRANT_URL: 'http://127.0.0.1:6335',
     },
 
     // Timeouts - longer for ML service tests

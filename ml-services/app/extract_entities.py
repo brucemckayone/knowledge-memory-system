@@ -23,7 +23,7 @@ For each entity found, determine:
 - properties: Any attributes mentioned (role, title, location, etc.)
 - confidence: How confident you are (0.0-1.0)
 
-Return ONLY valid JSON array:
+Return ONLY a valid JSON array. Do not wrap in markdown code fences:
 [
   {{
     "mention": "exact text",
@@ -106,8 +106,8 @@ async def extract_entities(request: ExtractEntitiesRequest):
         
         # Use LLM service
         entities_raw = llm_client.generate_json(
-            prompt, 
-            options={"num_predict": 1024}
+            prompt,
+            options={"task": "extract_entities"}
         )
         
         if not isinstance(entities_raw, list):
@@ -158,7 +158,7 @@ async def resolve_entity(request: ResolveEntityRequest):
         
         result = llm_client.generate_json(
             prompt,
-            options={"num_predict": 256}
+            options={"task": "resolve_entity"}
         )
         
         decision = result.get('decision', 'CREATE').upper()

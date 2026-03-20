@@ -30,7 +30,7 @@ Extract the following:
 6. Links: Any URLs mentioned
 7. Tags: Relevant topic tags (lowercase, no #)
 
-Return JSON only:
+Return raw JSON only, no markdown code fences:
 {{
   "content_type": "...",
   "title": "...",
@@ -163,7 +163,7 @@ async def parse_content(request: ParseContentRequest):
         # Use LLM Service
         result = llm_client.generate_json(
             prompt,
-            options={"num_predict": 512}
+            options={"task": "reader"}
         )
 
         # Merge LLM results with quick extractions

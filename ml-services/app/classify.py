@@ -61,7 +61,7 @@ Rules:
 3. The primary_intent is the most actionable intent
 4. suggested_workflow should be: process-thought, process-link, process-task, process-question, or search
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON in this exact format. Do not wrap in markdown code fences:
 {{
   "intents": [
     {{"type": "thought", "confidence": 0.8}},
@@ -151,7 +151,7 @@ async def classify_message(request: ClassifyRequest):
         )
 
         # Use shared LLM service
-        result_json = llm_client.generate_json(prompt)
+        result_json = llm_client.generate_json(prompt, options={"task": "classify"})
 
         # Validate and normalize
         classification = validate_classification(result_json)

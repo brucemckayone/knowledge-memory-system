@@ -10,9 +10,3 @@ services:
       - /app/node_modules  # Exclude node_modules
     environment:
       - NODE_ENV=development
-
-  ml-services:
-    # Use uvicorn reload in development
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-    volumes:
-      - ./ml-services/app:/app/app

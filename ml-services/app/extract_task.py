@@ -50,7 +50,7 @@ For relative dates:
 - "by [day]" = that day at 5pm
 - "at [time]" = that time on appropriate day
 
-Return ONLY valid JSON:
+Return ONLY valid raw JSON, no markdown code fences:
 {{
   "action": "specific action (min 10 chars)",
   "due_date": "2026-01-25T15:00:00" or null,
@@ -93,7 +93,7 @@ async def extract_task(request: ExtractTaskRequest):
         # Call Ollama via shared service
         result = llm_client.generate_json(
             prompt,
-            options={"num_predict": 256}
+            options={"task": "extract_task"}
         )
 
         # Extract action

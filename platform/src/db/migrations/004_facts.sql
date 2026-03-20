@@ -97,7 +97,7 @@ INSERT INTO fact_predicates (predicate, description, inverse_predicate, predicat
     ('related_to', 'General relationship', 'related_to', 'relation', false),
     ('collaborates_with', 'Collaboration', 'collaborates_with', 'relation', false),
     -- Attributes (entity to value)
-    ('has_role', 'Role or position', NULL, 'attribute', false),
+    ('has_role', 'Role or position', NULL, 'attribute', true),
     ('has_title', 'Job title', NULL, 'attribute', false),
     ('has_email', 'Email address', NULL, 'attribute', false),
     ('has_phone', 'Phone number', NULL, 'attribute', false),

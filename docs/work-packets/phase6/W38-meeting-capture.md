@@ -421,6 +421,16 @@ export async function enrichMeetingContent(
 }
 ```
 
+### Conversation Context Integration
+
+For live meeting streams and ongoing Teams chats, the meeting processor integrates with the Conversation Context Service (W44) and Processing Profiles (W43):
+
+- **Transcript files** (VTT/SRT): Processed as a whole document using the `transcript` profile. No sliding window — the entire transcript is the context.
+- **Live chat streams** (Teams channel messages during a meeting): Use the `teams-chat` profile with pattern-triggered extraction + periodic rollup. The adaptive context window includes recent messages + semantic matches from the conversation history.
+- **Post-meeting rollup**: After a meeting transcript is ingested, the system generates a meeting summary (Level 3) that feeds into the conversation summary for that channel and updates project association scores.
+
+See [W44: Conversation Context Service](./W44-conversation-context.md) and [Multi-Source Processing Architecture](../../architecture/multi-source-processing.md).
+
 ### Message Processor Integration
 
 In `platform/src/workers/message-processor.ts`, add meeting-specific handling:

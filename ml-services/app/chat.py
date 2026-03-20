@@ -33,8 +33,8 @@ async def chat(request: ChatRequest):
         response = llm_client.generate(
             prompt=request.message,
             options={
-                "temperature": 0.7,  # Higher temperature for more natural conversation
-                "num_predict": 1024,  # Allow longer responses
+                "task": "chat",
+                "system_prompt": request.system_prompt,
             }
         )
 

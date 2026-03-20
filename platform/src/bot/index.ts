@@ -564,6 +564,47 @@ bot.command('entity', async (ctx) => {
   }
 });
 
+// Command: /briefing - Show daily briefing (W32)
+bot.command('briefing', async (ctx) => {
+  try {
+    await safeSendTyping(ctx);
+
+    const { getLatestBriefing, generateBriefing, persistBriefing } = await import('../services/briefing.js');
+    let briefing = await getLatestBriefing();
+
+    // Generate if none exists for today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (!briefing || briefing.briefingDate < today) {
+      const generated = await generateBriefing();
+      await persistBriefing(generated);
+      briefing = await getLatestBriefing();
+    }
+
+    if (!briefing) {
+      await ctx.reply('📋 No briefing available yet. Try again later.');
+      return;
+    }
+
+    const sections = (briefing.sections as Array<{ title: string; content: string }>) || [];
+    let text = `☀️ **Morning Briefing**\n\n`;
+    text += `${briefing.summary}\n\n`;
+
+    for (const section of sections) {
+      if (section.title !== 'Summary') {
+        text += `**${section.title}**\n${section.content}\n\n`;
+      }
+    }
+
+    text += `_📊 ${briefing.taskCount} tasks • ${briefing.insightCount} insights_`;
+
+    await ctx.reply(text, { parse_mode: 'Markdown' });
+  } catch (error) {
+    console.error('Briefing command error:', error);
+    await ctx.reply('❌ Failed to generate briefing. Please try again.');
+  }
+});
+
 // Command: /stats - Show statistics
 bot.command('stats', async (ctx) => {
   try {

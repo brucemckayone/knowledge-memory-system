@@ -250,6 +250,22 @@ CREATE TABLE IF NOT EXISTS ingest_sources (
 );
 ```
 
+### Processing Profile Resolution
+
+The `IngestRouter` resolves a processing profile for each job before dispatching. See [W43: Processing Profiles](./W43-processing-profiles.md) and [Multi-Source Processing Architecture](../../architecture/multi-source-processing.md).
+
+```typescript
+import { resolveProfile } from './profiles.js';
+
+// In IngestRouter.route():
+const profile = await resolveProfile(job.platform, job.rawType, job.metadata.channelId as string);
+
+// Attach profile to job for downstream use
+await this.queueJob('process-message', { ...job, profile });
+```
+
+The profile determines what extractors run, what trigger patterns to watch for, and whether the message enters the conversation context pipeline (W44) or is processed standalone.
+
 ### Message Processor Refactor
 
 Refactor `platform/src/workers/message-processor.ts` to accept `IngestJobData` alongside the existing `MessageJobData`. The processor already treats content generically — the main change is reading `platform` and `rawType` from the new fields when present.

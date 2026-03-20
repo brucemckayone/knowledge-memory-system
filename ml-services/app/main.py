@@ -16,11 +16,16 @@ from .reader import router as reader_router
 from .relationships import router as relationships_router
 # Phase 5
 from .extract_task_enhanced import router as extract_task_enhanced_router
+# Phase 6
+from .parse_transcript import router as parse_transcript_router
+from .parse_document import router as parse_document_router
+from .parse_markdown import router as parse_markdown_router
+from .core.llm import LLM_PROVIDER
 
 app = FastAPI(
     title="Cognitive ML Services",
-    version="5.0.0",
-    description="ML endpoints for the Cognitive Platform (Phase 5: Task Enhancements)"
+    version="6.0.0",
+    description="ML endpoints for the Cognitive Platform (Phase 6: Multi-Source)"
 )
 
 # CORS for local development
@@ -48,6 +53,10 @@ app.include_router(reader_router, tags=["Content Reader"])
 app.include_router(relationships_router, tags=["Relationship Extraction"])
 # Phase 5
 app.include_router(extract_task_enhanced_router, tags=["Enhanced Task Extraction"])
+# Phase 6
+app.include_router(parse_transcript_router, tags=["Transcript Parsing"])
+app.include_router(parse_document_router, tags=["Document Parsing"])
+app.include_router(parse_markdown_router, tags=["Markdown Parsing"])
 
 
 @app.get("/health")
@@ -55,9 +64,10 @@ def health():
     """Health check endpoint"""
     return {
         "status": "ok",
+        "provider": LLM_PROVIDER,
         "service": "ml-services",
-        "version": "5.0.0",
-        "phase": 5,
+        "version": "6.0.0",
+        "phase": 6,
         "endpoints": [
             "embed",
             "transcribe",
@@ -70,7 +80,10 @@ def health():
             "extract-entities",
             "check-contradiction",
             "parse-content",
-            "extract-relationships"
+            "extract-relationships",
+            "parse-transcript",
+            "parse-document",
+            "parse-markdown"
         ]
     }
 
@@ -80,8 +93,8 @@ def root():
     """Root endpoint with API info"""
     return {
         "name": "Cognitive ML Services",
-        "version": "5.0.0",
-        "phase": 5,
+        "version": "6.0.0",
+        "phase": 6,
         "endpoints": {
             "health": "/health",
             "embed": "/embed",
@@ -96,7 +109,10 @@ def root():
             "resolve_entity": "/resolve-entity",
             "check_contradiction": "/check-contradiction",
             "parse_content": "/parse-content",
-            "extract_relationships": "/extract-relationships"
+            "extract_relationships": "/extract-relationships",
+            "parse_transcript": "/parse-transcript",
+            "parse_document": "/parse-document",
+            "parse_markdown": "/parse-markdown"
         }
     }
 

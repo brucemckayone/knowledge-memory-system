@@ -1,5 +1,5 @@
 # Cognitive Platform - Development Commands
-.PHONY: dev dev-named up down logs rebuild clean tunnel health help
+.PHONY: dev dev-named up down logs rebuild clean tunnel health ml help
 
 # Default target
 help:
@@ -7,7 +7,8 @@ help:
 	@echo ""
 	@echo "  make dev         - Start with Cloudflare Quick Tunnel + Docker"
 	@echo "  make dev-named   - Start with named Cloudflare Tunnel + Docker"
-	@echo "  make up          - Start Docker services only (polling mode)"
+	@echo "  make up          - Start Docker infra (postgres, qdrant, platform)"
+	@echo "  make ml          - Start ML services on host (run separately)"
 	@echo "  make down        - Stop all services"
 	@echo "  make logs        - Follow Docker logs"
 	@echo "  make rebuild     - Rebuild and restart services"
@@ -58,6 +59,11 @@ tunnel:
 	@echo "Starting Cloudflare Quick Tunnel on port 3000..."
 	@echo "Press Ctrl+C to stop"
 	cloudflared tunnel --url http://localhost:3000
+
+# Start ML services on host
+# --http h11: required on Windows (httptools hangs for native HTTP clients)
+ml:
+	cd ml-services && uvicorn app.main:app --host 0.0.0.0 --port 8000 --http h11 --reload
 
 # Health check
 health:

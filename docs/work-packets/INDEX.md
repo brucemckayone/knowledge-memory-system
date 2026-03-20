@@ -12,8 +12,8 @@ Master index for Mnemo implementation work packets.
 | 2 | Core Skills & Processing | W08–W15 | ✅ Complete |
 | 3 | Entity & Temporal Foundation | W16–W21 | ✅ Mostly Complete |
 | 4 | KARMA Agents | W22–W29 | ✅ Complete |
-| 5 | Intelligence & Insights | W30–W33 | ❌ Not Started |
-| 6 | Multi-Source Ingestion | W34–W42 | ❌ Not Started |
+| 5 | Intelligence & Insights | W30–W33 | ✅ Complete |
+| 6 | Multi-Source Ingestion | W34–W45 | ✅ Complete |
 
 ---
 
@@ -50,7 +50,7 @@ Master index for Mnemo implementation work packets.
 |--------|------|--------|
 | [W16](./phase3/W16-entity-schema.md) | Entity Schema | ✅ Complete |
 | [W17](./phase3/W17-bi-temporal-facts.md) | Bi-Temporal Facts | ✅ Complete |
-| [W18](./phase3/W18-apache-age.md) | Apache AGE Graph | ⚠️ Partial |
+| [W18](./phase3/W18-apache-age.md) | Apache AGE Graph | ✅ Complete |
 | [W19](./phase3/W19-hybrid-retrieval.md) | Hybrid Retrieval | ✅ Complete |
 | [W20](./phase3/W20-entity-extraction-skill.md) | Entity Extraction Skill | ✅ Complete |
 | [W21](./phase3/W21-gardener-scheduler.md) | Gardener Scheduler | ✅ Complete |
@@ -73,24 +73,35 @@ Master index for Mnemo implementation work packets.
 
 | Packet | Name | Status |
 |--------|------|--------|
-| [W30](./phase5/W30-community-detection.md) | Community Detection | ❌ Not Started |
-| [W31](./phase5/W31-insight-generation.md) | Insight Generation | ❌ Not Started |
-| [W32](./phase5/W32-morning-briefing.md) | Morning Briefing | ❌ Not Started |
-| [W33](./phase5/W33-contradiction-scheduler.md) | Contradiction Detection | ❌ Not Started |
+| [W30](./phase5/W30-community-detection.md) | Community Detection | ✅ Complete |
+| [W31](./phase5/W31-insight-generation.md) | Insight Generation | ✅ Complete |
+| [W32](./phase5/W32-morning-briefing.md) | Morning Briefing | ✅ Complete |
+| [W33](./phase5/W33-contradiction-scheduler.md) | Contradiction Detection | ✅ Complete |
 
 ### Phase 6: Multi-Source Ingestion
 
 | Packet | Name | Status |
 |--------|------|--------|
-| [W34](./phase6/W34-source-adapter-framework.md) | Source Adapter Framework | ❌ Not Started |
-| [W35](./phase6/W35-http-ingest-api.md) | HTTP Ingest API | ❌ Not Started |
-| [W36](./phase6/W36-file-watcher.md) | File Watcher Service | ❌ Not Started |
-| [W37](./phase6/W37-document-transcript-ml.md) | Document & Transcript ML Endpoints | ❌ Not Started |
-| [W38](./phase6/W38-meeting-capture.md) | Meeting Capture (Live + Transcripts + Audio) | ❌ Not Started |
-| [W39](./phase6/W39-obsidian-read.md) | Obsidian Read Adapter | ❌ Not Started |
-| [W40](./phase6/W40-obsidian-writeback.md) | Obsidian Write-back Agent | ❌ Not Started |
-| [W41](./phase6/W41-mnemo-mcp-server.md) | Mnemo MCP Server | ❌ Not Started |
-| [W42](./phase6/W42-multi-source-integration.md) | Integration & E2E Testing | ❌ Not Started |
+| [W34](./phase6/W34-source-adapter-framework.md) | Source Adapter Framework | ✅ Complete |
+| [W35](./phase6/W35-http-ingest-api.md) | HTTP Ingest API | ✅ Complete |
+| [W36](./phase6/W36-file-watcher.md) | File Watcher Service | ✅ Complete |
+| [W37](./phase6/W37-document-transcript-ml.md) | Document & Transcript ML Endpoints | ✅ Complete |
+| [W38](./phase6/W38-meeting-capture.md) | Meeting Capture (Live + Transcripts + Audio) | ✅ Complete |
+| [W39](./phase6/W39-obsidian-read.md) | Obsidian Read Adapter | ✅ Complete |
+| [W40](./phase6/W40-obsidian-writeback.md) | Obsidian Write-back Agent | ✅ Complete |
+| [W41](./phase6/W41-mnemo-mcp-server.md) | Mnemo MCP Server | ✅ Complete |
+| [W42](./phase6/W42-multi-source-integration.md) | Integration & E2E Testing | ✅ Complete |
+| [W43](./phase6/W43-processing-profiles.md) | Processing Profile System | ✅ Complete |
+| [W44](./phase6/W44-conversation-context.md) | Conversation Context Service | ✅ Complete |
+| [W45](./phase6/W45-project-association.md) | Project Association Agent | ✅ Complete |
+
+---
+
+## Cross-Cutting Design Documents
+
+| Document | Scope |
+|----------|-------|
+| [Multi-Source Processing](../architecture/multi-source-processing.md) | Processing profiles, conversation context, project association, extraction strategy |
 
 ---
 

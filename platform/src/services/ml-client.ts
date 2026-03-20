@@ -292,6 +292,29 @@ export const ml = {
     return mlFetch<TranscribeResponse>('/transcribe', { audio_url: audioUrl }, 120_000);
   },
 
+  parseTranscript(content: string, formatHint?: string) {
+    return mlFetch<{
+      segments: Array<{ speaker: string; text: string; start_time?: string; end_time?: string }>;
+      topics: Array<{ topic: string; summary: string }>;
+      speakers: string[];
+      summary: string;
+      action_items: string[];
+      word_count: number;
+    }>('/parse-transcript', { content, format_hint: formatHint }, 60_000);
+  },
+
+  parseMarkdown(content: string, filename?: string) {
+    return mlFetch<{
+      title: string;
+      frontmatter: Record<string, unknown>;
+      sections: Array<{ heading?: string; level: number; content: string }>;
+      links: string[];
+      wikilinks: string[];
+      tags: string[];
+      word_count: number;
+    }>('/parse-markdown', { content, filename }, 30_000);
+  },
+
   async health(): Promise<boolean> {
     try {
       const controller = new AbortController();

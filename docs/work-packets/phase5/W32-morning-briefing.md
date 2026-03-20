@@ -100,7 +100,28 @@ export async function generateBriefing(): Promise<Briefing> {
     });
   }
   
-  // 5. Pending Questions
+  // 5. Project Ambiguities (W45)
+  // Surface items the system couldn't confidently associate with a project
+  try {
+    const { getUnsurfacedAmbiguities } = await import('./project-association.js');
+    const ambiguities = await getUnsurfacedAmbiguities(3);
+    if (ambiguities.length > 0) {
+      sections.push({
+        title: '🔍 Needs Your Input',
+        items: ambiguities.map(a => {
+          const candidates = (a.candidates as Array<{ projectName: string; confidence: number }>)
+            .map(c => `${c.projectName} (${Math.round(c.confidence * 100)}%)`)
+            .join(' or ');
+          return `• "${a.contentPreview.slice(0, 60)}..." (${a.sourceDescription})\n  → ${candidates}?`;
+        }),
+        priority: 'medium',
+      });
+    }
+  } catch {
+    // W45 not yet implemented — skip gracefully
+  }
+
+  // 6. Pending Questions
   const questions = await getPendingQuestions();
   if (questions.length > 0) {
     sections.push({

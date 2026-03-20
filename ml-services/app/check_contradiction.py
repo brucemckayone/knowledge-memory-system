@@ -129,7 +129,7 @@ Build the STRONGEST case that these facts cannot both be true.
 Consider: semantic opposition, exclusive relationships, temporal overlap, logical incompatibility.
 If you genuinely cannot find a contradiction, say so honestly.
 
-Return JSON:
+Return raw JSON only, no markdown code fences:
 {{
   "has_contradiction": true/false,
   "argument": "Your detailed argument (2-3 sentences)",
@@ -158,7 +158,7 @@ Build the STRONGEST case that both facts can be true simultaneously.
 Consider: different time periods, different contexts/roles, non-exclusive interpretations, complementary meanings.
 If they genuinely cannot coexist, say so honestly.
 
-Return JSON:
+Return raw JSON only, no markdown code fences:
 {{
   "can_coexist": true/false,
   "argument": "Your detailed argument (2-3 sentences)",
@@ -184,7 +184,7 @@ Evaluate carefully:
 2. Are there unsupported assumptions in either argument?
 3. What is the most likely real-world interpretation?
 
-Return JSON:
+Return raw JSON only, no markdown code fences:
 {{
   "contradicts": true/false,
   "type": "antonym|numeric|negation|structural|temporal|none",
@@ -222,7 +222,7 @@ Contradiction types:
 4. structural - Incompatible relationships (can't be in two places)
 5. temporal - Same property with conflicting times
 
-Return JSON:
+Return raw JSON only, no markdown code fences:
 {{
   "contradicts": true/false,
   "type": "antonym|numeric|negation|structural|temporal|none",
@@ -253,14 +253,14 @@ def _build_fact_context(f1: FactData, f2: FactData) -> dict:
 def _call_advocate(context: dict) -> dict:
     return llm_client.generate_json(
         ADVOCATE_PROMPT.format(**context),
-        options={"num_predict": 384}
+        options={"task": "check_contradiction"}
     )
 
 
 def _call_defender(context: dict) -> dict:
     return llm_client.generate_json(
         DEFENDER_PROMPT.format(**context),
-        options={"num_predict": 384}
+        options={"task": "check_contradiction"}
     )
 
 
@@ -272,7 +272,7 @@ def _call_judge(context: dict, advocate_arg: str, defender_arg: str) -> dict:
     }
     return llm_client.generate_json(
         JUDGE_PROMPT.format(**judge_context),
-        options={"num_predict": 384}
+        options={"task": "judge"}
     )
 
 
@@ -328,7 +328,7 @@ async def _single_call_fallback(
         llm_client.generate_json,
         SINGLE_CALL_PROMPT.format(**context),
         None,
-        {"num_predict": 512},
+        {"task": "check_contradiction"},
     )
 
     return CheckContradictionResponse(

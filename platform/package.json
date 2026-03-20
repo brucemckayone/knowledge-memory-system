@@ -16,6 +16,7 @@
     "test:integration": "vitest run --testPathPattern=integration",
     "test:agents": "vitest run --testPathPattern=agents",
     "test:e2e": "vitest run --testPathPattern=e2e",
+    "test:quality": "vitest run src/test/quality/",
     "db:generate": "drizzle-kit generate:pg",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:push": "drizzle-kit push:pg",
@@ -34,6 +35,7 @@
   "dependencies": {
     "@hono/node-server": "^1.8.0",
     "@qdrant/js-client-rest": "^1.7.0",
+    "chokidar": "^5.0.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.29.3",
     "express": "^4.18.2",

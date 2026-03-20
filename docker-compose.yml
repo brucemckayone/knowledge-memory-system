@@ -21,7 +21,7 @@ services:
       - PORT=3001
       - DATABASE_URL=postgres://cognitive:cognitive@postgres:5432/cognitive
       - QDRANT_URL=http://qdrant:6333
-      - ML_SERVICES_URL=http://ml-services:8000
+      - ML_SERVICES_URL=http://host.docker.internal:8000
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - WEBHOOK_URL=${WEBHOOK_URL:-}
     volumes:
@@ -75,6 +75,7 @@ services:
   # Python ML Services
   # ===================
   ml-services:
+    profiles: [legacy]
     build:
       context: ./ml-services
       dockerfile: Dockerfile
@@ -83,12 +84,10 @@ services:
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434  # For embeddings (local)
       - ZAI_API_KEY=${ZAI_API_KEY}  # For text generation via Z.AI API
-    volumes:
-      - ml-models:/models
     networks:
       - cognitive-network
     restart: unless-stopped
-    # Note: Ollama runs on host for embeddings, Z.AI API for LLM
+    # Note: Legacy — prefer running ml-services on host (see plan)
 
 networks:
   cognitive-network:
@@ -97,4 +96,3 @@ networks:
 volumes:
   postgres-data:
   qdrant-data:
-  ml-models:

@@ -12,17 +12,16 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { ML_SERVICES_URL, isMLServiceAvailable } from '../setup.js';
 
 describe('Platform ↔ ML Services Integration', () => {
-  let mlAvailable = false;
-
-  beforeAll(async () => {
-    mlAvailable = await isMLServiceAvailable();
+  beforeAll(async (ctx) => {
+    const mlAvailable = await isMLServiceAvailable();
     if (!mlAvailable) {
       console.warn('⚠️ ML Services not available - skipping ML tests');
+      ctx.skip();
     }
   });
 
   describe('ML-001: Embedding generation', () => {
-    it.skipIf(!mlAvailable)('should generate 768-dim vector', async () => {
+    it('should generate 768-dim vector', async () => {
       // Given: Text to embed
       const text = 'This is a test sentence for embedding generation.';
 
@@ -49,7 +48,7 @@ describe('Platform ↔ ML Services Integration', () => {
       });
     }, 30000);
 
-    it.skipIf(!mlAvailable)('should produce different embeddings for different texts', async () => {
+    it('should produce different embeddings for different texts', async () => {
       // Given: Two different texts
       const text1 = 'Machine learning is fascinating.';
       const text2 = 'I had pizza for lunch today.';
@@ -92,7 +91,7 @@ describe('Platform ↔ ML Services Integration', () => {
   });
 
   describe('ML-002: Batch embedding', () => {
-    it.skipIf(!mlAvailable)('should embed multiple texts at once', async () => {
+    it('should embed multiple texts at once', async () => {
       // Given: Array of texts
       const texts = [
         'First sentence to embed.',
@@ -124,7 +123,7 @@ describe('Platform ↔ ML Services Integration', () => {
   });
 
   describe('ML-003: Classification accuracy', () => {
-    it.skipIf(!mlAvailable)('should classify thought correctly', async () => {
+    it('should classify thought correctly', async () => {
       // Given: Thought-like message
       const text = 'Had a great idea about the new feature today. We could use caching to improve performance.';
 
@@ -144,7 +143,7 @@ describe('Platform ↔ ML Services Integration', () => {
       expect((result.confidence as number) || 0).toBeGreaterThan(0.5);
     }, 30000);
 
-    it.skipIf(!mlAvailable)('should classify task correctly', async () => {
+    it('should classify task correctly', async () => {
       // Given: Task-like message
       const text = 'Remember to call John tomorrow about the project deadline.';
 
@@ -162,7 +161,7 @@ describe('Platform ↔ ML Services Integration', () => {
       expect(['task', 'reminder', 'todo']).toContain((result.primary_intent as string)?.toLowerCase() || '');
     }, 30000);
 
-    it.skipIf(!mlAvailable)('should classify question correctly', async () => {
+    it('should classify question correctly', async () => {
       // Given: Question message
       const text = 'How does the authentication system work in this project?';
 
@@ -180,7 +179,7 @@ describe('Platform ↔ ML Services Integration', () => {
       expect(['question', 'query', 'inquiry']).toContain((result.primary_intent as string)?.toLowerCase() || '');
     }, 30000);
 
-    it.skipIf(!mlAvailable)('should classify link correctly', async () => {
+    it('should classify link correctly', async () => {
       // Given: Link message
       const text = 'https://example.com/interesting-article-about-machine-learning';
 
@@ -200,7 +199,7 @@ describe('Platform ↔ ML Services Integration', () => {
   });
 
   describe('ML-004: Task extraction', () => {
-    it.skipIf(!mlAvailable)('should extract action, date, priority', async () => {
+    it('should extract action, date, priority', async () => {
       // Given: Task text with details
       const text = 'Urgently need to review the PR by Friday.';
 
@@ -233,7 +232,7 @@ describe('Platform ↔ ML Services Integration', () => {
   });
 
   describe('ML-005: Entity extraction', () => {
-    it.skipIf(!mlAvailable)('should extract named entities', async () => {
+    it('should extract named entities', async () => {
       // Given: Text with names
       const text = 'Meeting with John Smith at Google headquarters in San Francisco.';
 
@@ -268,7 +267,7 @@ describe('Platform ↔ ML Services Integration', () => {
       });
     }, 30000);
 
-    it.skipIf(!mlAvailable)('should return empty for text without entities', async () => {
+    it('should return empty for text without entities', async () => {
       // Given: Text with no named entities
       const text = 'The weather is nice today.';
 
@@ -291,7 +290,7 @@ describe('Platform ↔ ML Services Integration', () => {
   });
 
   describe('ML-006: Contradiction detection', () => {
-    it.skipIf(!mlAvailable)('should detect conflicting facts', async () => {
+    it('should detect conflicting facts', async () => {
       // Given: Two contradictory facts
       const fact1 = { subject: 'John', predicate: 'works_at', object: 'Acme Corp' };
       const fact2 = { subject: 'John', predicate: 'works_at', object: 'TechVentures' };
@@ -311,7 +310,7 @@ describe('Platform ↔ ML Services Integration', () => {
       expect(result.contradiction_type).toBeDefined();
     }, 30000);
 
-    it.skipIf(!mlAvailable)('should not flag compatible facts', async () => {
+    it('should not flag compatible facts', async () => {
       // Given: Two compatible facts
       const fact1 = { subject: 'John', predicate: 'knows', object: 'Sarah' };
       const fact2 = { subject: 'John', predicate: 'knows', object: 'Mike' };
@@ -332,7 +331,7 @@ describe('Platform ↔ ML Services Integration', () => {
   });
 
   describe('ML-007: Summarization', () => {
-    it.skipIf(!mlAvailable)('should summarize long content', async () => {
+    it('should summarize long content', async () => {
       // Given: Long text
       const text = `
         The quarterly review meeting covered several important topics.
@@ -370,7 +369,7 @@ describe('Platform ↔ ML Services Integration', () => {
   });
 
   describe('ML-008: Web scraping', () => {
-    it.skipIf(!mlAvailable)('should extract clean content from URL', async () => {
+    it('should extract clean content from URL', async () => {
       // Given: A real URL (using a simple, stable page)
       const url = 'https://example.com';
 
@@ -393,7 +392,7 @@ describe('Platform ↔ ML Services Integration', () => {
   });
 
   describe('ML-009: Graceful degradation', () => {
-    it.skipIf(!mlAvailable)('should return appropriate error for invalid endpoint', async () => {
+    it('should return appropriate error for invalid endpoint', async () => {
       // When: Call non-existent endpoint
       const response = await fetch(`${ML_SERVICES_URL}/non-existent-endpoint`, {
         method: 'POST',
@@ -405,7 +404,7 @@ describe('Platform ↔ ML Services Integration', () => {
       expect(response.status).toBeGreaterThanOrEqual(400);
     });
 
-    it.skipIf(!mlAvailable)('should handle malformed input gracefully', async () => {
+    it('should handle malformed input gracefully', async () => {
       // When: Send malformed request
       const response = await fetch(`${ML_SERVICES_URL}/classify`, {
         method: 'POST',

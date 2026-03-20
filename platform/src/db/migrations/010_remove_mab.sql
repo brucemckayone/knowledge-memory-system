@@ -18,3 +18,4 @@ DROP TABLE IF EXISTS mab_state;
 -- Drop unused MAB columns from gardener_job_meta
 ALTER TABLE gardener_job_meta DROP COLUMN IF EXISTS exploration_score;
 ALTER TABLE gardener_job_meta DROP COLUMN IF EXISTS expected_value;
+ALTER TABLE gardener_job_meta DROP COLUMN IF EXISTS max_attempts;
