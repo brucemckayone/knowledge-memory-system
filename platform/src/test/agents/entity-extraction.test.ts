@@ -27,7 +27,9 @@ describe('Entity Extraction Agent', () => {
   // Note: Tests are self-contained with unique IDs - no global cleanup needed
 
   describe('EE-001: Extract person', () => {
-    it.skipIf(!mlAvailable)('should extract person and company from text', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should extract person and company from text', async () => {
       // Given: Text with person and company
       const text = 'Meeting with John Smith at Google headquarters';
 
@@ -59,7 +61,9 @@ describe('Entity Extraction Agent', () => {
   });
 
   describe('EE-002: Extract with positions', () => {
-    it.skipIf(!mlAvailable)('should include start/end positions', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should include start/end positions', async () => {
       // Given: Text with named entities
       const text = 'Alice and Bob discussed the project';
 
@@ -89,7 +93,9 @@ describe('Entity Extraction Agent', () => {
   });
 
   describe('EE-003: Resolve to existing', () => {
-    it.skipIf(!mlAvailable)('should resolve mention to existing entity', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should resolve mention to existing entity', async () => {
       // Given: Existing entity in database
       const existing = await createTestEntity({
         canonicalName: 'John Smith',
@@ -130,7 +136,9 @@ describe('Entity Extraction Agent', () => {
   });
 
   describe('EE-004: Create new entity', () => {
-    it.skipIf(!mlAvailable)('should create entity for novel mention', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should create entity for novel mention', async () => {
       // Given: Text with new entity not in database
       const text = 'Sarah Chen joined the engineering team';
 
@@ -157,7 +165,9 @@ describe('Entity Extraction Agent', () => {
   });
 
   describe('EE-005: Confidence scoring', () => {
-    it.skipIf(!mlAvailable)('should assign confidence scores', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should assign confidence scores', async () => {
       // Given: Text with clear and ambiguous entities
       const text = 'Apple announced new products. John mentioned apple pie.';
 
@@ -212,7 +222,9 @@ describe('Entity Extraction Agent', () => {
   });
 
   describe('EE-007: Empty extraction', () => {
-    it.skipIf(!mlAvailable)('should return empty list for text without entities', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should return empty list for text without entities', async () => {
       // Given: Text with no named entities
       const text = 'The weather is nice today. It might rain tomorrow.';
 

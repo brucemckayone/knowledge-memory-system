@@ -29,12 +29,13 @@ import {
 // };
 
 describe('Performance Benchmarks', () => {
-  let qdrantAvailable = false;
-  let mlAvailable = false;
-
-  beforeAll(async () => {
-    qdrantAvailable = await isQdrantAvailable();
-    mlAvailable = await isMLServiceAvailable();
+  beforeAll(async (ctx) => {
+    const qdrantAvailable = await isQdrantAvailable();
+    const mlAvailable = await isMLServiceAvailable();
+    if (!qdrantAvailable || !mlAvailable) {
+      console.warn('⚠️ ML Services or Qdrant not available - skipping performance benchmarks');
+      ctx.skip();
+    }
 
     // Ensure clean state
     await truncateTables('memory_entities', 'entity_aliases', 'facts', 'entities');
@@ -149,7 +150,7 @@ describe('Performance Benchmarks', () => {
   });
 
   describe('Vector Search (Qdrant)', () => {
-    bench.skipIf(!qdrantAvailable)(
+    bench(
       'Vector search query',
       async () => {
         const queryVector = normalizeVector(randomEmbedding());
@@ -170,7 +171,7 @@ describe('Performance Benchmarks', () => {
       }
     );
 
-    bench.skipIf(!qdrantAvailable)(
+    bench(
       'Filtered vector search',
       async () => {
         const queryVector = normalizeVector(randomEmbedding());
@@ -196,7 +197,7 @@ describe('Performance Benchmarks', () => {
   });
 
   describe('ML Services', () => {
-    bench.skipIf(!mlAvailable)(
+    bench(
       'Embedding generation',
       async () => {
         await fetch(`${ML_SERVICES_URL}/embed`, {
@@ -213,7 +214,7 @@ describe('Performance Benchmarks', () => {
       }
     );
 
-    bench.skipIf(!mlAvailable)(
+    bench(
       'Classification',
       async () => {
         await fetch(`${ML_SERVICES_URL}/classify`, {
@@ -230,7 +231,7 @@ describe('Performance Benchmarks', () => {
       }
     );
 
-    bench.skipIf(!mlAvailable)(
+    bench(
       'Entity extraction',
       async () => {
         await fetch(`${ML_SERVICES_URL}/extract-entities`, {
@@ -249,7 +250,7 @@ describe('Performance Benchmarks', () => {
   });
 
   describe('Combined Operations', () => {
-    bench.skipIf(!mlAvailable || !qdrantAvailable)(
+    bench(
       'Full memory ingestion (embed + store)',
       async () => {
         const text = 'Benchmark memory content ' + Date.now();

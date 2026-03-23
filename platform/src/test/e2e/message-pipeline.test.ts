@@ -111,7 +111,9 @@ describe('Message Pipeline E2E', () => {
   // Note: Tests are self-contained with unique IDs - no global cleanup needed
 
   describe('MP-001: Text message flow', () => {
-    it.skipIf(!mlAvailable || !qdrantAvailable)(
+    beforeAll((ctx) => { if (!mlAvailable || !qdrantAvailable) ctx.skip(); });
+
+    it(
       'should classify, embed, and store text message',
       async () => {
         // Given: Text message
@@ -181,7 +183,9 @@ describe('Message Pipeline E2E', () => {
   });
 
   describe('MP-002: Link workflow', () => {
-    it.skipIf(!mlAvailable || !qdrantAvailable)(
+    beforeAll((ctx) => { if (!mlAvailable || !qdrantAvailable) ctx.skip(); });
+
+    it(
       'should scrape, summarize, and store link',
       async () => {
         // Given: URL message
@@ -250,7 +254,9 @@ describe('Message Pipeline E2E', () => {
   });
 
   describe('MP-003: Task workflow', () => {
-    it.skipIf(!mlAvailable)('should extract and store task', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should extract and store task', async () => {
       // Given: Task-like message
       const envelope = createEnvelope({
         text: 'Remember to call John tomorrow about the project deadline',
@@ -310,7 +316,9 @@ describe('Message Pipeline E2E', () => {
   });
 
   describe('MP-004: Voice workflow', () => {
-    it.skipIf(!mlAvailable)('should handle voice message (transcription mock)', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should handle voice message (transcription mock)', async () => {
       // Given: Voice message (simulated transcription)
       const transcribedText = 'This is a transcribed voice message about the project status';
 
@@ -381,7 +389,9 @@ describe('Message Pipeline E2E', () => {
   });
 
   describe('MP-006: Classification fallback', () => {
-    it.skipIf(!mlAvailable)('should treat unparseable message as thought', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should treat unparseable message as thought', async () => {
       // Given: Ambiguous message
       const envelope = createEnvelope({
         text: '🤔 💭 ...',

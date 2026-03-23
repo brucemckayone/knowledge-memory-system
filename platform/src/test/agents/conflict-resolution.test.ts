@@ -29,7 +29,9 @@ describe('Conflict Resolution Agent', () => {
   // Note: Tests are self-contained with unique IDs - no global cleanup needed
 
   describe('CR-001: Antonym detection', () => {
-    it.skipIf(!mlAvailable)('should detect contradiction for different employers', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should detect contradiction for different employers', async () => {
       // Given: Two facts claiming different employers
       await createTestEntity({
         canonicalName: 'Career Person',
@@ -130,7 +132,9 @@ describe('Conflict Resolution Agent', () => {
   });
 
   describe('CR-003: No contradiction', () => {
-    it.skipIf(!mlAvailable)('should not flag compatible facts as contradictions', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should not flag compatible facts as contradictions', async () => {
       // Given: Two compatible "knows" relationships
       const fact1 = { subject: 'Alice', predicate: 'knows', object: 'Bob' };
       const fact2 = { subject: 'Alice', predicate: 'knows', object: 'Carol' };
@@ -151,7 +155,9 @@ describe('Conflict Resolution Agent', () => {
   });
 
   describe('CR-004: Numeric contradiction', () => {
-    it.skipIf(!mlAvailable)('should detect numeric value conflicts', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should detect numeric value conflicts', async () => {
       // Given: Two facts with different numeric values
       const fact1 = { subject: 'Project Budget', predicate: 'amount_is', object: '$100,000' };
       const fact2 = { subject: 'Project Budget', predicate: 'amount_is', object: '$200,000' };
@@ -173,7 +179,9 @@ describe('Conflict Resolution Agent', () => {
   });
 
   describe('CR-005: Negation detection', () => {
-    it.skipIf(!mlAvailable)('should detect negation contradictions', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should detect negation contradictions', async () => {
       // Given: Positive and negative statements
       const fact1 = { subject: 'Project X', predicate: 'status_is', object: 'active' };
       const fact2 = { subject: 'Project X', predicate: 'status_is', object: 'cancelled' };
@@ -273,7 +281,9 @@ describe('Conflict Resolution Agent', () => {
   });
 
   describe('CR-008: LLM fallback', () => {
-    it.skipIf(!mlAvailable)('should use LLM for subtle contradictions', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should use LLM for subtle contradictions', async () => {
       // Given: Subtle contradiction that needs reasoning
       const fact1 = {
         subject: 'John',
@@ -612,7 +622,9 @@ describe('Conflict Resolution Agent', () => {
   });
 
   describe('CR-009: Debate protocol', () => {
-    it.skipIf(!mlAvailable)('should return debate log for subtle contradictions', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should return debate log for subtle contradictions', async () => {
       // Given: Subtle contradiction that bypasses heuristics (not an antonym pair
       // or exclusive predicate) — requires LLM debate to resolve
       const fact1 = {
@@ -651,7 +663,7 @@ describe('Conflict Resolution Agent', () => {
       }
     }, 60000);
 
-    it.skipIf(!mlAvailable)('should still use heuristic fast path for obvious cases', async () => {
+    it('should still use heuristic fast path for obvious cases', async () => {
       // Given: Obvious exclusive predicate contradiction (no debate needed)
       const fact1 = { subject: 'John', predicate: 'works_at', object: 'Acme Corp' };
       const fact2 = { subject: 'John', predicate: 'works_at', object: 'TechCo' };

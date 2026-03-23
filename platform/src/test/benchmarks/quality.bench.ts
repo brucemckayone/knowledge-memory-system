@@ -91,17 +91,16 @@ const CONTRADICTION_TEST_SET = [
 ];
 
 describe('Quality Benchmarks', () => {
-  let mlAvailable = false;
-
-  beforeAll(async () => {
-    mlAvailable = await isMLServiceAvailable();
+  beforeAll(async (ctx) => {
+    const mlAvailable = await isMLServiceAvailable();
     if (!mlAvailable) {
       console.warn('⚠️ ML Services not available - skipping quality benchmarks');
+      ctx.skip();
     }
   });
 
   describe('Classification Accuracy', () => {
-    it.skipIf(!mlAvailable)('should meet classification accuracy target', async () => {
+    it('should meet classification accuracy target', async () => {
       let correct = 0;
 
       for (const testCase of CLASSIFICATION_TEST_SET) {
@@ -131,7 +130,7 @@ describe('Quality Benchmarks', () => {
   });
 
   describe('Entity Extraction Quality', () => {
-    it.skipIf(!mlAvailable)('should extract expected entities', async () => {
+    it('should extract expected entities', async () => {
       let totalExpected = 0;
       let totalFound = 0;
       let correctFound = 0;
@@ -177,7 +176,7 @@ describe('Quality Benchmarks', () => {
   });
 
   describe('Contradiction Detection Quality', () => {
-    it.skipIf(!mlAvailable)('should detect contradictions accurately', async () => {
+    it('should detect contradictions accurately', async () => {
       let truePositives = 0;
       let falsePositives = 0;
       let falseNegatives = 0;

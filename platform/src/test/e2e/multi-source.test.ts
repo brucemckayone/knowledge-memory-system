@@ -10,7 +10,7 @@ import { testDb, isMLServiceAvailable, isQdrantAvailable } from '../setup.js';
 
 let servicesAvailable = false;
 
-beforeAll(async () => {
+beforeAll(async (ctx) => {
   const [mlOk, qdrantOk] = await Promise.all([
     isMLServiceAvailable(),
     isQdrantAvailable(),
@@ -62,7 +62,11 @@ describe('Multi-Source Ingestion Pipeline', () => {
   });
 
   describe('Conversation Context', () => {
-    it.skipIf(!servicesAvailable)('records messages and opens windows', async () => {
+    beforeAll(async (ctx) => {
+      if (!servicesAvailable) ctx.skip();
+    });
+
+    it('records messages and opens windows', async () => {
       const { recordMessage } = await import('../../services/conversation-context.js');
 
       const result = await recordMessage('e2e-test', 'test-channel', 'First message');
@@ -104,7 +108,11 @@ describe('Multi-Source Ingestion Pipeline', () => {
   });
 
   describe('ML Parsing Endpoints', () => {
-    it.skipIf(!servicesAvailable)('parses markdown content', async () => {
+    beforeAll(async (ctx) => {
+      if (!servicesAvailable) ctx.skip();
+    });
+
+    it('parses markdown content', async () => {
       const { ml } = await import('../../services/ml-client.js');
 
       const result = await ml.parseMarkdown('# Test\n\nHello [[world]]', 'test.md');
@@ -112,7 +120,7 @@ describe('Multi-Source Ingestion Pipeline', () => {
       expect(result.word_count).toBeGreaterThan(0);
     });
 
-    it.skipIf(!servicesAvailable)('parses transcript content', async () => {
+    it('parses transcript content', async () => {
       const { ml } = await import('../../services/ml-client.js');
 
       const result = await ml.parseTranscript('Alice: Hello.\nBob: Hi there.');

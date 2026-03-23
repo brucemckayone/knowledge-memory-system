@@ -28,12 +28,11 @@ async function qdrantRequest(
 }
 
 describe('Platform ↔ Qdrant Integration', () => {
-  let qdrantAvailable = false;
-
-  beforeAll(async () => {
-    qdrantAvailable = await isQdrantAvailable();
+  beforeAll(async (ctx) => {
+    const qdrantAvailable = await isQdrantAvailable();
     if (!qdrantAvailable) {
       console.warn('⚠️ Qdrant not available - skipping Qdrant tests');
+      ctx.skip();
       return;
     }
 
@@ -69,7 +68,7 @@ describe('Platform ↔ Qdrant Integration', () => {
   });
 
   describe('QD-001: Memory storage', () => {
-    it.skipIf(!qdrantAvailable)('should store memory with vector', async () => {
+    it('should store memory with vector', async () => {
       // Given: Memory content and embedding
       const pointId = randomUUID();
       const embedding = normalizeVector(randomEmbedding());
@@ -110,7 +109,7 @@ describe('Platform ↔ Qdrant Integration', () => {
   });
 
   describe('QD-002: Vector search', () => {
-    it.skipIf(!qdrantAvailable)('should retrieve by similarity', async () => {
+    it('should retrieve by similarity', async () => {
       // Given: Multiple stored memories
       const baseEmbedding = normalizeVector(randomEmbedding());
       const points = [
@@ -162,7 +161,7 @@ describe('Platform ↔ Qdrant Integration', () => {
   });
 
   describe('QD-003: Payload filtering', () => {
-    it.skipIf(!qdrantAvailable)('should filter by metadata', async () => {
+    it('should filter by metadata', async () => {
       // Given: Memories with different types
       const embedding = normalizeVector(randomEmbedding());
       const points = [
@@ -214,7 +213,7 @@ describe('Platform ↔ Qdrant Integration', () => {
       });
     });
 
-    it.skipIf(!qdrantAvailable)('should filter by multiple conditions', async () => {
+    it('should filter by multiple conditions', async () => {
       // Given: Memories with various metadata
       const embedding = normalizeVector(randomEmbedding());
       const points = [
@@ -266,7 +265,7 @@ describe('Platform ↔ Qdrant Integration', () => {
   });
 
   describe('QD-004: Collection initialization', () => {
-    it.skipIf(!qdrantAvailable)('should verify collection exists with correct config', async () => {
+    it('should verify collection exists with correct config', async () => {
       // When: Get collection info
       const response = await qdrantRequest(`/collections/${TEST_COLLECTION}`);
 
@@ -284,7 +283,7 @@ describe('Platform ↔ Qdrant Integration', () => {
   });
 
   describe('QD-005: Keyword search', () => {
-    it.skipIf(!qdrantAvailable)('should find text match in payload', async () => {
+    it('should find text match in payload', async () => {
       // Given: Memories with searchable content
       const points = [
         {
@@ -331,7 +330,7 @@ describe('Platform ↔ Qdrant Integration', () => {
   });
 
   describe('QD-006: Empty collection handling', () => {
-    it.skipIf(!qdrantAvailable)('should return empty results, no error', async () => {
+    it('should return empty results, no error', async () => {
       // Given: Empty collection (cleared in beforeEach)
 
       // When: Search on empty collection
@@ -355,7 +354,7 @@ describe('Platform ↔ Qdrant Integration', () => {
   });
 
   describe('QD-007: Duplicate ID handling', () => {
-    it.skipIf(!qdrantAvailable)('should update, not duplicate on upsert', async () => {
+    it('should update, not duplicate on upsert', async () => {
       // Given: Existing point
       const pointId = randomUUID();
       const originalEmbedding = normalizeVector(randomEmbedding());

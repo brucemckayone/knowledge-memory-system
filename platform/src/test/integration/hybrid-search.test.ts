@@ -98,7 +98,9 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-001: Vector-only search', () => {
-    it.skipIf(!qdrantAvailable)('should return vector results only when graph disabled', async () => {
+    beforeAll((ctx) => { if (!qdrantAvailable) ctx.skip(); });
+
+    it('should return vector results only when graph disabled', async () => {
       // Given: Memories in Qdrant
       const targetEmbedding = normalizeVector(randomEmbedding());
 
@@ -131,7 +133,9 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-002: Graph-augmented search', () => {
-    it.skipIf(!qdrantAvailable)('should include results from entity graph neighbors', async () => {
+    beforeAll((ctx) => { if (!qdrantAvailable) ctx.skip(); });
+
+    it('should include results from entity graph neighbors', async () => {
       // Given: Entities with relationships
       const person = await createTestEntity({
         canonicalName: 'John Smith',
@@ -247,7 +251,9 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-005: Entity extraction from query', () => {
-    it.skipIf(!mlAvailable)('should resolve entities in query', async () => {
+    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+
+    it('should resolve entities in query', async () => {
       // When: Extract entities from query
       const response = await fetch(`${ML_SERVICES_URL}/extract-entities`, {
         method: 'POST',
@@ -273,7 +279,9 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-006: Empty graph fallback', () => {
-    it.skipIf(!qdrantAvailable)('should return vector results when graph is empty', async () => {
+    beforeAll((ctx) => { if (!qdrantAvailable) ctx.skip(); });
+
+    it('should return vector results when graph is empty', async () => {
       // Given: Memories in Qdrant but no entity links
       const embedding = normalizeVector(randomEmbedding());
       await addMemoryToQdrant('orphan-mem', 'This memory has no entity links', 'thought', embedding);
@@ -302,7 +310,9 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-007: Keyword boost', () => {
-    it.skipIf(!qdrantAvailable)('should rank exact keyword matches high', async () => {
+    beforeAll((ctx) => { if (!qdrantAvailable) ctx.skip(); });
+
+    it('should rank exact keyword matches high', async () => {
       // Given: Memories with specific keywords
       await addMemoryToQdrant('exact-match', 'Project Phoenix kickoff meeting', 'thought');
       await addMemoryToQdrant('partial-match', 'The project is going well', 'thought');
