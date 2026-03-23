@@ -37,7 +37,7 @@ export const entityExtractionAgent: GardenerAgent = {
       }
 
       // Link entities to memory — returns resolved entity details
-      const linkedEntities = await linkEntitiesToMemory(payload.memoryId, entities);
+      const linkedEntities = await linkEntitiesToMemory(payload.memoryId, entities, payload.content);
       log(`Linked ${linkedEntities.length} entities to memory`);
 
       // Queue relationship extraction if we have enough entities

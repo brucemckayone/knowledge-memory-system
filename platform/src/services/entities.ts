@@ -197,10 +197,10 @@ export async function resolveEntity(
       type,
     });
     
-    // High confidence match - auto merge
+    // High confidence match - auto merge (pick best if multiple)
     const highConfidence = candidates.filter(c => c.similarity > THRESHOLD_AUTO_MERGE);
-    if (highConfidence.length === 1) {
-      const match = highConfidence[0]!;
+    if (highConfidence.length >= 1) {
+      const match = highConfidence[0]!; // Already sorted by similarity DESC
       await addAliasIfNew(match.id, mention);
       await updateLastSeen(match.id);
 
@@ -309,16 +309,17 @@ export async function linkEntitiesToMemory(
     start?: number;
     end?: number;
     confidence?: number;
-  }>
+  }>,
+  context = ''
 ): Promise<Array<{ id: string; name: string; type: string }>> {
   const linked: Array<{ id: string; name: string; type: string }> = [];
 
   for (const entity of extractedEntities) {
     try {
-      // Resolve to canonical entity
+      // Resolve to canonical entity (context improves disambiguation)
       const resolved = await resolveEntity(
         entity.mention,
-        '',  // No additional context
+        context,
         entity.type as EntityType
       );
 

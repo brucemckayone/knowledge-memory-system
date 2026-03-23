@@ -9,7 +9,7 @@
 
 import { db } from '../db/index.js';
 import { facts, factPredicates, entities, type Fact } from '../db/schema.js';
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, or, gt, isNull, sql } from 'drizzle-orm';
 import { ml } from './ml-client.js';
 
 export interface CreateFactParams {
@@ -206,17 +206,19 @@ export async function getEntityFacts(
       .from(facts)
       .where(and(
         eq(facts.subjectEntityId, entityId),
-        isNull(facts.expiredAt)
+        isNull(facts.expiredAt),
+        or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`))
       ));
   }
-  
+
   if (asObject) {
     return db
       .select()
       .from(facts)
       .where(and(
         eq(facts.objectEntityId, entityId),
-        isNull(facts.expiredAt)
+        isNull(facts.expiredAt),
+        or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`))
       ));
   }
   

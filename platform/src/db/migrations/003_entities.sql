@@ -168,19 +168,32 @@ BEGIN
     VALUES (target_id, source_name, 'merged_name', 'merge')
     ON CONFLICT (entity_id, alias) DO NOTHING;
     
-    -- Update memory_entities to point to target
-    UPDATE memory_entities 
-    SET entity_id = target_id 
+    -- Re-point facts from source to target (before delete to avoid CASCADE)
+    UPDATE facts SET subject_entity_id = target_id WHERE subject_entity_id = source_id;
+    UPDATE facts SET object_entity_id = target_id WHERE object_entity_id = source_id;
+
+    -- Re-point merge audit trail (for transitive chains: A→B then B→C)
+    UPDATE entity_merges SET target_entity_id = target_id WHERE target_entity_id = source_id;
+
+    -- Update memory_entities to point to target (delete conflicts first)
+    DELETE FROM memory_entities
+    WHERE entity_id = source_id
+      AND memory_id IN (SELECT memory_id FROM memory_entities WHERE entity_id = target_id);
+    UPDATE memory_entities
+    SET entity_id = target_id
     WHERE entity_id = source_id;
-    
+
+    -- Delete source aliases (already copied above)
+    DELETE FROM entity_aliases WHERE entity_id = source_id;
+
     -- Update merged_from array on target
-    UPDATE entities 
+    UPDATE entities
     SET merged_from = merged_from || source_id,
         last_seen_at = GREATEST(last_seen_at, (SELECT last_seen_at FROM entities WHERE id = source_id)),
         updated_at = NOW()
     WHERE id = target_id;
-    
-    -- Delete source entity
+
+    -- Delete source entity (now safe — no dependent rows remain)
     DELETE FROM entities WHERE id = source_id;
     
     RETURN target_id;
