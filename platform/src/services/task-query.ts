@@ -15,7 +15,7 @@
 
 import { db } from '../db/index.js';
 import { tasks, memoryEntities, entities } from '../db/schema.js';
-import { eq, and, or, desc, gte, lte, sql, inArray } from 'drizzle-orm';
+import { eq, and, desc, gte, lte, sql, inArray } from 'drizzle-orm';
 
 /**
  * Parsed query filters
@@ -79,7 +79,6 @@ function parseQuery(query: string): QueryFilters {
   }
 
   // Parse timeframe
-  const now = new Date();
   if (lower.includes('today')) {
     filters.timeframe = 'today';
   } else if (lower.includes('tomorrow')) {
@@ -255,7 +254,7 @@ function formatResponse(tasks: TaskWithEntities[], filters: QueryFilters): strin
 
   if (highPriority.length > 0) {
     response += '🔴 **Urgent**\n';
-    highPriority.forEach((task, i) => {
+    highPriority.forEach((task) => {
       response += `  - ${task.content}`;
       if (task.dueDate) {
         response += ` (${formatDueDate(task.dueDate)})`;
@@ -270,7 +269,7 @@ function formatResponse(tasks: TaskWithEntities[], filters: QueryFilters): strin
 
   if (mediumPriority.length > 0) {
     response += '🟡 **Medium Priority**\n';
-    mediumPriority.forEach((task, i) => {
+    mediumPriority.forEach((task) => {
       response += `  - ${task.content}`;
       if (task.dueDate) {
         response += ` (${formatDueDate(task.dueDate)})`;
@@ -285,7 +284,7 @@ function formatResponse(tasks: TaskWithEntities[], filters: QueryFilters): strin
 
   if (lowPriority.length > 0) {
     response += '🟢 **Low Priority**\n';
-    lowPriority.forEach((task, i) => {
+    lowPriority.forEach((task) => {
       response += `  - ${task.content}`;
       if (task.dueDate) {
         response += ` (${formatDueDate(task.dueDate)})`;

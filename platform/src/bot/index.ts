@@ -353,7 +353,7 @@ bot.command('complete', async (ctx) => {
       return;
     }
 
-    const task = pendingTasks[taskNumber - 1];
+    const task = pendingTasks[taskNumber - 1]!;
 
     // Update task status
     await db
@@ -418,7 +418,7 @@ bot.command('task', async (ctx) => {
       return;
     }
 
-    const task = pendingTasks[taskNumber - 1];
+    const task = pendingTasks[taskNumber - 1]!;
 
     let details = `📋 **Task ${taskNumber}**\n\n`;
     details += `${priorityEmoji(task.priority)} *${task.content}*\n\n`;

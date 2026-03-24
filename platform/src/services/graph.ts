@@ -8,6 +8,23 @@
 import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
 
+/** Strip agtype quoting from Apache AGE Cypher results */
+function stripAgtype(value: unknown): string {
+  return String(value).replace(/"/g, '');
+}
+
+/** Execute a Cypher query and return typed rows */
+async function executeCypher<T>(
+  query: string,
+  columns: string
+): Promise<T[]> {
+  const result = await db.execute(sql`
+    SELECT * FROM cypher('knowledge_graph', $$ ${sql.raw(query)} $$)
+    as (${sql.raw(columns)})
+  `);
+  return result as unknown as T[];
+}
+
 export interface GraphEntity {
   entityId: string;
   name: string;
@@ -61,15 +78,14 @@ export async function getAllEdges(
       `;
     }
 
-    const result = await db.execute(sql`
-      SELECT * FROM cypher('knowledge_graph', $$ ${sql.raw(cypherQuery)} $$)
-      as (from_id agtype, to_id agtype, rel_type agtype)
-    `);
+    const rows = await executeCypher<{ from_id: string; to_id: string; rel_type: string }>(
+      cypherQuery, 'from_id agtype, to_id agtype, rel_type agtype'
+    );
 
-    return (result as unknown as { rows: Array<{ from_id: string; to_id: string; rel_type: string }> }).rows.map(row => ({
-      fromEntityId: String(row.from_id).replace(/"/g, ''),
-      toEntityId: String(row.to_id).replace(/"/g, ''),
-      type: String(row.rel_type).replace(/"/g, ''),
+    return rows.map(row => ({
+      fromEntityId: stripAgtype(row.from_id),
+      toEntityId: stripAgtype(row.to_id),
+      type: stripAgtype(row.rel_type),
     }));
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('Invalid ')) throw error;
@@ -111,14 +127,13 @@ export async function getEntityDegrees(
       `;
     }
 
-    const result = await db.execute(sql`
-      SELECT * FROM cypher('knowledge_graph', $$ ${sql.raw(cypherQuery)} $$)
-      as (id agtype, degree agtype)
-    `);
+    const rows = await executeCypher<{ id: string; degree: string }>(
+      cypherQuery, 'id agtype, degree agtype'
+    );
 
-    for (const row of (result as unknown as { rows: Array<{ id: string; degree: string }> }).rows) {
-      const entityId = String(row.id).replace(/"/g, '');
-      const degree = parseInt(String(row.degree), 10);
+    for (const row of rows) {
+      const entityId = stripAgtype(row.id);
+      const degree = parseInt(stripAgtype(row.degree), 10);
       degrees.set(entityId, degree);
     }
   } catch (error) {
@@ -165,17 +180,16 @@ export async function getSubgraph(
       LIMIT ${safeLimit}
     `;
 
-    const nodeResult = await db.execute(sql`
-      SELECT * FROM cypher('knowledge_graph', $$ ${sql.raw(nodeQuery)} $$)
-      as (id agtype, name agtype, type agtype)
-    `);
+    const nodeRows = await executeCypher<{ id: string; name: string; type: string }>(
+      nodeQuery, 'id agtype, name agtype, type agtype'
+    );
 
-    const nodes: GraphEntity[] = (nodeResult as unknown as { rows: Array<{ id: string; name: string; type: string }> }).rows
+    const nodes: GraphEntity[] = nodeRows
       .filter(row => row.id != null)
       .map(row => ({
-        entityId: String(row.id).replace(/"/g, ''),
-        name: String(row.name).replace(/"/g, ''),
-        type: String(row.type).replace(/"/g, ''),
+        entityId: stripAgtype(row.id),
+        name: stripAgtype(row.name),
+        type: stripAgtype(row.type),
       }));
 
     const nodeIds = new Set(nodes.map(n => n.entityId));
@@ -189,15 +203,14 @@ export async function getSubgraph(
       LIMIT ${safeLimit}
     `;
 
-    const edgeResult = await db.execute(sql`
-      SELECT * FROM cypher('knowledge_graph', $$ ${sql.raw(edgeQuery)} $$)
-      as (from_id agtype, to_id agtype, rel_type agtype)
-    `);
+    const edgeRows = await executeCypher<{ from_id: string; to_id: string; rel_type: string }>(
+      edgeQuery, 'from_id agtype, to_id agtype, rel_type agtype'
+    );
 
-    const edges: GraphEdge[] = (edgeResult as unknown as { rows: Array<{ from_id: string; to_id: string; rel_type: string }> }).rows.map(row => ({
-      fromEntityId: String(row.from_id).replace(/"/g, ''),
-      toEntityId: String(row.to_id).replace(/"/g, ''),
-      type: String(row.rel_type).replace(/"/g, ''),
+    const edges: GraphEdge[] = edgeRows.map(row => ({
+      fromEntityId: stripAgtype(row.from_id),
+      toEntityId: stripAgtype(row.to_id),
+      type: stripAgtype(row.rel_type),
     }));
 
     return { nodes, edges };
@@ -245,15 +258,14 @@ export async function findConnectedEntities(
       `;
     }
 
-    const result = await db.execute(sql`
-      SELECT * FROM cypher('knowledge_graph', $$ ${sql.raw(cypherQuery)} $$)
-      as (id agtype, name agtype, type agtype)
-    `);
+    const rows = await executeCypher<{ id: string; name: string; type: string }>(
+      cypherQuery, 'id agtype, name agtype, type agtype'
+    );
 
-    return (result as unknown as { rows: Array<{ id: string; name: string; type: string }> }).rows.map(row => ({
-      entityId: String(row.id).replace(/"/g, ''),
-      name: String(row.name).replace(/"/g, ''),
-      type: String(row.type).replace(/"/g, ''),
+    return rows.map(row => ({
+      entityId: stripAgtype(row.id),
+      name: stripAgtype(row.name),
+      type: stripAgtype(row.type),
     }));
   } catch (error) {
     console.error('Failed to find connected entities:', error);

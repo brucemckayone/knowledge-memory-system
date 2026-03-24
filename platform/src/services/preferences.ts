@@ -86,9 +86,10 @@ export async function updatePreference(
   if (existing) {
     // Update with exponential moving average for confidence
     const newConfidence = confidence ?? 0.5;
-    const oldConfidence = existing.confidence;
-    const sampleCount = existing.sampleCount + 1;
-    const combinedConfidence = (oldConfidence * existing.sampleCount + newConfidence) / sampleCount;
+    const oldConfidence = existing.confidence ?? 0.5;
+    const prevSamples = existing.sampleCount ?? 1;
+    const sampleCount = prevSamples + 1;
+    const combinedConfidence = (oldConfidence * prevSamples + newConfidence) / sampleCount;
 
     await db
       .update(userPreferences)
@@ -130,7 +131,6 @@ export async function learnFromTaskCompletion(params: {
 
   // Learn about urgency calibration
   if (originalDueDate && priority === 'high') {
-    const completedBeforeDue = completedAt < originalDueDate;
     const daysDiff = Math.abs(completedAt.getTime() - originalDueDate.getTime()) / (1000 * 60 * 60 * 24);
 
     // If user completed "high priority" task more than a day from deadline,
