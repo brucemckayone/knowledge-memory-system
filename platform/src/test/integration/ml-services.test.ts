@@ -36,7 +36,7 @@ describe('Platform ↔ ML Services Integration', () => {
       expect(response.ok).toBe(true);
       const result = await response.json() as Record<string, unknown>;
 
-      const embedding = (result.embedding as unknown as number[]) || [];
+      const embedding = (result.vector as unknown as number[]) || [];
       expect(embedding).toBeDefined();
       expect(Array.isArray(embedding)).toBe(true);
       expect(embedding.length).toBe(768);
@@ -70,8 +70,8 @@ describe('Platform ↔ ML Services Integration', () => {
       const result1 = await response1.json() as Record<string, unknown>;
       const result2 = await response2.json() as Record<string, unknown>;
 
-      const embed1 = (result1.embedding as unknown as number[]) || [];
-      const embed2 = (result2.embedding as unknown as number[]) || [];
+      const embed1 = (result1.vector as unknown as number[]) || [];
+      const embed2 = (result2.vector as unknown as number[]) || [];
 
       // Then: Embeddings are different
       expect(embed1).not.toEqual(embed2);
@@ -100,7 +100,7 @@ describe('Platform ↔ ML Services Integration', () => {
       ];
 
       // When: Call batch embed endpoint
-      const response = await fetch(`${ML_SERVICES_URL}/embed-batch`, {
+      const response = await fetch(`${ML_SERVICES_URL}/embed/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ texts }),
