@@ -28,11 +28,13 @@ async function qdrantRequest(
 }
 
 describe('Platform ↔ Qdrant Integration', () => {
+  let qdrantAvailable = false;
+
   beforeAll(async (ctx) => {
-    const qdrantAvailable = await isQdrantAvailable();
+    qdrantAvailable = await isQdrantAvailable();
     if (!qdrantAvailable) {
       console.warn('⚠️ Qdrant not available - skipping Qdrant tests');
-      ctx.skip();
+      (ctx as any).skip();
       return;
     }
 

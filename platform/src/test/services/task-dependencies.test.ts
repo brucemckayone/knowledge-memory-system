@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createDependencies, getTaskDependencies, getDependencyChain, hasUnmetBlockingDependencies, resolveDependencyByReference, deleteDependency } from '../../services/task-dependencies.js';
 import { db } from '../../db/index.js';
 import { tasks, taskDependencies } from '../../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 describe('Task Dependencies Service', () => {
   let taskIds: string[] = [];
@@ -70,9 +70,9 @@ describe('Task Dependencies Service', () => {
       }]);
 
       expect(dependencies).toHaveLength(1);
-      expect(dependencies[0].taskId).toBe(taskIds[1]);
-      expect(dependencies[0].dependencyType).toBe('blocking');
-      expect(dependencies[0].detectedBy).toBe('llm'); // default
+      expect(dependencies[0]!.taskId).toBe(taskIds[1]);
+      expect(dependencies[0]!.dependencyType).toBe('blocking');
+      expect(dependencies[0]!.detectedBy).toBe('llm'); // default
     });
 
     it('should create multiple dependencies at once', async () => {
@@ -139,8 +139,8 @@ describe('Task Dependencies Service', () => {
 
       const deps = await getTaskDependencies(taskIds[3]!);
       expect(deps).toHaveLength(2);
-      expect(deps[0].dependsOnTaskId).toBe(taskIds[0]);
-      expect(deps[1].dependsOnTaskId).toBe(taskIds[1]);
+      expect(deps[0]!.dependsOnTaskId).toBe(taskIds[0]);
+      expect(deps[1]!.dependsOnTaskId).toBe(taskIds[1]);
     });
 
     it('should include task details in dependency results', async () => {
@@ -150,9 +150,9 @@ describe('Task Dependencies Service', () => {
 
       const deps = await getTaskDependencies(taskIds[1]!);
       expect(deps).toHaveLength(1);
-      expect(deps[0].dependsOnTask).toBeDefined();
-      expect(deps[0].dependsOnTask.id).toBe(taskIds[0]);
-      expect(deps[0].dependsOnTask.content).toBe('Test task 0');
+      expect(deps[0]!.dependsOnTask).toBeDefined();
+      expect(deps[0]!.dependsOnTask.id).toBe(taskIds[0]);
+      expect(deps[0]!.dependsOnTask.content).toBe('Test task 0');
     });
 
     it('should return empty array for tasks with no dependencies', async () => {

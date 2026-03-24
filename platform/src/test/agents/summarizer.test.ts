@@ -7,7 +7,7 @@
  * Boundary: ML /summarize (B3), Qdrant embed update (B11)
  */
 
-import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterEach, type Mock } from 'vitest';
 import { randomUUID, isMLServiceAvailable } from '../setup.js';
 import { loadPhase4Seed } from '../fixtures/phase4-seed.js';
 import { installMLServiceMock, restoreMLServiceMock } from '../mocks/ml-service.mock.js';
@@ -56,11 +56,11 @@ describe('W24 Summarizer Agent', () => {
 
   // Helper to mock Qdrant service functions
   function mockQdrantService(content: string) {
-    (qdrantService.getMemory as vi.Mock).mockResolvedValue({
+    (qdrantService.getMemory as Mock).mockResolvedValue({
       id: randomUUID(),
       payload: { content },
     });
-    (qdrantService.updateVector as vi.Mock).mockResolvedValue(undefined);
+    (qdrantService.updateVector as Mock).mockResolvedValue(undefined);
   }
 
   afterEach(() => {
@@ -78,7 +78,7 @@ describe('W24 Summarizer Agent', () => {
         summarize: {
           summary: mockSummary,
           key_points: ['AI development', 'team collaboration', 'product launches'],
-          style: 'standard',
+          word_count: mockSummary.split(/\s+/).length,
         },
       });
 
@@ -109,6 +109,7 @@ describe('W24 Summarizer Agent', () => {
         summarize: {
           summary: 'A brief summary',
           key_points: ['point 1'],
+          word_count: 3,
         },
       });
 
@@ -140,6 +141,7 @@ describe('W24 Summarizer Agent', () => {
         summarize: {
           summary: 'Summary of the document.',
           key_points: keyPoints,
+          word_count: 4,
         },
       });
 
@@ -167,17 +169,18 @@ describe('W24 Summarizer Agent', () => {
   describe('SUM-003: Update Qdrant embedding', () => {
     it('should call Qdrant PUT for embedding update', async () => {
       // Reset mocks
-      (qdrantService.getMemory as vi.Mock).mockResolvedValue({
+      (qdrantService.getMemory as Mock).mockResolvedValue({
         id: randomUUID(),
         payload: { content: 'Test content for embedding.' },
       });
-      (qdrantService.updateVector as vi.Mock).mockResolvedValue(undefined);
+      (qdrantService.updateVector as Mock).mockResolvedValue(undefined);
 
       // Install mock for ML service (includes embed)
       installMLServiceMock({
         summarize: {
           summary: 'Test summary',
           key_points: ['test'],
+          word_count: 2,
         },
         embed: {
           vector: Array(768).fill(0.1),
@@ -196,7 +199,7 @@ describe('W24 Summarizer Agent', () => {
 
       // Then: Qdrant updateVector was called
       expect(result.success).toBe(true);
-      expect(qdrantService.updateVector as vi.Mock).toHaveBeenCalled();
+      expect(qdrantService.updateVector as Mock).toHaveBeenCalled();
     });
   });
 

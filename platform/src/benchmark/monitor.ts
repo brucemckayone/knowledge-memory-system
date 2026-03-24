@@ -27,7 +27,7 @@ export async function collectMetrics(): Promise<BenchmarkCheckpoint['metrics']> 
 
     // Get queue stats
     const queue = getQueue();
-    const pendingJobs = await queue.count();
+    const pendingJobs = await (queue as unknown as { count(): Promise<number> }).count();
 
     const completedJobs = await countQuery('gardener_job_meta', 'completed_at IS NOT NULL');
 

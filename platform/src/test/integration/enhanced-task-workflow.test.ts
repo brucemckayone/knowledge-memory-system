@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { testDb, randomUUID, isMLServiceAvailable } from '../setup.js';
+import { isMLServiceAvailable } from '../setup.js';
 import { createEnvelope } from '../../core/envelope-factory.js';
 import { createSkillContext } from '../../skills/index.js';
 import { processTask } from '../../workflows/process-task.js';
@@ -246,7 +246,7 @@ describe('Enhanced Task Workflow', () => {
 
       const conversationId = 'chain-test-conv';
 
-      const tasks = [
+      const taskContents = [
         'Write project requirements',
         'Design system architecture based on requirements',
         'Implement core features following the architecture',
@@ -254,7 +254,7 @@ describe('Enhanced Task Workflow', () => {
 
       const taskIds: string[] = [];
 
-      for (const content of tasks) {
+      for (const content of taskContents) {
         const envelope = createTestEnvelope(content, { conversationId });
         const context = createSkillContext(envelope);
         const result = await processTask(envelope, context);
@@ -304,8 +304,8 @@ describe('Enhanced Task Workflow', () => {
       const context2 = createSkillContext(envelope2);
       const result2 = await processTask(envelope2, context2);
 
-      // Check for conflicts
-      const conflicts = await db
+      // Check for conflicts (query executed for side-effect verification)
+      await db
         .select()
         .from(taskConflicts)
         .where(
@@ -439,12 +439,10 @@ describe('Enhanced Task Workflow', () => {
 
       const conversationId = 'context-test-conv';
 
-      // Create some context messages
-      const contextMessages = [
-        'We need to launch the product in 6 weeks',
-        'Budget has been approved',
-        'Design team is ready to start',
-      ];
+      // Context messages for this conversation:
+      // - 'We need to launch the product in 6 weeks'
+      // - 'Budget has been approved'
+      // - 'Design team is ready to start'
 
       // Create task that references context
       const envelope = createTestEnvelope(

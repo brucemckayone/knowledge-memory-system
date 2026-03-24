@@ -18,7 +18,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   testDb,
   createTestEntity,
-  deleteFromTables,
   randomEmbedding,
   normalizeVector,
   cosineSimilarity,
@@ -38,7 +37,7 @@ function perturbVector(base: number[], targetSimilarity: number): number[] {
   let lo = 0, hi = 1;
   for (let i = 0; i < 50; i++) {
     const mid = (lo + hi) / 2;
-    const mixed = base.map((v, j) => v * mid + noise[j] * (1 - mid));
+    const mixed = base.map((v, j) => v * mid + noise[j]! * (1 - mid));
     const sim = cosineSimilarity(normalizeVector(base), normalizeVector(mixed));
     if (sim > targetSimilarity) {
       hi = mid;
@@ -47,7 +46,7 @@ function perturbVector(base: number[], targetSimilarity: number): number[] {
     }
   }
   const ratio = (lo + hi) / 2;
-  const result = base.map((v, j) => v * ratio + noise[j] * (1 - ratio));
+  const result = base.map((v, j) => v * ratio + noise[j]! * (1 - ratio));
   return normalizeVector(result);
 }
 
@@ -86,7 +85,7 @@ describe('Entity Resolution Convergence', () => {
       // All 5 queries should find the same entity
       for (const matches of results) {
         expect(matches.length).toBeGreaterThanOrEqual(1);
-        expect(matches[0].id).toBe(entity.id);
+        expect(matches[0]!.id).toBe(entity.id);
       }
     });
   });
@@ -113,7 +112,7 @@ describe('Entity Resolution Convergence', () => {
       `;
 
       expect(matches.length).toBe(1);
-      expect(Number(matches[0].similarity)).toBeGreaterThan(0.92);
+      expect(Number(matches[0]!.similarity)).toBeGreaterThan(0.92);
     });
 
     it.skipIf(!hasVectorExtension)('should NOT match at exactly 0.92 with strict > check', async () => {
@@ -185,7 +184,7 @@ describe('Entity Resolution Convergence', () => {
       `;
 
       expect(entities.length).toBe(2);
-      expect(entities[0].entity_type).not.toBe(entities[1].entity_type);
+      expect(entities[0]!.entity_type).not.toBe(entities[1]!.entity_type);
     });
   });
 
@@ -207,7 +206,7 @@ describe('Entity Resolution Convergence', () => {
         SELECT alias FROM entity_aliases WHERE entity_id = ${entity.id}::uuid ORDER BY alias
       `;
 
-      const aliasNames = result.map((r: { alias: string }) => r.alias);
+      const aliasNames = result.map((r) => (r as { alias: string }).alias);
       expect(aliasNames).toContain('John');
       expect(aliasNames).toContain('J. Smith');
       expect(aliasNames).toContain('Johnny');
@@ -229,7 +228,7 @@ describe('Entity Resolution Convergence', () => {
       `;
 
       expect(results.length).toBeGreaterThanOrEqual(1);
-      expect(results[0].canonical_name).toBe('John Smith');
+      expect(results[0]!.canonical_name).toBe('John Smith');
     });
   });
 
@@ -249,7 +248,7 @@ describe('Entity Resolution Convergence', () => {
       // Two distinct rows — createTestEntity always inserts.
       // The resolveEntity() function would be idempotent; direct insert is not.
       // This test documents the DB-level behavior.
-      expect(Number(countAfter[0].n)).toBe(Number(countBefore[0].n) + 1);
+      expect(Number(countAfter[0]!.n)).toBe(Number(countBefore[0]!.n) + 1);
     });
 
     it('ERC-PROP-003: Consistent — entity lookup by ID is stable', async () => {
@@ -258,8 +257,8 @@ describe('Entity Resolution Convergence', () => {
       // Query 10 times
       for (let i = 0; i < 10; i++) {
         const result = await testDb`SELECT id, canonical_name FROM entities WHERE id = ${entity.id}::uuid`;
-        expect(result[0].id).toBe(entity.id);
-        expect(result[0].canonical_name).toBe('Stable Entity');
+        expect(result[0]!.id).toBe(entity.id);
+        expect(result[0]!.canonical_name).toBe('Stable Entity');
       }
     });
   });

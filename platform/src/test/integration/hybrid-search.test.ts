@@ -98,7 +98,7 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-001: Vector-only search', () => {
-    beforeAll((ctx) => { if (!qdrantAvailable) ctx.skip(); });
+    beforeAll((ctx) => { if (!qdrantAvailable) (ctx as any).skip(); });
 
     it('should return vector results only when graph disabled', async () => {
       // Given: Memories in Qdrant
@@ -133,7 +133,7 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-002: Graph-augmented search', () => {
-    beforeAll((ctx) => { if (!qdrantAvailable) ctx.skip(); });
+    beforeAll((ctx) => { if (!qdrantAvailable) (ctx as any).skip(); });
 
     it('should include results from entity graph neighbors', async () => {
       // Given: Entities with relationships
@@ -251,7 +251,7 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-005: Entity extraction from query', () => {
-    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx) => { if (!mlAvailable) (ctx as any).skip(); });
 
     it('should resolve entities in query', async () => {
       // When: Extract entities from query
@@ -279,7 +279,7 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-006: Empty graph fallback', () => {
-    beforeAll((ctx) => { if (!qdrantAvailable) ctx.skip(); });
+    beforeAll((ctx) => { if (!qdrantAvailable) (ctx as any).skip(); });
 
     it('should return vector results when graph is empty', async () => {
       // Given: Memories in Qdrant but no entity links
@@ -310,7 +310,7 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-007: Keyword boost', () => {
-    beforeAll((ctx) => { if (!qdrantAvailable) ctx.skip(); });
+    beforeAll((ctx) => { if (!qdrantAvailable) (ctx as any).skip(); });
 
     it('should rank exact keyword matches high', async () => {
       // Given: Memories with specific keywords

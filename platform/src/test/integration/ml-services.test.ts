@@ -16,7 +16,7 @@ describe('Platform ↔ ML Services Integration', () => {
     const mlAvailable = await isMLServiceAvailable();
     if (!mlAvailable) {
       console.warn('⚠️ ML Services not available - skipping ML tests');
-      ctx.skip();
+      (ctx as any).skip();
     }
   });
 

@@ -180,7 +180,11 @@ export async function processTask(
       priority: extracted.priority,
       context_id: contextUUID,
       memory_id: envelope.trace_id,
-      subtasks: extracted.subtasks,
+      subtasks: extracted.subtasks?.map(st => ({
+        action: st.action,
+        estimated_duration_minutes: st.estimated_duration_minutes,
+        priority: st.priority as 'high' | 'medium' | 'low' | undefined,
+      })),
       estimated_duration_minutes: extracted.estimated_duration_minutes,
       duration_confidence: extracted.duration_confidence,
       decomposition_reasoning: extracted.reasoning,

@@ -10,12 +10,11 @@
  * See: platform/src/test/plans/inverse-predicates-and-search.md
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   testDb,
   createTestEntity,
   createTestFact,
-  deleteFromTables,
 } from '../setup.js';
 
 describe('Inverse Predicate Consistency', () => {
@@ -39,7 +38,7 @@ describe('Inverse Predicate Consistency', () => {
         WHERE subject_entity_id = ${alice.id}::uuid OR object_entity_id = ${bob.id}::uuid
       `;
       expect(allFacts.length).toBe(1);
-      expect(allFacts[0].predicate).toBe('manages');
+      expect(allFacts[0]!.predicate).toBe('manages');
 
       // No "reports_to" fact auto-created for Bob
       const bobFacts = await testDb`
@@ -67,8 +66,8 @@ describe('Inverse Predicate Consistency', () => {
         WHERE object_entity_id = ${bob.id}::uuid
       `;
       expect(incomingFacts.length).toBe(1);
-      expect(incomingFacts[0].subject_entity_id).toBe(alice.id);
-      expect(incomingFacts[0].predicate).toBe('manages');
+      expect(incomingFacts[0]!.subject_entity_id).toBe(alice.id);
+      expect(incomingFacts[0]!.predicate).toBe('manages');
     });
   });
 
@@ -102,7 +101,7 @@ describe('Inverse Predicate Consistency', () => {
         SELECT count(*) as n FROM facts
         WHERE predicate = 'knows' AND subject_entity_id = ${alice.id}::uuid
       `;
-      expect(Number(total[0].n)).toBe(1);
+      expect(Number(total[0]!.n)).toBe(1);
     });
   });
 
@@ -120,17 +119,17 @@ describe('Inverse Predicate Consistency', () => {
       ];
 
       for (const [predA, predB] of inversePairs) {
-        const infoA = getPredicateInfo(predA);
-        const infoB = getPredicateInfo(predB);
+        const infoA = getPredicateInfo(predA!);
+        const infoB = getPredicateInfo(predB!);
 
         // A's inverse should be B
-        if (infoA?.inverse) {
-          expect(infoA.inverse).toBe(predB);
+        if (infoA?.inversePredicate) {
+          expect(infoA.inversePredicate).toBe(predB);
         }
 
         // B's inverse should be A (round-trip)
-        if (infoB?.inverse) {
-          expect(infoB.inverse).toBe(predA);
+        if (infoB?.inversePredicate) {
+          expect(infoB.inversePredicate).toBe(predA);
         }
       }
     });
@@ -187,7 +186,7 @@ describe('Hybrid Search Safety', () => {
       `;
 
       const countAfter = await testDb`SELECT count(*) as n FROM entities`;
-      expect(Number(countAfter[0].n)).toBe(Number(countBefore[0].n));
+      expect(Number(countAfter[0]!.n)).toBe(Number(countBefore[0]!.n));
     });
   });
 
@@ -205,15 +204,15 @@ describe('Hybrid Search Safety', () => {
       expect(results.length).toBe(0);
 
       const countAfter = await testDb`SELECT count(*) as n FROM entities`;
-      expect(Number(countAfter[0].n)).toBe(Number(countBefore[0].n));
+      expect(Number(countAfter[0]!.n)).toBe(Number(countBefore[0]!.n));
     });
   });
 
   describe('HST-005: Entity name disambiguation', () => {
     it('should return both matches for ambiguous name, ranked by similarity', async () => {
       const tag = `hst005-${Date.now()}`;
-      const a1 = await createTestEntity({ canonicalName: `Apple Inc ${tag}`, entityType: 'company' });
-      const a2 = await createTestEntity({ canonicalName: `Apple Records ${tag}`, entityType: 'company' });
+      await createTestEntity({ canonicalName: `Apple Inc ${tag}`, entityType: 'company' });
+      await createTestEntity({ canonicalName: `Apple Records ${tag}`, entityType: 'company' });
       await createTestEntity({ canonicalName: `Zyxwv Corp ${tag}`, entityType: 'company' });
 
       // Search scoped to our test entities
@@ -227,8 +226,8 @@ describe('Hybrid Search Safety', () => {
 
       // Both Apple entities should be in results, ranked highest
       expect(results.length).toBeGreaterThanOrEqual(2);
-      expect(results[0].canonical_name).toContain('Apple');
-      expect(results[1].canonical_name).toContain('Apple');
+      expect(results[0]!.canonical_name).toContain('Apple');
+      expect(results[1]!.canonical_name).toContain('Apple');
     });
   });
 });

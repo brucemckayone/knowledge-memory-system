@@ -513,8 +513,8 @@ function calculateGrowthRate(values: number[]): number {
   let periods = 0;
 
   for (let i = 1; i < values.length; i++) {
-    const prev = values[i - 1];
-    const curr = values[i];
+    const prev = values[i - 1]!;
+    const curr = values[i]!;
 
     if (prev > 0) {
       const growth = ((curr - prev) / prev) * 100;

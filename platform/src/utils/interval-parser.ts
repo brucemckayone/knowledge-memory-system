@@ -17,7 +17,7 @@ export function parseIntervalToSeconds(interval: string): number {
     throw new Error(`Invalid interval format: ${interval}. Expected format: <number><unit> (e.g., 30s, 5m, 1h, 1d)`);
   }
 
-  const value = parseInt(match[1], 10);
+  const value = parseInt(match[1]!, 10);
   const unit = match[2];
 
   switch (unit) {

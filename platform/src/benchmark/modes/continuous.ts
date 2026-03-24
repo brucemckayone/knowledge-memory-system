@@ -9,7 +9,7 @@
  * - Dashboard integration
  */
 
-import type { BenchmarkMessage } from '../../utils/message-factory.js';
+import type { BenchmarkMessage } from '../utils/message-factory.js';
 import type {
   ContinuousBenchmarkOptions,
   ContinuousBenchmarkResults,
@@ -22,7 +22,6 @@ import { injectMessages } from '../injection/queue-injector.js';
 import {
   createCheckpoint,
   saveCheckpoint,
-  loadCheckpoints,
 } from '../monitor.js';
 import { parseIntervalToMs } from '../../utils/interval-parser.js';
 import { initQueue, getQueue } from '../../queue/index.js';
@@ -74,7 +73,7 @@ function calculateInjectionSchedule(
 
       for (let i = 0; i < batchSize; i++) {
         // Cycle through scenario messages
-        const message = scenarioMessages[messagesInjected % scenarioMessages.length];
+        const message = scenarioMessages[messagesInjected % scenarioMessages.length]!;
         batchMessages.push({
           ...message,
           messageId: message.messageId + messagesInjected,
@@ -189,7 +188,7 @@ export async function runContinuousBenchmark(
     console.log(`   Memories: ${initialCheckpoint.metrics.memoryCount}\n`);
 
     while (scheduleIndex < injectionSchedule.length && !shutdownRequested) {
-      const batch = injectionSchedule[scheduleIndex];
+      const batch = injectionSchedule[scheduleIndex]!;
       const now = new Date();
 
       // Check if we should wait for the batch time
@@ -205,7 +204,7 @@ export async function runContinuousBenchmark(
       console.log(`💬 Injecting batch ${batch.batchId}: ${batch.messages.length} messages`);
       await injectMessages(batch.messages, {
         rateLimit: 10, // Inject at 10 msg/sec per batch
-        onProgress: (injected, total) => {
+        onProgress: (_injected, _total) => {
           // Silent progress
         },
       });
@@ -227,9 +226,9 @@ export async function runContinuousBenchmark(
         }
 
         console.log(`   Elapsed: ${(checkpoint.elapsedMs / 1000 / 60).toFixed(1)} minutes`);
-        console.log(`   Entities: ${checkpoint.metrics.entityCount} (+${checkpoint.metrics.entityCount - checkpoints[checkpoints.length - 2].metrics.entityCount})`);
-        console.log(`   Facts: ${checkpoint.metrics.factCount} (+${checkpoint.metrics.factCount - checkpoints[checkpoints.length - 2].metrics.factCount})`);
-        console.log(`   Tasks: ${checkpoint.metrics.taskCount} (+${checkpoint.metrics.taskCount - checkpoints[checkpoints.length - 2].metrics.taskCount})`);
+        console.log(`   Entities: ${checkpoint.metrics.entityCount} (+${checkpoint.metrics.entityCount - checkpoints[checkpoints.length - 2]!.metrics.entityCount})`);
+        console.log(`   Facts: ${checkpoint.metrics.factCount} (+${checkpoint.metrics.factCount - checkpoints[checkpoints.length - 2]!.metrics.factCount})`);
+        console.log(`   Tasks: ${checkpoint.metrics.taskCount} (+${checkpoint.metrics.taskCount - checkpoints[checkpoints.length - 2]!.metrics.taskCount})`);
         console.log(`   Queue depth: ${checkpoint.performance.queueDepth}`);
         console.log(`   Throughput: ${checkpoint.performance.throughput.toFixed(2)} msg/sec\n`);
 

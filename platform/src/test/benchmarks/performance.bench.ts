@@ -34,7 +34,7 @@ describe('Performance Benchmarks', () => {
     const mlAvailable = await isMLServiceAvailable();
     if (!qdrantAvailable || !mlAvailable) {
       console.warn('⚠️ ML Services or Qdrant not available - skipping performance benchmarks');
-      ctx.skip();
+      (ctx as any).skip();
     }
 
     // Ensure clean state

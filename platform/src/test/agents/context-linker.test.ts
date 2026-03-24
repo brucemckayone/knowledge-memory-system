@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { AgentContext, JobResult } from '../../gardener/controller.js';
+import type { AgentContext } from '../../gardener/controller.js';
 
 // Mock all external dependencies before importing the agent
 vi.mock('../../services/ingestion-context.js', () => ({
@@ -135,7 +135,7 @@ describe('Context-Linker Agent', () => {
       },
     } as any));
 
-    vi.mocked(getMemoryEntities).mockImplementation(async (memId: string) => {
+    vi.mocked(getMemoryEntities).mockImplementation(async (_memId: string) => {
       // Both memories share entity "Project X"
       return [{ id: entityId, canonicalName: 'Project X', entityType: 'project' }] as any;
     });

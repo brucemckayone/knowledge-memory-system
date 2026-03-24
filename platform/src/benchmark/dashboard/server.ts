@@ -55,12 +55,12 @@ export async function startDashboard(options: DashboardOptions): Promise<{
   app.use(express.static(path.join(__dirname, 'public')));
 
   // API endpoint: Get current state
-  app.get('/api/state', (req, res) => {
+  app.get('/api/state', (_req, res) => {
     res.json(state);
   });
 
   // API endpoint: Get checkpoint history
-  app.get('/api/checkpoints', async (req, res) => {
+  app.get('/api/checkpoints', async (_req, res) => {
     try {
       const { loadCheckpoints } = await import('../monitor.js');
       const checkpoints = await loadCheckpoints(options.runId);
@@ -83,7 +83,7 @@ export async function startDashboard(options: DashboardOptions): Promise<{
     // Handle incoming messages (if needed)
     ws.on('message', (message: string) => {
       try {
-        const data = JSON.parse(message);
+        JSON.parse(message);
         // Handle client messages here
       } catch (error) {
         console.error('Invalid WebSocket message:', error);
@@ -128,6 +128,10 @@ export async function startDashboard(options: DashboardOptions): Promise<{
     console.log(`🖥️  Dashboard server listening on http://localhost:${options.port}`);
     console.log(`📊 Monitoring run: ${options.runId}`);
   });
+
+  // Suppress unused warnings — these are available for future use
+  void broadcastState;
+  void broadcastCheckpoint;
 
   // Return server instance with update methods
   return {

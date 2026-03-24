@@ -10,6 +10,7 @@ import {
   real,
   boolean,
   unique,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -52,7 +53,7 @@ export const tasks = pgTable('tasks', {
   memoryId: uuid('memory_id'),    // References Qdrant memory
 
   // Hierarchy and decomposition (Migration 010)
-  parentTaskId: uuid('parent_task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  parentTaskId: uuid('parent_task_id').references((): AnyPgColumn => tasks.id, { onDelete: 'set null' }),
   hierarchyLevel: integer('hierarchy_level').default(0).notNull(),
   estimatedDurationMinutes: integer('estimated_duration_minutes'),
   durationConfidence: real('duration_confidence'),

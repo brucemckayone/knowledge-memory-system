@@ -18,7 +18,6 @@ import { installMLServiceMock, restoreMLServiceMock } from '../mocks/ml-service.
 
 // Import agents
 import { readerAgent } from '../../gardener/agents/reader.agent.js';
-import { entityExtractionAgent } from '../../gardener/agents/entity-extraction.agent.js';
 import { relationshipAgent } from '../../gardener/agents/relationship.agent.js';
 import { schemaAlignmentAgent } from '../../gardener/agents/schema-alignment.agent.js';
 import { normalizePredicate } from '../../services/predicates.js';
@@ -82,7 +81,7 @@ describe('Agent Pipeline Integration', () => {
         } as Response);
 
         // Mock ML service and Qdrant operations
-        vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+        vi.spyOn(global, 'fetch').mockImplementation(async (input, _init) => {
           const urlStr = input instanceof Request ? input.url : input.toString();
 
           if (urlStr.includes('/collections/memories/points')) {
@@ -219,7 +218,6 @@ describe('Agent Pipeline Integration', () => {
     });
 
     it('should handle pipeline with chunked content', async () => {
-      const memoryId = randomUUID();
       const longContent = seed.longContent.content;
 
       // Simulate message processor inline chunking

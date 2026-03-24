@@ -7,7 +7,7 @@
  * Boundary: Chunks → DB, ML /parse-content (B2, B3)
  */
 
-import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterEach, type Mock } from 'vitest';
 import { randomUUID, isMLServiceAvailable } from '../setup.js';
 import { loadPhase4Seed } from '../fixtures/phase4-seed.js';
 import { installMLServiceMock, restoreMLServiceMock } from '../mocks/ml-service.mock.js';
@@ -56,7 +56,7 @@ describe('W23 Reader Agent', () => {
 
   // Helper to mock Qdrant service getMemory
   function mockQdrantGetMemory(content?: string) {
-    (qdrantService.getMemory as vi.Mock).mockResolvedValue(
+    (qdrantService.getMemory as Mock).mockResolvedValue(
       content ? { id: randomUUID(), payload: { content } } : null
     );
   }
@@ -65,8 +65,8 @@ describe('W23 Reader Agent', () => {
     vi.clearAllMocks();
     restoreMLServiceMock();
     // Reset Qdrant mocks
-    (qdrantService.getMemory as vi.Mock).mockResolvedValue(null);
-    (qdrantService.updatePayload as vi.Mock).mockResolvedValue(undefined);
+    (qdrantService.getMemory as Mock).mockResolvedValue(null);
+    (qdrantService.updatePayload as Mock).mockResolvedValue(undefined);
   });
 
   describe('RDR-001: Classify content type', () => {
@@ -355,7 +355,7 @@ describe('W23 Reader Agent', () => {
       vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: false,
         status: 500,
-        headers: { get: () => null } as Headers,
+        headers: { get: () => null } as unknown as Headers,
         json: async () => ({ error: 'Internal error' }),
         text: async () => '{"error": "Internal error"}',
       } as Response);

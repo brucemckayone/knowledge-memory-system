@@ -92,14 +92,14 @@ describe('Contradiction Scanner Agent', () => {
 
   it('auto-resolves high-confidence supersessions', async () => {
     const person = await createTestEntity({ canonicalName: 'Bob', entityType: 'person' });
-    const role1 = await createTestFact({
+    await createTestFact({
       subjectEntityId: person.id,
       predicate: 'has_role',
       objectValue: 'Junior Engineer',
     });
     // Slight delay to ensure ordering
     await new Promise(r => setTimeout(r, 50));
-    const role2 = await createTestFact({
+    await createTestFact({
       subjectEntityId: person.id,
       predicate: 'has_role',
       objectValue: 'Senior Engineer',

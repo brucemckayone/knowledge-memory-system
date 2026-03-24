@@ -5,7 +5,7 @@
  * expiry queries, and cross-source grouping.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, afterAll, beforeEach } from 'vitest';
 import {
   computeSessionKey,
   registerInSession,
@@ -16,7 +16,7 @@ import {
   getSessionForMemory,
 } from '../../services/ingestion-context.js';
 import { db } from '../../db/index.js';
-import { ingestionSessions, ingestionSessionMembers } from '../../db/schema.js';
+import { ingestionSessions } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { testDb, randomUUID } from '../setup.js';
 
@@ -211,9 +211,9 @@ describe('Ingestion Context Service', () => {
 
       const members = await getSessionMembers(sessionId);
       expect(members).toHaveLength(1);
-      expect(members[0].memoryId).toBe(memoryId);
-      expect(members[0].platform).toBe('telegram');
-      expect(members[0].rawType).toBe('text');
+      expect(members[0]!.memoryId).toBe(memoryId);
+      expect(members[0]!.platform).toBe('telegram');
+      expect(members[0]!.rawType).toBe('text');
     });
   });
 
@@ -243,7 +243,7 @@ describe('Ingestion Context Service', () => {
       const expired = await getExpiredSessions(15);
 
       expect(expired.length).toBeGreaterThanOrEqual(1);
-      expect(expired[0].memberCount).toBeGreaterThanOrEqual(2);
+      expect(expired[0]!.memberCount).toBeGreaterThanOrEqual(2);
     });
 
     it('should not return recent sessions', async () => {

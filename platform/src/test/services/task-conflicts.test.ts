@@ -78,28 +78,28 @@ describe('Task Conflicts Service', () => {
   describe('detectTemporalConflicts', () => {
     it('should detect exact time overlap (critical severity)', async () => {
       const baseTime = new Date('2025-01-15T14:00:00Z');
-      const taskId1 = await createTask({ dueDate: baseTime });
+      await createTask({ dueDate: baseTime });
       const taskId2 = await createTask({ dueDate: baseTime });
 
       const conflicts = await detectTemporalConflicts(taskId2, baseTime, contextId);
 
       expect(conflicts.length).toBeGreaterThan(0);
-      expect(conflicts[0].conflictType).toBe('temporal');
-      expect(conflicts[0].severity).toBe('critical');
+      expect(conflicts[0]!.conflictType).toBe('temporal');
+      expect(conflicts[0]!.severity).toBe('critical');
     });
 
     it('should detect conflicts within 15 minutes (critical severity)', async () => {
       const baseTime = new Date('2025-01-15T14:00:00Z');
       const nearbyTime = new Date('2025-01-15T14:10:00Z');
 
-      const taskId1 = await createTask({ dueDate: baseTime });
+      await createTask({ dueDate: baseTime });
       const taskId2 = await createTask({ dueDate: nearbyTime });
 
       const conflicts = await detectTemporalConflicts(taskId2, nearbyTime, contextId);
 
       expect(conflicts.length).toBeGreaterThan(0);
       // Conflicts under 15 minutes are considered critical severity
-      expect(conflicts[0].severity).toBe('critical');
+      expect(conflicts[0]!.severity).toBe('critical');
     });
 
     it('should detect conflicts within 1 hour (high severity)', async () => {
@@ -124,7 +124,7 @@ describe('Task Conflicts Service', () => {
       const conflicts = await detectTemporalConflicts(taskId2, nearbyTime, contextId);
 
       expect(conflicts.length).toBeGreaterThan(0);
-      expect(conflicts[0].severity).toBe('medium');
+      expect(conflicts[0]!.severity).toBe('medium');
     });
 
     it('should not flag tasks more than 2 hours apart as conflicts', async () => {
@@ -221,7 +221,7 @@ describe('Task Conflicts Service', () => {
       const conflicts = await detectPriorityConflicts(contextId, { start: startTime, end: endTime });
 
       expect(conflicts.length).toBeGreaterThan(0);
-      expect(conflicts[0].conflictType).toBe('priority');
+      expect(conflicts[0]!.conflictType).toBe('priority');
     });
 
     it('should not flag 3 or fewer high-priority tasks as conflict', async () => {
@@ -272,7 +272,7 @@ describe('Task Conflicts Service', () => {
   describe('getOpenConflicts', () => {
     it('should return only open conflicts for a task', async () => {
       const baseTime = new Date('2025-01-15T14:00:00Z');
-      const taskId1 = await createTask({ dueDate: baseTime });
+      await createTask({ dueDate: baseTime });
       const taskId2 = await createTask({ dueDate: baseTime });
 
       // Create a conflict
@@ -281,18 +281,18 @@ describe('Task Conflicts Service', () => {
       const openConflicts = await getOpenConflicts(taskId2);
 
       expect(openConflicts.length).toBeGreaterThan(0);
-      expect(openConflicts[0].resolutionStatus).toBe('open');
+      expect(openConflicts[0]!.resolutionStatus).toBe('open');
     });
 
     it('should not return resolved conflicts', async () => {
       const baseTime = new Date('2025-01-15T14:00:00Z');
-      const taskId1 = await createTask({ dueDate: baseTime });
+      await createTask({ dueDate: baseTime });
       const taskId2 = await createTask({ dueDate: baseTime });
 
       // Create and then resolve a conflict
       const conflicts = await detectTemporalConflicts(taskId2, baseTime, contextId);
       if (conflicts.length > 0) {
-        await resolveConflict(conflicts[0].id, 'resolved', 'Task rescheduled');
+        await resolveConflict(conflicts[0]!.id, 'resolved', 'Task rescheduled');
       }
 
       const openConflicts = await getOpenConflicts(taskId2);
@@ -312,13 +312,13 @@ describe('Task Conflicts Service', () => {
   describe('resolveConflict', () => {
     it('should mark conflict as resolved with action', async () => {
       const baseTime = new Date('2025-01-15T14:00:00Z');
-      const taskId1 = await createTask({ dueDate: baseTime });
+      await createTask({ dueDate: baseTime });
       const taskId2 = await createTask({ dueDate: baseTime });
 
       const conflicts = await detectTemporalConflicts(taskId2, baseTime, contextId);
       expect(conflicts.length).toBeGreaterThan(0);
 
-      await resolveConflict(conflicts[0].id, 'resolved', 'Moved second task to 3pm');
+      await resolveConflict(conflicts[0]!.id, 'resolved', 'Moved second task to 3pm');
 
       const openConflicts = await getOpenConflicts(taskId2);
       expect(openConflicts).toHaveLength(0);
@@ -326,17 +326,17 @@ describe('Task Conflicts Service', () => {
 
     it('should mark conflict as dismissed', async () => {
       const baseTime = new Date('2025-01-15T14:00:00Z');
-      const taskId1 = await createTask({ dueDate: baseTime });
+      await createTask({ dueDate: baseTime });
       const taskId2 = await createTask({ dueDate: baseTime });
 
       const conflicts = await detectTemporalConflicts(taskId2, baseTime, contextId);
 
-      await resolveConflict(conflicts[0].id, 'dismissed', 'Not a real conflict');
+      await resolveConflict(conflicts[0]!.id, 'dismissed', 'Not a real conflict');
 
       const updated = await db
         .select()
         .from(taskConflicts)
-        .where(eq(taskConflicts.id, conflicts[0].id))
+        .where(eq(taskConflicts.id, conflicts[0]!.id))
         .limit(1);
 
       expect(updated[0]?.resolutionStatus).toBe('dismissed');
@@ -346,13 +346,13 @@ describe('Task Conflicts Service', () => {
 
     it('should set resolvedAt timestamp', async () => {
       const baseTime = new Date('2025-01-15T14:00:00Z');
-      const taskId1 = await createTask({ dueDate: baseTime });
+      await createTask({ dueDate: baseTime });
       const taskId2 = await createTask({ dueDate: baseTime });
 
       const conflicts = await detectTemporalConflicts(taskId2, baseTime, contextId);
       const beforeResolve = new Date();
 
-      await resolveConflict(conflicts[0].id, 'resolved');
+      await resolveConflict(conflicts[0]!.id, 'resolved');
 
       // Add small delay to ensure database operation completes
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -360,7 +360,7 @@ describe('Task Conflicts Service', () => {
       const updated = await db
         .select()
         .from(taskConflicts)
-        .where(eq(taskConflicts.id, conflicts[0].id))
+        .where(eq(taskConflicts.id, conflicts[0]!.id))
         .limit(1);
 
       const resolvedAt = updated[0]?.resolvedAt;
@@ -415,8 +415,8 @@ describe('Task Conflicts Service', () => {
       const activeConflicts = await getActiveConflicts(10);
 
       if (activeConflicts.length >= 2) {
-        const firstTime = new Date(activeConflicts[0].detectedAt).getTime();
-        const secondTime = new Date(activeConflicts[1].detectedAt).getTime();
+        const firstTime = new Date(activeConflicts[0]!.detectedAt).getTime();
+        const secondTime = new Date(activeConflicts[1]!.detectedAt).getTime();
         expect(firstTime).toBeGreaterThanOrEqual(secondTime);
       }
     });

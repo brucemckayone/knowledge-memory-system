@@ -10,7 +10,7 @@ import { testDb, isMLServiceAvailable, isQdrantAvailable } from '../setup.js';
 
 let servicesAvailable = false;
 
-beforeAll(async (ctx) => {
+beforeAll(async () => {
   const [mlOk, qdrantOk] = await Promise.all([
     isMLServiceAvailable(),
     isQdrantAvailable(),
@@ -63,7 +63,7 @@ describe('Multi-Source Ingestion Pipeline', () => {
 
   describe('Conversation Context', () => {
     beforeAll(async (ctx) => {
-      if (!servicesAvailable) ctx.skip();
+      if (!servicesAvailable) (ctx as any).skip();
     });
 
     it('records messages and opens windows', async () => {
@@ -109,7 +109,7 @@ describe('Multi-Source Ingestion Pipeline', () => {
 
   describe('ML Parsing Endpoints', () => {
     beforeAll(async (ctx) => {
-      if (!servicesAvailable) ctx.skip();
+      if (!servicesAvailable) (ctx as any).skip();
     });
 
     it('parses markdown content', async () => {

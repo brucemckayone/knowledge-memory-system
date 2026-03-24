@@ -111,7 +111,7 @@ describe('Message Pipeline E2E', () => {
   // Note: Tests are self-contained with unique IDs - no global cleanup needed
 
   describe('MP-001: Text message flow', () => {
-    beforeAll((ctx) => { if (!mlAvailable || !qdrantAvailable) ctx.skip(); });
+    beforeAll((ctx) => { if (!mlAvailable || !qdrantAvailable) (ctx as any).skip(); });
 
     it(
       'should classify, embed, and store text message',
@@ -183,7 +183,7 @@ describe('Message Pipeline E2E', () => {
   });
 
   describe('MP-002: Link workflow', () => {
-    beforeAll((ctx) => { if (!mlAvailable || !qdrantAvailable) ctx.skip(); });
+    beforeAll((ctx) => { if (!mlAvailable || !qdrantAvailable) (ctx as any).skip(); });
 
     it(
       'should scrape, summarize, and store link',
@@ -254,7 +254,7 @@ describe('Message Pipeline E2E', () => {
   });
 
   describe('MP-003: Task workflow', () => {
-    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx) => { if (!mlAvailable) (ctx as any).skip(); });
 
     it('should extract and store task', async () => {
       // Given: Task-like message
@@ -316,7 +316,7 @@ describe('Message Pipeline E2E', () => {
   });
 
   describe('MP-004: Voice workflow', () => {
-    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx) => { if (!mlAvailable) (ctx as any).skip(); });
 
     it('should handle voice message (transcription mock)', async () => {
       // Given: Voice message (simulated transcription)
@@ -389,7 +389,7 @@ describe('Message Pipeline E2E', () => {
   });
 
   describe('MP-006: Classification fallback', () => {
-    beforeAll((ctx) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx) => { if (!mlAvailable) (ctx as any).skip(); });
 
     it('should treat unparseable message as thought', async () => {
       // Given: Ambiguous message

@@ -13,11 +13,11 @@
  */
 
 import { db } from '../db/index.js'
-import { entities, entityAliases, facts, tasks, epics, contextSummaries } from '../db/schema.js'
+import { entities, facts, tasks, epics, contextSummaries } from '../db/schema.js'
 import { randomUUID } from 'crypto'
 import { embed } from '../services/ml.js'
-import { storeMemory, searchMemories } from '../services/qdrant.js'
-import { createEntity, resolveEntity } from '../services/entities.js'
+import { storeMemory } from '../services/qdrant.js'
+import { createEntity } from '../services/entities.js'
 import { createFact } from '../services/facts.js'
 import { sql } from 'drizzle-orm'
 
@@ -184,21 +184,13 @@ function fallbackGeneration(prompt: string): string {
   else if (prompt.includes('link') || prompt.includes('article')) type = 'link'
   else if (prompt.includes('reflection') || prompt.includes('journal')) type = 'reflection'
 
-  const options = fallbacks[type] || fallbacks.thought
-  return options[Math.floor(Math.random() * options.length)]
+  const options = fallbacks[type] ?? fallbacks.thought!
+  return options[Math.floor(Math.random() * options.length)]!
 }
 
 // ============================================================================
 // ENTITY GENERATION
 // ============================================================================
-
-interface EntityData {
-  canonicalName: string
-  entityType: string
-  description?: string
-  properties?: Record<string, any>
-  aliases?: string[]
-}
 
 /**
  * Generate entities using LLM for variety
@@ -216,7 +208,7 @@ async function generateEntities(): Promise<Map<string, any>> {
   ]
 
   for (let i = 0; i < SEED_CONFIG.entityCount.people; i++) {
-    const prompt = peoplePrompts[i % peoplePrompts.length]
+    const prompt = peoplePrompts[i % peoplePrompts.length]!
     const description = await generateWithLLM(prompt)
     const name = extractName(description) || `Person ${i}`
 
@@ -328,7 +320,6 @@ async function generateMemories(entityMap: Map<string, any>) {
   console.log('💭 Generating memories...')
 
   const entityNames = Array.from(entityMap.keys())
-  const memoryTypes: Array<'thought' | 'link' | 'task' | 'question'> = ['thought', 'link', 'task', 'question']
   const totalMemories = Object.values(SEED_CONFIG.memoryCount).reduce((a, b) => a + b, 0)
 
   let generated = 0
@@ -336,7 +327,7 @@ async function generateMemories(entityMap: Map<string, any>) {
   for (const [type, count] of Object.entries(SEED_CONFIG.memoryCount)) {
     for (let i = 0; i < count; i++) {
       // Generate contextual content
-      const contextEntity = entityNames[Math.floor(Math.random() * entityNames.length)]
+      const contextEntity = entityNames[Math.floor(Math.random() * entityNames.length)]!
       const prompt = generateMemoryPrompt(type as any, contextEntity, entityMap)
       const content = await generateWithLLM(prompt)
 
@@ -441,7 +432,7 @@ async function generateFacts(entityMap: Map<string, any>) {
   for (let i = 0; i < SEED_CONFIG.factCount; i++) {
     // Select random entities
     const subject = entities[Math.floor(Math.random() * entities.length)]
-    const predicate = predicates[Math.floor(Math.random() * predicates.length)]
+    const predicate = predicates[Math.floor(Math.random() * predicates.length)]!
     const object = entities[Math.floor(Math.random() * entities.length)]
 
     // Skip self-relationships
@@ -480,9 +471,9 @@ async function generateFacts(entityMap: Map<string, any>) {
       subjectEntityId: subject.id,
       predicate,
       objectEntityId: object.id,
-      objectValue: null,
+      objectValue: undefined,
       validAt: randomDate(SEED_CONFIG.dateRange.start, SEED_CONFIG.dateRange.end),
-      invalidAt: null,
+      invalidAt: undefined,
       sourceMemoryId: memoryId,
       sourceText,
       extractionMethod: 'seed',
@@ -533,7 +524,7 @@ async function generateTasksAndEpics(entityMap: Map<string, any>) {
       })
       .returning()
 
-    epicIds.push(epic.id)
+    epicIds.push(epic!.id)
     console.log(`  ✓ Epic: ${name}`)
   }
 
@@ -541,11 +532,11 @@ async function generateTasksAndEpics(entityMap: Map<string, any>) {
   const entityNames = Array.from(entityMap.keys())
 
   for (let i = 0; i < SEED_CONFIG.taskCount; i++) {
-    const epicId = epicIds[i % epicIds.length]
-    const contextEntity = entityNames[Math.floor(Math.random() * entityNames.length)]
+    const epicId = epicIds[i % epicIds.length]!
+    const contextEntity = entityNames[Math.floor(Math.random() * entityNames.length)]!
 
     const content = await generateWithLLM(
-      `Generate a specific, actionable task for epic "${epicNames[epicIds.indexOf(epicId)]}" related to "${contextEntity}".`
+      `Generate a specific, actionable task for epic "${epicNames[epicIds.indexOf(epicId)]!}" related to "${contextEntity}".`
     )
 
     const priority = ['low', 'medium', 'high', 'urgent'][Math.floor(Math.random() * 4)]
@@ -656,7 +647,7 @@ async function generateContextSummaries() {
  */
 function extractName(text: string): string | null {
   const match = text.match(/(?:name is|called|:)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/)
-  return match ? match[1] : null
+  return match ? match[1] ?? null : null
 }
 
 /**
@@ -664,7 +655,7 @@ function extractName(text: string): string | null {
  */
 function extractProjectName(text: string): string | null {
   const match = text.match(/(?:project|called|named)\s+["']?([A-Z][A-Za-z0-9\s]+)["']?/i)
-  return match ? match[1].trim() : null
+  return match ? match[1]?.trim() ?? null : null
 }
 
 /**
@@ -716,20 +707,20 @@ async function main() {
     console.log('📊 Summary Statistics:')
     console.log('─────────────────────────────────────────────────')
 
-    const [entityCount, memoryCount, factCount, taskCount, epicCount, contextCount] = await Promise.all([
+    const [entityCount, _memoryCount, factCount, taskCount, epicCount, contextCount] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(entities),
-      db.select({ count: sql<number>`count(*)::int` }).from(sql('(SELECT 1 FROM qdrant.client) AS q')),
+      db.select({ count: sql<number>`count(*)::int` }).from(sql.raw('(SELECT 1 FROM qdrant.client) AS q') as any),
       db.select({ count: sql<number>`count(*)::int` }).from(facts),
       db.select({ count: sql<number>`count(*)::int` }).from(tasks),
       db.select({ count: sql<number>`count(*)::int` }).from(epics),
       db.select({ count: sql<number>`count(*)::int` }).from(contextSummaries),
     ])
 
-    console.log(`Entities:        ${entityCount[0].count}`)
-    console.log(`Facts:           ${factCount[0].count}`)
-    console.log(`Tasks:           ${taskCount[0].count}`)
-    console.log(`Epics:           ${epicCount[0].count}`)
-    console.log(`Contexts:        ${contextCount[0].count}`)
+    console.log(`Entities:        ${entityCount[0]!.count}`)
+    console.log(`Facts:           ${factCount[0]!.count}`)
+    console.log(`Tasks:           ${taskCount[0]!.count}`)
+    console.log(`Epics:           ${epicCount[0]!.count}`)
+    console.log(`Contexts:        ${contextCount[0]!.count}`)
     console.log('─────────────────────────────────────────────────\n')
 
     console.log('💡 Tip: Use the Telegram bot to interact with your seeded data!')

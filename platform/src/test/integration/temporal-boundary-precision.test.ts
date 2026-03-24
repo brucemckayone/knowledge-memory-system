@@ -123,7 +123,7 @@ describe('Temporal Boundary Precision', () => {
 
       const results = await factsAtTime(entityId, 'works_at', transitionTime);
       expect(results.length).toBe(1);
-      expect(results[0].object_value).toBe('Google');
+      expect(results[0]!.object_value).toBe('Google');
     });
   });
 
@@ -204,12 +204,12 @@ describe('Temporal Boundary Precision', () => {
       // At the boundary, only Google is returned
       const atBoundary = await factsAtTime(entityId, 'works_at', new Date('2024-06-01T00:00:00.000Z'));
       expect(atBoundary.length).toBe(1);
-      expect(atBoundary[0].object_value).toBe('Google');
+      expect(atBoundary[0]!.object_value).toBe('Google');
 
       // Just before boundary, only Acme
       const justBefore = await factsAtTime(entityId, 'works_at', new Date('2024-05-31T23:59:59.999Z'));
       expect(justBefore.length).toBe(1);
-      expect(justBefore[0].object_value).toBe('Acme');
+      expect(justBefore[0]!.object_value).toBe('Acme');
     });
 
     it('TBP-009: 1ms overlap for exclusive predicates is detectable', async () => {
@@ -271,7 +271,7 @@ describe('Temporal Boundary Precision', () => {
         WHERE subject_entity_id = ${entityId}::uuid AND predicate = 'works_at'
       `;
 
-      const stored = new Date(result[0].valid_at);
+      const stored = new Date(result[0]!.valid_at);
       expect(stored.getTime()).toBe(precise.getTime());
     });
 
@@ -288,7 +288,7 @@ describe('Temporal Boundary Precision', () => {
       `;
 
       // JS Date truncates to milliseconds
-      const jsDate = new Date(result[0].valid_at);
+      const jsDate = new Date(result[0]!.valid_at);
       expect(jsDate.toISOString()).toBe('2024-06-01T12:00:00.000Z');
       // The 1μs is lost — document this as expected behavior
     });

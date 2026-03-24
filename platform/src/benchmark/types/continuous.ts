@@ -5,7 +5,7 @@
  * simulate real-world system behavior over extended periods.
  */
 
-import type { BenchmarkMessage } from '../../utils/message-factory.js';
+import type { BenchmarkMessage } from '../utils/message-factory.js';
 
 /**
  * Continuous benchmark configuration

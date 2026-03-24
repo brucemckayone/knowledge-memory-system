@@ -18,8 +18,6 @@ import {
   testDb,
   createTestEntity,
   createTestFact,
-  getActiveFacts,
-  deleteFromTables,
 } from '../setup.js';
 
 describe('Fact Supersession Chains', () => {
@@ -72,15 +70,15 @@ describe('Fact Supersession Chains', () => {
       // Point-in-time queries
       const feb2022 = await queryFactsAtTime(entityId, 'works_at', new Date('2022-02-15'));
       expect(feb2022.length).toBe(1);
-      expect(feb2022[0].object_entity_id).toBe(acme.id);
+      expect(feb2022[0]!.object_entity_id).toBe(acme.id);
 
       const jun2023 = await queryFactsAtTime(entityId, 'works_at', new Date('2023-06-15'));
       expect(jun2023.length).toBe(1);
-      expect(jun2023[0].object_entity_id).toBe(google.id);
+      expect(jun2023[0]!.object_entity_id).toBe(google.id);
 
       const oct2024 = await queryFactsAtTime(entityId, 'works_at', new Date('2024-10-15'));
       expect(oct2024.length).toBe(1);
-      expect(oct2024[0].object_entity_id).toBe(meta.id);
+      expect(oct2024[0]!.object_entity_id).toBe(meta.id);
     });
 
     it('SC-02: 5-level chain — exactly 1 active at any point', async () => {
@@ -95,7 +93,7 @@ describe('Fact Supersession Chains', () => {
         await createTestFact({
           subjectEntityId: entityId,
           predicate: 'works_at',
-          objectEntityId: companies[i].id,
+          objectEntityId: companies[i]!.id,
           validAt: new Date(`${2020 + i}-01-01`),
           invalidAt: i < 4 ? new Date(`${2021 + i}-01-01`) : undefined,
         });
@@ -107,7 +105,7 @@ describe('Fact Supersession Chains', () => {
           entityId, 'works_at', new Date(`${2020 + i}-06-15`),
         );
         expect(results.length).toBe(1);
-        expect(results[0].object_entity_id).toBe(companies[i].id);
+        expect(results[0]!.object_entity_id).toBe(companies[i]!.id);
       }
     });
   });
@@ -137,7 +135,7 @@ describe('Fact Supersession Chains', () => {
       // Query at March: should return Google (correct record) but NOT Acme (wrong record)
       const march = await queryFactsAtTime(entityId, 'works_at', new Date('2024-03-01'));
       expect(march.length).toBe(1);
-      expect(march[0].object_value).toBe('Google');
+      expect(march[0]!.object_value).toBe('Google');
 
       // Query at July: neither fact active (both ended June 1)
       const july = await queryFactsAtTime(entityId, 'works_at', new Date('2024-07-01'));
@@ -183,7 +181,7 @@ describe('Fact Supersession Chains', () => {
       // In July: works_at=Google (1 active), knows=Alice+Bob (2 active)
       const worksAt = await queryFactsAtTime(entityId, 'works_at', new Date('2024-07-01'));
       expect(worksAt.length).toBe(1);
-      expect(worksAt[0].object_entity_id).toBe(google.id);
+      expect(worksAt[0]!.object_entity_id).toBe(google.id);
 
       const knows = await queryFactsAtTime(entityId, 'knows', new Date('2024-07-01'));
       expect(knows.length).toBe(2);

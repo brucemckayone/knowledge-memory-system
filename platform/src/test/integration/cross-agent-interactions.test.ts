@@ -13,47 +13,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   testDb,
-  deleteFromTables,
-  randomUUID,
-  randomEmbedding,
   createTestEntity,
   createTestFact,
 } from '../setup.js';
-
-// Mock ML responses for deterministic testing
-function installMLMock(responses: Record<string, unknown>) {
-  return vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
-    const urlStr = input instanceof Request ? input.url : input.toString();
-
-    for (const [pattern, response] of Object.entries(responses)) {
-      if (urlStr.includes(pattern)) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => response,
-          text: async () => JSON.stringify(response),
-        } as Response;
-      }
-    }
-
-    // Health check
-    if (urlStr.includes('/health')) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ status: 'ok' }),
-        text: async () => '{"status":"ok"}',
-      } as Response;
-    }
-
-    return {
-      ok: false,
-      status: 404,
-      json: async () => ({ error: 'Not found' }),
-      text: async () => '{"error":"Not found"}',
-    } as Response;
-  });
-}
 
 describe('Cross-Agent Interactions', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn> | null = null;
@@ -78,7 +40,7 @@ describe('Cross-Agent Interactions', () => {
       const google = await createTestEntity({ canonicalName: `Google-${tag}`, entityType: 'company' });
 
       // Simulate what relationship agent would create
-      const fact = await createTestFact({
+      await createTestFact({
         subjectEntityId: john.id,
         predicate: 'works_at',
         objectEntityId: google.id,
@@ -101,9 +63,9 @@ describe('Cross-Agent Interactions', () => {
           AND f.expired_at IS NULL
       `;
       expect(facts.length).toBe(1);
-      expect(facts[0].subject_entity_id).toBe(john.id);
-      expect(facts[0].object_entity_id).toBe(google.id);
-      expect(facts[0].predicate).toBe('works_at');
+      expect(facts[0]!.subject_entity_id).toBe(john.id);
+      expect(facts[0]!.object_entity_id).toBe(google.id);
+      expect(facts[0]!.predicate).toBe('works_at');
     });
   });
 

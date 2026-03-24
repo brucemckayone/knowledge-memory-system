@@ -95,7 +95,7 @@ describe('Quality Benchmarks', () => {
     const mlAvailable = await isMLServiceAvailable();
     if (!mlAvailable) {
       console.warn('⚠️ ML Services not available - skipping quality benchmarks');
-      ctx.skip();
+      (ctx as any).skip();
     }
   });
 

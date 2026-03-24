@@ -18,7 +18,7 @@
 
 import { db } from '../db/index.js';
 import { tasks } from '../db/schema.js';
-import { eq, or, like, sql, and, gte, lte, inArray } from 'drizzle-orm';
+import { or, like, sql, and, gte, lte, inArray } from 'drizzle-orm';
 
 // Cleanup patterns
 const SHORT_TASK_THRESHOLD = 15;
@@ -200,7 +200,7 @@ async function deleteTasks(stats: CleanupStats): Promise<void> {
 /**
  * Verify cleanup results
  */
-async function verifyCleanup(stats: CleanupStats): Promise<void> {
+async function verifyCleanup(_stats: CleanupStats): Promise<void> {
   console.log('\n🔍 Verifying cleanup results...\n');
 
   const allTasks = await db.select({ count: sql<number>`count(*)::int` }).from(tasks);

@@ -88,6 +88,7 @@ function makeFact(overrides: Partial<Fact> = {}): Fact {
     invalidAt: null,
     createdAt: new Date(),
     expiredAt: null,
+    expireReason: null,
     sourceMemoryId: null,
     sourceText: null,
     extractionMethod: 'llm',
