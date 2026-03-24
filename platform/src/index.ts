@@ -426,20 +426,23 @@ async function start() {
     console.log('✅ File watcher started');
   }
 
-  // Set up Telegram bot
-  if (config.WEBHOOK_URL) {
-    // Try webhook mode, fallback to polling if it fails
-    try {
-      await setupWebhook();
-      console.log('✅ Bot running in webhook mode');
-    } catch (error) {
-      console.log('⚠️ Webhook setup failed:', (error as Error).message);
-      console.log('   Falling back to polling mode...');
+  // Set up Telegram bot (non-fatal — HTTP server starts regardless)
+  try {
+    if (config.WEBHOOK_URL) {
+      try {
+        await setupWebhook();
+        console.log('✅ Bot running in webhook mode');
+      } catch (error) {
+        console.log('⚠️ Webhook setup failed:', (error as Error).message);
+        console.log('   Falling back to polling mode...');
+        await startPolling();
+      }
+    } else {
       await startPolling();
     }
-  } else {
-    // Use polling mode (no webhook URL configured)
-    await startPolling();
+  } catch (error) {
+    console.warn('⚠️ Telegram bot failed to start:', (error as Error).message);
+    console.warn('   Platform will continue without bot. Set a valid TELEGRAM_BOT_TOKEN to enable.');
   }
 
   // Start HTTP server
