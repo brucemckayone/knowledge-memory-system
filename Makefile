@@ -68,7 +68,16 @@ ml:
 # Health check
 health:
 	@echo "Platform:"
-	@curl -s http://localhost:3000/health | jq . 2>/dev/null || echo "  Not responding"
+	@curl -s http://localhost:3001/health | jq . 2>/dev/null || echo "  Not responding"
 	@echo ""
 	@echo "ML Services:"
 	@curl -s http://localhost:8000/health | jq . 2>/dev/null || echo "  Not responding"
+	@echo ""
+	@echo "Ollama:"
+	@curl -s http://localhost:11434/ 2>/dev/null && ollama list 2>/dev/null || echo "  Not responding"
+	@echo ""
+	@echo "PostgreSQL:"
+	@pg_isready -h 127.0.0.1 -p 5433 -U cognitive 2>/dev/null || echo "  Not responding"
+	@echo ""
+	@echo "Qdrant:"
+	@curl -s http://localhost:6335/collections | jq .result.collections 2>/dev/null || echo "  Not responding"

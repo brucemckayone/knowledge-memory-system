@@ -22,6 +22,7 @@ services:
       - DATABASE_URL=postgres://cognitive:cognitive@postgres:5432/cognitive
       - QDRANT_URL=http://qdrant:6333
       - ML_SERVICES_URL=http://host.docker.internal:8000
+      - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - WEBHOOK_URL=${WEBHOOK_URL:-}
     volumes:
@@ -83,6 +84,7 @@ services:
       - "8000:8000"
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434  # For embeddings (local)
+      - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
       - ZAI_API_KEY=${ZAI_API_KEY}  # For text generation via Z.AI API
     networks:
       - cognitive-network
