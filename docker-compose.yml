@@ -23,8 +23,8 @@ services:
       - QDRANT_URL=http://qdrant:6333
       - ML_SERVICES_URL=http://host.docker.internal:8000
       - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - WEBHOOK_URL=${WEBHOOK_URL:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-test-bot-token-for-dev}
+      - WEBHOOK_URL
     volumes:
       - ./platform/src:/app/src:ro  # Hot reload in dev
     networks:
