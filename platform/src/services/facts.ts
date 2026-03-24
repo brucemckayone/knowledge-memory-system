@@ -9,7 +9,7 @@
 
 import { db } from '../db/index.js';
 import { facts, factPredicates, entities, type Fact } from '../db/schema.js';
-import { eq, and, or, gt, isNull, sql } from 'drizzle-orm';
+import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
 import { ml } from './ml-client.js';
 
 export interface CreateFactParams {
@@ -158,10 +158,13 @@ export async function findSupersedingFacts(
 /**
  * Expire a fact (mark as incorrect in our records)
  */
-export async function expireFact(factId: string, _reason?: string): Promise<void> {
+export async function expireFact(factId: string, reason?: string): Promise<void> {
   await db
     .update(facts)
-    .set({ expiredAt: new Date() })
+    .set({
+      expiredAt: new Date(),
+      expireReason: reason ?? 'Superseded by new information',
+    })
     .where(and(
       eq(facts.id, factId),
       isNull(facts.expiredAt)
@@ -191,13 +194,18 @@ export async function getEntityFacts(
   const { asSubject = true, asObject = true } = options;
 
   if (asSubject && asObject) {
-    return db.execute(sql`
-      SELECT * FROM facts
-      WHERE expired_at IS NULL
-        AND (invalid_at IS NULL OR invalid_at > NOW())
-        AND (subject_entity_id = ${entityId} OR object_entity_id = ${entityId})
-      ORDER BY created_at DESC
-    `).then(r => (r as unknown as { rows: Fact[] }).rows);
+    return db
+      .select()
+      .from(facts)
+      .where(and(
+        or(
+          eq(facts.subjectEntityId, entityId),
+          eq(facts.objectEntityId, entityId)
+        ),
+        isNull(facts.expiredAt),
+        or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`))
+      ))
+      .orderBy(desc(facts.createdAt));
   }
   
   if (asSubject) {

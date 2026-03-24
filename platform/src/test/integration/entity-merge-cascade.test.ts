@@ -13,13 +13,12 @@
  * See: platform/src/test/plans/entity-merge-cascade.md
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   testDb,
   createTestEntity,
   createTestFact,
   createTestMemoryEntity,
-  deleteFromTables,
   randomUUID,
 } from '../setup.js';
 
@@ -78,7 +77,7 @@ describe('Entity Merge Cascade', () => {
       `;
 
       expect(result.length).toBe(1);
-      expect(result[0].object_entity_id).toBe(entityB.id); // BUG: returns null
+      expect(result[0]!.object_entity_id).toBe(entityB.id); // BUG: returns null
     });
   });
 
@@ -101,7 +100,7 @@ describe('Entity Merge Cascade', () => {
       const aliases = await testDb`
         SELECT alias FROM entity_aliases WHERE entity_id = ${entityB.id}::uuid ORDER BY alias
       `;
-      const aliasNames = aliases.map((a: { alias: string }) => a.alias);
+      const aliasNames = aliases.map((a) => (a as { alias: string }).alias);
 
       expect(aliasNames).toContain('J');
       expect(aliasNames).toContain('John');
@@ -136,7 +135,7 @@ describe('Entity Merge Cascade', () => {
         SELECT entity_id FROM memory_entities WHERE memory_id = ${memoryId}::uuid
       `;
       expect(links.length).toBe(1);
-      expect(links[0].entity_id).toBe(entityB.id);
+      expect(links[0]!.entity_id).toBe(entityB.id);
     });
 
     it('should handle unique constraint when both entities link to same memory', async () => {
@@ -156,7 +155,7 @@ describe('Entity Merge Cascade', () => {
         SELECT entity_id FROM memory_entities WHERE memory_id = ${memoryId}::uuid
       `;
       expect(links.length).toBe(1);
-      expect(links[0].entity_id).toBe(entityB.id);
+      expect(links[0]!.entity_id).toBe(entityB.id);
     });
   });
 
@@ -174,9 +173,9 @@ describe('Entity Merge Cascade', () => {
       `;
 
       expect(merges.length).toBe(1);
-      expect(merges[0].source_entity_id).toBe(entityA.id);
-      expect(merges[0].target_entity_id).toBe(entityB.id);
-      expect(merges[0].merged_at).toBeDefined();
+      expect(merges[0]!.source_entity_id).toBe(entityA.id);
+      expect(merges[0]!.target_entity_id).toBe(entityB.id);
+      expect(merges[0]!.merged_at).toBeDefined();
     });
 
     it('should append source ID to target merged_from array', async () => {
@@ -189,7 +188,7 @@ describe('Entity Merge Cascade', () => {
         SELECT merged_from FROM entities WHERE id = ${entityB.id}::uuid
       `;
 
-      expect(target[0].merged_from).toContain(entityA.id);
+      expect(target[0]!.merged_from).toContain(entityA.id);
     });
   });
 
@@ -218,7 +217,7 @@ describe('Entity Merge Cascade', () => {
       `;
 
       expect(result.length).toBe(1);
-      expect(result[0].subject_entity_id).toBe(entityC.id);
+      expect(result[0]!.subject_entity_id).toBe(entityC.id);
     });
 
     it('should accumulate merged_from across chain', async () => {
@@ -234,7 +233,7 @@ describe('Entity Merge Cascade', () => {
       `;
 
       // C should know about both A and B
-      expect(target[0].merged_from).toContain(entityB.id);
+      expect(target[0]!.merged_from).toContain(entityB.id);
     });
   });
 
@@ -263,6 +262,62 @@ describe('Entity Merge Cascade', () => {
       `;
 
       expect(facts.length).toBe(2); // BUG: returns 1 (A's fact deleted)
+    });
+  });
+
+  describe('EMC-009: Exact duplicate facts are collapsed during merge', () => {
+    it('should expire duplicate facts when both entities share identical triples', async () => {
+      const entityA = await createTestEntity({ canonicalName: `DupA-${Date.now()}`, entityType: 'person' });
+      const entityB = await createTestEntity({ canonicalName: `DupB-${Date.now()}`, entityType: 'person' });
+
+      // Both entities have the exact same fact: knows -> TypeScript (object_value)
+      await createTestFact({ subjectEntityId: entityA.id, predicate: 'knows', objectValue: 'TypeScript' });
+      await createTestFact({ subjectEntityId: entityB.id, predicate: 'knows', objectValue: 'TypeScript' });
+
+      // Merge A into B
+      await testDb`SELECT merge_entities(${entityA.id}::uuid, ${entityB.id}::uuid)`;
+
+      // Assert: only 1 active fact remains (duplicate expired)
+      const activeFacts = await testDb`
+        SELECT id, predicate, object_value FROM facts
+        WHERE subject_entity_id = ${entityB.id}::uuid
+          AND predicate = 'knows'
+          AND object_value = 'TypeScript'
+          AND expired_at IS NULL
+      `;
+      expect(activeFacts.length).toBe(1);
+
+      // Assert: the expired duplicate has the correct reason
+      const expiredFacts = await testDb`
+        SELECT id, expire_reason FROM facts
+        WHERE subject_entity_id = ${entityB.id}::uuid
+          AND predicate = 'knows'
+          AND object_value = 'TypeScript'
+          AND expired_at IS NOT NULL
+      `;
+      expect(expiredFacts.length).toBe(1);
+      expect(expiredFacts[0]!.expire_reason).toBe('Duplicate removed during entity merge');
+    });
+
+    it('should keep both facts when objects differ (not duplicates)', async () => {
+      const entityA = await createTestEntity({ canonicalName: `DiffA-${Date.now()}`, entityType: 'person' });
+      const entityB = await createTestEntity({ canonicalName: `DiffB-${Date.now()}`, entityType: 'person' });
+
+      // Different object values — these are NOT duplicates
+      await createTestFact({ subjectEntityId: entityA.id, predicate: 'knows', objectValue: 'TypeScript' });
+      await createTestFact({ subjectEntityId: entityB.id, predicate: 'knows', objectValue: 'Python' });
+
+      // Merge A into B
+      await testDb`SELECT merge_entities(${entityA.id}::uuid, ${entityB.id}::uuid)`;
+
+      // Assert: both facts remain active (different objects)
+      const activeFacts = await testDb`
+        SELECT id, object_value FROM facts
+        WHERE subject_entity_id = ${entityB.id}::uuid
+          AND predicate = 'knows'
+          AND expired_at IS NULL
+      `;
+      expect(activeFacts.length).toBe(2);
     });
   });
 });

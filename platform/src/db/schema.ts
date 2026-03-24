@@ -245,7 +245,8 @@ export const facts = pgTable('facts', {
   // Transaction time (when recorded)
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   expiredAt: timestamp('expired_at', { withTimezone: true }),
-  
+  expireReason: text('expire_reason'),
+
   // Provenance
   sourceMemoryId: uuid('source_memory_id'),
   sourceText: text('source_text'),
