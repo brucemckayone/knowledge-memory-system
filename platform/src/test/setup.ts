@@ -181,11 +181,14 @@ export function randomUUID(): string {
   return crypto.randomUUID();
 }
 
+/** Default embedding dimensions — keep in sync with EMBED_DIMENSIONS in .env */
+export const TEST_EMBED_DIMENSIONS = 768;
+
 /**
- * Generate a random 768-dimension embedding vector
+ * Generate a random embedding vector matching the configured dimensions
  */
 export function randomEmbedding(): number[] {
-  return Array.from({ length: 768 }, () => Math.random() * 2 - 1);
+  return Array.from({ length: TEST_EMBED_DIMENSIONS }, () => Math.random() * 2 - 1);
 }
 
 /**

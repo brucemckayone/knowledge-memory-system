@@ -22,11 +22,12 @@ export {
 } from './ml-client.js';
 
 import { ml } from './ml-client.js';
+import { config } from '../config.js';
 
 /**
  * Generate embedding for text
  */
-export async function embed(text: string, model = 'nomic-embed-text') {
+export async function embed(text: string, model = config.EMBED_MODEL) {
   return ml.embed(text, model);
 }
 

@@ -230,7 +230,7 @@ function sleep(ms: number): Promise<void> {
 // --- Public API ---
 
 export const ml = {
-  embed(text: string, model = 'nomic-embed-text') {
+  embed(text: string, model = config.EMBED_MODEL) {
     return mlFetch<EmbedResponse>('/embed', { text, model }, 10_000);
   },
 

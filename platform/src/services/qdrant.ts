@@ -23,7 +23,7 @@ export async function ensureCollections(): Promise<void> {
   if (!existing.has(COLLECTIONS.MEMORIES)) {
     await qdrant.createCollection(COLLECTIONS.MEMORIES, {
       vectors: {
-        size: 768, // nomic-embed-text dimensions
+        size: config.EMBED_DIMENSIONS,
         distance: 'Cosine',
       },
     });
@@ -34,7 +34,7 @@ export async function ensureCollections(): Promise<void> {
   if (!existing.has(COLLECTIONS.CONTEXTS)) {
     await qdrant.createCollection(COLLECTIONS.CONTEXTS, {
       vectors: {
-        size: 768,
+        size: config.EMBED_DIMENSIONS,
         distance: 'Cosine',
       },
     });

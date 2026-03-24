@@ -8,6 +8,7 @@ router = APIRouter()
 
 # Ollama host (host.docker.internal for Docker on Mac)
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 
 # Configure ollama client
 ollama_client = ollama.Client(host=OLLAMA_HOST, timeout=10.0)
@@ -16,7 +17,7 @@ ollama_client = ollama.Client(host=OLLAMA_HOST, timeout=10.0)
 class EmbedRequest(BaseModel):
     """Request body for embedding generation"""
     text: str
-    model: str = "nomic-embed-text"
+    model: str = EMBED_MODEL
 
 
 class EmbedResponse(BaseModel):
@@ -29,7 +30,7 @@ class EmbedResponse(BaseModel):
 class BatchEmbedRequest(BaseModel):
     """Request body for batch embedding"""
     texts: List[str]
-    model: str = "nomic-embed-text"
+    model: str = EMBED_MODEL
 
 
 class BatchEmbedResponse(BaseModel):
