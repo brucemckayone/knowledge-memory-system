@@ -7,6 +7,7 @@
 
 import PgBoss from 'pg-boss';
 import { db } from '../db/index.js';
+import { rawQuery } from '../db/raw.js';
 import { sql } from 'drizzle-orm';
 import { config, type Config } from '../config.js';
 import { ml } from '../services/ml-client.js';
@@ -272,10 +273,9 @@ class GardenerController {
    */
   async restoreCheckpoint(jobId: string): Promise<unknown | null> {
     try {
-      const result = await db.execute(sql`
+      const rows = await rawQuery<{ checkpoint: unknown }>(sql`
         SELECT checkpoint FROM gardener_job_meta WHERE job_id = ${jobId}::uuid
       `);
-      const rows = (result as unknown as { rows: Array<{ checkpoint: unknown }> }).rows;
       return rows[0]?.checkpoint || null;
     } catch (error) {
       console.warn('Failed to restore checkpoint:', error);
@@ -359,14 +359,13 @@ class GardenerController {
     recentJobs: Array<{ type: string; status: string; duration: number }>;
   }> {
     try {
-      const tierResult = await db.execute(sql`
+      const tierRows = await rawQuery<{ tier: string; count: number }>(sql`
         SELECT tier, COUNT(*) as count FROM gardener_job_meta GROUP BY tier
       `);
 
       return {
         jobsByTier: Object.fromEntries(
-          (tierResult as unknown as { rows: Array<{ tier: string; count: number }> }).rows
-            .map(r => [r.tier, r.count])
+          tierRows.map(r => [r.tier, r.count])
         ),
         recentJobs: [],
       };

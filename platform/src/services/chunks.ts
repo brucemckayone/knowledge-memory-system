@@ -6,6 +6,7 @@
  */
 
 import { db } from '../db/index.js';
+import { rawQuery } from '../db/raw.js';
 import { sql } from 'drizzle-orm';
 
 export interface MemoryChunk {
@@ -152,23 +153,12 @@ export async function storeChunks(
  * Get chunks for a memory
  */
 export async function getChunks(memoryId: string): Promise<MemoryChunk[]> {
-  const result = await db.execute(sql`
-    SELECT
-      id,
-      memory_id as "memoryId",
-      chunk_index as "chunkIndex",
-      content,
-      char_count as "charCount",
-      token_estimate as "tokenEstimate",
-      overlap_chars as "overlapChars",
-      created_at as "createdAt",
-      processed_at as "processedAt"
+  return rawQuery<MemoryChunk>(sql`
+    SELECT *
     FROM memory_chunks
     WHERE memory_id = ${memoryId}
     ORDER BY chunk_index
   `);
-
-  return (result as unknown as { rows: MemoryChunk[] }).rows;
 }
 
 /**

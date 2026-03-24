@@ -6,6 +6,7 @@
  */
 
 import { db } from '../db/index.js';
+import { rawQuery } from '../db/raw.js';
 import { sql } from 'drizzle-orm';
 
 export interface PredicateInfo {
@@ -347,7 +348,7 @@ export async function syncOntologyToDb(): Promise<number> {
 export async function findNonCanonicalPredicates(): Promise<Array<{ predicate: string; count: number }>> {
   const canonicalList = Object.keys(CANONICAL_ONTOLOGY);
 
-  const result = await db.execute(sql`
+  return rawQuery<{ predicate: string; count: number }>(sql`
     SELECT predicate, COUNT(*) as count
     FROM facts
     WHERE predicate NOT IN (${sql.join(canonicalList.map(p => sql`${p}`), sql`, `)})
@@ -355,10 +356,6 @@ export async function findNonCanonicalPredicates(): Promise<Array<{ predicate: s
     GROUP BY predicate
     ORDER BY count DESC
   `);
-
-  const rows = (result as unknown as { rows?: Array<{ predicate: string; count: number }> })?.rows ??
-               (Array.isArray(result) ? result as unknown as Array<{ predicate: string; count: number }> : []);
-  return rows;
 }
 
 /**

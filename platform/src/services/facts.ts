@@ -8,6 +8,7 @@
  */
 
 import { db } from '../db/index.js';
+import { rawQuery } from '../db/raw.js';
 import { facts, factPredicates, entities, type Fact } from '../db/schema.js';
 import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
 import { ml } from './ml-client.js';
@@ -247,8 +248,8 @@ export async function searchFacts(
     return [];
   }
 
-  const results = await db.execute(sql`
-    SELECT 
+  const rows = await rawQuery<Fact & { similarity: number }>(sql`
+    SELECT
       f.*,
       1 - (fact_embedding <=> ${sql.raw(`'[${embedding.join(',')}]'::vector`)}) as similarity
     FROM facts f
@@ -259,7 +260,7 @@ export async function searchFacts(
     LIMIT ${limit}
   `);
 
-  return (results as unknown as { rows: Array<Fact & { similarity: number }> }).rows.map(row => ({
+  return rows.map(row => ({
     fact: row,
     similarity: row.similarity,
   }));

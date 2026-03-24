@@ -9,8 +9,10 @@
 
 import { findConnectedEntities } from './graph.js';
 import { resolveEntity, type EntityType } from './entities.js';
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
+import { rawQuery } from '../db/raw.js';
+import { memoryEntities } from '../db/schema.js';
 import { embed, extractEntities } from './ml.js';
 import { searchMemories, scrollPoints, getMemory } from './qdrant.js';
 
@@ -185,7 +187,7 @@ async function fallbackGraphSearch(
   limit: number
 ): Promise<HybridSearchResult[]> {
   try {
-    const result = await db.execute(sql`
+    const rows = await rawQuery<{ memoryId: string; relevance: number }>(sql`
       SELECT DISTINCT me.memory_id, COUNT(*) as relevance
       FROM memory_entities me
       WHERE me.entity_id = ANY(${entityIds}::uuid[])
@@ -193,9 +195,8 @@ async function fallbackGraphSearch(
       ORDER BY relevance DESC
       LIMIT ${limit}
     `);
-    
-    const memoryIds = (result as unknown as { rows: Array<{ memory_id: string }> }).rows
-      .map(r => r.memory_id);
+
+    const memoryIds = rows.map(r => r.memoryId);
     
     const memoryDetails = await Promise.all(
       memoryIds.map(getMemoryById)
@@ -343,11 +344,11 @@ async function getMemoryById(id: string): Promise<{ id: string; content: string;
  */
 async function getMemoriesForEntity(entityId: string): Promise<string[]> {
   try {
-    const result = await db.execute(sql`
-      SELECT memory_id FROM memory_entities WHERE entity_id = ${entityId}
-    `);
-    return (result as unknown as { rows: Array<{ memory_id: string }> }).rows
-      .map(r => r.memory_id);
+    const rows = await db
+      .select({ memoryId: memoryEntities.memoryId })
+      .from(memoryEntities)
+      .where(eq(memoryEntities.entityId, entityId));
+    return rows.map(r => r.memoryId);
   } catch {
     return [];
   }

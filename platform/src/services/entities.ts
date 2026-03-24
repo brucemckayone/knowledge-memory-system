@@ -9,6 +9,7 @@
  */
 
 import { db } from '../db/index.js';
+import { rawQuery } from '../db/raw.js';
 import { entities, entityAliases, memoryEntities, type Entity } from '../db/schema.js';
 import { eq, ilike, sql, and } from 'drizzle-orm';
 import { ml } from './ml-client.js';
@@ -103,7 +104,7 @@ export async function findEntitiesByName(
   
   if (fuzzy) {
     // Trigram similarity search
-    const results = await db.execute(sql`
+    return rawQuery<Entity & { sim: number }>(sql`
       SELECT *, similarity(canonical_name, ${name}) as sim
       FROM entities
       WHERE canonical_name % ${name}
@@ -111,10 +112,6 @@ export async function findEntitiesByName(
       ORDER BY sim DESC
       LIMIT ${limit}
     `);
-    
-    // Safely handle result structure (postgres vs drizzle types)
-    const rows = (results as unknown as { rows: Array<Entity & { similarity: number }> }).rows || results;
-    return rows as Array<Entity & { similarity?: number }>;
   }
   
   // Simple ILIKE search
@@ -142,8 +139,8 @@ export async function findSimilarEntities(
 ): Promise<Array<Entity & { similarity: number }>> {
   const { limit = 10, threshold = 0.5, type } = options;
   
-  const results = await db.execute(sql`
-    SELECT 
+  return rawQuery<Entity & { similarity: number }>(sql`
+    SELECT
       e.*,
       1 - (embedding <=> ${sql.raw(`'[${embedding.join(',')}]'::vector`)}) as similarity
     FROM entities e
@@ -153,10 +150,6 @@ export async function findSimilarEntities(
     ORDER BY embedding <=> ${sql.raw(`'[${embedding.join(',')}]'::vector`)}
     LIMIT ${limit}
   `);
-  
-  // Safely handle result structure
-  const rows = (results as unknown as { rows: Array<Entity & { similarity: number }> }).rows || results;
-  return rows as Array<Entity & { similarity: number }>;
 }
 
 /**
@@ -269,9 +262,10 @@ async function addAliasIfNew(entityId: string, alias: string): Promise<void> {
  * Update entity last_seen_at timestamp
  */
 async function updateLastSeen(entityId: string): Promise<void> {
-  await db.execute(sql`
-    UPDATE entities SET last_seen_at = NOW() WHERE id = ${entityId}
-  `);
+  await db
+    .update(entities)
+    .set({ lastSeenAt: new Date() })
+    .where(eq(entities.id, entityId));
 }
 
 /**
