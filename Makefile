@@ -63,7 +63,7 @@ tunnel:
 # Start ML services on host
 # --http h11: required on Windows (httptools hangs for native HTTP clients)
 ml:
-	cd ml-services && uvicorn app.main:app --host 0.0.0.0 --port 8000 --http h11 --reload
+	cd ml-services && PYTHONIOENCODING=utf-8 uvicorn app.main:app --host 0.0.0.0 --port 8000 --http h11 --reload
 
 # Health check
 health:
