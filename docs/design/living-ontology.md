@@ -98,38 +98,32 @@ No system combines all three. Our design fills this gap by separating temporal h
 ```d2
 direction: right
 
-L1: "Layer 1\nStructural" {
+L1: "Layer 1: Structural" {
   style.fill: "#e8f5e9"
-  style.font-size: 16
   a: "Lemmatize predicate"
   b: "Tense → timestamps"
   c: "Inverse registry check"
   d: "String normalization"
-  cost: "Cost: zero" {style.fill: "#c8e6c9"; style.font-size: 12}
 }
 
-L2: "Layer 2\nEmbedding" {
+L2: "Layer 2: Embedding" {
   style.fill: "#e3f2fd"
-  style.font-size: 16
   a: "Enriched description embedding"
   b: "Mean-centering (anisotropy fix)"
   c: "HAC clustering (batch)"
   d: "Two-threshold zones"
-  cost: "Cost: cheap (vector ops)" {style.fill: "#bbdefb"; style.font-size: 12}
 }
 
-L3: "Layer 3\nLLM Gate" {
+L3: "Layer 3: LLM Gate" {
   style.fill: "#fff3e0"
-  style.font-size: 16
   a: "Verify ALL merge candidates"
   b: "Batch review (3-5 per call)"
   c: "Prevent over-generalization"
   d: "Handle subtle semantic gaps"
-  cost: "Cost: expensive (minimal use)" {style.fill: "#ffe0b2"; style.font-size: 12}
 }
 
-L1 -> L2: "~100% pass through"
-L2 -> L3: "~40% (merge candidates)"
+L1 -> L2: "~100% pass through\n(zero cost)"
+L2 -> L3: "~40% merge candidates\n(cheap → expensive)"
 ```
 
 ### Revised Pipeline
@@ -383,26 +377,24 @@ review -> staging: "defer\n(needs more data)" {style.stroke-dash: 4}
 ## Gardener Schedule
 
 ```d2
-direction: right
+direction: down
 
 nightly: "Nightly Schedule" {
   style.fill: "#e8eaf6"
-  t00: "00:00\ncommunity-detection"
-  t01: "01:00\ncontradiction-scanner"
-  t02: "02:00\nontology-evolution" {style.fill: "#fff3e0"; style.bold: true}
-  t03: "03:00\ngenerate-insights"
-  t06: "06:00\nbriefing"
+  t00: "00:00 community-detection"
+  t01: "01:00 contradiction-scanner"
+  t02: "02:00 ontology-evolution" {style.fill: "#fff3e0"; style.bold: true}
+  t03: "03:00 generate-insights"
+  t06: "06:00 briefing"
 
   t00 -> t01 -> t02 -> t03 -> t06
 }
 
 periodic: "Periodic (every 1h)" {
   style.fill: "#f3e5f5"
-  sa: "schema-alignment\n(normalize aliases)"
+  sa: "schema-alignment (normalize aliases)"
   cr: "conflict-resolution"
 }
-
-nightly.t02 -> periodic.sa: "feeds staging\narea" {style.stroke-dash: 4}
 ```
 
 ---

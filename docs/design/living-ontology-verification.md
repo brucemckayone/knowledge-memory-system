@@ -7,37 +7,29 @@ The living ontology system has a three-layer architecture for deciding whether a
 ```d2
 direction: down
 
-layers: {
-  label: "Three-Layer Architecture"
-  style.font-size: 20
-
-  L1: "Layer 1: Structural" {
-    style.fill: "#e8f5e9"
-    label: "Deterministic — zero cost"
-    tense: "Tense normalization"
-    inverse: "Inverse registry lookup"
-    lemma: "Lemmatization"
-  }
-
-  L2: "Layer 2: Embedding" {
-    style.fill: "#e3f2fd"
-    label: "Vector similarity — cheap"
-    enrich: "Enriched description embedding"
-    compare: "Compare to canonicals"
-    threshold: "Two-threshold scoring"
-  }
-
-  L3: "Layer 3: LLM Gate" {
-    style.fill: "#fff3e0"
-    label: "Reasoning — expensive, minimal"
-    verify: "Verify ALL merge candidates"
-    batch: "Batch review (3-5 per call)"
-    decide: "Promote / Merge / Reject / Defer"
-  }
-
-  L1 -> L2: "passes through\n(non-inverse, non-tense)"
-  L2 -> L3: "merge candidates\n+ review zone"
+L1: "Layer 1: Structural\n(Deterministic — zero cost)" {
+  style.fill: "#e8f5e9"
+  tense: "Tense normalization"
+  inverse: "Inverse registry lookup"
+  lemma: "Lemmatization"
 }
+
+L2: "Layer 2: Embedding\n(Vector similarity — cheap)" {
+  style.fill: "#e3f2fd"
+  enrich: "Enriched description embedding"
+  compare: "Compare to canonicals"
+  threshold: "Two-threshold scoring"
+}
+
+L3: "Layer 3: LLM Gate\n(Reasoning — expensive, minimal)" {
+  style.fill: "#fff3e0"
+  verify: "Verify ALL merge candidates"
+  batch: "Batch review (3-5 per call)"
+  decide: "Promote / Merge / Reject / Defer"
+}
+
+L1 -> L2: "~100% pass through\n(non-inverse, non-tense)"
+L2 -> L3: "~40% (merge candidates\n+ review zone)"
 ```
 
 Each layer has specific responsibilities. If any layer fails at its job, the downstream layers compensate — but at higher cost. The verification framework proves each layer works independently AND that the layers compose correctly.
@@ -47,60 +39,45 @@ Each layer has specific responsibilities. If any layer fails at its job, the dow
 ```d2
 direction: down
 
-input: "Incoming Predicate\n(from extraction)" {
-  style.fill: "#f5f5f5"
-}
+input: "Incoming Predicate\n(from extraction)" {style.fill: "#f5f5f5"}
 
-structural: "Layer 1: Structural" {
-  style.fill: "#e8f5e9"
-  tense_check: "Tense variant?"
-  inverse_check: "Known inverse?"
-  lemmatize: "Lemmatize + cleanup"
+tense_check: "Tense variant?" {style.fill: "#e8f5e9"; shape: diamond}
+timestamps: "Normalize to base form\n+ set valid_at/invalid_at" {style.fill: "#c8e6c9"}
+inverse_check: "Known inverse?" {style.fill: "#e8f5e9"; shape: diamond}
+block: "Block merge\n(registry)" {style.fill: "#ffcdd2"}
+lemmatize: "Lemmatize + cleanup" {style.fill: "#e8f5e9"}
 
-  tense_check -> timestamps: "yes" {style.stroke: "#4caf50"}
-  inverse_check -> block: "yes" {style.stroke: "#f44336"}
-}
+embed: "Embed enriched description\n+ cosine similarity to canonicals" {style.fill: "#e3f2fd"}
 
-timestamps: "Normalize to base form\n+ set valid_at/invalid_at" {
-  style.fill: "#c8e6c9"
-}
-block: "Block merge\n(registry)" {
-  style.fill: "#ffcdd2"
-}
-
-embedding: "Layer 2: Embedding" {
-  style.fill: "#e3f2fd"
-  embed: "Embed enriched description"
-  score: "Cosine similarity to canonicals"
-  zone: "Threshold zones"
-}
-
-auto_merge: "Auto-merge\ncandidate\n(≥ 0.905)" {style.fill: "#bbdefb"}
+auto_merge: "Merge candidate\n(≥ 0.905)" {style.fill: "#bbdefb"}
 staging: "Staging\n(< 0.848)" {style.fill: "#e0e0e0"}
-review: "LLM review\nzone\n(0.848–0.905)" {style.fill: "#ffe0b2"}
+review: "LLM review zone\n(0.848–0.905)" {style.fill: "#ffe0b2"}
 
-llm: "Layer 3: LLM Gate" {
-  style.fill: "#fff3e0"
-  verify: "LLM verifies merge"
-  decide: "Decision"
-}
+llm: "LLM verifies merge" {style.fill: "#fff3e0"}
 
-promote: "Promote\n(novel canonical)" {style.fill: "#c8e6c9"}
-merge: "Merge\n(add as alias)" {style.fill: "#bbdefb"}
-reject: "Reject\n(noise)" {style.fill: "#ffcdd2"}
-defer: "Defer\n(needs more data)" {style.fill: "#e0e0e0"}
+promote: "Promote" {style.fill: "#c8e6c9"}
+merge: "Merge as alias" {style.fill: "#bbdefb"}
+reject: "Reject" {style.fill: "#ffcdd2"}
+defer: "Defer" {style.fill: "#e0e0e0"}
 
-input -> structural
-structural.lemmatize -> embedding: "continues"
-embedding.zone -> auto_merge: "≥ 0.905"
-embedding.zone -> staging: "< 0.848"
-embedding.zone -> review: "0.848–0.905"
-auto_merge -> llm: "ALL merges\nLLM-verified"
+input -> tense_check
+tense_check -> timestamps: "yes"
+tense_check -> inverse_check: "no"
+timestamps -> inverse_check
+inverse_check -> block: "yes"
+inverse_check -> lemmatize: "no"
+lemmatize -> embed
+
+embed -> auto_merge: "≥ 0.905"
+embed -> staging: "< 0.848"
+embed -> review: "0.848–0.905"
+
+auto_merge -> llm: "ALL merges verified"
 review -> llm
-llm.decide -> promote
-llm.decide -> merge
-llm.decide -> reject
-llm.decide -> defer
+llm -> promote
+llm -> merge
+llm -> reject
+llm -> defer
 ```
 
 The verification must prove that this pipeline:
