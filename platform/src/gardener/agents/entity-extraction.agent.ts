@@ -6,7 +6,7 @@
 
 import type { AgentContext, JobResult, GardenerAgent, GardenerJob } from '../controller.js';
 import { ml, MlClientError } from '../../services/ml-client.js';
-import { linkEntitiesToMemory } from '../../services/entities.js';
+import { linkEntitiesToMemory, getValidEntityTypes } from '../../services/entities.js';
 import { PayloadError, MlServiceError, AgentError } from '../errors.js';
 
 export const entityExtractionAgent: GardenerAgent = {
@@ -24,7 +24,8 @@ export const entityExtractionAgent: GardenerAgent = {
     log(`Extracting entities from memory ${payload.memoryId.slice(0, 8)}...`);
 
     try {
-      const data = await ml.extractEntities(payload.content);
+      const validTypes = await getValidEntityTypes();
+      const data = await ml.extractEntities(payload.content, validTypes);
 
       const entities = data.entities || [];
       log(`Found ${entities.length} entities`);

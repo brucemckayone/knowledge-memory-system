@@ -10,11 +10,42 @@
 
 import { db } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
-import { entities, entityAliases, memoryEntities, type Entity } from '../db/schema.js';
-import { eq, ilike, sql, and } from 'drizzle-orm';
+import { entities, entityAliases, memoryEntities, entityTypes, type Entity } from '../db/schema.js';
+import { eq, ilike, sql, and, or } from 'drizzle-orm';
 import { ml } from './ml-client.js';
 
-export type EntityType = 'person' | 'company' | 'project' | 'concept' | 'place' | 'event' | 'other';
+// EntityType is now loaded dynamically from entity_types table.
+// This string type allows any value — runtime validation happens via getValidEntityTypes().
+export type EntityType = string;
+
+let _cachedEntityTypes: string[] | null = null;
+let _cacheTime = 0;
+const CACHE_TTL_MS = 60_000; // 1 minute
+
+/**
+ * Get valid entity types from the entity_types table.
+ * Cached for 1 minute to avoid per-extraction DB queries.
+ */
+export async function getValidEntityTypes(): Promise<string[]> {
+  const now = Date.now();
+  if (_cachedEntityTypes && now - _cacheTime < CACHE_TTL_MS) {
+    return _cachedEntityTypes;
+  }
+
+  const rows = await db
+    .select({ name: entityTypes.name })
+    .from(entityTypes)
+    .where(
+      or(
+        eq(entityTypes.status, 'canonical'),
+        eq(entityTypes.status, 'provisional')
+      )
+    );
+
+  _cachedEntityTypes = rows.map(r => r.name);
+  _cacheTime = now;
+  return _cachedEntityTypes;
+}
 
 export interface CreateEntityParams {
   name: string;

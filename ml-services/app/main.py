@@ -31,6 +31,7 @@ from .extract_task_enhanced import router as extract_task_enhanced_router
 from .parse_transcript import router as parse_transcript_router
 from .parse_document import router as parse_document_router
 from .parse_markdown import router as parse_markdown_router
+from .compare_predicates import router as compare_predicates_router
 from .core.llm import LLM_PROVIDER
 
 app = FastAPI(
@@ -68,6 +69,7 @@ app.include_router(extract_task_enhanced_router, tags=["Enhanced Task Extraction
 app.include_router(parse_transcript_router, tags=["Transcript Parsing"])
 app.include_router(parse_document_router, tags=["Document Parsing"])
 app.include_router(parse_markdown_router, tags=["Markdown Parsing"])
+app.include_router(compare_predicates_router, tags=["Predicate Comparison"])
 
 
 @app.get("/health")
@@ -94,7 +96,8 @@ def health():
             "extract-relationships",
             "parse-transcript",
             "parse-document",
-            "parse-markdown"
+            "parse-markdown",
+            "compare-predicates"
         ]
     }
 
@@ -123,7 +126,8 @@ def root():
             "extract_relationships": "/extract-relationships",
             "parse_transcript": "/parse-transcript",
             "parse_document": "/parse-document",
-            "parse_markdown": "/parse-markdown"
+            "parse_markdown": "/parse-markdown",
+            "compare_predicates": "/compare-predicates"
         }
     }
 

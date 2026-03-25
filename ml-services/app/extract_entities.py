@@ -7,7 +7,7 @@ Extracts entities from text using Ollama and returns structured mentions.
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 from .core.llm import llm_client
 
@@ -19,7 +19,7 @@ TEXT: "{text}"
 
 For each entity found, determine:
 - mention: The exact text that refers to the entity
-- type: One of: person, company, project, concept, place, event, other
+- type: One of: {type_list}
 - properties: Any attributes mentioned (role, title, location, etc.)
 - confidence: How confident you are (0.0-1.0)
 
@@ -66,6 +66,7 @@ Return JSON:
 class ExtractEntitiesRequest(BaseModel):
     text: str
     include_context: bool = True
+    valid_types: Optional[List[str]] = None  # Dynamic types from platform
 
 
 class EntityMention(BaseModel):
@@ -102,7 +103,8 @@ async def extract_entities(request: ExtractEntitiesRequest):
     Returns list of entity mentions with types and positions.
     """
     try:
-        prompt = ENTITY_EXTRACTION_PROMPT.format(text=request.text)
+        type_list = ', '.join(request.valid_types) if request.valid_types else 'person, company, project, concept, place, event, other'
+        prompt = ENTITY_EXTRACTION_PROMPT.format(text=request.text, type_list=type_list)
         
         # Use LLM service
         entities_raw = llm_client.generate_json(
@@ -115,7 +117,7 @@ async def extract_entities(request: ExtractEntitiesRequest):
         
         # Validate and normalize
         entities = []
-        valid_types = ['person', 'company', 'project', 'concept', 'place', 'event', 'other']
+        valid_types = request.valid_types or ['person', 'company', 'project', 'concept', 'place', 'event', 'other']
         
         for e in entities_raw:
             entity_type = e.get('type', 'other').lower()

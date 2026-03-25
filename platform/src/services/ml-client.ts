@@ -268,8 +268,11 @@ export const ml = {
     }, 30_000);
   },
 
-  extractEntities(text: string) {
-    return mlFetch<ExtractEntitiesResponse>('/extract-entities', { text }, 30_000);
+  extractEntities(text: string, validTypes?: string[]) {
+    return mlFetch<ExtractEntitiesResponse>('/extract-entities', {
+      text,
+      ...(validTypes ? { valid_types: validTypes } : {}),
+    }, 30_000);
   },
 
   extractRelationships(content: string, entities: Array<{ name: string; type?: string }>) {
