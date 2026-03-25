@@ -2,23 +2,27 @@
 Golden test datasets for ontology embedding benchmarks.
 
 Separated from the benchmark runner for clarity and reuse.
+
+Design principle: tense is NOT a predicate distinction — it's handled by
+valid_at/invalid_at timestamps on facts. Tense variants are aliases of the
+base predicate. Inverses are registered explicitly, not merged.
 """
 
 # ============================================================================
 # SET A: Canonical ontology with known aliases
+# Tense variants (worked_at, lived_in) folded as aliases of base predicates.
 # ============================================================================
 
 ONTOLOGY = {
     # Professional
     "works_at": {
-        "description": "Currently employed at organization",
+        "description": "Employment relationship between person and organization",
         "category": "professional",
-        "aliases": ["employed_at", "works_for", "employee_of", "working_at"],
-    },
-    "worked_at": {
-        "description": "Previously employed at organization",
-        "category": "professional",
-        "aliases": ["formerly_at", "ex_employee_of", "used_to_work_at"],
+        "aliases": [
+            "employed_at", "works_for", "employee_of", "working_at",
+            # Tense variants — same predicate, temporality via timestamps
+            "worked_at", "formerly_at", "ex_employee_of", "used_to_work_at",
+        ],
     },
     "manages": {
         "description": "Manages another person",
@@ -78,14 +82,13 @@ ONTOLOGY = {
     },
     # Location
     "lives_in": {
-        "description": "Currently lives in location",
+        "description": "Residential relationship between person and location",
         "category": "location",
-        "aliases": ["resides_in", "based_in", "located_in", "living_in"],
-    },
-    "lived_in": {
-        "description": "Previously lived in location",
-        "category": "location",
-        "aliases": ["formerly_in", "used_to_live_in"],
+        "aliases": [
+            "resides_in", "based_in", "located_in", "living_in",
+            # Tense variants — same predicate, temporality via timestamps
+            "lived_in", "formerly_in", "used_to_live_in",
+        ],
     },
     "born_in": {
         "description": "Born in location",
@@ -152,6 +155,24 @@ ONTOLOGY = {
         "aliases": ["presented_at", "gave_talk_at", "keynote_at"],
     },
 }
+
+# ============================================================================
+# INVERSE PAIR REGISTRY
+# Each pair: (predicate_a, predicate_b) — same relationship, opposite direction.
+# The system should recognize these as related but NOT merge them.
+# ============================================================================
+
+INVERSE_PAIRS = [
+    ("works_at", "employs"),
+    ("manages", "reports_to"),
+    ("parent_of", "child_of"),
+    ("owns", "owned_by"),
+    ("created", "created_by"),
+    ("member_of", "has_member"),
+    ("knows", "known_by"),
+    ("located_in", "contains"),
+    ("part_of", "has_part"),
+]
 
 # Novel predicates that SHOULD be recognized as genuinely new
 NOVEL_PREDICATES = {
@@ -228,19 +249,11 @@ ADVERSARIAL_PAIRS = [
      "Studied at institution",
      "teacher vs student role — opposite sides"),
 
-    # Tense variants (temporal meaning)
-    ("works_at", "worked_at",
-     "Currently employed at organization",
-     "Previously employed at organization",
-     "current vs past employment — temporal distinction matters"),
-    ("lives_in", "lived_in",
-     "Currently lives in location",
-     "Previously lived in location",
-     "current vs past residence — temporal distinction matters"),
+    # Subtle temporal (met is point-in-time, knows is ongoing — debatable)
     ("knows", "met",
      "Knows another person",
      "Met another person at a point in time",
-     "ongoing relationship vs point-in-time event"),
+     "ongoing relationship vs point-in-time event — borderline case"),
 
     # Domain ambiguity
     ("runs", "manages",
@@ -269,9 +282,9 @@ ADVERSARIAL_PAIRS = [
      "Member of organization/group",
      "Currently employed at organization",
      "membership vs employment — different commitments"),
-    ("visited", "lived_in",
+    ("visited", "lives_in",
      "Visited a location",
-     "Previously lived in location",
+     "Residential relationship between person and location",
      "temporary visit vs residential stay"),
     ("spoke_at", "attended_event",
      "Spoke at an event",
@@ -329,10 +342,10 @@ NATURAL_LANGUAGE_PREDICATES = [
     ("has been working at", "works_at"),
     ("is a contractor at", "works_at"),
     ("joined the team at", "works_at"),
-    ("used to work for", "worked_at"),
-    ("previously employed at", "worked_at"),
-    ("left their job at", "worked_at"),
-    ("was fired from", "worked_at"),
+    ("used to work for", "works_at"),
+    ("previously employed at", "works_at"),
+    ("left their job at", "works_at"),
+    ("was fired from", "works_at"),
 
     # Management
     ("is the manager of", "manages"),
@@ -358,8 +371,8 @@ NATURAL_LANGUAGE_PREDICATES = [
     ("is based out of", "lives_in"),
     ("relocated to", "lives_in"),
     ("calls home", "lives_in"),
-    ("grew up in", "lived_in"),
-    ("spent their childhood in", "lived_in"),
+    ("grew up in", "lives_in"),
+    ("spent their childhood in", "lives_in"),
     ("was born in", "born_in"),
     ("is originally from", "born_in"),
     ("traveled to", "visited"),

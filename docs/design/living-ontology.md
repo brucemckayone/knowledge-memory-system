@@ -95,60 +95,115 @@ No system combines all three. Our design fills this gap by separating temporal h
 
 ### Three Layers of Predicate Intelligence
 
-```
-LAYER 1: Structural (deterministic, zero cost)
-  - Lemmatization: strip tense from predicate label
-  - Temporal mapping: temporal_hint → valid_at/invalid_at
-  - Inverse registry lookup: known inverse pairs
-  - String normalization: underscore, lowercase, morphological cleanup
+```d2
+direction: right
 
-LAYER 2: Embedding (vector operations, cheap)
-  - Enriched description embeddings (embed description, not label)
-  - Mean-centering to fix anisotropy
-  - HAC clustering for batch synonym detection
-  - Two-threshold zones: auto-merge / LLM review / auto-distinct
+L1: "Layer 1\nStructural" {
+  style.fill: "#e8f5e9"
+  style.font-size: 16
+  a: "Lemmatize predicate"
+  b: "Tense → timestamps"
+  c: "Inverse registry check"
+  d: "String normalization"
+  cost: "Cost: zero" {style.fill: "#c8e6c9"; style.font-size: 12}
+}
 
-LAYER 3: LLM Verification (expensive, minimal usage)
-  - Only for candidates in the review zone (0.852–0.906)
-  - Presented with examples, existing ontology context, usage patterns
-  - Gates every merge decision — prevents over-generalization
-  - Handles the cases embeddings can't: subtle semantic distinctions
+L2: "Layer 2\nEmbedding" {
+  style.fill: "#e3f2fd"
+  style.font-size: 16
+  a: "Enriched description embedding"
+  b: "Mean-centering (anisotropy fix)"
+  c: "HAC clustering (batch)"
+  d: "Two-threshold zones"
+  cost: "Cost: cheap (vector ops)" {style.fill: "#bbdefb"; style.font-size: 12}
+}
+
+L3: "Layer 3\nLLM Gate" {
+  style.fill: "#fff3e0"
+  style.font-size: 16
+  a: "Verify ALL merge candidates"
+  b: "Batch review (3-5 per call)"
+  c: "Prevent over-generalization"
+  d: "Handle subtle semantic gaps"
+  cost: "Cost: expensive (minimal use)" {style.fill: "#ffe0b2"; style.font-size: 12}
+}
+
+L1 -> L2: "~100% pass through"
+L2 -> L3: "~40% (merge candidates)"
 ```
 
 ### Revised Pipeline
 
-```
-INPUT PIPELINE (per memory)
-  1. Extract relationships as normal (LLM produces predicate + temporal_hint)
-  2. Lemmatize predicate → base form
-  3. Check inverse registry → if known inverse, normalize direction
-  4. Map temporal_hint → valid_at/invalid_at on the fact
-  5. If predicate is canonical → create fact directly
-  6. If not canonical → create fact AND increment staging counter
-  Zero additional LLM cost beyond extraction
+```d2
+direction: down
 
-EVOLUTION AGENT (nightly, periodic tier)
-  Step 1: Deterministic pre-filter
-    - WordNet/ConceptNet synonym lookup (free, fast)
-    - Morphological normalization (lemmatize all staged predicates)
-    - Merge obvious tense variants via lemma matching
-  Step 2: Embedding clustering
-    - Embed enriched descriptions (clustering: prefix)
-    - Mean-center embeddings
-    - HAC with complete linkage
-    - Merge clusters' counts
-  Step 3: Two-threshold scoring
-    - Above 0.906 → auto-merge candidate (but see Step 4)
-    - Below 0.852 → auto-distinct (stays in staging for more evidence)
-    - 0.852–0.906 → LLM review
-  Step 4: LLM verification (all merges, not just review zone)
-    - Every merge decision is LLM-verified
-    - Prevents CESI-style over-generalization
-    - Batch: 3-5 candidates per LLM call
-  Step 5: Apply promotions
-    - Promoted → provisional canonical (2-4 week probation)
-    - Merged → add as alias, normalize existing facts
-    - Rejected → mark with TTL
+title: "Input Pipeline (per memory — zero extra LLM cost)" {
+  style.font-size: 18
+}
+
+extract: "LLM extracts relationship\npredicate + temporal_hint" {style.fill: "#f5f5f5"}
+lemma: "Lemmatize predicate\n→ base form" {style.fill: "#e8f5e9"}
+inverse: "Inverse registry\nlookup" {style.fill: "#e8f5e9"}
+temporal: "Map temporal_hint\n→ valid_at / invalid_at" {style.fill: "#e8f5e9"}
+canonical_check: "Is predicate\ncanonical?" {style.fill: "#fff9c4"; shape: diamond}
+create_fact: "Create fact\ndirectly" {style.fill: "#c8e6c9"}
+stage: "Create fact +\nincrement staging counter" {style.fill: "#ffe0b2"}
+
+extract -> lemma
+lemma -> inverse
+inverse -> temporal
+temporal -> canonical_check
+canonical_check -> create_fact: "yes"
+canonical_check -> stage: "no"
+```
+
+```d2
+direction: down
+
+title: "Evolution Agent (nightly, periodic tier)" {
+  style.font-size: 18
+}
+
+prefilter: "Step 1: Deterministic pre-filter" {
+  style.fill: "#e8f5e9"
+  a: "WordNet/ConceptNet synonym lookup"
+  b: "Morphological normalization"
+  c: "Merge obvious tense variants"
+}
+
+cluster: "Step 2: Embedding clustering" {
+  style.fill: "#e3f2fd"
+  a: "Embed enriched descriptions"
+  b: "Mean-center embeddings"
+  c: "HAC with complete linkage"
+  d: "Merge clusters' counts"
+}
+
+scoring: "Step 3: Two-threshold scoring" {
+  style.fill: "#fff9c4"
+  merge: "≥ 0.905 → merge candidate"
+  distinct: "< 0.848 → staging"
+  review: "0.848–0.905 → LLM review"
+}
+
+llm: "Step 4: LLM verification" {
+  style.fill: "#fff3e0"
+  a: "Verify ALL merge candidates"
+  b: "Batch: 3-5 per call"
+  c: "Prevents over-generalization"
+}
+
+apply: "Step 5: Apply" {
+  style.fill: "#e8f5e9"
+  promote: "Provisional canonical\n(2-4 week probation)"
+  merge: "Add as alias\nnormalize facts"
+  reject: "Mark with TTL"
+}
+
+prefilter -> cluster
+cluster -> scoring
+scoring -> llm: "merge candidates\n+ review zone"
+llm -> apply
 ```
 
 ### Key Change from Original Design
@@ -268,50 +323,86 @@ No event system needed — shared read from ontology tables.
 
 ## Staging Lifecycle
 
-```
-EXTRACTION → unknown predicate/type
-  → Create staging entry (or increment count)
-  → Link to source fact/memory
-  → Create fact with the predicate as-is
+```d2
+direction: down
 
-ACCUMULATION → count grows passively
-  → Track: occurrences, distinct memories, time span, type pairs
+extraction: "Extraction" {
+  style.fill: "#f5f5f5"
+  label: "Unknown predicate/type extracted"
+}
 
-THRESHOLD MET → enters evolution agent review
+staging: "Staging" {
+  style.fill: "#fff9c4"
+  create: "Create entry or\nincrement count"
+  link: "Link to source\nfact/memory"
+  track: "Track: occurrences,\nmemories, time span"
+}
 
-REVIEW (nightly)
-  → Deterministic pre-filter (lemma, WordNet, ConceptNet)
-  → Embedding clustering (HAC, enriched, mean-centered)
-  → Two-threshold scoring
-  → LLM verification for ALL merge candidates
+threshold: "Threshold\nmet?" {style.fill: "#fff9c4"; shape: diamond}
 
-PROMOTED → provisional canonical (2-4 week probation)
-  → After sustained usage → full canonical
-  → Demoted if usage drops during probation
+review: "Nightly Review" {
+  style.fill: "#e3f2fd"
+  prefilter: "Deterministic pre-filter"
+  cluster: "Embedding clustering"
+  score: "Two-threshold scoring"
+  llm: "LLM verification"
+}
 
-MERGED → add as alias, normalize existing facts
+promoted: "Provisional\nCanonical" {
+  style.fill: "#c8e6c9"
+  label: "2-4 week probation\nFull canonical if usage sustains\nDemoted if usage drops"
+}
 
-REJECTED → marked with reasoning + TTL
-  → After TTL, staging entry cleaned up
+merged: "Merged\n(alias)" {
+  style.fill: "#bbdefb"
+  label: "Add alias\nNormalize existing facts"
+}
 
-THRESHOLD NEVER MET → after N weeks, cleaned up
+rejected: "Rejected" {
+  style.fill: "#ffcdd2"
+  label: "Marked + TTL\nCleaned up after expiry"
+}
+
+expired: "TTL Expired" {
+  style.fill: "#e0e0e0"
+  label: "Never reached threshold\nCleaned up"
+}
+
+extraction -> staging
+staging -> threshold: "evidence\naccumulates"
+threshold -> review: "yes"
+threshold -> expired: "no (after N weeks)"
+review -> promoted: "promote"
+review -> merged: "merge"
+review -> rejected: "reject"
+review -> staging: "defer\n(needs more data)" {style.stroke-dash: 4}
 ```
 
 ---
 
 ## Gardener Schedule
 
-```
-NIGHTLY:
-  00:00  community-detection
-  01:00  contradiction-scanner
-  02:00  ontology-evolution        ← NEW
-  03:00  generate-insights
-  06:00  briefing
+```d2
+direction: right
 
-PERIODIC (every 1h):
-  schema-alignment    (normalize known aliases — unchanged)
-  conflict-resolution
+nightly: "Nightly Schedule" {
+  style.fill: "#e8eaf6"
+  t00: "00:00\ncommunity-detection"
+  t01: "01:00\ncontradiction-scanner"
+  t02: "02:00\nontology-evolution" {style.fill: "#fff3e0"; style.bold: true}
+  t03: "03:00\ngenerate-insights"
+  t06: "06:00\nbriefing"
+
+  t00 -> t01 -> t02 -> t03 -> t06
+}
+
+periodic: "Periodic (every 1h)" {
+  style.fill: "#f3e5f5"
+  sa: "schema-alignment\n(normalize aliases)"
+  cr: "conflict-resolution"
+}
+
+nightly.t02 -> periodic.sa: "feeds staging\narea" {style.stroke-dash: 4}
 ```
 
 ---
