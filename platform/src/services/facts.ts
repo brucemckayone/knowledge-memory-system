@@ -12,6 +12,7 @@ import { rawQuery } from '../db/raw.js';
 import { facts, factPredicates, entities, type Fact } from '../db/schema.js';
 import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
 import { ml } from './ml-client.js';
+import { recordPredicateUsage } from './predicates.js';
 
 export interface CreateFactParams {
   subjectEntityId: string;
@@ -107,6 +108,9 @@ export async function createFact(params: CreateFactParams): Promise<string> {
       }
     }
   }
+
+  // Track predicate usage for living ontology evolution
+  await recordPredicateUsage(predicate).catch(() => {});
 
   return fact.id;
 }
