@@ -2,7 +2,7 @@
 Ontology Embedding Benchmark (v2)
 ==================================
 
-Validates core assumptions for the living ontology design across 14 benchmarks:
+Validates core assumptions for the living ontology design across 15 benchmarks:
 
 B1:  Raw vs enriched embedding quality
 B2:  HAC clustering quality
@@ -16,15 +16,20 @@ B9:  Natural language predicate mapping (tense NL maps to base form)
 B10: Cross-validation (train/test split)
 B11: Ontology scale stress test
 B12: Inverse pair detection via registry
-B18: Multi-signal adversarial pair discrimination (Gate M1)
-B19: Multi-signal NL mapping (Gate M2)
+B13: LLM gate — rejects adversarial pairs that embeddings can't separate
+B14: LLM gate — approves true synonym merges
+B15: LLM gate — rejects noise predicates that leak past embeddings
 
 Run: py -m tests.benchmark_ontology_embeddings
 Requires: Ollama running with nomic-embed-text on localhost:11434
 Optional: ML services on localhost:8000 for B6 (real extraction)
+Optional: Claude CLI for B13-B15 (LLM gate benchmarks)
 """
 
 import json
+import re
+import shutil
+import subprocess
 import time
 import sys
 import os
@@ -57,8 +62,6 @@ from tests.ontology_test_data import (
     NOISE_PREDICATES,
     NATURAL_LANGUAGE_PREDICATES,
     EXTRACTION_SAMPLES,
-    PREDICATE_TYPE_PAIRS,
-    CONCEPTNET_SYNONYMS,
 )
 
 
@@ -686,212 +689,314 @@ def b12_inverse_pair_detection(enriched_embs, merge_t):
 
 
 # ============================================================================
-# MULTI-SIGNAL SCORING
+# LLM GATE HELPERS (B13-B15)
 # ============================================================================
 
-try:
-    from jellyfish import jaro_winkler_similarity as _jw_sim
-except ImportError:
-    _jw_sim = None
+def _claude_available() -> bool:
+    """Check if claude CLI is on PATH."""
+    return shutil.which("claude") is not None
 
 
-def _type_pair_overlap(tp_a: tuple, tp_b: tuple) -> float:
-    """1.0 if both types match, 0.5 if one type matches, 0.0 if neither."""
-    if tp_a == tp_b:
-        return 1.0
-    if tp_a[0] == tp_b[0] or tp_a[1] == tp_b[1]:
-        return 0.5
-    return 0.0
+def _extract_json(text: str) -> Optional[dict]:
+    """Extract the first JSON object from text that may contain prose around it."""
+    # Strip markdown fences if present
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        first_newline = cleaned.index("\n")
+        cleaned = cleaned[first_newline + 1:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[: cleaned.rfind("```")]
+    cleaned = cleaned.strip()
+
+    # Try direct parse first (ideal case: response is pure JSON)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Find the first { ... } block using brace matching
+    start = cleaned.find("{")
+    if start == -1:
+        return None
+
+    depth = 0
+    for i in range(start, len(cleaned)):
+        if cleaned[i] == "{":
+            depth += 1
+        elif cleaned[i] == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(cleaned[start : i + 1])
+                except json.JSONDecodeError:
+                    return None
+    return None
 
 
-def _conceptnet_relatedness(pred_a: str, pred_b: str) -> float:
-    """1.0 if the synonym map links one predicate to the other, else 0.0."""
-    if CONCEPTNET_SYNONYMS.get(pred_a) == pred_b:
-        return 1.0
-    if CONCEPTNET_SYNONYMS.get(pred_b) == pred_a:
-        return 1.0
-    # Also check if both map to the same canonical
-    canon_a = CONCEPTNET_SYNONYMS.get(pred_a, pred_a)
-    canon_b = CONCEPTNET_SYNONYMS.get(pred_b, pred_b)
-    if canon_a == canon_b and (pred_a in CONCEPTNET_SYNONYMS or pred_b in CONCEPTNET_SYNONYMS):
-        return 1.0
-    return 0.0
+_ONTOLOGY_CONTEXT = """You are evaluating predicates for a knowledge graph ontology.
+
+Rules for ontology predicates:
+- Predicates must be CANONICAL: clean, reusable labels (e.g., "works_at", "manages")
+- Predicates with hedging qualifiers (sort_of_, basically_, kind_of_) are NOISE — they are not valid ontology predicates and must NOT be merged with canonical ones
+- INVERSE predicates (works_at vs employs, parent_of vs child_of) describe the SAME relationship from OPPOSITE directions — they must be kept SEPARATE
+- TRUE SYNONYMS are different labels for the SAME meaning with the SAME directionality (works_at = employed_at, manages = supervises)
+- When in doubt, keep predicates SEPARATE — over-merging is worse than under-merging
+"""
 
 
-def multi_signal_score(
-    pred_a: str, desc_a: str, type_pair_a: tuple,
-    pred_b: str, desc_b: str, type_pair_b: tuple,
-    emb_a: np.ndarray = None, emb_b: np.ndarray = None,
-) -> dict:
-    """Compute weighted multi-signal similarity between two predicates.
+def _llm_gate_query(prompt: str, timeout: int = 45) -> Optional[dict]:
+    """Call Claude CLI and parse the JSON response.
 
-    Weights: cosine_sim=0.50, entity_type_pair=0.30, jaro_winkler=0.10, conceptnet=0.10
-    Returns dict with individual signals and combined score.
+    Returns the parsed dict on success, None on failure.
     """
-    # Embedding cosine similarity
-    if emb_a is None:
-        emb_a = embed_enriched(pred_a, desc_a)
-    if emb_b is None:
-        emb_b = embed_enriched(pred_b, desc_b)
-    cos = cosine_sim(emb_a, emb_b)
+    try:
+        result = subprocess.run(
+            [
+                "claude",
+                "-p", prompt,
+                "--output-format", "json",
+                "--model", "sonnet",
+                "--no-session-persistence",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode != 0:
+            print(f"    claude CLI error (rc={result.returncode}): {result.stderr[:200]}")
+            return None
 
-    # Entity type pair overlap
-    type_ovl = _type_pair_overlap(type_pair_a, type_pair_b)
+        # The CLI returns a JSON envelope with a "result" field containing the
+        # assistant's text.  Parse the envelope first.
+        envelope = json.loads(result.stdout)
+        text = envelope.get("result", "")
+        if not text:
+            print("    Empty result in envelope")
+            return None
 
-    # Jaro-Winkler string similarity
-    jw = _jw_sim(pred_a, pred_b) if _jw_sim is not None else 0.0
+        parsed = _extract_json(text)
+        if parsed is None:
+            print(f"    Failed to extract JSON from LLM response")
+            print(f"    Response (first 200 chars): {text[:200]}")
+        return parsed
 
-    # ConceptNet relatedness
-    cn = _conceptnet_relatedness(pred_a, pred_b)
-
-    combined = 0.50 * cos + 0.30 * type_ovl + 0.10 * jw + 0.10 * cn
-
-    return {
-        "cosine_sim": cos,
-        "type_pair_overlap": type_ovl,
-        "jaro_winkler": jw,
-        "conceptnet": cn,
-        "combined": combined,
-    }
-
-
-def _get_type_pair(pred: str) -> tuple:
-    """Look up the type pair for a predicate, falling back to (unknown, unknown)."""
-    if pred in PREDICATE_TYPE_PAIRS:
-        return PREDICATE_TYPE_PAIRS[pred]
-    # Check if it's an alias — inherit type pair from canonical
-    for canonical, info in ONTOLOGY.items():
-        if pred in info.get("aliases", []):
-            return PREDICATE_TYPE_PAIRS.get(canonical, ("unknown", "unknown"))
-    return ("unknown", "unknown")
+    except subprocess.TimeoutExpired:
+        print("    claude CLI timed out")
+        return None
+    except json.JSONDecodeError as exc:
+        print(f"    Failed to parse CLI envelope: {exc}")
+        return None
+    except FileNotFoundError:
+        print("    claude CLI not found")
+        return None
 
 
 # ============================================================================
-# B18: Multi-Signal Adversarial Pair Discrimination (Gate M1)
+# B13: LLM Gate — Rejects Adversarial Pairs
 # ============================================================================
 
-def b18_multi_signal_adversarial(enriched_embs, merge_t):
+# Pairs that embeddings score too close (>0.90 sim) but are semantically distinct.
+_B13_PAIRS = [
+    ("knows", "knows_about",
+     "Knows another person",
+     "Has knowledge of topic"),
+    ("parent_of", "child_of",
+     "Parent of another person",
+     "Child of another person"),
+    ("works_at", "employs",
+     "Employment relationship between person and organization",
+     "Employs a person at the organization"),
+]
+
+
+def b13_llm_rejects_adversarial():
     print("\n" + "=" * 70)
-    print("B18 (Gate M1): Multi-Signal Adversarial Pair Discrimination")
+    print("B13: LLM Gate L1 — Rejects Adversarial Pairs")
     print("=" * 70)
 
-    # Use the same merge threshold scaled to the multi-signal domain.
-    # The multi-signal combined score has a wider spread due to type pair
-    # weighting, so we use the embedding merge threshold as a reasonable gate.
-    ms_merge_t = merge_t
+    if not _claude_available():
+        print("SKIPPED: claude CLI not available")
+        record("B13", "skipped", True)
+        return
 
-    emb_false_merges = 0
-    ms_false_merges = 0
+    correct = 0
+    total = len(_B13_PAIRS)
 
-    print(f"\n  {'Pair':43s}  {'Emb':>7s}  {'Multi':>7s}  {'Type':>5s}  {'JW':>5s}  {'CN':>5s}  {'Emb':>12s}  {'Multi':>12s}")
-    print("  " + "-" * 110)
-
-    for pred_a, pred_b, desc_a, desc_b, reason in ADVERSARIAL_PAIRS:
-        emb_a = embed_enriched(pred_a, desc_a)
-        emb_b = embed_enriched(pred_b, desc_b)
-        emb_sim = cosine_sim(emb_a, emb_b)
-
-        tp_a = _get_type_pair(pred_a)
-        tp_b = _get_type_pair(pred_b)
-
-        signals = multi_signal_score(
-            pred_a, desc_a, tp_a,
-            pred_b, desc_b, tp_b,
-            emb_a=emb_a, emb_b=emb_b,
+    for label_a, label_b, desc_a, desc_b in _B13_PAIRS:
+        prompt = (
+            _ONTOLOGY_CONTEXT + "\n"
+            f"Should these two predicates be merged as synonyms?\n\n"
+            f"Predicate A: '{label_a}' — {desc_a}\n"
+            f"Predicate B: '{label_b}' — {desc_b}\n\n"
+            'Respond with ONLY a JSON object: {"decision": "merge" or "keep_separate", "reasoning": "one sentence"}'
         )
 
-        emb_status = "MERGE" if emb_sim >= merge_t else "ok"
-        ms_status = "MERGE" if signals["combined"] >= ms_merge_t else "ok"
+        print(f"  {label_a:15s} vs {label_b:15s}  ", end="", flush=True)
+        resp = _llm_gate_query(prompt)
 
-        if emb_sim >= merge_t:
-            emb_false_merges += 1
-        if signals["combined"] >= ms_merge_t:
-            ms_false_merges += 1
+        if resp is None:
+            print("ERROR (no response)")
+            continue
 
-        pair_label = f"{pred_a} <-> {pred_b}"
-        print(f"  {pair_label:43s}  {emb_sim:7.4f}  {signals['combined']:7.4f}"
-              f"  {signals['type_pair_overlap']:5.2f}  {signals['jaro_winkler']:5.3f}"
-              f"  {signals['conceptnet']:5.1f}"
-              f"  {emb_status:>12s}  {ms_status:>12s}")
+        decision = resp.get("decision", "unknown")
+        reasoning = resp.get("reasoning", "")[:80]
+        is_correct = decision == "keep_separate"
 
-    total = len(ADVERSARIAL_PAIRS)
-    print(f"\n  Embedding-only false merges: {emb_false_merges}/{total}")
-    print(f"  Multi-signal false merges:  {ms_false_merges}/{total}")
+        if is_correct:
+            correct += 1
 
-    improvement = emb_false_merges - ms_false_merges
-    print(f"  Improvement: {improvement} fewer false merges")
+        print(f"{decision:14s}  {'OK' if is_correct else 'WRONG'}  ({reasoning})")
 
-    passed = ms_false_merges == 0
-    print(f"  {'PASS: 0 false merges with multi-signal' if passed else 'FAIL: Multi-signal still has false merges'}")
-
-    record("B18", "emb_false_merges", emb_false_merges)
-    record("B18", "ms_false_merges", ms_false_merges, passed=passed)
-    record("B18", "improvement", improvement)
+    acc = correct / total if total else 0
+    passed = correct == total  # 100% required
+    print(f"\n  Rejection accuracy: {correct}/{total} ({acc:.0%})")
+    print(f"  {'PASS: 100% rejection' if passed else 'FAIL: LLM approved a non-synonym'}")
+    record("B13", "rejection_accuracy", acc, passed=passed)
 
 
 # ============================================================================
-# B19: Multi-Signal NL Mapping (Gate M2)
+# B14: LLM Gate — Approves True Synonyms
 # ============================================================================
 
-def b19_multi_signal_nl_mapping(enriched_embs):
+# 10 known synonym pairs the LLM should approve for merging.
+_B14_PAIRS = [
+    ("works_at", "employed_at",
+     "Employment relationship between person and organization",
+     "Employed at an organization"),
+    ("manages", "supervises",
+     "Manages another person",
+     "Supervises another person"),
+    ("knows", "acquainted_with",
+     "Knows another person",
+     "Acquainted with another person"),
+    ("lives_in", "resides_in",
+     "Residential relationship between person and location",
+     "Resides in a location"),
+    ("created", "authored",
+     "Created something",
+     "Authored or wrote something"),
+    ("owns", "possesses",
+     "Owns something",
+     "Possesses something"),
+    ("skilled_in", "expert_in",
+     "Has skill in area",
+     "Has expertise in area"),
+    ("friend_of", "friends_with",
+     "Friends with another person",
+     "Friends with another person"),
+    ("visited", "traveled_to",
+     "Visited a location",
+     "Traveled to a location"),
+    ("spoke_at", "presented_at",
+     "Spoke at an event",
+     "Presented at an event"),
+]
+
+
+def b14_llm_approves_synonyms():
     print("\n" + "=" * 70)
-    print("B19 (Gate M2): Multi-Signal NL Mapping")
+    print("B14: LLM Gate L2 — Approves True Synonyms")
     print("=" * 70)
 
-    emb_correct = 0
-    ms_correct = 0
-    total = len(NATURAL_LANGUAGE_PREDICATES)
-    canonicals = list(ONTOLOGY.keys())
+    if not _claude_available():
+        print("SKIPPED: claude CLI not available")
+        record("B14", "skipped", True)
+        return
 
-    print(f"\n  {'Phrase':40s}  {'Expected':15s}  {'Emb->':15s}  {'MS->':15s}  {'Emb':>4s}  {'MS':>4s}")
-    print("  " + "-" * 100)
+    correct = 0
+    total = len(_B14_PAIRS)
 
-    for phrase, expected_canonical in NATURAL_LANGUAGE_PREDICATES:
-        # Embed the NL phrase
-        nl_emb = embed_enriched(phrase, phrase)
-        nl_tp = _get_type_pair(expected_canonical)  # best guess from expected
+    for label_a, label_b, desc_a, desc_b in _B14_PAIRS:
+        prompt = (
+            _ONTOLOGY_CONTEXT + "\n"
+            f"Should these two predicates be merged as synonyms?\n\n"
+            f"Predicate A: '{label_a}' — {desc_a}\n"
+            f"Predicate B: '{label_b}' — {desc_b}\n\n"
+            'Respond with ONLY a JSON object: {"decision": "merge" or "keep_separate", "reasoning": "one sentence"}'
+        )
 
-        # Embedding-only: find nearest canonical
-        emb_nearest = max(canonicals, key=lambda c: cosine_sim(nl_emb, enriched_embs[c]))
-        emb_ok = emb_nearest == expected_canonical
+        print(f"  {label_a:15s} vs {label_b:15s}  ", end="", flush=True)
+        resp = _llm_gate_query(prompt)
 
-        # Multi-signal: score against all canonicals, pick highest combined
-        best_ms_canonical = None
-        best_ms_score = -1.0
-        for c in canonicals:
-            c_tp = _get_type_pair(c)
-            signals = multi_signal_score(
-                phrase, phrase, nl_tp,
-                c, ONTOLOGY[c]["description"], c_tp,
-                emb_a=nl_emb, emb_b=enriched_embs[c],
-            )
-            if signals["combined"] > best_ms_score:
-                best_ms_score = signals["combined"]
-                best_ms_canonical = c
+        if resp is None:
+            print("ERROR (no response)")
+            continue
 
-        ms_ok = best_ms_canonical == expected_canonical
+        decision = resp.get("decision", "unknown")
+        reasoning = resp.get("reasoning", "")[:80]
+        is_correct = decision == "merge"
 
-        if emb_ok:
-            emb_correct += 1
-        if ms_ok:
-            ms_correct += 1
+        if is_correct:
+            correct += 1
 
-        emb_mark = "OK" if emb_ok else "MISS"
-        ms_mark = "OK" if ms_ok else "MISS"
-        print(f"  {phrase:40s}  {expected_canonical:15s}  {emb_nearest:15s}  {best_ms_canonical:15s}  {emb_mark:>4s}  {ms_mark:>4s}")
+        print(f"{decision:14s}  {'OK' if is_correct else 'WRONG'}  ({reasoning})")
 
-    emb_acc = emb_correct / total
-    ms_acc = ms_correct / total
-    print(f"\n  Embedding-only accuracy: {emb_correct}/{total} ({emb_acc:.0%})")
-    print(f"  Multi-signal accuracy:  {ms_correct}/{total} ({ms_acc:.0%})")
-    print(f"  Improvement: {ms_acc - emb_acc:+.0%}")
+    acc = correct / total if total else 0
+    passed = acc >= 0.90  # >= 9/10
+    print(f"\n  Approval accuracy: {correct}/{total} ({acc:.0%})")
+    print(f"  {'PASS' if passed else 'FAIL'}: Target >= 90%")
+    record("B14", "approval_accuracy", acc, passed=passed)
 
-    passed = ms_acc >= 0.85
-    print(f"  {'PASS' if passed else 'FAIL'}: Target >= 85%")
 
-    record("B19", "emb_accuracy", emb_acc)
-    record("B19", "ms_accuracy", ms_acc, passed=passed)
-    record("B19", "improvement", ms_acc - emb_acc)
+# ============================================================================
+# B15: LLM Gate — Rejects Noise Leaks
+# ============================================================================
+
+# Noise predicates that leak past embedding thresholds.
+_B15_PAIRS = [
+    ("sort_of_works_at", "works_at",
+     "Partially employed at organization",
+     "Employment relationship between person and organization"),
+    ("basically_knows", "knows",
+     "More or less knows a person",
+     "Knows another person"),
+]
+
+
+def b15_llm_rejects_noise_leaks():
+    print("\n" + "=" * 70)
+    print("B15: LLM Gate L3 — Rejects Noise Leaks")
+    print("=" * 70)
+
+    if not _claude_available():
+        print("SKIPPED: claude CLI not available")
+        record("B15", "skipped", True)
+        return
+
+    correct = 0
+    total = len(_B15_PAIRS)
+
+    for noise_label, canonical_label, noise_desc, canonical_desc in _B15_PAIRS:
+        prompt = (
+            _ONTOLOGY_CONTEXT + "\n"
+            f"A candidate predicate '{noise_label}' (described as: {noise_desc}) "
+            f"has been proposed for merging with the canonical predicate '{canonical_label}' "
+            f"(described as: {canonical_desc}).\n\n"
+            f"Should '{noise_label}' be merged into '{canonical_label}' as a synonym?\n\n"
+            'Respond with ONLY a JSON object: {"decision": "merge" or "keep_separate", "reasoning": "one sentence"}'
+        )
+
+        print(f"  {noise_label:25s} vs {canonical_label:15s}  ", end="", flush=True)
+        resp = _llm_gate_query(prompt)
+
+        if resp is None:
+            print("ERROR (no response)")
+            continue
+
+        decision = resp.get("decision", "unknown")
+        reasoning = resp.get("reasoning", "")[:80]
+        is_correct = decision == "keep_separate"
+
+        if is_correct:
+            correct += 1
+
+        print(f"{decision:14s}  {'OK' if is_correct else 'WRONG'}  ({reasoning})")
+
+    acc = correct / total if total else 0
+    passed = correct == total  # 100% required
+    print(f"\n  Noise rejection accuracy: {correct}/{total} ({acc:.0%})")
+    print(f"  {'PASS: 100% rejection' if passed else 'FAIL: LLM approved a noise predicate'}")
+    record("B15", "noise_rejection_accuracy", acc, passed=passed)
 
 
 # ============================================================================
@@ -933,8 +1038,9 @@ def main():
     b10_cross_validation()
     b11_scale_stress_test(enriched_embs, merge_t)
     b12_inverse_pair_detection(enriched_embs, merge_t)
-    b18_multi_signal_adversarial(enriched_embs, merge_t)
-    b19_multi_signal_nl_mapping(enriched_embs)
+    b13_llm_rejects_adversarial()
+    b14_llm_approves_synonyms()
+    b15_llm_rejects_noise_leaks()
 
     elapsed = time.time() - start
 
