@@ -35,18 +35,12 @@ export const CANONICAL_ONTOLOGY: Record<string, {
 }> = {
   // Professional relationships
   works_at: {
-    description: 'Currently employed at organization',
+    description: 'Employment relationship between person and organization',
+    inverse: 'employs',
     type: 'employment',
     exclusive: true,
     category: 'professional',
-    aliases: ['employed_at', 'works_for', 'employee_of', 'working_at'],
-  },
-  worked_at: {
-    description: 'Previously employed at organization',
-    type: 'employment',
-    exclusive: false,
-    category: 'professional',
-    aliases: ['formerly_at', 'ex_employee_of', 'used_to_work_at'],
+    aliases: ['employed_at', 'works_for', 'employee_of', 'working_at', 'worked_at', 'formerly_at', 'ex_employee_of', 'used_to_work_at'],
   },
   manages: {
     description: 'Manages another person',
@@ -80,6 +74,7 @@ export const CANONICAL_ONTOLOGY: Record<string, {
   },
   member_of: {
     description: 'Member of organization/group',
+    inverse: 'has_member',
     type: 'membership',
     exclusive: false,
     category: 'professional',
@@ -89,6 +84,7 @@ export const CANONICAL_ONTOLOGY: Record<string, {
   // Personal relationships
   knows: {
     description: 'Knows another person',
+    inverse: 'known_by',
     type: 'social',
     exclusive: false,
     category: 'personal',
@@ -134,18 +130,11 @@ export const CANONICAL_ONTOLOGY: Record<string, {
 
   // Location relationships
   lives_in: {
-    description: 'Currently lives in location',
+    description: 'Residential relationship between person and location',
     type: 'residence',
     exclusive: true,
     category: 'location',
-    aliases: ['resides_in', 'based_in', 'located_in', 'living_in'],
-  },
-  lived_in: {
-    description: 'Previously lived in location',
-    type: 'residence',
-    exclusive: false,
-    category: 'location',
-    aliases: ['formerly_in', 'used_to_live_in'],
+    aliases: ['resides_in', 'based_in', 'located_in', 'living_in', 'lived_in', 'formerly_in', 'used_to_live_in'],
   },
   born_in: {
     description: 'Born in location',
@@ -181,6 +170,7 @@ export const CANONICAL_ONTOLOGY: Record<string, {
   // Creation/Ownership
   created: {
     description: 'Created something',
+    inverse: 'created_by',
     type: 'creation',
     exclusive: false,
     category: 'creation',
@@ -188,6 +178,7 @@ export const CANONICAL_ONTOLOGY: Record<string, {
   },
   owns: {
     description: 'Owns something',
+    inverse: 'owned_by',
     type: 'ownership',
     exclusive: false,
     category: 'creation',

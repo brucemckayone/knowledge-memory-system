@@ -25,7 +25,7 @@ KNOWN ENTITIES (use these exact names when they match):
 Rules:
 1. Extract factual relationships, not opinions
 2. Use entities from the known list when they match mentions
-3. Predicates should be lowercase verbs/verb phrases (works_at, knows, manages, created, etc.)
+3. Predicates should be BASE FORM only (works_at, lives_in, knows). Do NOT use past tense forms (worked_at, lived_in). Use temporal_hint for tense instead.
 4. Include temporal hints when available (currently, used to, since 2020)
 5. Rate confidence based on how explicit the relationship is
 
@@ -43,7 +43,7 @@ Return raw JSON array only. Do not wrap in markdown code fences:
 
 Example relationships:
 - "John works at Acme Corp" -> {{"subject": "John", "predicate": "works_at", "object": "Acme Corp", "confidence": 0.9}}
-- "She used to live in NYC" -> {{"subject": "She", "predicate": "lived_in", "object": "NYC", "temporal_hint": "past"}}
+- "She used to live in NYC" -> {{"subject": "She", "predicate": "lives_in", "object": "NYC", "temporal_hint": "past"}}
 - "The project was created by the team" -> {{"subject": "team", "predicate": "created", "object": "project"}}
 
 Return [] if no relationships found.
@@ -54,7 +54,7 @@ RELATIONSHIP_PATTERNS = [
     # Employment
     (r'(\w+(?:\s+\w+)?)\s+works?\s+(?:at|for)\s+(\w+(?:\s+\w+)*)', 'works_at', 'current'),
     (r'(\w+(?:\s+\w+)?)\s+is\s+(?:employed|working)\s+(?:at|by)\s+(\w+(?:\s+\w+)*)', 'works_at', 'current'),
-    (r'(\w+(?:\s+\w+)?)\s+(?:used\s+to\s+work|worked|formerly)\s+(?:at|for)\s+(\w+(?:\s+\w+)*)', 'worked_at', 'past'),
+    (r'(\w+(?:\s+\w+)?)\s+(?:used\s+to\s+work|worked|formerly)\s+(?:at|for)\s+(\w+(?:\s+\w+)*)', 'works_at', 'past'),
 
     # Roles
     (r'(\w+(?:\s+\w+)?)\s+is\s+(?:the\s+)?(?:CEO|ceo|founder|CTO|manager)\s+(?:of|at)\s+(\w+(?:\s+\w+)*)', 'role_at', 'current'),
