@@ -28,6 +28,7 @@ Rules:
 3. Predicates should be BASE FORM only (works_at, lives_in, knows). Do NOT use past tense forms (worked_at, lived_in). Use temporal_hint for tense instead.
 4. Include temporal hints when available (currently, used to, since 2020)
 5. Rate confidence based on how explicit the relationship is
+{predicate_guidance}
 
 Return raw JSON array only. Do not wrap in markdown code fences:
 [
@@ -93,6 +94,7 @@ class ExtractedEntity(BaseModel):
 class ExtractRelationshipsRequest(BaseModel):
     content: str
     entities: List[ExtractedEntity] = []
+    valid_predicates: Optional[List[str]] = None  # Dynamic predicates from platform
 
 
 class Relationship(BaseModel):
@@ -197,9 +199,17 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
     try:
         entity_list = ", ".join([e.name for e in entities]) if entities else "none known"
 
+        # Build predicate guidance for prompt
+        if request.valid_predicates:
+            predicate_list = ', '.join(request.valid_predicates)
+            predicate_guidance = f"\nPreferred predicates (use these when applicable): {predicate_list}\n"
+        else:
+            predicate_guidance = ""
+
         prompt = EXTRACT_RELATIONSHIPS_PROMPT.format(
             content=content[:2000],
             entities=entity_list,
+            predicate_guidance=predicate_guidance,
         )
 
         raw_rels = llm_client.generate_json(

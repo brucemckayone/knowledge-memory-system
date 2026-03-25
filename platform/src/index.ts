@@ -11,6 +11,8 @@ import { registerCoreSkills } from './skills/index.js';
 import { initController } from './gardener/controller.js';
 import { registerAgents } from './gardener/agents/index.js';
 import { ingestApi } from './routes/ingest.js';
+import { rawQuery } from './db/raw.js';
+import { sql } from 'drizzle-orm';
 
 const app = new Hono();
 
@@ -373,6 +375,64 @@ app.post('/api/insights/:id/dismiss', async (c) => {
   } catch (error) {
     console.error('Dismiss insight error:', error);
     return c.json({ error: 'Failed to dismiss insight' }, 500);
+  }
+});
+
+// ============================
+// API: Ontology Evolution Stats
+// ============================
+app.get('/api/ontology/stats', async (c) => {
+  try {
+    const stats = await rawQuery<{
+      status: string;
+      count: number;
+    }>(sql`
+      SELECT status, COUNT(*) as count
+      FROM fact_predicates
+      GROUP BY status
+    `);
+
+    const recentPromotions = await rawQuery<{
+      predicate: string;
+      promotedAt: Date;
+      usageCount: number;
+    }>(sql`
+      SELECT predicate, promoted_at, usage_count
+      FROM fact_predicates
+      WHERE promoted_at IS NOT NULL
+      ORDER BY promoted_at DESC
+      LIMIT 10
+    `);
+
+    const recentRejections = await rawQuery<{
+      predicate: string;
+      rejectedAt: Date;
+      rejectionReason: string;
+    }>(sql`
+      SELECT predicate, rejected_at, rejection_reason
+      FROM fact_predicates
+      WHERE rejected_at IS NOT NULL
+      ORDER BY rejected_at DESC
+      LIMIT 10
+    `);
+
+    const entityTypeStats = await rawQuery<{
+      name: string;
+      status: string;
+    }>(sql`
+      SELECT name, status FROM entity_types ORDER BY name
+    `);
+
+    return c.json({
+      predicates: {
+        byStatus: Object.fromEntries(stats.map(s => [s.status, s.count])),
+        recentPromotions,
+        recentRejections,
+      },
+      entityTypes: entityTypeStats,
+    });
+  } catch (error) {
+    return c.json({ error: 'Failed to fetch ontology stats' }, 500);
   }
 });
 

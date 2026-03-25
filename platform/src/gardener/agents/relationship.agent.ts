@@ -12,6 +12,9 @@ import { getMemoryEntities } from '../../services/entities.js';
 import { ml, MlClientError } from '../../services/ml-client.js';
 import { getMemory } from '../../services/qdrant.js';
 import { PayloadError, MlServiceError, AgentError } from '../errors.js';
+import { db } from '../../db/index.js';
+import { factPredicates } from '../../db/schema.js';
+import { eq, or } from 'drizzle-orm';
 
 interface RelationshipPayload {
   memoryId: string;
@@ -76,8 +79,18 @@ export const relationshipAgent: GardenerAgent = {
         };
       }
 
+      // Load current canonical predicates for extraction guidance
+      const predicateRows = await db
+        .select({ predicate: factPredicates.predicate })
+        .from(factPredicates)
+        .where(or(
+          eq(factPredicates.status, 'canonical'),
+          eq(factPredicates.status, 'provisional')
+        ));
+      const validPredicates = predicateRows.map(r => r.predicate);
+
       // Call ML service for relationship extraction
-      const relationships = await extractRelationships(content, entities);
+      const relationships = await extractRelationships(content, entities, validPredicates);
 
       log(`Found ${relationships.length} relationships`);
 
@@ -203,12 +216,14 @@ export const relationshipAgent: GardenerAgent = {
  */
 async function extractRelationships(
   content: string,
-  entities: Array<{ name: string; type: string }>
+  entities: Array<{ name: string; type: string }>,
+  validPredicates?: string[]
 ): Promise<ExtractedRelationship[]> {
   try {
     const data = await ml.extractRelationships(
       content,
       entities.map(e => ({ name: e.name, type: e.type })),
+      validPredicates,
     );
     return data.relationships || [];
   } catch (error) {

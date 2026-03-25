@@ -281,8 +281,12 @@ export const ml = {
     }, 30_000);
   },
 
-  extractRelationships(content: string, entities: Array<{ name: string; type?: string }>) {
-    return mlFetch<ExtractRelationshipsResponse>('/extract-relationships', { content, entities }, 30_000);
+  extractRelationships(content: string, entities: Array<{ name: string; type?: string }>, validPredicates?: string[]) {
+    return mlFetch<ExtractRelationshipsResponse>('/extract-relationships', {
+      content,
+      entities,
+      ...(validPredicates ? { valid_predicates: validPredicates } : {}),
+    }, 30_000);
   },
 
   checkContradiction(fact1: unknown, fact2: unknown) {
