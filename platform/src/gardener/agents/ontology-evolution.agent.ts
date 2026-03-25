@@ -143,23 +143,107 @@ export const ontologyEvolutionAgent: GardenerAgent = {
         }
 
         // =============================================
-        // Step 3: LLM verification via /compare-predicates
+        // Step 3: Embedding layer — multi-signal scoring
         // =============================================
-        // Find the nearest canonical predicate by description
-        let nearestCanonical: string | null = null;
-
-        // Compare against all canonicals via ML service
         const canonicals = Object.keys(CANONICAL_ONTOLOGY);
         const desc = candidate.description || predicate.replace(/_/g, ' ');
+        const enrichedPrompt = `clustering: The relationship '${predicate}' describes ${desc.toLowerCase()}`;
 
-        // Find the most relevant canonical to compare against
-        // Use the first canonical in the same category if available
-        for (const canonical of canonicals) {
-          // Simple heuristic: compare against all, let the LLM decide
-          nearestCanonical = canonical;
-          break;
+        let candidateEmbedding: number[];
+        try {
+          const embedResult = await services.ml.embed(enrichedPrompt);
+          candidateEmbedding = embedResult.vector || [];
+        } catch {
+          log(`  Embedding failed for ${predicate} — deferring to LLM`, 'warn');
+          candidateEmbedding = [];
         }
 
+        // Score against all canonicals
+        const MERGE_THRESHOLD = 0.905;
+        const DISTINCT_THRESHOLD = 0.848;
+
+        let bestCanonical = '';
+        let bestScore = -1;
+
+        if (candidateEmbedding.length > 0) {
+          for (const canonical of canonicals) {
+            const canonicalInfo = CANONICAL_ONTOLOGY[canonical];
+            if (!canonicalInfo) continue;
+
+            const canonicalPrompt = `clustering: The relationship '${canonical}' describes ${canonicalInfo.description.toLowerCase()}`;
+
+            let canonicalEmbedding: number[];
+            try {
+              const embedResult = await services.ml.embed(canonicalPrompt);
+              canonicalEmbedding = embedResult.vector || [];
+            } catch {
+              continue;
+            }
+
+            if (canonicalEmbedding.length === 0) continue;
+
+            // Cosine similarity
+            const dotProduct = candidateEmbedding.reduce((sum, v, i) => sum + v * (canonicalEmbedding[i] || 0), 0);
+            const magA = Math.sqrt(candidateEmbedding.reduce((s, v) => s + v * v, 0));
+            const magB = Math.sqrt(canonicalEmbedding.reduce((s, v) => s + v * v, 0));
+            const cosineSim = magA > 0 && magB > 0 ? dotProduct / (magA * magB) : 0;
+
+            // Multi-signal: cosine 0.50 + type_pair 0.30 + jaro_winkler 0.10 + conceptnet 0.10
+            // For now, use cosine similarity as the primary signal
+            // (type pair and conceptnet require additional data not available in this context)
+            const score = cosineSim;
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestCanonical = canonical;
+            }
+          }
+        }
+
+        // Route based on threshold zones
+        if (bestScore >= MERGE_THRESHOLD && bestCanonical) {
+          // Auto-merge — embedding confidence is high enough
+          log(`  Embedding auto-merge: ${predicate} → ${bestCanonical} (score: ${bestScore.toFixed(4)})`);
+
+          await db.execute(sql`
+            UPDATE facts SET predicate = ${bestCanonical}
+            WHERE predicate = ${predicate} AND expired_at IS NULL
+          `);
+
+          await db.execute(sql`
+            UPDATE fact_predicates
+            SET aliases = array_append(COALESCE(aliases, ARRAY[]::text[]), ${predicate})
+            WHERE predicate = ${bestCanonical}
+              AND NOT (${predicate} = ANY(COALESCE(aliases, ARRAY[]::text[])))
+          `);
+
+          await db.update(factPredicates)
+            .set({ status: 'canonical' })
+            .where(eq(factPredicates.predicate, predicate));
+
+          merged++;
+          reviewed.add(predicate);
+          continue;
+        } else if (bestScore < DISTINCT_THRESHOLD || candidateEmbedding.length === 0) {
+          // Clearly distinct OR no embedding available — promote as genuinely novel
+          if (candidateEmbedding.length === 0) {
+            log(`  No embedding — sending to LLM gate`);
+            // Fall through to LLM
+          } else {
+            log(`  Clearly distinct from all canonicals (best: ${bestCanonical} at ${bestScore.toFixed(4)}) — promoting`);
+            await db.update(factPredicates)
+              .set({ status: 'provisional', promotedAt: new Date() })
+              .where(eq(factPredicates.predicate, predicate));
+            promoted++;
+            reviewed.add(predicate);
+            continue;
+          }
+        }
+
+        // =============================================
+        // Step 4: LLM Gate — review zone (0.848-0.905) or embedding fallback
+        // =============================================
+        const nearestCanonical = bestCanonical || canonicals[0] || '';
         if (nearestCanonical) {
           const canonicalDesc = CANONICAL_ONTOLOGY[nearestCanonical]?.description || nearestCanonical;
 
@@ -170,9 +254,8 @@ export const ontologyEvolutionAgent: GardenerAgent = {
             );
 
             if (result.decision === 'merge') {
-              log(`  LLM merge: ${predicate} -> ${nearestCanonical} (${result.reasoning})`);
+              log(`  LLM merge: ${predicate} → ${nearestCanonical} (${result.reasoning})`);
 
-              // Merge into canonical
               await db.execute(sql`
                 UPDATE facts SET predicate = ${nearestCanonical}
                 WHERE predicate = ${predicate} AND expired_at IS NULL
@@ -191,24 +274,16 @@ export const ontologyEvolutionAgent: GardenerAgent = {
               merged++;
             } else if (result.decision === 'keep_separate') {
               if (result.confidence >= 0.8) {
-                // High confidence novel -- promote to provisional
-                log(`  Promote: ${predicate} -> provisional (${result.reasoning})`);
-
+                log(`  Promote: ${predicate} → provisional (${result.reasoning})`);
                 await db.update(factPredicates)
-                  .set({
-                    status: 'provisional',
-                    promotedAt: new Date(),
-                  })
+                  .set({ status: 'provisional', promotedAt: new Date() })
                   .where(eq(factPredicates.predicate, predicate));
-
                 promoted++;
               } else {
-                // Low confidence -- defer for more evidence
                 log(`  Defer: ${predicate} (confidence: ${result.confidence})`);
                 deferred++;
               }
             } else {
-              // Defer
               log(`  Defer: ${predicate}`);
               deferred++;
             }
@@ -229,7 +304,7 @@ export const ontologyEvolutionAgent: GardenerAgent = {
       }
 
       // =============================================
-      // Step 4: Check provisional predicates for promotion/demotion
+      // Step 5: Provisional lifecycle management — promotion/demotion
       // =============================================
       const provisionals = await db
         .select()
