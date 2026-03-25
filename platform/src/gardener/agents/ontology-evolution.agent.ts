@@ -18,6 +18,9 @@ import { db } from '../../db/index.js';
 import { factPredicates } from '../../db/schema.js';
 import { eq, and, sql, gte } from 'drizzle-orm';
 import { normalizePredicate, CANONICAL_ONTOLOGY } from '../../services/predicates.js';
+// Re-export for use when entity type promotion is implemented
+// @ts-expect-error TS6133 — import used in future entity type promotion logic (see TODO below)
+import { invalidateEntityTypeCache } from '../../services/entities.js';
 
 const MIN_USAGE_THRESHOLD = 3;      // Minimum occurrences before review
 const PROVISIONAL_PERIOD_DAYS = 14; // 2-week probation
@@ -120,27 +123,47 @@ export const ontologyEvolutionAgent: GardenerAgent = {
         }
 
         // =============================================
+        // Step 2b: Inverse registry check — don't merge inverses
+        // =============================================
+        const inverseMatch = await db
+          .select({ predicate: factPredicates.predicate })
+          .from(factPredicates)
+          .where(eq(factPredicates.inversePredicate, predicate))
+          .limit(1);
+
+        if (inverseMatch.length > 0) {
+          log(`  Inverse of '${inverseMatch[0]!.predicate}' — keeping separate`);
+          // Promote as a separate predicate (it's the inverse direction)
+          await db.update(factPredicates)
+            .set({ status: 'provisional', promotedAt: new Date() })
+            .where(eq(factPredicates.predicate, predicate));
+          promoted++;
+          reviewed.add(predicate);
+          continue;
+        }
+
+        // =============================================
         // Step 3: LLM verification via /compare-predicates
         // =============================================
         // Find the nearest canonical predicate by description
         let nearestCanonical: string | null = null;
 
-        try {
-          // Compare against all canonicals via ML service
-          const canonicals = Object.keys(CANONICAL_ONTOLOGY);
-          const desc = candidate.description || predicate.replace(/_/g, ' ');
+        // Compare against all canonicals via ML service
+        const canonicals = Object.keys(CANONICAL_ONTOLOGY);
+        const desc = candidate.description || predicate.replace(/_/g, ' ');
 
-          // Find the most relevant canonical to compare against
-          // Use the first canonical in the same category if available
-          for (const canonical of canonicals) {
-            // Simple heuristic: compare against all, let the LLM decide
-            nearestCanonical = canonical;
-            break;
-          }
+        // Find the most relevant canonical to compare against
+        // Use the first canonical in the same category if available
+        for (const canonical of canonicals) {
+          // Simple heuristic: compare against all, let the LLM decide
+          nearestCanonical = canonical;
+          break;
+        }
 
-          if (nearestCanonical) {
-            const canonicalDesc = CANONICAL_ONTOLOGY[nearestCanonical]?.description || nearestCanonical;
+        if (nearestCanonical) {
+          const canonicalDesc = CANONICAL_ONTOLOGY[nearestCanonical]?.description || nearestCanonical;
 
+          try {
             const result = await services.ml.comparePredicate(
               predicate, desc,
               nearestCanonical, canonicalDesc
@@ -189,10 +212,12 @@ export const ontologyEvolutionAgent: GardenerAgent = {
               log(`  Defer: ${predicate}`);
               deferred++;
             }
+          } catch (error) {
+            log(`  ML service unavailable for ${predicate} — deferring`, 'warn');
+            deferred++;
+            reviewed.add(predicate);
+            continue;
           }
-        } catch (error) {
-          log(`  Error comparing ${predicate}: ${error}`, 'warn');
-          deferred++;
         }
 
         reviewed.add(predicate);
@@ -233,6 +258,11 @@ export const ontologyEvolutionAgent: GardenerAgent = {
           }
         }
       }
+
+      // TODO(KARMA-ENTITY-TYPES): When entity type promotion is implemented,
+      // call invalidateEntityTypeCache() here so extraction agents pick up
+      // newly promoted types immediately instead of waiting for cache TTL.
+      // Example: if (entityTypesPromoted > 0) invalidateEntityTypeCache();
 
       log(`Evolution complete: ${promoted} promoted, ${merged} merged, ${rejected} rejected, ${deferred} deferred`);
 

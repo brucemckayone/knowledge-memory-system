@@ -47,6 +47,15 @@ export async function getValidEntityTypes(): Promise<string[]> {
   return _cachedEntityTypes;
 }
 
+/**
+ * Invalidate the entity type cache.
+ * Call after promoting a new entity type so extraction agents pick it up immediately.
+ */
+export function invalidateEntityTypeCache(): void {
+  _cachedEntityTypes = null;
+  _cacheTime = 0;
+}
+
 export interface CreateEntityParams {
   name: string;
   type: EntityType;

@@ -33,6 +33,7 @@ TASK_DEFAULTS: Dict[str, Dict[str, str]] = {
     "reader":                {"model": "sonnet", "effort": "medium"},
     "parse_transcript":      {"model": "sonnet", "effort": "medium"},
     "resolve_entity":        {"model": "sonnet", "effort": "medium"},
+    "ontology":              {"model": "sonnet", "effort": "medium"},
     "chat":                  {"model": "sonnet", "effort": "medium"},
     "check_contradiction":   {"model": "opus",   "effort": "high"},
     "judge":                 {"model": "opus",   "effort": "high"},

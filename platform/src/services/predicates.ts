@@ -7,7 +7,8 @@
 
 import { db } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import { factPredicates } from '../db/schema.js';
 
 export interface PredicateInfo {
   predicate: string;
@@ -378,4 +379,61 @@ export async function recordPredicateUsage(predicate: string): Promise<void> {
         last_used_at = NOW()
     WHERE predicate = ${canonical}
   `);
+}
+
+/**
+ * Valid predicate status transitions.
+ * All other transitions are invalid and will throw.
+ */
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  staging: ['canonical', 'candidate'],
+  candidate: ['provisional', 'rejected'],
+  provisional: ['canonical', 'staging'],
+  rejected: ['staging'],
+  // canonical has no outbound transitions — once canonical, always canonical
+};
+
+/**
+ * Transition a predicate's status with validation.
+ * Throws if the transition is not allowed.
+ */
+export async function transitionPredicateStatus(
+  predicate: string,
+  toStatus: string,
+  extra?: Partial<{
+    promotedAt: Date;
+    rejectedAt: Date;
+    rejectionReason: string;
+  }>
+): Promise<void> {
+  // Get current status
+  const current = await db
+    .select({ status: factPredicates.status })
+    .from(factPredicates)
+    .where(eq(factPredicates.predicate, predicate))
+    .limit(1);
+
+  if (!current[0]) {
+    throw new Error(`Predicate '${predicate}' not found in fact_predicates`);
+  }
+
+  const fromStatus = current[0].status || 'staging';
+  const allowed = VALID_TRANSITIONS[fromStatus];
+
+  if (!allowed || !allowed.includes(toStatus)) {
+    throw new Error(
+      `Invalid status transition: '${fromStatus}' → '${toStatus}' for predicate '${predicate}'. ` +
+      `Allowed from '${fromStatus}': ${allowed?.join(', ') || 'none'}`
+    );
+  }
+
+  await db
+    .update(factPredicates)
+    .set({
+      status: toStatus,
+      ...(extra?.promotedAt ? { promotedAt: extra.promotedAt } : {}),
+      ...(extra?.rejectedAt ? { rejectedAt: extra.rejectedAt } : {}),
+      ...(extra?.rejectionReason ? { rejectionReason: extra.rejectionReason } : {}),
+    })
+    .where(eq(factPredicates.predicate, predicate));
 }

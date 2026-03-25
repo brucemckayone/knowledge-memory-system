@@ -69,7 +69,7 @@ async def compare_predicates(request: PredicateCompareRequest):
 
         result = llm_client.generate_json(
             prompt,
-            options={"task": "classify"},  # Use classify task defaults (fast model)
+            options={"task": "ontology"},  # Use ontology task defaults (Sonnet — Haiku scored 40% on synonym approval)
         )
 
         decision = result.get("decision", "defer")
