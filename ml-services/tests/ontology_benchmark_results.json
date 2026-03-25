@@ -1,0 +1,54 @@
+{
+  "elapsed": 21.832974910736084,
+  "results": {
+    "B1": {
+      "enriched_gap": 0.8260195545725713,
+      "enriched_gap_passed": "True"
+    },
+    "B2": {
+      "best_f1": 0.8713910761154856,
+      "best_f1_passed": true
+    },
+    "B3": {
+      "merge_threshold": 0.9064424080519139,
+      "distinct_threshold": 0.8523205828332816,
+      "clean_separation": true,
+      "clean_separation_passed": true
+    },
+    "B4": {
+      "accuracy": 1.0,
+      "accuracy_passed": true
+    },
+    "B5": {
+      "gap": 0.0655772650450559
+    },
+    "B6": {
+      "mapping_rate": 1.0,
+      "mapping_rate_passed": true
+    },
+    "B7": {
+      "false_merges": 5,
+      "false_merges_passed": false,
+      "in_llm_zone": 5
+    },
+    "B8": {
+      "merge_leaks": 2,
+      "merge_leaks_passed": false,
+      "auto_reject_rate": 0.6111111111111112,
+      "auto_reject_rate_passed": false
+    },
+    "B9": {
+      "accuracy": 0.7777777777777778,
+      "accuracy_passed": false
+    },
+    "B10": {
+      "mean_f1": 0.9847027708731634,
+      "mean_f1_passed": "True",
+      "std_f1": 0.00808116724882732
+    },
+    "B11": {
+      "threshold_drift": 0.005805949841574898,
+      "threshold_drift_passed": true
+    }
+  }
+}
