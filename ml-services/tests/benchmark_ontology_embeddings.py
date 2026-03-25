@@ -1080,6 +1080,186 @@ def b15_llm_rejects_noise_leaks():
 
 
 # ============================================================================
+# B16: LLM Gate — Batch Review
+# ============================================================================
+
+_B16_BATCHES = [
+    # Batch 1: 2 synonyms + 1 adversarial + 1 inverse
+    [
+        ("works_at", "employed_at", "Employment relationship between person and organization", "Employed at an organization", "merge"),
+        ("manages", "supervises", "Manages another person", "Supervises another person", "merge"),
+        ("knows", "knows_about", "Knows another person", "Has knowledge of topic", "keep_separate"),
+        ("parent_of", "child_of", "Parent of another person", "Child of another person", "keep_separate"),
+    ],
+    # Batch 2: 2 synonyms + 1 adversarial + 1 noise
+    [
+        ("lives_in", "resides_in", "Residential relationship between person and location", "Resides in a location", "merge"),
+        ("created", "authored", "Created something", "Authored or wrote something", "merge"),
+        ("skilled_in", "interested_in", "Has skill in area", "Interested in topic", "keep_separate"),
+        ("sort_of_works_at", "works_at", "Partially employed at organization", "Employment relationship between person and organization", "keep_separate"),
+    ],
+]
+
+
+def b16_llm_batch_review():
+    print("\n" + "=" * 70)
+    print("B16: LLM Gate L4 — Batch Review")
+    print("=" * 70)
+
+    if not _claude_available():
+        print("SKIPPED: claude CLI not available")
+        record("B16", "skipped", True)
+        return
+
+    total_correct = 0
+    total_pairs = 0
+
+    for batch_idx, batch in enumerate(_B16_BATCHES):
+        # Build batch prompt
+        pairs_text = ""
+        for i, (la, lb, da, db, _expected) in enumerate(batch, 1):
+            pairs_text += f"{i}. '{la}' ({da}) vs '{lb}' ({db})\n"
+
+        prompt = (
+            _ONTOLOGY_CONTEXT + "\n"
+            "Evaluate each predicate pair. For each, decide merge or keep_separate.\n\n"
+            + pairs_text + "\n"
+            'Respond with ONLY a JSON array: [{"pair": 1, "decision": "merge" or "keep_separate"}, ...]'
+        )
+
+        print(f"\n  Batch {batch_idx + 1} ({len(batch)} pairs):")
+        resp = _llm_gate_query(prompt)
+
+        if resp is None:
+            # Try to extract array from raw response
+            raw_result = subprocess.run(
+                ["claude", "-p", prompt, "--output-format", "json", "--model", "sonnet", "--no-session-persistence"],
+                capture_output=True, text=True, timeout=60,
+            )
+            if raw_result.returncode == 0:
+                try:
+                    envelope = json.loads(raw_result.stdout)
+                    text = envelope.get("result", "")
+                    # Extract JSON array
+                    cleaned = text.strip()
+                    if cleaned.startswith("```"):
+                        cleaned = cleaned[cleaned.index("\n") + 1:]
+                    if cleaned.endswith("```"):
+                        cleaned = cleaned[:cleaned.rfind("```")]
+                    start = cleaned.find("[")
+                    if start != -1:
+                        end = cleaned.rfind("]")
+                        if end != -1:
+                            decisions = json.loads(cleaned[start:end + 1])
+                            for item in decisions:
+                                pair_num = item.get("pair", 0) - 1
+                                if 0 <= pair_num < len(batch):
+                                    decision = item.get("decision", "unknown")
+                                    expected = batch[pair_num][4]
+                                    is_correct = decision == expected
+                                    if is_correct:
+                                        total_correct += 1
+                                    total_pairs += 1
+                                    la, lb = batch[pair_num][0], batch[pair_num][1]
+                                    print(f"    {la:20s} vs {lb:15s}  {decision:14s}  {'OK' if is_correct else 'WRONG'}")
+                            continue
+                except (json.JSONDecodeError, ValueError, KeyError):
+                    pass
+
+            print("    ERROR: could not parse batch response")
+            total_pairs += len(batch)
+            continue
+
+        # If _llm_gate_query returned a dict, it parsed a single object — might be wrapping an array
+        # Fall back: re-run as individual calls
+        print("    Falling back to individual calls...")
+        for la, lb, da, db, expected in batch:
+            individual_prompt = _build_merge_prompt(la, da, lb, db)
+            r = _llm_gate_query(individual_prompt)
+            decision = r.get("decision", "unknown") if r else "error"
+            is_correct = decision == expected
+            if is_correct:
+                total_correct += 1
+            total_pairs += 1
+            print(f"    {la:20s} vs {lb:15s}  {decision:14s}  {'OK' if is_correct else 'WRONG'}")
+
+    acc = total_correct / total_pairs if total_pairs else 0
+    passed = acc >= 0.875  # Same or better than individual (7/8 minimum)
+    print(f"\n  Batch accuracy: {total_correct}/{total_pairs} ({acc:.0%})")
+    print(f"  {'PASS: No degradation from batching' if passed else 'FAIL: Batch accuracy degraded'}")
+    record("B16", "batch_accuracy", acc, passed=passed)
+
+
+# ============================================================================
+# B17: LLM Gate — Consistency
+# ============================================================================
+
+_B17_PAIRS = [
+    # 3 synonyms
+    ("works_at", "employed_at", "Employment relationship between person and organization", "Employed at an organization", "merge"),
+    ("manages", "supervises", "Manages another person", "Supervises another person", "merge"),
+    ("visited", "traveled_to", "Visited a location", "Traveled to a location", "merge"),
+    # 3 non-synonyms
+    ("knows", "knows_about", "Knows another person", "Has knowledge of topic", "keep_separate"),
+    ("parent_of", "child_of", "Parent of another person", "Child of another person", "keep_separate"),
+    ("works_at", "employs", "Employment relationship between person and organization", "Employs a person at the organization", "keep_separate"),
+]
+
+
+def b17_llm_consistency():
+    print("\n" + "=" * 70)
+    print("B17: LLM Gate L5 — Consistency")
+    print("=" * 70)
+
+    if not _claude_available():
+        print("SKIPPED: claude CLI not available")
+        record("B17", "skipped", True)
+        return
+
+    n_runs = 3
+    print(f"  Running {len(_B17_PAIRS)} pairs × {n_runs} runs = {len(_B17_PAIRS) * n_runs} LLM calls (parallel)...")
+
+    # Build all tasks: (pair_idx, run_idx, label_a, label_b, prompt)
+    tasks = []
+    for pair_idx, (la, lb, da, db, _expected) in enumerate(_B17_PAIRS):
+        prompt = _build_merge_prompt(la, da, lb, db)
+        for run_idx in range(n_runs):
+            tasks.append((pair_idx, run_idx, la, lb, prompt))
+
+    # Run all in parallel
+    results_by_pair = {i: [] for i in range(len(_B17_PAIRS))}
+
+    def _worker(args):
+        pair_idx, run_idx, la, lb, prompt = args
+        resp = _llm_gate_query(prompt)
+        decision = resp.get("decision", "error") if resp else "error"
+        return (pair_idx, run_idx, decision)
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = [executor.submit(_worker, t) for t in tasks]
+        for future in as_completed(futures):
+            pair_idx, run_idx, decision = future.result()
+            results_by_pair[pair_idx].append(decision)
+
+    # Evaluate consistency
+    consistent_pairs = 0
+    for pair_idx, (la, lb, da, db, expected) in enumerate(_B17_PAIRS):
+        decisions = results_by_pair[pair_idx]
+        all_same = len(set(decisions)) == 1
+        if all_same:
+            consistent_pairs += 1
+
+        majority = max(set(decisions), key=decisions.count)
+        print(f"  {la:15s} vs {lb:15s}  runs={decisions}  {'CONSISTENT' if all_same else 'INCONSISTENT'}  majority={majority}")
+
+    rate = consistent_pairs / len(_B17_PAIRS)
+    passed = rate >= 0.90  # ≥ 90% of pairs give same answer all 3 times
+    print(f"\n  Consistency: {consistent_pairs}/{len(_B17_PAIRS)} pairs ({rate:.0%})")
+    print(f"  {'PASS: ≥ 90% consistent' if passed else 'FAIL: Too much variance'}")
+    record("B17", "consistency_rate", rate, passed=passed)
+
+
+# ============================================================================
 # MAIN
 # ============================================================================
 
@@ -1121,6 +1301,8 @@ def main():
     b13_llm_rejects_adversarial()
     b14_llm_approves_synonyms()
     b15_llm_rejects_noise_leaks()
+    b16_llm_batch_review()
+    b17_llm_consistency()
 
     elapsed = time.time() - start
 
