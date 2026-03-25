@@ -286,6 +286,13 @@ export const factPredicates = pgTable('fact_predicates', {
   usageCount: integer('usage_count').default(0),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  // Staging lifecycle (Phase B)
+  status: varchar('status', { length: 20 }).default('canonical'),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }),
+  distinctMemoryCount: integer('distinct_memory_count').default(0),
+  promotedAt: timestamp('promoted_at', { withTimezone: true }),
+  rejectedAt: timestamp('rejected_at', { withTimezone: true }),
+  rejectionReason: text('rejection_reason'),
 });
 
 /**
@@ -300,6 +307,36 @@ export const contextUuidAudit = pgTable('context_uuid_audit', {
   conversationId: varchar('conversation_id', { length: 255 }).notNull(),
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).defaultNow(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow(),
+});
+
+/**
+ * Entity Types Registry
+ *
+ * Dynamic entity type catalog — replaces the hardcoded CHECK constraint.
+ * Types can be canonical, provisional (probation), or deprecated.
+ */
+export const entityTypes = pgTable('entity_types', {
+  name: varchar('name', { length: 100 }).primaryKey(),
+  description: text('description'),
+  status: varchar('status', { length: 20 }).default('canonical').notNull(),
+  promotedAt: timestamp('promoted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Entity Type History
+ *
+ * Tracks entity type changes for bi-temporal typing.
+ * When an entity is reclassified, the old type is preserved here.
+ */
+export const entityTypeHistory = pgTable('entity_type_history', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  entityId: uuid('entity_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  previousType: varchar('previous_type', { length: 100 }).notNull(),
+  newType: varchar('new_type', { length: 100 }).notNull(),
+  changedAt: timestamp('changed_at', { withTimezone: true }).defaultNow().notNull(),
+  changedBy: varchar('changed_by', { length: 50 }).default('system'),
+  reason: text('reason'),
 });
 
 // ============================================
