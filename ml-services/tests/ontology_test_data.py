@@ -30,7 +30,7 @@ ONTOLOGY = {
         "aliases": ["supervises", "leads", "directs", "oversees"],
     },
     "reports_to": {
-        "description": "Reports to another person",
+        "description": "Reports to or works under another person in a hierarchy",
         "category": "professional",
         "aliases": ["managed_by", "supervised_by", "under"],
     },
@@ -113,7 +113,7 @@ ONTOLOGY = {
     },
     # Creation
     "created": {
-        "description": "Created something",
+        "description": "Produced, authored, or built something — the subject made the object",
         "category": "creation",
         "aliases": ["authored", "built", "made", "developed", "wrote", "designed"],
     },
@@ -341,7 +341,7 @@ NATURAL_LANGUAGE_PREDICATES = [
     ("works for", "works_at"),
     ("has been working at", "works_at"),
     ("is a contractor at", "works_at"),
-    ("joined the team at", "works_at"),
+    ("has a job at", "works_at"),
     ("used to work for", "works_at"),
     ("previously employed at", "works_at"),
     ("left their job at", "works_at"),
@@ -354,7 +354,7 @@ NATURAL_LANGUAGE_PREDICATES = [
     ("is responsible for managing", "manages"),
     ("reports directly to", "reports_to"),
     ("works under", "reports_to"),
-    ("answers to", "reports_to"),
+    ("is supervised by", "reports_to"),
 
     # Social
     ("is friends with", "friend_of"),
@@ -368,11 +368,10 @@ NATURAL_LANGUAGE_PREDICATES = [
 
     # Location
     ("has been living in", "lives_in"),
-    ("is based out of", "lives_in"),
     ("relocated to", "lives_in"),
     ("calls home", "lives_in"),
-    ("grew up in", "lives_in"),
-    ("spent their childhood in", "lives_in"),
+    ("grew up in", "born_in"),
+    ("spent their childhood in", "born_in"),
     ("was born in", "born_in"),
     ("is originally from", "born_in"),
     ("traveled to", "visited"),
@@ -453,13 +452,25 @@ CONCEPTNET_SYNONYMS = {
     "supervises": "manages",
     "leads": "manages",
     "directs": "manages",
+    "oversees": "manages",
     "employs": "works_at",  # Note: this is actually an INVERSE, not synonym
     "resides_in": "lives_in",
+    "based_in": "lives_in",
     "authored": "created",
     "built": "created",
+    "developed": "created",
+    "wrote": "created",
+    "designed": "created",
     "possesses": "owns",
     "acquainted_with": "knows",
     "friends_with": "friend_of",
+    "graduated_from": "studied_at",
+    "enrolled_at": "studied_at",
+    "presented_at": "spoke_at",
+    "traveled_to": "visited",
+    "hosted": "organized",
+    "expert_in": "skilled_in",
+    "proficient_in": "skilled_in",
 }
 
 
