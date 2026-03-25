@@ -475,3 +475,254 @@ EXTRACTION_SAMPLES = [
     "Lisa reports to James, who manages the entire engineering department.",
     "Mike and Emma got married last summer and recently bought a house in Cambridge.",
 ]
+
+
+# ============================================================================
+# SET E: Annotated extraction samples for B6 benchmark
+# Each entry has text (realistic Telegram message / note) and expected triples.
+# expected[].predicate is the CANONICAL predicate the extraction should map to.
+# expected[].novel = True means the predicate should NOT map to any canonical.
+# ============================================================================
+
+EXTRACTION_SAMPLES_ANNOTATED = [
+    # --- Professional: works_at ---
+    {
+        "text": "Sarah has been working at Google since 2020.",
+        "expected": [
+            {"subject": "Sarah", "predicate": "works_at", "object": "Google"},
+        ],
+    },
+    {
+        "text": "Reminder: Dave is now employed by Microsoft's Azure division.",
+        "expected": [
+            {"subject": "Dave", "predicate": "works_at", "object": "Microsoft"},
+        ],
+    },
+    {
+        "text": "Talked to Rachel — she left Amazon last month and joined Stripe.",
+        "expected": [
+            {"subject": "Rachel", "predicate": "works_at", "object": "Amazon"},
+            {"subject": "Rachel", "predicate": "works_at", "object": "Stripe"},
+        ],
+    },
+    # --- Professional: manages / reports_to ---
+    {
+        "text": "Lisa reports to James, who manages the entire engineering department.",
+        "expected": [
+            {"subject": "Lisa", "predicate": "reports_to", "object": "James"},
+            {"subject": "James", "predicate": "manages", "object": "engineering department"},
+        ],
+    },
+    {
+        "text": "Kevin supervises a team of 12 developers at the London office.",
+        "expected": [
+            {"subject": "Kevin", "predicate": "manages", "object": "team"},
+        ],
+    },
+    # --- Professional: founded / ceo_of ---
+    {
+        "text": "Elon Musk co-founded OpenAI and is the CEO of Tesla.",
+        "expected": [
+            {"subject": "Elon Musk", "predicate": "founded", "object": "OpenAI"},
+            {"subject": "Elon Musk", "predicate": "ceo_of", "object": "Tesla"},
+        ],
+    },
+    {
+        "text": "My friend Priya started a fintech company in Singapore last year.",
+        "expected": [
+            {"subject": "Priya", "predicate": "founded", "object": "fintech company"},
+        ],
+    },
+    # --- Professional: member_of ---
+    {
+        "text": "Carlos is a member of the IEEE and the ACM.",
+        "expected": [
+            {"subject": "Carlos", "predicate": "member_of", "object": "IEEE"},
+            {"subject": "Carlos", "predicate": "member_of", "object": "ACM"},
+        ],
+    },
+    # --- Personal: knows / friend_of ---
+    {
+        "text": "Met Daniel at the meetup last week — seems really sharp.",
+        "expected": [
+            {"subject": "I", "predicate": "knows", "object": "Daniel"},
+        ],
+    },
+    {
+        "text": "Sophie and I have been close friends since university.",
+        "expected": [
+            {"subject": "I", "predicate": "friend_of", "object": "Sophie"},
+        ],
+    },
+    # --- Personal: married_to ---
+    {
+        "text": "Mike and Emma got married last summer.",
+        "expected": [
+            {"subject": "Mike", "predicate": "married_to", "object": "Emma"},
+        ],
+    },
+    # --- Personal: parent_of / sibling_of ---
+    {
+        "text": "Anna is the mother of two kids, Liam and Zoe.",
+        "expected": [
+            {"subject": "Anna", "predicate": "parent_of", "object": "Liam"},
+            {"subject": "Anna", "predicate": "parent_of", "object": "Zoe"},
+        ],
+    },
+    {
+        "text": "Jake's older brother Marcus works as a pilot for Air Canada.",
+        "expected": [
+            {"subject": "Jake", "predicate": "sibling_of", "object": "Marcus"},
+            {"subject": "Marcus", "predicate": "works_at", "object": "Air Canada"},
+        ],
+    },
+    # --- Location: lives_in ---
+    {
+        "text": "Maria moved to London recently, she used to live in Tokyo.",
+        "expected": [
+            {"subject": "Maria", "predicate": "lives_in", "object": "London"},
+            {"subject": "Maria", "predicate": "lives_in", "object": "Tokyo"},
+        ],
+    },
+    {
+        "text": "We're based in Berlin now, loving the tech scene here.",
+        "expected": [
+            {"subject": "We", "predicate": "lives_in", "object": "Berlin"},
+        ],
+    },
+    # --- Location: born_in ---
+    {
+        "text": "Fun fact: Sundar Pichai was born in Chennai, India.",
+        "expected": [
+            {"subject": "Sundar Pichai", "predicate": "born_in", "object": "Chennai"},
+        ],
+    },
+    # --- Location: visited ---
+    {
+        "text": "Just got back from a week in Barcelona — amazing food.",
+        "expected": [
+            {"subject": "I", "predicate": "visited", "object": "Barcelona"},
+        ],
+    },
+    {
+        "text": "Nadia traveled to Japan and South Korea over the holidays.",
+        "expected": [
+            {"subject": "Nadia", "predicate": "visited", "object": "Japan"},
+            {"subject": "Nadia", "predicate": "visited", "object": "South Korea"},
+        ],
+    },
+    # --- Education: studied_at / has_degree ---
+    {
+        "text": "Omar graduated from MIT with a degree in computer science.",
+        "expected": [
+            {"subject": "Omar", "predicate": "studied_at", "object": "MIT"},
+            {"subject": "Omar", "predicate": "has_degree", "object": "computer science"},
+        ],
+    },
+    {
+        "text": "Elena studied physics at Cambridge before switching to data science.",
+        "expected": [
+            {"subject": "Elena", "predicate": "studied_at", "object": "Cambridge"},
+        ],
+    },
+    # --- Creation: created ---
+    {
+        "text": "Guido van Rossum created Python back in the early 90s.",
+        "expected": [
+            {"subject": "Guido van Rossum", "predicate": "created", "object": "Python"},
+        ],
+    },
+    {
+        "text": "Hannah wrote a really popular open-source testing library.",
+        "expected": [
+            {"subject": "Hannah", "predicate": "created", "object": "testing library"},
+        ],
+    },
+    # --- Creation: owns ---
+    {
+        "text": "My uncle owns a small restaurant in downtown Portland.",
+        "expected": [
+            {"subject": "uncle", "predicate": "owns", "object": "restaurant"},
+        ],
+    },
+    # --- Skills: skilled_in ---
+    {
+        "text": "Aisha is an expert in Kubernetes and cloud infrastructure.",
+        "expected": [
+            {"subject": "Aisha", "predicate": "skilled_in", "object": "Kubernetes"},
+        ],
+    },
+    {
+        "text": "Ben is really proficient at Rust and systems programming.",
+        "expected": [
+            {"subject": "Ben", "predicate": "skilled_in", "object": "Rust"},
+        ],
+    },
+    # --- Skills: knows_about ---
+    {
+        "text": "Yuki understands quantum computing better than anyone I know.",
+        "expected": [
+            {"subject": "Yuki", "predicate": "knows_about", "object": "quantum computing"},
+        ],
+    },
+    # --- Skills: interested_in ---
+    {
+        "text": "Leo is super passionate about renewable energy and sustainability.",
+        "expected": [
+            {"subject": "Leo", "predicate": "interested_in", "object": "renewable energy"},
+        ],
+    },
+    {
+        "text": "I've been getting into woodworking lately, really enjoying it.",
+        "expected": [
+            {"subject": "I", "predicate": "interested_in", "object": "woodworking"},
+        ],
+    },
+    # --- Events: spoke_at ---
+    {
+        "text": "Dr. Kim gave a keynote at PyCon 2025 about async patterns.",
+        "expected": [
+            {"subject": "Dr. Kim", "predicate": "spoke_at", "object": "PyCon 2025"},
+        ],
+    },
+    # --- Events: attended_event ---
+    {
+        "text": "Went to KubeCon last week, tons of great talks.",
+        "expected": [
+            {"subject": "I", "predicate": "attended_event", "object": "KubeCon"},
+        ],
+    },
+    {
+        "text": "Rosa and Ivan both attended the AI summit in Geneva.",
+        "expected": [
+            {"subject": "Rosa", "predicate": "attended_event", "object": "AI summit"},
+            {"subject": "Ivan", "predicate": "attended_event", "object": "AI summit"},
+        ],
+    },
+    # --- Events: organized ---
+    {
+        "text": "Sam organized the company hackathon — it was a huge success.",
+        "expected": [
+            {"subject": "Sam", "predicate": "organized", "object": "hackathon"},
+        ],
+    },
+    # --- Novel predicates (should NOT map to any canonical) ---
+    {
+        "text": "Sarah has been mentoring junior developers at the company for three years.",
+        "expected": [
+            {"subject": "Sarah", "predicate": "mentors", "object": "junior developers", "novel": True},
+        ],
+    },
+    {
+        "text": "Tom invested in three startups last quarter including a biotech firm.",
+        "expected": [
+            {"subject": "Tom", "predicate": "invested_in", "object": "startups", "novel": True},
+        ],
+    },
+    {
+        "text": "Spotify and Apple Music compete fiercely in the streaming market.",
+        "expected": [
+            {"subject": "Spotify", "predicate": "competes_with", "object": "Apple Music", "novel": True},
+        ],
+    },
+]

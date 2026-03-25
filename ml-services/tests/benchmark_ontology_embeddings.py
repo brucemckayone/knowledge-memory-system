@@ -32,6 +32,7 @@ import shutil
 import subprocess
 import time
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 from itertools import combinations
 from typing import Optional
@@ -735,12 +736,24 @@ def _extract_json(text: str) -> Optional[dict]:
 
 _ONTOLOGY_CONTEXT = """You are evaluating predicates for a knowledge graph ontology.
 
-Rules for ontology predicates:
-- Predicates must be CANONICAL: clean, reusable labels (e.g., "works_at", "manages")
-- Predicates with hedging qualifiers (sort_of_, basically_, kind_of_) are NOISE — they are not valid ontology predicates and must NOT be merged with canonical ones
-- INVERSE predicates (works_at vs employs, parent_of vs child_of) describe the SAME relationship from OPPOSITE directions — they must be kept SEPARATE
-- TRUE SYNONYMS are different labels for the SAME meaning with the SAME directionality (works_at = employed_at, manages = supervises)
-- When in doubt, keep predicates SEPARATE — over-merging is worse than under-merging
+MERGE when two predicates are genuine synonyms — same meaning, same directionality, interchangeable in any context:
+- "works_at" and "employed_at" → MERGE (same employment relationship, same direction)
+- "manages" and "supervises" → MERGE (same authority relationship)
+- "created" and "authored" → MERGE (both mean the subject produced the object)
+- "owns" and "possesses" → MERGE (both mean the subject has ownership of the object)
+- "visited" and "traveled_to" → MERGE (both mean the subject went to the location)
+- "skilled_in" and "expert_in" → MERGE (both mean the subject has competence in the area — degree differences are not predicate-level distinctions)
+
+KEEP SEPARATE when predicates differ in direction, domain, or fundamental meaning:
+- "works_at" vs "employs" → SEPARATE (inverse direction: employee→org vs org→employee)
+- "parent_of" vs "child_of" → SEPARATE (inverse direction)
+- "knows" vs "knows_about" → SEPARATE (different domain: person↔person vs person↔topic)
+- "mentors" vs "teaches" → SEPARATE (different relationship type: guidance vs instruction)
+
+REJECT noise predicates with hedging qualifiers:
+- "sort_of_works_at", "basically_knows", "kind_of_like" → REJECT (hedging = noise, not valid ontology labels)
+
+Key principle: ontology predicates capture the TYPE of relationship, not the DEGREE. "skilled_in" and "expert_in" are the same type (competence); the degree difference is metadata, not a separate predicate.
 """
 
 
@@ -819,23 +832,26 @@ def b13_llm_rejects_adversarial():
         record("B13", "skipped", True)
         return
 
-    correct = 0
     total = len(_B13_PAIRS)
 
+    tasks = []
     for label_a, label_b, desc_a, desc_b in _B13_PAIRS:
-        prompt = (
-            _ONTOLOGY_CONTEXT + "\n"
-            f"Should these two predicates be merged as synonyms?\n\n"
-            f"Predicate A: '{label_a}' — {desc_a}\n"
-            f"Predicate B: '{label_b}' — {desc_b}\n\n"
-            'Respond with ONLY a JSON object: {"decision": "merge" or "keep_separate", "reasoning": "one sentence"}'
-        )
+        prompt = _build_merge_prompt(label_a, desc_a, label_b, desc_b)
+        tasks.append((label_a, label_b, prompt))
 
-        print(f"  {label_a:15s} vs {label_b:15s}  ", end="", flush=True)
-        resp = _llm_gate_query(prompt)
+    results_list = []
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(_run_llm_pair, t): t for t in tasks}
+        for future in as_completed(futures):
+            results_list.append(future.result())
 
+    order = {(la, lb): i for i, (la, lb, _, _) in enumerate(_B13_PAIRS)}
+    results_list.sort(key=lambda r: order.get((r[0], r[1]), 0))
+
+    correct = 0
+    for label_a, label_b, resp in results_list:
         if resp is None:
-            print("ERROR (no response)")
+            print(f"  {label_a:15s} vs {label_b:15s}  ERROR (no response)")
             continue
 
         decision = resp.get("decision", "unknown")
@@ -845,7 +861,7 @@ def b13_llm_rejects_adversarial():
         if is_correct:
             correct += 1
 
-        print(f"{decision:14s}  {'OK' if is_correct else 'WRONG'}  ({reasoning})")
+        print(f"  {label_a:15s} vs {label_b:15s}  {decision:14s}  {'OK' if is_correct else 'WRONG'}  ({reasoning})")
 
     acc = correct / total if total else 0
     passed = correct == total  # 100% required
@@ -858,39 +874,95 @@ def b13_llm_rejects_adversarial():
 # B14: LLM Gate — Approves True Synonyms
 # ============================================================================
 
-# 10 known synonym pairs the LLM should approve for merging.
+# 20 known synonym pairs the LLM should approve for merging.
 _B14_PAIRS = [
+    # Employment
     ("works_at", "employed_at",
      "Employment relationship between person and organization",
      "Employed at an organization"),
+    ("works_at", "works_for",
+     "Employment relationship between person and organization",
+     "Works for an organization"),
+    # Management
     ("manages", "supervises",
      "Manages another person",
      "Supervises another person"),
+    ("manages", "oversees",
+     "Manages another person",
+     "Oversees another person"),
+    # Social
     ("knows", "acquainted_with",
      "Knows another person",
      "Acquainted with another person"),
-    ("lives_in", "resides_in",
-     "Residential relationship between person and location",
-     "Resides in a location"),
-    ("created", "authored",
-     "Created something",
-     "Authored or wrote something"),
-    ("owns", "possesses",
-     "Owns something",
-     "Possesses something"),
-    ("skilled_in", "expert_in",
-     "Has skill in area",
-     "Has expertise in area"),
     ("friend_of", "friends_with",
      "Friends with another person",
      "Friends with another person"),
+    ("friend_of", "close_to",
+     "Friends with another person",
+     "Close to another person"),
+    # Location
+    ("lives_in", "resides_in",
+     "Residential relationship between person and location",
+     "Resides in a location"),
+    ("lives_in", "based_in",
+     "Residential relationship between person and location",
+     "Based in a location"),
     ("visited", "traveled_to",
      "Visited a location",
      "Traveled to a location"),
+    # Creation
+    ("created", "authored",
+     "Created something",
+     "Authored or wrote something"),
+    ("created", "developed",
+     "Created something",
+     "Developed or built something"),
+    # Ownership
+    ("owns", "possesses",
+     "Owns something",
+     "Possesses something"),
+    # Skills
+    ("skilled_in", "expert_in",
+     "Has skill in area",
+     "Has expertise in area"),
+    ("skilled_in", "proficient_in",
+     "Has skill in area",
+     "Proficient in area"),
+    ("interested_in", "passionate_about",
+     "Interested in topic",
+     "Passionate about topic"),
+    # Education
+    ("studied_at", "enrolled_at",
+     "Studied at institution",
+     "Enrolled at institution"),
+    # Events
     ("spoke_at", "presented_at",
      "Spoke at an event",
      "Presented at an event"),
+    ("organized", "hosted",
+     "Organized an event",
+     "Hosted an event"),
+    ("attended_event", "participated_in",
+     "Attended an event",
+     "Participated in an event"),
 ]
+
+
+def _build_merge_prompt(label_a, desc_a, label_b, desc_b):
+    return (
+        _ONTOLOGY_CONTEXT + "\n"
+        f"Should these two predicates be merged as synonyms?\n\n"
+        f"Predicate A: '{label_a}' — {desc_a}\n"
+        f"Predicate B: '{label_b}' — {desc_b}\n\n"
+        'Respond with ONLY a JSON object: {"decision": "merge" or "keep_separate", "reasoning": "one sentence"}'
+    )
+
+
+def _run_llm_pair(args):
+    """Worker for parallel LLM calls. Returns (label_a, label_b, response)."""
+    label_a, label_b, prompt = args
+    resp = _llm_gate_query(prompt)
+    return (label_a, label_b, resp)
 
 
 def b14_llm_approves_synonyms():
@@ -903,23 +975,31 @@ def b14_llm_approves_synonyms():
         record("B14", "skipped", True)
         return
 
-    correct = 0
     total = len(_B14_PAIRS)
+    print(f"  Running {total} LLM calls in parallel...")
 
+    # Build all prompts
+    tasks = []
     for label_a, label_b, desc_a, desc_b in _B14_PAIRS:
-        prompt = (
-            _ONTOLOGY_CONTEXT + "\n"
-            f"Should these two predicates be merged as synonyms?\n\n"
-            f"Predicate A: '{label_a}' — {desc_a}\n"
-            f"Predicate B: '{label_b}' — {desc_b}\n\n"
-            'Respond with ONLY a JSON object: {"decision": "merge" or "keep_separate", "reasoning": "one sentence"}'
-        )
+        prompt = _build_merge_prompt(label_a, desc_a, label_b, desc_b)
+        tasks.append((label_a, label_b, prompt))
 
-        print(f"  {label_a:15s} vs {label_b:15s}  ", end="", flush=True)
-        resp = _llm_gate_query(prompt)
+    # Run in parallel (4 concurrent)
+    results_list = []
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(_run_llm_pair, t): t for t in tasks}
+        for future in as_completed(futures):
+            results_list.append(future.result())
 
+    # Sort back to original order
+    order = {(la, lb): i for i, (la, lb, _, _) in enumerate(_B14_PAIRS)}
+    results_list.sort(key=lambda r: order.get((r[0], r[1]), 0))
+
+    # Report
+    correct = 0
+    for label_a, label_b, resp in results_list:
         if resp is None:
-            print("ERROR (no response)")
+            print(f"  {label_a:15s} vs {label_b:15s}  ERROR (no response)")
             continue
 
         decision = resp.get("decision", "unknown")
@@ -929,7 +1009,7 @@ def b14_llm_approves_synonyms():
         if is_correct:
             correct += 1
 
-        print(f"{decision:14s}  {'OK' if is_correct else 'WRONG'}  ({reasoning})")
+        print(f"  {label_a:15s} vs {label_b:15s}  {decision:14s}  {'OK' if is_correct else 'WRONG'}  ({reasoning})")
 
     acc = correct / total if total else 0
     passed = acc >= 0.90  # >= 9/10
