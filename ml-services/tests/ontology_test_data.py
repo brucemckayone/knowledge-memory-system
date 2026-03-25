@@ -410,6 +410,59 @@ NATURAL_LANGUAGE_PREDICATES = [
 # SET E: Sample texts for real LLM extraction testing
 # ============================================================================
 
+# ============================================================================
+# SET F: Predicate type-pair metadata (subject_type, object_type)
+# Used by multi-signal scoring to penalise type mismatches.
+# ============================================================================
+
+PREDICATE_TYPE_PAIRS = {
+    "works_at": ("person", "company"),
+    "manages": ("person", "person"),
+    "reports_to": ("person", "person"),
+    "founded": ("person", "company"),
+    "ceo_of": ("person", "company"),
+    "member_of": ("person", "company"),
+    "knows": ("person", "person"),
+    "friend_of": ("person", "person"),
+    "married_to": ("person", "person"),
+    "parent_of": ("person", "person"),
+    "child_of": ("person", "person"),
+    "sibling_of": ("person", "person"),
+    "lives_in": ("person", "place"),
+    "born_in": ("person", "place"),
+    "visited": ("person", "place"),
+    "studied_at": ("person", "company"),
+    "has_degree": ("person", "concept"),
+    "created": ("person", "concept"),
+    "owns": ("person", "concept"),
+    "knows_about": ("person", "concept"),
+    "skilled_in": ("person", "concept"),
+    "interested_in": ("person", "concept"),
+    "attended_event": ("person", "event"),
+    "organized": ("person", "event"),
+    "spoke_at": ("person", "event"),
+}
+
+
+# ============================================================================
+# SET G: Static ConceptNet synonym map
+# Maps surface predicates to their canonical equivalents.
+# ============================================================================
+
+CONCEPTNET_SYNONYMS = {
+    "supervises": "manages",
+    "leads": "manages",
+    "directs": "manages",
+    "employs": "works_at",  # Note: this is actually an INVERSE, not synonym
+    "resides_in": "lives_in",
+    "authored": "created",
+    "built": "created",
+    "possesses": "owns",
+    "acquainted_with": "knows",
+    "friends_with": "friend_of",
+}
+
+
 EXTRACTION_SAMPLES = [
     "Sarah has been mentoring junior developers at the company for three years.",
     "John left Google last year and is now running his own startup in Berlin.",

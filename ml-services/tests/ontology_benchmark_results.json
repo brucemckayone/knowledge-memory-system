@@ -1,5 +1,5 @@
 {
-  "elapsed": 24.202123403549194,
+  "elapsed": 24.56291675567627,
   "results": {
     "B1": {
       "enriched_gap": 0.8124795345553063,
@@ -54,6 +54,18 @@
       "would_merge_without_registry": 6,
       "registry_necessity": 0.6666666666666666,
       "registry_necessity_passed": true
+    },
+    "B18": {
+      "emb_false_merges": 3,
+      "ms_false_merges": 0,
+      "ms_false_merges_passed": true,
+      "improvement": 3
+    },
+    "B19": {
+      "emb_accuracy": 0.7777777777777778,
+      "ms_accuracy": 0.8518518518518519,
+      "ms_accuracy_passed": true,
+      "improvement": 0.07407407407407407
     }
   }
 }
