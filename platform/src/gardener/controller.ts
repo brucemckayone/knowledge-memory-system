@@ -238,10 +238,11 @@ class GardenerController {
       await this.boss.schedule('gardener:align-schema', periodicCron, {});
       await this.boss.schedule('gardener:resolve-conflicts', periodicCron, {});
 
-      // Nightly: community detection (midnight), contradiction scanner (1 AM), insights (2 AM)
+      // Nightly: community detection (midnight), contradiction scanner (1 AM), ontology evolution (2 AM), insights (3 AM)
       await this.boss.schedule('gardener:community-detection', '0 0 * * *', {});
       await this.boss.schedule('gardener:contradiction-scanner', '0 1 * * *', {});
-      await this.boss.schedule('gardener:generate-insights', '0 2 * * *', {});
+      await this.boss.schedule('gardener:ontology-evolution', '0 2 * * *', {});
+      await this.boss.schedule('gardener:generate-insights', '0 3 * * *', {});
 
       // Daily: morning briefing (6 AM)
       await this.boss.schedule('gardener:briefing', '0 6 * * *', {});

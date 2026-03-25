@@ -21,6 +21,7 @@ import { contextLinkerAgent } from './context-linker.agent.js';
 
 // Phase 5 Agents
 import { contradictionScannerAgent } from './contradiction-scanner.agent.js';
+import { ontologyEvolutionAgent } from './ontology-evolution.agent.js';
 import { communityDetectionAgent } from './community-detection.agent.js';
 import { insightGenerationAgent } from './insight-generation.agent.js';
 import { briefingAgent } from './briefing.agent.js';
@@ -45,6 +46,7 @@ export { contextLinkerAgent } from './context-linker.agent.js';
 
 // Phase 5 exports
 export { contradictionScannerAgent } from './contradiction-scanner.agent.js';
+export { ontologyEvolutionAgent } from './ontology-evolution.agent.js';
 export { communityDetectionAgent } from './community-detection.agent.js';
 export { insightGenerationAgent } from './insight-generation.agent.js';
 export { briefingAgent } from './briefing.agent.js';
@@ -75,6 +77,7 @@ export const allAgents = [
 
   // Phase 5: Scheduled Scanning
   contradictionScannerAgent,
+  ontologyEvolutionAgent,
   communityDetectionAgent,
   insightGenerationAgent,
   briefingAgent,

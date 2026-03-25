@@ -120,6 +120,12 @@ export interface CheckContradictionResponse {
   debate?: DebateLog;
 }
 
+export interface ComparePredicateResponse {
+  decision: string;
+  reasoning: string;
+  confidence: number;
+}
+
 export interface ParseContentResponse {
   content_type: string;
   title: string;
@@ -281,6 +287,15 @@ export const ml = {
 
   checkContradiction(fact1: unknown, fact2: unknown) {
     return mlFetch<CheckContradictionResponse>('/check-contradiction', { fact1, fact2 }, 60_000);
+  },
+
+  comparePredicate(predicateA: string, descA: string, predicateB: string, descB: string) {
+    return mlFetch<ComparePredicateResponse>('/compare-predicates', {
+      predicate_a: predicateA,
+      description_a: descA,
+      predicate_b: predicateB,
+      description_b: descB,
+    }, 30_000);
   },
 
   parseContent(content: string, hint?: string) {
