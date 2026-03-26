@@ -43,10 +43,12 @@ KEEP SEPARATE when predicates differ in direction, domain, or fundamental meanin
 - "parent_of" vs "child_of" → SEPARATE (inverse direction)
 - "knows" vs "knows_about" → SEPARATE (different domain: person↔person vs person↔topic)
 
-REJECT noise predicates with hedging qualifiers:
-- "sort_of_works_at", "basically_knows" → REJECT (hedging = noise)
+KEEP SEPARATE (REJECT) noise predicates with hedging qualifiers:
+- "sort_of_works_at" vs "works_at" → KEEP SEPARATE (hedging prefix = noise, not a valid ontology predicate)
+- "basically_knows" vs "knows" → KEEP SEPARATE (hedging prefix = noise)
+- Any predicate with prefixes like "sort_of_", "basically_", "kind_of_", "maybe_" is NOISE and must be kept separate.
 
-Key principle: ontology predicates capture the TYPE of relationship, not the DEGREE.
+Key principle: ontology predicates must be CLEAN and CANONICAL. Hedging qualifiers disqualify a predicate from being merged — always keep separate.
 
 Now evaluate:
 Predicate A: '{predicate_a}' — {description_a}

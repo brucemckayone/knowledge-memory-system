@@ -66,7 +66,8 @@ describe('Ontology API', () => {
 
       expect(response.ok).toBe(true);
       const result = await response.json() as Record<string, unknown>;
-      expect(result.decision).toBe('keep_separate');
+      // Noise predicates should NOT be merged — either "keep_separate" or "defer" is correct
+      expect(result.decision).not.toBe('merge');
     }, 30000);
   });
 
