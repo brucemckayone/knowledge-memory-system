@@ -11,7 +11,7 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 
 # Configure ollama client
-ollama_client = ollama.Client(host=OLLAMA_HOST, timeout=10.0)
+ollama_client = ollama.Client(host=OLLAMA_HOST, timeout=1200.0)
 
 
 class EmbedRequest(BaseModel):
