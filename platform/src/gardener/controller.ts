@@ -57,9 +57,9 @@ export interface GardenerAgent {
 }
 
 const TIER_DEFAULTS = {
-  realtime: { retryLimit: 2, expireInSeconds: 30 },
-  frequent: { retryLimit: 3, expireInSeconds: 120 },
-  periodic: { retryLimit: 3, expireInSeconds: 600 },
+  realtime: { retryLimit: 3, expireInSeconds: 300 },
+  frequent: { retryLimit: 3, expireInSeconds: 600 },
+  periodic: { retryLimit: 3, expireInSeconds: 1800 },
 };
 
 class GardenerController {
