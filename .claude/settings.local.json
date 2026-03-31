@@ -256,7 +256,10 @@
       "Bash(powershell.exe -Command \"Get-Command node,pnpm -ErrorAction SilentlyContinue | Select-Object Name,Source\")",
       "Bash(powershell -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\" 2>&1)",
       "Bash(pnpm:*)",
-      "Bash(uv --version)"
+      "Bash(uv --version)",
+      "Bash(git push:*)",
+      "Bash(find /c/Users/bruce.mckay/dev/nmemo -type f \\\\\\(-name *.test.ts -o -name *.spec.ts \\\\\\))",
+      "Bash(powershell.exe -c \"Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force\")"
     ]
   }
 }

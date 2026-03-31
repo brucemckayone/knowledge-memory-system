@@ -139,7 +139,7 @@ def main():
 
     # Ingest in batches
     batch_size = 10
-    total = min(len(chunks), 50)  # Cap at 50 for initial test
+    total = min(len(chunks), 10)  # Cap at 10 for truth graph test
     accepted = 0
     duplicates = 0
     errors = 0

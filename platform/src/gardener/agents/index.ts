@@ -58,11 +58,14 @@ export { projectRefreshAgent } from './project-refresh.agent.js';
 
 /**
  * All agents in registration order
+ *
+ * NOTE: Non-truth-graph agents temporarily disabled for focused testing.
+ * Re-enable by uncommenting when ready for full pipeline.
  */
 export const allAgents = [
   // Core Pipeline
   readerAgent,
-  summarizerAgent,
+  // summarizerAgent,
 
   // Entity & Knowledge Graph
   entityExtractionAgent,
@@ -73,19 +76,19 @@ export const allAgents = [
   schemaAlignmentAgent,
 
   // Context Linking
-  contextLinkerAgent,
+  // contextLinkerAgent,
 
   // Phase 5: Scheduled Scanning
-  contradictionScannerAgent,
+  // contradictionScannerAgent,
   ontologyEvolutionAgent,
-  communityDetectionAgent,
-  insightGenerationAgent,
-  briefingAgent,
+  // communityDetectionAgent,
+  // insightGenerationAgent,
+  // briefingAgent,
 
   // Phase 6: Obsidian Write-back & Project Association
-  vaultWriterAgent,
-  projectAssociationAgent,
-  projectRefreshAgent,
+  // vaultWriterAgent,
+  // projectAssociationAgent,
+  // projectRefreshAgent,
 ];
 
 /**

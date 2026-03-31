@@ -103,65 +103,23 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
     // Create skill context
     const context = createSkillContext(envelope);
 
-    // Classify intent using LLM
-    console.log('🤖 Classifying intent...');
-    const classifyStart = Date.now();
-    const classification = await classify(textToEmbed);
+    // Skip LLM classification — default to thought workflow
+    // TODO: re-enable classification when not bulk-testing
+    const classification = {
+      primary_intent: 'thought' as const,
+      intents: [{ type: 'thought' as const, confidence: 1.0 }],
+      suggested_workflow: 'process-thought' as const,
+    };
 
     addEnrichment(envelope, 'classify', {
       intents: classification.intents,
       primary_intent: classification.primary_intent,
-    }, classifyStart);
+    }, Date.now());
 
-    // Add intents to routing
-    envelope.routing.intents = classification.intents.map(i => i.type);
+    envelope.routing.intents = [classification.primary_intent];
     envelope.routing.workflows = [classification.suggested_workflow];
 
-    console.log(`✅ Classified as: ${classification.primary_intent} -> ${classification.suggested_workflow}`);
-
-    // Route to appropriate workflow
-    if (classification.primary_intent === 'link') {
-      // Link workflow
-      console.log('🔗 Routing to link workflow');
-      const result = await processLink(envelope, context);
-
-      if (result.success) {
-        await safeSendMessage(data.chatId,
-          `🔗 **Link saved!**\n\n` +
-          `📰 ${result.title}\n\n` +
-          `📝 ${result.summary}`,
-          { parse_mode: 'Markdown' }
-        );
-      } else {
-        console.warn('Link processing failed:', result.error);
-        await safeSendMessage(data.chatId,
-          `💭 Saved your message (couldn't fetch link details)`
-        );
-      }
-      return;
-    }
-
-    if (classification.primary_intent === 'task') {
-      // Task workflow
-      console.log('📋 Routing to task workflow');
-      const result = await processTask(envelope, context);
-
-      if (result.success) {
-        await safeSendMessage(data.chatId,
-          `✅ **Task created!**\n\n` +
-          `📋 ${result.action}\n` +
-          `📅 ${formatDueDate(result.due_date)}\n` +
-          `${priorityEmoji(result.priority)} Priority: ${result.priority}`,
-          { parse_mode: 'Markdown' }
-        );
-      } else {
-        console.warn('Task processing failed:', result.error);
-      }
-      return;
-    }
-
-    // Default: thought/question workflow
-    console.log('💭 Processing as thought/question');
+    console.log(`⚡ Skipped classification — defaulting to thought workflow`);
 
     // Generate embedding
     const embedStart = Date.now();

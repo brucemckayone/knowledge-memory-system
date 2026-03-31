@@ -25,6 +25,7 @@ services:
       - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-test-bot-token-for-dev}
       - WEBHOOK_URL
+      - MNEMO_API_KEY=${MNEMO_API_KEY:-test-api-key-dev}
     volumes:
       - ./platform/src:/app/src:ro  # Hot reload in dev
     networks:

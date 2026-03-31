@@ -241,22 +241,22 @@ export const ml = {
   },
 
   classify(text: string, includeReasoning = false) {
-    return mlFetch<ClassifyResponse>('/classify', { text, include_reasoning: includeReasoning }, 15_000);
+    return mlFetch<ClassifyResponse>('/classify', { text, include_reasoning: includeReasoning }, 90_000);
   },
 
   summarize(content: string, title = 'Untitled') {
-    return mlFetch<SummarizeResponse>('/summarize', { content, title }, 30_000);
+    return mlFetch<SummarizeResponse>('/summarize', { content, title }, 90_000);
   },
 
   chat(message: string, systemPrompt?: string) {
     return mlFetch<ChatResponse>('/chat', {
       message,
       system_prompt: systemPrompt || 'You are a helpful AI assistant for a knowledge management system.',
-    }, 30_000);
+    }, 90_000);
   },
 
   extractTask(text: string) {
-    return mlFetch<ExtractTaskResponse>('/extract-task', { text }, 30_000);
+    return mlFetch<ExtractTaskResponse>('/extract-task', { text }, 90_000);
   },
 
   extractTaskEnhanced(text: string, options: {
@@ -271,14 +271,14 @@ export const ml = {
       existing_tasks: options.existingTasks,
       user_preferences: options.userPreferences,
       include_reasoning: options.includeReasoning ?? false,
-    }, 30_000);
+    }, 90_000);
   },
 
   extractEntities(text: string, validTypes?: string[]) {
     return mlFetch<ExtractEntitiesResponse>('/extract-entities', {
       text,
       ...(validTypes ? { valid_types: validTypes } : {}),
-    }, 30_000);
+    }, 90_000);
   },
 
   extractRelationships(content: string, entities: Array<{ name: string; type?: string }>, validPredicates?: string[]) {
@@ -286,11 +286,11 @@ export const ml = {
       content,
       entities,
       ...(validPredicates ? { valid_predicates: validPredicates } : {}),
-    }, 30_000);
+    }, 90_000);
   },
 
   checkContradiction(fact1: unknown, fact2: unknown) {
-    return mlFetch<CheckContradictionResponse>('/check-contradiction', { fact1, fact2 }, 60_000);
+    return mlFetch<CheckContradictionResponse>('/check-contradiction', { fact1, fact2 }, 90_000);
   },
 
   comparePredicate(predicateA: string, descA: string, predicateB: string, descB: string) {
@@ -299,11 +299,11 @@ export const ml = {
       description_a: descA,
       predicate_b: predicateB,
       description_b: descB,
-    }, 30_000);
+    }, 90_000);
   },
 
   parseContent(content: string, hint?: string) {
-    return mlFetch<ParseContentResponse>('/parse-content', { content, hint }, 30_000);
+    return mlFetch<ParseContentResponse>('/parse-content', { content, hint }, 90_000);
   },
 
   scrape(url: string) {

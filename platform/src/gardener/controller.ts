@@ -229,23 +229,24 @@ class GardenerController {
       console.log(`   Frequent: ${config.GARDENER_FREQUENT_INTERVAL} (${frequentCron})`);
       console.log(`   Periodic: ${config.GARDENER_PERIODIC_INTERVAL} (${periodicCron})`);
 
-      // Frequent tier: summarizer, relationship catch-up, and context linking
-      await this.boss.schedule('gardener:summarize', frequentCron, {});
-      await this.boss.schedule('gardener:relationships', frequentCron, {});
-      await this.boss.schedule('gardener:context-linker', frequentCron, {});
+      // Frequent tier: summarizer and context linking
+      // NOTE: gardener:relationships removed — it requires memoryId from entity extraction chain,
+      // not a scheduled empty-payload cron job.
+      // await this.boss.schedule('gardener:summarize', frequentCron, {});
+      // await this.boss.schedule('gardener:context-linker', frequentCron, {});
 
       // Periodic tier: schema alignment and conflict resolution
       await this.boss.schedule('gardener:align-schema', periodicCron, {});
-      await this.boss.schedule('gardener:resolve-conflicts', periodicCron, {});
+      // await this.boss.schedule('gardener:resolve-conflicts', periodicCron, {});
 
-      // Nightly: community detection (midnight), contradiction scanner (1 AM), ontology evolution (2 AM), insights (3 AM)
-      await this.boss.schedule('gardener:community-detection', '0 0 * * *', {});
-      await this.boss.schedule('gardener:contradiction-scanner', '0 1 * * *', {});
+      // Nightly: ontology evolution (2 AM)
       await this.boss.schedule('gardener:ontology-evolution', '0 2 * * *', {});
-      await this.boss.schedule('gardener:generate-insights', '0 3 * * *', {});
 
-      // Daily: morning briefing (6 AM)
-      await this.boss.schedule('gardener:briefing', '0 6 * * *', {});
+      // Disabled for truth graph testing:
+      // await this.boss.schedule('gardener:community-detection', '0 0 * * *', {});
+      // await this.boss.schedule('gardener:contradiction-scanner', '0 1 * * *', {});
+      // await this.boss.schedule('gardener:generate-insights', '0 3 * * *', {});
+      // await this.boss.schedule('gardener:briefing', '0 6 * * *', {});
 
       console.log('✅ Gardener schedules configured successfully');
     } catch (error) {

@@ -474,7 +474,7 @@ async function start() {
   // Register workers
   await boss.work(
     QUEUES.MESSAGE_PROCESSING,
-    { teamConcurrency: config.QUEUE_CONCURRENCY },
+    { teamSize: config.QUEUE_CONCURRENCY, teamConcurrency: config.QUEUE_CONCURRENCY },
     processMessage
   );
   console.log('✅ Workers registered');
