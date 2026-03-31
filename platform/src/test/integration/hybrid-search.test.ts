@@ -17,10 +17,23 @@ import {
   randomUUID,
   randomEmbedding,
   normalizeVector,
+  skipCtx,
 } from '../setup.js';
 
 // Test collection name for memories
 const MEMORIES_COLLECTION = 'memories';
+
+// Qdrant v1.7.4 requires UUID or unsigned integer IDs — plain strings are rejected.
+// Use fixed UUIDs for stable test assertions.
+const TEST_IDS = {
+  'mem-1':        '00000000-0000-0000-0000-000000000001',
+  'mem-2':        '00000000-0000-0000-0000-000000000002',
+  'mem-3':        '00000000-0000-0000-0000-000000000003',
+  'orphan-mem':   '00000000-0000-0000-0000-000000000010',
+  'exact-match':  '00000000-0000-0000-0000-000000000020',
+  'partial-match':'00000000-0000-0000-0000-000000000021',
+  'no-match':     '00000000-0000-0000-0000-000000000022',
+};
 
 // Helper to ensure memories collection exists
 async function ensureMemoriesCollection(): Promise<void> {
@@ -50,7 +63,7 @@ async function clearMemoriesCollection(): Promise<void> {
   }
 }
 
-// Helper to add memory to Qdrant
+// Helper to add memory to Qdrant — resolves string aliases to valid UUIDs
 async function addMemoryToQdrant(
   id: string,
   content: string,
@@ -58,18 +71,13 @@ async function addMemoryToQdrant(
   embedding?: number[]
 ): Promise<void> {
   const vector = embedding || normalizeVector(randomEmbedding());
+  const pointId = TEST_IDS[id as keyof typeof TEST_IDS] ?? id;
 
   await fetch(`${QDRANT_URL}/collections/${MEMORIES_COLLECTION}/points`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      points: [
-        {
-          id,
-          vector,
-          payload: { content, type },
-        },
-      ],
+      points: [{ id: pointId, vector, payload: { content, type } }],
     }),
   });
 }
@@ -92,13 +100,13 @@ describe('Hybrid Search Integration', () => {
 
   beforeEach(async () => {
     if (!qdrantAvailable) return;
-
-    // Clear Qdrant collection (tests are self-contained for DB with unique IDs)
     await clearMemoriesCollection();
+    // Clear entity links so HS-006 starts with a clean slate
+    await testDb`DELETE FROM memory_entities WHERE memory_id::text LIKE '00000000%'`;
   });
 
   describe('HS-001: Vector-only search', () => {
-    beforeAll((ctx) => { if (!qdrantAvailable) (ctx as any).skip(); });
+    beforeAll((ctx) => { if (!qdrantAvailable) skipCtx(ctx); });
 
     it('should return vector results only when graph disabled', async () => {
       // Given: Memories in Qdrant
@@ -127,13 +135,13 @@ describe('Hybrid Search Integration', () => {
       const results = await response.json() as Record<string, unknown>;
 
       expect((results.result as Array<Record<string, unknown>>).length).toBeGreaterThan(0);
-      expect(((results.result as Array<Record<string, unknown>>)[0] as Record<string, unknown>).id).toBe('mem-1'); // Exact match
+      expect(((results.result as Array<Record<string, unknown>>)[0] as Record<string, unknown>).id).toBe(TEST_IDS['mem-1']); // Exact match
       expect(((results.result as Array<Record<string, unknown>>)[0] as Record<string, unknown>).score).toBeGreaterThan(0.99);
     });
   });
 
   describe('HS-002: Graph-augmented search', () => {
-    beforeAll((ctx) => { if (!qdrantAvailable) (ctx as any).skip(); });
+    beforeAll((ctx) => { if (!qdrantAvailable) skipCtx(ctx); });
 
     it('should include results from entity graph neighbors', async () => {
       // Given: Entities with relationships
@@ -251,7 +259,7 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-005: Entity extraction from query', () => {
-    beforeAll((ctx) => { if (!mlAvailable) (ctx as any).skip(); });
+    beforeAll((ctx) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should resolve entities in query', async () => {
       // When: Extract entities from query
@@ -279,15 +287,18 @@ describe('Hybrid Search Integration', () => {
   });
 
   describe('HS-006: Empty graph fallback', () => {
-    beforeAll((ctx) => { if (!qdrantAvailable) (ctx as any).skip(); });
+    beforeAll((ctx) => { if (!qdrantAvailable) skipCtx(ctx); });
 
     it('should return vector results when graph is empty', async () => {
       // Given: Memories in Qdrant but no entity links
       const embedding = normalizeVector(randomEmbedding());
       await addMemoryToQdrant('orphan-mem', 'This memory has no entity links', 'thought', embedding);
 
-      // Verify no entity links
-      const links = await testDb`SELECT COUNT(*) as count FROM memory_entities`;
+      // Verify this specific memory has no entity links
+      const links = await testDb`
+        SELECT COUNT(*) as count FROM memory_entities
+        WHERE memory_id = ${TEST_IDS['orphan-mem']}::uuid
+      `;
       expect(parseInt(links[0]!.count as string)).toBe(0);
 
       // When: Vector search
@@ -305,12 +316,12 @@ describe('Hybrid Search Integration', () => {
       expect(response.ok).toBe(true);
       const results = await response.json() as Record<string, unknown>;
       expect((results.result as Array<Record<string, unknown>>).length).toBe(1);
-      expect(((results.result as Array<Record<string, unknown>>)[0] as Record<string, unknown>).id).toBe('orphan-mem');
+      expect(((results.result as Array<Record<string, unknown>>)[0] as Record<string, unknown>).id).toBe(TEST_IDS['orphan-mem']);
     });
   });
 
   describe('HS-007: Keyword boost', () => {
-    beforeAll((ctx) => { if (!qdrantAvailable) (ctx as any).skip(); });
+    beforeAll((ctx) => { if (!qdrantAvailable) skipCtx(ctx); });
 
     it('should rank exact keyword matches high', async () => {
       // Given: Memories with specific keywords
@@ -336,7 +347,7 @@ describe('Hybrid Search Integration', () => {
       const results = await response.json() as Record<string, unknown>;
 
       expect(((results.result as Record<string, unknown>).points as Array<Record<string, unknown>>).length).toBe(1);
-      expect(((results.result as Record<string, unknown>).points as Array<Record<string, unknown>>)[0]!.id).toBe('exact-match');
+      expect(((results.result as Record<string, unknown>).points as Array<Record<string, unknown>>)[0]!.id).toBe(TEST_IDS['exact-match']);
     });
   });
 });

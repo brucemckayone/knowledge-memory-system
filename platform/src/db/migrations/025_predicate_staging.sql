@@ -21,7 +21,10 @@ UPDATE fact_predicates SET first_seen_at = created_at WHERE first_seen_at IS NUL
 CREATE INDEX IF NOT EXISTS idx_predicates_staging ON fact_predicates(status, usage_count DESC) WHERE status IN ('staging', 'candidate');
 CREATE INDEX IF NOT EXISTS idx_predicates_provisional ON fact_predicates(status, promoted_at) WHERE status = 'provisional';
 
--- Add status constraint
-ALTER TABLE fact_predicates ADD CONSTRAINT valid_predicate_status CHECK (
+-- Add status constraint (idempotent)
+DO $$ BEGIN
+  ALTER TABLE fact_predicates ADD CONSTRAINT valid_predicate_status CHECK (
     status IN ('staging', 'candidate', 'provisional', 'canonical', 'rejected')
-);
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

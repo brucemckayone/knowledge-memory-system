@@ -6,7 +6,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { testDb, randomUUID } from '../setup.js';
+import { testDb, randomUUID ,
+  skipCtx,
+} from '../setup.js';
 import { normalizePredicate } from '../../services/predicates.js';
 
 const TS = Date.now();
@@ -19,7 +21,7 @@ describe('Ontology Pipeline E2E', () => {
       await testDb`SELECT 1 FROM entity_types LIMIT 1`;
       tablesReady = true;
     } catch {
-      (ctx as any).skip();
+      skipCtx(ctx);
     }
   });
 

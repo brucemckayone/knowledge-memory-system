@@ -14,6 +14,7 @@ import {
   randomUUID,
   isMLServiceAvailable,
   ML_SERVICES_URL,
+  skipCtx,
 } from '../setup.js';
 
 describe('Conflict Resolution Agent', () => {
@@ -29,7 +30,7 @@ describe('Conflict Resolution Agent', () => {
   // Note: Tests are self-contained with unique IDs - no global cleanup needed
 
   describe('CR-001: Antonym detection', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should detect contradiction for different employers', async () => {
       // Given: Two facts claiming different employers
@@ -132,7 +133,7 @@ describe('Conflict Resolution Agent', () => {
   });
 
   describe('CR-003: No contradiction', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should not flag compatible facts as contradictions', async () => {
       // Given: Two compatible "knows" relationships
@@ -155,7 +156,7 @@ describe('Conflict Resolution Agent', () => {
   });
 
   describe('CR-004: Numeric contradiction', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should detect numeric value conflicts', async () => {
       // Given: Two facts with different numeric values
@@ -179,7 +180,7 @@ describe('Conflict Resolution Agent', () => {
   });
 
   describe('CR-005: Negation detection', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should detect negation contradictions', async () => {
       // Given: Positive and negative statements
@@ -281,7 +282,7 @@ describe('Conflict Resolution Agent', () => {
   });
 
   describe('CR-008: LLM fallback', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should use LLM for subtle contradictions', async () => {
       // Given: Subtle contradiction that needs reasoning
@@ -622,7 +623,7 @@ describe('Conflict Resolution Agent', () => {
   });
 
   describe('CR-009: Debate protocol', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should return debate log for subtle contradictions', async () => {
       // Given: Subtle contradiction that bypasses heuristics (not an antonym pair

@@ -12,6 +12,7 @@ import {
   randomUUID,
   isMLServiceAvailable,
   ML_SERVICES_URL,
+  skipCtx,
 } from '../setup.js';
 
 describe('Entity Extraction Agent', () => {
@@ -27,7 +28,7 @@ describe('Entity Extraction Agent', () => {
   // Note: Tests are self-contained with unique IDs - no global cleanup needed
 
   describe('EE-001: Extract person', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should extract person and company from text', async () => {
       // Given: Text with person and company
@@ -61,7 +62,7 @@ describe('Entity Extraction Agent', () => {
   });
 
   describe('EE-002: Extract with positions', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should include start/end positions', async () => {
       // Given: Text with named entities
@@ -93,7 +94,7 @@ describe('Entity Extraction Agent', () => {
   });
 
   describe('EE-003: Resolve to existing', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should resolve mention to existing entity', async () => {
       // Given: Existing entity in database
@@ -136,7 +137,7 @@ describe('Entity Extraction Agent', () => {
   });
 
   describe('EE-004: Create new entity', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should create entity for novel mention', async () => {
       // Given: Text with new entity not in database
@@ -165,7 +166,7 @@ describe('Entity Extraction Agent', () => {
   });
 
   describe('EE-005: Confidence scoring', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should assign confidence scores', async () => {
       // Given: Text with clear and ambiguous entities
@@ -222,7 +223,7 @@ describe('Entity Extraction Agent', () => {
   });
 
   describe('EE-007: Empty extraction', () => {
-    beforeAll((ctx: any) => { if (!mlAvailable) ctx.skip(); });
+    beforeAll((ctx: any) => { if (!mlAvailable) skipCtx(ctx); });
 
     it('should return empty list for text without entities', async () => {
       // Given: Text with no named entities

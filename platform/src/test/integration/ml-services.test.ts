@@ -9,14 +9,16 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { ML_SERVICES_URL, isMLServiceAvailable } from '../setup.js';
+import { ML_SERVICES_URL, isMLServiceAvailable ,
+  skipCtx,
+} from '../setup.js';
 
 describe('Platform ↔ ML Services Integration', () => {
   beforeAll(async (ctx) => {
     const mlAvailable = await isMLServiceAvailable();
     if (!mlAvailable) {
       console.warn('⚠️ ML Services not available - skipping ML tests');
-      (ctx as any).skip();
+      skipCtx(ctx);
     }
   });
 

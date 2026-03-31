@@ -6,7 +6,9 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { testDb, isMLServiceAvailable, isQdrantAvailable } from '../setup.js';
+import { testDb, isMLServiceAvailable, isQdrantAvailable ,
+  skipCtx,
+} from '../setup.js';
 
 let servicesAvailable = false;
 
@@ -63,7 +65,7 @@ describe('Multi-Source Ingestion Pipeline', () => {
 
   describe('Conversation Context', () => {
     beforeAll(async (ctx) => {
-      if (!servicesAvailable) (ctx as any).skip();
+      if (!servicesAvailable) skipCtx(ctx);
     });
 
     it('records messages and opens windows', async () => {
@@ -109,7 +111,7 @@ describe('Multi-Source Ingestion Pipeline', () => {
 
   describe('ML Parsing Endpoints', () => {
     beforeAll(async (ctx) => {
-      if (!servicesAvailable) (ctx as any).skip();
+      if (!servicesAvailable) skipCtx(ctx);
     });
 
     it('parses markdown content', async () => {

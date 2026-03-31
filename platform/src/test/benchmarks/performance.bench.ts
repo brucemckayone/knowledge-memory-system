@@ -16,6 +16,7 @@ import {
   isMLServiceAvailable,
   QDRANT_URL,
   ML_SERVICES_URL,
+  skipCtx,
 } from '../setup.js';
 
 // Performance targets from test strategy (used for reference)
@@ -34,7 +35,7 @@ describe('Performance Benchmarks', () => {
     const mlAvailable = await isMLServiceAvailable();
     if (!qdrantAvailable || !mlAvailable) {
       console.warn('⚠️ ML Services or Qdrant not available - skipping performance benchmarks');
-      (ctx as any).skip();
+      skipCtx(ctx);
     }
 
     // Ensure clean state

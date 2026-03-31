@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS ingestion_sessions (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_sessions_open ON ingestion_sessions(closed_at) WHERE closed_at IS NULL;
-CREATE INDEX idx_sessions_sender ON ingestion_sessions(sender_id, opened_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_open ON ingestion_sessions(closed_at) WHERE closed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_sessions_sender ON ingestion_sessions(sender_id, opened_at DESC);
 
 CREATE TABLE IF NOT EXISTS ingestion_session_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -31,5 +31,5 @@ CREATE TABLE IF NOT EXISTS ingestion_session_members (
   UNIQUE(session_id, memory_id)
 );
 
-CREATE INDEX idx_session_members_memory ON ingestion_session_members(memory_id);
-CREATE INDEX idx_session_members_session ON ingestion_session_members(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_members_memory ON ingestion_session_members(memory_id);
+CREATE INDEX IF NOT EXISTS idx_session_members_session ON ingestion_session_members(session_id);

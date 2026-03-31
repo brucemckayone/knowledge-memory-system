@@ -249,7 +249,14 @@
       "Bash(grep:*)",
       "Bash(__NEW_LINE_6a344df66ac136a3__ bd:*)",
       "Bash(for dir:*)",
-      "Read(//c/Users/bruce.mckay/Developement/mnemo/platform/src/test/**)"
+      "Read(//c/Users/bruce.mckay/Developement/mnemo/platform/src/test/**)",
+      "Bash(bd prime:*)",
+      "Bash(cmd.exe /c \"where node 2>&1\")",
+      "Bash(cmd.exe /c \"where pnpm 2>&1\")",
+      "Bash(powershell.exe -Command \"Get-Command node,pnpm -ErrorAction SilentlyContinue | Select-Object Name,Source\")",
+      "Bash(powershell -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\" 2>&1)",
+      "Bash(pnpm:*)",
+      "Bash(uv --version)"
     ]
   }
 }

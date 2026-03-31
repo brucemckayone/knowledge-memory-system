@@ -5,7 +5,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { testDb, createTestEntity, randomUUID } from '../setup.js';
+import { testDb, createTestEntity, randomUUID ,
+  skipCtx,
+} from '../setup.js';
 
 const TS = Date.now();
 let tablesReady = false;
@@ -17,7 +19,7 @@ describe('Ontology Edge Cases', () => {
       await testDb`SELECT 1 FROM fact_predicates WHERE status IS NOT NULL LIMIT 1`;
       tablesReady = true;
     } catch {
-      (ctx as any).skip();
+      skipCtx(ctx);
     }
     try {
       await testDb`SELECT 1 FROM entity_types LIMIT 1`;

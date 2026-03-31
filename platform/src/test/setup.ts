@@ -75,6 +75,31 @@ export async function isMLServiceAvailable(): Promise<boolean> {
 }
 
 /**
+ * Skip a suite or test from a beforeAll/it context.
+ *
+ * vitest 4.x removed ctx.skip() from beforeAll contexts (it only exists on
+ * individual test contexts). This helper works in both:
+ *   - beforeAll context: marks all child tasks as skipped via task.mode
+ *   - it context: delegates to the native ctx.skip()
+ */
+export function skipCtx(ctx: any): void {
+  if (typeof ctx.skip === 'function') {
+    // Native test context (it/test) — use built-in skip
+    ctx.skip();
+  } else {
+    // Suite hook context (beforeAll) — mark all children as skipped
+    function markSkip(tasks: any[] = []) {
+      for (const t of tasks) {
+        t.mode = 'skip';
+        if (t.tasks) markSkip(t.tasks);
+      }
+    }
+    if (ctx?.task?.tasks) markSkip(ctx.task.tasks);
+    if (ctx?.task) ctx.task.mode = 'skip';
+  }
+}
+
+/**
  * Check if Qdrant is available
  */
 export async function isQdrantAvailable(): Promise<boolean> {

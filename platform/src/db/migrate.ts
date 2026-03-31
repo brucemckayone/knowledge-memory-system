@@ -34,10 +34,13 @@ const runMigrate = async () => {
     const filePath = path.join(migrationsDir, file);
     const content = fs.readFileSync(filePath, 'utf-8');
     
+    // Migration 007 creates an old version of contradiction_reviews.
+    // Migration 013 supersedes it with a different schema — drop the old one first.
+    if (file.includes('013_contradiction_reviews')) {
+      await sql.unsafe('DROP TABLE IF EXISTS contradiction_reviews CASCADE');
+    }
+
     try {
-      // Split by semicolon to handle multiple statements if needed, 
-      // but postgres.js .file() or direct query usually handles it if simple.
-      // Better to just execute the content.
       await sql.unsafe(content);
       console.log(`✅ ${file} applied.`);
     } catch (e) {

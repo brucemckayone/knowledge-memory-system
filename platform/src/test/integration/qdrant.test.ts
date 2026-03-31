@@ -6,7 +6,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { QDRANT_URL, isQdrantAvailable, randomUUID, randomEmbedding, normalizeVector } from '../setup.js';
+import { QDRANT_URL, isQdrantAvailable, randomUUID, randomEmbedding, normalizeVector ,
+  skipCtx,
+} from '../setup.js';
 
 // Test collection name
 const TEST_COLLECTION = 'test_memories';
@@ -34,7 +36,7 @@ describe('Platform ↔ Qdrant Integration', () => {
     qdrantAvailable = await isQdrantAvailable();
     if (!qdrantAvailable) {
       console.warn('⚠️ Qdrant not available - skipping Qdrant tests');
-      (ctx as any).skip();
+      skipCtx(ctx);
       return;
     }
 

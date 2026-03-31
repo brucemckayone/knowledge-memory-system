@@ -61,9 +61,12 @@ tunnel:
 	cloudflared tunnel --url http://localhost:3000
 
 # Start ML services on host
+# Uses uv to manage a Python 3.11 venv (avoids Python 3.14 wheel incompatibilities)
 # --http h11: required on Windows (httptools hangs for native HTTP clients)
 ml:
-	cd ml-services && PYTHONIOENCODING=utf-8 uvicorn app.main:app --host 0.0.0.0 --port 8000 --http h11 --reload
+	cd ml-services && uv venv --python 3.11 .venv
+	cd ml-services && uv pip install --python .venv/Scripts/python.exe -r requirements.txt --quiet
+	cd ml-services && set PYTHONIOENCODING=utf-8 && .venv\Scripts\uvicorn app.main:app --host 0.0.0.0 --port 8000 --http h11 --reload
 
 # Health check
 health:

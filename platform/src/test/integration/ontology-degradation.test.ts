@@ -8,7 +8,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { testDb } from '../setup.js';
+import { testDb ,
+  skipCtx,
+} from '../setup.js';
 
 const TS = Date.now();
 let tablesReady = false;
@@ -19,7 +21,7 @@ describe('Ontology Degradation Handling', () => {
       await testDb`SELECT 1 FROM fact_predicates WHERE status IS NOT NULL LIMIT 1`;
       tablesReady = true;
     } catch {
-      (ctx as any).skip();
+      skipCtx(ctx);
     }
   });
 

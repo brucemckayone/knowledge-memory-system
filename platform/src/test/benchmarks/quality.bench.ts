@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import {
   isMLServiceAvailable,
   ML_SERVICES_URL,
+  skipCtx,
 } from '../setup.js';
 
 // Quality targets from test strategy
@@ -95,7 +96,7 @@ describe('Quality Benchmarks', () => {
     const mlAvailable = await isMLServiceAvailable();
     if (!mlAvailable) {
       console.warn('⚠️ ML Services not available - skipping quality benchmarks');
-      (ctx as any).skip();
+      skipCtx(ctx);
     }
   });
 

@@ -4,17 +4,29 @@
  * Tests the new API endpoints for the living ontology system.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { ML_SERVICES_URL, isMLServiceAvailable } from '../setup.js';
+import { ML_SERVICES_URL, isMLServiceAvailable ,
+  skipCtx,
+} from '../setup.js';
 
 const PLATFORM_URL = 'http://127.0.0.1:3001';
 
+let mlAvailable = false;
+let platformAvailable = false;
+
 describe('Ontology API', () => {
+  beforeAll(async () => {
+    mlAvailable = await isMLServiceAvailable();
+    try {
+      const resp = await fetch(`${PLATFORM_URL}/health`, { signal: AbortSignal.timeout(3000) });
+      platformAvailable = resp.ok;
+    } catch {
+      platformAvailable = false;
+    }
+  });
+
   describe('Compare Predicates Endpoint', () => {
     beforeAll(async (ctx) => {
-      const mlAvailable = await isMLServiceAvailable();
-      if (!mlAvailable) {
-        (ctx as any).skip();
-      }
+      if (!mlAvailable) skipCtx(ctx);
     });
 
     it('should merge true synonyms', async () => {
@@ -72,15 +84,8 @@ describe('Ontology API', () => {
   });
 
   describe('Ontology Stats Endpoint', () => {
-    // This test requires the platform to be running
-    // Skip if platform is not available
     beforeAll(async (ctx) => {
-      try {
-        const resp = await fetch(`${PLATFORM_URL}/health`, { signal: AbortSignal.timeout(3000) });
-        if (!resp.ok) (ctx as any).skip();
-      } catch {
-        (ctx as any).skip();
-      }
+      if (!platformAvailable) skipCtx(ctx);
     });
 
     it('should return ontology stats structure', async () => {
