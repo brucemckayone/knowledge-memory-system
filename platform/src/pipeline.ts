@@ -45,8 +45,8 @@ export interface SkippedRelationship {
  * Returns the memoryId which can be used for later extraction.
  */
 export async function store(
-  text: string,
-  metadata?: { source?: string; timestamp?: Date }
+  _text: string,
+  _metadata?: { source?: string; timestamp?: Date }
 ): Promise<string> {
   // TODO: A05+ implementation
   throw new Error('Not implemented — see A05+ issues');
@@ -57,7 +57,7 @@ export async function store(
  * Can be called immediately after store() or later for batch processing.
  * Can be called again after bug fixes for re-extraction.
  */
-export async function extract(memoryId: string): Promise<ExtractResult> {
+export async function extract(_memoryId: string): Promise<ExtractResult> {
   // TODO: A05+ implementation
   throw new Error('Not implemented — see A05+ issues');
 }
@@ -67,8 +67,8 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
  * Equivalent to: const id = await store(text); return await extract(id);
  */
 export async function ingest(
-  text: string,
-  metadata?: { source?: string; timestamp?: Date }
+  _text: string,
+  _metadata?: { source?: string; timestamp?: Date }
 ): Promise<IngestResult> {
   // TODO: A05+ implementation
   throw new Error('Not implemented — see A05+ issues');
