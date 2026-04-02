@@ -15,7 +15,7 @@
 import { db } from '../db/index.js'
 import { entities, facts, tasks, epics, contextSummaries } from '../db/schema.js'
 import { randomUUID } from 'crypto'
-import { embed } from '../services/ml.js'
+import { ml } from '../services/ml-client.js'
 import { storeMemory } from '../services/qdrant.js'
 import { createEntity } from '../services/entities.js'
 import { createFact } from '../services/facts.js'
@@ -332,7 +332,7 @@ async function generateMemories(entityMap: Map<string, any>) {
       const content = await generateWithLLM(prompt)
 
       // Generate embedding
-      const { vector } = await embed(content)
+      const { vector } = await ml.embed(content)
       const memoryId = randomUUID()
 
       // Create realistic timestamp
@@ -444,7 +444,7 @@ async function generateFacts(entityMap: Map<string, any>) {
     )
 
     // Generate embedding for source
-    const { vector } = await embed(sourceText)
+    const { vector } = await ml.embed(sourceText)
     const memoryId = randomUUID()
 
     // Store source memory
@@ -543,7 +543,7 @@ async function generateTasksAndEpics(entityMap: Map<string, any>) {
     const memoryId = randomUUID()
 
     // Create associated memory
-    const { vector } = await embed(content)
+    const { vector } = await ml.embed(content)
     await storeMemory({
       id: memoryId,
       vector,
@@ -603,7 +603,7 @@ async function generateContextSummaries() {
       `Generate a realistic 2-3 sentence summary of recent conversations in a "${ctx.name}" group chat about ${ctx.participants.join(', ')}.`
     )
 
-    const { vector } = await embed(summary)
+    const { vector } = await ml.embed(summary)
 
     await db.insert(contextSummaries).values({
       id: randomUUID(),
