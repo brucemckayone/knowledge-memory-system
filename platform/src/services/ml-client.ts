@@ -1,8 +1,7 @@
 /**
- * Unified ML Services Client
+ * ML Services Client
  *
- * Single entry point for all ML service calls with timeouts and retries.
- * Replaces scattered fetch() calls and the generated SDK.
+ * Stripped to graph essentials: embed, extractEntities, extractRelationships.
  */
 
 import { config } from '../config.js';
@@ -28,56 +27,6 @@ export interface EmbedResponse {
   dimensions: number;
 }
 
-export interface ClassifyResponse {
-  intents: Array<{ type: string; confidence: number }>;
-  primary_intent: string;
-  suggested_workflow: string;
-  reasoning?: string;
-}
-
-export interface SummarizeResponse {
-  summary: string;
-  key_points: string[];
-  word_count: number;
-}
-
-export interface ChatResponse {
-  response: string;
-}
-
-export interface ExtractTaskResponse {
-  action: string;
-  due_date: string | null;
-  priority: 'high' | 'medium' | 'low';
-  confidence: number;
-  raw_due_text?: string;
-  rejection_reason?: string;
-}
-
-export interface ExtractTaskEnhancedResponse extends ExtractTaskResponse {
-  is_composite?: boolean;
-  subtasks?: Array<{
-    action: string;
-    estimated_duration_minutes?: number;
-    priority?: string;
-    dependencies?: string[];
-  }>;
-  estimated_duration_minutes?: number;
-  duration_confidence?: number;
-  dependencies?: Array<{
-    type: 'blocking' | 'prerequisite' | 'related';
-    reference: string;
-    confidence: number;
-  }>;
-  detected_conflicts?: Array<{
-    type: string;
-    description: string;
-    severity: string;
-  }>;
-  suggestions?: string[];
-  reasoning?: string;
-}
-
 export interface ExtractEntitiesResponse {
   entities: Array<{
     mention: string;
@@ -101,66 +50,6 @@ export interface ExtractRelationshipsResponse {
   }>;
   source_content_hash: string;
   used_fallback: boolean;
-}
-
-export interface DebateLog {
-  advocate_argument: string;
-  defender_argument: string;
-  judge_reasoning: string;
-  advocate_saw_contradiction: boolean;
-  defender_saw_coexistence: boolean;
-}
-
-export interface CheckContradictionResponse {
-  contradicts: boolean;
-  type: string;
-  resolution: string;
-  reasoning: string;
-  confidence: number;
-  debate?: DebateLog;
-}
-
-export interface ComparePredicateResponse {
-  decision: string;
-  reasoning: string;
-  confidence: number;
-}
-
-export interface ParseContentResponse {
-  content_type: string;
-  title: string;
-  summary: string;
-  mentions: string[];
-  dates: string[];
-  links: string[];
-  tags: string[];
-  sentiment: string;
-  language: string;
-  word_count: number;
-  used_fallback: boolean;
-}
-
-export interface ScrapeResponse {
-  url: string;
-  title: string;
-  content: string;
-  text: string;
-  domain: string;
-  word_count: number;
-  description?: string;
-  image?: string;
-}
-
-export interface TranscribeResponse {
-  text: string;
-  language: string;
-  duration_ms: number;
-  segments?: Array<{ start: number; end: number; text: string }>;
-}
-
-export interface HealthResponse {
-  status: string;
-  services: Record<string, string>;
 }
 
 // --- Core fetch wrapper with timeout + retry ---
@@ -240,40 +129,6 @@ export const ml = {
     return mlFetch<EmbedResponse>('/embed', { text, model }, 120_000);
   },
 
-  classify(text: string, includeReasoning = false) {
-    return mlFetch<ClassifyResponse>('/classify', { text, include_reasoning: includeReasoning }, 90_000);
-  },
-
-  summarize(content: string, title = 'Untitled') {
-    return mlFetch<SummarizeResponse>('/summarize', { content, title }, 90_000);
-  },
-
-  chat(message: string, systemPrompt?: string) {
-    return mlFetch<ChatResponse>('/chat', {
-      message,
-      system_prompt: systemPrompt || 'You are a helpful AI assistant for a knowledge management system.',
-    }, 90_000);
-  },
-
-  extractTask(text: string) {
-    return mlFetch<ExtractTaskResponse>('/extract-task', { text }, 90_000);
-  },
-
-  extractTaskEnhanced(text: string, options: {
-    contextMessages?: string[];
-    existingTasks?: Array<{ content: string; id?: string }>;
-    userPreferences?: Record<string, unknown>;
-    includeReasoning?: boolean;
-  } = {}) {
-    return mlFetch<ExtractTaskEnhancedResponse>('/extract-task-enhanced', {
-      text,
-      context_messages: options.contextMessages,
-      existing_tasks: options.existingTasks,
-      user_preferences: options.userPreferences,
-      include_reasoning: options.includeReasoning ?? false,
-    }, 90_000);
-  },
-
   extractEntities(text: string, validTypes?: string[]) {
     return mlFetch<ExtractEntitiesResponse>('/extract-entities', {
       text,
@@ -287,54 +142,6 @@ export const ml = {
       entities,
       ...(validPredicates ? { valid_predicates: validPredicates } : {}),
     }, 90_000);
-  },
-
-  checkContradiction(fact1: unknown, fact2: unknown) {
-    return mlFetch<CheckContradictionResponse>('/check-contradiction', { fact1, fact2 }, 90_000);
-  },
-
-  comparePredicate(predicateA: string, descA: string, predicateB: string, descB: string) {
-    return mlFetch<ComparePredicateResponse>('/compare-predicates', {
-      predicate_a: predicateA,
-      description_a: descA,
-      predicate_b: predicateB,
-      description_b: descB,
-    }, 90_000);
-  },
-
-  parseContent(content: string, hint?: string) {
-    return mlFetch<ParseContentResponse>('/parse-content', { content, hint }, 90_000);
-  },
-
-  scrape(url: string) {
-    return mlFetch<ScrapeResponse>('/scrape', { url }, 20_000);
-  },
-
-  transcribe(audioUrl: string) {
-    return mlFetch<TranscribeResponse>('/transcribe', { audio_url: audioUrl }, 120_000);
-  },
-
-  parseTranscript(content: string, formatHint?: string) {
-    return mlFetch<{
-      segments: Array<{ speaker: string; text: string; start_time?: string; end_time?: string }>;
-      topics: Array<{ topic: string; summary: string }>;
-      speakers: string[];
-      summary: string;
-      action_items: string[];
-      word_count: number;
-    }>('/parse-transcript', { content, format_hint: formatHint }, 60_000);
-  },
-
-  parseMarkdown(content: string, filename?: string) {
-    return mlFetch<{
-      title: string;
-      frontmatter: Record<string, unknown>;
-      sections: Array<{ heading?: string; level: number; content: string }>;
-      links: string[];
-      wikilinks: string[];
-      tags: string[];
-      word_count: number;
-    }>('/parse-markdown', { content, filename }, 30_000);
   },
 
   async health(): Promise<boolean> {

@@ -9,7 +9,6 @@ export const qdrant = new QdrantClient({
 // Collection names
 export const COLLECTIONS = {
   MEMORIES: 'memories',
-  CONTEXTS: 'contexts',
 } as const;
 
 /**
@@ -30,16 +29,6 @@ export async function ensureCollections(): Promise<void> {
     console.log('✅ Created memories collection');
   }
 
-  // Contexts collection
-  if (!existing.has(COLLECTIONS.CONTEXTS)) {
-    await qdrant.createCollection(COLLECTIONS.CONTEXTS, {
-      vectors: {
-        size: config.EMBED_DIMENSIONS,
-        distance: 'Cosine',
-      },
-    });
-    console.log('✅ Created contexts collection');
-  }
 }
 
 /**
@@ -98,29 +87,6 @@ export async function searchMemories(
     limit,
     with_payload,
     filter: filter as any,
-  });
-
-  return results;
-}
-
-/**
- * Scroll points (for keyword search / filtering)
- */
-export async function scrollPoints(
-  filter: Record<string, unknown>,
-  options: {
-    limit?: number;
-    with_payload?: boolean;
-    offset?: string; // Qdrant scroll API uses offset / point id
-  } = {}
-) {
-  const { limit = 10, with_payload = true, offset } = options;
-
-  const results = await qdrant.scroll(COLLECTIONS.MEMORIES, {
-    filter: filter as any,
-    limit,
-    with_payload,
-    offset,
   });
 
   return results;

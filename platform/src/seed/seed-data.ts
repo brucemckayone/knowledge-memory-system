@@ -13,7 +13,7 @@
  */
 
 import { db } from '../db/index.js'
-import { entities, facts, tasks, epics, contextSummaries } from '../db/schema.js'
+import { entities, facts } from '../db/schema.js'
 import { randomUUID } from 'crypto'
 import { ml } from '../services/ml-client.js'
 import { storeMemory } from '../services/qdrant.js'
