@@ -7,8 +7,6 @@ if (process.env.NODE_ENV !== 'test') {
 import { z } from 'zod';
 
 const envSchema = z.object({
-  // Server
-  PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
   // Database
@@ -16,10 +14,6 @@ const envSchema = z.object({
 
   // Qdrant
   QDRANT_URL: z.string().url().default('http://localhost:6333'),
-
-  // Telegram
-  TELEGRAM_BOT_TOKEN: z.string().min(1),
-  WEBHOOK_URL: z.string().url().optional(),
 
   // ML Services
   ML_SERVICES_URL: z.string().url().default('http://localhost:8000'),
@@ -29,29 +23,8 @@ const envSchema = z.object({
   EMBED_MODEL: z.string().default('nomic-embed-text'),
   EMBED_DIMENSIONS: z.coerce.number().optional(),
 
-  // Queue
-  QUEUE_CONCURRENCY: z.coerce.number().default(2),
-
-  // Rate limiting
-  RATE_LIMIT_MESSAGES_PER_MINUTE: z.coerce.number().default(10),
-
-  // Gardener Intervals (for testing/acceleration)
-  GARDENER_FREQUENT_INTERVAL: z.string().default('5m'),
-  GARDENER_PERIODIC_INTERVAL: z.string().default('1h'),
-
-  // Ingestion session window (minutes) for cross-source context linking
-  INGESTION_SESSION_WINDOW_MINUTES: z.coerce.number().default(15),
-
-  // HTTP Ingest API key (W35)
-  MNEMO_API_KEY: z.string().optional(),
-
-  // File watcher (W36)
-  WATCH_DIR: z.string().optional(),
-  WATCH_ENABLED: z.coerce.boolean().default(false),
-
-  // Obsidian (W39)
-  OBSIDIAN_VAULT_PATH: z.string().optional(),
-  OBSIDIAN_ENABLED: z.coerce.boolean().default(false),
+  // Anthropic API (Phase B: causal agent)
+  ANTHROPIC_API_KEY: z.string().optional(),
 });
 
 /**
