@@ -270,9 +270,12 @@ function isGenericMention(mention: string): boolean {
  * Equivalent to: const id = await store(text); return await extract(id);
  */
 export async function ingest(
-  _text: string,
-  _metadata?: { source?: string; timestamp?: Date }
+  text: string,
+  metadata?: { source?: string; timestamp?: Date }
 ): Promise<IngestResult> {
-  // TODO: A05+ implementation
-  throw new Error('Not implemented — see A05+ issues');
+  const totalStart = Date.now();
+  const memoryId = await store(text, metadata);
+  const result = await extract(memoryId);
+  result.timing.total = Date.now() - totalStart;
+  return result;
 }
