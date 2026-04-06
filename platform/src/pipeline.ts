@@ -9,7 +9,8 @@
 import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
-import { getValidEntityTypes, resolveEntity, linkMemoryToEntity } from './services/entities.js';
+import { getValidEntityTypes, resolveEntity, linkMemoryToEntity, findSimilarEntities } from './services/entities.js';
+import { CANONICAL_ONTOLOGY, normalizePredicate } from './services/predicates.js';
 
 export interface ExtractResult {
   memoryId: string;
@@ -122,10 +123,87 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
   }
   timing.resolveEntities = Date.now() - t2;
 
-  // TODO: A11 adds relationship extraction, A13 adds fact creation
-  // For now, return entities only
+  // 5. Extract relationships
+  const t3 = Date.now();
+  const canonicalPredicates = Object.keys(CANONICAL_ONTOLOGY);
+  const entityNames = resolvedEntities.map(e => ({ name: e.canonicalName, type: e.entityType }));
+  const { relationships } = await ml.extractRelationships(content, entityNames, canonicalPredicates);
+  timing.extractRelationships = Date.now() - t3;
+
+  // 6. Match relationship subjects/objects to resolved entities (multi-tier)
+  const t4 = Date.now();
+  const matchedRelationships: MatchedRelationship[] = [];
+  for (const rel of relationships) {
+    const subjectMatch = await matchEntityReference(rel.subject, resolvedEntities);
+    const objectMatch = await matchEntityReference(rel.object, resolvedEntities);
+
+    if (!subjectMatch) {
+      skipped.push({ subject: rel.subject, predicate: rel.predicate, object: rel.object, reason: `subject "${rel.subject}" unresolved` });
+      continue;
+    }
+    if (!objectMatch) {
+      skipped.push({ subject: rel.subject, predicate: rel.predicate, object: rel.object, reason: `object "${rel.object}" unresolved` });
+      continue;
+    }
+
+    const predicate = normalizePredicate(rel.predicate);
+    matchedRelationships.push({
+      subjectId: subjectMatch.id, subjectName: subjectMatch.canonicalName,
+      objectId: objectMatch.id, objectName: objectMatch.canonicalName,
+      predicate, confidence: rel.confidence,
+      temporalHint: rel.temporal_hint, sourceText: rel.source_text,
+    });
+  }
+  timing.matchRelationships = Date.now() - t4;
+
+  // TODO: A13 adds fact creation from matchedRelationships
 
   return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped, filtered, timing };
+}
+
+interface MatchedRelationship {
+  subjectId: string; subjectName: string;
+  objectId: string; objectName: string;
+  predicate: string; confidence: number;
+  temporalHint?: string; sourceText?: string;
+}
+
+/**
+ * Multi-tier entity reference matching:
+ * 1. Exact case-insensitive match
+ * 2. Substring match ("Captain Walton" matches "Walton")
+ * 3. Embedding similarity (handles "the narrator" → "R. Walton")
+ * 4. Skip with warning
+ */
+async function matchEntityReference(
+  reference: string,
+  resolved: ResolvedEntity[],
+): Promise<ResolvedEntity | null> {
+  const refLower = reference.toLowerCase();
+
+  // Tier 1: exact case-insensitive
+  const exact = resolved.find(e => e.canonicalName.toLowerCase() === refLower);
+  if (exact) return exact;
+
+  // Tier 2: substring (either direction)
+  const substring = resolved.find(e => {
+    const nameLower = e.canonicalName.toLowerCase();
+    return nameLower.includes(refLower) || refLower.includes(nameLower);
+  });
+  if (substring) return substring;
+
+  // Tier 3: embedding similarity
+  try {
+    const { vector } = await ml.embed(reference);
+    const similar = await findSimilarEntities(vector, { limit: 1, threshold: 0.75 });
+    if (similar.length > 0) {
+      const match = resolved.find(e => e.id === similar[0]!.id);
+      if (match) return match;
+    }
+  } catch { /* embedding unavailable — skip to tier 4 */ }
+
+  // Tier 4: no match
+  return null;
 }
 
 // --- Specificity filter ---
