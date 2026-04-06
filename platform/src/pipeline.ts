@@ -8,7 +8,8 @@
 
 import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
-import { storeMemory } from './services/qdrant.js';
+import { storeMemory, getMemory } from './services/qdrant.js';
+import { getValidEntityTypes, resolveEntity, linkMemoryToEntity } from './services/entities.js';
 
 export interface ExtractResult {
   memoryId: string;
@@ -72,9 +73,73 @@ export async function store(
  * Can be called immediately after store() or later for batch processing.
  * Can be called again after bug fixes for re-extraction.
  */
-export async function extract(_memoryId: string): Promise<ExtractResult> {
-  // TODO: A05+ implementation
-  throw new Error('Not implemented — see A05+ issues');
+export async function extract(memoryId: string): Promise<ExtractResult> {
+  const timing: Record<string, number> = {};
+  const filtered: string[] = [];
+  const resolvedEntities: ResolvedEntity[] = [];
+  const createdFacts: CreatedFact[] = [];
+  const skipped: SkippedRelationship[] = [];
+
+  // 1. Fetch memory from Qdrant
+  const memory = await getMemory(memoryId);
+  if (!memory?.payload) throw new Error(`Memory ${memoryId} not found in Qdrant`);
+  const content = memory.payload.content as string;
+
+  // 2. Extract entities via ML
+  const t0 = Date.now();
+  const validTypes = await getValidEntityTypes();
+  const { entities: rawEntities } = await ml.extractEntities(content, validTypes);
+  timing.extractEntities = Date.now() - t0;
+
+  // 3. Specificity filter
+  const t1 = Date.now();
+  const accepted = rawEntities.filter(e => {
+    // Low confidence
+    if ((e.confidence ?? 1) < 0.5) {
+      filtered.push(`${e.mention} [confidence ${e.confidence}]`);
+      return false;
+    }
+    // Generic / anaphoric / common noun
+    if (isGenericMention(e.mention)) {
+      filtered.push(`${e.mention} [anaphoric/generic]`);
+      return false;
+    }
+    return true;
+  });
+  timing.specificityFilter = Date.now() - t1;
+
+  // 4. Resolve each entity
+  const t2 = Date.now();
+  for (const e of accepted) {
+    const resolved = await resolveEntity(
+      e.mention, content, e.type,
+      { start: e.start, end: e.end }
+    );
+    await linkMemoryToEntity(memoryId, resolved.id, {
+      text: e.mention, start: e.start, end: e.end,
+    });
+    resolvedEntities.push(resolved);
+  }
+  timing.resolveEntities = Date.now() - t2;
+
+  // TODO: A11 adds relationship extraction, A13 adds fact creation
+  // For now, return entities only
+
+  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped, filtered, timing };
+}
+
+// --- Specificity filter ---
+
+// Anaphoric references are never specific entities ("a lady", "the old man")
+const ANAPHORIC_PATTERN = /^(a|an|the|his|her|my|their|some|this|that)\s/i;
+
+function isGenericMention(mention: string): boolean {
+  const trimmed = mention.trim();
+  // Anaphoric references
+  if (ANAPHORIC_PATTERN.test(trimmed)) return true;
+  // Single character or empty
+  if (trimmed.length <= 1) return true;
+  return false;
 }
 
 /**
