@@ -22,19 +22,6 @@ describe('B01: Causal schema + AGE causal_graph', () => {
   let factId: string;
 
   beforeAll(async () => {
-    // Clean up any prior test data (order matters for FKs)
-    await testDb.unsafe(`DELETE FROM causal_edges`).catch(() => {});
-    await testDb.unsafe(`DELETE FROM causal_events`).catch(() => {});
-    await testDb.unsafe(`DELETE FROM causal_patterns`).catch(() => {});
-
-    // Clean up stale AGE causal_graph data from prior runs
-    try {
-      await testDb.unsafe(
-        `SELECT * FROM ag_catalog.cypher('causal_graph', $$MATCH (n) DETACH DELETE n$$) as (v ag_catalog.agtype)`
-      );
-    } catch {
-      // causal_graph may not exist yet
-    }
 
     // Create test entity and fact for FK references
     const entity = await createTestEntity({
@@ -52,10 +39,9 @@ describe('B01: Causal schema + AGE causal_graph', () => {
   });
 
   afterAll(async () => {
-    // Clean up in dependency order
-    await testDb.unsafe(`DELETE FROM causal_edges`).catch(() => {});
-    await testDb.unsafe(`DELETE FROM causal_events`).catch(() => {});
-    await testDb.unsafe(`DELETE FROM causal_patterns`).catch(() => {});
+    // Only clean up our own data (scoped by entity)
+    await testDb.unsafe(`DELETE FROM causal_edges WHERE cause_event_id IN (SELECT id FROM causal_events WHERE subject_entity_id = '${entityId}')`).catch(() => {});
+    await testDb.unsafe(`DELETE FROM causal_events WHERE subject_entity_id = '${entityId}'`).catch(() => {});
     await testDb.unsafe(`DELETE FROM facts WHERE subject_entity_id = '${entityId}'`).catch(() => {});
     await testDb.unsafe(`DELETE FROM entities WHERE id = '${entityId}'`).catch(() => {});
   });
@@ -169,6 +155,10 @@ describe('B01: Causal schema + AGE causal_graph', () => {
   // --- Trigger: INSERT causal_event → :Transition node ---
 
   it('INSERT into causal_events creates a :Transition node in causal_graph', async () => {
+    // LOAD 'age' required per-session for PL/pgSQL triggers to resolve cypher()
+    await testDb.unsafe(`LOAD 'age'`).catch(() => {});
+    await testDb.unsafe(`SET search_path = ag_catalog, public, "$user"`);
+
     const inserted = await testDb`
       INSERT INTO causal_events (fact_id, transition_type, subject_entity_id, predicate, source_text)
       VALUES (${factId}::uuid, 'created', ${entityId}::uuid, 'works_at', 'B01 test source text')

@@ -5,6 +5,10 @@
 -- at session level. We MUST NOT change it — the existing Graph S triggers
 -- and AGE's cypher() function depend on ag_catalog being in the path.
 -- All table/index DDL uses explicit public. schema to ensure correct placement.
+--
+-- LOAD 'age' is required per-session so PL/pgSQL EXECUTE can resolve cypher().
+-- shared_preload_libraries handles standard SQL, but not dynamic EXECUTE.
+LOAD 'age';
 
 -- ============================================
 -- 1. Causal Patterns (must exist before causal_edges FK)
@@ -183,7 +187,7 @@ END $$;
 
 -- These trigger functions rely on ag_catalog being in the session search_path
 -- (set by 001_consolidated.sql). Same pattern as the existing Graph S triggers.
-CREATE OR REPLACE FUNCTION sync_causal_event_to_graph()
+CREATE OR REPLACE FUNCTION public.sync_causal_event_to_graph()
 RETURNS TRIGGER AS $$
 BEGIN
   EXECUTE format(
@@ -210,12 +214,12 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trigger_sync_causal_event ON public.causal_events;
 CREATE TRIGGER trigger_sync_causal_event
   AFTER INSERT OR UPDATE ON public.causal_events
-  FOR EACH ROW EXECUTE FUNCTION sync_causal_event_to_graph();
+  FOR EACH ROW EXECUTE FUNCTION public.sync_causal_event_to_graph();
 
 -- ============================================
 -- 6. Sync triggers: causal_edges → AGE :CAUSED edges
 -- ============================================
-CREATE OR REPLACE FUNCTION sync_causal_edge_to_graph()
+CREATE OR REPLACE FUNCTION public.sync_causal_edge_to_graph()
 RETURNS TRIGGER AS $$
 BEGIN
   EXECUTE format(
@@ -244,4 +248,4 @@ CREATE TRIGGER trigger_sync_causal_edge
   AFTER INSERT ON public.causal_edges
   FOR EACH ROW
   WHEN (NEW.expired_at IS NULL)
-  EXECUTE FUNCTION sync_causal_edge_to_graph();
+  EXECUTE FUNCTION public.sync_causal_edge_to_graph();

@@ -9,7 +9,7 @@
 
 import { db } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
-import { facts, factPredicates, entities, type Fact } from '../db/schema.js';
+import { facts, factPredicates, entities, causalEvents, type Fact } from '../db/schema.js';
 import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
 import { ml } from './ml-client.js';
 import { recordPredicateUsage } from './predicates.js';
@@ -136,6 +136,17 @@ export async function createFact(params: CreateFactParams): Promise<string> {
   // Track predicate usage for living ontology evolution
   await recordPredicateUsage(predicate).catch(() => {});
 
+  // Create causal event for this fact creation
+  await createCausalEvent({
+    factId: fact.id,
+    transitionType: 'created',
+    subjectEntityId,
+    predicate,
+    deltaConfidence: confidence,
+    sourceMemoryId,
+    sourceText,
+  });
+
   return fact.id;
 }
 
@@ -188,6 +199,19 @@ export async function findSupersedingFacts(
  * Expire a fact (mark as incorrect in our records)
  */
 export async function expireFact(factId: string, reason?: string): Promise<void> {
+  // Fetch fact metadata before expiring (for causal event context)
+  const existing = await db
+    .select({
+      subjectEntityId: facts.subjectEntityId,
+      predicate: facts.predicate,
+      confidence: facts.confidence,
+      sourceMemoryId: facts.sourceMemoryId,
+      sourceText: facts.sourceText,
+    })
+    .from(facts)
+    .where(and(eq(facts.id, factId), isNull(facts.expiredAt)))
+    .limit(1);
+
   await db
     .update(facts)
     .set({
@@ -198,12 +222,37 @@ export async function expireFact(factId: string, reason?: string): Promise<void>
       eq(facts.id, factId),
       isNull(facts.expiredAt)
     ));
+
+  if (existing[0]) {
+    await createCausalEvent({
+      factId,
+      transitionType: 'expired',
+      subjectEntityId: existing[0].subjectEntityId,
+      predicate: existing[0].predicate,
+      deltaConfidence: existing[0].confidence ? -existing[0].confidence : undefined,
+      sourceMemoryId: existing[0].sourceMemoryId ?? undefined,
+      sourceText: existing[0].sourceText ?? undefined,
+    });
+  }
 }
 
 /**
  * Invalidate a fact (mark as no longer true in reality)
  */
 export async function invalidateFact(factId: string, invalidTime?: Date): Promise<void> {
+  // Fetch fact metadata before invalidating (for causal event context)
+  const existing = await db
+    .select({
+      subjectEntityId: facts.subjectEntityId,
+      predicate: facts.predicate,
+      confidence: facts.confidence,
+      sourceMemoryId: facts.sourceMemoryId,
+      sourceText: facts.sourceText,
+    })
+    .from(facts)
+    .where(and(eq(facts.id, factId), isNull(facts.invalidAt)))
+    .limit(1);
+
   await db
     .update(facts)
     .set({ invalidAt: invalidTime || new Date() })
@@ -211,6 +260,18 @@ export async function invalidateFact(factId: string, invalidTime?: Date): Promis
       eq(facts.id, factId),
       isNull(facts.invalidAt)
     ));
+
+  if (existing[0]) {
+    await createCausalEvent({
+      factId,
+      transitionType: 'invalidated',
+      subjectEntityId: existing[0].subjectEntityId,
+      predicate: existing[0].predicate,
+      deltaConfidence: existing[0].confidence ? -existing[0].confidence : undefined,
+      sourceMemoryId: existing[0].sourceMemoryId ?? undefined,
+      sourceText: existing[0].sourceText ?? undefined,
+    });
+  }
 }
 
 /**
@@ -344,5 +405,40 @@ async function generateEmbedding(text: string): Promise<number[]> {
     return data.vector || [];
   } catch {
     return [];
+  }
+}
+
+/**
+ * Create a causal event recording a Graph S state transition.
+ * Called explicitly from fact operations (not via triggers) so full context is available.
+ */
+async function createCausalEvent(params: {
+  factId: string;
+  transitionType: 'created' | 'strengthened' | 'weakened' | 'expired' | 'invalidated';
+  subjectEntityId: string;
+  predicate: string;
+  deltaConfidence?: number;
+  sourceMemoryId?: string;
+  sourceText?: string;
+}): Promise<string> {
+  try {
+    const result = await db
+      .insert(causalEvents)
+      .values({
+        factId: params.factId,
+        transitionType: params.transitionType,
+        subjectEntityId: params.subjectEntityId,
+        predicate: params.predicate,
+        deltaConfidence: params.deltaConfidence ?? null,
+        sourceMemoryId: params.sourceMemoryId ?? null,
+        sourceText: params.sourceText ?? null,
+      })
+      .returning({ id: causalEvents.id });
+
+    return result[0]!.id;
+  } catch (error) {
+    // Causal event creation is non-blocking — log and continue
+    console.warn('Failed to create causal event:', error instanceof Error ? error.message : error);
+    return '';
   }
 }
