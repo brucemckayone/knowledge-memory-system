@@ -5,6 +5,7 @@ Parses meeting transcripts and conversation logs into structured segments
 with speaker identification, timestamps, and topic extraction.
 """
 
+import asyncio
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, List
@@ -145,7 +146,9 @@ async def parse_transcript(request: ParseTranscriptRequest):
 
     try:
         prompt = TOPIC_PROMPT.format(content=content[:3000])
-        result = llm_client.generate_json(prompt, options={"task": "parse_transcript"})
+        result = await asyncio.to_thread(
+            llm_client.generate_json, prompt, None, {"task": "parse_transcript"},
+        )
 
         summary = result.get('summary', summary)
         action_items = result.get('action_items', [])

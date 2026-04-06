@@ -3,6 +3,7 @@ Chat Endpoint
 Simple conversational AI endpoint for Telegram bot integration.
 """
 
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from .core.llm import llm_client
@@ -30,12 +31,13 @@ async def chat(request: ChatRequest):
     Returns natural language responses to user queries.
     """
     try:
-        response = llm_client.generate(
-            prompt=request.message,
-            options={
+        response = await asyncio.to_thread(
+            llm_client.generate,
+            request.message,
+            {
                 "task": "chat",
                 "system_prompt": request.system_prompt,
-            }
+            },
         )
 
         return ChatResponse(response=response)

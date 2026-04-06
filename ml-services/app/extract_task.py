@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -90,10 +91,9 @@ async def extract_task(request: ExtractTaskRequest):
             **date_ctx
         )
 
-        # Call Ollama via shared service
-        result = llm_client.generate_json(
-            prompt,
-            options={"task": "extract_task"}
+        # Call LLM via shared service (offload blocking call to thread pool)
+        result = await asyncio.to_thread(
+            llm_client.generate_json, prompt, None, {"task": "extract_task"},
         )
 
         # Extract action

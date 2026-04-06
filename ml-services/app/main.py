@@ -1,5 +1,7 @@
+import asyncio
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 # Fix Windows console encoding for emoji in log output
 if sys.platform == "win32":
@@ -39,6 +41,17 @@ app = FastAPI(
     version="6.0.0",
     description="ML endpoints for the Cognitive Platform (Phase 6: Multi-Source)"
 )
+
+# Expand the default asyncio thread pool so 10+ concurrent blocking calls
+# (LLM subprocess, Ollama HTTP) don't exhaust it.  Default is only ~5 threads.
+_thread_pool = ThreadPoolExecutor(max_workers=20)
+
+
+@app.on_event("startup")
+async def _set_thread_pool() -> None:
+    loop = asyncio.get_running_loop()
+    loop.set_default_executor(_thread_pool)
+
 
 # CORS for local development
 app.add_middleware(

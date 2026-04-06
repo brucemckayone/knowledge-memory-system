@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
@@ -59,7 +60,9 @@ async def summarize_content(request: SummarizeRequest):
         print(f"📝 Summarizing: {request.title}")
 
         # Call LLM Service
-        result = llm_client.generate_json(prompt, options={"task": "summarize"})
+        result = await asyncio.to_thread(
+            llm_client.generate_json, prompt, None, {"task": "summarize"},
+        )
 
         summary = result.get("summary", content[:200].strip())
         key_points = result.get("key_points", [])

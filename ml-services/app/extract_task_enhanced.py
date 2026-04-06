@@ -7,6 +7,7 @@ and conflict detection using capable LLM.
 Phase 5: Task Processing Pipeline Enhancements
 """
 
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
@@ -232,10 +233,9 @@ async def extract_task_enhanced(request: ExtractTaskEnhancedRequest):
             today=date_ctx["today"]
         )
 
-        # Call LLM with enhanced model (more tokens for reasoning)
-        result = llm_client.generate_json(
-            prompt,
-            options={"task": "extract_task_enhanced"}
+        # Call LLM with enhanced model (offload blocking call to thread pool)
+        result = await asyncio.to_thread(
+            llm_client.generate_json, prompt, None, {"task": "extract_task_enhanced"},
         )
 
         # Extract action

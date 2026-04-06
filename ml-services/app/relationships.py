@@ -9,45 +9,56 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, List
 from .core.llm import llm_client
+import asyncio
 import json
 import re
 
 router = APIRouter()
 
-EXTRACT_RELATIONSHIPS_PROMPT = """Extract relationships from this text as subject-predicate-object triples.
+EXTRACT_RELATIONSHIPS_PROMPT = """You are extracting relationships from text. You MUST only use entity names from the ALLOWED ENTITIES list below.
 
-TEXT:
-{content}
-
-KNOWN ENTITIES (use these exact names when they match):
+=== ALLOWED ENTITIES ===
 {entities}
 
-Rules:
-1. Extract factual relationships, not opinions
-2. Use entities from the known list when they match mentions
-3. Predicates should be BASE FORM only (works_at, lives_in, knows). Do NOT use past tense forms (worked_at, lived_in). Use temporal_hint for tense instead.
-4. Include temporal hints when available (currently, used to, since 2020)
-5. Rate confidence based on how explicit the relationship is
+=== RULES (STRICT) ===
+1. The "subject" and "object" of every relationship MUST be an exact string from the ALLOWED ENTITIES list above. Copy the name exactly — do not paraphrase, abbreviate, or use pronouns.
+2. Do NOT use pronouns (I, he, she, they, it, we, you), titles (the narrator, the lieutenant), descriptions (the voyages, his friend), or any other text that is not in the ALLOWED ENTITIES list.
+3. If a sentence describes a relationship involving someone/something NOT in the ALLOWED ENTITIES list, SKIP that relationship entirely.
+4. Extract factual relationships, not opinions or speculation.
+5. Predicates must be BASE FORM only (works_at, lives_in, knows, writes_to). Do NOT use past tense (worked_at, lived_in). Use temporal_hint for tense instead.
+6. Include temporal hints when available.
+7. Rate confidence based on how explicit the relationship is in the text.
 {predicate_guidance}
 
-Return raw JSON array only. Do not wrap in markdown code fences:
+=== TEXT ===
+{content}
+
+=== OUTPUT FORMAT ===
+Return a raw JSON array only. No markdown fences, no explanation.
 [
   {{
-    "subject": "Person or entity name",
+    "subject": "<exact entity name from ALLOWED ENTITIES>",
     "predicate": "relationship_type",
-    "object": "Other entity or value",
+    "object": "<exact entity name from ALLOWED ENTITIES>",
     "confidence": 0.0-1.0,
     "temporal_hint": "currently|past|future|unknown",
-    "source_text": "exact text that mentions this relationship"
+    "source_text": "exact quote from text"
   }}
 ]
 
-Example relationships:
-- "John works at Acme Corp" -> {{"subject": "John", "predicate": "works_at", "object": "Acme Corp", "confidence": 0.9}}
-- "She used to live in NYC" -> {{"subject": "She", "predicate": "lives_in", "object": "NYC", "temporal_hint": "past"}}
-- "The project was created by the team" -> {{"subject": "team", "predicate": "created", "object": "project"}}
+=== EXAMPLES ===
+Given ALLOWED ENTITIES: ["John Smith", "Acme Corp", "New York"]
 
-Return [] if no relationships found.
+CORRECT:
+- Text: "John works at Acme" -> {{"subject": "John Smith", "predicate": "works_at", "object": "Acme Corp", "confidence": 0.9}}
+- Text: "He moved to New York" -> {{"subject": "John Smith", "predicate": "lives_in", "object": "New York", "temporal_hint": "currently", "confidence": 0.8}}
+
+WRONG (do NOT do these):
+- {{"subject": "He", ...}} <- pronoun, not in ALLOWED ENTITIES
+- {{"subject": "John", ...}} <- partial name, use exact "John Smith"
+- {{"subject": "the employee", ...}} <- description, not in ALLOWED ENTITIES
+
+Return [] if no relationships can be formed using only the allowed entities.
 """
 
 # Common relationship patterns for quick extraction
@@ -151,8 +162,22 @@ def deduplicate_relationships(rels: List[Relationship]) -> List[Relationship]:
 
 
 def resolve_to_entities(relationships: List[Relationship], entities: List[ExtractedEntity]) -> List[Relationship]:
-    """Map relationship subjects/objects to known entities"""
+    """Map relationship subjects/objects to known entities via fuzzy matching"""
+    if not entities:
+        return relationships
+
+    entity_names = [e.name for e in entities]
+    # Build lookup: lowercase -> canonical name
     entity_map = {e.name.lower(): e.name for e in entities}
+    # Also map partial last-name or first-name matches for multi-word entities
+    for e in entities:
+        parts = e.name.split()
+        if len(parts) > 1:
+            for part in parts:
+                # Only add if unambiguous (not already mapped to a different entity)
+                lower_part = part.lower()
+                if lower_part not in entity_map:
+                    entity_map[lower_part] = e.name
 
     resolved = []
     for rel in relationships:
@@ -173,6 +198,25 @@ def resolve_to_entities(relationships: List[Relationship], entities: List[Extrac
     return resolved
 
 
+def filter_to_known_entities(relationships: List[Relationship], entities: List[ExtractedEntity]) -> List[Relationship]:
+    """Drop relationships where subject or object is not a known entity.
+
+    This is the strict gate: after resolve_to_entities has done its best to map
+    names, any relationship that still references an unknown entity is dropped.
+    """
+    if not entities:
+        return relationships
+
+    known = {e.name.lower() for e in entities}
+
+    filtered = []
+    for rel in relationships:
+        if rel.subject.lower() in known and rel.object.lower() in known:
+            filtered.append(rel)
+
+    return filtered
+
+
 @router.post("/extract-relationships", response_model=ExtractRelationshipsResponse)
 async def extract_relationships(request: ExtractRelationshipsRequest):
     """
@@ -189,6 +233,7 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
     # For short content or if we found patterns, might be enough
     if len(content) < 100 or len(quick_rels) >= 3:
         final_rels = resolve_to_entities(quick_rels, entities)
+        final_rels = filter_to_known_entities(final_rels, entities)
         return ExtractRelationshipsResponse(
             relationships=deduplicate_relationships(final_rels),
             source_content_hash=str(hash(content))[:12],
@@ -197,7 +242,10 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
 
     # Use LLM for richer extraction
     try:
-        entity_list = ", ".join([e.name for e in entities]) if entities else "none known"
+        if entities:
+            entity_list = "\n".join([f'- "{e.name}" ({e.type or "unknown"})' for e in entities])
+        else:
+            entity_list = "(none provided)"
 
         # Build predicate guidance for prompt
         if request.valid_predicates:
@@ -212,7 +260,8 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
             predicate_guidance=predicate_guidance,
         )
 
-        raw_rels = llm_client.generate_json(
+        raw_rels = await asyncio.to_thread(
+            llm_client.generate_json,
             prompt=prompt,
             options={"task": "extract_relationships"}
         )
@@ -233,6 +282,7 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
             # Combine with quick extractions
             all_rels = quick_rels + llm_rels
             final_rels = resolve_to_entities(all_rels, entities)
+            final_rels = filter_to_known_entities(final_rels, entities)
 
             return ExtractRelationshipsResponse(
                 relationships=deduplicate_relationships(final_rels),
@@ -245,6 +295,7 @@ async def extract_relationships(request: ExtractRelationshipsRequest):
 
     # Return quick results as fallback
     final_rels = resolve_to_entities(quick_rels, entities)
+    final_rels = filter_to_known_entities(final_rels, entities)
     return ExtractRelationshipsResponse(
         relationships=deduplicate_relationships(final_rels),
         source_content_hash=str(hash(content))[:12],

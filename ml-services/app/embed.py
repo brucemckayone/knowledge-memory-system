@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import List
 from fastapi import APIRouter, HTTPException
@@ -42,7 +43,7 @@ class BatchEmbedResponse(BaseModel):
 
 
 @router.post("/embed", response_model=EmbedResponse)
-def embed(request: EmbedRequest):
+async def embed(request: EmbedRequest):
     """
     Generate embedding vector for text.
 
@@ -50,9 +51,10 @@ def embed(request: EmbedRequest):
     Default model: nomic-embed-text (768 dimensions)
     """
     try:
-        response = ollama_client.embeddings(
+        response = await asyncio.to_thread(
+            ollama_client.embeddings,
             model=request.model,
-            prompt=request.text
+            prompt=request.text,
         )
 
         vector = response["embedding"]
@@ -76,30 +78,29 @@ def embed(request: EmbedRequest):
 
 
 @router.post("/embed/batch", response_model=BatchEmbedResponse)
-def embed_batch(request: BatchEmbedRequest):
+async def embed_batch(request: BatchEmbedRequest):
     """
     Generate embeddings for multiple texts.
 
-    Processes texts sequentially (Ollama doesn't support batch).
+    Processes texts concurrently via thread pool (Ollama doesn't support batch).
     """
     try:
-        embeddings = []
-        dimensions = 0
-
-        for text in request.texts:
-            response = ollama_client.embeddings(
+        async def _embed_one(text: str) -> List[float]:
+            response = await asyncio.to_thread(
+                ollama_client.embeddings,
                 model=request.model,
-                prompt=text
+                prompt=text,
             )
-            vector = response["embedding"]
-            embeddings.append(vector)
-            dimensions = len(vector)
+            return response["embedding"]
+
+        vectors = await asyncio.gather(*[_embed_one(t) for t in request.texts])
+        dimensions = len(vectors[0]) if vectors else 0
 
         return BatchEmbedResponse(
-            embeddings=embeddings,
+            embeddings=list(vectors),
             model=request.model,
             dimensions=dimensions,
-            count=len(embeddings)
+            count=len(vectors)
         )
 
     except Exception as e:

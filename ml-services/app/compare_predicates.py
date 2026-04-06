@@ -4,6 +4,7 @@ Compare two knowledge graph predicates to determine if they should be merged.
 Used by the ontology evolution agent.
 """
 
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
@@ -69,9 +70,11 @@ async def compare_predicates(request: PredicateCompareRequest):
             description_b=request.description_b,
         )
 
-        result = llm_client.generate_json(
+        result = await asyncio.to_thread(
+            llm_client.generate_json,
             prompt,
-            options={"task": "ontology"},  # Use ontology task defaults (Sonnet — Haiku scored 40% on synonym approval)
+            None,
+            {"task": "ontology"},  # Use ontology task defaults (Sonnet — Haiku scored 40% on synonym approval)
         )
 
         decision = result.get("decision", "defer")

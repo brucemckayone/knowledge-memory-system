@@ -5,6 +5,7 @@ Phase 4: Parse and classify content, extract metadata
 W23 Reader Agent uses this to parse memory content.
 """
 
+import asyncio
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, List
@@ -161,9 +162,8 @@ async def parse_content(request: ParseContentRequest):
         )
 
         # Use LLM Service
-        result = llm_client.generate_json(
-            prompt,
-            options={"task": "reader"}
+        result = await asyncio.to_thread(
+            llm_client.generate_json, prompt, None, {"task": "reader"},
         )
 
         # Merge LLM results with quick extractions

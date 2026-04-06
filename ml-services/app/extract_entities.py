@@ -5,6 +5,7 @@ Phase 3: LLM-based Named Entity Recognition
 Extracts entities from text using Ollama and returns structured mentions.
 """
 
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
@@ -106,10 +107,12 @@ async def extract_entities(request: ExtractEntitiesRequest):
         type_list = ', '.join(request.valid_types) if request.valid_types else 'person, company, project, concept, place, event, other'
         prompt = ENTITY_EXTRACTION_PROMPT.format(text=request.text, type_list=type_list)
         
-        # Use LLM service
-        entities_raw = llm_client.generate_json(
+        # Use LLM service (offload blocking call to thread pool)
+        entities_raw = await asyncio.to_thread(
+            llm_client.generate_json,
             prompt,
-            options={"task": "extract_entities"}
+            None,
+            {"task": "extract_entities"},
         )
         
         if not isinstance(entities_raw, list):
@@ -158,9 +161,11 @@ async def resolve_entity(request: ResolveEntityRequest):
             context=request.context[:500],  # Limit context length
         )
         
-        result = llm_client.generate_json(
+        result = await asyncio.to_thread(
+            llm_client.generate_json,
             prompt,
-            options={"task": "resolve_entity"}
+            None,
+            {"task": "resolve_entity"},
         )
         
         decision = result.get('decision', 'CREATE').upper()

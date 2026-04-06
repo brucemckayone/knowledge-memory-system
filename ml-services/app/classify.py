@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
@@ -150,8 +151,10 @@ async def classify_message(request: ClassifyRequest):
             message=request.text
         )
 
-        # Use shared LLM service
-        result_json = llm_client.generate_json(prompt, options={"task": "classify"})
+        # Use shared LLM service (offload blocking call to thread pool)
+        result_json = await asyncio.to_thread(
+            llm_client.generate_json, prompt, None, {"task": "classify"},
+        )
 
         # Validate and normalize
         classification = validate_classification(result_json)
