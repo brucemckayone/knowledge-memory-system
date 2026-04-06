@@ -6,6 +6,10 @@
  * ingest(text)  → store + auto-extract (the default entry point)
  */
 
+import { randomUUID } from 'crypto';
+import { ml } from './services/ml-client.js';
+import { storeMemory } from './services/qdrant.js';
+
 export interface ExtractResult {
   memoryId: string;
   entities: ResolvedEntity[];
@@ -45,11 +49,22 @@ export interface SkippedRelationship {
  * Returns the memoryId which can be used for later extraction.
  */
 export async function store(
-  _text: string,
-  _metadata?: { source?: string; timestamp?: Date }
+  text: string,
+  metadata?: { source?: string; timestamp?: Date }
 ): Promise<string> {
-  // TODO: A05+ implementation
-  throw new Error('Not implemented — see A05+ issues');
+  const memoryId = randomUUID();
+  const { vector } = await ml.embed(text);
+  await storeMemory({
+    id: memoryId,
+    vector,
+    payload: {
+      content: text,
+      source: metadata?.source ?? 'cli',
+      created_at: (metadata?.timestamp ?? new Date()).toISOString(),
+      status: 'stored',
+    },
+  });
+  return memoryId;
 }
 
 /**
