@@ -126,14 +126,14 @@ function sleep(ms: number): Promise<void> {
 
 export const ml = {
   embed(text: string, model = config.EMBED_MODEL) {
-    return mlFetch<EmbedResponse>('/embed', { text, model }, 120_000);
+    return mlFetch<EmbedResponse>('/embed', { text, model }, 600_000);
   },
 
   extractEntities(text: string, validTypes?: string[]) {
     return mlFetch<ExtractEntitiesResponse>('/extract-entities', {
       text,
       ...(validTypes ? { valid_types: validTypes } : {}),
-    }, 90_000);
+    }, 600_000);
   },
 
   extractRelationships(content: string, entities: Array<{ name: string; type?: string }>, validPredicates?: string[]) {
@@ -141,7 +141,7 @@ export const ml = {
       content,
       entities,
       ...(validPredicates ? { valid_predicates: validPredicates } : {}),
-    }, 90_000);
+    }, 600_000);
   },
 
   async health(): Promise<boolean> {

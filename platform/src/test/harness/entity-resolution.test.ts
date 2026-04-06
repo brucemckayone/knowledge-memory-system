@@ -1,30 +1,20 @@
 /**
  * Entity resolution convergence tests.
  *
- * Validates the three-stage resolution pipeline:
- * - Auto-merge (>0.92 similarity)
- * - Medium confidence (0.75-0.92)
- * - New entity creation (<0.75)
- * - Alias accumulation
- * - Trigram fallback
- *
- * Requires PostgreSQL + Ollama running. Skips otherwise.
+ * Requires PostgreSQL + Ollama + ML services running.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { isMLServiceAvailable, deleteFromTables } from '../setup.js';
+import { isMLServiceAvailable, skipCtx, deleteFromTables } from '../setup.js';
 
-let available = false;
-
-beforeAll(async () => {
-  available = await isMLServiceAvailable();
-  if (available) {
+// ML extraction via Claude API is slow — 60s per test
+describe('entity resolution convergence', { timeout: 120_000 }, () => {
+  beforeAll(async (ctx) => {
+    if (!await isMLServiceAvailable()) skipCtx(ctx);
     await deleteFromTables('memory_entities', 'entity_aliases', 'facts', 'entity_merges', 'entities');
-  }
-});
+  });
 
-describe('entity resolution convergence', () => {
-  it.skipIf(() => !available)('ERC-001: same mention converges to same entity', async () => {
+  it('ERC-001: same mention converges to same entity', async () => {
     const { resolveEntity } = await import('../../services/entities.js');
 
     const first = await resolveEntity('Margaret Saville', 'a letter to Margaret Saville', 'person');
@@ -34,37 +24,29 @@ describe('entity resolution convergence', () => {
     expect(second.isNew).toBe(false);
   });
 
-  it.skipIf(() => !available)('ERC-007: alias accumulation', async () => {
+  it('ERC-007: alias accumulation', async () => {
     const { resolveEntity, getEntityById } = await import('../../services/entities.js');
 
     const r1 = await resolveEntity('Victor Frankenstein', 'Victor Frankenstein the scientist', 'person');
     const alias = await resolveEntity('V. Frankenstein', 'letter from V. Frankenstein', 'person');
 
-    // Both should resolve to the same entity (via embedding similarity)
-    // alias may or may not match depending on embedding quality,
-    // but at minimum r1 should be consistent
     expect(r1.id).toBeTruthy();
-    // If embedding is good enough, these merge
-    // If not, at least alias was created as a separate entity
     expect(alias.id).toBeTruthy();
 
     const entity = await getEntityById(r1.id);
     expect(entity).not.toBeNull();
-    // Should have accumulated aliases
-    expect(entity!.aliases.length).toBeGreaterThanOrEqual(0);
   });
 
-  it.skipIf(() => !available)('ERC-002: new entity creation for dissimilar mention', async () => {
+  it('ERC-002: new entity creation for dissimilar mention', async () => {
     const { resolveEntity } = await import('../../services/entities.js');
 
     const r1 = await resolveEntity('Margaret Saville', 'letter to Margaret Saville', 'person');
     const different = await resolveEntity('Qdrant Database', 'vector search in Qdrant Database', 'concept');
 
-    // Completely different entities must not merge
     expect(r1.id).not.toBe(different.id);
   });
 
-  it.skipIf(() => !available)('concurrency: 5 parallel calls produce 1 entity', async () => {
+  it('concurrency: 5 parallel calls produce 1 entity', async () => {
     const { resolveEntity } = await import('../../services/entities.js');
 
     const results = await Promise.all(

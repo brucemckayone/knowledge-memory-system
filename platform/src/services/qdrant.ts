@@ -4,6 +4,7 @@ import { config } from '../config.js';
 // Initialize client
 export const qdrant = new QdrantClient({
   url: config.QDRANT_URL,
+  checkCompatibility: false,
 });
 
 // Collection names

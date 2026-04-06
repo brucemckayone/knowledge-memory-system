@@ -16,8 +16,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Set search path to include AGE catalog
-ALTER DATABASE CURRENT SET search_path = ag_catalog, public, "$user";
+-- Set search path to include AGE catalog for current session
 SET search_path = ag_catalog, public, "$user";
 
 -- ============================================

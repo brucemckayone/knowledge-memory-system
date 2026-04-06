@@ -89,7 +89,7 @@ const THRESHOLD_LLM_VERIFY = 0.75;
 /**
  * Create a new entity with embedding
  */
-export async function createEntity(params: CreateEntityParams): Promise<string> {
+export async function createEntity(params: CreateEntityParams): Promise<{ id: string; existed: boolean }> {
   // Generate embedding for similarity search
   const embedding = await generateEmbedding(params.name);
 
@@ -114,7 +114,7 @@ export async function createEntity(params: CreateEntityParams): Promise<string> 
         await addAliasIfNew(existing[0].id, alias);
       }
     }
-    return existing[0].id;
+    return { id: existing[0].id, existed: true };
   }
 
   const result = await db
@@ -154,7 +154,7 @@ export async function createEntity(params: CreateEntityParams): Promise<string> 
     );
   }
 
-  return entity.id;
+  return { id: entity.id, existed: false };
 }
 
 /**
@@ -291,19 +291,23 @@ export async function resolveEntity(
     }
   }
   
-  // No match - create new entity
-  const entityId = await createEntity({
+  // No match - create new entity (advisory lock prevents duplicates)
+  const { id: entityId, existed } = await createEntity({
     name: mention,
     type: type || 'other',
-    confidence: 0.8,  // Lower confidence for auto-created
+    confidence: 0.8,
   });
-  
+
+  if (existed) {
+    await addAliasIfNew(entityId, mention);
+  }
+
   return {
     id: entityId,
     canonicalName: mention,
     entityType: type || 'other',
     confidence: 0.8,
-    isNew: true,
+    isNew: !existed,
   };
 }
 
