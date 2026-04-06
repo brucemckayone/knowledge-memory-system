@@ -207,6 +207,113 @@ export const entityTypeHistory = pgTable('entity_type_history', {
 });
 
 // ============================================
+// Graph C: Causal Graph Tables
+// ============================================
+
+/**
+ * Causal Patterns
+ *
+ * Recurring causal chain archetypes detected from Graph C edges.
+ * Lifecycle: staging → candidate → provisional → canonical
+ */
+export const causalPatterns = pgTable('causal_patterns', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }),
+  description: text('description'),
+  templateStructure: jsonb('template_structure').notNull(),
+  templateLength: integer('template_length').notNull(),
+  topologyType: varchar('topology_type', { length: 20 }),
+  // Note: pattern_embedding handled directly via SQL (pgvector), not in Drizzle
+  status: varchar('status', { length: 20 }).default('staging').notNull(),
+  instanceCount: integer('instance_count').default(0).notNull(),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).defaultNow().notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+  promotedAt: timestamp('promoted_at', { withTimezone: true }),
+  rejectedAt: timestamp('rejected_at', { withTimezone: true }),
+  rejectionReason: text('rejection_reason'),
+  avgTemporalSpan: text('avg_temporal_span'), // INTERVAL stored as text in Drizzle
+  avgStrength: real('avg_strength'),
+  activationCount30d: integer('activation_count_30d').default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Causal Events
+ *
+ * State transitions in Graph S — the node type of Graph C.
+ * Each fact change creates a causal event.
+ */
+export const causalEvents = pgTable('causal_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  factId: uuid('fact_id').references(() => facts.id),
+  transitionType: varchar('transition_type', { length: 20 }).notNull(),
+  subjectEntityId: uuid('subject_entity_id').references(() => entities.id),
+  predicate: varchar('predicate', { length: 255 }),
+  deltaConfidence: real('delta_confidence'),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull(),
+  // Note: event_embedding handled directly via SQL (pgvector), not in Drizzle
+  sourceMemoryId: uuid('source_memory_id'),
+  sourceText: text('source_text'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const causalEventsRelations = relations(causalEvents, ({ one }) => ({
+  fact: one(facts, {
+    fields: [causalEvents.factId],
+    references: [facts.id],
+  }),
+  subjectEntity: one(entities, {
+    fields: [causalEvents.subjectEntityId],
+    references: [entities.id],
+  }),
+}));
+
+/**
+ * Causal Edges
+ *
+ * Directed causal links between transitions.
+ * Every edge has reasoning (TEXT NOT NULL) and source_references (JSONB NOT NULL).
+ */
+export const causalEdges = pgTable('causal_edges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  causeEventId: uuid('cause_event_id').notNull().references(() => causalEvents.id),
+  effectEventId: uuid('effect_event_id').notNull().references(() => causalEvents.id),
+  strength: real('strength').default(0.5).notNull(),
+  temporalSpan: text('temporal_span'), // INTERVAL stored as text in Drizzle
+  extractionMethod: varchar('extraction_method', { length: 20 }).notNull(),
+  reasoning: text('reasoning').notNull(),
+  sourceReferences: jsonb('source_references').notNull(),
+  pathwayEventIds: uuid('pathway_event_ids').array(),
+  sourceMemoryId: uuid('source_memory_id'),
+  sourceText: text('source_text'),
+  corroborationCount: integer('corroboration_count').default(1).notNull(),
+  lastCorroborated: timestamp('last_corroborated', { withTimezone: true }).defaultNow().notNull(),
+  initialStrength: real('initial_strength').notNull(),
+  decayApplied: boolean('decay_applied').default(false).notNull(),
+  patternId: uuid('pattern_id').references(() => causalPatterns.id),
+  patternPosition: integer('pattern_position'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  expiredAt: timestamp('expired_at', { withTimezone: true }),
+  expireReason: text('expire_reason'),
+});
+
+export const causalEdgesRelations = relations(causalEdges, ({ one }) => ({
+  causeEvent: one(causalEvents, {
+    fields: [causalEdges.causeEventId],
+    references: [causalEvents.id],
+  }),
+  effectEvent: one(causalEvents, {
+    fields: [causalEdges.effectEventId],
+    references: [causalEvents.id],
+  }),
+  pattern: one(causalPatterns, {
+    fields: [causalEdges.patternId],
+    references: [causalPatterns.id],
+  }),
+}));
+
+// ============================================
 // Type exports
 // ============================================
 
@@ -221,3 +328,9 @@ export type NewMemoryEntity = typeof memoryEntities.$inferInsert;
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
+export type CausalEvent = typeof causalEvents.$inferSelect;
+export type NewCausalEvent = typeof causalEvents.$inferInsert;
+export type CausalEdge = typeof causalEdges.$inferSelect;
+export type NewCausalEdge = typeof causalEdges.$inferInsert;
+export type CausalPattern = typeof causalPatterns.$inferSelect;
+export type NewCausalPattern = typeof causalPatterns.$inferInsert;

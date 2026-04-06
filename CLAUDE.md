@@ -1,179 +1,84 @@
-# CLAUDE.md
+# Sparse Truth Graph Implementation - Mnemo Project
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+I'm implementing the Sparse Truth Graph branch for the Mnemo project. This is a dual-graph knowledge system: Graph S (temporal state graph — entities, bi-temporal facts, Apache AGE) paired with Graph C (perpendicular causal graph — causal events, causal edges with LLM reasoning + source traceability, meta-causal patterns).
 
-## Project Overview
+## Branch & State
 
-Mnemo is a local-first, AI-powered personal knowledge system. Users capture thoughts, links, and conversations via Telegram; messages flow through intelligent pipelines and are stored as searchable memories. The system is implemented across 6 phases — Phases 1-2 are complete, Phases 3-4 are ~80% complete, Phases 5-6 are not started.
+- **Branch:** `feat/sparse-truth-graph` (created from `feat/cognitive-platform-v1`)
+- **Beads tool path:** `C:/Users/bruce.mckay/AppData/Local/Programs/bd/bd.exe`
+- **Run `bd prime` first** to load workflow context
+- **Run `bd ready`** to see available work items
+- **Run `bd show <id>`** to see full issue details with acceptance criteria
 
-## Architecture
+There are **27 beads issues** tracking all work:
+- 2 epics (Phase A: Graph S Hardening, Phase B: Graph C Causal Layer)
+- 15 Phase A issues (strip codebase, build pipeline, fix entity resolution bugs, fix relationship matching, fix fact dedup, Frankenstein regression)
+- 1 Phase Gate (GATE: blocks all Phase B until Graph S is proven solid)
+- 9 Phase B issues (causal schema, causal events, causal service, Haiku tool-use agent with 7 tools, conditional trigger, pipeline integration, multi-input causality verification)
 
-Two main services plus infrastructure:
+Dependencies enforce build order. `bd ready` shows what's unblocked. **Start with the first ready item.**
 
-- **platform/** — TypeScript core (Hono HTTP framework, Grammy Telegram bot, Drizzle ORM, pg-boss job queue). Entry point: `src/index.ts`.
-- **ml-services/** — Python FastAPI services for embeddings (Ollama/nomic-embed-text), entity extraction, task extraction, classification, and web scraping. Entry point: `app/main.py`.
+## Architecture Documents (READ THESE FIRST)
 
-Infrastructure: PostgreSQL (pgvector + Apache AGE), Qdrant (vector search), Ollama (local embeddings), Z.AI GLM-4.7 (text generation).
-
-### Data Flow
+All design decisions, schemas, pipeline details, tool definitions, and acceptance criteria are documented in:
 
 ```
-Telegram → Bot Handler → pg-boss Queue → Message Processor → ML Services → Qdrant + PostgreSQL
-                                                                    ↓
-                                                           KARMA Agents (background gardening)
+docs/architecture/truth-graph/
+├── README.md                        ← Start here. Reading order + key decisions.
+├── 00-position-paper.md             ← The "why" — research-grounded dual-graph proposal
+├── 01-dual-graph-architecture.md    ← The "how" — Graph S + Graph C conceptual design
+├── 02-graph-s-hardening.md          ← The "fix now" — entity dedup, relationship matching, fact dedup
+├── 03-graph-c-technical-design.md   ← The "build next" — causal schema, Haiku agent, query interface
+└── 04-sparse-branch-design.md       ← The "implementation" — file inventory, pipeline code, phases
 ```
 
-### Key Subsystems
+**Critical:** Read `04-sparse-branch-design.md` in full before writing any code. It has:
+- Exact file inventory (what to keep, delete, create)
+- The `ingest()` / `store()` / `extract()` pipeline design with detailed step-by-step implementation
+- The Haiku causal agent's 7 tool definitions, system prompt, `create_causal_edge` input schema
+- Conditional trigger logic (when the causal agent runs vs skips)
+- Config, migration, and test strategy
 
-- **core/** — Message envelope factory and routing
-- **bot/** — Telegram bot handlers and commands
-- **workers/** — pg-boss message processor
-- **gardener/** — KARMA agent system (7 agents: reader, summarizer, entity-extraction, relationship, conflict-resolution, schema-alignment, context-linker, plus central controller). Typed error hierarchy (`errors.ts`: `AgentError`, `MlServiceError`, `PayloadError`, `DataFetchError`). Controller records metrics directly to `gardener_metrics`.
-- **services/** — ML client, Qdrant client, hybrid search (vector + graph)
-- **skills/** — Core skill framework for intent routing
-- **db/schema.ts** — Drizzle ORM schema (15+ tables including epics, tasks, entities, facts, relationships)
+Also read `02-graph-s-hardening.md` — it maps every bug from the Frankenstein test (docs/handoff/truth-graph-findings.md) to a specific fix with file paths and code references.
 
-## Build & Development Commands
+## Key Technical Decisions
 
-### Docker (full stack)
+1. **Pipeline is synchronous.** `ingest(text)` = `store()` → `extract()` → `[conditional] causal agent` → return. No queue, no agents, no pg-boss. Direct function calls.
+2. **Store inline, extract lazy.** `store(text)` embeds + writes to Qdrant immediately. `extract(memoryId)` runs entity/relationship/fact extraction. `ingest()` does both. `extract()` is also callable standalone for re-processing.
+3. **Qdrant stays.** The causal agent needs semantic search over raw source texts. pgvector handles entity/fact similarity. Qdrant handles source text search.
+4. **ML services stay** (Python FastAPI on port 8000). Entity/relationship extraction goes through the existing ML service. Embeddings via Ollama (nomic-embed-text, 768-dim).
+5. **Causal reasoning uses Haiku** via `@anthropic-ai/sdk` directly from TypeScript. Tool-use loop — the agent queries the graph, vector store, and existing causal chains, then asserts edges with detailed reasoning + source references. API key via `ANTHROPIC_API_KEY` in config.
+6. **Causal agent is conditional.** Only runs when: (a) entities have existing causal history, OR (b) >N facts created, OR (c) explicit causal language in source text.
+7. **Every causal edge has `reasoning TEXT NOT NULL` and `source_references JSONB NOT NULL`.** Non-negotiable — full traceability.
+8. **Single consolidated migration** (001_consolidated.sql) — 7 Graph S tables + AGE. Phase B adds 002_causal_graph.sql with 3 more tables.
+9. **Graph S first, then Graph C.** Phase A must pass Frankenstein regression before any Phase B work starts.
 
-```bash
-make up          # Start all Docker services (polling mode)
-make dev         # Full environment with Cloudflare tunnel
-make down        # Stop services
-make health      # Check service health
-make logs        # Follow Docker logs
-make clean       # Stop services and remove volumes
-```
+## Workflow
 
-### Platform (TypeScript)
+1. `bd ready` → pick an issue
+2. `bd update <id> --claim` → mark in progress
+3. Read the acceptance criteria: `bd show <id>`
+4. Implement + write tests that encode the acceptance criteria
+5. Verify: run the tests, check the criteria
+6. `bd close <id>` → move to next
+7. When Phase A is done: close the GATE issue, which unblocks Phase B
 
-All commands run from `platform/`:
+## Infrastructure Required
 
-```bash
-pnpm install     # Install dependencies
-pnpm dev         # Start dev server (tsx watch, hot reload)
-pnpm build       # TypeScript compilation
-pnpm typecheck   # Type check only (tsc --noEmit)
-```
+- **PostgreSQL** with pgvector + Apache AGE on port 5433 (Docker: `make up`)
+- **Qdrant** on port 6335 (Docker: `make up`)
+- **Ollama** on port 11434 with nomic-embed-text model (host)
+- **Python ML services** on port 8000 (`cd ml-services && make ml`)
+- **Anthropic API key** in .env (Phase B only)
 
-### Database
+## AGE / search_path Gotchas
 
-```bash
-pnpm db:push     # Push schema changes to database
-pnpm db:studio   # Open Drizzle Studio (visual DB editor)
-pnpm db:generate # Generate migration files
-pnpm db:migrate  # Run migrations
-```
+`001_consolidated.sql` sets `SET search_path = ag_catalog, public, "$user"` at the **session level**. This persists across migration files. Consequences:
 
-### Testing
+- **New migration DDL must use explicit `public.` schema qualifiers** on all CREATE TABLE, CREATE INDEX, REFERENCES, and trigger statements. Without it, objects land in `ag_catalog` (the first schema in the path) and FK references to `public.facts`/`public.entities` fail cross-schema. See `002_causal_graph.sql` for the pattern.
+- **Do NOT change the session search_path** in new migrations. The existing Graph S triggers (`sync_entity_to_graph`, `trigger_sync_fact`) and AGE's `cypher()` function depend on `ag_catalog` being in the session path.
+- **AGE edge properties don't persist via SET** in this version. `MERGE (a)-[r:REL]->(b) SET r.prop = value` creates the edge but silently drops the SET. Node properties work fine. The AGE graph is a traversal index — canonical data lives in PostgreSQL tables.
 
-All test commands run from `platform/`:
+## Existing Test Infrastructure
 
-```bash
-pnpm test                # Run all tests (vitest run)
-pnpm test:watch          # Watch mode
-pnpm test:integration    # Integration tests only (require PostgreSQL)
-pnpm test:agents         # KARMA agent tests (require PostgreSQL + ML Services)
-pnpm test:e2e            # End-to-end tests (require all services)
-pnpm test:coverage       # Coverage report
-```
-
-Run a single test file:
-```bash
-pnpm vitest run src/test/integration/database.test.ts
-```
-
-Tests gracefully skip when dependencies are unavailable (pgvector, ML Services, Qdrant), allowing local development without the full Docker stack.
-
-### Benchmarks
-
-```bash
-pnpm benchmark                    # Run performance benchmarks
-pnpm benchmark:quality            # Entity extraction quality
-pnpm benchmark:stress             # Stress test (heavy scale)
-pnpm benchmark:continuous         # 30-minute continuous benchmark
-```
-
-## Ports
-
-| Service | Port |
-|---------|------|
-| Platform | 3001 |
-| PostgreSQL | 5433 (external) → 5432 (internal) |
-| Qdrant | 6335 (external) → 6333 (internal) |
-| ML Services | 8000 |
-| Ollama | 11434 (host) |
-
-## Technical Decisions
-
-- **Hono** over Express — lighter, modern HTTP framework
-- **Drizzle ORM** — type-safe, lightweight over TypeORM
-- **pg-boss** — job queue backed by existing PostgreSQL (no Redis needed)
-- **Qdrant** — self-hosted vector DB
-- **Apache AGE** — graph queries within PostgreSQL (Phase 3+)
-- **Hybrid LLM** — Ollama for embeddings (local, fast), Z.AI GLM-4.7 for text generation
-
-## Conventions
-
-- TypeScript strict mode with `noUnusedLocals` and `noUnusedParameters`
-- ESM modules (`"type": "module"` in package.json, ES2022 target)
-- Zod for runtime validation of config and API inputs
-- Kebab-case filenames, camelCase exports
-- Tests colocated in `src/test/` with subdirs: `integration/`, `agents/`, `e2e/`, `services/`
-- Test fixtures in `src/test/fixtures/`, generators in `src/test/generators/`, mocks in `src/test/mocks/`
-
-## Documentation
-
-- `docs/INDEX.md` — master entry point, project status, and documentation map
-- `docs/architecture/current.md` — detailed system design and data flow
-- `docs/work-packets/` — detailed implementation specs per work packet (phase1/ through phase6/)
-- `AGENTS.md` — development workflow and issue tracking
-
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
-
-### Rules
-
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-## Session Completion
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd dolt push
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
+The test setup at `src/test/setup.ts` provides: `testDb`, `createTestEntity()`, `createTestFact()`, `randomEmbedding()`, `normalizeVector()`, `cosineSimilarity()`, `isMLServiceAvailable()`, `deleteFromTables()`. Test generators at `src/test/generators/` provide realistic entity/fact/memory generation. Reuse these — don't create new test infrastructure.
