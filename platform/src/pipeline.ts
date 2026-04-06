@@ -11,6 +11,7 @@ import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
 import { getValidEntityTypes, resolveEntity, linkMemoryToEntity, findSimilarEntities } from './services/entities.js';
 import { CANONICAL_ONTOLOGY, normalizePredicate } from './services/predicates.js';
+import { createFact } from './services/facts.js';
 
 export interface ExtractResult {
   memoryId: string;
@@ -156,9 +157,53 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
   }
   timing.matchRelationships = Date.now() - t4;
 
-  // TODO: A13 adds fact creation from matchedRelationships
+  // 7. Create facts from matched relationships
+  const t5 = Date.now();
+  for (const rel of matchedRelationships) {
+    const { validAt, invalidAt } = computeTemporal(rel.temporalHint);
+    const factId = await createFact({
+      subjectEntityId: rel.subjectId,
+      predicate: rel.predicate,
+      objectEntityId: rel.objectId,
+      validAt,
+      invalidAt,
+      sourceMemoryId: memoryId,
+      sourceText: rel.sourceText,
+      confidence: rel.confidence,
+    });
+    createdFacts.push({
+      id: factId,
+      subject: rel.subjectName,
+      predicate: rel.predicate,
+      object: rel.objectName,
+      confidence: rel.confidence,
+    });
+  }
+  timing.createFacts = Date.now() - t5;
 
   return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped, filtered, timing };
+}
+
+/**
+ * Map temporal hints from ML extraction to validAt/invalidAt dates.
+ */
+function computeTemporal(hint?: string): { validAt: Date; invalidAt?: Date } {
+  const now = new Date();
+  switch (hint?.toLowerCase()) {
+    case 'past': {
+      const yearAgo = new Date(now);
+      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+      return { validAt: yearAgo, invalidAt: now };
+    }
+    case 'future': {
+      const monthAhead = new Date(now);
+      monthAhead.setMonth(monthAhead.getMonth() + 1);
+      return { validAt: monthAhead };
+    }
+    case 'current':
+    default:
+      return { validAt: now };
+  }
 }
 
 interface MatchedRelationship {
