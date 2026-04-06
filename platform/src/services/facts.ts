@@ -67,6 +67,30 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     }
   }
 
+  // Dedup: check for existing active fact with matching triple
+  const existingMatch = await db
+    .select({ id: facts.id, confidence: facts.confidence })
+    .from(facts)
+    .where(and(
+      eq(facts.subjectEntityId, subjectEntityId),
+      eq(facts.predicate, predicate),
+      objectEntityId
+        ? eq(facts.objectEntityId, objectEntityId)
+        : eq(facts.objectValue, objectValue ?? ''),
+      isNull(facts.expiredAt),
+    ))
+    .limit(1);
+
+  if (existingMatch[0]) {
+    // Exact match exists — update confidence and source, don't create duplicate
+    const existing = existingMatch[0];
+    await db.update(facts).set({
+      confidence: Math.max(existing.confidence ?? 0, confidence),
+      sourceMemoryId: sourceMemoryId ?? undefined,
+    }).where(eq(facts.id, existing.id));
+    return existing.id;
+  }
+
   // Generate embedding for fact text
   const factText = sourceText || `${predicate} ${objectValue || ''}`.trim();
   const embedding = await generateEmbedding(factText);
