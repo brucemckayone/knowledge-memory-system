@@ -92,7 +92,31 @@ const THRESHOLD_LLM_VERIFY = 0.75;
 export async function createEntity(params: CreateEntityParams): Promise<string> {
   // Generate embedding for similarity search
   const embedding = await generateEmbedding(params.name);
-  
+
+  // Advisory lock on (canonical_name, entity_type) to prevent concurrent duplicates.
+  await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${params.name.toLowerCase() + '||' + params.type}))`);
+
+  // Check if entity already exists (inside the lock)
+  const existing = await db
+    .select({ id: entities.id })
+    .from(entities)
+    .where(and(
+      sql`lower(canonical_name) = ${params.name.toLowerCase()}`,
+      eq(entities.entityType, params.type),
+    ))
+    .limit(1);
+
+  if (existing[0]) {
+    // Entity already exists — update last_seen_at and return existing ID
+    await updateLastSeen(existing[0].id);
+    if (params.aliases?.length) {
+      for (const alias of params.aliases) {
+        await addAliasIfNew(existing[0].id, alias);
+      }
+    }
+    return existing[0].id;
+  }
+
   const result = await db
     .insert(entities)
     .values({
@@ -103,21 +127,21 @@ export async function createEntity(params: CreateEntityParams): Promise<string> 
       confidence: params.confidence || 1.0,
     })
     .returning({ id: entities.id });
-  
+
   const entity = result[0];
   if (!entity) {
     throw new Error('Failed to create entity');
   }
-  
+
   // Store embedding via raw SQL (pgvector)
   if (embedding && embedding.length > 0) {
     await db.execute(sql`
-      UPDATE entities 
+      UPDATE entities
       SET embedding = ${sql.raw(`'[${embedding.join(',')}]'::vector`)}
       WHERE id = ${entity.id}
     `);
   }
-  
+
   // Add aliases
   if (params.aliases?.length) {
     await db.insert(entityAliases).values(
@@ -129,7 +153,7 @@ export async function createEntity(params: CreateEntityParams): Promise<string> 
       }))
     );
   }
-  
+
   return entity.id;
 }
 
@@ -293,8 +317,12 @@ async function addAliasIfNew(entityId: string, alias: string): Promise<void> {
       aliasType: 'mention',
       source: 'extraction',
     });
-  } catch {
-    // Ignore duplicate alias errors
+  } catch (error: unknown) {
+    // Only ignore unique constraint violations (23505)
+    const pgCode = (error as { code?: string }).code;
+    if (pgCode !== '23505') {
+      throw error;
+    }
   }
 }
 
