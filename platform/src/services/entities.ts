@@ -222,11 +222,12 @@ export async function findSimilarEntities(
 export async function resolveEntity(
   mention: string,
   context: string,
-  type?: EntityType
+  type?: EntityType,
+  position?: { start?: number; end?: number }
 ): Promise<ResolvedEntity> {
-  // Generate embedding for the mention with context
-  const combinedText = context ? `${mention} ${context.slice(0, 200)}` : mention;
-  const embedding = await generateEmbedding(combinedText);
+  // Generate embedding from mention + context window centred on position
+  const contextWindow = computeContextWindow(mention, context, position);
+  const embedding = await generateEmbedding(contextWindow);
   
   if (!embedding || embedding.length === 0) {
     // No embedding, fall back to name matching
@@ -439,6 +440,30 @@ export async function getEntityById(entityId: string): Promise<(Entity & { alias
     ...entityResult[0],
     aliases: aliasResults.map(a => a.alias),
   };
+}
+
+/**
+ * Compute context window for entity embedding.
+ * When start/end positions are available, centre the window on the mention.
+ * Otherwise fall back to mention + first 200 chars of context.
+ */
+function computeContextWindow(
+  mention: string,
+  context: string,
+  position?: { start?: number; end?: number }
+): string {
+  if (!context) return mention;
+
+  if (position?.start != null) {
+    const windowRadius = 100;
+    const windowStart = Math.max(0, position.start - windowRadius);
+    const mentionEnd = position.end ?? (position.start + mention.length);
+    const windowEnd = Math.min(context.length, mentionEnd + windowRadius);
+    return context.slice(windowStart, windowEnd);
+  }
+
+  // Fallback: mention + first 200 chars
+  return `${mention} ${context.slice(0, 200)}`;
 }
 
 /**
