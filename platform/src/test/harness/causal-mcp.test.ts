@@ -5,6 +5,7 @@
  * the invocation wrapper generates valid config and delta formatting.
  */
 
+import path from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { testDb, createTestEntity, createTestFact } from '../setup.js';
 import { CAUSAL_AGENT_TOOLS, handleToolCall, getMcpConfigPath } from '../../services/causal-agent.js';
@@ -51,7 +52,10 @@ describe('B06: Causal MCP server', () => {
     expect(config.mcpServers).toBeDefined();
     expect(config.mcpServers['mnemo-causal']).toBeDefined();
     expect(config.mcpServers['mnemo-causal'].command).toBe('npx');
-    expect(config.mcpServers['mnemo-causal'].args).toContain('src/services/causal-mcp.ts');
+    // Args use absolute path (Claude Code ignores cwd for MCP server spawning)
+    const mcpArg = config.mcpServers['mnemo-causal'].args.find((a: string) => a.includes('causal-mcp.ts'));
+    expect(mcpArg).toBeDefined();
+    expect(path.isAbsolute(mcpArg)).toBe(true);
     // cwd should be an absolute path
     expect(config.mcpServers['mnemo-causal'].cwd).toMatch(/^[A-Z]:|^\//);
 
