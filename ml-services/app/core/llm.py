@@ -37,6 +37,7 @@ TASK_DEFAULTS: Dict[str, Dict[str, str]] = {
     "chat":                  {"model": "sonnet", "effort": "medium"},
     "check_contradiction":   {"model": "opus",   "effort": "high"},
     "judge":                 {"model": "opus",   "effort": "high"},
+    "causal_reason":         {"model": "sonnet", "effort": "high"},
 }
 DEFAULT_MODEL = "sonnet"
 DEFAULT_EFFORT = "medium"
@@ -87,6 +88,7 @@ class ClaudeCodeProvider:
         max_turns      - int, how many agentic turns (default 1)
         system_prompt  - replaces the default system prompt entirely
         fallback_model - override automatic upward fallback
+        mcp_config     - path to MCP config JSON (--mcp-config)
         timeout        - subprocess timeout in seconds (default 300)
     """
 
@@ -138,18 +140,39 @@ class ClaudeCodeProvider:
             cmd.extend(["--fallback-model", fallback])
 
         # System prompt (replaces default Claude Code prompt entirely)
+        # Use --system-prompt-file for long prompts to avoid CLI length limits
         system_prompt = opts.get("system_prompt")
         if system_prompt:
-            cmd.extend(["--system-prompt", system_prompt])
+            import tempfile
+            prompt_file = tempfile.NamedTemporaryFile(
+                mode='w', suffix='.txt', delete=False, encoding='utf-8',
+            )
+            prompt_file.write(system_prompt)
+            prompt_file.close()
+            cmd.extend(["--system-prompt-file", prompt_file.name])
 
-        # Tools: None → disabled (""), explicit value passed through
+        # Tools: None → disabled (""), "mcp" → omit (MCP tools come via --mcp-config),
+        # explicit value passed through
         tools = opts.get("tools")
-        if tools is None:
+        if tools == "mcp":
+            pass  # MCP tools provided by --mcp-config, don't pass --tools
+        elif tools is None:
             cmd.extend(["--tools", ""])
         elif isinstance(tools, list):
             cmd.extend(["--tools", ",".join(tools)])
         else:
             cmd.extend(["--tools", str(tools)])
+
+        # MCP config (connects Claude Code to MCP tool servers)
+        mcp_config = opts.get("mcp_config")
+        if mcp_config:
+            cmd.extend([
+                "--mcp-config", str(mcp_config),
+                "--strict-mcp-config",
+            ])
+            # MCP tools must be explicitly allowed in -p mode (no interactive prompt)
+            mcp_server = opts.get("mcp_server_name", "mnemo-causal")
+            cmd.extend(["--allowedTools", f"mcp__{mcp_server}__*"])
 
         # Structured output via JSON schema
         if json_schema:
@@ -166,6 +189,7 @@ class ClaudeCodeProvider:
     def _run(self, cmd: list, options: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute CLI command and return the parsed JSON envelope."""
         timeout = (options or {}).get("timeout", 300)
+        logger.info("Claude CLI cmd: %s", " ".join(str(c) for c in cmd[:10]) + "...")
 
         try:
             result = subprocess.run(
@@ -176,6 +200,11 @@ class ClaudeCodeProvider:
                 status_code=504,
                 detail=f"Claude CLI timed out after {timeout}s",
             )
+
+        logger.info("Claude CLI rc=%d stdout=%d stderr=%d",
+                    result.returncode, len(result.stdout or ''), len(result.stderr or ''))
+        if result.stderr:
+            logger.info("Claude CLI stderr: %s", result.stderr[:500])
 
         if result.returncode != 0:
             logger.error(

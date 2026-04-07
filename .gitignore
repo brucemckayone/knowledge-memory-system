@@ -39,6 +39,9 @@ logs/
 # Qdrant data (if local)
 qdrant_storage/
 
+# Generated MCP configs
+.causal-mcp-config.json
+
 # Drizzle
 drizzle/
 .beads/daemon.lock

@@ -12,6 +12,11 @@ import { storeMemory, getMemory } from './services/qdrant.js';
 import { getValidEntityTypes, resolveEntity, linkMemoryToEntity, findSimilarEntities } from './services/entities.js';
 import { CANONICAL_ONTOLOGY, normalizePredicate } from './services/predicates.js';
 import { createFact } from './services/facts.js';
+import { shouldRunCausalAgent } from './services/causal-trigger.js';
+import { invokeCausalAgent, type CausalDelta } from './services/causal-agent.js';
+import { db } from './db/index.js';
+import { causalEvents } from './db/schema.js';
+import { eq, and, inArray } from 'drizzle-orm';
 
 export interface ExtractResult {
   memoryId: string;
@@ -22,7 +27,16 @@ export interface ExtractResult {
   timing: Record<string, number>;
 }
 
-export interface IngestResult extends ExtractResult {}
+export interface CausalResult {
+  triggered: boolean;
+  reasons: string[];
+  agentResult?: string;
+  error?: string;
+}
+
+export interface IngestResult extends ExtractResult {
+  causal?: CausalResult;
+}
 
 export interface ResolvedEntity {
   id: string;
@@ -275,7 +289,73 @@ export async function ingest(
 ): Promise<IngestResult> {
   const totalStart = Date.now();
   const memoryId = await store(text, metadata);
-  const result = await extract(memoryId);
-  result.timing.total = Date.now() - totalStart;
-  return result;
+  const extractResult = await extract(memoryId);
+
+  // --- Conditional causal agent ---
+  const entityIds = extractResult.entities.map(e => e.id);
+  const trigger = await shouldRunCausalAgent({
+    sourceText: text,
+    entityIds,
+    newFactCount: extractResult.facts.length,
+  });
+
+  let causal: CausalResult = {
+    triggered: trigger.shouldRun,
+    reasons: trigger.reasons,
+  };
+
+  if (trigger.shouldRun) {
+    console.log(`[causal] triggered: ${trigger.reasons.join(', ')}`);
+
+    try {
+      // Collect causal events created during this extract
+      const events = entityIds.length > 0
+        ? await db
+            .select()
+            .from(causalEvents)
+            .where(and(
+              inArray(causalEvents.subjectEntityId, entityIds),
+              eq(causalEvents.sourceMemoryId, memoryId),
+            ))
+        : [];
+
+      const delta: CausalDelta = {
+        sourceText: text,
+        memoryId,
+        newEntities: extractResult.entities.map(e => ({
+          id: e.id,
+          canonicalName: e.canonicalName,
+          entityType: e.entityType,
+        })),
+        newFacts: extractResult.facts.map(f => ({
+          id: f.id,
+          subject: f.subject,
+          predicate: f.predicate,
+          object: f.object,
+          confidence: f.confidence,
+        })),
+        modifiedFacts: [],
+        causalEvents: events.map(e => ({
+          id: e.id,
+          factId: e.factId ?? undefined,
+          transitionType: e.transitionType,
+          subjectEntityId: e.subjectEntityId ?? undefined,
+          predicate: e.predicate ?? undefined,
+          sourceText: e.sourceText ?? undefined,
+        })),
+      };
+
+      const agentResult = await invokeCausalAgent(delta);
+      causal.agentResult = agentResult.result;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.warn(`[causal] agent failed: ${msg}`);
+      causal.error = msg;
+    }
+  } else {
+    console.log(`[causal] skipped: no trigger conditions met`);
+  }
+
+  extractResult.timing.total = Date.now() - totalStart;
+  return { ...extractResult, causal };
 }

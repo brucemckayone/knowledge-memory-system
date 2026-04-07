@@ -34,6 +34,7 @@ from .parse_transcript import router as parse_transcript_router
 from .parse_document import router as parse_document_router
 from .parse_markdown import router as parse_markdown_router
 from .compare_predicates import router as compare_predicates_router
+from .causal_reason import router as causal_reason_router
 from .core.llm import LLM_PROVIDER
 
 app = FastAPI(
@@ -83,6 +84,8 @@ app.include_router(parse_transcript_router, tags=["Transcript Parsing"])
 app.include_router(parse_document_router, tags=["Document Parsing"])
 app.include_router(parse_markdown_router, tags=["Markdown Parsing"])
 app.include_router(compare_predicates_router, tags=["Predicate Comparison"])
+# Phase B: Graph C
+app.include_router(causal_reason_router, tags=["Causal Reasoning"])
 
 
 @app.get("/health")
@@ -110,7 +113,8 @@ def health():
             "parse-transcript",
             "parse-document",
             "parse-markdown",
-            "compare-predicates"
+            "compare-predicates",
+            "causal-reason"
         ]
     }
 

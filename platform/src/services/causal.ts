@@ -1,13 +1,14 @@
 /**
- * Causal Service — Write Functions
+ * Causal Service
  *
- * Creates and validates causal edges in Graph C.
+ * Write and read functions for Graph C (causal graph).
  * Every edge requires reasoning (TEXT NOT NULL) and source_references (JSONB NOT NULL).
  */
 
 import { db } from '../db/index.js';
-import { causalEdges, causalEvents } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { rawQuery } from '../db/raw.js';
+import { causalEdges, causalEvents, type CausalEvent, type CausalEdge } from '../db/schema.js';
+import { eq, and, gte, lte, sql, or, inArray, isNull } from 'drizzle-orm';
 
 export interface SourceReference {
   type: 'memory' | 'fact' | 'entity';
@@ -100,4 +101,288 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
     .returning({ id: causalEdges.id });
 
   return result[0]!.id;
+}
+
+// ============================================
+// Read / Query Functions
+// ============================================
+
+export interface CausalChainNode {
+  event: CausalEvent;
+  edge?: CausalEdge; // the edge that connects this node to the next in the chain
+}
+
+export interface TraceOptions {
+  maxDepth?: number;
+  minStrength?: number;
+}
+
+/**
+ * Walk Graph C backwards from a fact's causal event to root causes.
+ * Returns the chain from root cause → ... → starting event.
+ */
+export async function traceCauses(
+  factId: string,
+  options: TraceOptions = {},
+): Promise<CausalChainNode[]> {
+  const { maxDepth = 10, minStrength = 0 } = options;
+
+  const rows = await rawQuery<{
+    eventId: string;
+    factId: string | null;
+    transitionType: string;
+    subjectEntityId: string | null;
+    predicate: string | null;
+    deltaConfidence: number | null;
+    occurredAt: Date;
+    sourceMemoryId: string | null;
+    sourceText: string | null;
+    createdAt: Date;
+    edgeId: string | null;
+    causeEventId: string | null;
+    effectEventId: string | null;
+    strength: number | null;
+    reasoning: string | null;
+    sourceReferences: unknown;
+    extractionMethod: string | null;
+    depth: number;
+  }>(sql`
+    WITH RECURSIVE chain AS (
+      -- Base: the event for this fact
+      SELECT
+        ce.id as event_id,
+        ce.fact_id, ce.transition_type, ce.subject_entity_id,
+        ce.predicate, ce.delta_confidence, ce.occurred_at,
+        ce.source_memory_id, ce.source_text, ce.created_at,
+        NULL::uuid as edge_id,
+        NULL::uuid as cause_event_id,
+        NULL::uuid as effect_event_id,
+        NULL::float as strength,
+        NULL::text as reasoning,
+        NULL::jsonb as source_references,
+        NULL::varchar as extraction_method,
+        0 as depth
+      FROM causal_events ce
+      WHERE ce.fact_id = ${factId}
+
+      UNION ALL
+
+      -- Recurse: follow edges backwards (effect → cause)
+      SELECT
+        parent.id as event_id,
+        parent.fact_id, parent.transition_type, parent.subject_entity_id,
+        parent.predicate, parent.delta_confidence, parent.occurred_at,
+        parent.source_memory_id, parent.source_text, parent.created_at,
+        edge.id as edge_id,
+        edge.cause_event_id,
+        edge.effect_event_id,
+        edge.strength,
+        edge.reasoning,
+        edge.source_references,
+        edge.extraction_method,
+        chain.depth + 1 as depth
+      FROM chain
+      JOIN causal_edges edge ON edge.effect_event_id = chain.event_id
+        AND edge.expired_at IS NULL
+        AND edge.strength >= ${minStrength}
+      JOIN causal_events parent ON parent.id = edge.cause_event_id
+      WHERE chain.depth < ${maxDepth}
+    )
+    SELECT * FROM chain ORDER BY depth DESC
+  `);
+
+  return rows.map(row => ({
+    event: {
+      id: row.eventId,
+      factId: row.factId,
+      transitionType: row.transitionType,
+      subjectEntityId: row.subjectEntityId,
+      predicate: row.predicate,
+      deltaConfidence: row.deltaConfidence,
+      occurredAt: row.occurredAt,
+      sourceMemoryId: row.sourceMemoryId,
+      sourceText: row.sourceText,
+      createdAt: row.createdAt,
+    } as CausalEvent,
+    edge: row.edgeId ? {
+      id: row.edgeId,
+      causeEventId: row.causeEventId!,
+      effectEventId: row.effectEventId!,
+      strength: row.strength!,
+      reasoning: row.reasoning!,
+      sourceReferences: row.sourceReferences,
+      extractionMethod: row.extractionMethod!,
+    } as unknown as CausalEdge : undefined,
+  }));
+}
+
+/**
+ * Walk Graph C forward from a fact's causal event to downstream effects.
+ * Returns the chain from starting event → ... → leaf effects.
+ */
+export async function projectTrajectory(
+  factId: string,
+  options: TraceOptions = {},
+): Promise<CausalChainNode[]> {
+  const { maxDepth = 10, minStrength = 0 } = options;
+
+  const rows = await rawQuery<{
+    eventId: string;
+    factId: string | null;
+    transitionType: string;
+    subjectEntityId: string | null;
+    predicate: string | null;
+    deltaConfidence: number | null;
+    occurredAt: Date;
+    sourceMemoryId: string | null;
+    sourceText: string | null;
+    createdAt: Date;
+    edgeId: string | null;
+    causeEventId: string | null;
+    effectEventId: string | null;
+    strength: number | null;
+    reasoning: string | null;
+    sourceReferences: unknown;
+    extractionMethod: string | null;
+    depth: number;
+  }>(sql`
+    WITH RECURSIVE chain AS (
+      -- Base: the event for this fact
+      SELECT
+        ce.id as event_id,
+        ce.fact_id, ce.transition_type, ce.subject_entity_id,
+        ce.predicate, ce.delta_confidence, ce.occurred_at,
+        ce.source_memory_id, ce.source_text, ce.created_at,
+        NULL::uuid as edge_id,
+        NULL::uuid as cause_event_id,
+        NULL::uuid as effect_event_id,
+        NULL::float as strength,
+        NULL::text as reasoning,
+        NULL::jsonb as source_references,
+        NULL::varchar as extraction_method,
+        0 as depth
+      FROM causal_events ce
+      WHERE ce.fact_id = ${factId}
+
+      UNION ALL
+
+      -- Recurse: follow edges forward (cause → effect)
+      SELECT
+        child.id as event_id,
+        child.fact_id, child.transition_type, child.subject_entity_id,
+        child.predicate, child.delta_confidence, child.occurred_at,
+        child.source_memory_id, child.source_text, child.created_at,
+        edge.id as edge_id,
+        edge.cause_event_id,
+        edge.effect_event_id,
+        edge.strength,
+        edge.reasoning,
+        edge.source_references,
+        edge.extraction_method,
+        chain.depth + 1 as depth
+      FROM chain
+      JOIN causal_edges edge ON edge.cause_event_id = chain.event_id
+        AND edge.expired_at IS NULL
+        AND edge.strength >= ${minStrength}
+      JOIN causal_events child ON child.id = edge.effect_event_id
+      WHERE chain.depth < ${maxDepth}
+    )
+    SELECT * FROM chain ORDER BY depth ASC
+  `);
+
+  return rows.map(row => ({
+    event: {
+      id: row.eventId,
+      factId: row.factId,
+      transitionType: row.transitionType,
+      subjectEntityId: row.subjectEntityId,
+      predicate: row.predicate,
+      deltaConfidence: row.deltaConfidence,
+      occurredAt: row.occurredAt,
+      sourceMemoryId: row.sourceMemoryId,
+      sourceText: row.sourceText,
+      createdAt: row.createdAt,
+    } as CausalEvent,
+    edge: row.edgeId ? {
+      id: row.edgeId,
+      causeEventId: row.causeEventId!,
+      effectEventId: row.effectEventId!,
+      strength: row.strength!,
+      reasoning: row.reasoning!,
+      sourceReferences: row.sourceReferences,
+      extractionMethod: row.extractionMethod!,
+    } as unknown as CausalEdge : undefined,
+  }));
+}
+
+/**
+ * Get all causal events and edges involving an entity.
+ */
+export async function getEntityCausalHistory(entityId: string): Promise<{
+  events: CausalEvent[];
+  edges: CausalEdge[];
+}> {
+  const events = await db
+    .select()
+    .from(causalEvents)
+    .where(eq(causalEvents.subjectEntityId, entityId))
+    .orderBy(causalEvents.occurredAt);
+
+  if (events.length === 0) {
+    return { events: [], edges: [] };
+  }
+
+  const eventIds = events.map(e => e.id);
+
+  // Find all active edges where cause or effect is one of this entity's events
+  const edges = await db
+    .select()
+    .from(causalEdges)
+    .where(and(
+      isNull(causalEdges.expiredAt),
+      or(
+        inArray(causalEdges.causeEventId, eventIds),
+        inArray(causalEdges.effectEventId, eventIds),
+      ),
+    ))
+    .orderBy(causalEdges.createdAt);
+
+  return { events, edges };
+}
+
+/**
+ * Get causal events and edges created within a time window.
+ */
+export async function getCausalDelta(
+  from: Date,
+  to: Date,
+  options: { entityId?: string } = {},
+): Promise<{
+  events: CausalEvent[];
+  edges: CausalEdge[];
+}> {
+  const eventConditions = [
+    gte(causalEvents.createdAt, from),
+    lte(causalEvents.createdAt, to),
+  ];
+  if (options.entityId) {
+    eventConditions.push(eq(causalEvents.subjectEntityId, options.entityId));
+  }
+
+  const events = await db
+    .select()
+    .from(causalEvents)
+    .where(and(...eventConditions))
+    .orderBy(causalEvents.createdAt);
+
+  const edges = await db
+    .select()
+    .from(causalEdges)
+    .where(and(
+      gte(causalEdges.createdAt, from),
+      lte(causalEdges.createdAt, to),
+    ))
+    .orderBy(causalEdges.createdAt);
+
+  return { events, edges };
 }

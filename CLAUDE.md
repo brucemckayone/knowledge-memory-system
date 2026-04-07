@@ -47,7 +47,7 @@ Also read `02-graph-s-hardening.md` — it maps every bug from the Frankenstein 
 2. **Store inline, extract lazy.** `store(text)` embeds + writes to Qdrant immediately. `extract(memoryId)` runs entity/relationship/fact extraction. `ingest()` does both. `extract()` is also callable standalone for re-processing.
 3. **Qdrant stays.** The causal agent needs semantic search over raw source texts. pgvector handles entity/fact similarity. Qdrant handles source text search.
 4. **ML services stay** (Python FastAPI on port 8000). Entity/relationship extraction goes through the existing ML service. Embeddings via Ollama (nomic-embed-text, 768-dim).
-5. **Causal reasoning uses Haiku** via `@anthropic-ai/sdk` directly from TypeScript. Tool-use loop — the agent queries the graph, vector store, and existing causal chains, then asserts edges with detailed reasoning + source references. API key via `ANTHROPIC_API_KEY` in config.
+5. **Causal reasoning uses Claude Code** invoked via `-p` flag. The 7 causal tools are exposed as an MCP server (`services/causal-mcp.ts`). Claude Code connects to the MCP server, queries the graph, vector store, and existing causal chains, then asserts edges with detailed reasoning + source references. No vendor-specific SDK — the MCP interface is model-agnostic.
 6. **Causal agent is conditional.** Only runs when: (a) entities have existing causal history, OR (b) >N facts created, OR (c) explicit causal language in source text.
 7. **Every causal edge has `reasoning TEXT NOT NULL` and `source_references JSONB NOT NULL`.** Non-negotiable — full traceability.
 8. **Single consolidated migration** (001_consolidated.sql) — 7 Graph S tables + AGE. Phase B adds 002_causal_graph.sql with 3 more tables.
@@ -69,7 +69,7 @@ Also read `02-graph-s-hardening.md` — it maps every bug from the Frankenstein 
 - **Qdrant** on port 6335 (Docker: `make up`)
 - **Ollama** on port 11434 with nomic-embed-text model (host)
 - **Python ML services** on port 8000 (`cd ml-services && make ml`)
-- **Anthropic API key** in .env (Phase B only)
+- **Claude Code** CLI available on PATH (Phase B — causal reasoning agent)
 
 ## AGE / search_path Gotchas
 
