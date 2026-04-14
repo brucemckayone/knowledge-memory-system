@@ -1,9 +1,9 @@
-import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
 import re
 from .core.llm import llm_client
+from .core.concurrency import llm_pool, QueueFullError
 
 router = APIRouter()
 
@@ -59,8 +59,8 @@ async def summarize_content(request: SummarizeRequest):
 
         print(f"📝 Summarizing: {request.title}")
 
-        # Call LLM Service
-        result = await asyncio.to_thread(
+        # Call LLM Service (via work queue)
+        result = await llm_pool.submit(
             llm_client.generate_json, prompt, None, {"task": "summarize"},
         )
 

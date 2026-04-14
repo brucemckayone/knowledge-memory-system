@@ -65,6 +65,8 @@ export async function setup() {
     } else {
       console.log(`✅ Test database already exists: ${TEST_DB_NAME}`);
     }
+    // Ensure ag_catalog is in search_path so cypher() resolves on all connections
+    await adminSql.unsafe(`ALTER DATABASE ${TEST_DB_NAME} SET search_path = ag_catalog, public, "$user"`);
   } catch (error) {
     console.error('❌ Failed to create test database:', error);
     throw error;
@@ -111,6 +113,22 @@ export async function setup() {
 
     // ── 3. Run migration files ─────────────────────────────────
     await runMigrations(testSql, extensionAvailability);
+
+    // ── 4. Drop shadow tables in ag_catalog ──────────────────
+    // 001_consolidated.sql sets search_path = ag_catalog, public before
+    // CREATE TABLE, so tables land in ag_catalog as well as public.
+    // Drop the ag_catalog copies to prevent Drizzle FK mismatches.
+    await testSql.unsafe(`
+      DROP TABLE IF EXISTS ag_catalog.memory_entities CASCADE;
+      DROP TABLE IF EXISTS ag_catalog.entity_aliases CASCADE;
+      DROP TABLE IF EXISTS ag_catalog.entity_merges CASCADE;
+      DROP TABLE IF EXISTS ag_catalog.entity_type_history CASCADE;
+      DROP TABLE IF EXISTS ag_catalog.fact_predicates CASCADE;
+      DROP TABLE IF EXISTS ag_catalog.facts CASCADE;
+      DROP TABLE IF EXISTS ag_catalog.entities CASCADE;
+      DROP TABLE IF EXISTS ag_catalog.entity_types CASCADE;
+    `);
+    console.log('✅ Dropped ag_catalog shadow tables');
 
     console.log('✅ Test database schema ready');
   } catch (error) {

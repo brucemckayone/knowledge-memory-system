@@ -52,7 +52,11 @@ export const hasTrgmExtension = extensions.pg_trgm;
 const TEST_DB_URL = process.env.TEST_DATABASE_URL ||
   `postgres://${process.env.PGUSER || 'cognitive'}:${process.env.PGPASSWORD || 'cognitive'}@${process.env.PGHOST || '127.0.0.1'}:${process.env.PGPORT || '5433'}/cognitive_test`;
 
-export const testDb = postgres(TEST_DB_URL);
+export const testDb = postgres(TEST_DB_URL, {
+  connection: {
+    search_path: 'public, ag_catalog, "$user"',
+  },
+});
 
 // ML Services URL
 export const ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://127.0.0.1:8000';
@@ -157,6 +161,9 @@ export async function deleteFromTables(...tables: string[]): Promise<void> {
     'entity_aliases',
     'entity_merges',
     'contradiction_reviews',
+    'causal_edges',
+    'causal_events',
+    'causal_patterns',
     'facts',
     'entities',
     'tasks',

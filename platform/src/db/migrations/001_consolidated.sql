@@ -22,7 +22,7 @@ SET search_path = ag_catalog, public, "$user";
 -- ============================================
 -- 1. Entity Types Registry
 -- ============================================
-CREATE TABLE IF NOT EXISTS entity_types (
+CREATE TABLE IF NOT EXISTS public.entity_types (
   name VARCHAR(100) PRIMARY KEY,
   description TEXT,
   status VARCHAR(20) DEFAULT 'canonical' NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS entity_types (
   )
 );
 
-INSERT INTO entity_types (name, description, status) VALUES
+INSERT INTO public.entity_types (name, description, status) VALUES
   ('person',  'A human individual',                        'canonical'),
   ('company', 'A business organization or corporation',    'canonical'),
   ('project', 'A project, product, or initiative',         'canonical'),
@@ -46,7 +46,7 @@ ON CONFLICT (name) DO NOTHING;
 -- ============================================
 -- 2. Entities
 -- ============================================
-CREATE TABLE IF NOT EXISTS entities (
+CREATE TABLE IF NOT EXISTS public.entities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   canonical_name VARCHAR(500) NOT NULL,
   entity_type VARCHAR(100) NOT NULL,
@@ -62,17 +62,17 @@ CREATE TABLE IF NOT EXISTS entities (
   CONSTRAINT valid_confidence CHECK (confidence >= 0.0 AND confidence <= 1.0)
 );
 
-CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(entity_type);
-CREATE INDEX IF NOT EXISTS idx_entities_name_trgm ON entities USING gin(canonical_name gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_entities_created ON entities(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_entities_embedding ON entities USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_entities_type ON public.entities(entity_type);
+CREATE INDEX IF NOT EXISTS idx_entities_name_trgm ON public.entities USING gin(canonical_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_entities_created ON public.entities(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_entities_embedding ON public.entities USING hnsw (embedding vector_cosine_ops);
 
 -- ============================================
 -- 3. Entity Aliases
 -- ============================================
-CREATE TABLE IF NOT EXISTS entity_aliases (
+CREATE TABLE IF NOT EXISTS public.entity_aliases (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+  entity_id UUID NOT NULL REFERENCES public.entities(id) ON DELETE CASCADE,
   alias VARCHAR(500) NOT NULL,
   alias_type VARCHAR(50),
   source VARCHAR(100),
@@ -80,17 +80,17 @@ CREATE TABLE IF NOT EXISTS entity_aliases (
   UNIQUE(entity_id, alias)
 );
 
-CREATE INDEX IF NOT EXISTS idx_aliases_alias ON entity_aliases(alias);
-CREATE INDEX IF NOT EXISTS idx_aliases_alias_trgm ON entity_aliases USING gin(alias gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_aliases_entity ON entity_aliases(entity_id);
+CREATE INDEX IF NOT EXISTS idx_aliases_alias ON public.entity_aliases(alias);
+CREATE INDEX IF NOT EXISTS idx_aliases_alias_trgm ON public.entity_aliases USING gin(alias gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_aliases_entity ON public.entity_aliases(entity_id);
 
 -- ============================================
 -- 4. Entity Merges (audit trail)
 -- ============================================
-CREATE TABLE IF NOT EXISTS entity_merges (
+CREATE TABLE IF NOT EXISTS public.entity_merges (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source_entity_id UUID NOT NULL,
-  target_entity_id UUID NOT NULL REFERENCES entities(id),
+  target_entity_id UUID NOT NULL REFERENCES public.entities(id),
   merge_reason TEXT,
   merge_method VARCHAR(50),
   similarity_score FLOAT,
@@ -98,17 +98,17 @@ CREATE TABLE IF NOT EXISTS entity_merges (
   merged_by VARCHAR(100) DEFAULT 'system'
 );
 
-CREATE INDEX IF NOT EXISTS idx_merges_source ON entity_merges(source_entity_id);
-CREATE INDEX IF NOT EXISTS idx_merges_target ON entity_merges(target_entity_id);
-CREATE INDEX IF NOT EXISTS idx_merges_time ON entity_merges(merged_at DESC);
+CREATE INDEX IF NOT EXISTS idx_merges_source ON public.entity_merges(source_entity_id);
+CREATE INDEX IF NOT EXISTS idx_merges_target ON public.entity_merges(target_entity_id);
+CREATE INDEX IF NOT EXISTS idx_merges_time ON public.entity_merges(merged_at DESC);
 
 -- ============================================
 -- 5. Memory Entities (link Qdrant memories to entities)
 -- ============================================
-CREATE TABLE IF NOT EXISTS memory_entities (
+CREATE TABLE IF NOT EXISTS public.memory_entities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   memory_id UUID NOT NULL,
-  entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+  entity_id UUID NOT NULL REFERENCES public.entities(id) ON DELETE CASCADE,
   mention_text VARCHAR(500),
   relationship VARCHAR(100) DEFAULT 'mentions',
   mention_start INT,
@@ -119,15 +119,15 @@ CREATE TABLE IF NOT EXISTS memory_entities (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_entities_unique
-  ON memory_entities (memory_id, entity_id, COALESCE(mention_start, -1));
-CREATE INDEX IF NOT EXISTS idx_memory_entities_memory ON memory_entities(memory_id);
-CREATE INDEX IF NOT EXISTS idx_memory_entities_entity ON memory_entities(entity_id);
-CREATE INDEX IF NOT EXISTS idx_memory_entities_created ON memory_entities(created_at DESC);
+  ON public.memory_entities (memory_id, entity_id, COALESCE(mention_start, -1));
+CREATE INDEX IF NOT EXISTS idx_memory_entities_memory ON public.memory_entities(memory_id);
+CREATE INDEX IF NOT EXISTS idx_memory_entities_entity ON public.memory_entities(entity_id);
+CREATE INDEX IF NOT EXISTS idx_memory_entities_created ON public.memory_entities(created_at DESC);
 
 -- ============================================
 -- 6. Fact Predicates (ontology)
 -- ============================================
-CREATE TABLE IF NOT EXISTS fact_predicates (
+CREATE TABLE IF NOT EXISTS public.fact_predicates (
   predicate VARCHAR(255) PRIMARY KEY,
   description TEXT,
   inverse_predicate VARCHAR(255),
@@ -152,10 +152,10 @@ CREATE TABLE IF NOT EXISTS fact_predicates (
 );
 
 CREATE INDEX IF NOT EXISTS idx_predicates_staging
-  ON fact_predicates(status, usage_count DESC) WHERE status IN ('staging', 'candidate');
+  ON public.fact_predicates(status, usage_count DESC) WHERE status IN ('staging', 'candidate');
 
 -- Seed canonical predicates (7 categories)
-INSERT INTO fact_predicates (predicate, description, inverse_predicate, predicate_type, is_exclusive, category, aliases, status) VALUES
+INSERT INTO public.fact_predicates (predicate, description, inverse_predicate, predicate_type, is_exclusive, category, aliases, status) VALUES
   -- Professional (6)
   ('works_at',      'Employment relationship',                  'employs',     'relation', true,  'professional', ARRAY['employed_at','works_for','employee_of','working_at','worked_at','formerly_at','ex_employee_of','used_to_work_at'], 'canonical'),
   ('employs',       'Employs person',                           'works_at',    'relation', false, 'professional', ARRAY[]::text[], 'canonical'),
@@ -217,11 +217,11 @@ ON CONFLICT (predicate) DO NOTHING;
 -- ============================================
 -- 7. Facts (bi-temporal knowledge triples)
 -- ============================================
-CREATE TABLE IF NOT EXISTS facts (
+CREATE TABLE IF NOT EXISTS public.facts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  subject_entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+  subject_entity_id UUID NOT NULL REFERENCES public.entities(id) ON DELETE CASCADE,
   predicate VARCHAR(255) NOT NULL,
-  object_entity_id UUID REFERENCES entities(id) ON DELETE SET NULL,
+  object_entity_id UUID REFERENCES public.entities(id) ON DELETE SET NULL,
   object_value TEXT,
   -- Event time
   valid_at TIMESTAMPTZ,
@@ -241,21 +241,21 @@ CREATE TABLE IF NOT EXISTS facts (
   CONSTRAINT has_object CHECK (object_entity_id IS NOT NULL OR object_value IS NOT NULL)
 );
 
-CREATE INDEX IF NOT EXISTS idx_facts_subject ON facts(subject_entity_id);
-CREATE INDEX IF NOT EXISTS idx_facts_object ON facts(object_entity_id) WHERE object_entity_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_facts_predicate ON facts(predicate);
-CREATE INDEX IF NOT EXISTS idx_facts_created ON facts(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_facts_source ON facts(source_memory_id) WHERE source_memory_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_facts_valid_range ON facts(valid_at, invalid_at);
-CREATE INDEX IF NOT EXISTS idx_facts_active ON facts(subject_entity_id, predicate) WHERE expired_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_facts_embedding ON facts USING hnsw (fact_embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_facts_subject ON public.facts(subject_entity_id);
+CREATE INDEX IF NOT EXISTS idx_facts_object ON public.facts(object_entity_id) WHERE object_entity_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_facts_predicate ON public.facts(predicate);
+CREATE INDEX IF NOT EXISTS idx_facts_created ON public.facts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_facts_source ON public.facts(source_memory_id) WHERE source_memory_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_facts_valid_range ON public.facts(valid_at, invalid_at);
+CREATE INDEX IF NOT EXISTS idx_facts_active ON public.facts(subject_entity_id, predicate) WHERE expired_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_facts_embedding ON public.facts USING hnsw (fact_embedding vector_cosine_ops);
 
 -- ============================================
 -- 8. Entity Type History (bi-temporal typing)
 -- ============================================
-CREATE TABLE IF NOT EXISTS entity_type_history (
+CREATE TABLE IF NOT EXISTS public.entity_type_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+  entity_id UUID NOT NULL REFERENCES public.entities(id) ON DELETE CASCADE,
   previous_type VARCHAR(100) NOT NULL,
   new_type VARCHAR(100) NOT NULL,
   changed_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -263,8 +263,8 @@ CREATE TABLE IF NOT EXISTS entity_type_history (
   reason TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_entity_type_history_entity ON entity_type_history(entity_id);
-CREATE INDEX IF NOT EXISTS idx_entity_type_history_time ON entity_type_history(changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_entity_type_history_entity ON public.entity_type_history(entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_type_history_time ON public.entity_type_history(changed_at DESC);
 
 -- ============================================
 -- Functions
@@ -275,16 +275,16 @@ CREATE OR REPLACE FUNCTION update_entity_timestamp() RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS entities_updated_at ON entities;
+DROP TRIGGER IF EXISTS entities_updated_at ON public.entities;
 CREATE TRIGGER entities_updated_at
-  BEFORE UPDATE ON entities FOR EACH ROW
+  BEFORE UPDATE ON public.entities FOR EACH ROW
   EXECUTE FUNCTION update_entity_timestamp();
 
 -- Expire a fact
 CREATE OR REPLACE FUNCTION expire_fact(fact_id UUID, reason TEXT DEFAULT 'Superseded by new information')
 RETURNS void AS $$
 BEGIN
-  UPDATE facts SET expired_at = NOW(), expire_reason = reason WHERE id = fact_id AND expired_at IS NULL;
+  UPDATE public.facts SET expired_at = NOW(), expire_reason = reason WHERE id = fact_id AND expired_at IS NULL;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -292,7 +292,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION invalidate_fact(fact_id UUID, invalid_time TIMESTAMPTZ DEFAULT NOW())
 RETURNS void AS $$
 BEGIN
-  UPDATE facts SET invalid_at = invalid_time WHERE id = fact_id AND invalid_at IS NULL;
+  UPDATE public.facts SET invalid_at = invalid_time WHERE id = fact_id AND invalid_at IS NULL;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -302,7 +302,7 @@ RETURNS TABLE (id UUID, subject_entity_id UUID, predicate VARCHAR(255), object_e
 BEGIN
   RETURN QUERY
   SELECT f.id, f.subject_entity_id, f.predicate, f.object_entity_id, f.object_value, f.confidence
-  FROM facts f
+  FROM public.facts f
   WHERE f.created_at <= query_time AND (f.expired_at IS NULL OR f.expired_at > query_time)
     AND (f.valid_at IS NULL OR f.valid_at <= query_time)
     AND (f.invalid_at IS NULL OR f.invalid_at > query_time);
@@ -315,7 +315,7 @@ RETURNS TABLE (fact_id UUID, predicate VARCHAR(255), object_entity_id UUID, obje
 BEGIN
   RETURN QUERY
   SELECT f.id, f.predicate, f.object_entity_id, f.object_value, f.confidence, f.valid_at
-  FROM facts f
+  FROM public.facts f
   WHERE f.subject_entity_id = p_entity_id AND f.expired_at IS NULL
     AND (f.invalid_at IS NULL OR f.invalid_at > NOW())
   ORDER BY f.predicate, f.valid_at DESC;
@@ -330,7 +330,7 @@ CREATE OR REPLACE FUNCTION find_superseding_facts(
 BEGIN
   RETURN QUERY
   SELECT f.id, f.valid_at, f.invalid_at, COALESCE(fp.is_exclusive, false)
-  FROM facts f LEFT JOIN fact_predicates fp ON fp.predicate = f.predicate
+  FROM public.facts f LEFT JOIN public.fact_predicates fp ON fp.predicate = f.predicate
   WHERE f.subject_entity_id = new_fact_subject AND f.predicate = new_fact_predicate AND f.expired_at IS NULL
     AND ((new_fact_valid_at IS NULL AND new_fact_invalid_at IS NULL)
       OR ((f.valid_at IS NULL OR new_fact_invalid_at IS NULL OR f.valid_at < new_fact_invalid_at)
@@ -345,22 +345,22 @@ CREATE OR REPLACE FUNCTION merge_entities(
 ) RETURNS UUID AS $$
 DECLARE source_name VARCHAR(500);
 BEGIN
-  SELECT canonical_name INTO source_name FROM entities WHERE id = source_id;
+  SELECT canonical_name INTO source_name FROM public.entities WHERE id = source_id;
   IF source_name IS NULL THEN RAISE EXCEPTION 'Source entity % not found', source_id; END IF;
 
-  INSERT INTO entity_merges (source_entity_id, target_entity_id, merge_reason, merge_method, similarity_score)
+  INSERT INTO public.entity_merges (source_entity_id, target_entity_id, merge_reason, merge_method, similarity_score)
   VALUES (source_id, target_id, reason, method, score);
 
-  INSERT INTO entity_aliases (entity_id, alias, alias_type, source)
-  SELECT target_id, alias, alias_type, 'merge' FROM entity_aliases WHERE entity_id = source_id
+  INSERT INTO public.entity_aliases (entity_id, alias, alias_type, source)
+  SELECT target_id, alias, alias_type, 'merge' FROM public.entity_aliases WHERE entity_id = source_id
   ON CONFLICT (entity_id, alias) DO NOTHING;
 
-  INSERT INTO entity_aliases (entity_id, alias, alias_type, source)
+  INSERT INTO public.entity_aliases (entity_id, alias, alias_type, source)
   VALUES (target_id, source_name, 'merged_name', 'merge')
   ON CONFLICT (entity_id, alias) DO NOTHING;
 
-  UPDATE facts SET subject_entity_id = target_id WHERE subject_entity_id = source_id;
-  UPDATE facts SET object_entity_id = target_id WHERE object_entity_id = source_id;
+  UPDATE public.facts SET subject_entity_id = target_id WHERE subject_entity_id = source_id;
+  UPDATE public.facts SET object_entity_id = target_id WHERE object_entity_id = source_id;
 
   -- Deduplicate exact-match facts after re-pointing
   WITH ranked AS (
@@ -369,26 +369,26 @@ BEGIN
         COALESCE(f.object_entity_id::text, ''), COALESCE(f.object_value, '')
       ORDER BY f.confidence DESC NULLS LAST, f.created_at DESC
     ) AS rn
-    FROM facts f
+    FROM public.facts f
     WHERE (f.subject_entity_id = target_id OR f.object_entity_id = target_id) AND f.expired_at IS NULL
   )
-  UPDATE facts SET expired_at = NOW(), expire_reason = 'Duplicate removed during entity merge'
+  UPDATE public.facts SET expired_at = NOW(), expire_reason = 'Duplicate removed during entity merge'
   WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
 
-  UPDATE entity_merges SET target_entity_id = target_id WHERE target_entity_id = source_id;
+  UPDATE public.entity_merges SET target_entity_id = target_id WHERE target_entity_id = source_id;
 
-  DELETE FROM memory_entities WHERE entity_id = source_id
-    AND memory_id IN (SELECT memory_id FROM memory_entities WHERE entity_id = target_id);
-  UPDATE memory_entities SET entity_id = target_id WHERE entity_id = source_id;
+  DELETE FROM public.memory_entities WHERE entity_id = source_id
+    AND memory_id IN (SELECT memory_id FROM public.memory_entities WHERE entity_id = target_id);
+  UPDATE public.memory_entities SET entity_id = target_id WHERE entity_id = source_id;
 
-  DELETE FROM entity_aliases WHERE entity_id = source_id;
+  DELETE FROM public.entity_aliases WHERE entity_id = source_id;
 
-  UPDATE entities SET merged_from = merged_from || source_id,
-    last_seen_at = GREATEST(last_seen_at, (SELECT last_seen_at FROM entities WHERE id = source_id)),
+  UPDATE public.entities SET merged_from = merged_from || source_id,
+    last_seen_at = GREATEST(last_seen_at, (SELECT last_seen_at FROM public.entities WHERE id = source_id)),
     updated_at = NOW()
   WHERE id = target_id;
 
-  DELETE FROM entities WHERE id = source_id;
+  DELETE FROM public.entities WHERE id = source_id;
   RETURN target_id;
 END;
 $$ LANGUAGE plpgsql;
@@ -400,7 +400,7 @@ CREATE OR REPLACE FUNCTION find_similar_entities_by_name(
 BEGIN
   RETURN QUERY
   SELECT e.id, e.canonical_name, e.entity_type, similarity(e.canonical_name, search_name) AS sim
-  FROM entities e
+  FROM public.entities e
   WHERE e.canonical_name % search_name AND similarity(e.canonical_name, search_name) >= similarity_threshold
   ORDER BY sim DESC LIMIT max_results;
 END;
@@ -496,9 +496,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS entities_sync_graph ON entities;
+DROP TRIGGER IF EXISTS entities_sync_graph ON public.entities;
 CREATE TRIGGER entities_sync_graph
-  AFTER INSERT OR UPDATE ON entities FOR EACH ROW
+  AFTER INSERT OR UPDATE ON public.entities FOR EACH ROW
   EXECUTE FUNCTION trigger_sync_entity();
 
 CREATE OR REPLACE FUNCTION trigger_sync_fact() RETURNS TRIGGER AS $$
@@ -513,7 +513,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS facts_sync_graph ON facts;
+DROP TRIGGER IF EXISTS facts_sync_graph ON public.facts;
 CREATE TRIGGER facts_sync_graph
-  AFTER INSERT OR UPDATE ON facts FOR EACH ROW
+  AFTER INSERT OR UPDATE ON public.facts FOR EACH ROW
   EXECUTE FUNCTION trigger_sync_fact();

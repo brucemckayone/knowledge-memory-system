@@ -10,13 +10,13 @@ Requires: Platform running on localhost:3001 with MNEMO_API_KEY set
 """
 
 import json
+import os
 import sys
 import time
 import urllib.request
 import re
 
-PLATFORM_URL = "http://127.0.0.1:3001"
-API_KEY = "test-api-key-dev"
+PLATFORM_URL = os.environ.get("PLATFORM_URL", "http://127.0.0.1:3001")
 NOVEL_PATH = "test-data/frankenstein.txt"
 
 # Skip Project Gutenberg header/footer
@@ -24,8 +24,8 @@ START_MARKER = "Letter 1"
 END_MARKER = "*** END OF THE PROJECT GUTENBERG EBOOK"
 
 
-def load_and_chunk(path: str, min_chars: int = 200, max_chars: int = 1500) -> list[str]:
-    """Load the novel and break into paragraph-sized chunks."""
+def load_and_chunk(path: str, min_chars: int = 500, max_chars: int = 4000, overlap: int = 200) -> list[str]:
+    """Load the novel and break into chunks with overlap for relationship continuity."""
     with open(path, "r", encoding="utf-8") as f:
         text = f.read()
 
@@ -41,8 +41,8 @@ def load_and_chunk(path: str, min_chars: int = 200, max_chars: int = 1500) -> li
     # Split on double newlines (paragraphs)
     paragraphs = re.split(r'\n\s*\n', content)
 
-    # Merge small paragraphs, split large ones
-    chunks = []
+    # Merge paragraphs into chunks up to max_chars
+    raw_chunks = []
     current = ""
 
     for para in paragraphs:
@@ -50,7 +50,7 @@ def load_and_chunk(path: str, min_chars: int = 200, max_chars: int = 1500) -> li
         if not para:
             continue
 
-        # Skip chapter headings on their own
+        # Keep chapter headings with surrounding text
         if len(para) < 50 and re.match(r'^(Chapter|Letter|CHAPTER)\s', para):
             if current:
                 current += f"\n\n{para}"
@@ -62,11 +62,26 @@ def load_and_chunk(path: str, min_chars: int = 200, max_chars: int = 1500) -> li
             current = f"{current}\n\n{para}" if current else para
         else:
             if len(current) >= min_chars:
-                chunks.append(current.strip())
+                raw_chunks.append(current.strip())
             current = para
 
     if current and len(current) >= min_chars:
-        chunks.append(current.strip())
+        raw_chunks.append(current.strip())
+
+    # Add overlap: copy trailing text from previous chunk to start of next
+    if overlap <= 0 or len(raw_chunks) <= 1:
+        return raw_chunks
+
+    chunks = [raw_chunks[0]]
+    for i in range(1, len(raw_chunks)):
+        prev = raw_chunks[i - 1]
+        # Take the last `overlap` chars from previous chunk as prefix
+        prefix = prev[-overlap:] if len(prev) > overlap else prev
+        # Find a word boundary to avoid splitting mid-word
+        space_idx = prefix.find(' ')
+        if space_idx > 0:
+            prefix = prefix[space_idx + 1:]
+        chunks.append(f"{prefix}\n\n{raw_chunks[i]}")
 
     return chunks
 
@@ -74,22 +89,20 @@ def load_and_chunk(path: str, min_chars: int = 200, max_chars: int = 1500) -> li
 def ingest_chunk(content: str, chunk_id: int) -> dict:
     """Send a chunk to the ingest endpoint."""
     body = json.dumps({
-        "content": content,
-        "source": "frankenstein-test",
-        "type": "text",
+        "text": content,
+        "source": f"frankenstein-test/chunk-{chunk_id}",
     }).encode()
 
     req = urllib.request.Request(
-        f"{PLATFORM_URL}/api/ingest",
+        f"{PLATFORM_URL}/ingest",
         data=body,
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {API_KEY}",
         },
     )
 
     try:
-        resp = urllib.request.urlopen(req, timeout=15)
+        resp = urllib.request.urlopen(req, timeout=600)
         return json.loads(resp.read())
     except Exception as e:
         return {"error": str(e)}
@@ -106,19 +119,10 @@ def check_health() -> bool:
         return False
 
 
-def get_stats() -> dict:
-    """Get current ontology stats."""
-    try:
-        req = urllib.request.Request(f"{PLATFORM_URL}/api/ontology/stats")
-        resp = urllib.request.urlopen(req, timeout=5)
-        return json.loads(resp.read())
-    except Exception:
-        return {}
-
-
 def main():
     print("=" * 60)
     print("FRANKENSTEIN INGESTION TEST")
+    print(f"Target: {PLATFORM_URL}")
     print("=" * 60)
 
     # Health check
@@ -131,91 +135,41 @@ def main():
     chunks = load_and_chunk(NOVEL_PATH)
     print(f"Novel chunked into {len(chunks)} pieces")
     print(f"Avg chunk size: {sum(len(c) for c in chunks) // len(chunks)} chars")
-    print()
 
-    # Ingest stats before
-    stats_before = get_stats()
-    print(f"Before: {json.dumps(stats_before.get('predicates', {}).get('byStatus', {}))}")
-
-    # Ingest in batches
-    batch_size = 10
+    # Ingest one chunk at a time — sequential ordering is critical for
+    # entity resolution, fact dedup, and causal graph integrity.
     total = min(len(chunks), 10)  # Cap at 10 for truth graph test
-    accepted = 0
-    duplicates = 0
+    succeeded = 0
     errors = 0
 
-    print(f"\nIngesting {total} chunks (of {len(chunks)} total)...")
+    print(f"\nIngesting {total} chunks sequentially (of {len(chunks)} total)...")
 
-    for i in range(0, total, batch_size):
-        batch = chunks[i:i + batch_size]
-        for j, chunk in enumerate(batch):
-            chunk_id = i + j + 1
-            result = ingest_chunk(chunk, chunk_id)
+    for i in range(total):
+        chunk_id = i + 1
+        t0 = time.time()
+        result = ingest_chunk(chunks[i], chunk_id)
+        elapsed = time.time() - t0
 
-            if result.get("accepted"):
-                accepted += 1
-                dup = " (dup)" if result.get("duplicate") else ""
-                if result.get("duplicate"):
-                    duplicates += 1
-            elif result.get("error"):
-                errors += 1
+        if result.get("error"):
+            errors += 1
+            print(f"  [{chunk_id}/{total}] ERROR ({elapsed:.1f}s): {result['error']}")
+        else:
+            succeeded += 1
+            n_ents = len(result.get("entities", []))
+            n_facts = len(result.get("facts", []))
+            print(f"  [{chunk_id}/{total}] OK ({elapsed:.1f}s) entities={n_ents} facts={n_facts}")
 
-            sys.stdout.write(f"\r  Progress: {chunk_id}/{total} (accepted: {accepted}, errors: {errors})")
-            sys.stdout.flush()
+    print(f"\nIngestion complete: {succeeded} succeeded, {errors} errors")
 
-        # Brief pause between batches to let the pipeline process
-        time.sleep(2)
-
-    print(f"\n\nIngestion complete: {accepted} accepted, {duplicates} duplicates, {errors} errors")
-
-    # Wait for processing
-    print("\nWaiting 30s for pipeline to process...")
-    time.sleep(30)
-
-    # Check results
-    stats_after = get_stats()
-    print(f"\nAfter: {json.dumps(stats_after.get('predicates', {}).get('byStatus', {}))}")
-
-    # Query entities
+    # Check graph via viz stats endpoint
     try:
-        req = urllib.request.Request(f"{PLATFORM_URL}/api/entities?q=frankenstein&limit=20")
-        resp = urllib.request.urlopen(req, timeout=10)
-        entities = json.loads(resp.read())
-        print(f"\nEntities matching 'frankenstein': {json.dumps(entities, indent=2)[:500]}")
-    except Exception as e:
-        print(f"\nEntity query failed: {e}")
-
-    # Query all entities
-    try:
-        from urllib.parse import urlencode
-        req = urllib.request.Request(f"{PLATFORM_URL}/api/entities?limit=30")
-        resp = urllib.request.urlopen(req, timeout=10)
-        entities = json.loads(resp.read())
-        if isinstance(entities, list):
-            print(f"\nAll entities ({len(entities)}):")
-            for e in entities[:20]:
-                name = e.get("canonicalName") or e.get("canonical_name", "?")
-                etype = e.get("entityType") or e.get("entity_type", "?")
-                print(f"  {name:30s} ({etype})")
-        elif isinstance(entities, dict) and "entities" in entities:
-            ents = entities["entities"]
-            print(f"\nAll entities ({len(ents)}):")
-            for e in ents[:20]:
-                name = e.get("canonicalName") or e.get("canonical_name", "?")
-                etype = e.get("entityType") or e.get("entity_type", "?")
-                print(f"  {name:30s} ({etype})")
-    except Exception as e:
-        print(f"\nEntity list failed: {e}")
-
-    # Check predicate usage
-    print("\nPredicate usage (top 15):")
-    try:
-        req = urllib.request.Request(f"{PLATFORM_URL}/api/ontology/stats")
+        req = urllib.request.Request(f"{PLATFORM_URL}/api/viz/stats")
         resp = urllib.request.urlopen(req, timeout=5)
         stats = json.loads(resp.read())
-        print(f"  Status counts: {json.dumps(stats.get('predicates', {}).get('byStatus', {}))}")
+        print(f"\nGraph stats: {json.dumps(stats)}")
+        print(f"  Open {PLATFORM_URL}/viz to visualize the graph")
     except Exception as e:
-        print(f"  Stats failed: {e}")
+        print(f"\nStats query failed: {e}")
 
 
 if __name__ == "__main__":

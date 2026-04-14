@@ -314,6 +314,58 @@ export const causalEdgesRelations = relations(causalEdges, ({ one }) => ({
 }));
 
 // ============================================
+// Graph M: Meta Layer Tables
+// ============================================
+
+/**
+ * Entity Meta
+ *
+ * Per-entity statistics derived from source vectors and graph structure.
+ * Centroid is the mean of all source memory vectors where the entity is mentioned.
+ */
+export const entityMeta = pgTable('entity_meta', {
+  entityId: uuid('entity_id').primaryKey().references(() => entities.id, { onDelete: 'cascade' }),
+  mentionCount: integer('mention_count').default(0).notNull(),
+  sourceMemoryCount: integer('source_memory_count').default(0).notNull(),
+  factCount: integer('fact_count').default(0).notNull(),
+  // Note: centroid VECTOR(768) handled directly via SQL (pgvector), not in Drizzle
+  spread: real('spread'),
+  summary: text('summary'),
+  firstMentionedAt: timestamp('first_mentioned_at', { withTimezone: true }),
+  lastMentionedAt: timestamp('last_mentioned_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Merge Candidates
+ *
+ * Pairwise entity analysis with three resolution signals.
+ * Lifecycle: staging → candidate → provisional → resolved
+ */
+export const mergeCandidates = pgTable('merge_candidates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  entityAId: uuid('entity_a_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  entityBId: uuid('entity_b_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  centroidSimilarity: real('centroid_similarity'),
+  memoryOverlap: real('memory_overlap'),
+  structuralSimilarity: real('structural_similarity'),
+  combinedScore: real('combined_score').notNull(),
+  status: varchar('status', { length: 20 }).default('staging').notNull(),
+  detectionCount: integer('detection_count').default(1).notNull(),
+  firstDetectedAt: timestamp('first_detected_at', { withTimezone: true }).defaultNow().notNull(),
+  lastDetectedAt: timestamp('last_detected_at', { withTimezone: true }).defaultNow().notNull(),
+  resolution: varchar('resolution', { length: 20 }),
+  resolutionReasoning: text('resolution_reasoning'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolvedBy: varchar('resolved_by', { length: 50 }),
+});
+
+export const mergeCandidatesRelations = relations(mergeCandidates, ({ one }) => ({
+  entityA: one(entities, { fields: [mergeCandidates.entityAId], references: [entities.id] }),
+  entityB: one(entities, { fields: [mergeCandidates.entityBId], references: [entities.id] }),
+}));
+
+// ============================================
 // Type exports
 // ============================================
 
@@ -334,3 +386,5 @@ export type CausalEdge = typeof causalEdges.$inferSelect;
 export type NewCausalEdge = typeof causalEdges.$inferInsert;
 export type CausalPattern = typeof causalPatterns.$inferSelect;
 export type NewCausalPattern = typeof causalPatterns.$inferInsert;
+export type EntityMeta = typeof entityMeta.$inferSelect;
+export type MergeCandidate = typeof mergeCandidates.$inferSelect;

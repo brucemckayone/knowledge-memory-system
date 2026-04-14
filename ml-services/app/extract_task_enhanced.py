@@ -7,13 +7,13 @@ and conflict detection using capable LLM.
 Phase 5: Task Processing Pipeline Enhancements
 """
 
-import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from .core.llm import llm_client
 from .core.task_utils import get_date_context, parse_flexible_date, validate_priority
+from .core.concurrency import llm_pool, QueueFullError
 import os
 import re
 
@@ -233,8 +233,8 @@ async def extract_task_enhanced(request: ExtractTaskEnhancedRequest):
             today=date_ctx["today"]
         )
 
-        # Call LLM with enhanced model (offload blocking call to thread pool)
-        result = await asyncio.to_thread(
+        # Call LLM with enhanced model (via work queue)
+        result = await llm_pool.submit(
             llm_client.generate_json, prompt, None, {"task": "extract_task_enhanced"},
         )
 

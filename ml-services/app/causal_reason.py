@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from .core.llm import llm_client
+from .core.concurrency import llm_pool, QueueFullError
 
 router = APIRouter()
 
@@ -137,14 +138,16 @@ async def causal_reason(delta: CausalDelta) -> CausalReasonResponse:
     prompt = _format_delta(delta)
 
     try:
-        result = llm_client.generate(prompt, options={
+        result = await llm_pool.submit(llm_client.generate, prompt, options={
             "task": "causal_reason",
             "system_prompt": CAUSAL_SYSTEM_PROMPT,
             "mcp_config": delta.mcp_config_path,
             "tools": "mcp",
-            "max_turns": 20,
+            "max_turns": 10,
             "timeout": 600,
         })
+    except QueueFullError:
+        raise HTTPException(status_code=503, detail="Service busy, retry later")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Causal reasoning failed: {e}")
 

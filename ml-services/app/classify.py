@@ -1,8 +1,8 @@
-import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from .core.llm import llm_client
+from .core.concurrency import llm_pool, QueueFullError
 
 router = APIRouter()
 
@@ -151,8 +151,8 @@ async def classify_message(request: ClassifyRequest):
             message=request.text
         )
 
-        # Use shared LLM service (offload blocking call to thread pool)
-        result_json = await asyncio.to_thread(
+        # Use shared LLM service (via work queue)
+        result_json = await llm_pool.submit(
             llm_client.generate_json, prompt, None, {"task": "classify"},
         )
 

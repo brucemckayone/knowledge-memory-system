@@ -5,42 +5,40 @@ Phase 3: LLM-based Named Entity Recognition
 Extracts entities from text using Ollama and returns structured mentions.
 """
 
-import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import json
 from .core.llm import llm_client
+from .core.concurrency import llm_pool, QueueFullError
 
 router = APIRouter()
 
-ENTITY_EXTRACTION_PROMPT = """Extract all named entities from this text.
+ENTITY_EXTRACTION_PROMPT = """Extract named entities from this text. Only extract PROPER NOUNS and SPECIFIC NAMED ENTITIES — real people, organizations, specific geographic places, named works/projects.
 
+Do NOT extract:
+- Common nouns or generic words (sailors, vessel, winter, spring, fate, courage)
+- Abstract concepts (prudence, safety, enterprise, considerateness, paradise)
+- Generic roles or descriptions (the narrator, your poor brother, the captain, sailors)
+- Seasons, weather, body parts, emotions, or generic descriptions
+- Pronouns or anaphoric references (he, she, they, the old man)
+{known_entities_section}
 TEXT: "{text}"
 
-For each entity found, determine:
-- mention: The exact text that refers to the entity
+For each entity, return:
+- mention: The exact text as it appears
 - type: One of: {type_list}
-- properties: Any attributes mentioned (role, title, location, etc.)
-- confidence: How confident you are (0.0-1.0)
+- start: Character offset where mention begins
+- end: Character offset where mention ends
+- confidence: Score using this calibration:
+  0.95-1.0: Unambiguous proper noun with full name (e.g., "Victor Frankenstein", "St. Petersburgh")
+  0.85-0.94: Clear proper noun, partial name or well-known place (e.g., "Walton", "London", "Margaret")
+  0.70-0.84: Probable proper noun but could be generic in some contexts (e.g., "Archangel" as city vs word)
+  0.50-0.69: Ambiguous — might be a name or might be a common noun
+  Below 0.50: Do not include
 
-Return ONLY a valid JSON array. Do not wrap in markdown code fences:
-[
-  {{
-    "mention": "exact text",
-    "type": "person",
-    "properties": {{"role": "CEO"}},
-    "start": 15,
-    "end": 25,
-    "confidence": 0.95
-  }}
-]
-
-Rules:
-- Include people, companies, projects, places, concepts
-- Skip common words and pronouns
-- Note positions (character indices)
-- For ambiguous types, choose most specific
+Return ONLY a valid JSON array. No markdown fences:
+[{{"mention": "exact text", "type": "person", "start": 15, "end": 25, "confidence": 0.95}}]
 """
 
 ENTITY_RESOLUTION_PROMPT = """Determine if these two entity mentions refer to the same entity.
@@ -64,10 +62,17 @@ Return JSON:
 """
 
 
+class KnownEntity(BaseModel):
+    name: str
+    type: str
+
+
 class ExtractEntitiesRequest(BaseModel):
     text: str
     include_context: bool = True
     valid_types: Optional[List[str]] = None  # Dynamic types from platform
+    known_entities: Optional[List[KnownEntity]] = None  # Prior context from RAG
+    context_snippets: Optional[List[str]] = None  # Source text from similar prior memories
 
 
 class EntityMention(BaseModel):
@@ -105,10 +110,36 @@ async def extract_entities(request: ExtractEntitiesRequest):
     """
     try:
         type_list = ', '.join(request.valid_types) if request.valid_types else 'person, company, project, concept, place, event, other'
-        prompt = ENTITY_EXTRACTION_PROMPT.format(text=request.text, type_list=type_list)
+
+        # Build known entities section for RAG context
+        known_entities_section = ""
+        if request.known_entities:
+            entities_list = "\n".join([
+                f'- "{e.name}" ({e.type})' for e in request.known_entities[:30]
+            ])
+            known_entities_section = (
+                f"\n=== KNOWN ENTITIES (from prior documents) ===\n{entities_list}\n\n"
+                "When you see mentions that match or refer to these known entities, "
+                "use the EXACT canonical name listed above.\n"
+            )
+
+        # Add source text snippets from similar prior memories
+        if request.context_snippets:
+            snippets_text = "\n---\n".join(request.context_snippets[:5])
+            known_entities_section += (
+                f"\n=== RELATED PRIOR TEXT (from previously ingested documents) ===\n"
+                f"{snippets_text}\n\n"
+                "Use this context to help identify entities and resolve ambiguous references.\n"
+            )
+
+        prompt = ENTITY_EXTRACTION_PROMPT.format(
+            text=request.text,
+            type_list=type_list,
+            known_entities_section=known_entities_section,
+        )
         
-        # Use LLM service (offload blocking call to thread pool)
-        entities_raw = await asyncio.to_thread(
+        # Use LLM service (via work queue)
+        entities_raw = await llm_pool.submit(
             llm_client.generate_json,
             prompt,
             None,
@@ -161,7 +192,7 @@ async def resolve_entity(request: ResolveEntityRequest):
             context=request.context[:500],  # Limit context length
         )
         
-        result = await asyncio.to_thread(
+        result = await llm_pool.submit(
             llm_client.generate_json,
             prompt,
             None,

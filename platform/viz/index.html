@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mnemo Graph Viz</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Header */
+.header { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid #21262d; background: #161b22; flex-shrink: 0; flex-wrap: wrap; }
+.header h1 { font-size: 14px; font-weight: 600; color: #58a6ff; margin-right: 4px; }
+.layers { display: flex; gap: 6px; }
+.layer-toggle { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #8b949e; cursor: pointer; user-select: none; padding: 3px 8px; border-radius: 4px; border: 1px solid #30363d; }
+.layer-toggle:hover { border-color: #484f58; }
+.layer-toggle.active { border-color: #1f6feb; color: #c9d1d9; }
+.layer-toggle .dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot-fact { background: #30363d; }
+.dot-causal { background: #e5534b; }
+.dot-source { background: #484f58; }
+.dot-merge { background: #d29922; }
+.stats { margin-left: auto; font-size: 11px; color: #8b949e; display: flex; gap: 10px; }
+.stats b { color: #c9d1d9; }
+.auto-toggle { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8b949e; cursor: pointer; user-select: none; }
+.auto-toggle input { accent-color: #1f6feb; }
+
+/* Main layout */
+.main { display: flex; flex: 1; overflow: hidden; }
+svg { flex: 1; }
+
+/* Detail panel — collapsible drawer */
+.detail { width: 360px; border-left: 1px solid #21262d; background: #161b22; padding: 16px; overflow-y: auto; flex-shrink: 0; font-size: 13px; transition: margin-right 0.2s ease, opacity 0.2s ease; position: relative; }
+.detail.collapsed { margin-right: -360px; opacity: 0; pointer-events: none; }
+.detail-close { position: absolute; top: 8px; right: 8px; background: none; border: none; color: #484f58; cursor: pointer; font-size: 18px; line-height: 1; padding: 4px; }
+.detail-close:hover { color: #c9d1d9; }
+.detail h2 { font-size: 14px; color: #58a6ff; margin-bottom: 10px; }
+.detail .field { margin-bottom: 8px; }
+.detail .field-label { color: #8b949e; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+.detail .field-value { color: #c9d1d9; word-break: break-word; }
+.detail .empty { color: #484f58; font-style: italic; }
+.detail .section-label { color: #58a6ff; font-size: 12px; font-weight: 600; margin-top: 12px; margin-bottom: 6px; border-top: 1px solid #21262d; padding-top: 8px; }
+.detail .source-block { background: #0d1117; border: 1px solid #21262d; border-radius: 4px; padding: 8px; margin-top: 4px; font-size: 12px; line-height: 1.4; color: #8b949e; max-height: 120px; overflow-y: auto; }
+.detail .source-block + .source-block { margin-top: 4px; }
+.detail .source-block .mention { color: #f0883e; font-weight: 600; }
+.detail .source-block strong { color: #c9d1d9; }
+.detail .meta-row { display: flex; gap: 12px; margin-bottom: 6px; }
+.detail .meta-item { font-size: 11px; }
+.detail .meta-item b { color: #c9d1d9; font-size: 14px; }
+.detail .meta-item span { color: #8b949e; }
+.detail .signal-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 12px; }
+.detail .signal-bar .bar-bg { flex: 1; height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; }
+.detail .signal-bar .bar-fill { height: 100%; border-radius: 3px; }
+.detail .signal-bar .bar-label { width: 70px; color: #8b949e; }
+.detail .signal-bar .bar-value { width: 35px; text-align: right; color: #c9d1d9; }
+.detail .clickable { cursor: pointer; color: #58a6ff; }
+.detail .clickable:hover { text-decoration: underline; }
+
+/* Timeline scrubber */
+.scrubber { display: flex; align-items: center; gap: 10px; padding: 6px 16px; border-top: 1px solid #21262d; background: #161b22; flex-shrink: 0; }
+.scrubber input[type="range"] { flex: 1; accent-color: #1f6feb; cursor: pointer; height: 4px; }
+.scrubber .scrub-label { font-size: 11px; color: #8b949e; min-width: 50px; }
+.scrubber .scrub-value { font-size: 11px; color: #c9d1d9; min-width: 80px; text-align: right; }
+.scrubber .scrub-reset { font-size: 11px; color: #58a6ff; cursor: pointer; border: none; background: none; padding: 2px 6px; }
+.scrubber .scrub-reset:hover { text-decoration: underline; }
+
+/* Layout toggle */
+.layout-toggle { display: flex; gap: 2px; margin-left: 8px; }
+.layout-btn { font-size: 11px; padding: 3px 8px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; border-radius: 4px; }
+.layout-btn.active { border-color: #1f6feb; color: #c9d1d9; }
+.layout-btn:hover { border-color: #484f58; }
+
+/* Tooltip */
+.tooltip { position: absolute; background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; font-size: 12px; color: #c9d1d9; pointer-events: none; max-width: 350px; white-space: pre-wrap; z-index: 10; }
+
+/* Empty state */
+.empty-state { display: flex; align-items: center; justify-content: center; flex: 1; color: #484f58; font-size: 16px; flex-direction: column; gap: 8px; }
+.empty-state small { font-size: 12px; }
+
+/* Focus mode (double-click expansion) */
+.focused .faded { opacity: 0.15 !important; }
+.focused .faded text { opacity: 0.1 !important; }
+
+/* Temporal fade for scrubber */
+.temporal-future { opacity: 0.12 !important; }
+.temporal-future text { opacity: 0.08 !important; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Mnemo</h1>
+  <div class="layers">
+    <label class="layer-toggle active" data-layer="fact"><span class="dot dot-fact"></span> Facts</label>
+    <label class="layer-toggle active" data-layer="causal"><span class="dot dot-causal"></span> Causal</label>
+    <label class="layer-toggle" data-layer="source"><span class="dot dot-source"></span> Sources</label>
+    <label class="layer-toggle" data-layer="merge"><span class="dot dot-merge"></span> Merge</label>
+  </div>
+  <div class="layout-toggle">
+    <button class="layout-btn active" data-layout="force">Force</button>
+    <button class="layout-btn" data-layout="dag">DAG</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <label class="auto-toggle">
+    <input type="checkbox" id="autoRefresh" checked> Auto 5s
+  </label>
+</div>
+<div class="main">
+  <svg id="graph"></svg>
+  <div class="detail collapsed" id="detail">
+    <button class="detail-close" id="detailClose">&times;</button>
+    <div id="detailContent">
+      <h2>Detail</h2>
+      <p class="empty">Click a node or edge</p>
+    </div>
+  </div>
+</div>
+<div class="scrubber">
+  <span class="scrub-label">Time</span>
+  <input type="range" id="timeScrubber" min="0" max="100" value="100" step="1">
+  <span class="scrub-value" id="scrubValue">Now</span>
+  <button class="scrub-reset" id="scrubReset">Reset</button>
+</div>
+<div class="tooltip" id="tooltip" style="display:none"></div>
+
+<script src="/viz/js/app.js"></script>
+</body>
+</html>

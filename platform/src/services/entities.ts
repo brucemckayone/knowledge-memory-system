@@ -315,20 +315,12 @@ export async function resolveEntity(
  * Add alias if not already present
  */
 async function addAliasIfNew(entityId: string, alias: string): Promise<void> {
-  try {
-    await db.insert(entityAliases).values({
-      entityId,
-      alias,
-      aliasType: 'mention',
-      source: 'extraction',
-    });
-  } catch (error: unknown) {
-    // Only ignore unique constraint violations (23505)
-    const pgCode = (error as { code?: string }).code;
-    if (pgCode !== '23505') {
-      throw error;
-    }
-  }
+  await db.insert(entityAliases).values({
+    entityId,
+    alias,
+    aliasType: 'mention',
+    source: 'extraction',
+  }).onConflictDoNothing();
 }
 
 /**
@@ -349,19 +341,15 @@ export async function linkMemoryToEntity(
   entityId: string,
   mention: LinkMemoryParams
 ): Promise<void> {
-  try {
-    await db.insert(memoryEntities).values({
-      memoryId,
-      entityId,
-      mentionText: mention.text,
-      mentionStart: mention.start,
-      mentionEnd: mention.end,
-      relationship: mention.relationship || 'mentions',
-      mentionContext: mention.context,
-    });
-  } catch {
-    // Ignore duplicates (same memory-entity-position combo)
-  }
+  await db.insert(memoryEntities).values({
+    memoryId,
+    entityId,
+    mentionText: mention.text,
+    mentionStart: mention.start,
+    mentionEnd: mention.end,
+    relationship: mention.relationship || 'mentions',
+    mentionContext: mention.context,
+  }).onConflictDoNothing();
 }
 
 /**

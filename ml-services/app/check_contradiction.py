@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from .core.llm import llm_client
+from .core.concurrency import llm_pool, QueueFullError
 
 logger = logging.getLogger(__name__)
 
@@ -250,32 +251,6 @@ def _build_fact_context(f1: FactData, f2: FactData) -> dict:
     }
 
 
-def _call_advocate(context: dict) -> dict:
-    return llm_client.generate_json(
-        ADVOCATE_PROMPT.format(**context),
-        options={"task": "check_contradiction"}
-    )
-
-
-def _call_defender(context: dict) -> dict:
-    return llm_client.generate_json(
-        DEFENDER_PROMPT.format(**context),
-        options={"task": "check_contradiction"}
-    )
-
-
-def _call_judge(context: dict, advocate_arg: str, defender_arg: str) -> dict:
-    judge_context = {
-        **context,
-        "advocate_argument": advocate_arg,
-        "defender_argument": defender_arg,
-    }
-    return llm_client.generate_json(
-        JUDGE_PROMPT.format(**judge_context),
-        options={"task": "judge"}
-    )
-
-
 async def debate_contradiction(
     f1: FactData, f2: FactData
 ) -> CheckContradictionResponse:
@@ -283,22 +258,37 @@ async def debate_contradiction(
     Adversarial debate protocol for subtle contradictions.
 
     Runs advocate (argues contradiction) and defender (argues coexistence)
-    concurrently, then a judge evaluates both arguments.
+    concurrently via llm_pool, then a judge evaluates both arguments.
     """
     context = _build_fact_context(f1, f2)
 
-    # Advocate and defender run concurrently
+    # Advocate and defender run concurrently through the work queue
     advocate_result, defender_result = await asyncio.gather(
-        asyncio.to_thread(_call_advocate, context),
-        asyncio.to_thread(_call_defender, context),
+        llm_pool.submit(
+            llm_client.generate_json,
+            ADVOCATE_PROMPT.format(**context),
+            options={"task": "check_contradiction"},
+        ),
+        llm_pool.submit(
+            llm_client.generate_json,
+            DEFENDER_PROMPT.format(**context),
+            options={"task": "check_contradiction"},
+        ),
     )
 
     advocate_arg = advocate_result.get("argument", "No argument provided")
     defender_arg = defender_result.get("argument", "No argument provided")
 
+    judge_context = {
+        **context,
+        "advocate_argument": advocate_arg,
+        "defender_argument": defender_arg,
+    }
     # Judge evaluates both
-    verdict = await asyncio.to_thread(
-        _call_judge, context, advocate_arg, defender_arg
+    verdict = await llm_pool.submit(
+        llm_client.generate_json,
+        JUDGE_PROMPT.format(**judge_context),
+        options={"task": "judge"},
     )
 
     debate_log = DebateLog(
@@ -324,7 +314,7 @@ async def _single_call_fallback(
 ) -> CheckContradictionResponse:
     """Fallback to single LLM call if debate fails."""
     context = _build_fact_context(f1, f2)
-    result = await asyncio.to_thread(
+    result = await llm_pool.submit(
         llm_client.generate_json,
         SINGLE_CALL_PROMPT.format(**context),
         None,

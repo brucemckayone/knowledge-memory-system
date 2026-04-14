@@ -116,6 +116,26 @@ export async function getMemory(id: string) {
 }
 
 /**
+ * Retrieve vectors for multiple memory IDs.
+ * Used by graph-meta to compute entity centroids from source vectors.
+ */
+export async function getMemoryVectors(ids: string[]): Promise<Map<string, number[]>> {
+  if (ids.length === 0) return new Map();
+  const results = await qdrant.retrieve(COLLECTIONS.MEMORIES, {
+    ids,
+    with_payload: false,
+    with_vector: true,
+  });
+  const map = new Map<string, number[]>();
+  for (const r of results) {
+    if (r.vector && Array.isArray(r.vector)) {
+      map.set(String(r.id), r.vector as number[]);
+    }
+  }
+  return map;
+}
+
+/**
  * Health check
  */
 export async function checkQdrantHealth(): Promise<boolean> {

@@ -1,4 +1,3 @@
-import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -6,6 +5,7 @@ from datetime import datetime
 import re
 from .core.llm import llm_client
 from .core.task_utils import get_date_context, parse_flexible_date, validate_priority
+from .core.concurrency import llm_pool, QueueFullError
 
 router = APIRouter()
 
@@ -91,8 +91,8 @@ async def extract_task(request: ExtractTaskRequest):
             **date_ctx
         )
 
-        # Call LLM via shared service (offload blocking call to thread pool)
-        result = await asyncio.to_thread(
+        # Call LLM via shared service (via work queue)
+        result = await llm_pool.submit(
             llm_client.generate_json, prompt, None, {"task": "extract_task"},
         )
 

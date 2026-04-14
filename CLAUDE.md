@@ -78,7 +78,7 @@ Also read `02-graph-s-hardening.md` — it maps every bug from the Frankenstein 
 - **New migration DDL must use explicit `public.` schema qualifiers** on all CREATE TABLE, CREATE INDEX, REFERENCES, and trigger statements. Without it, objects land in `ag_catalog` (the first schema in the path) and FK references to `public.facts`/`public.entities` fail cross-schema. See `002_causal_graph.sql` for the pattern.
 - **Do NOT change the session search_path** in new migrations. The existing Graph S triggers (`sync_entity_to_graph`, `trigger_sync_fact`) and AGE's `cypher()` function depend on `ag_catalog` being in the session path.
 - **AGE edge properties don't persist via SET** in this version. `MERGE (a)-[r:REL]->(b) SET r.prop = value` creates the edge but silently drops the SET. Node properties work fine. The AGE graph is a traversal index — canonical data lives in PostgreSQL tables.
-- **`LOAD 'age'` is required per-session** for PL/pgSQL trigger functions to resolve `cypher()` inside EXECUTE. `shared_preload_libraries` handles standard SQL but not dynamic EXECUTE. The 002 migration includes `LOAD 'age'`; tests must also call `LOAD 'age'` on their connection before testing AGE triggers.
+- **`ag_catalog` must be in the database-level search_path** for `cypher()` to resolve on all connections (including triggers). Both `init-age.sql` and `global-setup.ts` run `ALTER DATABASE ... SET search_path = ag_catalog, public, "$user"` to ensure this. `docker-compose.yml` also sets `shared_preload_libraries='age'` and `session_preload_libraries='age'` for library loading.
 
 ## Existing Test Infrastructure
 

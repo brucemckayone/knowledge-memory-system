@@ -39,6 +39,7 @@ services:
     build:
       context: ./docker/postgres
       dockerfile: Dockerfile
+    command: postgres -c shared_preload_libraries='age' -c session_preload_libraries='age'
     ports:
       - "5433:5432"
     environment:
@@ -87,6 +88,12 @@ services:
       - OLLAMA_HOST=http://host.docker.internal:11434  # For embeddings (local)
       - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
       - ZAI_API_KEY=${ZAI_API_KEY}  # For text generation via Z.AI API
+      - ML_WORKERS=${ML_WORKERS:-2}
+      - ML_OLLAMA_WORKERS=${ML_OLLAMA_WORKERS:-4}
+      - ML_OLLAMA_BUFFER=${ML_OLLAMA_BUFFER:-100}
+      - ML_LLM_WORKERS=${ML_LLM_WORKERS:-6}
+      - ML_LLM_BUFFER=${ML_LLM_BUFFER:-100}
+      - ML_THREAD_POOL_SIZE=${ML_THREAD_POOL_SIZE:-20}
     networks:
       - cognitive-network
     restart: unless-stopped

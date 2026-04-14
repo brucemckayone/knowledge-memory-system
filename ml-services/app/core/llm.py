@@ -18,6 +18,36 @@ from fastapi import HTTPException
 T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)
 
+
+def _find_json_structure(text: str) -> Optional[str]:
+    """Find the first balanced JSON object or array in text."""
+    for i, ch in enumerate(text):
+        if ch in ('{', '['):
+            close = '}' if ch == '{' else ']'
+            depth = 0
+            in_string = False
+            escape = False
+            for j in range(i, len(text)):
+                c = text[j]
+                if escape:
+                    escape = False
+                    continue
+                if c == '\\' and in_string:
+                    escape = True
+                    continue
+                if c == '"':
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if c == ch:
+                    depth += 1
+                elif c == close:
+                    depth -= 1
+                    if depth == 0:
+                        return text[i:j + 1]
+    return None
+
 # ---------------------------------------------------------------------------
 # Task defaults for Claude Code provider
 # Callers can pass options={"task": "classify"} to use these, or override
@@ -26,21 +56,23 @@ logger = logging.getLogger(__name__)
 TASK_DEFAULTS: Dict[str, Dict[str, str]] = {
     "classify":              {"model": "haiku",  "effort": "low"},
     "extract_task":          {"model": "haiku",  "effort": "low"},
-    "extract_entities":      {"model": "sonnet", "effort": "medium"},
-    "extract_task_enhanced": {"model": "sonnet", "effort": "medium"},
-    "summarize":             {"model": "sonnet", "effort": "medium"},
-    "extract_relationships": {"model": "sonnet", "effort": "medium"},
-    "reader":                {"model": "sonnet", "effort": "medium"},
-    "parse_transcript":      {"model": "sonnet", "effort": "medium"},
-    "resolve_entity":        {"model": "sonnet", "effort": "medium"},
-    "ontology":              {"model": "sonnet", "effort": "medium"},
-    "chat":                  {"model": "sonnet", "effort": "medium"},
-    "check_contradiction":   {"model": "opus",   "effort": "high"},
-    "judge":                 {"model": "opus",   "effort": "high"},
-    "causal_reason":         {"model": "sonnet", "effort": "high"},
+    "extract_entities":      {"model": "haiku",  "effort": "low"},
+    "extract_task_enhanced": {"model": "haiku",  "effort": "low"},
+    "summarize":             {"model": "haiku",  "effort": "low"},
+    "extract_relationships": {"model": "haiku",  "effort": "low"},
+    "reader":                {"model": "haiku",  "effort": "low"},
+    "parse_transcript":      {"model": "haiku",  "effort": "low"},
+    "resolve_entity":        {"model": "haiku",  "effort": "low"},
+    "ontology":              {"model": "haiku",  "effort": "low"},
+    "chat":                  {"model": "haiku",  "effort": "low"},
+    "check_contradiction":   {"model": "haiku",  "effort": "low"},
+    "judge":                 {"model": "haiku",  "effort": "low"},
+    "causal_reason":         {"model": "haiku",  "effort": "low"},
+    "extract_agentic":       {"model": "haiku",  "effort": "low"},
+    "graph_agent":           {"model": "haiku",  "effort": "low"},
 }
-DEFAULT_MODEL = "sonnet"
-DEFAULT_EFFORT = "medium"
+DEFAULT_MODEL = "haiku"
+DEFAULT_EFFORT = "low"
 
 # Fallback always escalates to the most capable model.
 FALLBACK_MAP: Dict[str, str] = {
@@ -171,7 +203,7 @@ class ClaudeCodeProvider:
                 "--strict-mcp-config",
             ])
             # MCP tools must be explicitly allowed in -p mode (no interactive prompt)
-            mcp_server = opts.get("mcp_server_name", "mnemo-causal")
+            mcp_server = opts.get("mcp_server_name", "mnemo-graph")
             cmd.extend(["--allowedTools", f"mcp__{mcp_server}__*"])
 
         # Structured output via JSON schema
@@ -194,6 +226,7 @@ class ClaudeCodeProvider:
         try:
             result = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=timeout,
+                encoding="utf-8", errors="replace",
             )
         except subprocess.TimeoutExpired:
             raise HTTPException(
@@ -251,20 +284,24 @@ class ClaudeCodeProvider:
     def extract_json(self, text: str) -> Dict[str, Any]:
         """Extract and parse JSON from text.
 
-        Handles markdown code fences that LLMs sometimes wrap around JSON.
-        Kept for interface compatibility — Claude is less prone to this than ZAI,
-        but callers like summarize.py and relationships.py parse text manually.
+        Handles markdown code fences and trailing LLM commentary.
+        Uses bracket-matching to find the first complete JSON structure.
         """
         stripped = re.sub(r'^```(?:json)?\s*\n?', '', text.strip())
         stripped = re.sub(r'\n?```\s*$', '', stripped).strip()
 
-        match = re.search(r'\{[\s\S]*\}|\[[\s\S]*\]', stripped)
-        json_str = match.group() if match else stripped
-
+        # Fast path: entire string is valid JSON
         try:
-            return json.loads(json_str)
+            return json.loads(stripped)
         except json.JSONDecodeError:
-            raise ValueError(f"Could not parse JSON from response: {text[:200]}...")
+            pass
+
+        # Find first balanced JSON structure (handles trailing text)
+        json_str = _find_json_structure(stripped)
+        if json_str:
+            return json.loads(json_str)
+
+        raise ValueError(f"Could not parse JSON from response: {text[:200]}...")
 
     def generate_json(
         self,
@@ -360,12 +397,17 @@ class ZAIProvider:
     def extract_json(self, text: str) -> Dict[str, Any]:
         stripped = re.sub(r'^```(?:json)?\s*\n?', '', text.strip())
         stripped = re.sub(r'\n?```\s*$', '', stripped).strip()
-        match = re.search(r'\{[\s\S]*\}|\[[\s\S]*\]', stripped)
-        json_str = match.group() if match else stripped
+
         try:
-            return json.loads(json_str)
+            return json.loads(stripped)
         except json.JSONDecodeError:
-            raise ValueError(f"Could not parse JSON from response: {text[:200]}...")
+            pass
+
+        json_str = _find_json_structure(stripped)
+        if json_str:
+            return json.loads(json_str)
+
+        raise ValueError(f"Could not parse JSON from response: {text[:200]}...")
 
     def generate_json(
         self,

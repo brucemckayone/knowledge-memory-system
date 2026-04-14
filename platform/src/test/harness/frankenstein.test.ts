@@ -24,7 +24,7 @@ function loadChunks(): string[] {
 describe('Frankenstein 10-chunk regression', () => {
   beforeAll(async (ctx) => {
     if (!await isMLServiceAvailable()) skipCtx(ctx);
-    await deleteFromTables('memory_entities', 'entity_aliases', 'facts', 'entity_merges', 'entities');
+    await deleteFromTables('memory_entities', 'entity_aliases', 'causal_edges', 'causal_events', 'causal_patterns', 'facts', 'entity_merges', 'entities');
   });
 
   it('ingests 10 chunks and meets quality targets', async () => {
@@ -32,16 +32,21 @@ describe('Frankenstein 10-chunk regression', () => {
     const chunks = loadChunks();
     expect(chunks.length).toBe(10);
 
-    // Ingest all chunks in parallel — Max sub handles concurrency
-    const settled = await Promise.allSettled(
-      chunks.map(chunk => ingest(chunk, { source: 'frankenstein-test' }))
-    );
-    const results = settled
-      .filter((s): s is PromiseFulfilledResult<Awaited<ReturnType<typeof ingest>>> => s.status === 'fulfilled')
-      .map(s => s.value);
-    const failures = settled.filter(s => s.status === 'rejected');
+    // Ingest sequentially — temporal order matters for entity resolution,
+    // fact dedup, and causal graph integrity.
+    const results: Awaited<ReturnType<typeof ingest>>[] = [];
+    const failures: { index: number; error: string }[] = [];
+
+    for (let i = 0; i < chunks.length; i++) {
+      try {
+        const result = await ingest(chunks[i]!, { source: `frankenstein-test/chunk-${i}` });
+        results.push(result);
+      } catch (err: any) {
+        failures.push({ index: i, error: err?.message ?? String(err) });
+      }
+    }
     if (failures.length > 0) {
-      console.error(`${failures.length} chunks failed:`, failures.map(f => (f as PromiseRejectedResult).reason?.message));
+      console.error(`${failures.length} chunks failed:`, failures);
     }
 
     expect(results.length).toBeGreaterThanOrEqual(8);

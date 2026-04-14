@@ -11,14 +11,20 @@
 
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { writeFileSync } from 'node:fs';
 import { spawn } from 'child_process';
-import { getEntityFacts } from './facts.js';
+import dotenv from 'dotenv';
+import { getEntityFacts, createFact } from './facts.js';
 import { findConnectedEntities } from './graph.js';
-import { findSimilarEntities } from './entities.js';
+import { findSimilarEntities, resolveEntity, linkMemoryToEntity } from './entities.js';
 import { searchMemories, getMemory } from './qdrant.js';
+import { db } from '../db/index.js';
+import { memoryEntities, facts as factsTable, entityMeta } from '../db/schema.js';
+import { eq } from 'drizzle-orm';
 import { getEntityCausalHistory, createCausalEdge } from './causal.js';
 import { ml } from './ml-client.js';
 import { config } from '../config.js';
+import { normalizePredicate } from './predicates.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,7 +33,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ============================================
 
 /** MCP tool schema — compatible with @modelcontextprotocol/sdk Tool type */
-export interface CausalToolDefinition {
+export interface ToolDefinition {
   name: string;
   description: string;
   inputSchema: {
@@ -37,7 +43,10 @@ export interface CausalToolDefinition {
   };
 }
 
-export const CAUSAL_AGENT_TOOLS: CausalToolDefinition[] = [
+/** @deprecated Use GRAPH_TOOLS */
+export const CAUSAL_AGENT_TOOLS: ToolDefinition[] = [];
+
+export const GRAPH_TOOLS: ToolDefinition[] = [
   {
     name: 'query_entity_facts',
     description:
@@ -206,6 +215,155 @@ export const CAUSAL_AGENT_TOOLS: CausalToolDefinition[] = [
       required: ['cause_event_id', 'effect_event_id', 'strength', 'reasoning', 'source_references'],
     },
   },
+
+  // --- Extraction tools ---
+
+  {
+    name: 'resolve_entity',
+    description:
+      'Resolve a text mention to an existing entity or create a new one. Searches by embedding similarity and name matching. Returns the resolved entity with its canonical name and ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        mention: {
+          type: 'string',
+          description: 'The entity mention as it appears in the source text',
+        },
+        entity_type: {
+          type: 'string',
+          description: 'Entity type: person, place, company, project, concept, event, other',
+        },
+        context: {
+          type: 'string',
+          description: 'Surrounding text context (50-200 chars around the mention) to help disambiguation',
+        },
+      },
+      required: ['mention', 'entity_type', 'context'],
+    },
+  },
+  {
+    name: 'create_fact',
+    description:
+      'Create a relationship (fact) between two entities. Handles deduplication automatically — if the exact fact already exists, it returns the existing ID. For exclusive predicates (e.g. lives_in), supersedes the old value.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        subject_entity_id: {
+          type: 'string',
+          description: 'UUID of the subject entity',
+        },
+        predicate: {
+          type: 'string',
+          description: 'Relationship type in base form (e.g. works_at, lives_in, sibling_of, visited, writes_to, knows, near)',
+        },
+        object_entity_id: {
+          type: 'string',
+          description: 'UUID of the object entity (for entity-to-entity relationships)',
+        },
+        object_value: {
+          type: 'string',
+          description: 'String value (for entity-to-value relationships, e.g. a date or description)',
+        },
+        confidence: {
+          type: 'number',
+          description: '0.0-1.0 confidence score. 0.9+ for explicit, 0.7-0.9 for clear implication, 0.5-0.7 for inference.',
+        },
+        source_text: {
+          type: 'string',
+          description: 'Exact quote from the source text that supports this fact',
+        },
+        source_memory_id: {
+          type: 'string',
+          description: 'UUID of the source memory this fact was extracted from. Use the memory_id provided in the extraction context.',
+        },
+        valid_at: {
+          type: 'string',
+          description: 'ISO 8601 date when this fact became true in reality. Use temporal reasoning from the text.',
+        },
+        invalid_at: {
+          type: 'string',
+          description: 'ISO 8601 date when this fact ceased to be true (if known).',
+        },
+        temporal_hint: {
+          type: 'string',
+          description: '"current", "past", or "future" — relative to the document time',
+        },
+      },
+      required: ['subject_entity_id', 'predicate', 'confidence', 'source_text'],
+    },
+  },
+  {
+    name: 'get_fact_source',
+    description:
+      'Get the source memory and text for a specific fact. Returns the source_text quote, the source memory ID, and a preview of the full source document.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        fact_id: {
+          type: 'string',
+          description: 'UUID of the fact to trace back to source',
+        },
+      },
+      required: ['fact_id'],
+    },
+  },
+  {
+    name: 'get_entity_sources',
+    description:
+      'Get all source memories that mention a given entity. Returns the memory IDs, mention texts, and context snippets. Use this to trace an entity back to its original source material.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        entity_id: {
+          type: 'string',
+          description: 'UUID of the entity to find sources for',
+        },
+      },
+      required: ['entity_id'],
+    },
+  },
+  {
+    name: 'link_entity_to_memory',
+    description:
+      'Record that a specific entity was mentioned in a source memory. Creates the provenance link between the entity and the document it was found in.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        entity_id: {
+          type: 'string',
+          description: 'UUID of the entity',
+        },
+        memory_id: {
+          type: 'string',
+          description: 'UUID of the source memory',
+        },
+        mention_text: {
+          type: 'string',
+          description: 'The exact mention text as it appears in the source',
+        },
+      },
+      required: ['entity_id', 'memory_id', 'mention_text'],
+    },
+  },
+  {
+    name: 'update_entity_summary',
+    description:
+      'Update the living summary for an entity. Call this after creating facts to keep the entity profile current. The summary should describe who/what the entity is, their current state, narrative role, known aliases/references, and any unresolved ambiguities.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        entity_id: {
+          type: 'string',
+          description: 'UUID of the entity to update',
+        },
+        summary: {
+          type: 'string',
+          description: 'Natural language summary. Include: current state, narrative role, known references/aliases (e.g. "referred to as the stranger, he, my friend"), temporal context, and any ambiguities (e.g. "may be the same person as...").',
+        },
+      },
+      required: ['entity_id', 'summary'],
+    },
+  },
 ];
 
 // ============================================
@@ -216,24 +374,58 @@ export const CAUSAL_AGENT_TOOLS: CausalToolDefinition[] = [
  * Dispatch a tool call from the Haiku agent to the appropriate service function.
  * Returns a string result suitable for the Anthropic tool_result content block.
  */
+let toolCallCount = 0;
+
 export async function handleToolCall(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): Promise<string> {
+  toolCallCount++;
+  const inputSummary = Object.entries(toolInput)
+    .map(([k, v]) => `${k}=${typeof v === 'string' ? v.slice(0, 40) : v}`)
+    .join(', ');
+  console.error(`[mcp:${toolCallCount}] ${toolName}(${inputSummary})`);
+  const startTime = Date.now();
+
+  try {
+    const result = await _handleToolCallInner(toolName, toolInput);
+    console.error(`[mcp:${toolCallCount}] ${toolName} OK +${Date.now() - startTime}ms (${result.length} chars)`);
+    return result;
+  } catch (err) {
+    console.error(`[mcp:${toolCallCount}] ${toolName} ERROR +${Date.now() - startTime}ms: ${err}`);
+    throw err;
+  }
+}
+
+async function _handleToolCallInner(
   toolName: string,
   toolInput: Record<string, unknown>,
 ): Promise<string> {
   switch (toolName) {
     case 'query_entity_facts': {
-      const facts = await getEntityFacts(toolInput.entity_id as string);
-      return JSON.stringify(facts.map(f => ({
-        id: f.id,
-        subjectEntityId: f.subjectEntityId,
-        predicate: f.predicate,
-        objectEntityId: f.objectEntityId,
-        objectValue: f.objectValue,
-        confidence: f.confidence,
-        validAt: f.validAt,
-        invalidAt: f.invalidAt,
-        sourceText: f.sourceText,
-      })));
+      const entityId = toolInput.entity_id as string;
+      const facts = await getEntityFacts(entityId);
+      // Include entity summary if available
+      const metaRows = await db
+        .select({ summary: entityMeta.summary })
+        .from(entityMeta)
+        .where(eq(entityMeta.entityId, entityId))
+        .limit(1);
+      const summary = metaRows[0]?.summary ?? null;
+      return JSON.stringify({
+        summary,
+        facts: facts.map(f => ({
+          id: f.id,
+          subjectEntityId: f.subjectEntityId,
+          predicate: f.predicate,
+          objectEntityId: f.objectEntityId,
+          objectValue: f.objectValue,
+          confidence: f.confidence,
+          validAt: f.validAt,
+          invalidAt: f.invalidAt,
+          sourceText: f.sourceText,
+        })),
+      });
     }
 
     case 'query_entity_neighbours': {
@@ -331,6 +523,137 @@ export async function handleToolCall(
       return JSON.stringify({ edgeId });
     }
 
+    // --- Extraction tool handlers ---
+
+    case 'resolve_entity': {
+      const resolved = await resolveEntity(
+        toolInput.mention as string,
+        toolInput.context as string,
+        toolInput.entity_type as string,
+      );
+      return JSON.stringify({
+        id: resolved.id,
+        canonicalName: resolved.canonicalName,
+        entityType: resolved.entityType,
+        isNew: resolved.isNew,
+        confidence: resolved.confidence,
+      });
+    }
+
+    case 'create_fact': {
+      const predicate = normalizePredicate(toolInput.predicate as string);
+      const factId = await createFact({
+        subjectEntityId: toolInput.subject_entity_id as string,
+        predicate,
+        objectEntityId: toolInput.object_entity_id as string | undefined,
+        objectValue: toolInput.object_value as string | undefined,
+        confidence: toolInput.confidence as number,
+        sourceText: toolInput.source_text as string,
+        sourceMemoryId: toolInput.source_memory_id as string | undefined,
+        validAt: toolInput.valid_at ? new Date(toolInput.valid_at as string) : undefined,
+        invalidAt: toolInput.invalid_at ? new Date(toolInput.invalid_at as string) : undefined,
+      });
+      return JSON.stringify({ factId, predicate });
+    }
+
+    case 'get_fact_source': {
+      const factRows = await db
+        .select({
+          id: factsTable.id,
+          sourceMemoryId: factsTable.sourceMemoryId,
+          sourceText: factsTable.sourceText,
+          predicate: factsTable.predicate,
+          subjectEntityId: factsTable.subjectEntityId,
+          objectEntityId: factsTable.objectEntityId,
+          objectValue: factsTable.objectValue,
+        })
+        .from(factsTable)
+        .where(eq(factsTable.id, toolInput.fact_id as string))
+        .limit(1);
+
+      if (factRows.length === 0) {
+        return JSON.stringify({ error: 'Fact not found' });
+      }
+
+      const fact = factRows[0]!;
+      let sourcePreview: string | null = null;
+      if (fact.sourceMemoryId) {
+        const mem = await getMemory(fact.sourceMemoryId);
+        if (mem?.payload) {
+          sourcePreview = (mem.payload.content as string)?.slice(0, 500) ?? null;
+        }
+      }
+
+      return JSON.stringify({
+        factId: fact.id,
+        predicate: fact.predicate,
+        subjectEntityId: fact.subjectEntityId,
+        objectEntityId: fact.objectEntityId,
+        objectValue: fact.objectValue,
+        sourceText: fact.sourceText,
+        sourceMemoryId: fact.sourceMemoryId,
+        sourcePreview,
+      });
+    }
+
+    case 'get_entity_sources': {
+      const mentions = await db
+        .select({
+          memoryId: memoryEntities.memoryId,
+          mentionText: memoryEntities.mentionText,
+          mentionContext: memoryEntities.mentionContext,
+          confidence: memoryEntities.confidence,
+        })
+        .from(memoryEntities)
+        .where(eq(memoryEntities.entityId, toolInput.entity_id as string));
+
+      // For each unique memory, fetch content preview
+      const memoryIds = [...new Set(mentions.map(m => m.memoryId))];
+      const previews: Record<string, string> = {};
+      for (const mid of memoryIds.slice(0, 10)) {
+        const mem = await getMemory(mid);
+        if (mem?.payload) {
+          previews[mid] = (mem.payload.content as string)?.slice(0, 300) ?? '';
+        }
+      }
+
+      return JSON.stringify(mentions.map(m => ({
+        memoryId: m.memoryId,
+        mentionText: m.mentionText,
+        context: m.mentionContext,
+        confidence: m.confidence,
+        sourcePreview: previews[m.memoryId] ?? null,
+      })));
+    }
+
+    case 'link_entity_to_memory': {
+      await linkMemoryToEntity(
+        toolInput.memory_id as string,
+        toolInput.entity_id as string,
+        { text: toolInput.mention_text as string },
+      );
+      return JSON.stringify({ linked: true });
+    }
+
+    case 'update_entity_summary': {
+      const entityId = toolInput.entity_id as string;
+      const summary = toolInput.summary as string;
+      await db
+        .insert(entityMeta)
+        .values({
+          entityId,
+          summary,
+          updatedAt: new Date(),
+        })
+        .onConflictDoNothing();
+      // Update if already exists
+      await db
+        .update(entityMeta)
+        .set({ summary, updatedAt: new Date() })
+        .where(eq(entityMeta.entityId, entityId));
+      return JSON.stringify({ updated: true });
+    }
+
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -367,19 +690,17 @@ export interface CausalAgentResult {
  */
 export function getMcpConfigPath(): string {
   const platformRoot = path.resolve(__dirname, '..', '..');
-  const configPath = path.resolve(platformRoot, '.causal-mcp-config.json');
+  const configPath = path.resolve(platformRoot, '.graph-mcp-config.json');
 
   // Write config with resolved paths (idempotent)
-  const fs = require('fs') as typeof import('fs');
   // Use absolute path to the MCP server script — Claude Code does not
   // respect the cwd field when spawning MCP servers, so the script path
   // must be resolvable from any working directory.
-  const serverScript = path.resolve(platformRoot, 'src', 'services', 'causal-mcp.ts');
+  const serverScript = path.resolve(platformRoot, 'src', 'services', 'graph-mcp.ts');
 
   // The MCP server process inherits a minimal env from Claude Code.
   // Pass through the required env vars so config.ts validation passes.
   // Prefer process.env (set by test setup or runtime) over .env file.
-  const dotenv = require('dotenv') as typeof import('dotenv');
   const envFile = dotenv.config({ path: path.resolve(platformRoot, '.env') });
   const env: Record<string, string> = {};
   for (const key of ['DATABASE_URL', 'QDRANT_URL', 'ML_SERVICES_URL', 'EMBED_MODEL', 'NODE_ENV']) {
@@ -389,7 +710,7 @@ export function getMcpConfigPath(): string {
 
   const mcpConfig = {
     mcpServers: {
-      'mnemo-causal': {
+      'mnemo-graph': {
         command: 'npx',
         args: ['tsx', serverScript],
         cwd: platformRoot,
@@ -397,7 +718,7 @@ export function getMcpConfigPath(): string {
       },
     },
   };
-  fs.writeFileSync(configPath, JSON.stringify(mcpConfig, null, 2));
+  writeFileSync(configPath, JSON.stringify(mcpConfig, null, 2));
   return configPath;
 }
 
@@ -442,6 +763,84 @@ export async function invokeCausalAgent(delta: CausalDelta): Promise<CausalAgent
   }
 
   return response.json() as Promise<CausalAgentResult>;
+}
+
+// ============================================
+// Extraction Agent Invocation
+// ============================================
+
+export interface ExtractionAgentParams {
+  sourceText: string;
+  memoryId: string;
+  source?: string;
+}
+
+export interface ExtractionAgentResult {
+  result: string;
+}
+
+/**
+ * Invoke the agentic extraction agent via the ML service.
+ *
+ * The agent gets MCP tools to search the graph, read sources,
+ * resolve entities, and create facts — all interactively.
+ */
+export async function invokeExtractionAgent(params: ExtractionAgentParams): Promise<ExtractionAgentResult> {
+  const mcpConfigPath = getMcpConfigPath();
+
+  const response = await fetch(`${config.ML_SERVICES_URL}/extract-agentic`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source_text: params.sourceText,
+      memory_id: params.memoryId,
+      mcp_config_path: mcpConfigPath,
+      source_name: params.source,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => response.statusText);
+    throw new Error(`Agentic extraction failed (${response.status}): ${detail}`);
+  }
+
+  return response.json() as Promise<ExtractionAgentResult>;
+}
+
+// ============================================
+// Unified Graph Agent Invocation
+// ============================================
+
+export interface GraphAgentResult {
+  result: string;
+}
+
+/**
+ * Invoke the unified graph agent via the ML service.
+ *
+ * Single invocation that handles all five phases:
+ * ORIENT → EXTRACT → RELATE → CAUSE → VERIFY
+ */
+export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<GraphAgentResult> {
+  const mcpConfigPath = getMcpConfigPath();
+
+  const response = await fetch(`${config.ML_SERVICES_URL}/graph-agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source_text: params.sourceText,
+      memory_id: params.memoryId,
+      mcp_config_path: mcpConfigPath,
+      source_name: params.source,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => response.statusText);
+    throw new Error(`Graph agent failed (${response.status}): ${detail}`);
+  }
+
+  return response.json() as Promise<GraphAgentResult>;
 }
 
 // ============================================

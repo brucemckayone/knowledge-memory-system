@@ -129,18 +129,33 @@ export const ml = {
     return mlFetch<EmbedResponse>('/embed', { text, model }, 600_000);
   },
 
-  extractEntities(text: string, validTypes?: string[]) {
+  extractEntities(
+    text: string,
+    validTypes?: string[],
+    knownEntities?: Array<{ name: string; type: string }>,
+    contextSnippets?: string[],
+  ) {
     return mlFetch<ExtractEntitiesResponse>('/extract-entities', {
       text,
       ...(validTypes ? { valid_types: validTypes } : {}),
+      ...(knownEntities?.length ? { known_entities: knownEntities } : {}),
+      ...(contextSnippets?.length ? { context_snippets: contextSnippets } : {}),
     }, 600_000);
   },
 
-  extractRelationships(content: string, entities: Array<{ name: string; type?: string }>, validPredicates?: string[]) {
+  extractRelationships(
+    content: string,
+    entities: Array<{ name: string; type?: string }>,
+    validPredicates?: string[],
+    knownFacts?: Array<{ subject: string; predicate: string; object: string }>,
+    contextSnippets?: string[],
+  ) {
     return mlFetch<ExtractRelationshipsResponse>('/extract-relationships', {
       content,
       entities,
       ...(validPredicates ? { valid_predicates: validPredicates } : {}),
+      ...(knownFacts?.length ? { known_facts: knownFacts } : {}),
+      ...(contextSnippets?.length ? { context_snippets: contextSnippets } : {}),
     }, 600_000);
   },
 

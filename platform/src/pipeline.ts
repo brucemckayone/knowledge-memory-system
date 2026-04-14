@@ -2,21 +2,18 @@
  * Pipeline — Core data flow for the sparse truth graph.
  *
  * store(text)   → embed + Qdrant write → returns memoryId
- * extract(id)   → entities + relationships + facts from stored memory
- * ingest(text)  → store + auto-extract (the default entry point)
+ * extract(id)   → unified graph agent (ORIENT → EXTRACT → RELATE → CAUSE → VERIFY)
+ * ingest(text)  → store + extract (the default entry point)
  */
 
 import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
-import { getValidEntityTypes, resolveEntity, linkMemoryToEntity, findSimilarEntities } from './services/entities.js';
-import { CANONICAL_ONTOLOGY, normalizePredicate } from './services/predicates.js';
-import { createFact } from './services/facts.js';
-import { shouldRunCausalAgent } from './services/causal-trigger.js';
-import { invokeCausalAgent, type CausalDelta } from './services/causal-agent.js';
+import { invokeGraphAgent } from './services/causal-agent.js';
+import { updateEntityMeta, detectMergeCandidates } from './services/graph-meta.js';
 import { db } from './db/index.js';
-import { causalEvents } from './db/schema.js';
-import { eq, and, inArray } from 'drizzle-orm';
+import { entities as entitiesTable, facts as factsTable, memoryEntities } from './db/schema.js';
+import { eq, inArray } from 'drizzle-orm';
 
 export interface ExtractResult {
   memoryId: string;
@@ -27,16 +24,7 @@ export interface ExtractResult {
   timing: Record<string, number>;
 }
 
-export interface CausalResult {
-  triggered: boolean;
-  reasons: string[];
-  agentResult?: string;
-  error?: string;
-}
-
-export interface IngestResult extends ExtractResult {
-  causal?: CausalResult;
-}
+export interface IngestResult extends ExtractResult {}
 
 export interface ResolvedEntity {
   id: string;
@@ -86,197 +74,103 @@ export async function store(
 
 /**
  * Extract entities and relationships from an already-stored memory.
- * Can be called immediately after store() or later for batch processing.
- * Can be called again after bug fixes for re-extraction.
+ *
+ * Invokes the unified graph agent which runs five phases:
+ * ORIENT → EXTRACT → RELATE → CAUSE → VERIFY
+ *
+ * The agent creates entities, facts, causal events, and causal edges
+ * directly via MCP tool calls. After the agent finishes, we query
+ * the DB for what was created and update graph meta statistics.
  */
 export async function extract(memoryId: string): Promise<ExtractResult> {
   const timing: Record<string, number> = {};
-  const filtered: string[] = [];
-  const resolvedEntities: ResolvedEntity[] = [];
-  const createdFacts: CreatedFact[] = [];
-  const skipped: SkippedRelationship[] = [];
 
   // 1. Fetch memory from Qdrant
   const memory = await getMemory(memoryId);
   if (!memory?.payload) throw new Error(`Memory ${memoryId} not found in Qdrant`);
   const content = memory.payload.content as string;
 
-  // 2. Extract entities via ML
+  // 2. Invoke the unified graph agent
   const t0 = Date.now();
-  const validTypes = await getValidEntityTypes();
-  const { entities: rawEntities } = await ml.extractEntities(content, validTypes);
-  timing.extractEntities = Date.now() - t0;
-
-  // 3. Specificity filter
-  const t1 = Date.now();
-  const accepted = rawEntities.filter(e => {
-    // Low confidence
-    if ((e.confidence ?? 1) < 0.5) {
-      filtered.push(`${e.mention} [confidence ${e.confidence}]`);
-      return false;
-    }
-    // Generic / anaphoric / common noun
-    if (isGenericMention(e.mention)) {
-      filtered.push(`${e.mention} [anaphoric/generic]`);
-      return false;
-    }
-    return true;
+  const agentResult = await invokeGraphAgent({
+    sourceText: content,
+    memoryId,
+    source: memory.payload.source as string | undefined,
   });
-  timing.specificityFilter = Date.now() - t1;
-
-  // 4. Resolve each entity
-  const t2 = Date.now();
-  for (const e of accepted) {
-    const resolved = await resolveEntity(
-      e.mention, content, e.type,
-      { start: e.start, end: e.end }
-    );
-    await linkMemoryToEntity(memoryId, resolved.id, {
-      text: e.mention, start: e.start, end: e.end,
-    });
-    resolvedEntities.push(resolved);
+  timing.graphAgent = Date.now() - t0;
+  if (agentResult.result) {
+    // Log the full structured report — this is the agent's reasoning trace
+    console.log(`[graph-agent] report:\n${agentResult.result}`);
   }
-  timing.resolveEntities = Date.now() - t2;
 
-  // 5. Extract relationships
-  const t3 = Date.now();
-  const canonicalPredicates = Object.keys(CANONICAL_ONTOLOGY);
-  const entityNames = resolvedEntities.map(e => ({ name: e.canonicalName, type: e.entityType }));
-  const { relationships } = await ml.extractRelationships(content, entityNames, canonicalPredicates);
-  timing.extractRelationships = Date.now() - t3;
+  // 3. Query what the agent created (entities + facts linked to this memory)
+  const entityLinks = await db
+    .select({ entityId: memoryEntities.entityId })
+    .from(memoryEntities)
+    .where(eq(memoryEntities.memoryId, memoryId));
 
-  // 6. Match relationship subjects/objects to resolved entities (multi-tier)
-  const t4 = Date.now();
-  const matchedRelationships: MatchedRelationship[] = [];
-  for (const rel of relationships) {
-    const subjectMatch = await matchEntityReference(rel.subject, resolvedEntities);
-    const objectMatch = await matchEntityReference(rel.object, resolvedEntities);
+  const entityIds = [...new Set(entityLinks.map(e => e.entityId))];
 
-    if (!subjectMatch) {
-      skipped.push({ subject: rel.subject, predicate: rel.predicate, object: rel.object, reason: `subject "${rel.subject}" unresolved` });
-      continue;
-    }
-    if (!objectMatch) {
-      skipped.push({ subject: rel.subject, predicate: rel.predicate, object: rel.object, reason: `object "${rel.object}" unresolved` });
-      continue;
-    }
+  const resolvedEntities: ResolvedEntity[] = entityIds.length > 0
+    ? (await db
+        .select({
+          id: entitiesTable.id,
+          canonicalName: entitiesTable.canonicalName,
+          entityType: entitiesTable.entityType,
+          confidence: entitiesTable.confidence,
+        })
+        .from(entitiesTable)
+        .where(inArray(entitiesTable.id, entityIds))
+      ).map(e => ({
+        id: e.id,
+        canonicalName: e.canonicalName,
+        entityType: e.entityType,
+        isNew: false,
+        confidence: e.confidence,
+      }))
+    : [];
 
-    const predicate = normalizePredicate(rel.predicate);
-    matchedRelationships.push({
-      subjectId: subjectMatch.id, subjectName: subjectMatch.canonicalName,
-      objectId: objectMatch.id, objectName: objectMatch.canonicalName,
-      predicate, confidence: rel.confidence,
-      temporalHint: rel.temporal_hint, sourceText: rel.source_text,
-    });
-  }
-  timing.matchRelationships = Date.now() - t4;
-
-  // 7. Create facts from matched relationships
-  const t5 = Date.now();
-  for (const rel of matchedRelationships) {
-    const { validAt, invalidAt } = computeTemporal(rel.temporalHint);
-    const factId = await createFact({
-      subjectEntityId: rel.subjectId,
-      predicate: rel.predicate,
-      objectEntityId: rel.objectId,
-      validAt,
-      invalidAt,
-      sourceMemoryId: memoryId,
-      sourceText: rel.sourceText,
-      confidence: rel.confidence,
-    });
-    createdFacts.push({
-      id: factId,
-      subject: rel.subjectName,
-      predicate: rel.predicate,
-      object: rel.objectName,
-      confidence: rel.confidence,
-    });
-  }
-  timing.createFacts = Date.now() - t5;
-
-  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped, filtered, timing };
-}
-
-/**
- * Map temporal hints from ML extraction to validAt/invalidAt dates.
- */
-function computeTemporal(hint?: string): { validAt: Date; invalidAt?: Date } {
-  const now = new Date();
-  switch (hint?.toLowerCase()) {
-    case 'past': {
-      const yearAgo = new Date(now);
-      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-      return { validAt: yearAgo, invalidAt: now };
-    }
-    case 'future': {
-      const monthAhead = new Date(now);
-      monthAhead.setMonth(monthAhead.getMonth() + 1);
-      return { validAt: monthAhead };
-    }
-    case 'current':
-    default:
-      return { validAt: now };
-  }
-}
-
-interface MatchedRelationship {
-  subjectId: string; subjectName: string;
-  objectId: string; objectName: string;
-  predicate: string; confidence: number;
-  temporalHint?: string; sourceText?: string;
-}
-
-/**
- * Multi-tier entity reference matching:
- * 1. Exact case-insensitive match
- * 2. Substring match ("Captain Walton" matches "Walton")
- * 3. Embedding similarity (handles "the narrator" → "R. Walton")
- * 4. Skip with warning
- */
-async function matchEntityReference(
-  reference: string,
-  resolved: ResolvedEntity[],
-): Promise<ResolvedEntity | null> {
-  const refLower = reference.toLowerCase();
-
-  // Tier 1: exact case-insensitive
-  const exact = resolved.find(e => e.canonicalName.toLowerCase() === refLower);
-  if (exact) return exact;
-
-  // Tier 2: substring (either direction)
-  const substring = resolved.find(e => {
-    const nameLower = e.canonicalName.toLowerCase();
-    return nameLower.includes(refLower) || refLower.includes(nameLower);
+  const createdFacts: CreatedFact[] = (await db
+    .select({
+      id: factsTable.id,
+      subjectEntityId: factsTable.subjectEntityId,
+      predicate: factsTable.predicate,
+      objectEntityId: factsTable.objectEntityId,
+      objectValue: factsTable.objectValue,
+      confidence: factsTable.confidence,
+    })
+    .from(factsTable)
+    .where(eq(factsTable.sourceMemoryId, memoryId))
+  ).map(f => {
+    const subjectName = resolvedEntities.find(e => e.id === f.subjectEntityId)?.canonicalName ?? f.subjectEntityId;
+    const objectName = f.objectEntityId
+      ? resolvedEntities.find(e => e.id === f.objectEntityId)?.canonicalName ?? f.objectEntityId
+      : f.objectValue ?? '';
+    return {
+      id: f.id,
+      subject: subjectName,
+      predicate: f.predicate,
+      object: objectName,
+      confidence: f.confidence ?? 1,
+    };
   });
-  if (substring) return substring;
 
-  // Tier 3: embedding similarity
-  try {
-    const { vector } = await ml.embed(reference);
-    const similar = await findSimilarEntities(vector, { limit: 1, threshold: 0.75 });
-    if (similar.length > 0) {
-      const match = resolved.find(e => e.id === similar[0]!.id);
-      if (match) return match;
+  // 4. Update graph meta (entity stats + merge candidate detection)
+  if (entityIds.length > 0) {
+    const tMeta = Date.now();
+    try {
+      await updateEntityMeta(entityIds);
+      const candidates = await detectMergeCandidates(entityIds);
+      if (candidates > 0) {
+        console.log(`[graph-meta] ${candidates} merge candidate(s) detected`);
+      }
+    } catch (err) {
+      console.warn('[graph-meta] failed:', err instanceof Error ? err.message : err);
     }
-  } catch { /* embedding unavailable — skip to tier 4 */ }
+    timing.graphMeta = Date.now() - tMeta;
+  }
 
-  // Tier 4: no match
-  return null;
-}
-
-// --- Specificity filter ---
-
-// Anaphoric references are never specific entities ("a lady", "the old man")
-const ANAPHORIC_PATTERN = /^(a|an|the|his|her|my|their|some|this|that)\s/i;
-
-function isGenericMention(mention: string): boolean {
-  const trimmed = mention.trim();
-  // Anaphoric references
-  if (ANAPHORIC_PATTERN.test(trimmed)) return true;
-  // Single character or empty
-  if (trimmed.length <= 1) return true;
-  return false;
+  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing };
 }
 
 /**
@@ -287,75 +181,18 @@ export async function ingest(
   text: string,
   metadata?: { source?: string; timestamp?: Date }
 ): Promise<IngestResult> {
+  const rid = randomUUID().slice(0, 8);
+  const tag = `[ingest:${rid}]`;
   const totalStart = Date.now();
+  console.log(`${tag} start source=${metadata?.source ?? 'unknown'} len=${text.length}`);
+
   const memoryId = await store(text, metadata);
+  console.log(`${tag} stored memoryId=${memoryId} +${Date.now() - totalStart}ms`);
+
   const extractResult = await extract(memoryId);
-
-  // --- Conditional causal agent ---
-  const entityIds = extractResult.entities.map(e => e.id);
-  const trigger = await shouldRunCausalAgent({
-    sourceText: text,
-    entityIds,
-    newFactCount: extractResult.facts.length,
-  });
-
-  let causal: CausalResult = {
-    triggered: trigger.shouldRun,
-    reasons: trigger.reasons,
-  };
-
-  if (trigger.shouldRun) {
-    console.log(`[causal] triggered: ${trigger.reasons.join(', ')}`);
-
-    try {
-      // Collect causal events created during this extract
-      const events = entityIds.length > 0
-        ? await db
-            .select()
-            .from(causalEvents)
-            .where(and(
-              inArray(causalEvents.subjectEntityId, entityIds),
-              eq(causalEvents.sourceMemoryId, memoryId),
-            ))
-        : [];
-
-      const delta: CausalDelta = {
-        sourceText: text,
-        memoryId,
-        newEntities: extractResult.entities.map(e => ({
-          id: e.id,
-          canonicalName: e.canonicalName,
-          entityType: e.entityType,
-        })),
-        newFacts: extractResult.facts.map(f => ({
-          id: f.id,
-          subject: f.subject,
-          predicate: f.predicate,
-          object: f.object,
-          confidence: f.confidence,
-        })),
-        modifiedFacts: [],
-        causalEvents: events.map(e => ({
-          id: e.id,
-          factId: e.factId ?? undefined,
-          transitionType: e.transitionType,
-          subjectEntityId: e.subjectEntityId ?? undefined,
-          predicate: e.predicate ?? undefined,
-          sourceText: e.sourceText ?? undefined,
-        })),
-      };
-
-      const agentResult = await invokeCausalAgent(delta);
-      causal.agentResult = agentResult.result;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.warn(`[causal] agent failed: ${msg}`);
-      causal.error = msg;
-    }
-  } else {
-    console.log(`[causal] skipped: no trigger conditions met`);
-  }
+  console.log(`${tag} extracted entities=${extractResult.entities.length} facts=${extractResult.facts.length} +${Date.now() - totalStart}ms`);
 
   extractResult.timing.total = Date.now() - totalStart;
-  return { ...extractResult, causal };
+  console.log(`${tag} done total=${extractResult.timing.total}ms`);
+  return extractResult;
 }

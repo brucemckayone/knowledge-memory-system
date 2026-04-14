@@ -4,6 +4,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import ollama
+from .core.concurrency import ollama_pool, QueueFullError
 
 router = APIRouter()
 
@@ -51,7 +52,7 @@ async def embed(request: EmbedRequest):
     Default model: nomic-embed-text (768 dimensions)
     """
     try:
-        response = await asyncio.to_thread(
+        response = await ollama_pool.submit(
             ollama_client.embeddings,
             model=request.model,
             prompt=request.text,
@@ -65,6 +66,8 @@ async def embed(request: EmbedRequest):
             dimensions=len(vector)
         )
 
+    except QueueFullError:
+        raise HTTPException(status_code=503, detail="Service busy, retry later")
     except ollama.ResponseError as e:
         raise HTTPException(
             status_code=500,
@@ -86,7 +89,7 @@ async def embed_batch(request: BatchEmbedRequest):
     """
     try:
         async def _embed_one(text: str) -> List[float]:
-            response = await asyncio.to_thread(
+            response = await ollama_pool.submit(
                 ollama_client.embeddings,
                 model=request.model,
                 prompt=text,
