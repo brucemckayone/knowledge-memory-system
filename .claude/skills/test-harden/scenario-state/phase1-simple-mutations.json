@@ -1,0 +1,31 @@
+{
+  "phase": "phase1",
+  "scenario": "simple-mutations",
+  "fixture_path": "platform/src/test/data/phase1-audit/fixtures/simple-mutations.sql",
+  "expected_path": "platform/src/test/data/phase1-audit/expected/simple-mutations.expected.json",
+  "test_file": "platform/src/test/harness/audit-trail.test.ts",
+  "fixture_version": "v1.1",
+  "last_run": null,
+  "last_result": null,
+  "consecutive_fails": 0,
+  "consecutive_passes": 0,
+  "total_runs": 0,
+  "stressors_applied": [
+    "event-type-breadth=6of8",
+    "actor-diversity=7of7",
+    "fk-integrity",
+    "valid_at-window-mutation",
+    "invalidated-restored-roundtrip",
+    "timing-attack",
+    "empty-reasoning"
+  ],
+  "complexity_score": 14,
+  "status": "active",
+  "filed_beads": [],
+  "benchmarks": {
+    "latest": null,
+    "baseline": null,
+    "history": []
+  },
+  "notes": "Initialised 2026-04-20T14:29:23.834196+00:00"
+}

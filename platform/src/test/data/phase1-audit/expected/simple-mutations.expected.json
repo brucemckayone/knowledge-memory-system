@@ -1,0 +1,102 @@
+{
+  "scenario": "simple-mutations",
+  "version": "1.1",
+  "data_set_level": 1,
+  "fixture": "phase1-audit/fixtures/simple-mutations.sql",
+  "description": "Single-fact lifecycle exercising 6/8 event_type values and all 7 actor values across 8 fact_history rows, with non-null FK links to causal_events and reasoning_reports.",
+  "mutation_sequence_as_seeded": [
+    { "step": 1, "event_type": "created",              "actor": "graph_agent",          "fact_history_id": "40000000-0000-0000-0000-000000000001", "new_confidence": 0.6 },
+    { "step": 2, "event_type": "confidence_raised",    "actor": "reasoning_agent",      "fact_history_id": "40000000-0000-0000-0000-000000000002", "previous_confidence": 0.6, "new_confidence": 0.9 },
+    { "step": 3, "event_type": "revised",              "actor": "reasoning_agent",      "fact_history_id": "40000000-0000-0000-0000-000000000003", "reasoning_report_id": "50000000-0000-0000-0000-000000000001" },
+    { "step": 4, "event_type": "confidence_lowered",   "actor": "gardener_agent",       "fact_history_id": "40000000-0000-0000-0000-000000000004", "previous_confidence": 0.9, "new_confidence": 0.55 },
+    { "step": 5, "event_type": "invalidated",          "actor": "reconciliation_agent", "fact_history_id": "40000000-0000-0000-0000-000000000005", "causal_event_id": "20000000-0000-0000-0000-000000000001" },
+    { "step": 6, "event_type": "restored",             "actor": "user",                 "fact_history_id": "40000000-0000-0000-0000-000000000006", "new_confidence": 0.7 },
+    { "step": 7, "event_type": "superseded",           "actor": "system_trigger",       "fact_history_id": "40000000-0000-0000-0000-000000000007", "causal_event_id": "20000000-0000-0000-0000-000000000001" },
+    { "step": 8, "event_type": "expired",              "actor": "cascade",              "fact_history_id": "40000000-0000-0000-0000-000000000008", "new_confidence": 0.0 }
+  ],
+  "assertions": [
+    {
+      "type": "row_count",
+      "table": "fact_history",
+      "filter": { "fact_id": "10000000-0000-0000-0000-000000000001" },
+      "expected": 8,
+      "because": "Eight mutation events seeded; no loss after load"
+    },
+    {
+      "type": "column_sequence",
+      "table": "fact_history",
+      "filter": { "fact_id": "10000000-0000-0000-0000-000000000001" },
+      "order_by": "occurred_at ASC",
+      "column": "event_type",
+      "expected": ["created","confidence_raised","revised","confidence_lowered","invalidated","restored","superseded","expired"],
+      "because": "Forward-chronological order of the seeded lifecycle"
+    },
+    {
+      "type": "column_sequence",
+      "table": "fact_history",
+      "filter": { "fact_id": "10000000-0000-0000-0000-000000000001" },
+      "order_by": "occurred_at DESC",
+      "column": "event_type",
+      "expected": ["expired","superseded","restored","invalidated","confidence_lowered","revised","confidence_raised","created"],
+      "because": "Reverse-chronological ordering criterion"
+    },
+    {
+      "type": "actor_distribution",
+      "table": "fact_history",
+      "filter": { "fact_id": "10000000-0000-0000-0000-000000000001" },
+      "expected": { "graph_agent": 1, "reasoning_agent": 2, "gardener_agent": 1, "reconciliation_agent": 1, "user": 1, "system_trigger": 1, "cascade": 1 },
+      "because": "All 7 actors exercised at least once"
+    },
+    {
+      "type": "column_values",
+      "table": "fact_history",
+      "filter": { "id": "40000000-0000-0000-0000-000000000002" },
+      "assertions": [
+        { "column": "previous_confidence", "expected": 0.6 },
+        { "column": "new_confidence", "expected": 0.9 },
+        { "column": "actor", "expected": "reasoning_agent" }
+      ],
+      "because": "confidence_raised captures both values + acting agent"
+    },
+    {
+      "type": "column_values",
+      "table": "fact_history",
+      "filter": { "id": "40000000-0000-0000-0000-000000000003" },
+      "assertions": [
+        { "column": "event_type", "expected": "revised" },
+        { "column": "reasoning_report_id", "expected": "50000000-0000-0000-0000-000000000001" }
+      ],
+      "because": "Revised event links to a real reasoning_report"
+    },
+    {
+      "type": "foreign_key_integrity",
+      "table": "fact_history",
+      "columns": ["reasoning_report_id", "causal_event_id", "fact_id"],
+      "rule": "non_null_values_reference_existing_rows",
+      "because": "FK integrity is a Phase 1 acceptance criterion"
+    },
+    {
+      "type": "orphan_retention",
+      "description": "Deleting public.facts row 10000000-...-001 leaves the 8 fact_history rows intact",
+      "expected": true,
+      "because": "Audit rows must not cascade-delete with parent fact"
+    },
+    {
+      "type": "limit_param",
+      "description": "getFactHistory with limit=3 returns only 3 most recent rows",
+      "expected_event_types": ["expired","superseded","restored"],
+      "because": "Limit param respected"
+    }
+  ],
+  "benchmark_targets": {
+    "insert_single_history_row_p95_ms": 5,
+    "history_query_8_rows_p95_ms": 10,
+    "history_query_with_limit_p95_ms": 8,
+    "audit_row_written_atomically": true
+  },
+  "adversarial_variants": [
+    { "fixture": "simple-mutations-timing-attack.sql", "expected_failure_mode": "ordering_invariant_violation_or_check_rejection" },
+    { "fixture": "simple-mutations-empty-reasoning.sql", "expected_failure_mode": "service_layer_rejection" }
+  ],
+  "graduation_notes": "Ready for L2 when: all 8 rows load cleanly; actor_distribution passes; ordering invariant holds; both adversarial variants fail at expected layer; orphan retention verified by manual delete."
+}
