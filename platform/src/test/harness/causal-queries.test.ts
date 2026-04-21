@@ -22,8 +22,8 @@ describe('B04: Causal service — read/query functions', () => {
 
   beforeAll(async () => {
     // Capture DB server time before creating events
-    const [{ now }] = await testDb`SELECT NOW() - INTERVAL '1 second' as now`;
-    beforeTest = new Date(now);
+    const rows = await testDb`SELECT NOW() - INTERVAL '1 second' as now`;
+    beforeTest = new Date(rows[0]!.now);
 
     const entity = await createTestEntity({
       canonicalName: 'B04 Chain Entity',
@@ -154,8 +154,8 @@ describe('B04: Causal service — read/query functions', () => {
   // --- getCausalDelta ---
 
   it('getCausalDelta returns events and edges in time window', async () => {
-    const [{ now }] = await testDb`SELECT NOW() + INTERVAL '1 second' as now`;
-    const delta = await getCausalDelta(beforeTest, new Date(now));
+    const rows = await testDb`SELECT NOW() + INTERVAL '1 second' as now`;
+    const delta = await getCausalDelta(beforeTest, new Date(rows[0]!.now));
 
     // Should include at least our 3 events and 2 edges
     expect(delta.events.length).toBeGreaterThanOrEqual(3);
@@ -163,8 +163,8 @@ describe('B04: Causal service — read/query functions', () => {
   });
 
   it('getCausalDelta with entityId filter narrows results', async () => {
-    const [{ now }] = await testDb`SELECT NOW() + INTERVAL '1 second' as now`;
-    const delta = await getCausalDelta(beforeTest, new Date(now), { entityId });
+    const rows = await testDb`SELECT NOW() + INTERVAL '1 second' as now`;
+    const delta = await getCausalDelta(beforeTest, new Date(rows[0]!.now), { entityId });
 
     // All events belong to our entity
     for (const event of delta.events) {

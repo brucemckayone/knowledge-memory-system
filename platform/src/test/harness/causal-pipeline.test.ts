@@ -7,8 +7,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { testDb, createTestEntity, createTestFact, isMLServiceAvailable } from '../setup.js';
-import { shouldRunCausalAgent, containsCausalLanguage } from '../../services/causal-trigger.js';
+import { testDb, createTestEntity, createTestFact } from '../setup.js';
+import { shouldRunCausalAgent } from '../../services/causal-trigger.js';
 
 describe('B08: Pipeline causal integration', () => {
   let entityId: string;
@@ -80,16 +80,6 @@ describe('B08: Pipeline causal integration', () => {
     expect(result.reasons.some(r => r.includes('facts created'))).toBe(true);
   });
 
-  // --- IngestResult shape ---
-
-  it('IngestResult type includes optional causal field', async () => {
-    // Import to verify the type compiles correctly
-    const { type } = await import('../../pipeline.js');
-    // The fact that this module imports without error proves
-    // IngestResult has the causal field wired up
-    expect(true).toBe(true);
-  });
-
   // --- Full integration (requires ML service + Claude Code) ---
 
   it('ingest with causal language triggers agent and creates edges', async () => {
@@ -109,22 +99,18 @@ describe('B08: Pipeline causal integration', () => {
       return;
     }
 
-    // This would run the full pipeline: store → extract → trigger → agent
+    // Full pipeline: store → extract (unified graph agent handles causal inline)
     const { ingest } = await import('../../pipeline.js');
     const result = await ingest('John quit because his boss was toxic and the work environment was unbearable');
 
-    expect(result.causal).toBeDefined();
-    expect(result.causal!.triggered).toBe(true);
+    expect(result.memoryId).toBeDefined();
 
-    if (!result.causal!.error) {
-      // If agent ran successfully, check for edges
-      const edges = await testDb`
-        SELECT * FROM causal_edges
-        WHERE source_memory_id = ${result.memoryId}
-           OR cause_event_id IN (SELECT id FROM causal_events WHERE source_memory_id = ${result.memoryId})
-      `;
-      // Agent should have created at least 1 edge
-      expect(edges.length).toBeGreaterThanOrEqual(1);
-    }
+    // Agent should have created at least 1 causal edge for explicit causal language
+    const edges = await testDb`
+      SELECT * FROM causal_edges
+      WHERE source_memory_id = ${result.memoryId}
+         OR cause_event_id IN (SELECT id FROM causal_events WHERE source_memory_id = ${result.memoryId})
+    `;
+    expect(edges.length).toBeGreaterThanOrEqual(1);
   }, 180_000);
 });

@@ -26,8 +26,8 @@ function loadChunks(): string[] {
 }
 
 describe('Frankenstein 10-chunk serial baseline', () => {
-  beforeAll(async ({ task }) => {
-    if (!await isMLServiceAvailable()) skipCtx({ task });
+  beforeAll(async (ctx) => {
+    if (!await isMLServiceAvailable()) skipCtx(ctx);
     await deleteFromTables('memory_entities', 'entity_aliases', 'causal_edges', 'causal_events', 'causal_patterns', 'facts', 'entity_merges', 'entities');
   });
 
@@ -43,7 +43,7 @@ describe('Frankenstein 10-chunk serial baseline', () => {
     for (let i = 0; i < chunks.length; i++) {
       console.log(`\n>>> CHUNK ${i}/${chunks.length - 1} START <<<`);
       try {
-        const result = await ingest(chunks[i], { source: `frankenstein-serial-test/chunk-${i}` });
+        const result = await ingest(chunks[i]!, { source: `frankenstein-serial-test/chunk-${i}` });
         console.log(`>>> CHUNK ${i}/${chunks.length - 1} DONE <<<`);
         results.push(result);
       } catch (err: any) {
@@ -121,22 +121,11 @@ describe('Frankenstein 10-chunk serial baseline', () => {
     }
     console.log(`  ... (${factSnapshot.length} total)`);
 
-    // Causal results per-chunk
-    const causalResults = results.map((r, i) => ({
-      chunk: i,
-      triggered: r.causal?.triggered ?? false,
-      reasons: r.causal?.reasons ?? [],
-      error: r.causal?.error,
-    }));
-    console.log('\n--- Causal Agent Per-Chunk ---');
-    for (const c of causalResults) {
-      if (c.triggered) {
-        console.log(`  Chunk ${c.chunk}: triggered (${c.reasons.join(', ')})`);
-      }
-      if (c.error) {
-        console.log(`  Chunk ${c.chunk}: ERROR ${c.error}`);
-      }
-    }
+    // Causal reasoning now runs inline inside the unified graph agent — no
+    // per-chunk causal payload on the ingest result. Summarise the emitted
+    // causal_events instead.
+    console.log('\n--- Causal events emitted ---');
+    console.log(`  total: ${causalEvents.length}`);
 
     // --- Quality targets (same as parallel test) ---
 
