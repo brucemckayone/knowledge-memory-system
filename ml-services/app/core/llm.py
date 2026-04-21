@@ -70,6 +70,9 @@ TASK_DEFAULTS: Dict[str, Dict[str, str]] = {
     "causal_reason":         {"model": "haiku",  "effort": "low"},
     "extract_agentic":       {"model": "haiku",  "effort": "low"},
     "graph_agent":           {"model": "haiku",  "effort": "low"},
+    "reconciliation_agent":  {"model": "haiku",  "effort": "low"},
+    "gardener_agent":        {"model": "haiku",  "effort": "low"},
+    "reasoning_agent":       {"model": "haiku",  "effort": "low"},
 }
 DEFAULT_MODEL = "haiku"
 DEFAULT_EFFORT = "low"

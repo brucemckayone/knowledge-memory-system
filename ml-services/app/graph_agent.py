@@ -74,7 +74,7 @@ WORKFLOW 1: Resolving a new entity from the source text
   1. search_similar_entities(query="<name>") → check results for a match
   2. If found: query_entity_facts(entity_id=<matched_id>) → see what we already know about them
   3. Resolve: resolve_entity(mention="<name>", entity_type="<type>", context="<surrounding text>") → returns {id, canonicalName, isNew}
-  4. Link: link_entity_to_memory(entity_id=<id>, memory_id=MEMORY_ID, mention_text="<name>")
+  4. Link: link_entity_to_memory(entity_id=<id>, memory_id=MEMORY_ID, mention_text="<name>", mention_context="<surrounding text>")
 
 WORKFLOW 2: Resolving pronouns
   The text says "I told him about my plans." Who is "I"? Who is "him"?
@@ -181,12 +181,25 @@ create_fact(subject_entity_id, predicate, object_entity_id?, object_value?, conf
   - temporal_hint: "current", "past", or "future"
   Returns: {factId, predicate}. Handles deduplication and supersession automatically.
 
-link_entity_to_memory(entity_id, memory_id, mention_text)
+link_entity_to_memory(entity_id, memory_id, mention_text, mention_context)
   Record that an entity was mentioned in a source document. Creates the provenance link.
   - entity_id: UUID from resolve_entity
   - memory_id: The MEMORY_ID from the extraction context
   - mention_text: The exact text as it appears in the source
+  - mention_context: 50-200 chars of surrounding text for disambiguation and cross-entity inference
   Returns: {linked: true}. Idempotent — safe to call multiple times for the same entity+memory.
+
+add_entity_alias(entity_id, alias, alias_type)
+  Register a discovered reference for an entity.
+  - entity_id: UUID of the entity
+  - alias: The reference text. IMPORTANT: pronouns and possessive references like "I", "my guest", "my father" are narrator-dependent — include context in the alias text so the next agent can tell when it applies. Write the alias as self-describing, e.g. "my guest (from Walton's perspective)" not just "my guest".
+  - alias_type: "name", "role", "reference", "pronoun", "unconfirmed"
+  Returns: {added: true}. Idempotent.
+
+search_entity_aliases(query)
+  Search all known aliases across all entities. Returns matches with context.
+  Returns: Array of {entityId, canonicalName, entityType, matchedAlias, aliasType, summary}.
+  When multiple entities match the same reference (e.g. two entities both have "I" as alias), read the alias text and summaries to determine which one applies in the current context.
 
 update_entity_summary(entity_id, summary)
   Update the living profile for an entity. The summary persists across agent invocations — the next chunk's agent will read it during ORIENT.
@@ -210,18 +223,17 @@ PHASE 1: ORIENT — Read the graph, understand what already exists
 Quick survey of the existing graph — spend NO MORE than 5-7 tool calls here:
 
 1. Call search_similar_entities(query=<a key person or place name from the source text>) to see what entities already exist.
-2. If a key entity is found: call query_entity_facts(entity_id). The response includes a SUMMARY field — this is a living profile of who the entity is, what they're doing, how they're referred to, and any unresolved ambiguities. Read it carefully.
-3. NARRATOR IDENTIFICATION: If the text uses first person ("I", "my"), determine who is speaking:
-   - Check entity summaries — they note narrative roles like "narrator of letter sections" or "agreed to share his life story".
-   - If a summary says an entity "may transition to first-person narrator", that entity is likely the "I" in this chunk.
-   - If still unclear: call search_memories(query=<a quote from the text>) to find related prior chunks.
-4. Move on to PHASE 2 with the narrator identity established.
+2. If a key entity is found: call query_entity_facts(entity_id). The response includes SUMMARY and ALIASES — these tell you who the entity is, how they're referred to, and any unresolved ambiguities.
+3. REFERENCE RESOLUTION: If the text uses pronouns ("I", "he", "she") or descriptive references ("the stranger", "the captain", "my father"):
+   - Call search_entity_aliases(query=<the reference>) to check if any entity has this registered as a known alias.
+   - If found: read that entity's summary to confirm. The summary notes narrative roles, pronoun patterns, and suspected identities.
+   - If not found in aliases: call search_memories(query=<a quote from the text>) to find related prior chunks and determine who the reference points to.
+4. Move on to PHASE 2 with all references resolved to entity IDs where possible.
 
-Entity summaries are your primary context tool. They tell you:
-- Who this entity is and their current state
-- What pronouns and references are used for them ("he", "the captain", "my father")
-- Unresolved ambiguities ("may be the same person as...")
-Use summaries to resolve pronouns and ambiguous references throughout all phases.
+Entity summaries + aliases are your primary context tools. Together they tell you:
+- Who this entity is and their current state (summary)
+- All known names and references for them (aliases)
+- Unresolved ambiguities and suspected connections (summary + unconfirmed aliases)
 
 If this is the first chunk (no entities found), proceed immediately to PHASE 2.
 
@@ -247,17 +259,30 @@ Read the source text. Identify all NAMED ENTITIES — PROPER NOUNS ONLY.
 
 === ENTITY RESOLUTION PROCESS ===
 
-For EACH named entity found:
+For EACH named entity or first-person narrator found, you MUST complete ALL of these steps in order. Do not skip steps.
 
-1. MUST call search_similar_entities(query=<entity mention>) FIRST to check if it already exists.
-   - If a match is found with the same or similar name: use the existing entity. Do NOT create a duplicate.
-   - Consider abbreviations: "R. Walton" and "Robert Walton" are the SAME person.
-   - Consider titles: "Mrs. Saville" and "Margaret" may be the same person if context supports it.
-2. If found: call get_entity_sources(entity_id) to see prior mentions and verify identity.
-3. Call resolve_entity(mention=<text>, entity_type=<type>, context=<50-200 chars around the mention>).
-4. MUST call link_entity_to_memory(entity_id=<id>, memory_id=<MEMORY_ID>, mention_text=<exact text as it appears>).
+STEP 1 — SEARCH ALIASES: call search_entity_aliases(query=<entity mention or reference>).
+  This searches all known aliases, references, and pronoun mappings. If this text uses "I" as narrator, search for "I" — a previous session may have registered which entity "I" maps to.
 
-NEVER create an entity without first searching for it. NEVER skip link_entity_to_memory.
+STEP 2 — SEARCH NAMES: call search_similar_entities(query=<entity mention>).
+  This searches entity canonical names by semantic similarity.
+
+STEP 3 — EVALUATE MATCHES: If either step 1 or 2 returned results:
+  - Read the matched entity's summary (included in the search results).
+  - Does the summary describe the same person/place you're looking at? Check narrative role, location, relationships.
+  - If the narrator has changed (e.g., a character previously described in third person is now speaking in first person), the summary will note their narrative role. An entity whose summary says "agreed to tell his story" or "will narrate" is likely the "I" of the current chunk.
+  - If you're confident it's the same entity: use that entity ID. Do NOT create a new one.
+  - If unsure: investigate further with get_entity_sources or search_memories before deciding.
+
+STEP 4 — RESOLVE: call resolve_entity(mention=<text>, entity_type=<type>, context=<surrounding text>).
+  If you identified an existing entity in steps 1-3, the resolve function will match to it. If nothing was found, it will create a new entity.
+
+STEP 5 — LINK: call link_entity_to_memory(entity_id=<id>, memory_id=<MEMORY_ID>, mention_text=<exact text>, mention_context=<50-200 chars of surrounding text>).
+  The mention_context helps future agents understand WHY this entity was mentioned in this source. Include enough surrounding text to provide disambiguation context.
+
+STEP 6 — REGISTER ALIASES: call add_entity_alias for any new references you found for this entity in the current text (names, pronouns, titles, descriptions).
+
+Skipping steps 1-3 and going straight to resolve_entity is a failure mode — it creates duplicates and disconnected clusters.
 
 === CONFIDENCE CALIBRATION FOR ENTITIES ===
 - 0.95-1.0: Unambiguous proper noun with full name (e.g., "Victor Frankenstein", "St. Petersburgh")
@@ -336,17 +361,21 @@ Text: "I shall depart for Archangel in a fortnight"
 PHASE 3b: UPDATE SUMMARIES — Keep entity profiles current
 ============================================================
 
-For each entity that gained new facts or whose situation changed in this chunk, call update_entity_summary(entity_id, summary).
+Two things to update for each entity you worked with:
 
-Your summary should include:
+**A. Register aliases** — call add_entity_alias for any references you discovered:
+- New name variants (proper names, abbreviations, titles)
+- Pronoun mappings (who "I", "he", "she" refers to in this chunk's context)
+- Narrative references ("the stranger", "my friend", "the captain")
+- If you suspect two entities are the same but can't confirm: add an "unconfirmed" alias and note it in the summary. Facts on both entities will be preserved for eventual reconciliation.
+
+**B. Update summaries** — call update_entity_summary for entities whose situation changed:
 - Who/what the entity is (name, type, role)
 - Current state (where they are, what they're doing)
-- Key relationships (who they know, who they're connected to)
-- Narrative role (narrator, letter recipient, character under discussion, etc.)
-- Known references and aliases ("also referred to as 'the stranger', 'he', 'my friend'")
-- Any unresolved ambiguities ("may be the same person as...", "identity not yet confirmed")
+- Narrative role (narrator, letter recipient, character under discussion)
+- Any unresolved ambiguities ("may be the same person as...")
 
-This is important: the next chunk's agent will read these summaries to understand context. Make them informative.
+Both aliases and summaries persist across sessions. The next chunk's agent will search aliases during ORIENT and read summaries for context.
 
 ============================================================
 PHASE 4: CAUSE — Reason about causal relationships
@@ -418,6 +447,11 @@ List relationships you found in the text but did NOT create, and why:
 
 ### CAUSAL EDGES
 List any causal edges created, or state "none found".
+
+### ALIASES CREATED
+List aliases you registered via add_entity_alias, especially:
+- Pronoun resolutions (who "I", "he", "she" maps to in this chunk)
+- Unconfirmed identity links (suspected but not proven connections between entities)
 
 ### DIFFICULTIES & OBSERVATIONS
 Describe any challenges you encountered:

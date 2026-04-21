@@ -37,6 +37,9 @@ from .compare_predicates import router as compare_predicates_router
 from .causal_reason import router as causal_reason_router
 from .extract_agentic import router as extract_agentic_router
 from .graph_agent import router as graph_agent_router
+from .reconciliation_agent import router as reconciliation_agent_router
+from .gardener_agent import router as gardener_agent_router
+from .reasoning_agent import router as reasoning_agent_router
 from .core.llm import LLM_PROVIDER
 from .core.concurrency import ollama_pool, llm_pool, THREAD_POOL_SIZE
 
@@ -93,6 +96,11 @@ app.include_router(causal_reason_router, tags=["Causal Reasoning"])
 app.include_router(extract_agentic_router, tags=["Agentic Extraction"])
 # Unified graph agent
 app.include_router(graph_agent_router, tags=["Graph Agent"])
+# Reconciliation agent
+app.include_router(reconciliation_agent_router, tags=["Reconciliation Agent"])
+# Graph gardener
+app.include_router(gardener_agent_router, tags=["Graph Gardener"])
+app.include_router(reasoning_agent_router, tags=["Reasoning Agent"])
 
 
 @app.get("/health")
