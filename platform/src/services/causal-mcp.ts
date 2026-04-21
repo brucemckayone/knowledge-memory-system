@@ -14,7 +14,10 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { CAUSAL_AGENT_TOOLS, handleToolCall } from './causal-agent.js';
+// GRAPH_TOOLS is the unified tool surface (B05 causal tools + extraction +
+// reconciliation + gardener + reasoning-layer tools). CAUSAL_AGENT_TOOLS is
+// the deprecated empty-list kept for backwards-compatible imports.
+import { GRAPH_TOOLS, handleToolCall } from './causal-agent.js';
 
 const server = new Server(
   {
@@ -30,7 +33,7 @@ const server = new Server(
 
 // List available tools
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: CAUSAL_AGENT_TOOLS.map(t => ({
+  tools: GRAPH_TOOLS.map(t => ({
     name: t.name,
     description: t.description,
     inputSchema: {

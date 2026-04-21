@@ -86,27 +86,39 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
   }
 
   // --- Insert + audit (same transaction) ---
+  // Drizzle 0.29 + postgres.js 3.4 stringify jsonb array values when passed
+  // through `.values({ ... })` inside a tx callback (jsonb_typeof lands as
+  // 'string' instead of 'array'). Outside a tx the same construction
+  // serialises correctly. Workaround: perform the INSERT with a raw SQL
+  // template (which postgres.js JSON-encodes once and casts server-side
+  // with ::jsonb) inside the tx, then chain the audit write. See
+  // docs/handoff/phase1-findings.md for the investigation notes.
 
   return db.transaction(async (tx) => {
-    const result = await tx
-      .insert(causalEdges)
-      .values({
-        causeEventId: params.causeEventId,
-        effectEventId: params.effectEventId,
-        strength: params.strength,
-        reasoning: params.reasoning,
-        sourceReferences: params.sourceReferences,
-        extractionMethod: params.extractionMethod ?? 'llm',
-        temporalSpan: params.temporalSpan ?? null,
-        initialStrength: params.strength,
-        sourceMemoryId: params.sourceMemoryId ?? null,
-        sourceText: params.sourceText ?? null,
-        patternId: params.patternId ?? null,
-        patternPosition: params.patternPosition ?? null,
-      })
-      .returning({ id: causalEdges.id });
+    const inserted = await tx.execute(sql`
+      INSERT INTO public.causal_edges (
+        cause_event_id, effect_event_id, strength, reasoning,
+        source_references, extraction_method, temporal_span, initial_strength,
+        source_memory_id, source_text, pattern_id, pattern_position
+      ) VALUES (
+        ${params.causeEventId}::uuid,
+        ${params.effectEventId}::uuid,
+        ${params.strength},
+        ${params.reasoning},
+        ${sql.raw(`'${JSON.stringify(params.sourceReferences).replace(/'/g, "''")}'::jsonb`)},
+        ${params.extractionMethod ?? 'llm'},
+        ${params.temporalSpan ?? null},
+        ${params.strength},
+        ${params.sourceMemoryId ?? null}::uuid,
+        ${params.sourceText ?? null},
+        ${params.patternId ?? null}::uuid,
+        ${params.patternPosition ?? null}
+      ) RETURNING id
+    `);
 
-    const edgeId = result[0]!.id;
+    const rows = Array.isArray(inserted) ? inserted : (inserted as { rows?: unknown[] }).rows ?? [];
+    const edgeId = (rows[0] as { id: string } | undefined)?.id;
+    if (!edgeId) throw new Error('createCausalEdge: INSERT returned no row');
 
     await recordEdgeChange({
       edgeId,
@@ -223,15 +235,19 @@ export async function reviseCausalEdge(params: ReviseCausalEdgeParams): Promise<
     ? [...(prevRefs as SourceReference[]), ...addedSourceRefs]
     : (prevRefs as SourceReference[]);
 
+  // Raw-SQL UPDATE (same jsonb-in-tx workaround as createCausalEdge).
+  const mergedRefsLiteral = sql.raw(
+    `'${JSON.stringify(mergedRefs).replace(/'/g, "''")}'::jsonb`,
+  );
+
   await db.transaction(async (tx) => {
-    await tx
-      .update(causalEdges)
-      .set({
-        strength: newStrength ?? prevStrength,
-        reasoning: newReasoning ?? prevReasoning,
-        sourceReferences: mergedRefs,
-      })
-      .where(eq(causalEdges.id, edgeId));
+    await tx.execute(sql`
+      UPDATE public.causal_edges
+      SET strength = ${newStrength ?? prevStrength},
+          reasoning = ${newReasoning ?? prevReasoning},
+          source_references = ${mergedRefsLiteral}
+      WHERE id = ${edgeId}::uuid
+    `);
 
     await recordEdgeChange({
       edgeId,

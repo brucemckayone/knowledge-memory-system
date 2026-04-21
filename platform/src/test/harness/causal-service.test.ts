@@ -50,6 +50,15 @@ describe('B03: Causal service — write functions', () => {
 
   afterAll(async () => {
     // Only clean up our own data (scoped by entity)
+    // Phase 1: causal_edge_history holds an FK on causal_edges.id, so clear
+    // the history rows for this test's edges before deleting the edges themselves.
+    await testDb.unsafe(`
+      DELETE FROM causal_edge_history
+      WHERE edge_id IN (
+        SELECT id FROM causal_edges
+        WHERE cause_event_id = '${causeEventId}' OR effect_event_id = '${effectEventId}'
+      )
+    `).catch(() => {});
     await testDb.unsafe(`DELETE FROM causal_edges WHERE cause_event_id = '${causeEventId}' OR effect_event_id = '${effectEventId}'`).catch(() => {});
     await testDb.unsafe(`DELETE FROM causal_events WHERE subject_entity_id = '${entityId}'`).catch(() => {});
     await testDb.unsafe(`DELETE FROM facts WHERE id = '${factId}'`).catch(() => {});
@@ -177,7 +186,14 @@ describe('B03: Causal service — write functions', () => {
       );
     } catch { /* may not exist */ }
 
-    // Delete only our edges before re-inserting
+    // Delete only our edges before re-inserting — history rows first because of the Phase 1 FK.
+    await testDb.unsafe(`
+      DELETE FROM public.causal_edge_history
+      WHERE edge_id IN (
+        SELECT id FROM public.causal_edges
+        WHERE cause_event_id = '${causeEventId}' OR effect_event_id = '${effectEventId}'
+      )
+    `);
     await testDb.unsafe(`DELETE FROM public.causal_edges WHERE cause_event_id = '${causeEventId}' OR effect_event_id = '${effectEventId}'`);
     await testDb`
       INSERT INTO public.causal_edges (

@@ -9,7 +9,7 @@
  * callsite has to decide which of the seven actors is making the change.
  */
 
-import { eq, desc, type SQL } from 'drizzle-orm';
+import { eq, desc, sql, type SQL } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import {
   factHistory,
@@ -17,6 +17,19 @@ import {
   type FactHistory,
   type CausalEdgeHistory,
 } from '../db/schema.js';
+
+/**
+ * Drizzle 0.29 + postgres.js 3.4 stringify jsonb array/object values when
+ * passed through `.values({ … })` inside a tx callback — the row lands with
+ * jsonb_typeof='string' instead of 'array'. Inline the value as a SQL string
+ * literal cast to jsonb so postgres encodes it once and the backend parses
+ * as JSONB natively. Safe — JSON.stringify output contains no single quotes
+ * in key positions; the `.replace` guards against unlikely embedded quotes
+ * in payload strings.
+ */
+function jsonbLiteral(value: unknown): SQL {
+  return sql.raw(`'${JSON.stringify(value).replace(/'/g, "''")}'::jsonb`);
+}
 
 // ============================================
 // Actor / event-type enums (DB CHECK mirrors)
@@ -89,26 +102,31 @@ export async function recordFactChange(params: RecordFactChangeParams): Promise<
     throw new Error('reasoning must be a non-empty string');
   }
   const client = params.tx ?? db;
-  const [row] = await client
-    .insert(factHistory)
-    .values({
-      factId: params.factId,
-      eventType: params.eventType,
-      previousConfidence: params.previousConfidence ?? null,
-      newConfidence: params.newConfidence ?? null,
-      previousValidAt: params.previousValidAt ?? null,
-      newValidAt: params.newValidAt ?? null,
-      previousInvalidAt: params.previousInvalidAt ?? null,
-      newInvalidAt: params.newInvalidAt ?? null,
-      reasoning: params.reasoning,
-      sourceReferences: params.sourceReferences ?? [],
-      reasoningReportId: params.reasoningReportId ?? null,
-      causalEventId: params.causalEventId ?? null,
-      actor: params.actor,
-    })
-    .returning({ id: factHistory.id });
-  if (!row) throw new Error('recordFactChange: INSERT returned no row');
-  return row.id;
+  // Raw-SQL INSERT so jsonb lands as array, not a stringified scalar (see
+  // jsonbLiteral note above).
+  const result = await client.execute(sql`
+    INSERT INTO public.fact_history (
+      fact_id, event_type,
+      previous_confidence, new_confidence,
+      previous_valid_at, new_valid_at,
+      previous_invalid_at, new_invalid_at,
+      reasoning, source_references,
+      reasoning_report_id, causal_event_id,
+      actor
+    ) VALUES (
+      ${params.factId}::uuid, ${params.eventType},
+      ${params.previousConfidence ?? null}, ${params.newConfidence ?? null},
+      ${params.previousValidAt ?? null}, ${params.newValidAt ?? null},
+      ${params.previousInvalidAt ?? null}, ${params.newInvalidAt ?? null},
+      ${params.reasoning}, ${jsonbLiteral(params.sourceReferences ?? [])},
+      ${params.reasoningReportId ?? null}::uuid, ${params.causalEventId ?? null}::uuid,
+      ${params.actor}
+    ) RETURNING id
+  `);
+  const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows ?? [];
+  const id = (rows[0] as { id: string } | undefined)?.id;
+  if (!id) throw new Error('recordFactChange: INSERT returned no row');
+  return id;
 }
 
 export interface RecordEdgeChangeParams {
@@ -136,23 +154,28 @@ export async function recordEdgeChange(params: RecordEdgeChangeParams): Promise<
     throw new Error('reasoning must be a non-empty string');
   }
   const client = params.tx ?? db;
-  const [row] = await client
-    .insert(causalEdgeHistory)
-    .values({
-      edgeId: params.edgeId,
-      eventType: params.eventType,
-      previousStrength: params.previousStrength ?? null,
-      newStrength: params.newStrength ?? null,
-      previousReasoning: params.previousReasoning ?? null,
-      newReasoning: params.newReasoning ?? null,
-      addedSourceRefs: params.addedSourceRefs ?? null,
-      reasoning: params.reasoning,
-      reasoningReportId: params.reasoningReportId ?? null,
-      actor: params.actor,
-    })
-    .returning({ id: causalEdgeHistory.id });
-  if (!row) throw new Error('recordEdgeChange: INSERT returned no row');
-  return row.id;
+  const addedRefs = params.addedSourceRefs == null
+    ? sql`NULL::jsonb`
+    : jsonbLiteral(params.addedSourceRefs);
+  const result = await client.execute(sql`
+    INSERT INTO public.causal_edge_history (
+      edge_id, event_type,
+      previous_strength, new_strength,
+      previous_reasoning, new_reasoning,
+      added_source_refs,
+      reasoning, reasoning_report_id, actor
+    ) VALUES (
+      ${params.edgeId}::uuid, ${params.eventType},
+      ${params.previousStrength ?? null}, ${params.newStrength ?? null},
+      ${params.previousReasoning ?? null}, ${params.newReasoning ?? null},
+      ${addedRefs},
+      ${params.reasoning}, ${params.reasoningReportId ?? null}::uuid, ${params.actor}
+    ) RETURNING id
+  `);
+  const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows ?? [];
+  const id = (rows[0] as { id: string } | undefined)?.id;
+  if (!id) throw new Error('recordEdgeChange: INSERT returned no row');
+  return id;
 }
 
 // ============================================
