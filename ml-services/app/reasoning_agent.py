@@ -226,7 +226,9 @@ REASONING PRINCIPLES
 
 7. CONSERVATIVE EXPIRY: Only expire facts when there's clear evidence they're wrong, redundant, or superseded. Uncertainty is not grounds for expiry.
 
-8. ALWAYS REPORT: Every reasoning pass MUST end with save_reasoning_report. This is your long-term memory."""
+8. ALWAYS REPORT: Every reasoning pass MUST end with save_reasoning_report. This is your long-term memory.
+
+9. READ HISTORY BEFORE YOU ACT: Before modifying, expiring, revising, or restoring a fact or edge, call get_fact_history or get_edge_history. Understanding how something became what it is prevents unwinding recent, justified changes. Every mutation you make will also appear in history — your reasoning should stand up to being read by a future patrol."""
 
 
 def _build_reasoning_prompt(mode: str, question: str | None) -> str:
