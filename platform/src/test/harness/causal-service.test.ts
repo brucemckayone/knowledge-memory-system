@@ -66,6 +66,7 @@ describe('B03: Causal service — write functions', () => {
         { type: 'memory', id: crypto.randomUUID(), relevance: 'source text mentions toxic work environment' },
         { type: 'fact', id: factId, relevance: 'employment fact confirms timeline' },
       ],
+      actor: 'graph_agent',
     });
 
     expect(edgeId).toBeTruthy();
@@ -91,6 +92,7 @@ describe('B03: Causal service — write functions', () => {
       strength: 0.5,
       reasoning: '',
       sourceReferences: [{ type: 'fact', id: factId, relevance: 'test' }],
+        actor: 'graph_agent',
     })).rejects.toThrow('reasoning must be a non-empty string');
   });
 
@@ -101,6 +103,7 @@ describe('B03: Causal service — write functions', () => {
       strength: 0.5,
       reasoning: 'Some reasoning',
       sourceReferences: [],
+        actor: 'graph_agent',
     })).rejects.toThrow('sourceReferences must be a non-empty array');
   });
 
@@ -111,6 +114,7 @@ describe('B03: Causal service — write functions', () => {
       strength: 0.5,
       reasoning: 'Some reasoning',
       sourceReferences: [{ type: 'invalid' as any, id: crypto.randomUUID(), relevance: 'test' }],
+        actor: 'graph_agent',
     })).rejects.toThrow("sourceReference type must be");
   });
 
@@ -121,6 +125,7 @@ describe('B03: Causal service — write functions', () => {
       strength: 0.5,
       reasoning: 'Some reasoning',
       sourceReferences: [{ type: 'fact', id: 'not-a-uuid', relevance: 'test' }],
+        actor: 'graph_agent',
     })).rejects.toThrow('sourceReference id must be a valid UUID');
   });
 
@@ -131,6 +136,7 @@ describe('B03: Causal service — write functions', () => {
       strength: 0.5,
       reasoning: 'Some reasoning',
       sourceReferences: [{ type: 'fact', id: crypto.randomUUID(), relevance: '' }],
+        actor: 'graph_agent',
     })).rejects.toThrow('sourceReference relevance must be a non-empty string');
   });
 
@@ -141,6 +147,7 @@ describe('B03: Causal service — write functions', () => {
       strength: 0.5,
       reasoning: 'Some reasoning',
       sourceReferences: [{ type: 'fact', id: factId, relevance: 'test' }],
+        actor: 'graph_agent',
     })).rejects.toThrow('no self-loops');
   });
 
@@ -152,6 +159,7 @@ describe('B03: Causal service — write functions', () => {
       strength: 0.5,
       reasoning: 'Some reasoning',
       sourceReferences: [{ type: 'fact', id: factId, relevance: 'test' }],
+        actor: 'graph_agent',
     })).rejects.toThrow('does not reference an existing causal event');
   });
 

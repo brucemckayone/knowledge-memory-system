@@ -842,6 +842,9 @@ async function _handleToolCallInner(
         reasoning: toolInput.reasoning as string,
         sourceReferences: refs,
         temporalSpan: toolInput.temporal_span as string | undefined,
+        // create_causal_edge is invoked by the graph agent during extraction.
+        // w4j.7 replaces this literal with the actor from invocation context.
+        actor: 'graph_agent',
       });
       return JSON.stringify({ edgeId });
     }

@@ -9,6 +9,7 @@ import { db } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
 import { causalEdges, causalEvents, type CausalEvent, type CausalEdge } from '../db/schema.js';
 import { eq, and, gte, lte, sql, or, inArray, isNull } from 'drizzle-orm';
+import { recordEdgeChange, type Actor } from './audit.js';
 
 export interface SourceReference {
   type: 'memory' | 'fact' | 'entity';
@@ -28,6 +29,10 @@ export interface CreateCausalEdgeParams {
   sourceText?: string;
   patternId?: string;
   patternPosition?: number;
+
+  // Phase 1 audit context — REQUIRED.
+  actor: Actor;
+  reasoningReportId?: string | null;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -80,27 +85,168 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
     throw new Error(`effectEventId '${params.effectEventId}' does not reference an existing causal event`);
   }
 
-  // --- Insert ---
+  // --- Insert + audit (same transaction) ---
 
-  const result = await db
-    .insert(causalEdges)
-    .values({
-      causeEventId: params.causeEventId,
-      effectEventId: params.effectEventId,
-      strength: params.strength,
+  return db.transaction(async (tx) => {
+    const result = await tx
+      .insert(causalEdges)
+      .values({
+        causeEventId: params.causeEventId,
+        effectEventId: params.effectEventId,
+        strength: params.strength,
+        reasoning: params.reasoning,
+        sourceReferences: params.sourceReferences,
+        extractionMethod: params.extractionMethod ?? 'llm',
+        temporalSpan: params.temporalSpan ?? null,
+        initialStrength: params.strength,
+        sourceMemoryId: params.sourceMemoryId ?? null,
+        sourceText: params.sourceText ?? null,
+        patternId: params.patternId ?? null,
+        patternPosition: params.patternPosition ?? null,
+      })
+      .returning({ id: causalEdges.id });
+
+    const edgeId = result[0]!.id;
+
+    await recordEdgeChange({
+      edgeId,
+      eventType: 'created',
+      newStrength: params.strength,
+      newReasoning: params.reasoning,
+      addedSourceRefs: params.sourceReferences,
       reasoning: params.reasoning,
-      sourceReferences: params.sourceReferences,
-      extractionMethod: params.extractionMethod ?? 'llm',
-      temporalSpan: params.temporalSpan ?? null,
-      initialStrength: params.strength,
-      sourceMemoryId: params.sourceMemoryId ?? null,
-      sourceText: params.sourceText ?? null,
-      patternId: params.patternId ?? null,
-      patternPosition: params.patternPosition ?? null,
-    })
-    .returning({ id: causalEdges.id });
+      actor: params.actor,
+      reasoningReportId: params.reasoningReportId ?? null,
+      tx,
+    });
 
-  return result[0]!.id;
+    return edgeId;
+  });
+}
+
+// ============================================
+// Edge mutation helpers — Phase 1 lifecycle events
+// ============================================
+
+export interface ExpireCausalEdgeParams {
+  edgeId: string;
+  reasoning: string;
+  actor: Actor;
+  reasoningReportId?: string | null;
+  /** Free-text reason persisted on causal_edges.expire_reason (defaults to `reasoning`). */
+  expireReason?: string;
+}
+
+/**
+ * Expire a causal edge (soft-delete via expired_at). Writes a
+ * causal_edge_history row with event_type='expired' in the same transaction.
+ * No-op if the edge is already expired or doesn't exist.
+ */
+export async function expireCausalEdge(params: ExpireCausalEdgeParams): Promise<void> {
+  const { edgeId, reasoning, actor, reasoningReportId = null, expireReason } = params;
+
+  const existing = await db
+    .select({ strength: causalEdges.strength, reasoning: causalEdges.reasoning })
+    .from(causalEdges)
+    .where(and(eq(causalEdges.id, edgeId), isNull(causalEdges.expiredAt)))
+    .limit(1);
+
+  if (!existing[0]) return;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(causalEdges)
+      .set({ expiredAt: new Date(), expireReason: expireReason ?? reasoning })
+      .where(and(eq(causalEdges.id, edgeId), isNull(causalEdges.expiredAt)));
+
+    await recordEdgeChange({
+      edgeId,
+      eventType: 'expired',
+      previousStrength: existing[0]!.strength ?? null,
+      newStrength: existing[0]!.strength ?? null,
+      previousReasoning: existing[0]!.reasoning ?? null,
+      reasoning,
+      actor,
+      reasoningReportId,
+      tx,
+    });
+  });
+}
+
+export interface ReviseCausalEdgeParams {
+  edgeId: string;
+  /** Required narrative justification for the revision itself. */
+  reasoning: string;
+  actor: Actor;
+  /** New strength value (optional — omit to keep current). */
+  newStrength?: number;
+  /** New on-edge reasoning text (optional — omit to keep current). */
+  newReasoning?: string;
+  /** Additional source references appended to the edge. */
+  addedSourceRefs?: SourceReference[];
+  reasoningReportId?: string | null;
+}
+
+/**
+ * Revise a causal edge — update strength and/or on-edge reasoning, and
+ * optionally append source references. Writes a causal_edge_history row with
+ * event_type='revised' in the same transaction.
+ *
+ * @throws if the edge does not exist, is expired, or newStrength is out of range.
+ */
+export async function reviseCausalEdge(params: ReviseCausalEdgeParams): Promise<void> {
+  const { edgeId, reasoning, actor, newStrength, newReasoning, addedSourceRefs, reasoningReportId = null } = params;
+
+  if (newStrength !== undefined && (newStrength < 0 || newStrength > 1)) {
+    throw new Error('newStrength must be between 0 and 1');
+  }
+
+  const existing = await db
+    .select({
+      strength: causalEdges.strength,
+      reasoning: causalEdges.reasoning,
+      sourceReferences: causalEdges.sourceReferences,
+    })
+    .from(causalEdges)
+    .where(and(eq(causalEdges.id, edgeId), isNull(causalEdges.expiredAt)))
+    .limit(1);
+
+  if (!existing[0]) {
+    throw new Error(`reviseCausalEdge: edge ${edgeId} not found or already expired`);
+  }
+
+  const prevStrength = existing[0].strength ?? 0;
+  const prevReasoning = existing[0].reasoning;
+  const prevRefs = Array.isArray(existing[0].sourceReferences) ? existing[0].sourceReferences : [];
+
+  const mergedRefs: SourceReference[] = addedSourceRefs && addedSourceRefs.length > 0
+    ? [...(prevRefs as SourceReference[]), ...addedSourceRefs]
+    : (prevRefs as SourceReference[]);
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(causalEdges)
+      .set({
+        strength: newStrength ?? prevStrength,
+        reasoning: newReasoning ?? prevReasoning,
+        sourceReferences: mergedRefs,
+      })
+      .where(eq(causalEdges.id, edgeId));
+
+    await recordEdgeChange({
+      edgeId,
+      eventType: 'revised',
+      previousStrength: prevStrength,
+      newStrength: newStrength ?? prevStrength,
+      previousReasoning: prevReasoning,
+      newReasoning: newReasoning ?? prevReasoning,
+      addedSourceRefs: addedSourceRefs ?? null,
+      reasoning,
+      actor,
+      reasoningReportId,
+      tx,
+    });
+  });
 }
 
 // ============================================
