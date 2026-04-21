@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { ingest, store, extract } from './pipeline.js';
-import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta } from './db/index.js';
-import { isNull, sql, inArray } from 'drizzle-orm';
+import { ingest, store, extract, enqueueIngest } from './pipeline.js';
+import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, gardeningReports } from './db/index.js';
+import { isNull, sql, inArray, eq } from 'drizzle-orm';
 import { getMergeCandidates } from './services/graph-meta.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -42,6 +42,13 @@ app.post('/extract', async (c) => {
   if (!body.memoryId) return c.json({ error: 'memoryId is required' }, 400);
   const result = await extract(body.memoryId);
   return c.json(result);
+});
+
+app.post('/ingest/queue', async (c) => {
+  const body = await c.req.json<{ text: string; source?: string }>();
+  if (!body.text) return c.json({ error: 'text is required' }, 400);
+  const result = enqueueIngest(body.text, body.source);
+  return c.json(result, 202);
 });
 
 // ============================================
@@ -110,7 +117,7 @@ app.get('/api/viz/causal-edge-sources', async (c) => {
 
 app.get('/api/viz/unified', async (c) => {
   // Fetch all data in parallel
-  const [ents, fcts, memLinks, events, edges_raw, metaRows, candidates] = await Promise.all([
+  const [ents, fcts, memLinks, events, edges_raw, metaRows, candidates, sameAsRows] = await Promise.all([
     db.select({
       id: entities.id,
       canonicalName: entities.canonicalName,
@@ -163,6 +170,14 @@ app.get('/api/viz/unified', async (c) => {
       summary: entityMeta.summary,
     }).from(entityMeta),
     getMergeCandidates(),
+    db.select({
+      id: sameAsLinks.id,
+      entityAId: sameAsLinks.entityAId,
+      entityBId: sameAsLinks.entityBId,
+      reasoning: sameAsLinks.reasoning,
+      confidence: sameAsLinks.confidence,
+      createdAt: sameAsLinks.createdAt,
+    }).from(sameAsLinks),
   ]);
 
   // Build meta lookup
@@ -359,6 +374,21 @@ app.get('/api/viz/unified', async (c) => {
     }
   }
 
+  // Same-as identity links
+  for (const sal of sameAsRows) {
+    if (entityIds.has(sal.entityAId) && entityIds.has(sal.entityBId)) {
+      edges.push({
+        id: sal.id,
+        _edgeType: 'sameAs',
+        source: sal.entityAId,
+        target: sal.entityBId,
+        reasoning: sal.reasoning,
+        confidence: sal.confidence,
+        createdAt: sal.createdAt,
+      });
+    }
+  }
+
   return c.json({ nodes, edges });
 });
 
@@ -394,12 +424,106 @@ app.post('/api/viz/run-meta', async (c) => {
   return c.json({ entitiesProcessed: entityIds.length, candidatesDetected: candidateCount });
 });
 
+app.post('/api/reconcile', async (c) => {
+  // Manually trigger the reconciliation agent to resolve identity questions
+  const body: { include_reports?: boolean; max_reports?: number } =
+    await c.req.json<{ include_reports?: boolean; max_reports?: number }>().catch(() => ({}));
+  const includeReports = body.include_reports !== false; // default true
+  const maxReports = body.max_reports ?? 10;
+
+  // Check if there is anything to reconcile
+  const [candidateRows, unconfirmedRows] = await Promise.all([
+    db.select({ id: mergeCandidates.id }).from(mergeCandidates)
+      .where(eq(mergeCandidates.status, 'candidate')).limit(1),
+    db.select({ id: entityAliases.id }).from(entityAliases)
+      .where(eq(entityAliases.aliasType, 'unconfirmed')).limit(1),
+  ]);
+
+  if (candidateRows.length === 0 && unconfirmedRows.length === 0) {
+    return c.json({ triggered: false, candidateCount: 0, message: 'No unresolved candidates or unconfirmed aliases found.' });
+  }
+
+  // Fetch candidates and recent extraction reports
+  const [allCandidates, recentReports] = await Promise.all([
+    getMergeCandidates(),
+    includeReports
+      ? db.select({ reportText: extractionReports.reportText })
+          .from(extractionReports)
+          .orderBy(sql`created_at DESC`)
+          .limit(maxReports)
+      : Promise.resolve([]),
+  ]);
+
+  // Invoke reconciliation agent with unresolved candidates
+  const { invokeReconciliationAgent } = await import('./services/causal-agent.js');
+  const unresolved = allCandidates.filter(c => c.status !== 'resolved');
+  const result = await invokeReconciliationAgent({
+    candidates: unresolved as Array<Record<string, unknown>>,
+    recentReports: recentReports.map(r => r.reportText),
+  });
+
+  return c.json({
+    triggered: true,
+    candidateCount: unresolved.length,
+    report: result.result,
+  });
+});
+
+app.post('/api/garden', async (c) => {
+  // Manually trigger the graph gardener to explore and maintain the knowledge graph
+  const tStart = Date.now();
+  console.log('[garden] manual trigger received');
+
+  const { invokeGardenerAgent } = await import('./services/causal-agent.js');
+  try {
+    console.log('[garden] invoking gardener agent...');
+    const result = await invokeGardenerAgent({ trigger: 'manual' });
+    const durationMs = Date.now() - tStart;
+    console.log(`[garden] complete in ${durationMs}ms`);
+    console.log('[garden] --- REPORT ---');
+    console.log(result.result || '(no report)');
+    console.log('[garden] --- END REPORT ---');
+
+    // Store report
+    db.insert(gardeningReports).values({
+      triggerType: 'manual',
+      reportText: result.result || '(no report)',
+      durationMs,
+    }).catch(err => {
+      console.warn('[garden] failed to store report:', err instanceof Error ? err.message : err);
+    });
+
+    return c.json({
+      triggered: true,
+      report: result.result,
+      durationMs,
+    });
+  } catch (err) {
+    return c.json({
+      triggered: false,
+      error: err instanceof Error ? err.message : String(err),
+      durationMs: Date.now() - tStart,
+    }, 500);
+  }
+});
+
 app.post('/api/viz/clear', async (c) => {
   // Delete in FK-safe order
-  for (const table of ['merge_candidates', 'entity_meta', 'memory_entities', 'entity_aliases', 'causal_edges', 'causal_events', 'causal_patterns', 'facts', 'entity_merges', 'entities']) {
+  for (const table of ['reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports', 'merge_candidates', 'entity_meta', 'memory_entities', 'entity_aliases', 'causal_edges', 'causal_events', 'causal_patterns', 'facts', 'entity_merges', 'entities']) {
     await db.execute(sql.raw(`DELETE FROM ${table}`));
   }
   return c.json({ cleared: true });
+});
+
+app.post('/api/reset', async (c) => {
+  // 1. Clear PG tables (FK-safe order)
+  for (const table of ['reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports', 'merge_candidates', 'entity_meta', 'memory_entities', 'entity_aliases', 'causal_edges', 'causal_events', 'causal_patterns', 'facts', 'entity_merges', 'entities']) {
+    await db.execute(sql.raw(`DELETE FROM ${table}`));
+  }
+  // 2. Clear Qdrant
+  const { clearMemories } = await import('./services/qdrant.js');
+  await clearMemories();
+  return c.json({ cleared: true, pg: true, qdrant: true });
 });
 
 app.get('/api/viz/stats', async (c) => {
@@ -571,6 +695,34 @@ app.get('/api/viz/graph-c', async (c) => {
   }
 
   return c.json({ nodes, links });
+});
+
+// ============================================
+// Reasoning Agent
+// ============================================
+
+app.post('/api/reason', async (c) => {
+  const { invokeReasoningAgent } = await import('./services/causal-agent.js');
+  const start = Date.now();
+  try {
+    const result = await invokeReasoningAgent({ mode: 'patrol' });
+    return c.json({ triggered: true, result: result.result, durationMs: Date.now() - start });
+  } catch (err) {
+    return c.json({ triggered: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 500);
+  }
+});
+
+app.post('/api/reason/query', async (c) => {
+  const body = await c.req.json<{ question: string }>();
+  if (!body.question) return c.json({ error: 'question is required' }, 400);
+  const { invokeReasoningAgent } = await import('./services/causal-agent.js');
+  const start = Date.now();
+  try {
+    const result = await invokeReasoningAgent({ mode: 'query', question: body.question });
+    return c.json({ triggered: true, result: result.result, durationMs: Date.now() - start });
+  } catch (err) {
+    return c.json({ triggered: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 500);
+  }
 });
 
 const port = parseInt(process.env.PORT || '3000', 10);

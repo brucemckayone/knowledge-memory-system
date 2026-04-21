@@ -27,7 +27,7 @@ let tooltipPinnedNode = null;
 let layoutMode = 'force'; // 'force' or 'dag'
 let scrubberTime = null; // null = show all (now), Date = filter up to this time
 let timeRange = { min: null, max: null };
-const layers = { fact: true, causal: true, source: false, merge: false };
+const layers = { fact: true, causal: true, source: false, merge: false, sameAs: true };
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
@@ -58,6 +58,7 @@ function initSvg() {
   groups.sourceLinks = g.append('g').attr('class', 'layer-source');
   groups.sourceNodes = g.append('g').attr('class', 'layer-source');
   groups.mergeEdges = g.append('g').attr('class', 'layer-merge');
+  groups.sameAsEdges = g.append('g').attr('class', 'layer-sameAs');
   groups.factEdges = g.append('g').attr('class', 'layer-fact');
   groups.factLabels = g.append('g').attr('class', 'layer-fact');
   groups.causalAnchors = g.append('g').attr('class', 'layer-causal');
@@ -76,12 +77,14 @@ function initSvg() {
       if (d._edgeType === 'causal') return 60;
       if (d._edgeType === 'sourceLink') return 140;
       if (d._edgeType === 'mergeCandidate') return 100;
+      if (d._edgeType === 'sameAs') return 120;
       return 140;
     }).strength(d => {
       if (d._edgeType === 'sourceLink') return 0.03;
       if (d._edgeType === 'causalAnchor') return 0.15;
       if (d._edgeType === 'causal') return 0.2;
       if (d._edgeType === 'mergeCandidate') return 0.05;
+      if (d._edgeType === 'sameAs') return 0.08;
       return 0.2;
     }))
     .force('charge', d3.forceManyBody().strength(d => {
@@ -140,6 +143,12 @@ function render() {
   renderEdges(groups.mergeEdges, visibleEdges.filter(e => e._edgeType === 'mergeCandidate'), {
     stroke: COLOR_MERGE, width: d => 1.5 + (d.combinedScore || 0) * 3, opacity: 0.6,
     dash: '6,4', label: d => (d.combinedScore || 0).toFixed(2),
+  });
+
+  // --- Same-as identity links ---
+  renderEdges(groups.sameAsEdges, visibleEdges.filter(e => e._edgeType === 'sameAs'), {
+    stroke: '#2ecc71', width: 2.5, opacity: 0.7, dash: '8,4',
+    label: d => `≡ ${(d.confidence || 0).toFixed(2)}`,
   });
 
   // --- Fact edges ---
@@ -356,6 +365,7 @@ function renderNodes(group, nodeData, opts) {
         if (ed._edgeType === 'fact') return 0.4;
         if (ed._edgeType === 'causal') return 0.6;
         if (ed._edgeType === 'mergeCandidate') return 0.6;
+        if (ed._edgeType === 'sameAs') return 0.7;
         return 0.5;
       });
       hideTooltip();
@@ -399,6 +409,7 @@ function isEdgeVisible(e) {
   }
   if (e._edgeType === 'sourceLink') return layers.source;
   if (e._edgeType === 'mergeCandidate') return layers.merge;
+  if (e._edgeType === 'sameAs') return layers.sameAs;
   return true;
 }
 
@@ -714,6 +725,18 @@ function showEdgeDetail(d) {
     html += signalBar('Overlap', d.memoryOverlap, '#27ae60');
     html += signalBar('Structural', d.structuralSimilarity, '#e67e22');
     html += signalBar('Combined', d.combinedScore, '#58a6ff');
+
+  } else if (d._edgeType === 'sameAs') {
+    const a = data.nodes.find(n => n.id === (d.source.id || d.source));
+    const b = data.nodes.find(n => n.id === (d.target.id || d.target));
+    html += `<h2 style="color:#2ecc71">Same-As Identity Link</h2>`;
+    html += field('Entity A', a?.label);
+    html += field('Entity B', b?.label);
+    html += field('Confidence', d.confidence?.toFixed(3));
+    if (d.reasoning) {
+      html += `<div class="section-label">Reasoning</div>`;
+      html += `<div class="source-block">${esc(d.reasoning)}</div>`;
+    }
   }
 
   panel.innerHTML = html;
@@ -899,4 +922,276 @@ window.addEventListener('resize', () => {
   const height = svg.node().clientHeight;
   simulation.force('center', d3.forceCenter(width / 2, height / 2));
   simulation.alpha(0.1).restart();
+});
+
+// ============================================================
+// RESET / CLEAR
+// ============================================================
+
+async function doReset(endpoint, label) {
+  if (!confirm(`${label}\n\nThis cannot be undone. Continue?`)) return;
+  const btn = document.getElementById(endpoint === '/api/reset' ? 'btnResetAll' : 'btnClearGraph');
+  const origText = btn.textContent;
+  btn.textContent = 'Clearing…';
+  btn.disabled = true;
+  try {
+    const res = await fetch(endpoint, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = { nodes: [], edges: [] };
+    selectedId = null;
+    focusedEntityId = null;
+    scrubberTime = null;
+    timeRange = { min: null, max: null };
+    document.getElementById('timeScrubber').value = 100;
+    document.getElementById('scrubValue').textContent = 'Now';
+    closeDetailPanel();
+    unpinTooltip();
+    initSvg();
+    render();
+    await fetchData();
+  } catch (err) {
+    alert(`Reset failed: ${err.message}`);
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('btnClearGraph').addEventListener('click', () =>
+  doReset('/api/viz/clear', 'Clear graph: deletes all entities, facts, and causal data from PostgreSQL.')
+);
+document.getElementById('btnResetAll').addEventListener('click', () =>
+  doReset('/api/reset', 'Reset all: deletes all PostgreSQL graph data AND all Qdrant vectors.')
+);
+
+// ============================================================
+// GRAPH GARDENER
+// ============================================================
+
+async function doGarden() {
+  const btn = document.getElementById('btnGarden');
+  const origText = btn.textContent;
+  btn.textContent = 'Gardening…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/garden', { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = await res.json();
+
+    if (result.triggered) {
+      const report = result.report || '(no report)';
+      const preview = report.length > 600 ? report.substring(0, 600) + '…' : report;
+      alert(`Gardening complete! (${(result.durationMs / 1000).toFixed(1)}s)\n\n${preview}`);
+      await fetchData();
+    } else {
+      alert(`Gardening failed: ${result.error || 'unknown error'}`);
+    }
+  } catch (err) {
+    alert(`Gardening failed: ${err.message}`);
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('btnGarden').addEventListener('click', doGarden);
+
+// ============================================================
+// RECONCILIATION
+// ============================================================
+
+async function doReconcile() {
+  const btn = document.getElementById('btnReconcile');
+  const origText = btn.textContent;
+  btn.textContent = 'Reconciling…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/reconcile', { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = await res.json();
+
+    if (result.triggered) {
+      alert(`Reconciliation complete!\n\nResolved ${result.candidateCount} candidate(s).\n\nReport:\n${result.report.substring(0, 500)}${result.report.length > 500 ? '...' : ''}`);
+      // Refresh graph to show updated same_as links and merged entities
+      await fetchData();
+    } else {
+      alert(`No merge candidates or unconfirmed aliases to reconcile.\n\n${result.message}`);
+    }
+  } catch (err) {
+    alert(`Reconciliation failed: ${err.message}`);
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('btnReconcile').addEventListener('click', doReconcile);
+
+// ============================================================
+// TEXT INGESTION
+// ============================================================
+
+document.getElementById('btnIngestToggle').addEventListener('click', () => {
+  const panel = document.getElementById('ingestPanel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) document.getElementById('ingestText').focus();
+});
+
+const MAX_CHUNK = 2000;
+
+function chunkText(text) {
+  if (text.length <= MAX_CHUNK) return [text];
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > MAX_CHUNK) {
+    // Find the last good break point within the limit
+    let cut = -1;
+    const slice = remaining.slice(0, MAX_CHUNK);
+    cut = slice.lastIndexOf('\n\n');
+    if (cut < 200) cut = slice.lastIndexOf('\n');
+    if (cut < 200) cut = slice.lastIndexOf('. ');
+    if (cut < 200) cut = slice.lastIndexOf(' ');
+    if (cut < 200) cut = MAX_CHUNK; // hard cut
+    else cut += 1; // include the break char
+    chunks.push(remaining.slice(0, cut).trim());
+    remaining = remaining.slice(cut).trim();
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
+async function doIngest() {
+  const textEl = document.getElementById('ingestText');
+  const sourceEl = document.getElementById('ingestSource');
+  const statusEl = document.getElementById('ingestStatus');
+  const btn = document.getElementById('btnIngest');
+  const text = textEl.value.trim();
+
+  if (!text) {
+    statusEl.className = 'ingest-status error';
+    statusEl.textContent = 'No text to ingest';
+    return;
+  }
+
+  const chunks = chunkText(text);
+  const source = sourceEl.value.trim() || undefined;
+
+  btn.textContent = `Queuing ${chunks.length} chunk${chunks.length > 1 ? 's' : ''}\u2026`;
+  btn.disabled = true;
+  statusEl.className = 'ingest-status';
+  statusEl.textContent = '';
+
+  try {
+    for (const chunk of chunks) {
+      const body = { text: chunk };
+      if (source) body.source = source;
+
+      const res = await fetch('/ingest/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+    }
+
+    statusEl.className = 'ingest-status success';
+    statusEl.textContent = chunks.length === 1
+      ? 'Queued (1 chunk) \u2014 graph updates automatically'
+      : `Queued (${chunks.length} chunks) \u2014 graph updates automatically`;
+    textEl.value = '';
+    sourceEl.value = '';
+  } catch (err) {
+    statusEl.className = 'ingest-status error';
+    statusEl.textContent = err.message;
+  } finally {
+    btn.textContent = 'Ingest';
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('btnIngest').addEventListener('click', doIngest);
+
+// ============================================================
+// REASONING AGENT
+// ============================================================
+
+async function doReason() {
+  const btn = document.getElementById('btnReason');
+  const origText = btn.textContent;
+  btn.textContent = 'Reasoning\u2026';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/reason', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    showAnswer(`Patrol complete (${(data.durationMs / 1000).toFixed(1)}s)\n\n${data.result}`);
+  } catch (err) {
+    showAnswer(`Error: ${err.message}`);
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('btnReason').addEventListener('click', doReason);
+
+document.getElementById('btnQueryToggle').addEventListener('click', () => {
+  const panel = document.getElementById('queryPanel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) document.getElementById('queryInput').focus();
+});
+
+async function doQuery() {
+  const input = document.getElementById('queryInput');
+  const statusEl = document.getElementById('queryStatus');
+  const btn = document.getElementById('btnQuery');
+  const question = input.value.trim();
+
+  if (!question) {
+    statusEl.className = 'query-status error';
+    statusEl.textContent = 'Enter a question';
+    return;
+  }
+
+  btn.textContent = 'Thinking\u2026';
+  btn.disabled = true;
+  statusEl.className = 'query-status';
+  statusEl.textContent = '';
+
+  try {
+    const res = await fetch('/api/reason/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    showAnswer(`Q: ${question}\n\n${data.result}`);
+    input.value = '';
+  } catch (err) {
+    statusEl.className = 'query-status error';
+    statusEl.textContent = err.message;
+  } finally {
+    btn.textContent = 'Ask';
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('btnQuery').addEventListener('click', doQuery);
+document.getElementById('queryInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doQuery();
+});
+
+function showAnswer(text) {
+  const panel = document.getElementById('answerPanel');
+  document.getElementById('answerContent').textContent = text;
+  panel.classList.add('open');
+}
+
+document.getElementById('answerClose').addEventListener('click', () => {
+  document.getElementById('answerPanel').classList.remove('open');
 });

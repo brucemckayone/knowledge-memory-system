@@ -9,10 +9,10 @@
 import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
-import { invokeGraphAgent } from './services/causal-agent.js';
+import { invokeGraphAgent, invokeGardenerAgent } from './services/causal-agent.js';
 import { updateEntityMeta, detectMergeCandidates } from './services/graph-meta.js';
 import { db } from './db/index.js';
-import { entities as entitiesTable, facts as factsTable, memoryEntities } from './db/schema.js';
+import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports } from './db/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 
 export interface ExtractResult {
@@ -22,7 +22,14 @@ export interface ExtractResult {
   skipped: SkippedRelationship[];
   filtered: string[];
   timing: Record<string, number>;
+  gardener?: { triggered: boolean; report?: string };
 }
+
+// ============================================
+// Gardener Auto-Trigger Counter
+// ============================================
+const GARDENER_RUN_INTERVAL = 5; // trigger gardener every N graph agent runs
+let graphAgentRunCount = 0;
 
 export interface IngestResult extends ExtractResult {}
 
@@ -101,6 +108,10 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
   if (agentResult.result) {
     // Log the full structured report — this is the agent's reasoning trace
     console.log(`[graph-agent] report:\n${agentResult.result}`);
+    // Persist for reconciliation agent consumption (fire-and-forget — never blocks extraction)
+    db.insert(extractionReports).values({ memoryId, reportText: agentResult.result }).catch(err => {
+      console.warn('[pipeline] failed to store extraction report:', err instanceof Error ? err.message : err);
+    });
   }
 
   // 3. Query what the agent created (entities + facts linked to this memory)
@@ -156,21 +167,45 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
   });
 
   // 4. Update graph meta (entity stats + merge candidate detection)
+  let gardenerResult: { triggered: boolean; report?: string } | undefined;
   if (entityIds.length > 0) {
     const tMeta = Date.now();
     try {
       await updateEntityMeta(entityIds);
-      const candidates = await detectMergeCandidates(entityIds);
-      if (candidates > 0) {
-        console.log(`[graph-meta] ${candidates} merge candidate(s) detected`);
+      const newCandidates = await detectMergeCandidates(entityIds);
+      if (newCandidates > 0) {
+        console.log(`[graph-meta] ${newCandidates} merge candidate(s) detected`);
       }
     } catch (err) {
       console.warn('[graph-meta] failed:', err instanceof Error ? err.message : err);
     }
     timing.graphMeta = Date.now() - tMeta;
+
+    // 5. Auto-trigger gardener every N graph agent runs
+    graphAgentRunCount++;
+    if (graphAgentRunCount >= GARDENER_RUN_INTERVAL) {
+      const tGarden = Date.now();
+      const runsSince = graphAgentRunCount;
+      graphAgentRunCount = 0; // reset before async call
+      console.log(`[gardener] auto-triggering after ${runsSince} graph agent runs`);
+      try {
+        const gardenResult = await invokeGardenerAgent({
+          trigger: 'auto',
+          graphAgentRunsSinceLast: runsSince,
+        });
+        if (gardenResult.result) {
+          console.log(`[gardener] report:\n${gardenResult.result}`);
+        }
+        gardenerResult = { triggered: true, report: gardenResult.result };
+      } catch (err) {
+        console.warn('[gardener] failed:', err instanceof Error ? err.message : err);
+        gardenerResult = { triggered: false };
+      }
+      timing.gardener = Date.now() - tGarden;
+    }
   }
 
-  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing };
+  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing, gardener: gardenerResult };
 }
 
 /**
@@ -195,4 +230,43 @@ export async function ingest(
   extractResult.timing.total = Date.now() - totalStart;
   console.log(`${tag} done total=${extractResult.timing.total}ms`);
   return extractResult;
+}
+
+// ============================================
+// Serial Ingest Queue
+// ============================================
+
+interface QueueItem {
+  text: string;
+  source?: string;
+}
+
+const ingestQueue: QueueItem[] = [];
+let draining = false;
+
+/**
+ * Enqueue text for ingestion. Returns immediately.
+ * Items are processed one at a time in FIFO order —
+ * no concurrent graph agent processes, no race conditions.
+ */
+export function enqueueIngest(text: string, source?: string): { queued: true; position: number } {
+  ingestQueue.push({ text, source });
+  const position = ingestQueue.length;
+  console.log(`[queue] enqueued position=${position} source=${source ?? 'unknown'} len=${text.length}`);
+  drainQueue(); // kick the worker (no-op if already running)
+  return { queued: true, position };
+}
+
+async function drainQueue(): Promise<void> {
+  if (draining) return;
+  draining = true;
+  while (ingestQueue.length > 0) {
+    const item = ingestQueue.shift()!;
+    try {
+      await ingest(item.text, { source: item.source });
+    } catch (err) {
+      console.error(`[queue] ingest failed:`, err instanceof Error ? err.message : err);
+    }
+  }
+  draining = false;
 }

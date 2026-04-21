@@ -136,6 +136,23 @@ export async function getMemoryVectors(ids: string[]): Promise<Map<string, numbe
 }
 
 /**
+ * Delete and recreate the memories collection (full reset).
+ */
+export async function clearMemories(): Promise<void> {
+  try {
+    await qdrant.deleteCollection(COLLECTIONS.MEMORIES);
+  } catch {
+    // Collection may not exist — that's fine
+  }
+  await qdrant.createCollection(COLLECTIONS.MEMORIES, {
+    vectors: {
+      size: config.EMBED_DIMENSIONS,
+      distance: 'Cosine',
+    },
+  });
+}
+
+/**
  * Health check
  */
 export async function checkQdrantHealth(): Promise<boolean> {
