@@ -333,6 +333,7 @@ export const entityMeta = pgTable('entity_meta', {
   summary: text('summary'),
   firstMentionedAt: timestamp('first_mentioned_at', { withTimezone: true }),
   lastMentionedAt: timestamp('last_mentioned_at', { withTimezone: true }),
+  lastReasonedAt: timestamp('last_reasoned_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -366,6 +367,71 @@ export const mergeCandidatesRelations = relations(mergeCandidates, ({ one }) => 
 }));
 
 // ============================================
+// Reconciliation Layer Tables
+// ============================================
+
+/**
+ * Same-As Links
+ *
+ * Non-destructive identity links between entities that represent the same
+ * real-world referent but carry different narrative meaning. Both entities
+ * and their facts are preserved — this is a link, not a merge.
+ *
+ * Example: "the stranger" (described by Walton) ↔ "Victor Frankenstein" (self-narrator)
+ */
+export const sameAsLinks = pgTable('same_as_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  entityAId: uuid('entity_a_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  entityBId: uuid('entity_b_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  reasoning: text('reasoning').notNull(),
+  sourceEvidence: jsonb('source_evidence').notNull().default([]),
+  confidence: real('confidence').default(0.8).notNull(),
+  createdBy: varchar('created_by', { length: 50 }).default('reconciliation_agent').notNull(),
+  mergeCandidateId: uuid('merge_candidate_id').references(() => mergeCandidates.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniquePair: unique().on(table.entityAId, table.entityBId),
+}));
+
+/**
+ * Extraction Reports
+ *
+ * Stored PHASE 6 structured reports from the graph agent.
+ * Reconciliation agent reads these to find evidence of cross-entity
+ * connections that the extraction agent noted but couldn't act on.
+ */
+export const extractionReports = pgTable('extraction_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  memoryId: uuid('memory_id').notNull(),
+  reportText: text('report_text').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Gardening Reports
+ *
+ * Stored reports from graph gardener agent sessions.
+ * Each run explores the graph topology, consolidates entities,
+ * and records what actions were taken with full reasoning.
+ */
+export const gardeningReports = pgTable('gardening_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  triggerType: varchar('trigger_type', { length: 20 }).default('manual').notNull(),
+  runsSinceLast: integer('runs_since_last').default(0).notNull(),
+  actions: jsonb('actions').default([]).notNull(),
+  sameAsCreated: integer('same_as_created').default(0).notNull(),
+  mergesExecuted: integer('merges_executed').default(0).notNull(),
+  factsCreated: integer('facts_created').default(0).notNull(),
+  summariesUpdated: integer('summaries_updated').default(0).notNull(),
+  totalEntities: integer('total_entities'),
+  totalComponents: integer('total_components'),
+  islandsInvestigated: integer('islands_investigated').default(0).notNull(),
+  reportText: text('report_text').notNull(),
+  durationMs: integer('duration_ms'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ============================================
 // Type exports
 // ============================================
 
@@ -377,6 +443,29 @@ export type EntityMerge = typeof entityMerges.$inferSelect;
 export type NewEntityMerge = typeof entityMerges.$inferInsert;
 export type MemoryEntity = typeof memoryEntities.$inferSelect;
 export type NewMemoryEntity = typeof memoryEntities.$inferInsert;
+// ============================================
+// Reasoning Reports
+// ============================================
+
+/**
+ * Reasoning Reports
+ *
+ * Provenance for the reasoning agent. Each patrol or query pass produces
+ * a report linked to the entities, facts, and causal edges it touched.
+ * Future passes read prior reports to build on previous reasoning.
+ */
+export const reasoningReports = pgTable('reasoning_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  mode: varchar('mode', { length: 20 }).notNull(),
+  question: text('question'),
+  report: text('report').notNull(),
+  actionsTaken: jsonb('actions_taken').notNull().default({}),
+  entityIds: uuid('entity_ids').array().notNull().default([]),
+  factIds: uuid('fact_ids').array().notNull().default([]),
+  causalEdgeIds: uuid('causal_edge_ids').array().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
@@ -388,3 +477,11 @@ export type CausalPattern = typeof causalPatterns.$inferSelect;
 export type NewCausalPattern = typeof causalPatterns.$inferInsert;
 export type EntityMeta = typeof entityMeta.$inferSelect;
 export type MergeCandidate = typeof mergeCandidates.$inferSelect;
+export type SameAsLink = typeof sameAsLinks.$inferSelect;
+export type NewSameAsLink = typeof sameAsLinks.$inferInsert;
+export type ExtractionReport = typeof extractionReports.$inferSelect;
+export type NewExtractionReport = typeof extractionReports.$inferInsert;
+export type GardeningReport = typeof gardeningReports.$inferSelect;
+export type NewGardeningReport = typeof gardeningReports.$inferInsert;
+export type ReasoningReport = typeof reasoningReports.$inferSelect;
+export type NewReasoningReport = typeof reasoningReports.$inferInsert;
