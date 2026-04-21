@@ -1,10 +1,13 @@
 /**
  * Facts Service
- * 
+ *
  * Manages bi-temporal facts in the knowledge graph.
  * Based on Graphiti research with 4-timestamp model:
  * - valid_at / invalid_at: When the fact was true in reality
  * - created_at / expired_at: When we recorded/corrected it
+ *
+ * Phase 1 (doc 12): every mutation requires `actor` and writes exactly one
+ * fact_history row in the same transaction as the mutation.
  */
 
 import { db } from '../db/index.js';
@@ -13,6 +16,7 @@ import { facts, factPredicates, entities, causalEvents, type Fact } from '../db/
 import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
 import { ml } from './ml-client.js';
 import { recordPredicateUsage } from './predicates.js';
+import { recordFactChange, type Actor } from './audit.js';
 
 export interface CreateFactParams {
   subjectEntityId: string;
@@ -25,6 +29,13 @@ export interface CreateFactParams {
   sourceText?: string;
   extractionMethod?: string;
   confidence?: number;
+
+  // Phase 1 audit context — REQUIRED.
+  actor: Actor;
+  /** Optional: link this mutation to a reasoning_reports row. */
+  reasoningReportId?: string | null;
+  /** Optional: narrative justification (defaults to a CRUD-style message for `created`). */
+  reasoning?: string;
 }
 
 export interface FactSearchResult {
@@ -33,7 +44,11 @@ export interface FactSearchResult {
 }
 
 /**
- * Create a new fact with supersession detection
+ * Create a new fact with supersession detection.
+ *
+ * Writes a fact_history row with event_type='created' in the same transaction
+ * as the INSERT. If supersession fires, each superseded fact gets its own
+ * fact_history row with event_type='expired' attributed to actor='cascade'.
  */
 export async function createFact(params: CreateFactParams): Promise<string> {
   const {
@@ -47,23 +62,32 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     sourceText,
     extractionMethod = 'llm',
     confidence = 1.0,
+    actor,
+    reasoningReportId = null,
+    reasoning,
   } = params;
 
   // Check if this predicate is exclusive
   const predicateInfo = await getPredicateInfo(predicate);
-  
+
   if (predicateInfo?.isExclusive) {
-    // Find and supersede old facts for exclusive predicates
     const superseded = await findSupersedingFacts(
       subjectEntityId,
       predicate,
       validAt,
-      invalidAt
+      invalidAt,
     );
 
-    // Expire old facts that this one supersedes
+    // Expire old facts that this one supersedes. The supersession is a side
+    // effect of the new write, so attribute it to 'cascade' with a reasoning
+    // string pointing at the parent mutation.
     for (const oldFact of superseded) {
-      await expireFact(oldFact.id, 'Superseded by new information');
+      await expireFact({
+        factId: oldFact.id,
+        reasoning: `Cascade: superseded by new fact for (${subjectEntityId}, ${predicate})`,
+        actor: 'cascade',
+        reasoningReportId,
+      });
     }
   }
 
@@ -82,12 +106,28 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     .limit(1);
 
   if (existingMatch[0]) {
-    // Exact match exists — update confidence and source, don't create duplicate
+    // Exact match exists — update confidence and source, don't create duplicate.
+    // The confidence bump is itself a mutation; record it if confidence actually changed.
     const existing = existingMatch[0];
+    const prevConfidence = existing.confidence ?? 0;
+    const nextConfidence = Math.max(prevConfidence, confidence);
+
     await db.update(facts).set({
-      confidence: Math.max(existing.confidence ?? 0, confidence),
+      confidence: nextConfidence,
       sourceMemoryId: sourceMemoryId ?? undefined,
     }).where(eq(facts.id, existing.id));
+
+    if (nextConfidence > prevConfidence) {
+      await recordFactChange({
+        factId: existing.id,
+        eventType: 'confidence_raised',
+        previousConfidence: prevConfidence,
+        newConfidence: nextConfidence,
+        reasoning: reasoning ?? 'Corroborating observation raised confidence on existing fact',
+        actor,
+        reasoningReportId,
+      });
+    }
     return existing.id;
   }
 
@@ -95,27 +135,45 @@ export async function createFact(params: CreateFactParams): Promise<string> {
   const factText = sourceText || `${predicate} ${objectValue || ''}`.trim();
   const embedding = await generateEmbedding(factText);
 
-  // Insert new fact
-  const result = await db
-    .insert(facts)
-    .values({
-      subjectEntityId,
-      predicate,
-      objectEntityId,
-      objectValue,
-      validAt,
-      invalidAt,
-      sourceMemoryId,
-      sourceText,
-      extractionMethod,
-      confidence,
-    })
-    .returning({ id: facts.id });
+  // Insert the new fact + audit row atomically. The causal_event insert and
+  // embedding update sit outside the transaction to keep the hot path short;
+  // they're non-blocking best-effort on failure.
+  const factId = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(facts)
+      .values({
+        subjectEntityId,
+        predicate,
+        objectEntityId,
+        objectValue,
+        validAt,
+        invalidAt,
+        sourceMemoryId,
+        sourceText,
+        extractionMethod,
+        confidence,
+      })
+      .returning({ id: facts.id });
 
-  const fact = result[0];
-  if (!fact) {
-    throw new Error('Failed to create fact');
-  }
+    if (!row) throw new Error('Failed to create fact');
+
+    await recordFactChange({
+      factId: row.id,
+      eventType: 'created',
+      newConfidence: confidence,
+      newValidAt: validAt,
+      newInvalidAt: invalidAt ?? null,
+      reasoning: reasoning ?? `Fact created by ${actor}`,
+      sourceReferences: sourceMemoryId
+        ? [{ type: 'memory', id: sourceMemoryId, relevance: sourceText ?? '' }]
+        : [],
+      actor,
+      reasoningReportId,
+      tx,
+    });
+
+    return row.id;
+  });
 
   // Store embedding if generated (skip if vector extension not available)
   if (embedding && embedding.length > 0) {
@@ -123,10 +181,9 @@ export async function createFact(params: CreateFactParams): Promise<string> {
       await db.execute(sql`
         UPDATE facts
         SET fact_embedding = ${sql.raw(`'[${embedding.join(',')}]'::vector`)}
-        WHERE id = ${fact.id}
+        WHERE id = ${factId}
       `);
     } catch (error) {
-      // Vector extension may not be available - that's OK, continue without embedding
       if (!(error instanceof Error) || !error.message.includes('type "vector" does not exist')) {
         throw error;
       }
@@ -137,8 +194,8 @@ export async function createFact(params: CreateFactParams): Promise<string> {
   await recordPredicateUsage(predicate).catch(() => {});
 
   // Create causal event for this fact creation
-  await createCausalEvent({
-    factId: fact.id,
+  const causalEventId = await createCausalEvent({
+    factId,
     transitionType: 'created',
     subjectEntityId,
     predicate,
@@ -147,7 +204,23 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     sourceText,
   });
 
-  return fact.id;
+  // Best-effort: link the audit row back to the causal_event we just emitted
+  // so reasoning-layer readers can hop from history → event without a join.
+  if (causalEventId) {
+    try {
+      await db.execute(sql`
+        UPDATE fact_history
+        SET causal_event_id = ${causalEventId}::uuid
+        WHERE fact_id = ${factId}::uuid
+          AND event_type = 'created'
+          AND causal_event_id IS NULL
+      `);
+    } catch {
+      // Non-fatal — audit row still exists with full reasoning, just no event link.
+    }
+  }
+
+  return factId;
 }
 
 /**
@@ -159,7 +232,7 @@ async function getPredicateInfo(predicate: string) {
     .from(factPredicates)
     .where(eq(factPredicates.predicate, predicate))
     .limit(1);
-  
+
   return result[0] || null;
 }
 
@@ -170,36 +243,47 @@ export async function findSupersedingFacts(
   subjectId: string,
   predicate: string,
   validAt: Date,
-  invalidAt?: Date
+  invalidAt?: Date,
 ): Promise<Fact[]> {
-  // Find active facts with same subject + predicate
   const activeFacts = await db
     .select()
     .from(facts)
     .where(and(
       eq(facts.subjectEntityId, subjectId),
       eq(facts.predicate, predicate),
-      isNull(facts.expiredAt)
+      isNull(facts.expiredAt),
     ));
 
-  // Filter by temporal overlap
   return activeFacts.filter(fact => {
-    // If no times specified, assume overlap
     if (!fact.validAt) return true;
-    
+
     const factEnd = fact.invalidAt || new Date('9999-12-31');
     const newEnd = invalidAt || new Date('9999-12-31');
-    
-    // Check if ranges overlap
+
     return fact.validAt < newEnd && factEnd > validAt;
   });
 }
 
+export interface ExpireFactParams {
+  factId: string;
+  reasoning: string;
+  actor: Actor;
+  reasoningReportId?: string | null;
+  /** Optional free-text reason persisted on facts.expire_reason (defaults to `reasoning`). */
+  expireReason?: string;
+}
+
 /**
- * Expire a fact (mark as incorrect in our records)
+ * Expire a fact (mark as incorrect in our records).
+ *
+ * Writes a fact_history row with event_type='expired' in the same transaction
+ * as the UPDATE. Also emits a causal_event of transition_type='expired'.
  */
-export async function expireFact(factId: string, reason?: string): Promise<void> {
-  // Fetch fact metadata before expiring (for causal event context)
+export async function expireFact(params: ExpireFactParams): Promise<void> {
+  const { factId, reasoning, actor, reasoningReportId = null, expireReason } = params;
+
+  // Fetch fact metadata BEFORE expiring — we need the pre-mutation state for
+  // the history row and for the causal event context.
   const existing = await db
     .select({
       subjectEntityId: facts.subjectEntityId,
@@ -212,35 +296,62 @@ export async function expireFact(factId: string, reason?: string): Promise<void>
     .where(and(eq(facts.id, factId), isNull(facts.expiredAt)))
     .limit(1);
 
-  await db
-    .update(facts)
-    .set({
-      expiredAt: new Date(),
-      expireReason: reason ?? 'Superseded by new information',
-    })
-    .where(and(
-      eq(facts.id, factId),
-      isNull(facts.expiredAt)
-    ));
-
-  if (existing[0]) {
-    await createCausalEvent({
-      factId,
-      transitionType: 'expired',
-      subjectEntityId: existing[0].subjectEntityId,
-      predicate: existing[0].predicate,
-      deltaConfidence: existing[0].confidence ? -existing[0].confidence : undefined,
-      sourceMemoryId: existing[0].sourceMemoryId ?? undefined,
-      sourceText: existing[0].sourceText ?? undefined,
-    });
+  if (!existing[0]) {
+    // Already expired or does not exist — silently no-op, matching prior behaviour.
+    return;
   }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(facts)
+      .set({
+        expiredAt: new Date(),
+        expireReason: expireReason ?? reasoning,
+      })
+      .where(and(eq(facts.id, factId), isNull(facts.expiredAt)));
+
+    await recordFactChange({
+      factId,
+      eventType: 'expired',
+      previousConfidence: existing[0]!.confidence ?? null,
+      newConfidence: existing[0]!.confidence ?? null,
+      reasoning,
+      actor,
+      reasoningReportId,
+      tx,
+    });
+  });
+
+  await createCausalEvent({
+    factId,
+    transitionType: 'expired',
+    subjectEntityId: existing[0]!.subjectEntityId,
+    predicate: existing[0]!.predicate,
+    deltaConfidence: existing[0]!.confidence ? -existing[0]!.confidence : undefined,
+    sourceMemoryId: existing[0]!.sourceMemoryId ?? undefined,
+    sourceText: existing[0]!.sourceText ?? undefined,
+  });
+}
+
+export interface InvalidateFactParams {
+  factId: string;
+  reasoning: string;
+  actor: Actor;
+  /** When the fact stopped being true in reality (defaults to now). */
+  invalidAt?: Date;
+  reasoningReportId?: string | null;
 }
 
 /**
- * Invalidate a fact (mark as no longer true in reality)
+ * Invalidate a fact (mark as no longer true in reality, though it was once true).
+ *
+ * Writes a fact_history row with event_type='invalidated' in the same
+ * transaction as the UPDATE.
  */
-export async function invalidateFact(factId: string, invalidTime?: Date): Promise<void> {
-  // Fetch fact metadata before invalidating (for causal event context)
+export async function invalidateFact(params: InvalidateFactParams): Promise<void> {
+  const { factId, reasoning, actor, invalidAt, reasoningReportId = null } = params;
+  const effectiveInvalidAt = invalidAt ?? new Date();
+
   const existing = await db
     .select({
       subjectEntityId: facts.subjectEntityId,
@@ -248,30 +359,146 @@ export async function invalidateFact(factId: string, invalidTime?: Date): Promis
       confidence: facts.confidence,
       sourceMemoryId: facts.sourceMemoryId,
       sourceText: facts.sourceText,
+      invalidAt: facts.invalidAt,
     })
     .from(facts)
     .where(and(eq(facts.id, factId), isNull(facts.invalidAt)))
     .limit(1);
 
-  await db
-    .update(facts)
-    .set({ invalidAt: invalidTime || new Date() })
-    .where(and(
-      eq(facts.id, factId),
-      isNull(facts.invalidAt)
-    ));
-
-  if (existing[0]) {
-    await createCausalEvent({
-      factId,
-      transitionType: 'invalidated',
-      subjectEntityId: existing[0].subjectEntityId,
-      predicate: existing[0].predicate,
-      deltaConfidence: existing[0].confidence ? -existing[0].confidence : undefined,
-      sourceMemoryId: existing[0].sourceMemoryId ?? undefined,
-      sourceText: existing[0].sourceText ?? undefined,
-    });
+  if (!existing[0]) {
+    return;
   }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(facts)
+      .set({ invalidAt: effectiveInvalidAt })
+      .where(and(eq(facts.id, factId), isNull(facts.invalidAt)));
+
+    await recordFactChange({
+      factId,
+      eventType: 'invalidated',
+      previousInvalidAt: existing[0]!.invalidAt ?? null,
+      newInvalidAt: effectiveInvalidAt,
+      reasoning,
+      actor,
+      reasoningReportId,
+      tx,
+    });
+  });
+
+  await createCausalEvent({
+    factId,
+    transitionType: 'invalidated',
+    subjectEntityId: existing[0]!.subjectEntityId,
+    predicate: existing[0]!.predicate,
+    deltaConfidence: existing[0]!.confidence ? -existing[0]!.confidence : undefined,
+    sourceMemoryId: existing[0]!.sourceMemoryId ?? undefined,
+    sourceText: existing[0]!.sourceText ?? undefined,
+  });
+}
+
+export interface UpdateFactConfidenceParams {
+  factId: string;
+  newConfidence: number;
+  reasoning: string;
+  actor: Actor;
+  reasoningReportId?: string | null;
+}
+
+/**
+ * Update a fact's confidence and emit a fact_history row with
+ * event_type='confidence_raised' or 'confidence_lowered' based on direction.
+ * No-op if the new value equals the current one.
+ */
+export async function updateFactConfidence(params: UpdateFactConfidenceParams): Promise<void> {
+  const { factId, newConfidence, reasoning, actor, reasoningReportId = null } = params;
+
+  if (newConfidence < 0 || newConfidence > 1) {
+    throw new Error('newConfidence must be between 0 and 1');
+  }
+
+  const existing = await db
+    .select({ confidence: facts.confidence })
+    .from(facts)
+    .where(eq(facts.id, factId))
+    .limit(1);
+
+  if (!existing[0]) {
+    throw new Error(`updateFactConfidence: fact ${factId} not found`);
+  }
+
+  const prev = existing[0].confidence ?? 0;
+  if (prev === newConfidence) return;
+
+  const eventType = newConfidence > prev ? 'confidence_raised' : 'confidence_lowered';
+
+  await db.transaction(async (tx) => {
+    await tx.update(facts).set({ confidence: newConfidence }).where(eq(facts.id, factId));
+    await recordFactChange({
+      factId,
+      eventType,
+      previousConfidence: prev,
+      newConfidence,
+      reasoning,
+      actor,
+      reasoningReportId,
+      tx,
+    });
+  });
+}
+
+export interface RestoreFactParams {
+  factId: string;
+  reasoning: string;
+  actor: Actor;
+  reasoningReportId?: string | null;
+}
+
+/**
+ * Restore a previously expired or invalidated fact. Clears both expired_at
+ * and invalid_at and writes a fact_history row with event_type='restored'.
+ */
+export async function restoreFact(params: RestoreFactParams): Promise<void> {
+  const { factId, reasoning, actor, reasoningReportId = null } = params;
+
+  const existing = await db
+    .select({
+      confidence: facts.confidence,
+      invalidAt: facts.invalidAt,
+      expiredAt: facts.expiredAt,
+    })
+    .from(facts)
+    .where(eq(facts.id, factId))
+    .limit(1);
+
+  if (!existing[0]) {
+    throw new Error(`restoreFact: fact ${factId} not found`);
+  }
+  if (!existing[0].expiredAt && !existing[0].invalidAt) {
+    // Nothing to restore — no-op with no audit row.
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(facts)
+      .set({ expiredAt: null, expireReason: null, invalidAt: null })
+      .where(eq(facts.id, factId));
+
+    await recordFactChange({
+      factId,
+      eventType: 'restored',
+      previousConfidence: existing[0]!.confidence ?? null,
+      newConfidence: existing[0]!.confidence ?? null,
+      previousInvalidAt: existing[0]!.invalidAt ?? null,
+      newInvalidAt: null,
+      reasoning,
+      actor,
+      reasoningReportId,
+      tx,
+    });
+  });
 }
 
 /**
@@ -279,7 +506,7 @@ export async function invalidateFact(factId: string, invalidTime?: Date): Promis
  */
 export async function getEntityFacts(
   entityId: string,
-  options: { asSubject?: boolean; asObject?: boolean } = {}
+  options: { asSubject?: boolean; asObject?: boolean } = {},
 ): Promise<Fact[]> {
   const { asSubject = true, asObject = true } = options;
 
@@ -290,14 +517,14 @@ export async function getEntityFacts(
       .where(and(
         or(
           eq(facts.subjectEntityId, entityId),
-          eq(facts.objectEntityId, entityId)
+          eq(facts.objectEntityId, entityId),
         ),
         isNull(facts.expiredAt),
-        or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`))
+        or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`)),
       ))
       .orderBy(desc(facts.createdAt));
   }
-  
+
   if (asSubject) {
     return db
       .select()
@@ -305,7 +532,7 @@ export async function getEntityFacts(
       .where(and(
         eq(facts.subjectEntityId, entityId),
         isNull(facts.expiredAt),
-        or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`))
+        or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`)),
       ));
   }
 
@@ -316,10 +543,10 @@ export async function getEntityFacts(
       .where(and(
         eq(facts.objectEntityId, entityId),
         isNull(facts.expiredAt),
-        or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`))
+        or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`)),
       ));
   }
-  
+
   return [];
 }
 
@@ -328,7 +555,7 @@ export async function getEntityFacts(
  */
 export async function searchFacts(
   query: string,
-  options: { limit?: number; threshold?: number } = {}
+  options: { limit?: number; threshold?: number } = {},
 ): Promise<FactSearchResult[]> {
   const { limit = 10, threshold = 0.5 } = options;
 
@@ -358,8 +585,8 @@ export async function searchFacts(
 /**
  * Get fact by ID with entity names
  */
-export async function getFactById(factId: string): Promise<(Fact & { 
-  subjectName?: string; 
+export async function getFactById(factId: string): Promise<(Fact & {
+  subjectName?: string;
   objectName?: string;
 }) | null> {
   const result = await db
@@ -367,18 +594,17 @@ export async function getFactById(factId: string): Promise<(Fact & {
     .from(facts)
     .where(eq(facts.id, factId))
     .limit(1);
-  
+
   if (!result[0]) return null;
-  
+
   const fact = result[0];
-  
-  // Get entity names
+
   const subjectResult = await db
     .select({ name: entities.canonicalName })
     .from(entities)
     .where(eq(entities.id, fact.subjectEntityId))
     .limit(1);
-  
+
   let objectName: string | undefined;
   if (fact.objectEntityId) {
     const objectResult = await db
@@ -388,7 +614,7 @@ export async function getFactById(factId: string): Promise<(Fact & {
       .limit(1);
     objectName = objectResult[0]?.name;
   }
-  
+
   return {
     ...fact,
     subjectName: subjectResult[0]?.name,
@@ -437,7 +663,6 @@ async function createCausalEvent(params: {
 
     return result[0]!.id;
   } catch (error) {
-    // Causal event creation is non-blocking — log and continue
     console.warn('Failed to create causal event:', error instanceof Error ? error.message : error);
     return '';
   }

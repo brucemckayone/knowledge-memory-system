@@ -37,6 +37,7 @@ describe('B02: Causal event creation on fact changes', () => {
       objectValue: 'Acme Corp',
       sourceMemoryId: crypto.randomUUID(),
       sourceText: 'John works at Acme Corp',
+      actor: 'graph_agent',
     });
 
     const events = await testDb`
@@ -57,9 +58,10 @@ describe('B02: Causal event creation on fact changes', () => {
       subjectEntityId: entityId,
       predicate: 'lives_in',
       objectValue: 'New York',
+      actor: 'graph_agent',
     });
 
-    await expireFact(factId, 'Superseded');
+    await expireFact({ factId, reasoning: 'Superseded', actor: 'reasoning_agent' });
 
     const events = await testDb`
       SELECT * FROM causal_events
@@ -78,9 +80,10 @@ describe('B02: Causal event creation on fact changes', () => {
       subjectEntityId: entityId,
       predicate: 'knows',
       objectValue: 'Jane',
+      actor: 'graph_agent',
     });
 
-    await invalidateFact(factId);
+    await invalidateFact({ factId, reasoning: 'Relationship no longer holds', actor: 'reasoning_agent' });
 
     const events = await testDb`
       SELECT * FROM causal_events

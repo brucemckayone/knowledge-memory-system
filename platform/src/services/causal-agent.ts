@@ -875,6 +875,10 @@ async function _handleToolCallInner(
         sourceMemoryId: toolInput.source_memory_id as string | undefined,
         validAt: toolInput.valid_at ? new Date(toolInput.valid_at as string) : undefined,
         invalidAt: toolInput.invalid_at ? new Date(toolInput.invalid_at as string) : undefined,
+        // Actor threading (w4j.4): MCP create_fact is called by the graph
+        // agent during extraction. w4j.7 replaces this literal with the
+        // actor drawn from the invocation context.
+        actor: 'graph_agent',
       });
       return JSON.stringify({ factId, predicate });
     }
@@ -1318,18 +1322,25 @@ async function _handleToolCallInner(
     // --- Reasoning agent tool handlers ---
 
     case 'expire_fact': {
-      await expireFact(
-        toolInput.fact_id as string,
-        toolInput.reason as string,
-      );
+      await expireFact({
+        factId: toolInput.fact_id as string,
+        reasoning: toolInput.reason as string,
+        // expire_fact is a reasoning-agent tool — patrol/query decisions drive
+        // it. w4j.7 replaces this literal with the actor from the invocation
+        // context so gardener/user/cascade paths attribute correctly.
+        actor: 'reasoning_agent',
+      });
       return JSON.stringify({ expired: true });
     }
 
     case 'invalidate_fact': {
-      await invalidateFact(
-        toolInput.fact_id as string,
-        toolInput.invalid_at ? new Date(toolInput.invalid_at as string) : undefined,
-      );
+      await invalidateFact({
+        factId: toolInput.fact_id as string,
+        invalidAt: toolInput.invalid_at ? new Date(toolInput.invalid_at as string) : undefined,
+        reasoning: (toolInput.reason as string | undefined)
+          ?? 'Fact marked no longer true in reality by reasoning agent',
+        actor: 'reasoning_agent',
+      });
       return JSON.stringify({ invalidated: true });
     }
 
