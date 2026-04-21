@@ -1,0 +1,80 @@
+{
+  "scenario": "opposing-object-simple",
+  "description": "Same subject+predicate with different objects. Heuristic flags; reasoning agent should resolve as both_valid because `knows` is non-exclusive.",
+  "data_set_level": 1,
+  "fixture": "phase5-contradictions/fixtures/opposing-object-simple.sql",
+  "phases_exercised": ["detection", "resolution"],
+
+  "stages": [
+    {
+      "stage": "detection",
+      "driver": "service_call",
+      "service_call": "detectOpposingObjects",
+      "assertions": [
+        {
+          "type": "row_count",
+          "table": "contradictions",
+          "filter": { "contradiction_type": "opposing_object", "resolved_at": null },
+          "expected": 1,
+          "because": "One unresolved opposing_object contradiction should be flagged"
+        },
+        {
+          "type": "column_values",
+          "table": "contradictions",
+          "filter": { "contradiction_type": "opposing_object" },
+          "assertions": [
+            { "column": "entity_id", "expected": "00000000-0000-0000-0000-000000000001" },
+            { "column": "fact_a_id", "in": ["10000000-0000-0000-0000-000000000501", "10000000-0000-0000-0000-000000000502"] },
+            { "column": "fact_b_id", "in": ["10000000-0000-0000-0000-000000000501", "10000000-0000-0000-0000-000000000502"] },
+            { "column": "detected_by", "expected": "sql_heuristic" },
+            { "column": "severity", "in": ["medium", "high"] }
+          ]
+        },
+        {
+          "type": "duplicate_rejection",
+          "description": "Run detection twice — second run should not create another row for the same pair",
+          "assertion": "row_count_stable_across_runs"
+        }
+      ]
+    },
+    {
+      "stage": "resolution",
+      "driver": "service_call",
+      "service_call": "resolveContradiction",
+      "args": {
+        "contradictionId": "<from stage detection>",
+        "resolutionType": "both_valid",
+        "resolutionReasoning": "`knows` is a non-exclusive relationship — a person can know many people. Both facts stand.",
+        "actor": "reasoning_agent"
+      },
+      "assertions": [
+        {
+          "type": "column_values",
+          "table": "contradictions",
+          "filter": { "contradiction_type": "opposing_object" },
+          "assertions": [
+            { "column": "resolved_at", "not_null": true },
+            { "column": "resolution_type", "expected": "both_valid" },
+            { "column": "resolved_by", "expected": "reasoning_agent" }
+          ]
+        },
+        {
+          "type": "side_effect_assertion",
+          "description": "both_valid resolution must NOT expire either fact",
+          "table": "facts",
+          "filter": { "id": { "in": ["10000000-0000-0000-0000-000000000501", "10000000-0000-0000-0000-000000000502"] } },
+          "column": "expired_at",
+          "expected": "all_null"
+        }
+      ]
+    }
+  ],
+
+  "benchmark_targets": {
+    "detection_latency_ms": { "max": 200, "because": "Two facts, trivial scan" },
+    "resolution_latency_ms": { "max": 100, "because": "Single UPDATE + no side effects" },
+    "precision_on_clean_data": { "min": 0.95, "because": "Should only flag true structural opposites, not supersession artefacts" }
+  },
+
+  "graduation_notes": "This tests the happy path for non-exclusive predicate. Add opposing-object-exclusive.sql next — should NOT flag because supersession handles it. Then add opposing-object-unresolved-at-scale.sql — 50 opposing pairs with mixed resolutions to test throughput."
+}

@@ -1,0 +1,47 @@
+{
+  "description": "Shared canonical entity fixtures. Reused across phases. UUIDs are deterministic.",
+  "entities": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "canonical_name": "Alice",
+      "entity_type": "person",
+      "note": "Generic person for simple-subject scenarios"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "canonical_name": "Bob",
+      "entity_type": "person",
+      "note": "Second person for multi-entity relationships"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000010",
+      "canonical_name": "Acme Corp",
+      "entity_type": "company",
+      "note": "Generic company for works_at scenarios"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000011",
+      "canonical_name": "Globex Inc",
+      "entity_type": "company",
+      "note": "Second company for supersession / opposing_object scenarios"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000100",
+      "canonical_name": "MISRA Rule 5.0",
+      "entity_type": "standard_rule",
+      "note": "Sample MISRA rule for standards-domain fixtures"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000101",
+      "canonical_name": "MISRA Rule 5.1",
+      "entity_type": "standard_rule",
+      "note": "Second rule — for chain fixtures"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000102",
+      "canonical_name": "strict aliasing compliance",
+      "entity_type": "compliance_practice",
+      "note": "Third step of canonical rule chain"
+    }
+  ]
+}
