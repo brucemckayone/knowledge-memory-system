@@ -10,7 +10,7 @@ import {
   boolean,
   unique,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 // ============================================
 // Graph S: Knowledge Graph Tables
@@ -466,6 +466,56 @@ export const reasoningReports = pgTable('reasoning_reports', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ============================================
+// Phase 1: Audit Trail (migration 009_audit_trail.sql)
+// ============================================
+
+/**
+ * Fact History — append-only log of every mutation to a fact.
+ *
+ * Every write to `facts` (create / expire / invalidate / confidence change /
+ * revise / supersede / restore) emits exactly one row here, within the same
+ * transaction. Never rewrite rows — corrections append a new event.
+ */
+export const factHistory = pgTable('fact_history', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  factId: uuid('fact_id').notNull().references(() => facts.id),
+  eventType: varchar('event_type', { length: 20 }).notNull(),
+  previousConfidence: real('previous_confidence'),
+  newConfidence: real('new_confidence'),
+  previousValidAt: timestamp('previous_valid_at', { withTimezone: true }),
+  newValidAt: timestamp('new_valid_at', { withTimezone: true }),
+  previousInvalidAt: timestamp('previous_invalid_at', { withTimezone: true }),
+  newInvalidAt: timestamp('new_invalid_at', { withTimezone: true }),
+  reasoning: text('reasoning').notNull(),
+  sourceReferences: jsonb('source_references').notNull().default(sql`'[]'::jsonb`),
+  reasoningReportId: uuid('reasoning_report_id').references(() => reasoningReports.id),
+  causalEventId: uuid('causal_event_id').references(() => causalEvents.id),
+  actor: varchar('actor', { length: 32 }).notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Causal Edge History — append-only log of every mutation to a causal edge.
+ *
+ * Same contract as `fact_history` scoped to `causal_edges`: create,
+ * corroborate, strengthen, weaken, revise, expire, decay.
+ */
+export const causalEdgeHistory = pgTable('causal_edge_history', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  edgeId: uuid('edge_id').notNull().references(() => causalEdges.id),
+  eventType: varchar('event_type', { length: 20 }).notNull(),
+  previousStrength: real('previous_strength'),
+  newStrength: real('new_strength'),
+  previousReasoning: text('previous_reasoning'),
+  newReasoning: text('new_reasoning'),
+  addedSourceRefs: jsonb('added_source_refs'),
+  reasoning: text('reasoning').notNull(),
+  reasoningReportId: uuid('reasoning_report_id').references(() => reasoningReports.id),
+  actor: varchar('actor', { length: 32 }).notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
@@ -485,3 +535,7 @@ export type GardeningReport = typeof gardeningReports.$inferSelect;
 export type NewGardeningReport = typeof gardeningReports.$inferInsert;
 export type ReasoningReport = typeof reasoningReports.$inferSelect;
 export type NewReasoningReport = typeof reasoningReports.$inferInsert;
+export type FactHistory = typeof factHistory.$inferSelect;
+export type NewFactHistory = typeof factHistory.$inferInsert;
+export type CausalEdgeHistory = typeof causalEdgeHistory.$inferSelect;
+export type NewCausalEdgeHistory = typeof causalEdgeHistory.$inferInsert;
