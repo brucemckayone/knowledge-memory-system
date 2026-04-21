@@ -4,21 +4,43 @@ Technical direction for the Mnemo knowledge graph system — dual-graph architec
 
 ## Reading Order
 
+### Foundations (00–09)
+
 | # | Document | What It Covers |
 |---|----------|----------------|
 | 00 | [Position Paper](00-position-paper.md) | Research-grounded proposal for the perpendicular causal graph. Novelty assessment, citations, open problems. Start here for the "why". |
 | 01 | [Dual-Graph Architecture](01-dual-graph-architecture.md) | Conceptual design — Graph S + Graph C, emergent ontology, semantic alignment, lifetime-scale. The "how it works". |
-| 02 | [Graph S Hardening](02-graph-s-hardening.md) | Immediate bug fixes framed as Graph C prerequisites. Entity dedup, relationship matching, ontology wiring. The "what to fix now". |
-| 03 | [Graph C Technical Design](03-graph-c-technical-design.md) | Schema, causal extraction pipeline, pattern detection, query interface. The "what to build next". |
-| 04 | [Sparse Branch Design](04-sparse-branch-design.md) | Minimal implementation branch — stripped orchestration, full data infrastructure (PG, Qdrant, Ollama, Anthropic). Synchronous pipeline, Haiku causal agent with tools, store/extract decoupling. D2 diagrams, file inventory, implementation phases. The "how to work on it". |
+| 02 | [Graph S Hardening](02-graph-s-hardening.md) | Immediate bug fixes framed as Graph C prerequisites. Entity dedup, relationship matching, ontology wiring. |
+| 03 | [Graph C Technical Design](03-graph-c-technical-design.md) | Schema, causal extraction pipeline, pattern detection, query interface. |
+| 04 | [Sparse Branch Design](04-sparse-branch-design.md) | Minimal implementation branch — stripped orchestration, synchronous pipeline, Haiku causal agent with tools. |
+| 05 | [Temporal Pipeline Redesign](05-temporal-pipeline-redesign.md) | Two-phase ingestion — parallel extract, sequential commit. |
+| 06 | [Graph Meta Layer](06-graph-meta-layer.md) | Entity resolution via source vector centroids + memory overlap + structural similarity. |
+| 07 | [Graph Agent Workflow](07-graph-agent-workflow.md) | Unified 5-phase extraction: Orient → Extract → Relate → Cause → Verify. |
+| 08 | [Visualization Techniques](08-visualization-techniques.md) | D3 force-directed graph, temporal scrubber, multi-layer rendering. |
+| 09 | [Graph Quality Issues](09-graph-quality-issues.md) | Catalogued bugs and resolution tracking. |
+
+### Reasoning Layer Hardening (10–17) — Current Focus
+
+| # | Document | Phase |
+|---|----------|-------|
+| 10 | [Reasoning Layer Overview](10-reasoning-layer-overview.md) | Roadmap — anchor for 11-17 |
+| 11 | [Smoke-Test Reasoning Agent](11-smoke-test-reasoning-agent.md) | Phase 0 — validate end-to-end (no code) |
+| 12 | [Audit Trail Foundation](12-audit-trail-foundation.md) | Phase 1 — `fact_history`, `causal_edge_history`, actor threading |
+| 13 | [Edge Lifecycle](13-edge-lifecycle.md) | Phase 2 — corroboration + decay + cascade |
+| 14 | [Source Reference Indexing](14-source-reference-indexing.md) | Phase 3 — reverse lookup index |
+| 15 | [Blast Radius Analysis](15-blast-radius-analysis.md) | Phase 4 — impact trees + hypothetical scenarios |
+| 16 | [Contradiction Detection](16-contradiction-detection.md) | Phase 5 — SQL heuristics + agent resolution |
+| 17 | [Pattern Lifecycle](17-pattern-lifecycle.md) | Phase 6 — detection, promotion, matching, ghosts |
+| 18 | [Test Data Hardening Protocol](18-test-data-hardening-protocol.md) | Recursive agentic test-data improvement loop — required for every phase |
+| 19 | [Implementation Runbook](19-implementation-runbook.md) | Step-by-step for picking up and closing a phase. Checklists for migration, MCP tools, actor threading, pitfalls. |
 
 ## Status
 
-- **Graph S:** ~80% built. Critical bugs documented in 02. Fixes are the immediate priority (Phase A of sparse branch).
-- **Graph C:** Designed in 03. Build after Graph S hardening (Phase B of sparse branch).
-- **Causal Agent:** Haiku with tool-use — agentic reasoning over Graph S + Qdrant + Graph C. Detailed in 03 Section 2.2 and 04 Section 5.
-- **Emergent Ontology:** Designed in `docs/design/living-ontology.md`, partially coded. Wiring documented in 02 Section 6.
-- **Lifetime-Scale:** Conceptual design in 01 Section 6. No implementation yet.
+- **Graph S:** Hardened. Frankenstein regression passing. Entity resolution + merge lifecycle working.
+- **Graph C:** Structural foundation built (Phase B). Causal events emit on fact changes; edges can be created with reasoning + source_references.
+- **Reasoning Layer:** Currently being hardened via 10–17 (this series). Audit trail is the bedrock; lifecycle, blast radius, contradictions, and patterns layer on top.
+- **Reasoning Agent:** Patrol + query modes built, 25 MCP tools, never smoke-tested end-to-end (Phase 0 of this series).
+- **Lifetime-Scale:** Conceptual design in 01 Section 6. No implementation yet — deferred until reasoning layer is stable.
 
 ## Key Decisions
 
