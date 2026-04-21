@@ -14,14 +14,15 @@ import { fileURLToPath } from 'url';
 import { writeFileSync } from 'node:fs';
 import { spawn } from 'child_process';
 import dotenv from 'dotenv';
-import { getEntityFacts, createFact, expireFact, invalidateFact } from './facts.js';
+import { getEntityFacts, createFact, expireFact, invalidateFact, updateFactConfidence, restoreFact } from './facts.js';
 import { findConnectedEntities } from './graph.js';
 import { findSimilarEntities, resolveEntity, linkMemoryToEntity } from './entities.js';
 import { searchMemories, getMemory } from './qdrant.js';
 import { db } from '../db/index.js';
 import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports } from '../db/schema.js';
 import { eq, desc, sql, isNull, and, ilike } from 'drizzle-orm';
-import { getEntityCausalHistory, createCausalEdge } from './causal.js';
+import { getEntityCausalHistory, createCausalEdge, expireCausalEdge, reviseCausalEdge, type SourceReference as CausalSourceRef } from './causal.js';
+import { getFactHistory, getEdgeHistory } from './audit.js';
 import { ml } from './ml-client.js';
 import { config } from '../config.js';
 import { normalizePredicate } from './predicates.js';
@@ -680,6 +681,118 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['mode', 'report', 'entity_ids'],
+    },
+  },
+
+  // --- Phase 1 audit tools (read) ---
+
+  {
+    name: 'get_fact_history',
+    description:
+      'Get the full mutation history for a fact. Returns events in reverse chronological order (newest first). Call this BEFORE modifying or expiring a fact — understanding how something became what it is prevents unwinding recent, justified changes.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        fact_id: {
+          type: 'string',
+          description: 'UUID of the fact',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum history rows to return (default 100, max 500)',
+        },
+      },
+      required: ['fact_id'],
+    },
+  },
+  {
+    name: 'get_edge_history',
+    description:
+      'Get the full mutation history for a causal edge. Returns events in reverse chronological order. Call this to understand how an edge was formed, corroborated, and revised before acting on it.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        edge_id: {
+          type: 'string',
+          description: 'UUID of the causal edge',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum history rows to return (default 100, max 500)',
+        },
+      },
+      required: ['edge_id'],
+    },
+  },
+
+  // --- Phase 1 audit tools (write) ---
+
+  {
+    name: 'update_fact_confidence',
+    description:
+      'Change a fact\'s confidence score. Writes a confidence_raised or confidence_lowered event to fact_history with your reasoning. Use when new evidence strengthens or weakens an existing fact without superseding it.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        fact_id: { type: 'string', description: 'UUID of the fact' },
+        new_confidence: { type: 'number', description: 'New confidence in [0, 1]' },
+        reasoning: { type: 'string', description: 'Why the confidence is changing' },
+      },
+      required: ['fact_id', 'new_confidence', 'reasoning'],
+    },
+  },
+  {
+    name: 'restore_fact',
+    description:
+      'Restore a previously expired or invalidated fact. Clears expired_at and invalid_at and writes a restored event to fact_history. Use after reviewing history and determining the earlier expiry was premature.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        fact_id: { type: 'string', description: 'UUID of the fact to restore' },
+        reasoning: { type: 'string', description: 'Why the fact is being restored' },
+      },
+      required: ['fact_id', 'reasoning'],
+    },
+  },
+  {
+    name: 'expire_causal_edge',
+    description:
+      'Expire a causal edge (soft-delete). Writes an expired event to causal_edge_history. Use when evidence no longer supports the causal link or an upstream fact was retracted.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        edge_id: { type: 'string', description: 'UUID of the edge to expire' },
+        reasoning: { type: 'string', description: 'Why the edge is being expired' },
+      },
+      required: ['edge_id', 'reasoning'],
+    },
+  },
+  {
+    name: 'revise_causal_edge',
+    description:
+      'Revise a causal edge — update strength and/or on-edge reasoning, optionally append source references. Writes a revised event preserving the previous values. Use when new evidence refines an existing causal conclusion without invalidating it.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        edge_id: { type: 'string', description: 'UUID of the edge to revise' },
+        new_strength: { type: 'number', description: 'Updated strength in [0, 1] (optional)' },
+        new_reasoning: { type: 'string', description: 'Updated on-edge reasoning (optional)' },
+        added_source_refs: {
+          type: 'array',
+          description: 'Source references to append (optional)',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['memory', 'fact', 'entity'] },
+              id: { type: 'string' },
+              relevance: { type: 'string' },
+            },
+            required: ['type', 'id', 'relevance'],
+          },
+        },
+        reasoning: { type: 'string', description: 'Why this revision is justified' },
+      },
+      required: ['edge_id', 'reasoning'],
     },
   },
 ];
@@ -1472,6 +1585,64 @@ async function _handleToolCallInner(
       }
 
       return JSON.stringify({ reportId: result[0]?.id });
+    }
+
+    // --- Phase 1 audit tools ---
+
+    case 'get_fact_history': {
+      const factId = toolInput.fact_id as string;
+      const limit = (toolInput.limit as number | undefined) ?? 100;
+      const rows = await getFactHistory(factId, limit);
+      return JSON.stringify(rows);
+    }
+
+    case 'get_edge_history': {
+      const edgeId = toolInput.edge_id as string;
+      const limit = (toolInput.limit as number | undefined) ?? 100;
+      const rows = await getEdgeHistory(edgeId, limit);
+      return JSON.stringify(rows);
+    }
+
+    case 'update_fact_confidence': {
+      await updateFactConfidence({
+        factId: toolInput.fact_id as string,
+        newConfidence: toolInput.new_confidence as number,
+        reasoning: toolInput.reasoning as string,
+        // w4j.7 replaces this literal with the actor from invocation context.
+        actor: 'reasoning_agent',
+      });
+      return JSON.stringify({ updated: true });
+    }
+
+    case 'restore_fact': {
+      await restoreFact({
+        factId: toolInput.fact_id as string,
+        reasoning: toolInput.reasoning as string,
+        actor: 'reasoning_agent',
+      });
+      return JSON.stringify({ restored: true });
+    }
+
+    case 'expire_causal_edge': {
+      await expireCausalEdge({
+        edgeId: toolInput.edge_id as string,
+        reasoning: toolInput.reasoning as string,
+        actor: 'reasoning_agent',
+      });
+      return JSON.stringify({ expired: true });
+    }
+
+    case 'revise_causal_edge': {
+      const addedRefs = toolInput.added_source_refs as CausalSourceRef[] | undefined;
+      await reviseCausalEdge({
+        edgeId: toolInput.edge_id as string,
+        newStrength: toolInput.new_strength as number | undefined,
+        newReasoning: toolInput.new_reasoning as string | undefined,
+        addedSourceRefs: addedRefs,
+        reasoning: toolInput.reasoning as string,
+        actor: 'reasoning_agent',
+      });
+      return JSON.stringify({ revised: true });
     }
 
     default:
