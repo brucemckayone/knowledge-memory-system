@@ -156,6 +156,9 @@ export async function truncateTables(...tables: string[]): Promise<void> {
 export async function deleteFromTables(...tables: string[]): Promise<void> {
   // Delete in reverse dependency order to avoid FK violations
   const orderedTables = [
+    // Phase 1 audit tables — must go before facts / causal_edges because of FK
+    'causal_edge_history',
+    'fact_history',
     'memory_chunks',
     'memory_entities',
     'entity_aliases',
