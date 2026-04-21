@@ -22,7 +22,7 @@ import { db } from '../db/index.js';
 import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports } from '../db/schema.js';
 import { eq, desc, sql, isNull, and, ilike } from 'drizzle-orm';
 import { getEntityCausalHistory, createCausalEdge, expireCausalEdge, reviseCausalEdge, type SourceReference as CausalSourceRef } from './causal.js';
-import { getFactHistory, getEdgeHistory } from './audit.js';
+import { getFactHistory, getEdgeHistory, type Actor } from './audit.js';
 import { ml } from './ml-client.js';
 import { config } from '../config.js';
 import { normalizePredicate } from './predicates.js';
@@ -807,23 +807,61 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
  */
 let toolCallCount = 0;
 
+/**
+ * Invocation context for MCP tool dispatch.
+ *
+ * The MCP server process reads `MNEMO_AGENT_ACTOR` from its env at startup
+ * (set by whichever invoke* wrapper spawned it) and passes it through as
+ * `context.agent`. Audit writes use this value as the `actor` on every
+ * fact_history / causal_edge_history row they emit.
+ */
+export interface ToolCallContext {
+  agent: Actor;
+  reasoningReportId?: string | null;
+}
+
+/** Seven-actor allow-list mirrors the DB CHECK in migration 009. */
+const VALID_ACTORS = new Set<Actor>([
+  'graph_agent', 'reasoning_agent', 'gardener_agent',
+  'reconciliation_agent', 'user', 'system_trigger', 'cascade',
+]);
+
+/**
+ * Resolve the agent actor for an MCP tool call. Priority:
+ *   1. explicit context passed by the caller
+ *   2. MNEMO_AGENT_ACTOR env var (set by invoke* wrappers)
+ *   3. 'graph_agent' as the extraction-path default
+ *
+ * Invalid env values fall back to the default rather than crashing the
+ * MCP loop — the DB CHECK constraint will catch any actor drift anyway.
+ */
+function resolveContext(ctx?: ToolCallContext): ToolCallContext {
+  if (ctx) return ctx;
+  const envActor = process.env.MNEMO_AGENT_ACTOR as Actor | undefined;
+  const agent = envActor && VALID_ACTORS.has(envActor) ? envActor : 'graph_agent';
+  const reasoningReportId = process.env.MNEMO_REASONING_REPORT_ID || null;
+  return { agent, reasoningReportId };
+}
+
 export async function handleToolCall(
   toolName: string,
   toolInput: Record<string, unknown>,
+  context?: ToolCallContext,
 ): Promise<string> {
   toolCallCount++;
+  const resolved = resolveContext(context);
   const inputSummary = Object.entries(toolInput)
     .map(([k, v]) => `${k}=${typeof v === 'string' ? v.slice(0, 40) : v}`)
     .join(', ');
-  console.error(`[mcp:${toolCallCount}] ${toolName}(${inputSummary})`);
+  console.error(`[mcp:${toolCallCount}:${resolved.agent}] ${toolName}(${inputSummary})`);
   const startTime = Date.now();
 
   try {
-    const result = await _handleToolCallInner(toolName, toolInput);
-    console.error(`[mcp:${toolCallCount}] ${toolName} OK +${Date.now() - startTime}ms (${result.length} chars)`);
+    const result = await _handleToolCallInner(toolName, toolInput, resolved);
+    console.error(`[mcp:${toolCallCount}:${resolved.agent}] ${toolName} OK +${Date.now() - startTime}ms (${result.length} chars)`);
     return result;
   } catch (err) {
-    console.error(`[mcp:${toolCallCount}] ${toolName} ERROR +${Date.now() - startTime}ms: ${err}`);
+    console.error(`[mcp:${toolCallCount}:${resolved.agent}] ${toolName} ERROR +${Date.now() - startTime}ms: ${err}`);
     throw err;
   }
 }
@@ -831,6 +869,7 @@ export async function handleToolCall(
 async function _handleToolCallInner(
   toolName: string,
   toolInput: Record<string, unknown>,
+  context: ToolCallContext,
 ): Promise<string> {
   switch (toolName) {
     case 'query_entity_facts': {
@@ -955,9 +994,8 @@ async function _handleToolCallInner(
         reasoning: toolInput.reasoning as string,
         sourceReferences: refs,
         temporalSpan: toolInput.temporal_span as string | undefined,
-        // create_causal_edge is invoked by the graph agent during extraction.
-        // w4j.7 replaces this literal with the actor from invocation context.
-        actor: 'graph_agent',
+        actor: context.agent,
+        reasoningReportId: context.reasoningReportId ?? null,
       });
       return JSON.stringify({ edgeId });
     }
@@ -991,10 +1029,8 @@ async function _handleToolCallInner(
         sourceMemoryId: toolInput.source_memory_id as string | undefined,
         validAt: toolInput.valid_at ? new Date(toolInput.valid_at as string) : undefined,
         invalidAt: toolInput.invalid_at ? new Date(toolInput.invalid_at as string) : undefined,
-        // Actor threading (w4j.4): MCP create_fact is called by the graph
-        // agent during extraction. w4j.7 replaces this literal with the
-        // actor drawn from the invocation context.
-        actor: 'graph_agent',
+        actor: context.agent,
+        reasoningReportId: context.reasoningReportId ?? null,
       });
       return JSON.stringify({ factId, predicate });
     }
@@ -1441,10 +1477,8 @@ async function _handleToolCallInner(
       await expireFact({
         factId: toolInput.fact_id as string,
         reasoning: toolInput.reason as string,
-        // expire_fact is a reasoning-agent tool — patrol/query decisions drive
-        // it. w4j.7 replaces this literal with the actor from the invocation
-        // context so gardener/user/cascade paths attribute correctly.
-        actor: 'reasoning_agent',
+        actor: context.agent,
+        reasoningReportId: context.reasoningReportId ?? null,
       });
       return JSON.stringify({ expired: true });
     }
@@ -1454,8 +1488,9 @@ async function _handleToolCallInner(
         factId: toolInput.fact_id as string,
         invalidAt: toolInput.invalid_at ? new Date(toolInput.invalid_at as string) : undefined,
         reasoning: (toolInput.reason as string | undefined)
-          ?? 'Fact marked no longer true in reality by reasoning agent',
-        actor: 'reasoning_agent',
+          ?? `Fact marked no longer true in reality by ${context.agent}`,
+        actor: context.agent,
+        reasoningReportId: context.reasoningReportId ?? null,
       });
       return JSON.stringify({ invalidated: true });
     }
@@ -1608,8 +1643,8 @@ async function _handleToolCallInner(
         factId: toolInput.fact_id as string,
         newConfidence: toolInput.new_confidence as number,
         reasoning: toolInput.reasoning as string,
-        // w4j.7 replaces this literal with the actor from invocation context.
-        actor: 'reasoning_agent',
+        actor: context.agent,
+        reasoningReportId: context.reasoningReportId ?? null,
       });
       return JSON.stringify({ updated: true });
     }
@@ -1618,7 +1653,8 @@ async function _handleToolCallInner(
       await restoreFact({
         factId: toolInput.fact_id as string,
         reasoning: toolInput.reasoning as string,
-        actor: 'reasoning_agent',
+        actor: context.agent,
+        reasoningReportId: context.reasoningReportId ?? null,
       });
       return JSON.stringify({ restored: true });
     }
@@ -1627,7 +1663,8 @@ async function _handleToolCallInner(
       await expireCausalEdge({
         edgeId: toolInput.edge_id as string,
         reasoning: toolInput.reasoning as string,
-        actor: 'reasoning_agent',
+        actor: context.agent,
+        reasoningReportId: context.reasoningReportId ?? null,
       });
       return JSON.stringify({ expired: true });
     }
@@ -1640,7 +1677,8 @@ async function _handleToolCallInner(
         newReasoning: toolInput.new_reasoning as string | undefined,
         addedSourceRefs: addedRefs,
         reasoning: toolInput.reasoning as string,
-        actor: 'reasoning_agent',
+        actor: context.agent,
+        reasoningReportId: context.reasoningReportId ?? null,
       });
       return JSON.stringify({ revised: true });
     }
@@ -1679,21 +1717,24 @@ export interface CausalAgentResult {
  * Generate a temporary MCP config JSON with resolved absolute paths.
  * Claude Code reads this file to know how to spawn the causal MCP server.
  */
-export function getMcpConfigPath(): string {
+export function getMcpConfigPath(actor: Actor = 'graph_agent'): string {
   const platformRoot = path.resolve(__dirname, '..', '..');
-  const configPath = path.resolve(platformRoot, '.graph-mcp-config.json');
+  // One config file per actor so invoke* calls don't clobber each other's
+  // MNEMO_AGENT_ACTOR when running concurrently (e.g., a patrol kicked off
+  // while an extraction is still in flight).
+  const configPath = path.resolve(platformRoot, `.graph-mcp-config.${actor}.json`);
 
-  // Write config with resolved paths (idempotent)
   // Use absolute path to the MCP server script — Claude Code does not
   // respect the cwd field when spawning MCP servers, so the script path
   // must be resolvable from any working directory.
   const serverScript = path.resolve(platformRoot, 'src', 'services', 'graph-mcp.ts');
 
   // The MCP server process inherits a minimal env from Claude Code.
-  // Pass through the required env vars so config.ts validation passes.
+  // Pass through the required env vars so config.ts validation passes, plus
+  // MNEMO_AGENT_ACTOR so audit writes attribute to the correct agent.
   // Prefer process.env (set by test setup or runtime) over .env file.
   const envFile = dotenv.config({ path: path.resolve(platformRoot, '.env') });
-  const env: Record<string, string> = {};
+  const env: Record<string, string> = { MNEMO_AGENT_ACTOR: actor };
   for (const key of ['DATABASE_URL', 'QDRANT_URL', 'ML_SERVICES_URL', 'EMBED_MODEL', 'NODE_ENV']) {
     const val = process.env[key] || envFile.parsed?.[key];
     if (val) env[key] = val;
@@ -1725,7 +1766,7 @@ export function getMcpConfigPath(): string {
  * and Qdrant, then asserts causal edges via create_causal_edge.
  */
 export async function invokeCausalAgent(delta: CausalDelta): Promise<CausalAgentResult> {
-  const mcpConfigPath = getMcpConfigPath();
+  const mcpConfigPath = getMcpConfigPath('graph_agent');
 
   const response = await fetch(`${config.ML_SERVICES_URL}/causal-reason`, {
     method: 'POST',
@@ -1777,7 +1818,7 @@ export interface ExtractionAgentResult {
  * resolve entities, and create facts — all interactively.
  */
 export async function invokeExtractionAgent(params: ExtractionAgentParams): Promise<ExtractionAgentResult> {
-  const mcpConfigPath = getMcpConfigPath();
+  const mcpConfigPath = getMcpConfigPath('graph_agent');
 
   const response = await fetch(`${config.ML_SERVICES_URL}/extract-agentic`, {
     method: 'POST',
@@ -1820,7 +1861,7 @@ export async function invokeReconciliationAgent(params: {
   candidates: Array<Record<string, unknown>>;
   recentReports?: string[];
 }): Promise<ReconciliationAgentResult> {
-  const mcpConfigPath = getMcpConfigPath();
+  const mcpConfigPath = getMcpConfigPath('reconciliation_agent');
 
   const response = await fetch(`${config.ML_SERVICES_URL}/reconciliation-agent`, {
     method: 'POST',
@@ -1859,7 +1900,7 @@ export async function invokeGardenerAgent(params: {
   trigger: 'manual' | 'auto';
   graphAgentRunsSinceLast?: number;
 }): Promise<GardenerAgentResult> {
-  const mcpConfigPath = getMcpConfigPath();
+  const mcpConfigPath = getMcpConfigPath('gardener_agent');
   const url = `${config.ML_SERVICES_URL}/gardener-agent`;
   console.log(`[gardener] POST ${url} trigger=${params.trigger} mcp=${mcpConfigPath}`);
 
@@ -1884,7 +1925,7 @@ export async function invokeGardenerAgent(params: {
 }
 
 export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<GraphAgentResult> {
-  const mcpConfigPath = getMcpConfigPath();
+  const mcpConfigPath = getMcpConfigPath('graph_agent');
 
   const response = await fetch(`${config.ML_SERVICES_URL}/graph-agent`, {
     method: 'POST',
@@ -1919,7 +1960,7 @@ export interface ReasoningAgentResult {
 }
 
 export async function invokeReasoningAgent(params: ReasoningAgentParams): Promise<ReasoningAgentResult> {
-  const mcpConfigPath = getMcpConfigPath();
+  const mcpConfigPath = getMcpConfigPath('reasoning_agent');
 
   const response = await fetch(`${config.ML_SERVICES_URL}/reasoning-agent`, {
     method: 'POST',
