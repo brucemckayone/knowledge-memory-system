@@ -20,8 +20,10 @@ import {
   skipCtx,
 } from '../setup.js';
 
-// Test collection name for memories
-const MEMORIES_COLLECTION = 'memories';
+// Dedicated per-file collection so parallel test files sharing 'memories'
+// (e2e/message-pipeline, quality/retrieval-quality, quality/e2e-ml-judge,
+// services/entity-profile, benchmarks/performance) can't clobber our points.
+const MEMORIES_COLLECTION = 'memories_hybrid_search_test';
 
 // Qdrant v1.7.4 requires UUID or unsigned integer IDs — plain strings are rejected.
 // Use fixed UUIDs for stable test assertions.

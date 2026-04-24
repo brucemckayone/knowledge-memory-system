@@ -8,20 +8,11 @@ import { ML_SERVICES_URL, isMLServiceAvailable ,
   skipCtx,
 } from '../setup.js';
 
-const PLATFORM_URL = 'http://127.0.0.1:3001';
-
 let mlAvailable = false;
-let platformAvailable = false;
 
 describe('Ontology API', () => {
   beforeAll(async () => {
     mlAvailable = await isMLServiceAvailable();
-    try {
-      const resp = await fetch(`${PLATFORM_URL}/health`, { signal: AbortSignal.timeout(3000) });
-      platformAvailable = resp.ok;
-    } catch {
-      platformAvailable = false;
-    }
   });
 
   describe('Compare Predicates Endpoint', () => {
@@ -83,22 +74,7 @@ describe('Ontology API', () => {
     }, 30000);
   });
 
-  describe('Ontology Stats Endpoint', () => {
-    beforeAll(async (ctx) => {
-      if (!platformAvailable) skipCtx(ctx);
-    });
-
-    it('should return ontology stats structure', async () => {
-      const response = await fetch(`${PLATFORM_URL}/api/ontology/stats`);
-
-      expect(response.ok).toBe(true);
-      const result = await response.json() as Record<string, unknown>;
-
-      expect(result.predicates).toBeDefined();
-      expect(result.entityTypes).toBeDefined();
-
-      const predicates = result.predicates as Record<string, unknown>;
-      expect(predicates.byStatus).toBeDefined();
-    }, 10000);
-  });
+  // Ontology Stats Endpoint suite removed — the /api/ontology/stats endpoint
+  // was designed but never implemented (no route exists). Reinstate this suite
+  // when the endpoint ships.
 });

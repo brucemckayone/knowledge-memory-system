@@ -8,30 +8,16 @@
 import path from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { testDb, createTestEntity, createTestFact } from '../setup.js';
-import { CAUSAL_AGENT_TOOLS, handleToolCall, getMcpConfigPath } from '../../services/causal-agent.js';
+import { GRAPH_TOOLS, handleToolCall, getMcpConfigPath } from '../../services/causal-agent.js';
 import fs from 'fs';
 
 describe('B06: Causal MCP server', () => {
 
   // --- MCP tool listing ---
 
-  it('CAUSAL_AGENT_TOOLS has exactly 7 tools', () => {
-    expect(CAUSAL_AGENT_TOOLS.length).toBe(7);
-  });
-
-  it('all tool schemas have MCP-compatible shape', () => {
-    for (const tool of CAUSAL_AGENT_TOOLS) {
-      expect(typeof tool.name).toBe('string');
-      expect(typeof tool.description).toBe('string');
-      expect(tool.inputSchema.type).toBe('object');
-      expect(typeof tool.inputSchema.properties).toBe('object');
-      expect(Array.isArray(tool.inputSchema.required)).toBe(true);
-    }
-  });
-
-  it('tool names match expected set', () => {
-    const names = CAUSAL_AGENT_TOOLS.map(t => t.name).sort();
-    expect(names).toEqual([
+  it('exposes the seven causal-reasoning tools', () => {
+    const names = GRAPH_TOOLS.map(t => t.name);
+    for (const t of [
       'create_causal_edge',
       'get_causal_history',
       'get_memory_text',
@@ -39,7 +25,19 @@ describe('B06: Causal MCP server', () => {
       'query_entity_neighbours',
       'search_memories',
       'search_similar_entities',
-    ]);
+    ]) {
+      expect(names).toContain(t);
+    }
+  });
+
+  it('all tool schemas have MCP-compatible shape', () => {
+    for (const tool of GRAPH_TOOLS) {
+      expect(typeof tool.name).toBe('string');
+      expect(typeof tool.description).toBe('string');
+      expect(tool.inputSchema.type).toBe('object');
+      expect(typeof tool.inputSchema.properties).toBe('object');
+      expect(Array.isArray(tool.inputSchema.required)).toBe(true);
+    }
   });
 
   // --- MCP config generation ---
@@ -50,14 +48,16 @@ describe('B06: Causal MCP server', () => {
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     expect(config.mcpServers).toBeDefined();
-    expect(config.mcpServers['mnemo-causal']).toBeDefined();
-    expect(config.mcpServers['mnemo-causal'].command).toBe('npx');
+    // MCP config now registers a single unified graph server ('mnemo-graph')
+    // hosting all extraction/causal/reconciliation/gardener/reasoning tools.
+    expect(config.mcpServers['mnemo-graph']).toBeDefined();
+    expect(config.mcpServers['mnemo-graph'].command).toBe('npx');
     // Args use absolute path (Claude Code ignores cwd for MCP server spawning)
-    const mcpArg = config.mcpServers['mnemo-causal'].args.find((a: string) => a.includes('causal-mcp.ts'));
+    const mcpArg = config.mcpServers['mnemo-graph'].args.find((a: string) => a.includes('graph-mcp.ts'));
     expect(mcpArg).toBeDefined();
     expect(path.isAbsolute(mcpArg)).toBe(true);
     // cwd should be an absolute path
-    expect(config.mcpServers['mnemo-causal'].cwd).toMatch(/^[A-Z]:|^\//);
+    expect(config.mcpServers['mnemo-graph'].cwd).toMatch(/^[A-Z]:|^\//);
 
     // Cleanup
     fs.unlinkSync(configPath);
@@ -114,8 +114,12 @@ describe('B06: Causal MCP server', () => {
   it('handleToolCall dispatches query_entity_facts correctly', async () => {
     const result = await handleToolCall('query_entity_facts', { entity_id: entityId });
     const parsed = JSON.parse(result);
-    expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed.length).toBeGreaterThanOrEqual(1);
+    // Handler returns { summary, aliases, facts } — the enriched shape added
+    // alongside reasoning-agent work. Accept either the array-only legacy
+    // shape or the enriched object form.
+    const facts = Array.isArray(parsed) ? parsed : parsed.facts;
+    expect(Array.isArray(facts)).toBe(true);
+    expect(facts.length).toBeGreaterThanOrEqual(1);
   });
 
   it('handleToolCall dispatches get_causal_history correctly', async () => {

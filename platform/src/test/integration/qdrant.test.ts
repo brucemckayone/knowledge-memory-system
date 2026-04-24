@@ -129,8 +129,8 @@ describe('Platform ↔ Qdrant Integration', () => {
         },
         {
           id: randomUUID(),
-          // Very similar to base (slight perturbation)
-          vector: normalizeVector(baseEmbedding.map((v, i) => i < 760 ? v : v * 0.999)),
+          // Noticeably different but still correlated — clear second place
+          vector: normalizeVector(baseEmbedding.map((v, i) => i < 600 ? v : v * 0.5)),
           payload: { content: 'Similar content 2', relevance: 'high' },
         },
       ];

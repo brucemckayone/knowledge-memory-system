@@ -49,8 +49,14 @@ export default defineConfig({
     // Reporter configuration
     reporters: ['verbose'],
 
-    // Parallel execution - tests must be isolated (query only own data)
+    // Parallel execution - tests must be isolated (query only own data).
+    // fileParallelism: false serializes file execution so cross-file
+    // cleanup hooks (deleteFromTables, TRUNCATE, broad DELETE FROM…)
+    // can't race each other. Tests within a file still run sequentially
+    // by default. Trade-off: slower wall clock on clean runs, but no
+    // flaky FK violations or global-state collisions.
     pool: 'threads',
+    fileParallelism: false,
 
     // Retry flaky tests (especially ML tests)
     retry: 1,

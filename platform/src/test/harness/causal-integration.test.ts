@@ -82,15 +82,19 @@ describe('B06 Integration: Causal MCP + Claude Code', () => {
 
   // --- MCP Health Check ---
 
-  it('causal MCP server starts and exposes 7 tools', async () => {
+  it('causal MCP server starts and exposes the seven causal tools', async () => {
     const health = await checkCausalMcpHealth();
 
     expect(health.ok).toBe(true);
     expect(health.tools).toBeDefined();
-    expect(health.tools!.length).toBe(7);
-    expect(health.tools).toContain('create_causal_edge');
-    expect(health.tools).toContain('query_entity_facts');
-    expect(health.tools).toContain('get_causal_history');
+    // Server now hosts the unified tool set (causal + extraction + reconciliation
+    // + gardener + reasoning); assert the seven original causal tools are present.
+    for (const t of [
+      'create_causal_edge', 'query_entity_facts', 'query_entity_neighbours',
+      'search_similar_entities', 'search_memories', 'get_memory_text', 'get_causal_history',
+    ]) {
+      expect(health.tools).toContain(t);
+    }
     expect(health.durationMs).toBeLessThan(15_000);
   }, 20_000);
 

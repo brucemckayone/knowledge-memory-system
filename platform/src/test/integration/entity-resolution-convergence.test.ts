@@ -235,20 +235,17 @@ describe('Entity Resolution Convergence', () => {
   describe('Convergence Properties', () => {
     it('ERC-PROP-001: Idempotent — same entity data inserted twice produces no duplicates', async () => {
       const embedding = normalizeVector(randomEmbedding());
+      const tag = `erc-prop-001-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-      await createTestEntity({ canonicalName: 'Test Entity', entityType: 'person', embedding });
+      await createTestEntity({ canonicalName: `Test Entity ${tag}`, entityType: 'person', embedding });
+      await createTestEntity({ canonicalName: `Test Entity 2 ${tag}`, entityType: 'person', embedding });
 
-      const countBefore = await testDb`SELECT count(*) as n FROM entities`;
-
-      // Try to create "same" entity again (different row, but same name)
-      await createTestEntity({ canonicalName: 'Test Entity 2', entityType: 'person', embedding });
-
-      const countAfter = await testDb`SELECT count(*) as n FROM entities`;
+      const countAfter = await testDb`SELECT count(*) as n FROM entities WHERE canonical_name LIKE ${'%' + tag}`;
 
       // Two distinct rows — createTestEntity always inserts.
       // The resolveEntity() function would be idempotent; direct insert is not.
       // This test documents the DB-level behavior.
-      expect(Number(countAfter[0]!.n)).toBe(Number(countBefore[0]!.n) + 1);
+      expect(Number(countAfter[0]!.n)).toBe(2);
     });
 
     it('ERC-PROP-003: Consistent — entity lookup by ID is stable', async () => {

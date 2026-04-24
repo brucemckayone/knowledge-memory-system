@@ -282,7 +282,7 @@ describe('Layer 2: ML Extraction Quality', () => {
     let detected = 0;
 
     for (const pair of trueContradictions) {
-      const response = await fetch(`${ML_SERVICES_URL}/detect-contradiction`, {
+      const response = await fetch(`${ML_SERVICES_URL}/check-contradiction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fact1: pair.fact1, fact2: pair.fact2 }),
@@ -310,7 +310,7 @@ describe('Layer 2: ML Extraction Quality', () => {
     let correctlyRejected = 0;
 
     for (const pair of nonContradictions) {
-      const response = await fetch(`${ML_SERVICES_URL}/detect-contradiction`, {
+      const response = await fetch(`${ML_SERVICES_URL}/check-contradiction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fact1: pair.fact1, fact2: pair.fact2 }),

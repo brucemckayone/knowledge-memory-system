@@ -16,15 +16,20 @@ import {
   testDb,
   createTestEntity,
   createTestFact,
-  deleteFromTables,
 } from '../setup.js';
 
 describe('Temporal Boundary Precision', () => {
   let entityId: string;
 
   beforeEach(async () => {
-    await deleteFromTables('facts', 'entities');
-    const entity = await createTestEntity({ canonicalName: `test-${Date.now()}`, entityType: 'person' });
+    // Each test creates its own entity with a unique name — no global
+    // cleanup needed. The previous `deleteFromTables('facts','entities')`
+    // nuked in-flight writes from parallel workers (notably the causal-events
+    // harness and entity-resolution convergence suites).
+    const entity = await createTestEntity({
+      canonicalName: `tbp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      entityType: 'person',
+    });
     entityId = entity.id;
   });
 

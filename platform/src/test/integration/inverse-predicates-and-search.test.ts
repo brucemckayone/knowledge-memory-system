@@ -173,38 +173,35 @@ describe('Hybrid Search Safety', () => {
 
   describe('HST-001: Search for existing entity has no side effects', () => {
     it('should not create new entities when searching by name', async () => {
-      await createTestEntity({ canonicalName: 'Google', entityType: 'company' });
+      const tag = `hst001-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const name = `Google ${tag}`;
+      await createTestEntity({ canonicalName: name, entityType: 'company' });
 
-      const countBefore = await testDb`SELECT count(*) as n FROM entities`;
-
-      // Search by name (trigram)
       await testDb`
         SELECT canonical_name FROM entities
-        WHERE canonical_name % 'Google'
-        ORDER BY similarity(canonical_name, 'Google') DESC
+        WHERE canonical_name % ${name}
+        ORDER BY similarity(canonical_name, ${name}) DESC
         LIMIT 5
       `;
 
-      const countAfter = await testDb`SELECT count(*) as n FROM entities`;
-      expect(Number(countAfter[0]!.n)).toBe(Number(countBefore[0]!.n));
+      const countAfter = await testDb`SELECT count(*) as n FROM entities WHERE canonical_name LIKE ${'%' + tag}`;
+      expect(Number(countAfter[0]!.n)).toBe(1);
     });
   });
 
   describe('HST-002: Search for nonexistent entity creates no phantoms', () => {
     it('should not create entities for unknown search terms', async () => {
-      await createTestEntity({ canonicalName: 'Google', entityType: 'company' });
+      const tag = `hst002-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const phantom = `NonexistentCompanyXYZ-${tag}`;
 
-      const countBefore = await testDb`SELECT count(*) as n FROM entities`;
-
-      // Search for entity that doesn't exist
       const results = await testDb`
         SELECT canonical_name FROM entities
-        WHERE canonical_name % 'NonexistentCompanyXYZ'
+        WHERE canonical_name % ${phantom}
       `;
       expect(results.length).toBe(0);
 
-      const countAfter = await testDb`SELECT count(*) as n FROM entities`;
-      expect(Number(countAfter[0]!.n)).toBe(Number(countBefore[0]!.n));
+      const countAfter = await testDb`SELECT count(*) as n FROM entities WHERE canonical_name LIKE ${'%' + tag}`;
+      expect(Number(countAfter[0]!.n)).toBe(0);
     });
   });
 
