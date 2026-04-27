@@ -9,6 +9,8 @@ import {
   real,
   boolean,
   unique,
+  primaryKey,
+  index,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -516,6 +518,31 @@ export const causalEdgeHistory = pgTable('causal_edge_history', {
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// ============================================
+// Phase 3: Source Reference Indexing (migration 010_source_ref_index.sql)
+// ============================================
+
+/**
+ * Edge Source Refs — denormalised reverse-lookup index for
+ * `causal_edges.source_references`. The JSONB column on `causal_edges`
+ * is the authoritative forward-facing format; this table is a derived
+ * read index (cascade invalidation, blast radius, contradiction
+ * detection, gardener context).
+ *
+ * No FK to facts/entities/memories — refs may point into Qdrant. Stale
+ * refs are acceptable; they just don't match any lookup.
+ */
+export const edgeSourceRefs = pgTable('edge_source_refs', {
+  edgeId: uuid('edge_id').notNull().references(() => causalEdges.id, { onDelete: 'cascade' }),
+  refType: varchar('ref_type', { length: 10 }).notNull(),
+  refId: uuid('ref_id').notNull(),
+  relevance: text('relevance'),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.edgeId, t.refType, t.refId] }),
+  lookupIdx: index('idx_edge_source_refs_lookup').on(t.refType, t.refId),
+  edgeIdx: index('idx_edge_source_refs_edge').on(t.edgeId),
+}));
+
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
@@ -523,6 +550,8 @@ export type CausalEvent = typeof causalEvents.$inferSelect;
 export type NewCausalEvent = typeof causalEvents.$inferInsert;
 export type CausalEdge = typeof causalEdges.$inferSelect;
 export type NewCausalEdge = typeof causalEdges.$inferInsert;
+export type EdgeSourceRef = typeof edgeSourceRefs.$inferSelect;
+export type NewEdgeSourceRef = typeof edgeSourceRefs.$inferInsert;
 export type CausalPattern = typeof causalPatterns.$inferSelect;
 export type NewCausalPattern = typeof causalPatterns.$inferInsert;
 export type EntityMeta = typeof entityMeta.$inferSelect;
