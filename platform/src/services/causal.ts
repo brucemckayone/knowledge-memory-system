@@ -38,8 +38,52 @@ export interface CreateCausalEdgeParams {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Create a causal edge between two causal events.
- * Validates reasoning, source references, and event existence.
+ * Corroboration strength bump per re-assertion (Phase 2 — doc 13).
+ * Diminishing returns are enforced by the 1.0 cap, not by varying this delta.
+ */
+const CORROBORATION_STRENGTH_DELTA = 0.05;
+
+function sourceRefKey(ref: SourceReference): string {
+  return `${ref.type}:${ref.id}`;
+}
+
+/**
+ * Merge two source-reference arrays, deduplicating by `${type}:${id}`. Returns
+ * the merged array (existing first, then new unique refs in input order) plus
+ * the diff — the refs from `added` that were not already present, used for the
+ * `added_source_refs` column on the corroborated audit row.
+ */
+function mergeSourceReferences(
+  existing: SourceReference[],
+  added: SourceReference[],
+): { merged: SourceReference[]; addedDiff: SourceReference[] } {
+  const seen = new Set(existing.map(sourceRefKey));
+  const merged: SourceReference[] = [...existing];
+  const addedDiff: SourceReference[] = [];
+  for (const ref of added) {
+    const key = sourceRefKey(ref);
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(ref);
+      addedDiff.push(ref);
+    }
+  }
+  return { merged, addedDiff };
+}
+
+/**
+ * Create a causal edge between two causal events, or corroborate an existing
+ * active edge for the same (cause_event_id, effect_event_id) pair.
+ *
+ * Corroboration semantics (Phase 2 part A — doc 13):
+ *   - bump strength by +0.05 capped at 1.0
+ *   - increment corroboration_count
+ *   - stamp last_corroborated = NOW()
+ *   - merge source_references (dedup by type+id)
+ *   - write a causal_edge_history row with event_type='corroborated'
+ *   - return the existing edge id
+ *
+ * Validates reasoning, source references, and event existence on both paths.
  */
 export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<string> {
   // --- Validation ---
@@ -85,7 +129,7 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
     throw new Error(`effectEventId '${params.effectEventId}' does not reference an existing causal event`);
   }
 
-  // --- Insert + audit (same transaction) ---
+  // --- Corroborate-or-insert + audit (same transaction) ---
   // Drizzle 0.29 + postgres.js 3.4 stringify jsonb array values when passed
   // through `.values({ ... })` inside a tx callback (jsonb_typeof lands as
   // 'string' instead of 'array'). Outside a tx the same construction
@@ -95,6 +139,61 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
   // docs/handoff/phase1-findings.md for the investigation notes.
 
   return db.transaction(async (tx) => {
+    // Step 1: exact-match corroboration. SELECT … FOR UPDATE so two
+    // concurrent corroborations of the same pair serialise behind the row
+    // lock instead of racing into a duplicate edge.
+    const existingResult = await tx.execute(sql`
+      SELECT id, strength, source_references
+      FROM public.causal_edges
+      WHERE cause_event_id = ${params.causeEventId}::uuid
+        AND effect_event_id = ${params.effectEventId}::uuid
+        AND expired_at IS NULL
+      LIMIT 1
+      FOR UPDATE
+    `);
+    const existingRows = Array.isArray(existingResult)
+      ? existingResult
+      : (existingResult as { rows?: unknown[] }).rows ?? [];
+    const existing = existingRows[0] as
+      | { id: string; strength: number; source_references: unknown }
+      | undefined;
+
+    if (existing) {
+      const prevRefs = Array.isArray(existing.source_references)
+        ? (existing.source_references as SourceReference[])
+        : [];
+      const { merged, addedDiff } = mergeSourceReferences(prevRefs, params.sourceReferences);
+      const prevStrength = Number(existing.strength);
+      const newStrength = Math.min(1.0, prevStrength + CORROBORATION_STRENGTH_DELTA);
+      const mergedLiteral = sql.raw(
+        `'${JSON.stringify(merged).replace(/'/g, "''")}'::jsonb`,
+      );
+
+      await tx.execute(sql`
+        UPDATE public.causal_edges
+        SET strength = ${newStrength},
+            corroboration_count = corroboration_count + 1,
+            last_corroborated = NOW(),
+            source_references = ${mergedLiteral}
+        WHERE id = ${existing.id}::uuid
+      `);
+
+      await recordEdgeChange({
+        edgeId: existing.id,
+        eventType: 'corroborated',
+        previousStrength: prevStrength,
+        newStrength,
+        addedSourceRefs: addedDiff,
+        reasoning: params.reasoning,
+        actor: params.actor,
+        reasoningReportId: params.reasoningReportId ?? null,
+        tx,
+      });
+
+      return existing.id;
+    }
+
+    // Step 2: no exact match — INSERT new edge.
     const inserted = await tx.execute(sql`
       INSERT INTO public.causal_edges (
         cause_event_id, effect_event_id, strength, reasoning,
