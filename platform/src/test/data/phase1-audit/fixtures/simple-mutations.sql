@@ -37,19 +37,28 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Referent rows for FK-integrity stressors ---------------------------------
 -- STRESSOR: fk-integrity=causal_event_id — pre-seeded so history rows 5 & 7 reference a real row
-INSERT INTO public.causal_events (id, fact_id, event_type, description, occurred_at)
+-- Live schema (migration 002): column is `transition_type`, CHECK enum is
+-- ('created','strengthened','weakened','expired','invalidated'). The seeded
+-- transition records the prior fact being invalidated by a newer assertion,
+-- which lines up with the fact_history row 5 (invalidated) and row 7
+-- (superseded) that both cite this causal_event_id.
+INSERT INTO public.causal_events (id, fact_id, transition_type, source_text, occurred_at)
 VALUES
   ('20000000-0000-0000-0000-000000000001',
    '10000000-0000-0000-0000-000000000001',
-   'supersede',
-   'Alice role superseded by newer memory',
+   'invalidated',
+   'Alice role invalidated/superseded by newer memory',
    NOW() - INTERVAL '1 day')
 ON CONFLICT (id) DO NOTHING;
 
 -- STRESSOR: fk-integrity=reasoning_report_id — pre-seeded so history row 3 references a real row
-INSERT INTO public.reasoning_reports (id, summary, created_at)
+-- Live schema (migration 008): required columns are mode (CHECK 'patrol'|'query')
+-- and report (NOT NULL TEXT). The previous v1.1 fixture used a non-existent
+-- `summary` column — corrected as part of nmemo-klv.1.
+INSERT INTO public.reasoning_reports (id, mode, report, created_at)
 VALUES
   ('50000000-0000-0000-0000-000000000001',
+   'patrol',
    'Periodic reasoning pass revised works_at validity window',
    NOW() - INTERVAL '5 days')
 ON CONFLICT (id) DO NOTHING;

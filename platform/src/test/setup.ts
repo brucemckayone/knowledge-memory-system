@@ -242,6 +242,33 @@ export function randomUUID(): string {
   return crypto.randomUUID();
 }
 
+/**
+ * Load a SQL fixture file from src/test/data/ and execute it.
+ *
+ * The fixture is run as raw SQL via `testDb.unsafe`, so it's responsible for
+ * its own transaction boundaries (typical fixtures wrap themselves in
+ * BEGIN/COMMIT). Returns the wall-clock duration in milliseconds so callers
+ * that record benchmarks can pick it up directly.
+ */
+export async function loadFixture(relativePath: string): Promise<{ durationMs: number }> {
+  const fixturePath = join(__dirname, 'data', relativePath);
+  if (!existsSync(fixturePath)) {
+    throw new Error(`Fixture not found: ${relativePath} (resolved to ${fixturePath})`);
+  }
+  // postgres.js refuses raw BEGIN/COMMIT in `unsafe()` (UNSAFE_TRANSACTION).
+  // Strip the outer transaction markers — fixtures keep them for psql/docker
+  // exec compatibility — and run inside sql.begin() instead.
+  const raw = readFileSync(fixturePath, 'utf-8');
+  const stripped = raw
+    .replace(/^\s*BEGIN\s*;\s*$/gmi, '')
+    .replace(/^\s*COMMIT\s*;\s*$/gmi, '');
+  const start = performance.now();
+  await testDb.begin(async (tx) => {
+    await tx.unsafe(stripped);
+  });
+  return { durationMs: performance.now() - start };
+}
+
 /** Default embedding dimensions — keep in sync with EMBED_DIMENSIONS in .env */
 export const TEST_EMBED_DIMENSIONS = 768;
 

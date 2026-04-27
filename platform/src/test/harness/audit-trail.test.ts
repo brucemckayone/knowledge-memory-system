@@ -30,6 +30,7 @@ import {
   testDb,
   createTestEntity,
   deleteFromTables,
+  loadFixture,
   randomUUID,
   skipCtx,
 } from '../setup.js';
@@ -665,5 +666,218 @@ describe('Phase 1 — invalid-actors adversarial suite (fixture-driven)', () => 
       }
       expect(rejected, `CASE ${c.id} (${c.description}) must be rejected`).toBe(true);
     }
+  });
+});
+
+// ============================================
+// Fixture-driven: simple-mutations.sql + per-row assertions from
+// simple-mutations.expected.json
+// ============================================
+
+describe('Phase 1 — fixture-driven: simple-mutations (nmemo-klv.1)', () => {
+  const FACT_ID = '10000000-0000-0000-0000-000000000001';
+  const REASONING_REPORT_ID = '50000000-0000-0000-0000-000000000001';
+  const CAUSAL_EVENT_ID = '20000000-0000-0000-0000-000000000001';
+
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase1-audit/fixtures/simple-mutations.sql');
+  });
+
+  it('row_count — 8 fact_history rows seeded for the target fact', async () => {
+    const rows = await testDb`
+      SELECT id FROM fact_history WHERE fact_id = ${FACT_ID}::uuid
+    `;
+    expect(rows).toHaveLength(8);
+  });
+
+  it('column_sequence ASC — forward-chronological lifecycle order', async () => {
+    const rows = await testDb`
+      SELECT event_type FROM fact_history
+      WHERE fact_id = ${FACT_ID}::uuid
+      ORDER BY occurred_at ASC
+    `;
+    expect(rows.map((r: any) => r.event_type)).toEqual([
+      'created', 'confidence_raised', 'revised', 'confidence_lowered',
+      'invalidated', 'restored', 'superseded', 'expired',
+    ]);
+  });
+
+  it('column_sequence DESC — getFactHistory contract returns reverse-chrono', async () => {
+    const hist = await getFactHistory(FACT_ID);
+    expect(hist.map(h => h.eventType)).toEqual([
+      'expired', 'superseded', 'restored', 'invalidated',
+      'confidence_lowered', 'revised', 'confidence_raised', 'created',
+    ]);
+  });
+
+  it('actor_distribution — all 7 actor enum values exercised at least once', async () => {
+    const rows = await testDb`
+      SELECT actor, COUNT(*)::int AS count
+      FROM fact_history
+      WHERE fact_id = ${FACT_ID}::uuid
+      GROUP BY actor
+    `;
+    const dist = Object.fromEntries(rows.map((r: any) => [r.actor, r.count]));
+    expect(dist).toEqual({
+      graph_agent: 1,
+      reasoning_agent: 2,
+      gardener_agent: 1,
+      reconciliation_agent: 1,
+      user: 1,
+      system_trigger: 1,
+      cascade: 1,
+    });
+  });
+
+  it('column_values — confidence_raised row captures previous + new + actor', async () => {
+    const rows = await testDb`
+      SELECT previous_confidence, new_confidence, actor
+      FROM fact_history
+      WHERE id = '40000000-0000-0000-0000-000000000002'::uuid
+    `;
+    expect(Number(rows[0]!.previous_confidence)).toBeCloseTo(0.6, 5);
+    expect(Number(rows[0]!.new_confidence)).toBeCloseTo(0.9, 5);
+    expect(rows[0]!.actor).toBe('reasoning_agent');
+  });
+
+  it('column_values — revised row links to a real reasoning_report', async () => {
+    const rows = await testDb`
+      SELECT event_type, reasoning_report_id
+      FROM fact_history
+      WHERE id = '40000000-0000-0000-0000-000000000003'::uuid
+    `;
+    expect(rows[0]!.event_type).toBe('revised');
+    expect(rows[0]!.reasoning_report_id).toBe(REASONING_REPORT_ID);
+  });
+
+  it('foreign_key_integrity — every non-null FK references an existing row', async () => {
+    const dangling = await testDb`
+      SELECT COUNT(*)::int AS n FROM fact_history fh
+      WHERE fh.fact_id = ${FACT_ID}::uuid
+        AND (
+          (fh.reasoning_report_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM reasoning_reports rr WHERE rr.id = fh.reasoning_report_id))
+          OR (fh.causal_event_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM causal_events ce WHERE ce.id = fh.causal_event_id))
+          OR NOT EXISTS (SELECT 1 FROM facts f WHERE f.id = fh.fact_id)
+        )
+    `;
+    expect(dangling[0]!.n).toBe(0);
+  });
+
+  it('orphan_retention — audit rows survive an attempted parent-fact delete', async () => {
+    // Current schema: fact_history.fact_id is NOT NULL with default-RESTRICT FK
+    // → DELETE on the parent fact is rejected. Either way, the 8 history rows
+    // must remain intact. The audit trail is sacred.
+    let deleteRejected = false;
+    try {
+      await testDb`DELETE FROM facts WHERE id = ${FACT_ID}::uuid`;
+    } catch {
+      deleteRejected = true;
+    }
+    const surviving = await testDb`
+      SELECT COUNT(*)::int AS n FROM fact_history WHERE fact_id = ${FACT_ID}::uuid
+    `;
+    expect(surviving[0]!.n).toBe(8);
+    expect(deleteRejected).toBe(true);
+  });
+
+  it('limit_param — getFactHistory(factId, 3) returns the 3 most recent', async () => {
+    const hist = await getFactHistory(FACT_ID, 3);
+    expect(hist.map(h => h.eventType)).toEqual(['expired', 'superseded', 'restored']);
+  });
+
+  it('causal_event seed transition_type aligns with current schema enum', async () => {
+    // Regression guard for the v1.1 schema-drift gap (was 'event_type=supersede',
+    // now 'transition_type=invalidated' per migration 002 CHECK enum).
+    const rows = await testDb`
+      SELECT transition_type FROM causal_events WHERE id = ${CAUSAL_EVENT_ID}::uuid
+    `;
+    expect(rows[0]!.transition_type).toBe('invalidated');
+  });
+});
+
+// ============================================
+// Benchmarks — Phase 1 (klv.1) AC: mutation→audit <10ms, history query <50ms
+// ============================================
+
+function p95(samples: number[]): number {
+  const sorted = [...samples].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95));
+  return sorted[idx]!;
+}
+
+describe('Phase 1 — simple-mutations benchmarks (nmemo-klv.1)', () => {
+  const N = 100;
+  const RESULTS: Record<string, { p50: number; p95: number; max: number }> = {};
+
+  function record(name: string, samples: number[]): void {
+    samples.sort((a, b) => a - b);
+    RESULTS[name] = {
+      p50: samples[Math.floor(samples.length * 0.5)]!,
+      p95: p95(samples),
+      max: samples[samples.length - 1]!,
+    };
+  }
+
+  it(`recordFactChange p95 < 10ms (${N} iterations)`, async () => {
+    await cleanSlate();
+    const factId = await seedFactForAudit(0.5);
+
+    const samples: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const start = performance.now();
+      await recordFactChange({
+        factId,
+        eventType: i % 2 === 0 ? 'confidence_raised' : 'confidence_lowered',
+        previousConfidence: 0.5,
+        newConfidence: 0.5 + (i % 5) * 0.05,
+        reasoning: `bench iter ${i}`,
+        actor: 'reasoning_agent',
+      });
+      samples.push(performance.now() - start);
+    }
+    record('recordFactChange', samples);
+    expect(p95(samples)).toBeLessThan(10);
+  });
+
+  it(`getFactHistory(8 rows) p95 < 50ms (${N} iterations)`, async () => {
+    await cleanSlate();
+    await loadFixture('phase1-audit/fixtures/simple-mutations.sql');
+
+    const samples: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const start = performance.now();
+      await getFactHistory('10000000-0000-0000-0000-000000000001');
+      samples.push(performance.now() - start);
+    }
+    record('getFactHistory_8rows', samples);
+    expect(p95(samples)).toBeLessThan(50);
+  });
+
+  it(`getFactHistory(limit=3) p95 < 50ms (${N} iterations)`, async () => {
+    await cleanSlate();
+    await loadFixture('phase1-audit/fixtures/simple-mutations.sql');
+
+    const samples: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const start = performance.now();
+      await getFactHistory('10000000-0000-0000-0000-000000000001', 3);
+      samples.push(performance.now() - start);
+    }
+    record('getFactHistory_limit3', samples);
+    expect(p95(samples)).toBeLessThan(50);
+  });
+
+  // Emit measurements so they can be lifted into the benchmark report.
+  // Vitest swallows console.log unless --reporter is verbose; we go through
+  // process.stderr to keep the marker visible without polluting the default
+  // reporter format.
+  it('emit benchmark summary marker', () => {
+    process.stderr.write(
+      `\n[BENCH klv.1] ${JSON.stringify(RESULTS)}\n`,
+    );
+    expect(Object.keys(RESULTS).length).toBe(3);
   });
 });
