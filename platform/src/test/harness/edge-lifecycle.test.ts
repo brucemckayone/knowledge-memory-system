@@ -1376,19 +1376,12 @@ describe('Phase 2 — decay-battlefield benchmarks (nmemo-klv.2)', () => {
     }
     record('applyConfidenceDecay_100edges', samples);
 
-    // The AC target is <200ms / 100 edges. The current per-row
-    // SELECT FOR UPDATE + UPDATE + recordEdgeChange loop typically lands
-    // around 300ms on local docker. The hard test threshold is set to
-    // 500ms — anything beyond that signals a real regression, but the gap
-    // to the AC target is logged via stderr so the benchmark report
-    // surfaces it (see klv.2 follow-up bead for optimisation work).
-    const measured = p95(samples);
-    if (measured >= 200) {
-      process.stderr.write(
-        `\n[BENCH klv.2] applyConfidenceDecay p95=${measured.toFixed(1)}ms exceeds AC target 200ms (gap: ${(measured - 200).toFixed(1)}ms)\n`,
-      );
-    }
-    expect(measured).toBeLessThan(500);
+    // After nmemo-f9a (single-CTE batched UPDATE + INSERT … RETURNING),
+    // the decay cycle for 100 edges lands around p95=6–7ms on local
+    // docker — well under the 200ms AC target. The 50ms threshold leaves
+    // ~8× headroom for noise while still catching a real regression
+    // (e.g., reverting the batch to per-row).
+    expect(p95(samples)).toBeLessThan(50);
   }, 30_000);
 
   it('emit benchmark summary marker', () => {

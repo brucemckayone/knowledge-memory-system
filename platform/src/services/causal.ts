@@ -599,89 +599,68 @@ export async function applyConfidenceDecay(
 ): Promise<DecayResult> {
   const { rate, floor, ageDays, actor } = resolveDecayConfig(options);
 
-  const candidatesResult = await db.execute(sql`
-    SELECT id
-    FROM public.causal_edges
-    WHERE expired_at IS NULL
-      AND corroboration_count <= 1
-      AND last_corroborated < NOW() - (${ageDays} * INTERVAL '1 day')
-      AND strength > ${floor}
-      AND extraction_method = 'llm'
-  `);
-  const candidateRows = Array.isArray(candidatesResult)
-    ? candidatesResult
-    : (candidatesResult as { rows?: unknown[] }).rows ?? [];
+  // Reasoning strings are precomputed because every audit row in this run
+  // shares the same rate / floor / ageDays values.
+  const decayedReasoning =
+    `decayed by ${((1 - rate) * 100).toFixed(1)}% after ${ageDays}+ days without corroboration`;
+  const expiredReasoning =
+    `confidence decayed to floor (${floor}) without corroboration for ${ageDays}+ days`;
 
-  const decayedEdgeIds: string[] = [];
-  const expiredEdgeIds: string[] = [];
-
-  for (const row of candidateRows) {
-    const edgeId = (row as { id: string }).id;
-
-    await db.transaction(async (tx) => {
-      // Re-evaluate the qualifying filter under the row lock — concurrent
-      // corroboration / decay runs may have moved this row out of scope.
-      const lockedResult = await tx.execute(sql`
-        SELECT strength
+  // Single-statement decay cycle. The CTE chain is:
+  //   1. `to_decay`  — snapshot eligible rows + computed new_strength + will_expire
+  //   2. `updated`   — UPDATE causal_edges in one statement (row locks acquired
+  //                    in a single sweep; UPDATE WHERE re-evaluates the
+  //                    qualifier against the committed state, so any row a
+  //                    concurrent corroboration moved out of scope is dropped)
+  //   3. INSERT INTO causal_edge_history — one bulk audit insert
+  // Returns (edge_id, event_type) for each row touched so the caller can
+  // partition decayed vs expired.
+  const result = await db.transaction(async (tx) => {
+    return tx.execute(sql`
+      WITH to_decay AS (
+        SELECT
+          id,
+          strength AS prev_strength,
+          GREATEST(${floor}, strength * ${rate}) AS new_strength,
+          (GREATEST(${floor}, strength * ${rate}) <= ${floor}) AS will_expire
         FROM public.causal_edges
-        WHERE id = ${edgeId}::uuid
-          AND expired_at IS NULL
+        WHERE expired_at IS NULL
           AND corroboration_count <= 1
           AND last_corroborated < NOW() - (${ageDays} * INTERVAL '1 day')
           AND strength > ${floor}
           AND extraction_method = 'llm'
-        FOR UPDATE
-      `);
-      const lockedRows = Array.isArray(lockedResult)
-        ? lockedResult
-        : (lockedResult as { rows?: unknown[] }).rows ?? [];
-      const locked = lockedRows[0] as { strength: number } | undefined;
-      if (!locked) return;
+      ),
+      updated AS (
+        UPDATE public.causal_edges e
+        SET strength = t.new_strength,
+            decay_applied = true,
+            expired_at = CASE WHEN t.will_expire THEN NOW() ELSE e.expired_at END,
+            expire_reason = CASE WHEN t.will_expire THEN 'confidence decay' ELSE e.expire_reason END
+        FROM to_decay t
+        WHERE e.id = t.id
+        RETURNING e.id, t.prev_strength, t.new_strength, t.will_expire
+      )
+      INSERT INTO public.causal_edge_history (
+        edge_id, event_type, previous_strength, new_strength, reasoning, actor
+      )
+      SELECT
+        id,
+        CASE WHEN will_expire THEN 'expired' ELSE 'decayed' END AS event_type,
+        prev_strength,
+        new_strength,
+        CASE WHEN will_expire THEN ${expiredReasoning} ELSE ${decayedReasoning} END,
+        ${actor}
+      FROM updated
+      RETURNING edge_id, event_type
+    `);
+  });
 
-      const prevStrength = Number(locked.strength);
-      const computed = prevStrength * rate;
-      const newStrength = Math.max(floor, computed);
-      const willExpire = newStrength <= floor;
-
-      if (willExpire) {
-        await tx.execute(sql`
-          UPDATE public.causal_edges
-          SET strength = ${newStrength},
-              expired_at = NOW(),
-              expire_reason = 'confidence decay'
-          WHERE id = ${edgeId}::uuid
-        `);
-        await recordEdgeChange({
-          edgeId,
-          eventType: 'expired',
-          previousStrength: prevStrength,
-          newStrength,
-          reasoning:
-            `confidence decayed to floor (${floor}) without corroboration for ${ageDays}+ days`,
-          actor,
-          tx,
-        });
-        expiredEdgeIds.push(edgeId);
-      } else {
-        await tx.execute(sql`
-          UPDATE public.causal_edges
-          SET strength = ${newStrength},
-              decay_applied = true
-          WHERE id = ${edgeId}::uuid
-        `);
-        await recordEdgeChange({
-          edgeId,
-          eventType: 'decayed',
-          previousStrength: prevStrength,
-          newStrength,
-          reasoning:
-            `decayed by ${((1 - rate) * 100).toFixed(1)}% after ${ageDays}+ days without corroboration`,
-          actor,
-          tx,
-        });
-        decayedEdgeIds.push(edgeId);
-      }
-    });
+  const rows = unwrapRows<{ edge_id: string; event_type: string }>(result);
+  const decayedEdgeIds: string[] = [];
+  const expiredEdgeIds: string[] = [];
+  for (const r of rows) {
+    if (r.event_type === 'expired') expiredEdgeIds.push(r.edge_id);
+    else decayedEdgeIds.push(r.edge_id);
   }
 
   return {

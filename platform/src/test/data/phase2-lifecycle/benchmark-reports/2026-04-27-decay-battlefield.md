@@ -50,19 +50,18 @@ strength clamped at 1.0. No unique-constraint violations.
 
 5 trials per metric, fixture reloaded between trials.
 
-| Metric                                  | p50      | p95      | max      | AC target | Pass         |
-|-----------------------------------------|----------|----------|----------|-----------|--------------|
-| `applyConfidenceDecay` (100 edges)      | 285.9ms  | 302.9ms  | 302.9ms  | <200ms    | ✗ (-102.9ms) |
+| Metric                                       | p50      | p95      | max      | AC target | Pass |
+|----------------------------------------------|----------|----------|----------|-----------|------|
+| `applyConfidenceDecay` (100 edges, baseline) | 285.9ms  | 302.9ms  | 302.9ms  | <200ms    | ✗    |
+| `applyConfidenceDecay` (100 edges, post-f9a) |  4.97ms  |  6.51ms  |  6.51ms  | <200ms    | ✓    |
 
-**The AC target of <200ms is NOT met.** Filed `nmemo-f9a` (P2) for the
-optimisation work. Root cause is the per-row transaction loop
-(60 candidates × `tx.begin → SELECT FOR UPDATE → UPDATE → INSERT history`).
-Plausible fixes: bulk UPDATE … RETURNING + bulk audit INSERT; or fold
-SELECT FOR UPDATE into the UPDATE with a WHERE qualifier guard.
+**Baseline (pre-optimisation):** the AC target of <200ms was NOT met.
+Filed `nmemo-f9a` for the per-row transaction loop optimisation.
 
-The hard test threshold is set to **<500ms** so a real regression still
-fails CI; the gap to the 200ms AC target is logged via stderr and surfaced
-in this report.
+**Post-f9a:** single-CTE batched UPDATE + INSERT … RETURNING replaced the
+60-iteration transaction loop. ~50× speedup on local docker. Test
+threshold tightened from 500ms to 50ms (8× headroom for noise above the
+new p95).
 
 Environment: local `nmemo-postgres-1` Docker container, port 5433, idle DB.
 
@@ -74,6 +73,7 @@ test-harden skill cycles `phase2/decay-battlefield`.
 
 ## Outstanding follow-ups
 
-- `nmemo-f9a` — Optimise `applyConfidenceDecay` to meet the 200ms target.
+- ~~`nmemo-f9a` — Optimise `applyConfidenceDecay` to meet the 200ms target.~~
+  **CLOSED 2026-04-27** in the same session that filed it (commit landed alongside klv.2).
 - Consider expanding the fixture to 1000 edges as a deeper stress (parallels
   the 1000-edge target in `klv.3`). Out of klv.2 scope.
