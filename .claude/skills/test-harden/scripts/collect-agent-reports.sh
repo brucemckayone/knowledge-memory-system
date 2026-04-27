@@ -9,11 +9,12 @@
 
 set -uo pipefail
 
-PGHOST="${PGHOST:-localhost}"
+PGHOST="${PGHOST:-127.0.0.1}"
 PGPORT="${PGPORT:-5433}"
-PGUSER="${PGUSER:-postgres}"
-PGDATABASE="${PGDATABASE:-mnemo}"
-export PGPASSWORD="${PGPASSWORD:-postgres}"
+PGUSER="${PGUSER:-cognitive}"
+PGDATABASE="${PGDATABASE:-cognitive_test}"
+PG_CONTAINER="${PG_CONTAINER:-nmemo-postgres-1}"
+export PGPASSWORD="${PGPASSWORD:-cognitive}"
 
 MODE="${1:-}"
 ARG="${2:-}"
@@ -27,9 +28,7 @@ else
   exit 2
 fi
 
-# psql with JSON aggregation
-psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
-  -t -A -c "
+QUERY="
 SET search_path = ag_catalog, public;
 SELECT COALESCE(json_agg(r), '[]'::json) FROM (
   SELECT id, mode, question, report, actions_taken, entity_ids,
@@ -37,4 +36,16 @@ SELECT COALESCE(json_agg(r), '[]'::json) FROM (
   FROM reasoning_reports
   WHERE $WHERE
 ) r;
-" 2>/dev/null
+"
+
+# Try host psql first; fall back to docker exec if missing.
+if command -v psql >/dev/null 2>&1; then
+  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -t -A -q -c "$QUERY" 2>/dev/null | grep -v '^SET$' || true
+elif command -v docker >/dev/null 2>&1 \
+     && docker ps --format "{{.Names}}" 2>/dev/null | grep -q "^${PG_CONTAINER}$"; then
+  docker exec -i -e PGPASSWORD="$PGPASSWORD" "$PG_CONTAINER" \
+    psql -U "$PGUSER" -d "$PGDATABASE" -t -A -q -c "$QUERY" 2>/dev/null | grep -v '^SET$' || true
+else
+  echo "[]"
+  echo "<warning: psql not on PATH and PG container '$PG_CONTAINER' not running>" >&2
+fi
