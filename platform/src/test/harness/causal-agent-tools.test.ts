@@ -109,6 +109,39 @@ describe('B05: Causal agent — tool definitions', () => {
     expect(parsed.events.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('get_causal_history surfaces corroboration fields on edges (e2i.5)', async () => {
+    // Insert an edge with non-default corroboration state so we can prove the
+    // tool serialises real values, not defaults.
+    const knownLastCorroborated = '2026-04-01T12:00:00.000Z';
+    const [edgeRow] = await testDb`
+      INSERT INTO causal_edges (
+        cause_event_id, effect_event_id, strength, extraction_method,
+        reasoning, source_references,
+        corroboration_count, last_corroborated, initial_strength, decay_applied
+      ) VALUES (
+        ${eventId}::uuid, ${eventId2}::uuid, 0.65, 'inference',
+        'e2i.5 corroboration field surfacing test', '[]'::jsonb,
+        3, ${knownLastCorroborated}::timestamptz, 0.9, true
+      )
+      RETURNING id
+    `;
+    const insertedEdgeId = edgeRow!.id as string;
+
+    try {
+      const result = await handleToolCall('get_causal_history', { entity_id: entityId });
+      const parsed = JSON.parse(result);
+      const edge = parsed.edges.find((e: { id: string }) => e.id === insertedEdgeId);
+
+      expect(edge).toBeDefined();
+      expect(edge.corroborationCount).toBe(3);
+      expect(edge.initialStrength).toBeCloseTo(0.9, 5);
+      expect(edge.decayApplied).toBe(true);
+      expect(new Date(edge.lastCorroborated).toISOString()).toBe(knownLastCorroborated);
+    } finally {
+      await testDb.unsafe(`DELETE FROM causal_edges WHERE id = '${insertedEdgeId}'`).catch(() => {});
+    }
+  });
+
   it('create_causal_edge handler creates edge and returns id', async () => {
     const result = await handleToolCall('create_causal_edge', {
       cause_event_id: eventId,

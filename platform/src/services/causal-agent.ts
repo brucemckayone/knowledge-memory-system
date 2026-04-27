@@ -977,6 +977,10 @@ async function _handleToolCallInner(
           reasoning: e.reasoning,
           sourceReferences: e.sourceReferences,
           extractionMethod: e.extractionMethod,
+          corroborationCount: e.corroborationCount,
+          lastCorroborated: e.lastCorroborated,
+          initialStrength: e.initialStrength,
+          decayApplied: e.decayApplied,
         })),
       });
     }
