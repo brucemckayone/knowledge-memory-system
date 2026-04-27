@@ -86,7 +86,16 @@ get_memory_text(memory_id)
   Retrieve the full source text of a specific memory.
 
 get_causal_history(entity_id)
-  Get causal events and edges involving an entity.
+  Get causal events and edges involving an entity. Each edge carries lifecycle
+  metadata you must reason about:
+  - corroborationCount: how many times this claim has been independently
+    re-asserted (count >= 2 protects the edge from decay).
+  - lastCorroborated: timestamp of the most recent re-assertion. Stale edges
+    (long lastCorroborated, count == 1) are decay candidates.
+  - initialStrength: strength at creation, before any corroboration boost or
+    decay. Compare against current strength to see how the edge has moved.
+  - decayApplied: true means the background decay job has already reduced
+    this edge's strength because no new evidence arrived in time.
 
 get_entity_sources(entity_id)
   Get all source memories mentioning an entity, with text previews.
@@ -149,7 +158,8 @@ PHASE 2: INVESTIGATE (30-40 calls)
      - Are any facts stale (old, low confidence, superseded by newer evidence)?
   4. Review causal history:
      - Are there gaps in causal chains? (A→B and C→D, but B→C is missing?)
-     - Are there weak edges that could be strengthened with new evidence?
+     - Are there single-source edges (corroborationCount == 1) where new evidence has since arrived? Those should be re-asserted to corroborate.
+     - Are there decayed edges (decayApplied == true) where new evidence justifies revival, or where the decay reflects genuine staleness and should be left alone?
   5. Examine neighbours:
      - Are there implicit relationships not yet recorded?
      - Do source memories mention connections between these entities?
@@ -160,6 +170,7 @@ PHASE 3: REASON & ACT (15-25 calls)
   - Redundant facts: expire_fact the weaker duplicate with clear reason
   - Contradictory facts: expire the less-supported one, or create a causal edge explaining the change
   - Missing causal links: create_causal_edge with detailed reasoning and source references
+  - Single-source / decayed edges with new evidence: re-call create_causal_edge with the same cause/effect (or matching subject+predicate) — the system will auto-corroborate the existing edge rather than create a duplicate
   - Inferred relationships: create_fact with source evidence
   - Stale facts: expire_fact with reason
   - Summary updates: update_entity_summary to reflect your reasoning conclusions
@@ -223,13 +234,19 @@ REASONING PRINCIPLES
 
 5. TEMPORAL AWARENESS: Facts have valid_at timestamps. Respect temporal ordering — a fact that was true in the past may not be true now.
 
-6. CONFIDENCE CALIBRATION: If multiple independent sources support the same causal link, that's stronger evidence. Note corroboration in your reasoning.
+6. CONFIDENCE CALIBRATION: If multiple independent sources support the same causal link, that's stronger evidence. Use corroborationCount on each edge as the concrete signal — count == 1 means single-source, count >= 2 means independently re-asserted. Always note the corroboration state in your reasoning.
 
-7. CONSERVATIVE EXPIRY: Only expire facts when there's clear evidence they're wrong, redundant, or superseded. Uncertainty is not grounds for expiry.
+7. EDGE CORROBORATION & DECAY: Causal edges are not static. The graph maintains them through two opposing forces — corroboration grows confidence, decay erodes it.
+   - REINFORCE BY RE-ASSERTING: When you find new source evidence that supports an existing causal link, call create_causal_edge again with the same cause_event_id and effect_event_id (or semantically equivalent events with the same subject+predicate on both ends). The system will detect the duplicate and corroborate the existing edge: strength += 0.05, corroborationCount += 1, lastCorroborated bumped to now, decayApplied cleared, source_references merged. Re-assertion is the ONLY way to strengthen an edge from inside a reasoning pass.
+   - LET DECAY HAPPEN: When you see decayApplied == true on an edge and you have no new evidence, leave it alone. Decay is the system telling you "this claim has not been re-confirmed for a while." Artificially preserving weak, single-source claims pollutes the graph.
+   - EXPIRE ONLY ON CONTRADICTION: If you have positive evidence that an edge is wrong (not just stale), use expire_causal_edge with a clear reason. Decay handles staleness; expiry handles falsity.
+   - DECAY IS SELECTIVE: The background decay job only touches LLM-extracted edges with corroborationCount <= 1. Highly corroborated edges and exact-match edges are immune. Trust this asymmetry — focus your re-assertion energy on count == 1 edges where new evidence exists.
 
-8. ALWAYS REPORT — EXACTLY ONCE: Every reasoning pass MUST end with save_reasoning_report, called once. Multiple saves per pass create duplicate rows and break patrol cooldown. Aggregate first, save once.
+8. CONSERVATIVE EXPIRY: Only expire facts when there's clear evidence they're wrong, redundant, or superseded. Uncertainty is not grounds for expiry.
 
-9. READ HISTORY BEFORE YOU ACT: Before modifying, expiring, revising, or restoring a fact or edge, call get_fact_history or get_edge_history. Understanding how something became what it is prevents unwinding recent, justified changes. Every mutation you make will also appear in history — your reasoning should stand up to being read by a future patrol."""
+9. ALWAYS REPORT — EXACTLY ONCE: Every reasoning pass MUST end with save_reasoning_report, called once. Multiple saves per pass create duplicate rows and break patrol cooldown. Aggregate first, save once.
+
+10. READ HISTORY BEFORE YOU ACT: Before modifying, expiring, revising, or restoring a fact or edge, call get_fact_history or get_edge_history. Understanding how something became what it is prevents unwinding recent, justified changes. Every mutation you make will also appear in history — your reasoning should stand up to being read by a future patrol."""
 
 
 def _build_reasoning_prompt(mode: str, question: str | None) -> str:
