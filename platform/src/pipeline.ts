@@ -115,8 +115,12 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
   if (agentResult.result) {
     // Log the full structured report — this is the agent's reasoning trace
     console.log(`[graph-agent] report:\n${agentResult.result}`);
-    // Persist for reconciliation agent consumption (fire-and-forget — never blocks extraction)
-    db.insert(extractionReports).values({ memoryId, reportText: agentResult.result }).catch(err => {
+    // Persist for reconciliation agent consumption (fire-and-forget — never blocks extraction).
+    // Drizzle's query builder is thenable; wrap in Promise.resolve so .catch attaches before
+    // any rejection lands, and `void` makes the unawaited intent explicit.
+    void Promise.resolve(
+      db.insert(extractionReports).values({ memoryId, reportText: agentResult.result }),
+    ).catch((err) => {
       console.warn('[pipeline] failed to store extraction report:', err instanceof Error ? err.message : err);
     });
   }

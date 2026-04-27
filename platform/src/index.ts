@@ -541,20 +541,27 @@ app.post('/api/decay', async (c) => {
   }
 });
 
-app.post('/api/viz/clear', async (c) => {
-  // Delete in FK-safe order
-  for (const table of ['reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports', 'merge_candidates', 'entity_meta', 'memory_entities', 'entity_aliases', 'causal_edges', 'causal_events', 'causal_patterns', 'facts', 'entity_merges', 'entities']) {
+/** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
+const CLEARABLE_TABLES = [
+  'reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports',
+  'merge_candidates', 'entity_meta', 'memory_entities', 'entity_aliases',
+  'causal_edges', 'causal_events', 'causal_patterns', 'facts',
+  'entity_merges', 'entities',
+] as const;
+
+async function clearGraphTables(): Promise<void> {
+  for (const table of CLEARABLE_TABLES) {
     await db.execute(sql.raw(`DELETE FROM ${table}`));
   }
+}
+
+app.post('/api/viz/clear', async (c) => {
+  await clearGraphTables();
   return c.json({ cleared: true });
 });
 
 app.post('/api/reset', async (c) => {
-  // 1. Clear PG tables (FK-safe order)
-  for (const table of ['reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports', 'merge_candidates', 'entity_meta', 'memory_entities', 'entity_aliases', 'causal_edges', 'causal_events', 'causal_patterns', 'facts', 'entity_merges', 'entities']) {
-    await db.execute(sql.raw(`DELETE FROM ${table}`));
-  }
-  // 2. Clear Qdrant
+  await clearGraphTables();
   const { clearMemories } = await import('./services/qdrant.js');
   await clearMemories();
   return c.json({ cleared: true, pg: true, qdrant: true });

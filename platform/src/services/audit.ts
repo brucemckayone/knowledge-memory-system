@@ -28,8 +28,18 @@ import {
  * in key positions; the `.replace` guards against unlikely embedded quotes
  * in payload strings.
  */
-function jsonbLiteral(value: unknown): SQL {
+export function jsonbLiteral(value: unknown): SQL {
   return sql.raw(`'${JSON.stringify(value).replace(/'/g, "''")}'::jsonb`);
+}
+
+/**
+ * Normalise a Drizzle `client.execute(sql\`…\`)` result into a row array.
+ * postgres.js returns the array directly; some adapter paths return
+ * `{ rows: [...] }`. Either form lands as `T[]` here.
+ */
+export function unwrapRows<T = Record<string, unknown>>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  return ((result as { rows?: unknown[] })?.rows ?? []) as T[];
 }
 
 // ============================================
@@ -124,7 +134,7 @@ export async function recordFactChange(params: RecordFactChangeParams): Promise<
       ${params.actor}
     ) RETURNING id
   `);
-  const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows ?? [];
+  const rows = unwrapRows(result);
   const id = (rows[0] as { id: string } | undefined)?.id;
   if (!id) throw new Error('recordFactChange: INSERT returned no row');
   return id;
@@ -173,7 +183,7 @@ export async function recordEdgeChange(params: RecordEdgeChangeParams): Promise<
       ${params.reasoning}, ${params.reasoningReportId ?? null}::uuid, ${params.actor}
     ) RETURNING id
   `);
-  const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows ?? [];
+  const rows = unwrapRows(result);
   const id = (rows[0] as { id: string } | undefined)?.id;
   if (!id) throw new Error('recordEdgeChange: INSERT returned no row');
   return id;
@@ -323,6 +333,3 @@ function toEdgeHistoryRow(row: CausalEdgeHistory): EdgeHistoryRow {
   };
 }
 
-// Re-export the SQL type so callers building custom queries can reference it
-// without reaching into drizzle-orm directly.
-export type { SQL };

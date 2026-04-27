@@ -9,13 +9,16 @@ import { db } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
 import { causalEdges, causalEvents, edgeSourceRefs, type CausalEvent, type CausalEdge } from '../db/schema.js';
 import { eq, and, gte, lte, sql, or, inArray, isNull } from 'drizzle-orm';
-import { recordEdgeChange, syncEdgeSourceRefs, type Actor } from './audit.js';
+import {
+  recordEdgeChange,
+  syncEdgeSourceRefs,
+  jsonbLiteral,
+  unwrapRows,
+  type Actor,
+  type SourceReference,
+} from './audit.js';
 
-export interface SourceReference {
-  type: 'memory' | 'fact' | 'entity';
-  id: string;
-  relevance: string;
-}
+export type { SourceReference };
 
 export interface CreateCausalEdgeParams {
   causeEventId: string;
@@ -88,16 +91,13 @@ async function applyCorroboration(
   const { merged, addedDiff } = mergeSourceReferences(prevRefs, params.sourceReferences);
   const prevStrength = Number(existing.strength);
   const newStrength = Math.min(1.0, prevStrength + CORROBORATION_STRENGTH_DELTA);
-  const mergedLiteral = sql.raw(
-    `'${JSON.stringify(merged).replace(/'/g, "''")}'::jsonb`,
-  );
 
   await tx.execute(sql`
     UPDATE public.causal_edges
     SET strength = ${newStrength},
         corroboration_count = corroboration_count + 1,
         last_corroborated = NOW(),
-        source_references = ${mergedLiteral}
+        source_references = ${jsonbLiteral(merged)}
     WHERE id = ${existing.id}::uuid
   `);
 
@@ -168,16 +168,15 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
     throw new Error('strength must be between 0.0 and 1.0');
   }
 
-  // Verify both events exist
-  const [causeEvent, effectEvent] = await Promise.all([
-    db.select({ id: causalEvents.id }).from(causalEvents).where(eq(causalEvents.id, params.causeEventId)).limit(1),
-    db.select({ id: causalEvents.id }).from(causalEvents).where(eq(causalEvents.id, params.effectEventId)).limit(1),
-  ]);
-
-  if (causeEvent.length === 0) {
+  const existingEvents = await db
+    .select({ id: causalEvents.id })
+    .from(causalEvents)
+    .where(inArray(causalEvents.id, [params.causeEventId, params.effectEventId]));
+  const existingIds = new Set(existingEvents.map((r) => r.id));
+  if (!existingIds.has(params.causeEventId)) {
     throw new Error(`causeEventId '${params.causeEventId}' does not reference an existing causal event`);
   }
-  if (effectEvent.length === 0) {
+  if (!existingIds.has(params.effectEventId)) {
     throw new Error(`effectEventId '${params.effectEventId}' does not reference an existing causal event`);
   }
 
@@ -203,12 +202,9 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
       LIMIT 1
       FOR UPDATE
     `);
-    const exactRows = Array.isArray(exactResult)
-      ? exactResult
-      : (exactResult as { rows?: unknown[] }).rows ?? [];
-    const exactMatch = exactRows[0] as
-      | { id: string; strength: number; source_references: unknown }
-      | undefined;
+    const exactMatch = unwrapRows<{ id: string; strength: number; source_references: unknown }>(
+      exactResult,
+    )[0];
 
     if (exactMatch) {
       return applyCorroboration(tx as unknown as typeof db, exactMatch, params);
@@ -251,12 +247,9 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
       LIMIT 1
       FOR UPDATE OF e
     `);
-    const semanticRows = Array.isArray(semanticResult)
-      ? semanticResult
-      : (semanticResult as { rows?: unknown[] }).rows ?? [];
-    const semanticMatch = semanticRows[0] as
-      | { id: string; strength: number; source_references: unknown }
-      | undefined;
+    const semanticMatch = unwrapRows<{ id: string; strength: number; source_references: unknown }>(
+      semanticResult,
+    )[0];
 
     if (semanticMatch) {
       return applyCorroboration(tx as unknown as typeof db, semanticMatch, params);
@@ -273,7 +266,7 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
         ${params.effectEventId}::uuid,
         ${params.strength},
         ${params.reasoning},
-        ${sql.raw(`'${JSON.stringify(params.sourceReferences).replace(/'/g, "''")}'::jsonb`)},
+        ${jsonbLiteral(params.sourceReferences)},
         ${params.extractionMethod ?? 'llm'},
         ${params.temporalSpan ?? null},
         ${params.strength},
@@ -284,8 +277,7 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
       ) RETURNING id
     `);
 
-    const rows = Array.isArray(inserted) ? inserted : (inserted as { rows?: unknown[] }).rows ?? [];
-    const edgeId = (rows[0] as { id: string } | undefined)?.id;
+    const edgeId = unwrapRows<{ id: string }>(inserted)[0]?.id;
     if (!edgeId) throw new Error('createCausalEdge: INSERT returned no row');
 
     await recordEdgeChange({
@@ -405,17 +397,12 @@ export async function reviseCausalEdge(params: ReviseCausalEdgeParams): Promise<
     ? [...(prevRefs as SourceReference[]), ...addedSourceRefs]
     : (prevRefs as SourceReference[]);
 
-  // Raw-SQL UPDATE (same jsonb-in-tx workaround as createCausalEdge).
-  const mergedRefsLiteral = sql.raw(
-    `'${JSON.stringify(mergedRefs).replace(/'/g, "''")}'::jsonb`,
-  );
-
   await db.transaction(async (tx) => {
     await tx.execute(sql`
       UPDATE public.causal_edges
       SET strength = ${newStrength ?? prevStrength},
           reasoning = ${newReasoning ?? prevReasoning},
-          source_references = ${mergedRefsLiteral}
+          source_references = ${jsonbLiteral(mergedRefs)}
       WHERE id = ${edgeId}::uuid
     `);
 

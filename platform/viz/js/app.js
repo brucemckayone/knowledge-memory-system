@@ -31,6 +31,13 @@ const layers = { fact: true, causal: true, source: false, merge: false, sameAs: 
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+function chargeStrength(d) {
+  if (d._nodeType === 'entity') return -400;
+  if (d._nodeType === 'sourceMemory') return -30;
+  if (d._nodeType === 'causalEvent') return -60;
+  return -80;
+}
+
 // ============================================================
 // GRAPH RENDERING
 // ============================================================
@@ -87,12 +94,7 @@ function initSvg() {
       if (d._edgeType === 'sameAs') return 0.08;
       return 0.2;
     }))
-    .force('charge', d3.forceManyBody().strength(d => {
-      if (d._nodeType === 'entity') return -400;
-      if (d._nodeType === 'sourceMemory') return -30;
-      if (d._nodeType === 'causalEvent') return -60;
-      return -80;
-    }))
+    .force('charge', d3.forceManyBody().strength(chargeStrength))
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collision', d3.forceCollide().radius(d => nodeRadius(d) + 6));
 }
@@ -205,12 +207,7 @@ function render() {
     const width = svg.node().clientWidth;
     const height = svg.node().clientHeight;
     simulation.force('center', d3.forceCenter(width / 2, height / 2));
-    simulation.force('charge').strength(d => {
-      if (d._nodeType === 'entity') return -400;
-      if (d._nodeType === 'sourceMemory') return -30;
-      if (d._nodeType === 'causalEvent') return -60;
-      return -80;
-    });
+    simulation.force('charge').strength(chargeStrength);
     simulation.nodes(visibleNodes);
     simulation.force('link').links(visibleEdges);
     simulation.alpha(0.3).restart();
@@ -828,17 +825,24 @@ async function fetchData() {
 
     data = unified;
 
-    // Compute time range from all timestamps
-    const allTimes = [];
+    // Compute time range from all timestamps. Reduce over the source arrays directly
+    // — Math.min(...allTimes) blows the call stack at 10k+ entries on some engines.
+    let tMin = Infinity, tMax = -Infinity;
     for (const n of data.nodes) {
-      if (n.occurredAt) allTimes.push(new Date(n.occurredAt).getTime());
+      if (!n.occurredAt) continue;
+      const t = new Date(n.occurredAt).getTime();
+      if (t < tMin) tMin = t;
+      if (t > tMax) tMax = t;
     }
     for (const e of data.edges) {
-      if (e.createdAt) allTimes.push(new Date(e.createdAt).getTime());
+      if (!e.createdAt) continue;
+      const t = new Date(e.createdAt).getTime();
+      if (t < tMin) tMin = t;
+      if (t > tMax) tMax = t;
     }
-    if (allTimes.length > 0) {
-      timeRange.min = Math.min(...allTimes);
-      timeRange.max = Math.max(...allTimes);
+    if (tMin !== Infinity) {
+      timeRange.min = tMin;
+      timeRange.max = tMax;
     }
 
     render();

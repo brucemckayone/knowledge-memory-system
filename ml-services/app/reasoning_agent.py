@@ -18,7 +18,7 @@ Triggered: manually via /api/reason (patrol) or /api/reason/query (query).
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
 from .core.llm import llm_client
 from .core.concurrency import llm_pool, QueueFullError
 
@@ -28,7 +28,7 @@ router = APIRouter()
 
 
 class ReasoningRequest(BaseModel):
-    mode: str = "patrol"  # "patrol" | "query"
+    mode: Literal["patrol", "query"] = "patrol"
     question: Optional[str] = None
     mcp_config_path: str
 

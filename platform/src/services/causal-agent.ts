@@ -1090,15 +1090,13 @@ async function _handleToolCallInner(
         .from(memoryEntities)
         .where(eq(memoryEntities.entityId, toolInput.entity_id as string));
 
-      // For each unique memory, fetch content preview
-      const memoryIds = [...new Set(mentions.map(m => m.memoryId))];
+      const memoryIds = [...new Set(mentions.map(m => m.memoryId))].slice(0, 10);
+      const fetched = await Promise.all(memoryIds.map(getMemory));
       const previews: Record<string, string> = {};
-      for (const mid of memoryIds.slice(0, 10)) {
-        const mem = await getMemory(mid);
-        if (mem?.payload) {
-          previews[mid] = (mem.payload.content as string)?.slice(0, 300) ?? '';
-        }
-      }
+      memoryIds.forEach((mid, i) => {
+        const content = fetched[i]?.payload?.content as string | undefined;
+        if (content) previews[mid] = content.slice(0, 300);
+      });
 
       return JSON.stringify(mentions.map(m => ({
         memoryId: m.memoryId,
@@ -1150,16 +1148,14 @@ async function _handleToolCallInner(
         .where(ilike(entityAliases.alias, `%${query}%`))
         .limit(10);
 
-      // Also include summaries for matched entities
       const entityIds = [...new Set(matches.map(m => m.entityId))];
       const summaries: Record<string, string | null> = {};
-      for (const eid of entityIds) {
-        const meta = await db
-          .select({ summary: entityMeta.summary })
+      if (entityIds.length > 0) {
+        const metaRows = await db
+          .select({ entityId: entityMeta.entityId, summary: entityMeta.summary })
           .from(entityMeta)
-          .where(eq(entityMeta.entityId, eid))
-          .limit(1);
-        summaries[eid] = meta[0]?.summary ?? null;
+          .where(inArray(entityMeta.entityId, entityIds));
+        for (const row of metaRows) summaries[row.entityId] = row.summary ?? null;
       }
 
       return JSON.stringify(matches.map(m => ({
@@ -1175,19 +1171,14 @@ async function _handleToolCallInner(
     case 'update_entity_summary': {
       const entityId = toolInput.entity_id as string;
       const summary = toolInput.summary as string;
+      const updatedAt = new Date();
       await db
         .insert(entityMeta)
-        .values({
-          entityId,
-          summary,
-          updatedAt: new Date(),
-        })
-        .onConflictDoNothing();
-      // Update if already exists
-      await db
-        .update(entityMeta)
-        .set({ summary, updatedAt: new Date() })
-        .where(eq(entityMeta.entityId, entityId));
+        .values({ entityId, summary, updatedAt })
+        .onConflictDoUpdate({
+          target: entityMeta.entityId,
+          set: { summary, updatedAt },
+        });
       return JSON.stringify({ updated: true });
     }
 
@@ -1421,6 +1412,19 @@ async function _handleToolCallInner(
         .filter(e => e.fact_count === 0 && e.mention_count > 0)
         .slice(0, 20);
 
+      // 10. Sparse leaves — entities in the main cluster with only 1-2 edges,
+      //     dangling off a hub. Prime targets for cross-linking.
+      const sparseLeaves = allEntities
+        .filter(e => {
+          const d = degree[e.id] ?? 0;
+          return d === 1 || d === 2;
+        })
+        .map(e => ({
+          id: e.id, name: e.canonical_name, type: e.entity_type,
+          degree: degree[e.id] ?? 0, factCount: e.fact_count,
+        }))
+        .sort((a, b) => a.degree - b.degree);
+
       return JSON.stringify({
         summary: {
           totalEntities: allEntities.length,
@@ -1456,22 +1460,7 @@ async function _handleToolCallInner(
           id: e.id, name: e.canonical_name, type: e.entity_type,
           mentionCount: e.mention_count,
         })),
-        // Sparse leaves — entities with only 1 entity-edge, dangling off a hub.
-        // Technically in the main cluster but practically isolated. Prime targets
-        // for cross-linking to related peers.
-        sparseLeaves: (() => {
-          const leaves = allEntities
-            .filter(e => {
-              const d = degree[e.id] ?? 0;
-              return d === 1 || d === 2; // 1-2 connections only
-            })
-            .map(e => ({
-              id: e.id, name: e.canonical_name, type: e.entity_type,
-              degree: degree[e.id] ?? 0, factCount: e.fact_count,
-            }))
-            .sort((a, b) => a.degree - b.degree);
-          return { count: leaves.length, entities: leaves.slice(0, 30) };
-        })(),
+        sparseLeaves: { count: sparseLeaves.length, entities: sparseLeaves.slice(0, 30) },
       });
     }
 
