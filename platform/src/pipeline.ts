@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
 import { invokeGraphAgent, invokeGardenerAgent } from './services/causal-agent.js';
+import { applyConfidenceDecay } from './services/causal.js';
 import { updateEntityMeta, detectMergeCandidates } from './services/graph-meta.js';
 import { db } from './db/index.js';
 import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports } from './db/schema.js';
@@ -30,6 +31,12 @@ export interface ExtractResult {
 // ============================================
 const GARDENER_RUN_INTERVAL = 5; // trigger gardener every N graph agent runs
 let graphAgentRunCount = 0;
+
+// ============================================
+// Confidence-Decay Auto-Trigger Counter
+// ============================================
+const DECAY_RUN_INTERVAL = 10; // run applyConfidenceDecay every N graph agent runs
+let decayRunCount = 0;
 
 export interface IngestResult extends ExtractResult {}
 
@@ -202,6 +209,25 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
         gardenerResult = { triggered: false };
       }
       timing.gardener = Date.now() - tGarden;
+    }
+
+    // 6. Auto-trigger confidence decay every N graph agent runs (independent
+    //    of the gardener counter — they cycle on different intervals).
+    decayRunCount++;
+    if (decayRunCount >= DECAY_RUN_INTERVAL) {
+      const tDecay = Date.now();
+      const runsSince = decayRunCount;
+      decayRunCount = 0; // reset before async call
+      console.log(`[decay] auto-triggering applyConfidenceDecay after ${runsSince} graph agent runs`);
+      try {
+        const decayResult = await applyConfidenceDecay();
+        console.log(
+          `[decay] complete decayed=${decayResult.decayed} expired=${decayResult.expired}`,
+        );
+      } catch (err) {
+        console.warn('[decay] failed:', err instanceof Error ? err.message : err);
+      }
+      timing.decay = Date.now() - tDecay;
     }
   }
 

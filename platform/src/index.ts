@@ -16,7 +16,7 @@ import { getMergeCandidates } from './services/graph-meta.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const vizHtml = readFileSync(join(__dirname, '../viz/index.html'), 'utf-8');
 
-const app = new Hono();
+export const app = new Hono();
 
 app.get('/health', async (c) => {
   const db = await checkDatabaseHealth();
@@ -507,6 +507,40 @@ app.post('/api/garden', async (c) => {
   }
 });
 
+app.post('/api/decay', async (c) => {
+  // Manually trigger confidence decay over the causal-edge graph.
+  // Returns the same DecayResult shape produced by applyConfidenceDecay so
+  // the reasoning agent / viz can present decayed and expired counts directly.
+  const tStart = Date.now();
+  console.log('[decay] manual trigger received');
+
+  const { applyConfidenceDecay } = await import('./services/causal.js');
+  try {
+    const result = await applyConfidenceDecay();
+    const durationMs = Date.now() - tStart;
+    console.log(
+      `[decay] manual complete decayed=${result.decayed} expired=${result.expired} durationMs=${durationMs}`,
+    );
+    return c.json({
+      triggered: true,
+      decayed: result.decayed,
+      expired: result.expired,
+      decayedEdgeIds: result.decayedEdgeIds,
+      expiredEdgeIds: result.expiredEdgeIds,
+      durationMs,
+    });
+  } catch (err) {
+    return c.json(
+      {
+        triggered: false,
+        error: err instanceof Error ? err.message : String(err),
+        durationMs: Date.now() - tStart,
+      },
+      500,
+    );
+  }
+});
+
 app.post('/api/viz/clear', async (c) => {
   // Delete in FK-safe order
   for (const table of ['reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports', 'merge_candidates', 'entity_meta', 'memory_entities', 'entity_aliases', 'causal_edges', 'causal_events', 'causal_patterns', 'facts', 'entity_merges', 'entities']) {
@@ -745,6 +779,10 @@ app.get('/api/mcp-health', async (c) => {
 
 const port = parseInt(process.env.PORT || '3000', 10);
 
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`Platform listening on :${info.port}`);
-});
+// Skip the network listener when imported under Vitest so endpoint tests can
+// drive routes via `app.request()` without binding the dev port.
+if (!process.env.VITEST) {
+  serve({ fetch: app.fetch, port }, (info) => {
+    console.log(`Platform listening on :${info.port}`);
+  });
+}
