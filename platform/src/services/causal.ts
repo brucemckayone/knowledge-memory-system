@@ -432,6 +432,178 @@ export async function reviseCausalEdge(params: ReviseCausalEdgeParams): Promise<
 }
 
 // ============================================
+// Confidence decay — Phase 2 part B (doc 13)
+// ============================================
+
+const DEFAULT_DECAY_RATE = 0.95;
+const DEFAULT_DECAY_FLOOR = 0.1;
+const DEFAULT_DECAY_AGE_DAYS = 30;
+
+export interface ApplyConfidenceDecayOptions {
+  /** Multiplier applied per cycle. Must be in (0, 1). Default 0.95. */
+  rate?: number;
+  /** Strength threshold at which an edge is expired instead of decayed.
+   *  Must be in (0, 1). Default 0.1. */
+  floor?: number;
+  /** Stale threshold in days since last_corroborated. Must be > 0. Default 30. */
+  ageDays?: number;
+  /** Audit actor on the resulting history rows. Default 'system_trigger'. */
+  actor?: Actor;
+}
+
+export interface DecayResult {
+  decayed: number;
+  expired: number;
+  decayedEdgeIds: string[];
+  expiredEdgeIds: string[];
+}
+
+function readDecayEnv(name: string, fallback: number, valid: (n: number) => boolean): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || !valid(parsed)) {
+    console.warn(`[decay] ignoring invalid ${name}=${JSON.stringify(raw)}; using default ${fallback}`);
+    return fallback;
+  }
+  return parsed;
+}
+
+function resolveDecayConfig(options: ApplyConfidenceDecayOptions): {
+  rate: number;
+  floor: number;
+  ageDays: number;
+  actor: Actor;
+} {
+  const rate = options.rate ?? readDecayEnv('MNEMO_DECAY_RATE', DEFAULT_DECAY_RATE, (n) => n > 0 && n < 1);
+  const floor = options.floor ?? readDecayEnv('MNEMO_DECAY_FLOOR', DEFAULT_DECAY_FLOOR, (n) => n > 0 && n < 1);
+  const ageDays =
+    options.ageDays ?? readDecayEnv('MNEMO_DECAY_AGE_DAYS', DEFAULT_DECAY_AGE_DAYS, (n) => n > 0);
+  return { rate, floor, ageDays, actor: options.actor ?? 'system_trigger' };
+}
+
+/**
+ * Fade uncorroborated, stale, LLM-asserted causal edges. Each qualifying
+ * edge is decayed by `rate` (or expired if `strength * rate <= floor`). Every
+ * transition writes a `causal_edge_history` row in the same per-edge
+ * transaction as the strength update.
+ *
+ * Configuration resolution order: `options` arg → env var → default.
+ *   - rate     ← MNEMO_DECAY_RATE     (default 0.95, must be in (0, 1))
+ *   - floor    ← MNEMO_DECAY_FLOOR    (default 0.10, must be in (0, 1))
+ *   - ageDays  ← MNEMO_DECAY_AGE_DAYS (default 30,   must be > 0)
+ *
+ * Qualifying filter (doc 13 part B):
+ *   - expired_at IS NULL
+ *   - corroboration_count <= 1     (never reinforced)
+ *   - last_corroborated < NOW() - INTERVAL 'ageDays days'
+ *   - strength > floor             (above floor; otherwise ready to expire)
+ *   - extraction_method = 'llm'    (don't decay user-asserted edges)
+ *
+ * Concurrency: candidates are loaded read-only, then each row is locked
+ * with `FOR UPDATE` inside its own transaction and the qualifying filter
+ * is re-checked. If another worker corroborated/decayed the edge between
+ * the candidate scan and the lock, the row is silently skipped.
+ */
+export async function applyConfidenceDecay(
+  options: ApplyConfidenceDecayOptions = {},
+): Promise<DecayResult> {
+  const { rate, floor, ageDays, actor } = resolveDecayConfig(options);
+
+  const candidatesResult = await db.execute(sql`
+    SELECT id
+    FROM public.causal_edges
+    WHERE expired_at IS NULL
+      AND corroboration_count <= 1
+      AND last_corroborated < NOW() - (${ageDays} * INTERVAL '1 day')
+      AND strength > ${floor}
+      AND extraction_method = 'llm'
+  `);
+  const candidateRows = Array.isArray(candidatesResult)
+    ? candidatesResult
+    : (candidatesResult as { rows?: unknown[] }).rows ?? [];
+
+  const decayedEdgeIds: string[] = [];
+  const expiredEdgeIds: string[] = [];
+
+  for (const row of candidateRows) {
+    const edgeId = (row as { id: string }).id;
+
+    await db.transaction(async (tx) => {
+      // Re-evaluate the qualifying filter under the row lock — concurrent
+      // corroboration / decay runs may have moved this row out of scope.
+      const lockedResult = await tx.execute(sql`
+        SELECT strength
+        FROM public.causal_edges
+        WHERE id = ${edgeId}::uuid
+          AND expired_at IS NULL
+          AND corroboration_count <= 1
+          AND last_corroborated < NOW() - (${ageDays} * INTERVAL '1 day')
+          AND strength > ${floor}
+          AND extraction_method = 'llm'
+        FOR UPDATE
+      `);
+      const lockedRows = Array.isArray(lockedResult)
+        ? lockedResult
+        : (lockedResult as { rows?: unknown[] }).rows ?? [];
+      const locked = lockedRows[0] as { strength: number } | undefined;
+      if (!locked) return;
+
+      const prevStrength = Number(locked.strength);
+      const computed = prevStrength * rate;
+      const newStrength = Math.max(floor, computed);
+      const willExpire = newStrength <= floor;
+
+      if (willExpire) {
+        await tx.execute(sql`
+          UPDATE public.causal_edges
+          SET strength = ${newStrength},
+              expired_at = NOW(),
+              expire_reason = 'confidence decay'
+          WHERE id = ${edgeId}::uuid
+        `);
+        await recordEdgeChange({
+          edgeId,
+          eventType: 'expired',
+          previousStrength: prevStrength,
+          newStrength,
+          reasoning:
+            `confidence decayed to floor (${floor}) without corroboration for ${ageDays}+ days`,
+          actor,
+          tx,
+        });
+        expiredEdgeIds.push(edgeId);
+      } else {
+        await tx.execute(sql`
+          UPDATE public.causal_edges
+          SET strength = ${newStrength},
+              decay_applied = true
+          WHERE id = ${edgeId}::uuid
+        `);
+        await recordEdgeChange({
+          edgeId,
+          eventType: 'decayed',
+          previousStrength: prevStrength,
+          newStrength,
+          reasoning:
+            `decayed by ${((1 - rate) * 100).toFixed(1)}% after ${ageDays}+ days without corroboration`,
+          actor,
+          tx,
+        });
+        decayedEdgeIds.push(edgeId);
+      }
+    });
+  }
+
+  return {
+    decayed: decayedEdgeIds.length,
+    expired: expiredEdgeIds.length,
+    decayedEdgeIds,
+    expiredEdgeIds,
+  };
+}
+
+// ============================================
 // Read / Query Functions
 // ============================================
 

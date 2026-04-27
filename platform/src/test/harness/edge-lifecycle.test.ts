@@ -14,7 +14,7 @@ import {
   deleteFromTables,
   randomUUID,
 } from '../setup.js';
-import { createCausalEdge, expireCausalEdge } from '../../services/causal.js';
+import { applyConfidenceDecay, createCausalEdge, expireCausalEdge } from '../../services/causal.js';
 import { getEdgeHistory } from '../../services/audit.js';
 
 async function cleanSlate(): Promise<void> {
@@ -107,6 +107,53 @@ async function seedTwoEntities(): Promise<{ causeEntityId: string; effectEntityI
     entityType: 'concept',
   });
   return { causeEntityId: cause.id, effectEntityId: effect.id };
+}
+
+/**
+ * Seed a single causal edge with caller-controlled lifecycle fields, used
+ * by the decay tests to bypass the corroboration logic on the way in.
+ */
+async function seedDecayEdge(opts: {
+  causeEventId: string;
+  effectEventId: string;
+  strength: number;
+  /** corroboration_count, default 1. */
+  corroborationCount?: number;
+  /** how many days ago last_corroborated should be set; omit to use NOW(). */
+  ageDays?: number;
+  /** extraction_method, default 'llm'. */
+  extractionMethod?: string;
+  /** mark already-expired before the test runs. */
+  expired?: boolean;
+}): Promise<string> {
+  const refLiteral = JSON.stringify([{ type: 'memory', id: randomUUID(), relevance: 'r' }]);
+  const [row] = await testDb`
+    INSERT INTO public.causal_edges (
+      cause_event_id, effect_event_id, strength, reasoning, source_references,
+      extraction_method, initial_strength, corroboration_count
+    ) VALUES (
+      ${opts.causeEventId}::uuid, ${opts.effectEventId}::uuid,
+      ${opts.strength}, 'seeded for decay test', ${refLiteral}::jsonb,
+      ${opts.extractionMethod ?? 'llm'}, ${opts.strength},
+      ${opts.corroborationCount ?? 1}
+    ) RETURNING id
+  `;
+  const id = row!.id as string;
+  if (opts.ageDays !== undefined) {
+    await testDb`
+      UPDATE public.causal_edges
+      SET last_corroborated = NOW() - (${opts.ageDays} * INTERVAL '1 day')
+      WHERE id = ${id}::uuid
+    `;
+  }
+  if (opts.expired) {
+    await testDb`
+      UPDATE public.causal_edges
+      SET expired_at = NOW(), expire_reason = 'pre-test'
+      WHERE id = ${id}::uuid
+    `;
+  }
+  return id;
 }
 
 describe('Phase 2 — Edge Lifecycle: exact-match corroboration', () => {
@@ -632,5 +679,254 @@ describe('Phase 2 — Edge Lifecycle: semantic-match corroboration', () => {
     });
 
     expect(id2).not.toBe(id1);
+  });
+});
+
+describe('Phase 2 — Edge Lifecycle: confidence decay', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('decays a stale uncorroborated edge by the default rate', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.5, ageDays: 31,
+    });
+
+    const result = await applyConfidenceDecay();
+
+    expect(result.decayed).toBe(1);
+    expect(result.expired).toBe(0);
+    expect(result.decayedEdgeIds).toContain(id);
+
+    const rows = await testDb`SELECT strength, decay_applied, expired_at FROM causal_edges WHERE id = ${id}::uuid`;
+    expect(Number(rows[0]!.strength)).toBeCloseTo(0.475, 5); // 0.5 * 0.95
+    expect(rows[0]!.decay_applied).toBe(true);
+    expect(rows[0]!.expired_at).toBeNull();
+  });
+
+  it('writes a decayed audit row with actor=system_trigger', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.5, ageDays: 31,
+    });
+
+    await applyConfidenceDecay();
+
+    const hist = await getEdgeHistory(id);
+    expect(hist).toHaveLength(1);
+    expect(hist[0]!.eventType).toBe('decayed');
+    expect(hist[0]!.actor).toBe('system_trigger');
+    expect(hist[0]!.previousStrength).toBeCloseTo(0.5, 5);
+    expect(hist[0]!.newStrength).toBeCloseTo(0.475, 5);
+  });
+
+  it('expires an edge whose decayed strength reaches the floor', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    // 0.105 * 0.95 = 0.09975, which is <= floor (0.1) → expire.
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.105, ageDays: 31,
+    });
+
+    const result = await applyConfidenceDecay();
+
+    expect(result.expired).toBe(1);
+    expect(result.decayed).toBe(0);
+    expect(result.expiredEdgeIds).toContain(id);
+
+    const rows = await testDb`SELECT expired_at, expire_reason FROM causal_edges WHERE id = ${id}::uuid`;
+    expect(rows[0]!.expired_at).not.toBeNull();
+    expect(rows[0]!.expire_reason).toBe('confidence decay');
+
+    const hist = await getEdgeHistory(id);
+    expect(hist[0]!.eventType).toBe('expired');
+    expect(hist[0]!.actor).toBe('system_trigger');
+  });
+
+  it('skips edges with corroboration_count > 1', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.5, ageDays: 31, corroborationCount: 2,
+    });
+
+    const result = await applyConfidenceDecay();
+    expect(result.decayed).toBe(0);
+    expect(result.expired).toBe(0);
+
+    const rows = await testDb`SELECT strength, decay_applied FROM causal_edges WHERE id = ${id}::uuid`;
+    expect(Number(rows[0]!.strength)).toBeCloseTo(0.5, 5);
+    expect(rows[0]!.decay_applied).toBe(false);
+  });
+
+  it('skips edges that are not yet stale (last_corroborated within ageDays)', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.5, ageDays: 5,
+    });
+
+    const result = await applyConfidenceDecay();
+    expect(result.decayed).toBe(0);
+
+    const rows = await testDb`SELECT strength FROM causal_edges WHERE id = ${id}::uuid`;
+    expect(Number(rows[0]!.strength)).toBeCloseTo(0.5, 5);
+  });
+
+  it('skips edges with extraction_method != llm (e.g., user-asserted)', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.5, ageDays: 31, extractionMethod: 'user',
+    });
+
+    const result = await applyConfidenceDecay();
+    expect(result.decayed).toBe(0);
+
+    const rows = await testDb`SELECT strength FROM causal_edges WHERE id = ${id}::uuid`;
+    expect(Number(rows[0]!.strength)).toBeCloseTo(0.5, 5);
+  });
+
+  it('skips already-expired edges', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.5, ageDays: 31, expired: true,
+    });
+
+    const result = await applyConfidenceDecay();
+    expect(result.decayed).toBe(0);
+    expect(result.expired).toBe(0);
+
+    const hist = await getEdgeHistory(id);
+    expect(hist).toHaveLength(0); // no new audit row produced by decay
+  });
+
+  it('skips edges already at or below the floor (filter qualifier)', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    // strength == floor → strength > floor is false → excluded by qualifier.
+    // The edge is left alone for the next caller (e.g., manual expire) to handle.
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.1, ageDays: 31,
+    });
+
+    const result = await applyConfidenceDecay();
+    expect(result.decayed).toBe(0);
+    expect(result.expired).toBe(0);
+
+    const rows = await testDb`SELECT strength, expired_at FROM causal_edges WHERE id = ${id}::uuid`;
+    expect(Number(rows[0]!.strength)).toBeCloseTo(0.1, 5);
+    expect(rows[0]!.expired_at).toBeNull();
+  });
+
+  it('honours options.rate over the default', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.6, ageDays: 31,
+    });
+
+    await applyConfidenceDecay({ rate: 0.5 });
+
+    const rows = await testDb`SELECT strength FROM causal_edges WHERE id = ${id}::uuid`;
+    expect(Number(rows[0]!.strength)).toBeCloseTo(0.3, 5); // 0.6 * 0.5
+  });
+
+  it('honours options.actor on the audit row', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.5, ageDays: 31,
+    });
+
+    await applyConfidenceDecay({ actor: 'reasoning_agent' });
+
+    const hist = await getEdgeHistory(id);
+    expect(hist[0]!.actor).toBe('reasoning_agent');
+  });
+
+  it('honours MNEMO_DECAY_RATE env var when no options.rate is given', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.6, ageDays: 31,
+    });
+
+    const original = process.env.MNEMO_DECAY_RATE;
+    process.env.MNEMO_DECAY_RATE = '0.5';
+    try {
+      await applyConfidenceDecay();
+    } finally {
+      if (original === undefined) delete process.env.MNEMO_DECAY_RATE;
+      else process.env.MNEMO_DECAY_RATE = original;
+    }
+
+    const rows = await testDb`SELECT strength FROM causal_edges WHERE id = ${id}::uuid`;
+    expect(Number(rows[0]!.strength)).toBeCloseTo(0.3, 5);
+  });
+
+  it('falls back to default when MNEMO_DECAY_RATE is invalid', async () => {
+    const { causeEventId, effectEventId } = await seedEventPair();
+    const id = await seedDecayEdge({
+      causeEventId, effectEventId,
+      strength: 0.5, ageDays: 31,
+    });
+
+    const original = process.env.MNEMO_DECAY_RATE;
+    process.env.MNEMO_DECAY_RATE = 'not-a-number';
+    try {
+      await applyConfidenceDecay();
+    } finally {
+      if (original === undefined) delete process.env.MNEMO_DECAY_RATE;
+      else process.env.MNEMO_DECAY_RATE = original;
+    }
+
+    const rows = await testDb`SELECT strength FROM causal_edges WHERE id = ${id}::uuid`;
+    expect(Number(rows[0]!.strength)).toBeCloseTo(0.475, 5); // default 0.95 still applied
+  });
+
+  it('processes a mixed batch — some decayed, some expired, some skipped', async () => {
+    const a = await seedEventPair();
+    const b = await seedEventPair();
+    const c = await seedEventPair();
+    const d = await seedEventPair();
+
+    // Should decay
+    const decayId = await seedDecayEdge({
+      causeEventId: a.causeEventId, effectEventId: a.effectEventId,
+      strength: 0.5, ageDays: 31,
+    });
+    // Should expire (just above floor → falls to floor)
+    const expireId = await seedDecayEdge({
+      causeEventId: b.causeEventId, effectEventId: b.effectEventId,
+      strength: 0.105, ageDays: 31,
+    });
+    // Should skip — corroborated
+    const skipCorroboratedId = await seedDecayEdge({
+      causeEventId: c.causeEventId, effectEventId: c.effectEventId,
+      strength: 0.5, ageDays: 31, corroborationCount: 3,
+    });
+    // Should skip — fresh
+    const skipFreshId = await seedDecayEdge({
+      causeEventId: d.causeEventId, effectEventId: d.effectEventId,
+      strength: 0.5, ageDays: 1,
+    });
+
+    const result = await applyConfidenceDecay();
+
+    expect(result.decayed).toBe(1);
+    expect(result.expired).toBe(1);
+    expect(result.decayedEdgeIds).toEqual([decayId]);
+    expect(result.expiredEdgeIds).toEqual([expireId]);
+
+    const cRows = await testDb`SELECT strength, decay_applied FROM causal_edges WHERE id = ${skipCorroboratedId}::uuid`;
+    expect(cRows[0]!.decay_applied).toBe(false);
+
+    const dRows = await testDb`SELECT strength, decay_applied FROM causal_edges WHERE id = ${skipFreshId}::uuid`;
+    expect(dRows[0]!.decay_applied).toBe(false);
   });
 });
