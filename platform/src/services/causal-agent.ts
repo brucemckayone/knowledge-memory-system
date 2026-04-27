@@ -643,7 +643,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
   {
     name: 'save_reasoning_report',
     description:
-      'Save a reasoning report at the end of a reasoning pass. Links the report to all entities, facts, and causal edges it touched.',
+      'Save a reasoning report ONCE at the very end of a reasoning pass. Call this exactly one time per /api/reason invocation — multiple calls create duplicate rows and break patrol cooldown. Aggregate findings across all phases first, then save with all entities/facts/edges deduplicated.',
     inputSchema: {
       type: 'object' as const,
       properties: {

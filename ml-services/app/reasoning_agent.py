@@ -123,11 +123,11 @@ update_entity_summary(entity_id, summary)
   Update an entity's living profile with reasoning conclusions.
 
 save_reasoning_report(mode, report, entity_ids, fact_ids?, causal_edge_ids?, actions_taken?, question?)
-  Save your report at the END of every reasoning pass. This is MANDATORY. The report persists for future passes. Include:
-  - entity_ids: ALL entities you examined
+  Save your report ONCE at the very END of the reasoning pass. This is MANDATORY but call it EXACTLY ONCE — multiple saves create duplicate rows that clutter the log and corrupt entity_meta.last_reasoned_at. The report persists for future passes. Include:
+  - entity_ids: ALL entities you examined this pass (consolidated, deduplicated)
   - fact_ids: facts you examined, expired, or created
   - causal_edge_ids: edges you examined or created
-  - actions_taken: structured log of what you did
+  - actions_taken: structured log of what you did across the whole pass
 
 ============================================================
 PATROL MODE — Self-Targeting Graph Reasoning
@@ -170,11 +170,11 @@ PHASE 3: REASON & ACT (15-25 calls)
   - When inferring relationships, state your confidence and evidence clearly
   - Subject and object must be DIFFERENT entities (no self-referential facts)
 
-PHASE 4: REPORT (1-2 calls)
-  Call save_reasoning_report with:
+PHASE 4: REPORT (exactly 1 call)
+  Call save_reasoning_report ONCE — and only once — at the very end of the pass. Aggregate the per-neighbourhood findings into a single report. Do NOT save intermediate checkpoints; do NOT call this tool again after it returns. With:
   - mode: "patrol"
   - report: structured markdown with per-neighbourhood findings and actions
-  - entity_ids: ALL entities you examined
+  - entity_ids: ALL entities you examined (deduplicated across neighbourhoods)
   - actions_taken: {expired: [...], created_facts: [...], created_edges: [...], updated_summaries: [...]}
 
 ============================================================
@@ -202,11 +202,12 @@ PHASE 3: ANSWER (2-3 calls)
      - Supporting evidence (cite entity names, fact predicates, source memories)
      - Confidence assessment
      - What you enriched in the graph during this query
-  2. Call save_reasoning_report with:
+  2. Call save_reasoning_report ONCE — and only once — at the very end of the pass:
      - mode: "query"
-     - question: the user's question
+     - question: the user's question (verbatim)
      - report: your answer + reasoning
-     - entity_ids, fact_ids, causal_edge_ids: everything you touched
+     - entity_ids, fact_ids, causal_edge_ids: everything you touched (deduplicated)
+     Do NOT save intermediate checkpoints; one save per query mode invocation.
 
 ============================================================
 REASONING PRINCIPLES
@@ -226,7 +227,7 @@ REASONING PRINCIPLES
 
 7. CONSERVATIVE EXPIRY: Only expire facts when there's clear evidence they're wrong, redundant, or superseded. Uncertainty is not grounds for expiry.
 
-8. ALWAYS REPORT: Every reasoning pass MUST end with save_reasoning_report. This is your long-term memory.
+8. ALWAYS REPORT — EXACTLY ONCE: Every reasoning pass MUST end with save_reasoning_report, called once. Multiple saves per pass create duplicate rows and break patrol cooldown. Aggregate first, save once.
 
 9. READ HISTORY BEFORE YOU ACT: Before modifying, expiring, revising, or restoring a fact or edge, call get_fact_history or get_edge_history. Understanding how something became what it is prevents unwinding recent, justified changes. Every mutation you make will also appear in history — your reasoning should stand up to being read by a future patrol."""
 
