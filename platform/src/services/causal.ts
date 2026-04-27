@@ -72,18 +72,68 @@ function mergeSourceReferences(
 }
 
 /**
+ * Apply the corroboration update + audit to an already-locked active edge.
+ * Caller is responsible for selecting `existing` with `FOR UPDATE` inside the
+ * same transaction so concurrent corroborations of the same target serialise
+ * behind the row lock instead of racing.
+ */
+async function applyCorroboration(
+  tx: typeof db,
+  existing: { id: string; strength: number; source_references: unknown },
+  params: CreateCausalEdgeParams,
+): Promise<string> {
+  const prevRefs = Array.isArray(existing.source_references)
+    ? (existing.source_references as SourceReference[])
+    : [];
+  const { merged, addedDiff } = mergeSourceReferences(prevRefs, params.sourceReferences);
+  const prevStrength = Number(existing.strength);
+  const newStrength = Math.min(1.0, prevStrength + CORROBORATION_STRENGTH_DELTA);
+  const mergedLiteral = sql.raw(
+    `'${JSON.stringify(merged).replace(/'/g, "''")}'::jsonb`,
+  );
+
+  await tx.execute(sql`
+    UPDATE public.causal_edges
+    SET strength = ${newStrength},
+        corroboration_count = corroboration_count + 1,
+        last_corroborated = NOW(),
+        source_references = ${mergedLiteral}
+    WHERE id = ${existing.id}::uuid
+  `);
+
+  await recordEdgeChange({
+    edgeId: existing.id,
+    eventType: 'corroborated',
+    previousStrength: prevStrength,
+    newStrength,
+    addedSourceRefs: addedDiff,
+    reasoning: params.reasoning,
+    actor: params.actor,
+    reasoningReportId: params.reasoningReportId ?? null,
+    tx,
+  });
+
+  return existing.id;
+}
+
+/**
  * Create a causal edge between two causal events, or corroborate an existing
- * active edge for the same (cause_event_id, effect_event_id) pair.
+ * active edge that represents the same causal claim.
  *
- * Corroboration semantics (Phase 2 part A — doc 13):
- *   - bump strength by +0.05 capped at 1.0
- *   - increment corroboration_count
- *   - stamp last_corroborated = NOW()
- *   - merge source_references (dedup by type+id)
- *   - write a causal_edge_history row with event_type='corroborated'
- *   - return the existing edge id
+ * Corroboration runs in two stages (doc 13 part A):
+ *   1. **Exact match** on `(cause_event_id, effect_event_id)`.
+ *   2. **Semantic match** — same `(subject_entity_id, predicate)` on cause AND
+ *      effect via different events. Strongest active candidate wins,
+ *      tiebreak by earliest `created_at`.
  *
- * Validates reasoning, source references, and event existence on both paths.
+ * On either match, the existing edge is updated:
+ *   - strength += 0.05 capped at 1.0
+ *   - corroboration_count += 1
+ *   - last_corroborated = NOW()
+ *   - source_references merged (dedup by type+id)
+ *   - causal_edge_history row with event_type='corroborated'
+ *
+ * Validates reasoning, source references, and event existence on all paths.
  */
 export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<string> {
   // --- Validation ---
@@ -142,7 +192,7 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
     // Step 1: exact-match corroboration. SELECT … FOR UPDATE so two
     // concurrent corroborations of the same pair serialise behind the row
     // lock instead of racing into a duplicate edge.
-    const existingResult = await tx.execute(sql`
+    const exactResult = await tx.execute(sql`
       SELECT id, strength, source_references
       FROM public.causal_edges
       WHERE cause_event_id = ${params.causeEventId}::uuid
@@ -151,49 +201,66 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
       LIMIT 1
       FOR UPDATE
     `);
-    const existingRows = Array.isArray(existingResult)
-      ? existingResult
-      : (existingResult as { rows?: unknown[] }).rows ?? [];
-    const existing = existingRows[0] as
+    const exactRows = Array.isArray(exactResult)
+      ? exactResult
+      : (exactResult as { rows?: unknown[] }).rows ?? [];
+    const exactMatch = exactRows[0] as
       | { id: string; strength: number; source_references: unknown }
       | undefined;
 
-    if (existing) {
-      const prevRefs = Array.isArray(existing.source_references)
-        ? (existing.source_references as SourceReference[])
-        : [];
-      const { merged, addedDiff } = mergeSourceReferences(prevRefs, params.sourceReferences);
-      const prevStrength = Number(existing.strength);
-      const newStrength = Math.min(1.0, prevStrength + CORROBORATION_STRENGTH_DELTA);
-      const mergedLiteral = sql.raw(
-        `'${JSON.stringify(merged).replace(/'/g, "''")}'::jsonb`,
-      );
-
-      await tx.execute(sql`
-        UPDATE public.causal_edges
-        SET strength = ${newStrength},
-            corroboration_count = corroboration_count + 1,
-            last_corroborated = NOW(),
-            source_references = ${mergedLiteral}
-        WHERE id = ${existing.id}::uuid
-      `);
-
-      await recordEdgeChange({
-        edgeId: existing.id,
-        eventType: 'corroborated',
-        previousStrength: prevStrength,
-        newStrength,
-        addedSourceRefs: addedDiff,
-        reasoning: params.reasoning,
-        actor: params.actor,
-        reasoningReportId: params.reasoningReportId ?? null,
-        tx,
-      });
-
-      return existing.id;
+    if (exactMatch) {
+      return applyCorroboration(tx as unknown as typeof db, exactMatch, params);
     }
 
-    // Step 2: no exact match — INSERT new edge.
+    // Step 2: semantic-match corroboration. Two distinct (cause, effect)
+    // event pairs that share `(subject_entity_id, predicate)` on both ends
+    // describe the same causal claim — corroborate instead of branching.
+    // JOIN equality naturally excludes NULL metadata; the IS NOT NULL
+    // guards make that explicit and avoid surprising matches if the join
+    // semantics ever shift. ORDER BY strength DESC, created_at ASC so the
+    // strongest, oldest candidate wins (stable across runs).
+    const semanticResult = await tx.execute(sql`
+      WITH new_cause AS (
+        SELECT subject_entity_id, predicate
+        FROM public.causal_events
+        WHERE id = ${params.causeEventId}::uuid
+      ),
+      new_effect AS (
+        SELECT subject_entity_id, predicate
+        FROM public.causal_events
+        WHERE id = ${params.effectEventId}::uuid
+      )
+      SELECT e.id, e.strength, e.source_references
+      FROM public.causal_edges e
+      JOIN public.causal_events ce ON ce.id = e.cause_event_id
+      JOIN public.causal_events ee ON ee.id = e.effect_event_id
+      JOIN new_cause nc
+        ON ce.subject_entity_id = nc.subject_entity_id
+       AND ce.predicate = nc.predicate
+      JOIN new_effect ne
+        ON ee.subject_entity_id = ne.subject_entity_id
+       AND ee.predicate = ne.predicate
+      WHERE e.expired_at IS NULL
+        AND nc.subject_entity_id IS NOT NULL
+        AND nc.predicate IS NOT NULL
+        AND ne.subject_entity_id IS NOT NULL
+        AND ne.predicate IS NOT NULL
+      ORDER BY e.strength DESC, e.created_at ASC
+      LIMIT 1
+      FOR UPDATE OF e
+    `);
+    const semanticRows = Array.isArray(semanticResult)
+      ? semanticResult
+      : (semanticResult as { rows?: unknown[] }).rows ?? [];
+    const semanticMatch = semanticRows[0] as
+      | { id: string; strength: number; source_references: unknown }
+      | undefined;
+
+    if (semanticMatch) {
+      return applyCorroboration(tx as unknown as typeof db, semanticMatch, params);
+    }
+
+    // Step 3: no match — INSERT new edge.
     const inserted = await tx.execute(sql`
       INSERT INTO public.causal_edges (
         cause_event_id, effect_event_id, strength, reasoning,
