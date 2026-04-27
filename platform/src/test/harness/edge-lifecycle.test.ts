@@ -15,6 +15,7 @@ import {
   randomUUID,
 } from '../setup.js';
 import { applyConfidenceDecay, createCausalEdge, expireCausalEdge } from '../../services/causal.js';
+import { expireFact, invalidateFact } from '../../services/facts.js';
 import { getEdgeHistory } from '../../services/audit.js';
 
 async function cleanSlate(): Promise<void> {
@@ -928,5 +929,208 @@ describe('Phase 2 — Edge Lifecycle: confidence decay', () => {
 
     const dRows = await testDb`SELECT strength, decay_applied FROM causal_edges WHERE id = ${skipFreshId}::uuid`;
     expect(dRows[0]!.decay_applied).toBe(false);
+  });
+});
+
+/**
+ * Seed a cascade fixture: one subject entity, two facts (target + sibling),
+ * three causal events, and three causal edges in a known topology.
+ *
+ *   sole-source edge   — cites only `factId`,        corroboration_count=1
+ *   multi-source edge  — cites `factId` + `otherFactId`, corroboration_count=2
+ *   non-citing edge    — cites only `otherFactId`,   corroboration_count=1
+ *
+ * Each edge is mirrored into `edge_source_refs` to match what the wired
+ * createCausalEdge would have produced — the fixture is hand-rolled (raw
+ * INSERT) so we control corroboration_count, strength, and the exact ref
+ * topology. Cascade behaviour is exercised by expireFact / invalidateFact
+ * on `factId` and observed via the three edges' state and audit rows.
+ */
+async function seedCascadeFixture(opts: {
+  /** Initial strength for the multi-source edge. Default 0.5. */
+  multiStrength?: number;
+} = {}): Promise<{
+  factId: string;
+  otherFactId: string;
+  soleEdgeId: string;
+  multiEdgeId: string;
+  nonCitingEdgeId: string;
+}> {
+  const subject = await createTestEntity({
+    canonicalName: `cascade-subj-${randomUUID().slice(0, 8)}`,
+    entityType: 'concept',
+  });
+  const factTarget = await createTestFact({
+    subjectEntityId: subject.id,
+    predicate: 'caused',
+    objectValue: `cascade-target-${randomUUID().slice(0, 8)}`,
+    confidence: 0.9,
+  });
+  const factOther = await createTestFact({
+    subjectEntityId: subject.id,
+    predicate: 'related_to',
+    objectValue: `cascade-other-${randomUUID().slice(0, 8)}`,
+    confidence: 0.9,
+  });
+
+  const [ev1] = await testDb`
+    INSERT INTO public.causal_events (fact_id, transition_type, subject_entity_id, predicate)
+    VALUES (${factTarget.id}::uuid, 'created', ${subject.id}::uuid, 'caused') RETURNING id
+  `;
+  const [ev2] = await testDb`
+    INSERT INTO public.causal_events (fact_id, transition_type, subject_entity_id, predicate)
+    VALUES (${factOther.id}::uuid, 'created', ${subject.id}::uuid, 'related_to') RETURNING id
+  `;
+  const [ev3] = await testDb`
+    INSERT INTO public.causal_events (fact_id, transition_type, subject_entity_id, predicate)
+    VALUES (${factTarget.id}::uuid, 'created', ${subject.id}::uuid, 'effect') RETURNING id
+  `;
+
+  const refsSole = JSON.stringify([{ type: 'fact', id: factTarget.id, relevance: 'sole' }]);
+  const [soleEdge] = await testDb`
+    INSERT INTO public.causal_edges (
+      cause_event_id, effect_event_id, strength, reasoning, source_references,
+      extraction_method, initial_strength, corroboration_count
+    ) VALUES (
+      ${ev1!.id}::uuid, ${ev3!.id}::uuid, 0.7, 'cascade fixture sole-source',
+      ${refsSole}::jsonb, 'llm', 0.7, 1
+    ) RETURNING id
+  `;
+  await testDb`
+    INSERT INTO public.edge_source_refs (edge_id, ref_type, ref_id, relevance)
+    VALUES (${soleEdge!.id}::uuid, 'fact', ${factTarget.id}::uuid, 'sole')
+  `;
+
+  const multiStrength = opts.multiStrength ?? 0.5;
+  const refsMulti = JSON.stringify([
+    { type: 'fact', id: factTarget.id, relevance: 'one' },
+    { type: 'fact', id: factOther.id, relevance: 'two' },
+  ]);
+  const [multiEdge] = await testDb`
+    INSERT INTO public.causal_edges (
+      cause_event_id, effect_event_id, strength, reasoning, source_references,
+      extraction_method, initial_strength, corroboration_count
+    ) VALUES (
+      ${ev2!.id}::uuid, ${ev3!.id}::uuid, ${multiStrength}, 'cascade fixture multi-source',
+      ${refsMulti}::jsonb, 'llm', ${multiStrength}, 2
+    ) RETURNING id
+  `;
+  await testDb`
+    INSERT INTO public.edge_source_refs (edge_id, ref_type, ref_id, relevance) VALUES
+      (${multiEdge!.id}::uuid, 'fact', ${factTarget.id}::uuid, 'one'),
+      (${multiEdge!.id}::uuid, 'fact', ${factOther.id}::uuid, 'two')
+  `;
+
+  const refsNon = JSON.stringify([{ type: 'fact', id: factOther.id, relevance: 'unrelated' }]);
+  const [nonCiting] = await testDb`
+    INSERT INTO public.causal_edges (
+      cause_event_id, effect_event_id, strength, reasoning, source_references,
+      extraction_method, initial_strength, corroboration_count
+    ) VALUES (
+      ${ev2!.id}::uuid, ${ev1!.id}::uuid, 0.6, 'cascade fixture non-citing',
+      ${refsNon}::jsonb, 'llm', 0.6, 1
+    ) RETURNING id
+  `;
+  await testDb`
+    INSERT INTO public.edge_source_refs (edge_id, ref_type, ref_id, relevance)
+    VALUES (${nonCiting!.id}::uuid, 'fact', ${factOther.id}::uuid, 'unrelated')
+  `;
+
+  return {
+    factId: factTarget.id,
+    otherFactId: factOther.id,
+    soleEdgeId: soleEdge!.id as string,
+    multiEdgeId: multiEdge!.id as string,
+    nonCitingEdgeId: nonCiting!.id as string,
+  };
+}
+
+describe('Phase 2 — Edge Lifecycle: cascade (fact expiry/invalidation)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('expireFact expires sole-source edges (corroboration_count = 1)', async () => {
+    const f = await seedCascadeFixture();
+
+    await expireFact({ factId: f.factId, reasoning: 'test cascade — sole source', actor: 'user' });
+
+    const [sole] = await testDb`
+      SELECT expired_at::text AS expired_at, expire_reason FROM causal_edges WHERE id = ${f.soleEdgeId}::uuid
+    `;
+    expect(sole!.expired_at).not.toBeNull();
+    expect(sole!.expire_reason).toContain('upstream fact');
+    expect(sole!.expire_reason).toContain(f.factId);
+  });
+
+  it('expireFact weakens multi-source edges by 20% (corroboration_count > 1)', async () => {
+    const f = await seedCascadeFixture({ multiStrength: 0.5 });
+
+    await expireFact({ factId: f.factId, reasoning: 'test cascade — multi source', actor: 'user' });
+
+    const [multi] = await testDb`
+      SELECT strength, expired_at::text AS expired_at FROM causal_edges WHERE id = ${f.multiEdgeId}::uuid
+    `;
+    expect(multi!.expired_at).toBeNull();
+    expect(Number(multi!.strength)).toBeCloseTo(0.4, 5);
+  });
+
+  it('expireFact does not affect edges that do not cite the fact', async () => {
+    const f = await seedCascadeFixture();
+
+    const [before] = await testDb`SELECT strength, expired_at::text AS expired_at FROM causal_edges WHERE id = ${f.nonCitingEdgeId}::uuid`;
+    await expireFact({ factId: f.factId, reasoning: 'test cascade — non-citing', actor: 'user' });
+    const [after] = await testDb`SELECT strength, expired_at::text AS expired_at FROM causal_edges WHERE id = ${f.nonCitingEdgeId}::uuid`;
+
+    expect(after!.expired_at).toBe(before!.expired_at);
+    expect(Number(after!.strength)).toBeCloseTo(Number(before!.strength), 5);
+  });
+
+  it('writes a cascade audit row with actor=cascade and event_type=expired on the sole-source edge', async () => {
+    const f = await seedCascadeFixture();
+
+    await expireFact({ factId: f.factId, reasoning: 'audit cascade', actor: 'reasoning_agent' });
+
+    const history = await getEdgeHistory(f.soleEdgeId);
+    const cascadeRow = history.find((r) => r.actor === 'cascade');
+    expect(cascadeRow).toBeDefined();
+    expect(cascadeRow!.eventType).toBe('expired');
+    expect(cascadeRow!.previousStrength).toBeCloseTo(0.7, 5);
+    expect(cascadeRow!.newStrength).toBeCloseTo(0.7, 5);
+    expect(cascadeRow!.reasoning).toContain(f.factId);
+  });
+
+  it('writes a cascade audit row with actor=cascade and event_type=weakened on the multi-source edge', async () => {
+    const f = await seedCascadeFixture({ multiStrength: 0.5 });
+
+    await expireFact({ factId: f.factId, reasoning: 'audit cascade', actor: 'reasoning_agent' });
+
+    const history = await getEdgeHistory(f.multiEdgeId);
+    const cascadeRow = history.find((r) => r.actor === 'cascade');
+    expect(cascadeRow).toBeDefined();
+    expect(cascadeRow!.eventType).toBe('weakened');
+    expect(cascadeRow!.previousStrength).toBeCloseTo(0.5, 5);
+    expect(cascadeRow!.newStrength).toBeCloseTo(0.4, 5);
+  });
+
+  it('invalidateFact triggers the same cascade as expireFact', async () => {
+    const f = await seedCascadeFixture({ multiStrength: 0.5 });
+
+    await invalidateFact({ factId: f.factId, reasoning: 'test invalidate cascade', actor: 'user' });
+
+    const [sole] = await testDb`SELECT expired_at::text AS expired_at FROM causal_edges WHERE id = ${f.soleEdgeId}::uuid`;
+    expect(sole!.expired_at).not.toBeNull();
+    const [multi] = await testDb`SELECT strength FROM causal_edges WHERE id = ${f.multiEdgeId}::uuid`;
+    expect(Number(multi!.strength)).toBeCloseTo(0.4, 5);
+  });
+
+  it('weaken honours the 0.1 floor when strength * 0.8 would dip below', async () => {
+    // multiStrength=0.11 → 0.11 * 0.8 = 0.088, floor clamps to 0.1
+    const f = await seedCascadeFixture({ multiStrength: 0.11 });
+
+    await expireFact({ factId: f.factId, reasoning: 'floor test', actor: 'user' });
+
+    const [multi] = await testDb`SELECT strength FROM causal_edges WHERE id = ${f.multiEdgeId}::uuid`;
+    expect(Number(multi!.strength)).toBeCloseTo(0.1, 5);
   });
 });
