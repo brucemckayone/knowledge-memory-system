@@ -701,7 +701,17 @@ app.get('/api/viz/graph-c', async (c) => {
 // Reasoning Agent
 // ============================================
 
+function logReasonRequest(c: { req: { header: (name: string) => string | undefined } }, mode: 'patrol' | 'query', question?: string): void {
+  // F5: log every reasoning invocation so spurious callers are identifiable.
+  const ua = c.req.header('user-agent') ?? 'unknown';
+  const referer = c.req.header('referer') ?? c.req.header('origin') ?? '-';
+  const fwd = c.req.header('x-forwarded-for') ?? '-';
+  const snippet = question ? ` question="${question.slice(0, 80).replace(/\s+/g, ' ')}"` : '';
+  console.log(`[reason] mode=${mode}${snippet} ua="${ua}" referer="${referer}" xff="${fwd}"`);
+}
+
 app.post('/api/reason', async (c) => {
+  logReasonRequest(c, 'patrol');
   const { invokeReasoningAgent } = await import('./services/causal-agent.js');
   const start = Date.now();
   try {
@@ -715,6 +725,7 @@ app.post('/api/reason', async (c) => {
 app.post('/api/reason/query', async (c) => {
   const body = await c.req.json<{ question: string }>();
   if (!body.question) return c.json({ error: 'question is required' }, 400);
+  logReasonRequest(c, 'query', body.question);
   const { invokeReasoningAgent } = await import('./services/causal-agent.js');
   const start = Date.now();
   try {
