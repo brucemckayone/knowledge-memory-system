@@ -9,7 +9,7 @@ import { db } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
 import { causalEdges, causalEvents, edgeSourceRefs, type CausalEvent, type CausalEdge } from '../db/schema.js';
 import { eq, and, gte, lte, sql, or, inArray, isNull } from 'drizzle-orm';
-import { recordEdgeChange, type Actor } from './audit.js';
+import { recordEdgeChange, syncEdgeSourceRefs, type Actor } from './audit.js';
 
 export interface SourceReference {
   type: 'memory' | 'fact' | 'entity';
@@ -112,6 +112,8 @@ async function applyCorroboration(
     reasoningReportId: params.reasoningReportId ?? null,
     tx,
   });
+
+  await syncEdgeSourceRefs(existing.id, addedDiff, tx);
 
   return existing.id;
 }
@@ -298,6 +300,8 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
       tx,
     });
 
+    await syncEdgeSourceRefs(edgeId, params.sourceReferences, tx);
+
     return edgeId;
   });
 }
@@ -428,6 +432,10 @@ export async function reviseCausalEdge(params: ReviseCausalEdgeParams): Promise<
       reasoningReportId,
       tx,
     });
+
+    if (addedSourceRefs && addedSourceRefs.length > 0) {
+      await syncEdgeSourceRefs(edgeId, addedSourceRefs, tx);
+    }
   });
 }
 
