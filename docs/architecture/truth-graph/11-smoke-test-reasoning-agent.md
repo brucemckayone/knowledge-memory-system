@@ -124,7 +124,7 @@ Also exercise the automated health check:
 curl http://localhost:3001/api/mcp-health
 ```
 
-**Expected:** `ok: true`, `tools: [...]` with 25 entries.
+**Expected:** `ok: true`, `tools: [...]` with at least 25 entries (current build exposes 32; Phase 1 audit-trail tools layered on after this doc was written).
 
 **Failure modes to watch:**
 - `npx tsx` not resolvable → check PATH
@@ -195,8 +195,8 @@ curl -X POST http://localhost:3001/api/reason/query \
 -- connect: psql -h localhost -p 5433 -U postgres mnemo
 SET search_path = ag_catalog, public;
 
-SELECT id, mode, question, LEFT(report, 200) AS preview, 
-       jsonb_array_length(entity_ids) AS n_entities, created_at
+SELECT id, mode, question, LEFT(report, 200) AS preview,
+       cardinality(entity_ids) AS n_entities, created_at
 FROM reasoning_reports
 ORDER BY created_at DESC
 LIMIT 5;

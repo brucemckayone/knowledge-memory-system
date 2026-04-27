@@ -725,6 +725,13 @@ app.post('/api/reason/query', async (c) => {
   }
 });
 
+// MCP health probe — spawns causal-mcp.ts, asks for tools/list, returns the catalogue.
+app.get('/api/mcp-health', async (c) => {
+  const { checkCausalMcpHealth } = await import('./services/causal-agent.js');
+  const result = await checkCausalMcpHealth();
+  return c.json(result, result.ok ? 200 : 503);
+});
+
 const port = parseInt(process.env.PORT || '3000', 10);
 
 serve({ fetch: app.fetch, port }, (info) => {
