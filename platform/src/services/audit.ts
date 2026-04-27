@@ -14,6 +14,7 @@ import { db } from '../db/index.js';
 import {
   factHistory,
   causalEdgeHistory,
+  edgeSourceRefs,
   type FactHistory,
   type CausalEdgeHistory,
 } from '../db/schema.js';
@@ -176,6 +177,36 @@ export async function recordEdgeChange(params: RecordEdgeChangeParams): Promise<
   const id = (rows[0] as { id: string } | undefined)?.id;
   if (!id) throw new Error('recordEdgeChange: INSERT returned no row');
   return id;
+}
+
+/**
+ * Sync `causal_edges.source_references` (JSONB authoritative format) to the
+ * denormalised `edge_source_refs` reverse-lookup index. Idempotent — duplicate
+ * (edge_id, ref_type, ref_id) triples are dropped via ON CONFLICT DO NOTHING.
+ *
+ * Call after every INSERT into `causal_edges` and after every corroboration
+ * that adds new refs. The JSONB column remains the source of truth; this
+ * helper keeps the index in step.
+ *
+ * No-op on empty input. Pass `tx` when sync must commit atomically with the
+ * edge mutation that produced the refs.
+ */
+export async function syncEdgeSourceRefs(
+  edgeId: string,
+  refs: SourceReference[],
+  tx?: typeof db,
+): Promise<void> {
+  if (!refs || refs.length === 0) return;
+  const client = tx ?? db;
+  await client
+    .insert(edgeSourceRefs)
+    .values(refs.map((r) => ({
+      edgeId,
+      refType: r.type,
+      refId: r.id,
+      relevance: r.relevance,
+    })))
+    .onConflictDoNothing();
 }
 
 // ============================================
