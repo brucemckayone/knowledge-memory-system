@@ -17,6 +17,7 @@ import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
 import { ml } from './ml-client.js';
 import { recordPredicateUsage } from './predicates.js';
 import { recordFactChange, type Actor } from './audit.js';
+import { cascadeFactExpiry } from './causal.js';
 
 export interface CreateFactParams {
   subjectEntityId: string;
@@ -331,6 +332,8 @@ export async function expireFact(params: ExpireFactParams): Promise<void> {
     sourceMemoryId: existing[0]!.sourceMemoryId ?? undefined,
     sourceText: existing[0]!.sourceText ?? undefined,
   });
+
+  await cascadeFactExpiry(factId, { reasoningReportId });
 }
 
 export interface InvalidateFactParams {
@@ -396,6 +399,8 @@ export async function invalidateFact(params: InvalidateFactParams): Promise<void
     sourceMemoryId: existing[0]!.sourceMemoryId ?? undefined,
     sourceText: existing[0]!.sourceText ?? undefined,
   });
+
+  await cascadeFactExpiry(factId, { reasoningReportId });
 }
 
 export interface UpdateFactConfidenceParams {

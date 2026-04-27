@@ -440,6 +440,100 @@ export async function reviseCausalEdge(params: ReviseCausalEdgeParams): Promise<
 }
 
 // ============================================
+// Cascade — Phase 2 part C (doc 13)
+// ============================================
+
+/**
+ * Cascade weaken-or-expire ratio. Edges with corroboration_count > 1 lose
+ * 20% of their strength when an upstream fact dies; sole-source edges are
+ * tombstoned outright.
+ */
+const CASCADE_WEAKEN_FACTOR = 0.8;
+const CASCADE_STRENGTH_FLOOR = 0.1;
+
+export interface CascadeResult {
+  /** Edge ids whose strength was reduced because they had other corroboration. */
+  weakened: string[];
+  /** Edge ids that were expired because the dying fact was the sole source. */
+  expired: string[];
+}
+
+/**
+ * Cascade fact expiry/invalidation to causal edges that cited the fact as
+ * evidence. Active edges only — already-expired edges are skipped (the
+ * underlying findEdgesCitingReference filters by `expired_at IS NULL`).
+ *
+ *   - corroboration_count > 1: weaken by 20% (floor 0.1), audit `weakened`
+ *   - corroboration_count = 1: expire with reason `upstream fact … expired`,
+ *                              audit `expired`
+ *
+ * Each per-edge mutation runs in its own transaction so the UPDATE and
+ * audit row commit atomically. Per-edge granularity (not whole cascade)
+ * matches `applyConfidenceDecay` and avoids long write transactions on
+ * fact expirations with many downstream edges. A failure mid-cascade
+ * leaves earlier edges fully transitioned and later edges untouched —
+ * acceptable for a best-effort cleanup; surface for the reasoning agent
+ * to repair on next patrol.
+ *
+ * Audit rows always carry `actor='cascade'` (regardless of who triggered
+ * the upstream fact change) to make cascade-driven mutations distinct
+ * from direct edits.
+ */
+export async function cascadeFactExpiry(
+  factId: string,
+  options: { reasoningReportId?: string | null } = {},
+): Promise<CascadeResult> {
+  const reasoningReportId = options.reasoningReportId ?? null;
+  const affected = await findEdgesCitingReference('fact', factId);
+
+  const weakened: string[] = [];
+  const expired: string[] = [];
+
+  for (const edge of affected) {
+    if (edge.corroborationCount > 1) {
+      const newStrength = Math.max(CASCADE_STRENGTH_FLOOR, edge.strength * CASCADE_WEAKEN_FACTOR);
+      await db.transaction(async (tx) => {
+        await tx
+          .update(causalEdges)
+          .set({ strength: newStrength })
+          .where(eq(causalEdges.id, edge.id));
+        await recordEdgeChange({
+          edgeId: edge.id,
+          eventType: 'weakened',
+          previousStrength: edge.strength,
+          newStrength,
+          reasoning: `Upstream fact ${factId} was expired/invalidated; edge has other corroboration so weakened by ${Math.round((1 - CASCADE_WEAKEN_FACTOR) * 100)}%`,
+          actor: 'cascade',
+          reasoningReportId,
+          tx,
+        });
+      });
+      weakened.push(edge.id);
+    } else {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(causalEdges)
+          .set({ expiredAt: new Date(), expireReason: `upstream fact ${factId} expired` })
+          .where(eq(causalEdges.id, edge.id));
+        await recordEdgeChange({
+          edgeId: edge.id,
+          eventType: 'expired',
+          previousStrength: edge.strength,
+          newStrength: edge.strength,
+          reasoning: `Upstream fact ${factId} expired/invalidated; this was the sole source of evidence for this edge`,
+          actor: 'cascade',
+          reasoningReportId,
+          tx,
+        });
+      });
+      expired.push(edge.id);
+    }
+  }
+
+  return { weakened, expired };
+}
+
+// ============================================
 // Confidence decay — Phase 2 part B (doc 13)
 // ============================================
 
