@@ -21,7 +21,12 @@
   ],
   "complexity_score": 14,
   "status": "active",
-  "filed_beads": [],
+  "filed_beads": [
+    {
+      "id": "nmemo-w4j.11",
+      "classification": "code-bug"
+    }
+  ],
   "benchmarks": {
     "latest": null,
     "baseline": null,

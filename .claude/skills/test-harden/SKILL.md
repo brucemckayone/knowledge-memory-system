@@ -117,31 +117,43 @@ Decision tree:
 
 #### Invoking the Test-Data Evolver
 
-Use the `Agent` tool with `subagent_type: general-purpose`. Construct the prompt by:
+Use the `Agent` tool with `subagent_type: general-purpose`. The prompt is built by `assemble-evolver-prompt.py` — do not assemble it by hand:
 
-1. Reading `.claude/skills/test-harden/subagents/data-evolver.md` verbatim
-2. Appending an "Inputs" block with:
-   - Fixture content (read via `Read`)
-   - Expected JSON content
-   - Scenario state summary
-   - Recent benchmark reports (last 3 for this scenario)
-   - **Redacted** agent reports (pass through `redact-report.py` first):
-     ```bash
-     echo '<reports-json>' | python .claude/skills/test-harden/scripts/redact-report.py -
-     ```
-   - Gap description: "plateau push", "reproduce difficulty X", "correct malformed assertion"
+```bash
+python .claude/skills/test-harden/scripts/assemble-evolver-prompt.py \
+  <phase> <scenario> --mode <plateau | reproduce-difficulty | fix-malformed>
+```
 
-3. Request output in the format specified in `data-evolver.md`
+Captured stdout is the `prompt` argument for the `Agent` tool. The script gathers:
+
+- The current fixture file content
+- The expected JSON content
+- A scenario-state summary (fixture_version, complexity_score, stressors_applied, pass/fail counts)
+- Up to the 3 most recent benchmark reports for this scenario
+- Recent reasoning_reports from the DB, **redacted** (file paths, function names, SHAs stripped)
+- A mode-specific gap description
+- The phase doc's Acceptance Criteria section (read from `phases.json`)
+
+The subagent's `data-evolver.md` role prompt is included verbatim at the top, with the inputs appended in a `## Inputs` block, ending with the task instruction.
 
 #### Invoking the Code Analyser
 
-1. Read `subagents/code-analyser.md`
-2. Append inputs:
-   - Failure output (from run-scenario.sh)
-   - Source file(s) implicated by the top of the stack trace (use `Read` on those paths)
-   - Agent reports (NOT redacted — Code Analyser gets full detail)
-   - Phase doc acceptance criteria for this scenario (read from the phase doc)
-3. Parse classification + root cause + bead text from output
+Use the `Agent` tool with `subagent_type: general-purpose`. The prompt is built by `assemble-analyser-prompt.py`:
+
+```bash
+python .claude/skills/test-harden/scripts/assemble-analyser-prompt.py \
+  <phase> <scenario>  # defaults to .claude/skills/test-harden/scenario-state/<phase>-<scenario>.last-run.log
+```
+
+The script gathers:
+
+- The full vitest failure log (from `run-scenario.sh`)
+- The implicated production source files (parsed from stack-trace lines, contents inlined with line context — test files are excluded so the analyser doesn't see fixture internals)
+- Recent reasoning_reports from the DB, **NOT redacted** (analyser gets full detail per its role)
+- The phase doc's Acceptance Criteria section
+- Recent git log (`git log --max-count=5`) for each implicated source file
+
+The subagent's `code-analyser.md` role prompt is included verbatim at the top.
 
 ### Step 7 — GUARD
 
@@ -165,10 +177,44 @@ Exit code:
 
 ### Step 8 — ACT
 
-Apply the change from the subagent:
+Apply the change from the subagent. Both appliers are stdin-driven so the orchestrator can pipe the Agent tool's response straight in.
 
-- **Data Evolver output** → `Write` the updated fixture + expected JSON files. Bump `fixture_version` in scenario state.
-- **Code Analyser bead text** → file via `bd create`. Record the bead ID in scenario state's `filed_beads` array.
+**Data Evolver output → `apply-evolver-output.py`:**
+
+```bash
+python .claude/skills/test-harden/scripts/apply-evolver-output.py \
+  <phase> <scenario> --input <agent-output-file>
+# or via stdin:
+echo "$AGENT_OUTPUT" | python .claude/skills/test-harden/scripts/apply-evolver-output.py \
+  <phase> <scenario>
+```
+
+The script:
+1. Parses the `## Mutation proposal` markdown (fixture_version, axis, criterion, complexity_delta, fixture SQL, expected JSON, rationale)
+2. Validates: required fields present, version is `vN -> vN+1` form, expected JSON parses, axis is in the known set
+3. Validates the fixture against the test DB by running it inside `BEGIN; ... ROLLBACK;` via psql with `ON_ERROR_STOP=1` (skip with `--no-db-check`)
+4. Writes the updated fixture and expected JSON files
+5. Bumps `fixture_version` and `complexity_score` in scenario-state, appending the new axis to `stressors_applied`
+
+Use `--dry-run` first to see the parsed plan without writing.
+
+**Code Analyser output → `file-bead-from-analyser.py`:**
+
+```bash
+echo "$AGENT_OUTPUT" | python .claude/skills/test-harden/scripts/file-bead-from-analyser.py \
+  <phase> <scenario> [--skip-non-code-bugs]
+```
+
+The script:
+1. Parses the `## Failure analysis` markdown (Classification, Confidence, Affected, Root cause, Evidence, Suggested fix, Bead block)
+2. Validates: classification is one of `code-bug | test-bug | flaky | environment | regression | external-service`, type is `bug | task | feature | epic | chore`, priority is `0..4`, description ≥ 30 chars, root cause non-empty
+3. Looks up the parent bead from `scenario-state/phases.json` (e.g. `phase1 -> nmemo-w4j`)
+4. Runs `bd create --parent <parent-bead> --title=... --type=... --priority=... --description=...`
+5. Captures the new bead ID from `bd` stdout and appends `{id, classification}` to scenario-state's `filed_beads` array
+
+`--skip-non-code-bugs` suppresses bead filing for `test-bug | flaky | environment` classifications (they should round-trip back to the Data Evolver in fix-mode).
+
+Use `--dry-run` first to see the parsed plan and the `bd create` command without running it.
 
 Never modify production code as part of this skill. Code Analyser produces bead text only; actual fixes live in the phase's implementation issues.
 
@@ -269,8 +315,18 @@ All executable helpers live in `scripts/`:
 | `run-scenario.sh` | Execute vitest on a scenario, return structured JSON |
 | `collect-agent-reports.sh` | Pull reasoning_reports from DB since timestamp |
 | `write-benchmark.py` | Render benchmark markdown report |
+| `assemble-evolver-prompt.py` | Build the full Test-Data Evolver prompt for the `Agent` tool |
+| `apply-evolver-output.py` | Parse evolver output, validate against DB, write fixture + expected, bump scenario state |
+| `assemble-analyser-prompt.py` | Build the full Code Analyser prompt for the `Agent` tool |
+| `file-bead-from-analyser.py` | Parse analyser output, look up parent bead from `phases.json`, run `bd create`, record in scenario state |
 
-Scripts are idempotent and safe to re-run.
+Scripts are idempotent and safe to re-run. Parser unit tests live in `tests/test_parsers.py`:
+
+```bash
+python .claude/skills/test-harden/tests/test_parsers.py
+```
+
+The `phases.json` file (in `scenario-state/`) maps each phase to its parent bead ID and phase doc — update when new phases are added under the `nmemo-8vq` epic.
 
 ---
 
