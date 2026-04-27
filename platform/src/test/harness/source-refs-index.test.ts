@@ -10,12 +10,13 @@
  *   - ref_type discriminates (memory vs fact vs entity with same UUID)
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import {
   testDb,
   createTestEntity,
   createTestFact,
   deleteFromTables,
+  loadFixture,
   randomUUID,
 } from '../setup.js';
 import {
@@ -407,5 +408,194 @@ describe('Phase 3 — Source Reference Indexing: drift detection', () => {
     ` as unknown as Array<{ drift: number }>;
 
     expect(drift).toBe(0);
+  });
+});
+
+// ============================================
+// Reusable drift query (mirrors the expression above) — used by the
+// fixture-driven blocks below.
+// ============================================
+async function driftCount(): Promise<number> {
+  const [{ drift }] = await testDb`
+    WITH normalized AS (
+      SELECT
+        e.id AS edge_id,
+        CASE
+          WHEN jsonb_typeof(e.source_references) = 'array' THEN e.source_references
+          WHEN jsonb_typeof(e.source_references) = 'string' THEN (e.source_references #>> '{}')::jsonb
+          ELSE '[]'::jsonb
+        END AS refs
+      FROM public.causal_edges e
+    )
+    SELECT COUNT(*)::int AS drift
+    FROM normalized n
+    CROSS JOIN LATERAL jsonb_array_elements(n.refs) ref
+    WHERE ref->>'type' IN ('memory','fact','entity')
+      AND ref->>'id' IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.edge_source_refs r
+        WHERE r.edge_id = n.edge_id
+          AND r.ref_type = (ref->>'type')
+          AND r.ref_id = (ref->>'id')::uuid
+      )
+  ` as unknown as Array<{ drift: number }>;
+  return drift;
+}
+
+// ============================================
+// Fixture-driven: large-source-refs.sql — 1000-edge stress (nmemo-klv.3)
+// ============================================
+
+describe('Phase 3 — fixture-driven: large-source-refs (nmemo-klv.3)', () => {
+  const HOT_REF = 'aaaaaaaa-0000-0000-0000-000000000001';
+  // n=200 in hex is 'c8'
+  const UNIQUE_REF_N200 = 'aaaaaaaa-0001-0000-0000-0000000000c8';
+  const FACT_REF = 'bbbbbbbb-0000-0000-0000-000000000001';
+
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase3-source-refs/fixtures/large-source-refs.sql');
+  }, 30_000);
+
+  it('seeds 1000 stress edges and 2050 index rows', async () => {
+    const [{ count: edgeCount }] = await testDb`
+      SELECT COUNT(*)::int AS count FROM causal_edges
+      WHERE id::text LIKE '30000000-0000-0000-0001-%'
+    `;
+    expect(edgeCount).toBe(1000);
+
+    const [{ count: indexCount }] = await testDb`
+      SELECT COUNT(*)::int AS count FROM edge_source_refs r
+      WHERE EXISTS (
+        SELECT 1 FROM causal_edges e
+        WHERE e.id = r.edge_id AND e.id::text LIKE '30000000-0000-0000-0001-%'
+      )
+    `;
+    expect(indexCount).toBe(2050);
+  });
+
+  it('drift query returns 0 — JSONB and index are in sync after fixture load', async () => {
+    expect(await driftCount()).toBe(0);
+  });
+
+  it('hot lookup — findEdgesCitingReference("memory", HOT) returns all 1000', async () => {
+    const edges = await findEdgesCitingReference('memory', HOT_REF);
+    expect(edges).toHaveLength(1000);
+  });
+
+  it('unique lookup — findEdgesCitingReference("memory", UNIQUE_200) returns exactly 1', async () => {
+    const edges = await findEdgesCitingReference('memory', UNIQUE_REF_N200);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]!.reasoning).toBe('stress edge 200');
+  });
+
+  it('mid lookup — findEdgesCitingReference("fact", FACT_REF) returns 50', async () => {
+    const edges = await findEdgesCitingReference('fact', FACT_REF);
+    expect(edges).toHaveLength(50);
+  });
+});
+
+// ============================================
+// Fixture-driven: drift-detected.sql — adversarial (nmemo-klv.3)
+// ============================================
+
+describe('Phase 3 — adversarial: drift-detected (nmemo-klv.3)', () => {
+  const DRIFT_REF = 'aaaaaaaa-cccc-cccc-cccc-000000000001';
+  const CLEAN_REF = 'aaaaaaaa-bbbb-bbbb-bbbb-000000000001';
+
+  beforeEach(async () => {
+    await cleanSlate();
+    await loadFixture('phase3-source-refs/fixtures/drift-detected.sql');
+  });
+
+  it('drift query returns >0 when JSONB and index disagree', async () => {
+    const drift = await driftCount();
+    expect(drift).toBeGreaterThan(0);
+    // Exactly 1 drift: the deliberately-omitted ref on the drift edge.
+    expect(drift).toBe(1);
+  });
+
+  it('findEdgesCitingReference silently misses drifted refs (the failure mode)', async () => {
+    // The whole point of the drift detector: this lookup returns [] even
+    // though the edge's JSONB cites the ref. The detector exists because
+    // findEdgesCitingReference can't see that gap on its own.
+    const drifted = await findEdgesCitingReference('memory', DRIFT_REF);
+    expect(drifted).toHaveLength(0);
+  });
+
+  it('clean edge is still found via its in-sync ref', async () => {
+    const clean = await findEdgesCitingReference('memory', CLEAN_REF);
+    expect(clean).toHaveLength(1);
+    expect(clean[0]!.reasoning).toBe('clean edge — no drift');
+  });
+});
+
+// ============================================
+// Benchmarks — Phase 3 (klv.3): findEdgesCitingReference <50ms at 1000 edges
+// ============================================
+
+function p95(samples: number[]): number {
+  const sorted = [...samples].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95));
+  return sorted[idx]!;
+}
+
+describe('Phase 3 — large-source-refs benchmarks (nmemo-klv.3)', () => {
+  const HOT_REF = 'aaaaaaaa-0000-0000-0000-000000000001';
+  const UNIQUE_REF_N200 = 'aaaaaaaa-0001-0000-0000-0000000000c8';
+  const FACT_REF = 'bbbbbbbb-0000-0000-0000-000000000001';
+  const N = 100;
+  const RESULTS: Record<string, { p50: number; p95: number; max: number }> = {};
+
+  function record(name: string, samples: number[]): void {
+    samples.sort((a, b) => a - b);
+    RESULTS[name] = {
+      p50: samples[Math.floor(samples.length * 0.5)]!,
+      p95: p95(samples),
+      max: samples[samples.length - 1]!,
+    };
+  }
+
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase3-source-refs/fixtures/large-source-refs.sql');
+  }, 30_000);
+
+  it(`hot lookup p95 < 50ms (${N} iterations, 1000-row result)`, async () => {
+    const samples: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const start = performance.now();
+      await findEdgesCitingReference('memory', HOT_REF);
+      samples.push(performance.now() - start);
+    }
+    record('findEdgesCitingReference_hot', samples);
+    expect(p95(samples)).toBeLessThan(50);
+  }, 60_000);
+
+  it(`unique lookup p95 < 50ms (${N} iterations, 1-row result)`, async () => {
+    const samples: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const start = performance.now();
+      await findEdgesCitingReference('memory', UNIQUE_REF_N200);
+      samples.push(performance.now() - start);
+    }
+    record('findEdgesCitingReference_unique', samples);
+    expect(p95(samples)).toBeLessThan(50);
+  }, 60_000);
+
+  it(`fact-ref lookup p95 < 50ms (${N} iterations, 50-row result)`, async () => {
+    const samples: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const start = performance.now();
+      await findEdgesCitingReference('fact', FACT_REF);
+      samples.push(performance.now() - start);
+    }
+    record('findEdgesCitingReference_fact', samples);
+    expect(p95(samples)).toBeLessThan(50);
+  }, 60_000);
+
+  it('emit benchmark summary marker', () => {
+    process.stderr.write(`\n[BENCH klv.3] ${JSON.stringify(RESULTS)}\n`);
+    expect(Object.keys(RESULTS).length).toBe(3);
   });
 });
