@@ -137,4 +137,52 @@ describe('B05: Causal agent — tool definitions', () => {
     const parsed = JSON.parse(result);
     expect(parsed.error).toBe('Memory not found');
   });
+
+  // Regression: F3 — save_reasoning_report must update entity_meta.last_reasoned_at
+  // for every entity_id passed in. Prior implementation used a raw `db.execute(sql\`...
+  // = ANY(${entityIds}::uuid[])\`)` which silently matched 0 rows on the live db.
+  it('save_reasoning_report sets last_reasoned_at on every referenced entity', async () => {
+    await testDb`
+      INSERT INTO entity_meta (entity_id, last_reasoned_at)
+      VALUES (${entityId}::uuid, NULL)
+      ON CONFLICT (entity_id) DO UPDATE SET last_reasoned_at = NULL
+    `;
+
+    const result = await handleToolCall('save_reasoning_report', {
+      mode: 'patrol',
+      report: 'F3 regression test report',
+      entity_ids: [entityId],
+      fact_ids: [],
+      causal_edge_ids: [],
+      actions_taken: { test: true },
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.reportId).toBeDefined();
+
+    const [row] = await testDb`
+      SELECT last_reasoned_at FROM entity_meta WHERE entity_id = ${entityId}::uuid
+    `;
+    expect(row?.last_reasoned_at).toBeInstanceOf(Date);
+    expect((row!.last_reasoned_at as Date).getTime()).toBeGreaterThan(Date.now() - 60_000);
+
+    // Cleanup
+    await testDb`DELETE FROM reasoning_reports WHERE id = ${parsed.reportId}::uuid`;
+    await testDb`DELETE FROM entity_meta WHERE entity_id = ${entityId}::uuid`;
+  });
+
+  it('save_reasoning_report with empty entity_ids does not throw', async () => {
+    const result = await handleToolCall('save_reasoning_report', {
+      mode: 'query',
+      question: 'F3 empty-ids test',
+      report: 'no entities referenced',
+      entity_ids: [],
+      fact_ids: [],
+      causal_edge_ids: [],
+      actions_taken: {},
+    });
+    const parsed = JSON.parse(result);
+    expect(parsed.reportId).toBeDefined();
+    await testDb`DELETE FROM reasoning_reports WHERE id = ${parsed.reportId}::uuid`;
+  });
 });

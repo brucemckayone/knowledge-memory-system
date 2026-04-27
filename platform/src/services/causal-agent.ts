@@ -20,7 +20,7 @@ import { findSimilarEntities, resolveEntity, linkMemoryToEntity } from './entiti
 import { searchMemories, getMemory } from './qdrant.js';
 import { db } from '../db/index.js';
 import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports } from '../db/schema.js';
-import { eq, desc, sql, isNull, and, ilike } from 'drizzle-orm';
+import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
 import { getEntityCausalHistory, createCausalEdge, expireCausalEdge, reviseCausalEdge, type SourceReference as CausalSourceRef } from './causal.js';
 import { getFactHistory, getEdgeHistory, type Actor } from './audit.js';
 import { ml } from './ml-client.js';
@@ -1613,10 +1613,14 @@ async function _handleToolCallInner(
         .returning({ id: reasoningReports.id });
 
       if (entityIds.length > 0) {
-        await db.execute(sql`
-          UPDATE public.entity_meta SET last_reasoned_at = NOW()
-          WHERE entity_id = ANY(${entityIds}::uuid[])
-        `);
+        const updated = await db
+          .update(entityMeta)
+          .set({ lastReasonedAt: new Date() })
+          .where(inArray(entityMeta.entityId, entityIds))
+          .returning({ entityId: entityMeta.entityId });
+        if (updated.length === 0) {
+          console.warn(`[save_reasoning_report] UPDATE matched 0 entity_meta rows for ${entityIds.length} entity ids`);
+        }
       }
 
       return JSON.stringify({ reportId: result[0]?.id });
