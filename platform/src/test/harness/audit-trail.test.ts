@@ -60,17 +60,20 @@ import { handleToolCall } from '../../services/causal-agent.js';
 // ============================================
 
 async function cleanSlate(): Promise<void> {
-  await deleteFromTables(
-    'causal_edge_history',
-    'fact_history',
-    'causal_edges',
-    'causal_events',
-    'memory_entities',
-    'entity_aliases',
-    'facts',
-    'entity_merges',
-    'entities',
-  );
+  await deleteFromTables({
+    tables: [
+      'causal_edge_history',
+      'fact_history',
+      'causal_edges',
+      'causal_events',
+      'memory_entities',
+      'entity_aliases',
+      'facts',
+      'entity_merges',
+      'entities',
+    ],
+    acknowledgeGlobal: true,
+  });
 }
 
 // ============================================

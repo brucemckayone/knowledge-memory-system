@@ -118,9 +118,29 @@ export async function isQdrantAvailable(): Promise<boolean> {
 }
 
 /**
+ * Options for the global-cleanup helpers below. The `acknowledgeGlobal: true`
+ * flag is required by design — these functions delete EVERY row in the named
+ * tables, not just rows owned by the current test, and they will race any
+ * other test running in parallel against the same DB. Callers must opt in at
+ * the call site so a drive-by reader of the test sees the global blast radius.
+ *
+ * See `nmemo-0dx.2` and `docs/handoff/test-debt-cleanup.md`.
+ */
+export interface GlobalCleanupOptions {
+  /** Tables to nuke. Empty array or omitted → every table in the ordered list. */
+  tables?: string[];
+  /**
+   * Required. Acknowledges that this deletes EVERY row in the named tables,
+   * including rows owned by tests running in parallel workers. Future scoped
+   * cleanup helpers (per-tag, per-worker) won't need this flag.
+   */
+  acknowledgeGlobal: true;
+}
+
+/**
  * Truncate all test tables
  * WARNING: Uses exclusive locks - avoid in parallel tests
- * @deprecated Use deleteFromTables for parallel-safe cleanup
+ * @deprecated Use deleteFromTables({acknowledgeGlobal:true}) for parallel-safe cleanup
  */
 export async function truncateAllTables(): Promise<void> {
   await testDb`TRUNCATE TABLE
@@ -139,21 +159,27 @@ export async function truncateAllTables(): Promise<void> {
 }
 
 /**
- * Truncate specific tables
- * WARNING: Uses exclusive locks - avoid in parallel tests
- * @deprecated Use deleteFromTables for parallel-safe cleanup
+ * Truncate specific tables across the WHOLE database.
+ * WARNING: Uses exclusive locks - avoid in parallel tests.
+ * @deprecated Prefer deleteFromTables({acknowledgeGlobal:true}) — DELETE doesn't
+ *   take table-level locks and is friendlier to other parallel workers.
  */
-export async function truncateTables(...tables: string[]): Promise<void> {
+export async function truncateTables(opts: GlobalCleanupOptions): Promise<void> {
+  const tables = opts.tables ?? [];
   for (const table of tables) {
     await testDb.unsafe(`TRUNCATE TABLE ${table} CASCADE`);
   }
 }
 
 /**
- * Delete from specific tables (parallel-safe alternative to truncate)
- * Uses DELETE which only requires row-level locks, not table-level exclusive locks
+ * Delete every row from the named tables (or every table in the ordered list
+ * when `tables` is omitted), in FK-respecting order. Parallel-safe vs TRUNCATE
+ * (no exclusive locks) but NOT scoped to the current test — wipes rows owned
+ * by other workers too. The `acknowledgeGlobal` flag exists to make that blast
+ * radius visible at every call site.
  */
-export async function deleteFromTables(...tables: string[]): Promise<void> {
+export async function deleteFromTables(opts: GlobalCleanupOptions): Promise<void> {
+  const tables = opts.tables ?? [];
   // Delete in reverse dependency order to avoid FK violations
   const orderedTables = [
     // Phase 1 audit tables — must go before facts / causal_edges because of FK
@@ -197,7 +223,7 @@ export async function deleteFromTables(...tables: string[]): Promise<void> {
   ];
 
   const tablesToDelete = tables.length > 0
-    ? orderedTables.filter(t => tables.includes(t))
+    ? orderedTables.filter((t) => tables.includes(t))
     : orderedTables;
 
   for (const table of tablesToDelete) {

@@ -85,15 +85,17 @@ violations on triggers (notably `causal_edges_cause_event_id_fkey`
 after `causal_events` rows are wiped, and
 `entity_aliases_entity_id_fkey` after `entities` rows are wiped).
 
-Known callers still using the global-destructive pattern:
+Known callers still using the global-destructive pattern (each one
+must now opt in via the `acknowledgeGlobal: true` flag — see the
+follow-up §3 below):
 - `src/test/harness/audit-trail.test.ts` (own Phase 1 suite — expects
   clean slate for comprehensive assertions)
 - `src/test/quality/e2e-ml-judge.test.ts`
 - `src/test/quality/retrieval-quality.test.ts`
 - `src/test/quality/temporal-pipeline.test.ts` (in `quality/`, not
   `integration/`)
-- `src/test/benchmarks/performance.bench.ts` (still uses
-  `truncateTables`)
+- `src/test/benchmarks/performance.bench.ts` (uses the deprecated
+  `truncateTables` sibling)
 
 Serializing file execution is the pragmatic fix. Refactoring each
 caller to use scoped cleanup would be a larger, riskier change; if
@@ -121,10 +123,16 @@ minus LLM) run in under 5 min total.
    `vitest.config.ts` (or a second config file) and run the fast tier
    in parallel, slow tier serially.
 
-3. **Harden `deleteFromTables`**
-   Rename to `deleteFromTablesDangerous` or require an
-   `{ acknowledgeGlobal: true }` flag so future callers can't
-   accidentally nuke parallel workers again. Out of Phase 1 scope.
+3. **Harden `deleteFromTables`** — *Resolved 2026-04-27 (`nmemo-0dx.2`).*
+   Both `deleteFromTables` and the deprecated `truncateTables` sibling
+   now take a single object arg with a required
+   `acknowledgeGlobal: true` literal flag (`GlobalCleanupOptions` in
+   `src/test/setup.ts`). The flag is enforced at the type system, so
+   any future caller that drops it fails `tsc --noEmit`. The five
+   listed holdouts were updated to the new call shape; behaviour is
+   unchanged. The deeper fix (migrating the holdouts to scoped,
+   tag-based cleanup like the six post-sweep tests) is tracked under
+   `nmemo-0dx.3` / `nmemo-0dx.5`.
 
 4. **Stand up a local fixture HTTP server for `/scrape` tests**
    ML-008 is currently skipped; if scraping becomes a focus again, add

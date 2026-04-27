@@ -43,10 +43,13 @@ describe('Layer 4: End-to-End ML-as-Judge', () => {
   beforeEach(async () => {
     if (!canRun()) return;
 
-    await deleteFromTables(
-      'memory_entities', 'entity_aliases', 'entity_merges',
-      'contradiction_reviews', 'facts', 'entities',
-    );
+    await deleteFromTables({
+      tables: [
+        'memory_entities', 'entity_aliases', 'entity_merges',
+        'contradiction_reviews', 'facts', 'entities',
+      ],
+      acknowledgeGlobal: true,
+    });
 
     // Reset Qdrant
     try {

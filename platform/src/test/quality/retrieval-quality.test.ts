@@ -43,10 +43,13 @@ describe('Layer 3: Retrieval Accuracy', () => {
   beforeEach(async () => {
     if (!canRun()) return;
 
-    await deleteFromTables(
-      'memory_entities', 'entity_aliases', 'entity_merges',
-      'contradiction_reviews', 'facts', 'entities',
-    );
+    await deleteFromTables({
+      tables: [
+        'memory_entities', 'entity_aliases', 'entity_merges',
+        'contradiction_reviews', 'facts', 'entities',
+      ],
+      acknowledgeGlobal: true,
+    });
 
     // Clean Qdrant test points (delete collection and recreate)
     try {
@@ -246,10 +249,13 @@ describe('Layer 3: Retrieval Accuracy', () => {
     for (const scenario of RETRIEVAL_SCENARIOS) {
       if (scenario.expectedRelevantEntities.length === 0) continue;
 
-      await deleteFromTables(
-        'memory_entities', 'entity_aliases', 'entity_merges',
-        'contradiction_reviews', 'facts', 'entities',
-      );
+      await deleteFromTables({
+        tables: [
+          'memory_entities', 'entity_aliases', 'entity_merges',
+          'contradiction_reviews', 'facts', 'entities',
+        ],
+        acknowledgeGlobal: true,
+      });
 
       const entityCache = await seedFacts(scenario.seededFacts);
 

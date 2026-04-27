@@ -20,10 +20,13 @@ import { seedTimeline } from './helpers.js';
 
 describe('Layer 1: Temporal Pipeline', () => {
   beforeEach(async () => {
-    await deleteFromTables(
-      'memory_entities', 'entity_aliases', 'entity_merges',
-      'contradiction_reviews', 'facts', 'entities',
-    );
+    await deleteFromTables({
+      tables: [
+        'memory_entities', 'entity_aliases', 'entity_merges',
+        'contradiction_reviews', 'facts', 'entities',
+      ],
+      acknowledgeGlobal: true,
+    });
   });
 
   // T1: Point-in-time query

@@ -39,12 +39,18 @@ describe('Performance Benchmarks', () => {
     }
 
     // Ensure clean state
-    await truncateTables('memory_entities', 'entity_aliases', 'facts', 'entities');
+    await truncateTables({
+      tables: ['memory_entities', 'entity_aliases', 'facts', 'entities'],
+      acknowledgeGlobal: true,
+    });
   });
 
   afterAll(async () => {
     // Cleanup
-    await truncateTables('memory_entities', 'entity_aliases', 'facts', 'entities');
+    await truncateTables({
+      tables: ['memory_entities', 'entity_aliases', 'facts', 'entities'],
+      acknowledgeGlobal: true,
+    });
   });
 
   describe('Database Operations', () => {
