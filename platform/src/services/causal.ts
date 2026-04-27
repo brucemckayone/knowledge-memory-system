@@ -7,7 +7,7 @@
 
 import { db } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
-import { causalEdges, causalEvents, type CausalEvent, type CausalEdge } from '../db/schema.js';
+import { causalEdges, causalEvents, edgeSourceRefs, type CausalEvent, type CausalEdge } from '../db/schema.js';
 import { eq, and, gte, lte, sql, or, inArray, isNull } from 'drizzle-orm';
 import { recordEdgeChange, type Actor } from './audit.js';
 
@@ -885,4 +885,37 @@ export async function getCausalDelta(
     .orderBy(causalEdges.createdAt);
 
   return { events, edges };
+}
+
+/**
+ * Reverse lookup over `edge_source_refs` — returns every causal edge that
+ * cites the given reference (memory / fact / entity uuid). Used by:
+ *   - cascade invalidation (Phase 2): fact F expired → find edges citing F
+ *   - blast radius (Phase 4): "what edges depend on this fact?"
+ *   - contradiction detection (Phase 5): expired-but-cited
+ *   - gardener: "this memory is going away — what loses evidence?"
+ *
+ * Active edges only by default; pass `includeExpired: true` to include
+ * tombstoned edges. Discriminates by `refType`, so a fact UUID and a memory
+ * UUID that happen to collide return disjoint result sets.
+ */
+export async function findEdgesCitingReference(
+  refType: 'memory' | 'fact' | 'entity',
+  refId: string,
+  options: { includeExpired?: boolean } = {},
+): Promise<CausalEdge[]> {
+  const conditions = [
+    eq(edgeSourceRefs.refType, refType),
+    eq(edgeSourceRefs.refId, refId),
+  ];
+  if (!options.includeExpired) {
+    conditions.push(isNull(causalEdges.expiredAt));
+  }
+  const rows = await db
+    .select({ edge: causalEdges })
+    .from(edgeSourceRefs)
+    .innerJoin(causalEdges, eq(edgeSourceRefs.edgeId, causalEdges.id))
+    .where(and(...conditions))
+    .orderBy(causalEdges.createdAt);
+  return rows.map((r) => r.edge);
 }
