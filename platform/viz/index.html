@@ -138,6 +138,31 @@ svg { flex: 1; }
 .answer-panel .answer-header h3 { font-size: 13px; color: #58a6ff; margin: 0; }
 .answer-panel .answer-close { background: none; border: none; color: #484f58; cursor: pointer; font-size: 16px; padding: 2px 6px; }
 
+/* Impact subpanel (Phase 4 — blast radius, doc 15) */
+.impact-section { margin-top: 14px; padding: 10px 12px; border: 1px solid #21262d; border-radius: 4px; background: #0d1117; font-size: 12px; }
+.impact-section .impact-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 10px; }
+.impact-section .impact-header h3 { font-size: 13px; color: #58a6ff; margin: 0; }
+.impact-section .impact-tally { display: flex; gap: 6px; font-size: 10px; }
+.impact-section .impact-tally .impact-tag { padding: 1px 6px; border-radius: 8px; font-weight: 700; text-transform: uppercase; }
+.impact-section .impact-tally .impact-tag-critical { background: #6e2d2d; color: #f85149; }
+.impact-section .impact-tally .impact-tag-high { background: #6e4d2d; color: #f0883e; }
+.impact-section .impact-tally .impact-tag-medium { background: #4d3a1f; color: #d29922; }
+.impact-section .impact-tally .impact-tag-low { background: #21262d; color: #8b949e; }
+.impact-section .impact-bucket { margin-bottom: 6px; }
+.impact-section .impact-bucket-label { font-size: 10px; color: #8b949e; text-transform: uppercase; margin-bottom: 4px; }
+.impact-section .impact-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-radius: 3px; background: #161b22; margin-bottom: 3px; font-size: 11px; gap: 8px; }
+.impact-section .impact-row .impact-summary { color: #c9d1d9; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.impact-section .impact-row .impact-meta { color: #8b949e; font-size: 10px; flex-shrink: 0; }
+.impact-section .impact-row.sev-critical { border-left: 3px solid #f85149; }
+.impact-section .impact-row.sev-high { border-left: 3px solid #f0883e; }
+.impact-section .impact-row.sev-medium { border-left: 3px solid #d29922; }
+.impact-section .impact-row.sev-low { border-left: 3px solid #484f58; }
+.impact-section .impact-actions { margin-top: 8px; display: flex; gap: 6px; }
+.impact-section .impact-actions button { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.impact-section .impact-actions button:hover { background: #30363d; border-color: #58a6ff; }
+.impact-section .impact-actions button.preview-active { background: #4d3a1f; border-color: #d29922; color: #f0883e; }
+.impact-section .impact-loading { color: #8b949e; font-style: italic; padding: 6px; }
+
 /* Contradictions panel */
 .action-btn .badge { display: inline-block; min-width: 16px; padding: 0 5px; margin-left: 6px; background: #f85149; color: #0d1117; border-radius: 8px; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; vertical-align: middle; }
 .action-btn .badge:empty, .action-btn .badge.zero { display: none; }

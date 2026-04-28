@@ -26,11 +26,13 @@ import {
   deleteFromTables,
   createTestEntity,
   createTestFact,
+  loadFixture,
   randomUUID,
 } from '../setup.js';
 import { analyzeImpact } from '../../services/impact.js';
 import { handleToolCall } from '../../services/causal-agent.js';
 import { app } from '../../index.js';
+import { loadExpected, runAssertion } from './assertion-runner.js';
 
 // ============================================
 // Per-test cleanup
@@ -1245,5 +1247,189 @@ describe('Phase 4 — HTTP GET /api/impact/:type/:id (nmemo-437.7)', () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toMatch(/not found/);
+  });
+});
+
+// ============================================
+// C5 — Fixture-driven smoke tests + adversarial + benchmark (nmemo-437.10)
+// ============================================
+
+describe('Phase 4 — Fixture-driven smoke tests (nmemo-437.10)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('small-graph-5-nodes: entity Alice produces expected impact tree', async () => {
+    await loadFixture('phase4-blastradius/fixtures/small-graph-5-nodes.sql');
+    const aliceId = '00000000-0000-0000-0000-000000000001';
+    const report = await analyzeImpact({ nodeType: 'entity', nodeId: aliceId });
+
+    // Alice is subject of fact1, fact2, fact5, and object of nothing in this fixture
+    expect(report.directDependents.length).toBeGreaterThan(0);
+    expect(report.root.summary).toContain('Alice');
+    expect(report.totalAffected).toBeGreaterThan(0);
+  });
+
+  it('linear-chain-depth-10: maxDepth=3 caps walk at depth 3', async () => {
+    await loadFixture('phase4-blastradius/fixtures/linear-chain-depth-10.sql');
+    const e0 = '20000001-0000-0000-0000-000000000000';
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: e0,
+      maxDepth: 3,
+    });
+
+    const depths = report.transitiveChains.map((t) => t.depth);
+    expect(Math.max(...depths)).toBeLessThanOrEqual(3);
+    // Chain has 9 edges total; at depth 3 we should see 3 (E0→E1, E1→E2, E2→E3)
+    expect(report.transitiveChains.length).toBe(3);
+  });
+
+  it('linear-chain-depth-10: maxDepth=10 reveals the full chain', async () => {
+    await loadFixture('phase4-blastradius/fixtures/linear-chain-depth-10.sql');
+    const e0 = '20000001-0000-0000-0000-000000000000';
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: e0,
+      maxDepth: 10,
+    });
+
+    expect(report.transitiveChains.length).toBe(9);
+  });
+
+  it('diamond-topology: target edge appears once at shortest depth', async () => {
+    await loadFixture('phase4-blastradius/fixtures/diamond-topology.sql');
+    const e0 = '20000002-0000-0000-0000-000000000000';
+    const targetEdge = '30000002-0000-0000-0000-000000000003'; // E1->E3
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: e0,
+      maxDepth: 5,
+    });
+
+    const targetNodes = report.transitiveChains.filter((t) => t.nodeId === targetEdge);
+    expect(targetNodes.length).toBe(1);
+    expect(targetNodes[0]!.depth).toBeLessThanOrEqual(2);
+  });
+
+  it('cycle-topology: 3-node cycle terminates with each edge appearing once', async () => {
+    await loadFixture('phase4-blastradius/fixtures/cycle-topology.sql');
+    const eA = '20000003-0000-0000-0000-000000000000';
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: eA,
+      maxDepth: 10,
+    });
+
+    const ids = report.transitiveChains.map((t) => t.nodeId);
+    expect(ids.length).toBe(3);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('orphan-node: empty report', async () => {
+    await loadFixture('phase4-blastradius/fixtures/orphan-node.sql');
+    const orphanId = '00000004-0000-0000-0000-000000000000';
+
+    const report = await analyzeImpact({ nodeType: 'entity', nodeId: orphanId });
+
+    expect(report.totalAffected).toBe(0);
+    expect(report.directDependents).toEqual([]);
+    expect(report.transitiveChains).toEqual([]);
+    expect(report.citationDependents).toEqual([]);
+    expect(report.patternImpact).toEqual([]);
+  });
+});
+
+describe('Phase 4 — Adversarial: deep cycle (nmemo-437.10)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('deep-cycle-depth-20: terminates at maxDepth=10 with every visited edge unique', async () => {
+    await loadFixture('phase4-blastradius/fixtures/deep-cycle-depth-20.sql');
+    const e0 = '20000006-0000-0000-0000-000000000000';
+
+    const t0 = Date.now();
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: e0,
+      maxDepth: 10,
+    });
+    const elapsed = Date.now() - t0;
+
+    const ids = report.transitiveChains.map((t) => t.nodeId);
+    // No edge appears twice (DISTINCT ON id + path accumulator)
+    expect(new Set(ids).size).toBe(ids.length);
+    // All depths are within the cap
+    const depths = report.transitiveChains.map((t) => t.depth);
+    expect(Math.max(...depths, 0)).toBeLessThanOrEqual(10);
+    // Sanity: must terminate quickly even on a 20-node cycle
+    expect(elapsed).toBeLessThan(2000);
+  });
+});
+
+describe('Phase 4 — Adversarial: fan-out explosion (nmemo-437.10)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('fan-out-explosion: 500 citing edges discovered + zero-mutation under hypothetical=expire', async () => {
+    await loadFixture('phase4-blastradius/fixtures/fan-out-explosion.sql');
+    const factId = '10000005-0000-0000-0000-000000000000';
+
+    const t0 = Date.now();
+    const report = await analyzeImpact({
+      nodeType: 'fact',
+      nodeId: factId,
+      hypothetical: 'expire',
+    });
+    const elapsed = Date.now() - t0;
+
+    expect(report.citationDependents.length).toBe(500);
+    // All 500 edges should bump to critical under hypothetical=expire (sole evidence)
+    const critical = report.citationDependents.filter((d) => d.severity === 'critical');
+    expect(critical.length).toBe(500);
+    // Spec target: <500ms; allow 2x margin for CI variance
+    expect(elapsed).toBeLessThan(1500);
+
+    // Verify the assertion-runner side-effect contract — zero mutations
+    const expected = loadExpected('phase4-blastradius/expected/fan-out-explosion.expected.json');
+    for (const stage of expected.stages) {
+      for (const assertion of stage.assertions) {
+        await runAssertion(testDb, assertion);
+      }
+    }
+  });
+});
+
+describe('Phase 4 — Performance: realistic-500-entity (nmemo-437.10)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('realistic-500-entity: analyzeImpact at depth=3 completes under spec target', async () => {
+    await loadFixture('phase4-blastradius/fixtures/realistic-500-entity.sql');
+
+    // Pick a deterministic event near the start of the chain
+    const e1 = '20000007-0000-0000-0000-000000000001';
+
+    const t0 = Date.now();
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: e1,
+      maxDepth: 3,
+    });
+    const elapsed = Date.now() - t0;
+
+    // Spec: <500ms on a 1000-edge graph at depth 3. Allow 2x for CI variance.
+    expect(elapsed).toBeLessThan(1000);
+    expect(report.transitiveChains.length).toBeGreaterThan(0);
+    // No double-counting via multiple paths
+    const ids = report.transitiveChains.map((t) => t.nodeId);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

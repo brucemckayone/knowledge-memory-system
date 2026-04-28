@@ -417,11 +417,17 @@ async function findDirectDependents(
  * Path accumulator prevents revisiting the same edge — guards against the
  * deep-cycle adversarial case (cycles confirmed by Phase 5 detectCyclicCausal).
  *
- * The bidirectional join condition matches when the next edge shares ANY
- * endpoint with the current chain edge — covers forward-walk (next.cause =
- * chain.effect), backward-walk (next.effect = chain.cause), and the
- * "alternate cause" / "alternate effect" hops (next.cause = chain.cause,
- * next.effect = chain.effect).
+ * The base case selects every edge touching a root event (cause OR effect),
+ * which seeds the walk in both directions simultaneously. The recursive step
+ * uses the two standard chain-extension hops:
+ *   - forward:  next.cause = chain.effect (continue downstream)
+ *   - backward: next.effect = chain.cause (continue upstream)
+ * Sibling edges (sharing the same cause OR same effect) are NOT extended —
+ * they land in the base case if they touch a root event, but otherwise sit
+ * outside the chain. This avoids quadratic fan-out on hub events with many
+ * sibling edges (the spec's `traceCauses` / `projectTrajectory` use the same
+ * 2-hop pattern; combining both directions in one CTE only requires the base
+ * case to query both endpoints).
  *
  * `DISTINCT ON (id)` keeps the shallowest reach for each edge — when the same
  * edge is reachable via multiple paths (diamond topology) we return the
@@ -480,8 +486,6 @@ async function findTransitiveChains(
       JOIN public.causal_edges n ON (
         n.cause_event_id = c.effect_event_id
         OR n.effect_event_id = c.cause_event_id
-        OR n.cause_event_id = c.cause_event_id
-        OR n.effect_event_id = c.effect_event_id
       )
       WHERE n.expired_at IS NULL
         AND c.depth < ${maxDepth}

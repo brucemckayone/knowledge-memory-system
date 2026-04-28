@@ -1,0 +1,53 @@
+{
+  "scenario": "fan-out-explosion",
+  "description": "1 fact cited by 500 active causal_edges. Verifies (a) findCitationDependents returns all 500 edges and (b) running analyzeImpact with hypothetical=expire makes ZERO mutations across the 500-edge fan-out — every edge's expired_at remains NULL.",
+  "data_set_level": 1,
+  "fixture": "phase4-blastradius/fixtures/fan-out-explosion.sql",
+  "phases_exercised": ["citation-dependents", "hypothetical-no-mutation"],
+
+  "stages": [
+    {
+      "stage": "no_mutations_after_hypothetical_expire",
+      "driver": "manual",
+      "assertions": [
+        {
+          "type": "side_effect_assertion",
+          "table": "causal_edges",
+          "filter": { "cause_event_id": "20000005-0000-0000-0000-000000000000" },
+          "column": "expired_at",
+          "expected": "all_null",
+          "description": "All 500 fan-out edges remain unexpired after hypothetical=expire (zero DB writes)"
+        },
+        {
+          "type": "side_effect_assertion",
+          "table": "facts",
+          "filter": { "id": "10000005-0000-0000-0000-000000000000" },
+          "column": "expired_at",
+          "expected": "all_null",
+          "description": "Anchor fact remains unexpired"
+        },
+        {
+          "type": "side_effect_assertion",
+          "table": "facts",
+          "filter": { "id": "10000005-0000-0000-0000-000000000000" },
+          "column": "invalid_at",
+          "expected": "all_null",
+          "description": "Anchor fact remains valid"
+        },
+        {
+          "type": "row_count",
+          "table": "fact_history",
+          "filter": { "fact_id": "10000005-0000-0000-0000-000000000000" },
+          "expected": 0,
+          "because": "No fact_history row should be written by an analyzeImpact call (read-only)"
+        }
+      ]
+    }
+  ],
+
+  "benchmark_targets": {
+    "total_edges": 500,
+    "citation_lookup_target_ms": 500,
+    "hypothetical_zero_mutation": true
+  }
+}
