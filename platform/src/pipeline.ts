@@ -11,6 +11,7 @@ import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
 import { invokeGraphAgent, invokeGardenerAgent } from './services/causal-agent.js';
 import { applyConfidenceDecay } from './services/causal.js';
+import { detectContradictions } from './services/contradictions.js';
 import { updateEntityMeta, detectMergeCandidates } from './services/graph-meta.js';
 import { db } from './db/index.js';
 import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports } from './db/schema.js';
@@ -217,6 +218,10 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
 
     // 6. Auto-trigger confidence decay every N graph agent runs (independent
     //    of the gardener counter — they cycle on different intervals).
+    //    Phase 5: piggyback contradiction detection on the same counter.
+    //    Both are cheap periodic SQL with no shared state — they run in
+    //    sequence so a decay-induced expiry can be picked up by the next
+    //    detectExpiredButCited sweep within the same auto-trigger tick.
     decayRunCount++;
     if (decayRunCount >= DECAY_RUN_INTERVAL) {
       const tDecay = Date.now();
@@ -232,6 +237,19 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
         console.warn('[decay] failed:', err instanceof Error ? err.message : err);
       }
       timing.decay = Date.now() - tDecay;
+
+      // Phase 5: SQL contradiction detection sweep. Independent try/catch so
+      // a heuristic failure never masks decay results.
+      const tContra = Date.now();
+      try {
+        const contraResult = await detectContradictions();
+        console.log(
+          `[contradictions] auto-detect complete detected=${contraResult.detected} byType=${JSON.stringify(contraResult.byType)}`,
+        );
+      } catch (err) {
+        console.warn('[contradictions] auto-detect failed:', err instanceof Error ? err.message : err);
+      }
+      timing.contradictions = Date.now() - tContra;
     }
   }
 

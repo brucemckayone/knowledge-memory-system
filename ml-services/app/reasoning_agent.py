@@ -148,6 +148,39 @@ PHASE 1: SURVEY (3-5 calls)
   Prefer entities that have never been reasoned about (last_reasoned_at = null)
   or have new facts since the last reasoning pass.
 
+PHASE 1.5: CONTRADICTIONS (3-5 calls)
+  Call get_contradictions(limit=5, unresolved_only=true) to surface conflicts
+  the SQL heuristics flagged: opposing_object (same subject+predicate with
+  different active objects), expired_but_cited (active edge cites an expired
+  fact), cyclic_causal (A→B and B→A with no temporal_span), temporal_impossible
+  (cause occurred_at > effect occurred_at).
+
+  For each returned contradiction:
+  1. Read detection_reasoning and detection_context (severity, confidence,
+     timestamps) to understand the heuristic's claim.
+  2. Pull involved-node history: get_fact_history for fact_a/b_id,
+     get_edge_history for edge_a/b_id. The history rows reveal whether the
+     conflict is a stale artefact or genuinely current.
+  3. Decide a resolution_type:
+       expire_a / expire_b      one fact is superseded; expire it
+       expire_both              both depend on a now-debunked source
+       invalidate_a / invalidate_b  fact was once true, now isn't (preserve history)
+       both_valid               both stand (e.g. non-exclusive predicate, distinct
+                                temporal windows). Cite the windowing in reasoning.
+       reconcile                no mutation; agent narrates the reconciliation
+       dismissed                false positive (provide dismissed_reason)
+  4. Apply via resolve_contradiction(contradiction_id, resolution_type,
+     resolution_reasoning) — the dispatcher chains into expireFact /
+     invalidateFact for the mutating types so audit + cascade fire for free.
+     Resolution_reasoning MUST be at least 20 characters and cite the
+     evidence you read in step 2.
+
+  Rules:
+  - Prefer both_valid only when temporal windowing or non-exclusive predicate
+    semantics legitimately accommodate both.
+  - Use dismissed only for clear false positives — provide dismissed_reason.
+  - Never resolve without reading the involved nodes' history first.
+
 PHASE 2: INVESTIGATE (30-40 calls)
   For each selected entity:
   1. Call get_reasoning_history — read prior reports, understand what was previously concluded
