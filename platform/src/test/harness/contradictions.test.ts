@@ -25,6 +25,8 @@ import {
   deleteFromTables,
   loadFixture,
 } from '../setup.js';
+import { detectOpposingObjects, detectContradictions } from '../../services/contradictions.js';
+import { loadExpected, runAssertion } from './assertion-runner.js';
 
 // ============================================
 // Per-test cleanup — contradictions before facts/edges (FK dependents),
@@ -136,5 +138,71 @@ describe('Phase 5 — Foundation (nmemo-cae.1 + nmemo-cae.2)', () => {
 
     const entityCount = await testDb.unsafe(`SELECT count(*)::int AS c FROM public.entities`) as unknown as Array<{ c: number }>;
     expect(entityCount[0]!.c).toBe(3);
+  });
+});
+
+// ============================================
+// Fixture-driven: opposing-object-simple (cae.3)
+// Detection-stage assertions only. Resolution stage is wired in group D.
+// ============================================
+
+describe('Phase 5 — fixture-driven: opposing-object-simple (nmemo-cae.3)', () => {
+  const expectedDoc = loadExpected('phase5-contradictions/expected/opposing-object-simple.expected.json');
+  const detectionStage = expectedDoc.stages.find(s => s.stage === 'detection');
+  if (!detectionStage) throw new Error('opposing-object-simple.expected.json: missing detection stage');
+
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    await detectOpposingObjects();
+  });
+
+  for (const assertion of detectionStage.assertions) {
+    it(`${assertion.type} — ${('because' in assertion && assertion.because) || ('description' in assertion && assertion.description) || 'asserts contract'}`, async () => {
+      await runAssertion(testDb, assertion, {
+        rerun: detectOpposingObjects,
+      });
+    });
+  }
+});
+
+// ============================================
+// Fixture-driven: opposing-object-exclusive (cae.3 — negative)
+// ============================================
+
+describe('Phase 5 — fixture-driven: opposing-object-exclusive (nmemo-cae.3)', () => {
+  const expectedDoc = loadExpected('phase5-contradictions/expected/opposing-object-exclusive.expected.json');
+  const detectionStage = expectedDoc.stages.find(s => s.stage === 'detection');
+  if (!detectionStage) throw new Error('opposing-object-exclusive.expected.json: missing detection stage');
+
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-exclusive.sql');
+    await detectOpposingObjects();
+  });
+
+  for (const assertion of detectionStage.assertions) {
+    it(`${assertion.type} — ${('because' in assertion && assertion.because) || ('description' in assertion && assertion.description) || 'asserts contract'}`, async () => {
+      await runAssertion(testDb, assertion, {
+        rerun: detectOpposingObjects,
+      });
+    });
+  }
+});
+
+// ============================================
+// Orchestrator (cae.3 — partial; full coverage lands in group C)
+// ============================================
+
+describe('Phase 5 — detectContradictions orchestrator (nmemo-cae.3)', () => {
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+  });
+
+  it('runs all heuristics and returns aggregate counts', async () => {
+    const result = await detectContradictions();
+    expect(result.detected).toBeGreaterThanOrEqual(1);
+    expect(result.byType.opposing_object).toBeGreaterThanOrEqual(1);
   });
 });
