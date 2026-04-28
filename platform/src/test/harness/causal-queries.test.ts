@@ -181,3 +181,144 @@ describe('B04: Causal service — read/query functions', () => {
     expect(delta.edges.length).toBe(0);
   });
 });
+
+/**
+ * Cycle protection (nmemo-8vq.1) — both `traceCauses` and `projectTrajectory`
+ * must terminate without inflating the chain when the underlying causal graph
+ * contains a cycle. Phase 5's `detectCyclicCausal` proves cycles can exist in
+ * live data; before this fix the recursive CTEs terminated only via the
+ * depth cap, so each lap added duplicate event rows up to `maxDepth`.
+ *
+ * Pattern matches Phase 4's `findTransitiveChains`
+ * (`src/services/impact.ts`): `path uuid[]` accumulator on the CTE,
+ * recursive step guarded by `NOT (next_event.id = ANY(chain.path))`.
+ */
+describe('Cycle protection on traceCauses + projectTrajectory (nmemo-8vq.1)', () => {
+  let entityId: string;
+  let twoNodeFactA: string, twoNodeFactB: string;
+  let twoNodeEventA: string, twoNodeEventB: string;
+  let threeNodeFactA: string, threeNodeFactC: string;
+  let threeNodeEventA: string, threeNodeEventB: string, threeNodeEventC: string;
+
+  beforeAll(async () => {
+    const entity = await createTestEntity({
+      canonicalName: 'Cycle protection entity',
+      entityType: 'person',
+    });
+    entityId = entity.id;
+
+    // 2-node cycle: A ↔ B
+    const fa2 = await createTestFact({ subjectEntityId: entityId, predicate: 'cycle2_a', objectValue: 'a' });
+    const fb2 = await createTestFact({ subjectEntityId: entityId, predicate: 'cycle2_b', objectValue: 'b' });
+    twoNodeFactA = fa2.id; twoNodeFactB = fb2.id;
+    const [ea2] = await testDb`
+      INSERT INTO causal_events (fact_id, transition_type, subject_entity_id, predicate, source_text)
+      VALUES (${twoNodeFactA}::uuid, 'created', ${entityId}::uuid, 'cycle2_a', '2-node cycle A')
+      RETURNING id`;
+    const [eb2] = await testDb`
+      INSERT INTO causal_events (fact_id, transition_type, subject_entity_id, predicate, source_text)
+      VALUES (${twoNodeFactB}::uuid, 'created', ${entityId}::uuid, 'cycle2_b', '2-node cycle B')
+      RETURNING id`;
+    twoNodeEventA = ea2!.id; twoNodeEventB = eb2!.id;
+    await testDb`
+      INSERT INTO causal_edges (cause_event_id, effect_event_id, strength, extraction_method, reasoning, source_references, initial_strength)
+      VALUES (${twoNodeEventA}::uuid, ${twoNodeEventB}::uuid, 0.8, 'llm', 'A causes B', ${JSON.stringify([{type:'fact', id: twoNodeFactA, relevance:'cycle leg 1'}])}::jsonb, 0.8)`;
+    await testDb`
+      INSERT INTO causal_edges (cause_event_id, effect_event_id, strength, extraction_method, reasoning, source_references, initial_strength)
+      VALUES (${twoNodeEventB}::uuid, ${twoNodeEventA}::uuid, 0.8, 'llm', 'B causes A', ${JSON.stringify([{type:'fact', id: twoNodeFactB, relevance:'cycle leg 2'}])}::jsonb, 0.8)`;
+
+    // 3-node cycle: A → B → C → A
+    const fa3 = await createTestFact({ subjectEntityId: entityId, predicate: 'cycle3_a', objectValue: 'a' });
+    const fb3 = await createTestFact({ subjectEntityId: entityId, predicate: 'cycle3_b', objectValue: 'b' });
+    const fc3 = await createTestFact({ subjectEntityId: entityId, predicate: 'cycle3_c', objectValue: 'c' });
+    threeNodeFactA = fa3.id; threeNodeFactC = fc3.id;
+    const [ea3] = await testDb`
+      INSERT INTO causal_events (fact_id, transition_type, subject_entity_id, predicate, source_text)
+      VALUES (${threeNodeFactA}::uuid, 'created', ${entityId}::uuid, 'cycle3_a', '3-node cycle A')
+      RETURNING id`;
+    const [eb3] = await testDb`
+      INSERT INTO causal_events (fact_id, transition_type, subject_entity_id, predicate, source_text)
+      VALUES (${fb3.id}::uuid, 'created', ${entityId}::uuid, 'cycle3_b', '3-node cycle B')
+      RETURNING id`;
+    const [ec3] = await testDb`
+      INSERT INTO causal_events (fact_id, transition_type, subject_entity_id, predicate, source_text)
+      VALUES (${threeNodeFactC}::uuid, 'created', ${entityId}::uuid, 'cycle3_c', '3-node cycle C')
+      RETURNING id`;
+    threeNodeEventA = ea3!.id; threeNodeEventB = eb3!.id; threeNodeEventC = ec3!.id;
+    await testDb`
+      INSERT INTO causal_edges (cause_event_id, effect_event_id, strength, extraction_method, reasoning, source_references, initial_strength)
+      VALUES (${threeNodeEventA}::uuid, ${threeNodeEventB}::uuid, 0.7, 'llm', 'A→B', ${JSON.stringify([{type:'fact', id: threeNodeFactA, relevance:'leg AB'}])}::jsonb, 0.7)`;
+    await testDb`
+      INSERT INTO causal_edges (cause_event_id, effect_event_id, strength, extraction_method, reasoning, source_references, initial_strength)
+      VALUES (${threeNodeEventB}::uuid, ${threeNodeEventC}::uuid, 0.7, 'llm', 'B→C', ${JSON.stringify([{type:'fact', id: fb3.id, relevance:'leg BC'}])}::jsonb, 0.7)`;
+    await testDb`
+      INSERT INTO causal_edges (cause_event_id, effect_event_id, strength, extraction_method, reasoning, source_references, initial_strength)
+      VALUES (${threeNodeEventC}::uuid, ${threeNodeEventA}::uuid, 0.7, 'llm', 'C→A', ${JSON.stringify([{type:'fact', id: threeNodeFactC, relevance:'leg CA'}])}::jsonb, 0.7)`;
+  });
+
+  afterAll(async () => {
+    await testDb.unsafe(`DELETE FROM causal_edges WHERE cause_event_id IN (SELECT id FROM causal_events WHERE subject_entity_id = '${entityId}')`).catch(() => {});
+    await testDb.unsafe(`DELETE FROM causal_events WHERE subject_entity_id = '${entityId}'`).catch(() => {});
+    await testDb.unsafe(`DELETE FROM facts WHERE subject_entity_id = '${entityId}'`).catch(() => {});
+    await testDb.unsafe(`DELETE FROM entities WHERE id = '${entityId}'`).catch(() => {});
+  });
+
+  it('traceCauses on a 2-node cycle terminates without inflating the chain', async () => {
+    // From B: walk backwards finds A (via B→A's reverse: edge A→B has effect=B, cause=A).
+    // Without protection the next hop would re-add B (depth 2) then A (depth 3) and so on
+    // up to maxDepth=10, producing 11 rows. With protection: chain has each event id once.
+    const chain = await traceCauses(twoNodeFactB, { maxDepth: 10 });
+
+    expect(chain.length).toBeLessThanOrEqual(2);
+    const eventIds = chain.map((n) => n.event.id);
+    expect(new Set(eventIds).size).toBe(eventIds.length);
+    expect(eventIds).toContain(twoNodeEventA);
+    expect(eventIds).toContain(twoNodeEventB);
+  });
+
+  it('projectTrajectory on a 2-node cycle terminates without inflating the chain', async () => {
+    const chain = await projectTrajectory(twoNodeFactA, { maxDepth: 10 });
+
+    expect(chain.length).toBeLessThanOrEqual(2);
+    const eventIds = chain.map((n) => n.event.id);
+    expect(new Set(eventIds).size).toBe(eventIds.length);
+    expect(eventIds).toContain(twoNodeEventA);
+    expect(eventIds).toContain(twoNodeEventB);
+  });
+
+  it('traceCauses on a 3-node cycle (A→B→C→A) terminates without inflating', async () => {
+    // From C: backwards we reach B (via B→C), then A (via A→B). C→A edge
+    // would close the cycle by re-visiting C; path accumulator blocks it.
+    const chain = await traceCauses(threeNodeFactC, { maxDepth: 10 });
+
+    expect(chain.length).toBeLessThanOrEqual(3);
+    const eventIds = chain.map((n) => n.event.id);
+    expect(new Set(eventIds).size).toBe(eventIds.length);
+    expect(eventIds).toContain(threeNodeEventA);
+    expect(eventIds).toContain(threeNodeEventB);
+    expect(eventIds).toContain(threeNodeEventC);
+  });
+
+  it('projectTrajectory on a 3-node cycle (A→B→C→A) terminates without inflating', async () => {
+    const chain = await projectTrajectory(threeNodeFactA, { maxDepth: 10 });
+
+    expect(chain.length).toBeLessThanOrEqual(3);
+    const eventIds = chain.map((n) => n.event.id);
+    expect(new Set(eventIds).size).toBe(eventIds.length);
+    expect(eventIds).toContain(threeNodeEventA);
+    expect(eventIds).toContain(threeNodeEventB);
+    expect(eventIds).toContain(threeNodeEventC);
+  });
+
+  it('traceCauses with a high maxDepth still bounds output to the cycle size', async () => {
+    // Regression guard: even with maxDepth=50, output must not exceed the
+    // number of distinct events reachable on a single branch.
+    const chain = await traceCauses(threeNodeFactC, { maxDepth: 50 });
+    expect(chain.length).toBeLessThanOrEqual(3);
+  });
+
+  it('projectTrajectory with a high maxDepth still bounds output to the cycle size', async () => {
+    const chain = await projectTrajectory(threeNodeFactA, { maxDepth: 50 });
+    expect(chain.length).toBeLessThanOrEqual(3);
+  });
+});

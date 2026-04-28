@@ -688,6 +688,16 @@ export interface TraceOptions {
 /**
  * Walk Graph C backwards from a fact's causal event to root causes.
  * Returns the chain from root cause → ... → starting event.
+ *
+ * Cycle protection: each chain row carries a `path uuid[]` accumulator of
+ * visited event ids. The recursive step is guarded by
+ * `NOT (parent.id = ANY(chain.path))`, which prevents the walk from
+ * revisiting an event reached earlier on the same branch. Diamond topology
+ * (one event reached via legitimately different ancestors) still produces
+ * separate branches because each branch carries its own `path`. Defends
+ * against the cycle case (A→B + B→A without temporal_span) confirmed by
+ * Phase 5's `detectCyclicCausal`. Pattern matches Phase 4
+ * `findTransitiveChains` (`src/services/impact.ts`).
  */
 export async function traceCauses(
   factId: string,
@@ -729,7 +739,8 @@ export async function traceCauses(
         NULL::text as reasoning,
         NULL::jsonb as source_references,
         NULL::varchar as extraction_method,
-        0 as depth
+        0 as depth,
+        ARRAY[ce.id] AS path
       FROM causal_events ce
       WHERE ce.fact_id = ${factId}
 
@@ -748,15 +759,22 @@ export async function traceCauses(
         edge.reasoning,
         edge.source_references,
         edge.extraction_method,
-        chain.depth + 1 as depth
+        chain.depth + 1 as depth,
+        chain.path || parent.id
       FROM chain
       JOIN causal_edges edge ON edge.effect_event_id = chain.event_id
         AND edge.expired_at IS NULL
         AND edge.strength >= ${minStrength}
       JOIN causal_events parent ON parent.id = edge.cause_event_id
       WHERE chain.depth < ${maxDepth}
+        AND NOT (parent.id = ANY(chain.path))
     )
-    SELECT * FROM chain ORDER BY depth DESC
+    SELECT
+      event_id, fact_id, transition_type, subject_entity_id, predicate,
+      delta_confidence, occurred_at, source_memory_id, source_text, created_at,
+      edge_id, cause_event_id, effect_event_id, strength, reasoning,
+      source_references, extraction_method, depth
+    FROM chain ORDER BY depth DESC
   `);
 
   return rows.map(row => ({
@@ -787,6 +805,12 @@ export async function traceCauses(
 /**
  * Walk Graph C forward from a fact's causal event to downstream effects.
  * Returns the chain from starting event → ... → leaf effects.
+ *
+ * Cycle protection: same `path uuid[]` accumulator as `traceCauses`. Each
+ * branch tracks visited event ids; the recursive step is guarded by
+ * `NOT (child.id = ANY(chain.path))` to prevent re-entering an event already
+ * on the branch. Diamond fan-out is preserved (independent branches see
+ * independent paths). Pattern matches Phase 4 `findTransitiveChains`.
  */
 export async function projectTrajectory(
   factId: string,
@@ -828,7 +852,8 @@ export async function projectTrajectory(
         NULL::text as reasoning,
         NULL::jsonb as source_references,
         NULL::varchar as extraction_method,
-        0 as depth
+        0 as depth,
+        ARRAY[ce.id] AS path
       FROM causal_events ce
       WHERE ce.fact_id = ${factId}
 
@@ -847,15 +872,22 @@ export async function projectTrajectory(
         edge.reasoning,
         edge.source_references,
         edge.extraction_method,
-        chain.depth + 1 as depth
+        chain.depth + 1 as depth,
+        chain.path || child.id
       FROM chain
       JOIN causal_edges edge ON edge.cause_event_id = chain.event_id
         AND edge.expired_at IS NULL
         AND edge.strength >= ${minStrength}
       JOIN causal_events child ON child.id = edge.effect_event_id
       WHERE chain.depth < ${maxDepth}
+        AND NOT (child.id = ANY(chain.path))
     )
-    SELECT * FROM chain ORDER BY depth ASC
+    SELECT
+      event_id, fact_id, transition_type, subject_entity_id, predicate,
+      delta_confidence, occurred_at, source_memory_id, source_text, created_at,
+      edge_id, cause_event_id, effect_event_id, strength, reasoning,
+      source_references, extraction_method, depth
+    FROM chain ORDER BY depth ASC
   `);
 
   return rows.map(row => ({
