@@ -20,6 +20,7 @@
  */
 
 import { db } from '../db/index.js';
+import { rawQuery } from '../db/raw.js';
 import { eq, and, or, isNull, sql } from 'drizzle-orm';
 import {
   facts,
@@ -27,6 +28,7 @@ import {
   causalEvents,
   causalEdges,
 } from '../db/schema.js';
+import { findEdgesCitingReference } from './causal.js';
 
 // ============================================
 // Types
@@ -404,20 +406,139 @@ async function findDirectDependents(
 // Stubs — implemented in C2 / C3
 // ============================================
 
-/** C2: bidirectional recursive CTE walk through `causal_edges`. */
+// ============================================
+// Transitive chains (bidirectional recursive CTE)
+// ============================================
+
+/**
+ * Walk `causal_edges` in both directions starting from any of the root events.
+ * Path accumulator prevents revisiting the same edge — guards against the
+ * deep-cycle adversarial case (cycles confirmed by Phase 5 detectCyclicCausal).
+ *
+ * The bidirectional join condition matches when the next edge shares ANY
+ * endpoint with the current chain edge — covers forward-walk (next.cause =
+ * chain.effect), backward-walk (next.effect = chain.cause), and the
+ * "alternate cause" / "alternate effect" hops (next.cause = chain.cause,
+ * next.effect = chain.effect).
+ *
+ * `DISTINCT ON (id)` keeps the shallowest reach for each edge — when the same
+ * edge is reachable via multiple paths (diamond topology) we return the
+ * shortest-path depth, matching spec target "no double-counting via multiple
+ * paths".
+ */
 async function findTransitiveChains(
-  _rootEventIds: string[],
-  _maxDepth: number,
+  rootEventIds: string[],
+  maxDepth: number,
 ): Promise<ImpactNode[]> {
-  return [];
+  if (rootEventIds.length === 0) return [];
+
+  type Row = {
+    id: string;
+    causeEventId: string;
+    effectEventId: string;
+    strength: number;
+    corroborationCount: number;
+    reasoning: string;
+    depth: number;
+  };
+
+  // Drizzle's `sql` tag expands JS arrays into a comma-separated tuple
+  // (`$1, $2, $3`), which works for `IN (...)` but not for `ANY(...::uuid[])`.
+  // Bind the array as a single PG array literal text — `'{uuid,uuid}'::uuid[]`.
+  const rootIdsLiteral = `{${rootEventIds.join(',')}}`;
+
+  const rows = await rawQuery<Row>(sql`
+    WITH RECURSIVE chain AS (
+      SELECT
+        e.id,
+        e.cause_event_id,
+        e.effect_event_id,
+        e.strength,
+        e.corroboration_count,
+        e.reasoning,
+        1 AS depth,
+        ARRAY[e.id] AS path
+      FROM public.causal_edges e
+      WHERE (e.cause_event_id = ANY(${rootIdsLiteral}::uuid[])
+          OR e.effect_event_id = ANY(${rootIdsLiteral}::uuid[]))
+        AND e.expired_at IS NULL
+
+      UNION ALL
+
+      SELECT
+        n.id,
+        n.cause_event_id,
+        n.effect_event_id,
+        n.strength,
+        n.corroboration_count,
+        n.reasoning,
+        c.depth + 1,
+        c.path || n.id
+      FROM chain c
+      JOIN public.causal_edges n ON (
+        n.cause_event_id = c.effect_event_id
+        OR n.effect_event_id = c.cause_event_id
+        OR n.cause_event_id = c.cause_event_id
+        OR n.effect_event_id = c.effect_event_id
+      )
+      WHERE n.expired_at IS NULL
+        AND c.depth < ${maxDepth}
+        AND NOT (n.id = ANY(c.path))
+    )
+    SELECT DISTINCT ON (id)
+      id, cause_event_id, effect_event_id, strength,
+      corroboration_count, reasoning, depth
+    FROM chain
+    ORDER BY id, depth
+  `);
+
+  return rows.map((r) => ({
+    nodeType: 'causal_edge',
+    nodeId: r.id,
+    summary: `Edge: ${r.reasoning.slice(0, 80)}`,
+    relationship: 'transitive',
+    depth: r.depth,
+    severity: 'medium',
+    reasoning: `Reachable via ${r.depth}-hop causal chain (cause=${r.causeEventId}, effect=${r.effectEventId})`,
+    strength: r.strength,
+    corroborationCount: r.corroborationCount,
+  }));
 }
 
-/** C2: dispatch to `findEdgesCitingReference` from Phase 3. */
+// ============================================
+// Citation dependents
+// ============================================
+
+/**
+ * Edges that cite this node as evidence — walks Phase 3's `edge_source_refs`
+ * index via `findEdgesCitingReference` (`src/services/causal.ts:970`). Active
+ * edges only (default behaviour of the index helper).
+ *
+ * `causal_event` nodeType has no citation analogue — citations reference
+ * memories / facts / entities, not events — so it returns `[]`.
+ */
 async function findCitationDependents(
-  _nodeType: RootNodeType,
-  _nodeId: string,
+  nodeType: RootNodeType,
+  nodeId: string,
 ): Promise<ImpactNode[]> {
-  return [];
+  if (nodeType === 'causal_event') return [];
+
+  // RootNodeType is 'fact' | 'entity' here; both are valid refType values for
+  // findEdgesCitingReference (which also accepts 'memory', not relevant for a
+  // graph-node root).
+  const edges = await findEdgesCitingReference(nodeType, nodeId);
+
+  return edges.map((e) => ({
+    nodeType: 'causal_edge',
+    nodeId: e.id,
+    summary: `Edge: ${e.reasoning.slice(0, 80)}`,
+    relationship: 'citation',
+    depth: 0,
+    severity: 'medium',
+    reasoning: `Cites ${nodeType} ${nodeId} as evidence (strength=${e.strength}, corroboration=${e.corroborationCount})`,
+    strength: e.strength,
+    corroborationCount: e.corroborationCount,
+  }));
 }
 
 /** C3: JOIN through `causal_edges.pattern_id` to find provisional/canonical patterns. */
@@ -445,7 +566,3 @@ function tallySeverity(nodes: ImpactNode[]): BlastRadiusReport['severitySummary'
   }
   return counts;
 }
-
-// Used by raw-SQL CTE helpers in C2; kept local to avoid an unused import warning
-// when the body still stubs out.
-void sql;

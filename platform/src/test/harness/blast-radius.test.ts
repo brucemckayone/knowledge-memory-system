@@ -349,3 +349,324 @@ describe('Phase 4 — Direct dependents (nmemo-437.1)', () => {
     });
   });
 });
+
+// ============================================
+// C2 — Transitive chains (nmemo-437.2)
+// ============================================
+
+/** Build a linear chain: events e0..e_n with edges e0→e1, e1→e2, ... */
+async function setupChain(
+  length: number,
+  factId: string,
+): Promise<{ events: string[]; edges: string[] }> {
+  const events: string[] = [];
+  for (let i = 0; i < length; i++) {
+    events.push(await insertCausalEvent({ factId, transitionType: 'created' }));
+  }
+  const edges: string[] = [];
+  for (let i = 0; i < length - 1; i++) {
+    edges.push(await insertCausalEdge({ causeEventId: events[i]!, effectEventId: events[i + 1]! }));
+  }
+  return { events, edges };
+}
+
+describe('Phase 4 — Transitive chains (nmemo-437.2)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('walks forward from a causal event', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events, edges } = await setupChain(4, fact.id); // e0→e1→e2→e3
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: events[0]! });
+
+    const ids = new Set(report.transitiveChains.map((t) => t.nodeId));
+    // depth-1 edge (direct) is in directDependents, not transitiveChains? Actually
+    // findTransitiveChains starts at depth 1 from any edge touching the root, so the
+    // first edge IS depth-1 transitive. directDependents (events → edges) overlaps;
+    // the merged report contains both perspectives, which is intended.
+    for (const e of edges) expect(ids.has(e)).toBe(true);
+    const depths = report.transitiveChains.map((t) => t.depth);
+    expect(Math.max(...depths)).toBeLessThanOrEqual(3);
+  });
+
+  it('walks backward from a causal event (reverse chain)', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events, edges } = await setupChain(4, fact.id); // e0→e1→e2→e3
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: events[3]! });
+
+    const ids = new Set(report.transitiveChains.map((t) => t.nodeId));
+    for (const e of edges) expect(ids.has(e)).toBe(true);
+  });
+
+  it('walks both directions from a middle node', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events, edges } = await setupChain(5, fact.id); // e0→e1→e2→e3→e4
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: events[2]!, // middle
+      maxDepth: 5,
+    });
+
+    const ids = new Set(report.transitiveChains.map((t) => t.nodeId));
+    for (const e of edges) expect(ids.has(e)).toBe(true);
+  });
+
+  it('respects maxDepth cap', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events } = await setupChain(8, fact.id);
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: events[0]!,
+      maxDepth: 2,
+    });
+
+    const depths = report.transitiveChains.map((t) => t.depth);
+    expect(Math.max(...depths)).toBeLessThanOrEqual(2);
+  });
+
+  it('terminates cleanly on a 3-node cycle (A→B→C→A)', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const eA = await insertCausalEvent({ factId: fact.id });
+    const eB = await insertCausalEvent({ factId: fact.id });
+    const eC = await insertCausalEvent({ factId: fact.id });
+    const eAB = await insertCausalEdge({ causeEventId: eA, effectEventId: eB });
+    const eBC = await insertCausalEdge({ causeEventId: eB, effectEventId: eC });
+    const eCA = await insertCausalEdge({ causeEventId: eC, effectEventId: eA });
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: eA,
+      maxDepth: 10,
+    });
+
+    const ids = report.transitiveChains.map((t) => t.nodeId).sort();
+    // Each cycle edge appears at most once thanks to DISTINCT ON (id)
+    expect(ids).toEqual([eAB, eBC, eCA].sort());
+    // No node_id appears twice
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('returns shortest depth for diamond topology (multi-path edge)', async () => {
+    // E0 → E1 → E3 (depth 2 path)
+    // E0 → E2 → E3 (depth 2 path; same edge E2→E3 NOT shared, but E1→E3 and
+    // E2→E3 both point to E3; an alternate-effect hop reaches via shorter path)
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const e2 = await insertCausalEvent({ factId: fact.id });
+    const e3 = await insertCausalEvent({ factId: fact.id });
+    await insertCausalEdge({ causeEventId: e0, effectEventId: e1 });
+    await insertCausalEdge({ causeEventId: e0, effectEventId: e2 });
+    const target = await insertCausalEdge({ causeEventId: e1, effectEventId: e3 });
+    await insertCausalEdge({ causeEventId: e2, effectEventId: e3 });
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: e0,
+      maxDepth: 5,
+    });
+
+    // Each edge appears exactly once
+    const ids = report.transitiveChains.map((t) => t.nodeId);
+    expect(new Set(ids).size).toBe(ids.length);
+    // The target edge (E1→E3) is reachable; depth is the shortest reach
+    const targetNode = report.transitiveChains.find((t) => t.nodeId === target);
+    expect(targetNode).toBeDefined();
+    expect(targetNode!.depth).toBeLessThanOrEqual(2);
+  });
+
+  it('excludes expired causal_edges from the walk', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const e2 = await insertCausalEvent({ factId: fact.id });
+    const live = await insertCausalEdge({ causeEventId: e0, effectEventId: e1 });
+    await insertCausalEdge({
+      causeEventId: e1,
+      effectEventId: e2,
+      expiredAt: new Date(),
+    });
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: e0,
+      maxDepth: 5,
+    });
+
+    const ids = report.transitiveChains.map((t) => t.nodeId);
+    expect(ids).toEqual([live]);
+  });
+
+  it('returns empty when no events anchor the walk (entity with no events)', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const report = await analyzeImpact({ nodeType: 'entity', nodeId: alice.id });
+    expect(report.transitiveChains).toEqual([]);
+  });
+});
+
+// ============================================
+// C2 — Citation dependents (nmemo-437.3)
+// ============================================
+
+async function seedEdgeCitingFact(params: {
+  factId: string;
+  causeEventId: string;
+  effectEventId: string;
+  strength?: number;
+  corroborationCount?: number;
+}): Promise<string> {
+  const edgeId = await insertCausalEdge({
+    causeEventId: params.causeEventId,
+    effectEventId: params.effectEventId,
+    strength: params.strength,
+    corroborationCount: params.corroborationCount,
+  });
+  // Phase 3 source-refs index: directly seed the row (mirrors the pattern from
+  // source-refs-index.test.ts adversarial fixtures).
+  await testDb`
+    INSERT INTO edge_source_refs (edge_id, ref_type, ref_id)
+    VALUES (${edgeId}::uuid, 'fact', ${params.factId}::uuid)
+  `;
+  return edgeId;
+}
+
+describe('Phase 4 — Citation dependents (nmemo-437.3)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('finds active edges citing the fact as evidence', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const e2 = await insertCausalEvent({ factId: fact.id });
+
+    const edge1 = await seedEdgeCitingFact({
+      factId: fact.id,
+      causeEventId: e0,
+      effectEventId: e1,
+    });
+    const edge2 = await seedEdgeCitingFact({
+      factId: fact.id,
+      causeEventId: e1,
+      effectEventId: e2,
+    });
+
+    const report = await analyzeImpact({ nodeType: 'fact', nodeId: fact.id });
+
+    const ids = report.citationDependents.map((d) => d.nodeId).sort();
+    expect(ids).toEqual([edge1, edge2].sort());
+    expect(report.citationDependents.every((d) => d.relationship === 'citation')).toBe(true);
+    expect(report.citationDependents.every((d) => d.depth === 0)).toBe(true);
+    expect(report.citationDependents.every((d) => d.nodeType === 'causal_edge')).toBe(true);
+  });
+
+  it('excludes expired citing edges', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+
+    const liveEdge = await seedEdgeCitingFact({
+      factId: fact.id,
+      causeEventId: e0,
+      effectEventId: e1,
+    });
+    const expiredEdge = await insertCausalEdge({
+      causeEventId: e0,
+      effectEventId: e1,
+      expiredAt: new Date(),
+    });
+    await testDb`
+      INSERT INTO edge_source_refs (edge_id, ref_type, ref_id)
+      VALUES (${expiredEdge}::uuid, 'fact', ${fact.id}::uuid)
+    `;
+
+    const report = await analyzeImpact({ nodeType: 'fact', nodeId: fact.id });
+
+    expect(report.citationDependents.map((d) => d.nodeId)).toEqual([liveEdge]);
+  });
+
+  it('returns empty for causal_event roots (no citation analogue)', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const eventId = await insertCausalEvent({ factId: fact.id });
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: eventId });
+
+    expect(report.citationDependents).toEqual([]);
+  });
+
+  it('finds edges citing an entity', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const edgeId = await insertCausalEdge({ causeEventId: e0, effectEventId: e1 });
+    await testDb`
+      INSERT INTO edge_source_refs (edge_id, ref_type, ref_id)
+      VALUES (${edgeId}::uuid, 'entity', ${alice.id}::uuid)
+    `;
+
+    const report = await analyzeImpact({ nodeType: 'entity', nodeId: alice.id });
+
+    expect(report.citationDependents.map((d) => d.nodeId)).toEqual([edgeId]);
+  });
+});
