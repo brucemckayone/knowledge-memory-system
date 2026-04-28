@@ -20,6 +20,8 @@ import {
   detectCausalPatterns,
   collectChains,
   normaliseChain,
+  promotePatterns,
+  type PatternStatus,
 } from '../../services/causal-patterns.js';
 
 async function cleanSlate(): Promise<void> {
@@ -138,6 +140,71 @@ async function seedPredicateCategory(predicate: string, category: string): Promi
     VALUES (${predicate}, ${category}, 'canonical', 'relation')
     ON CONFLICT (predicate) DO UPDATE SET category = EXCLUDED.category
   `;
+}
+
+interface SetupPatternOpts {
+  status?: PatternStatus;
+  instanceCount?: number;
+  activationCount30d?: number;
+  firstSeenAt?: Date;
+  lastSeenAt?: Date | null;
+  promotedAt?: Date | null;
+  templateStructure?: unknown[];
+  name?: string | null;
+}
+
+/**
+ * Insert a `causal_patterns` row at an arbitrary lifecycle state. Used by
+ * lifecycle tests that need to bypass the usual `staging`-only seeding done
+ * by detectCausalPatterns.
+ */
+async function setupPattern(opts: SetupPatternOpts = {}): Promise<string> {
+  const status = opts.status ?? 'staging';
+  const instanceCount = opts.instanceCount ?? 1;
+  const activationCount30d = opts.activationCount30d ?? 0;
+  const firstSeenAt = opts.firstSeenAt ?? new Date();
+  const lastSeenAt = opts.lastSeenAt === undefined ? new Date() : opts.lastSeenAt;
+  const promotedAt = opts.promotedAt ?? null;
+  const template = opts.templateStructure ?? [
+    { entity_type: 'standard_rule', predicate_category: 'requires' },
+    { entity_type: 'standard_rule', predicate_category: 'requires' },
+  ];
+  const templateLength = template.length;
+  const name = opts.name ?? null;
+
+  const [row] = await testDb<Array<{ id: string }>>`
+    INSERT INTO public.causal_patterns
+      (name, template_structure, template_length, status, instance_count,
+       activation_count_30d, first_seen_at, last_seen_at, promoted_at)
+    VALUES
+      (${name}, ${JSON.stringify(template)}::jsonb, ${templateLength}, ${status},
+       ${instanceCount}, ${activationCount30d}, ${firstSeenAt}, ${lastSeenAt}, ${promotedAt})
+    RETURNING id
+  `;
+  return row!.id;
+}
+
+async function getPatternRow(id: string): Promise<{
+  id: string;
+  status: PatternStatus;
+  name: string | null;
+  rejected_at: Date | null;
+  rejection_reason: string | null;
+  promoted_at: Date | null;
+}> {
+  const [row] = await testDb<Array<{
+    id: string;
+    status: PatternStatus;
+    name: string | null;
+    rejected_at: Date | null;
+    rejection_reason: string | null;
+    promoted_at: Date | null;
+  }>>`
+    SELECT id, status, name, rejected_at, rejection_reason, promoted_at
+    FROM public.causal_patterns
+    WHERE id = ${id}::uuid
+  `;
+  return row!;
 }
 
 describe('Phase 6 — G1: migration + chain collection (nmemo-d9v.1 + d9v.2)', () => {
@@ -395,6 +462,262 @@ describe('Phase 6 — G2: normalisation + clustering + upsert (nmemo-d9v.3 + d9v
       // and added to whatever cluster their current category resolves to).
       const total = patterns.reduce((s, p) => s + (p as { instance_count: number }).instance_count, 0);
       expect(total).toBeGreaterThanOrEqual(6);
+    });
+  });
+});
+
+describe('Phase 6 — G3: promotion engine (nmemo-d9v.5 + d9v.6)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  describe('promotions — forward transitions', () => {
+    it('staging → candidate at instance_count >= 5 with recent last_seen_at', async () => {
+      const id = await setupPattern({ status: 'staging', instanceCount: 5, lastSeenAt: new Date() });
+
+      const result = await promotePatterns();
+
+      expect(result.promoted).toHaveLength(1);
+      expect(result.promoted[0]!.from).toBe('staging');
+      expect(result.promoted[0]!.to).toBe('candidate');
+      expect(result.promoted[0]!.id).toBe(id);
+
+      const after = await getPatternRow(id);
+      expect(after.status).toBe('candidate');
+      expect(after.promoted_at).not.toBeNull();
+    });
+
+    it('does NOT promote staging if instance_count below threshold', async () => {
+      await setupPattern({ status: 'staging', instanceCount: 4, lastSeenAt: new Date() });
+      const result = await promotePatterns();
+      expect(result.promoted).toHaveLength(0);
+    });
+
+    it('does NOT promote staging if last_seen_at is stale', async () => {
+      const stale = new Date(Date.now() - 30 * 86400 * 1000);
+      await setupPattern({ status: 'staging', instanceCount: 5, lastSeenAt: stale });
+      const result = await promotePatterns();
+      expect(result.promoted).toHaveLength(0);
+    });
+
+    it('candidate → provisional at instance_count >= 10 + activations >= 3', async () => {
+      const id = await setupPattern({
+        status: 'candidate',
+        instanceCount: 12,
+        activationCount30d: 4,
+      });
+
+      const result = await promotePatterns();
+
+      // The activation_count_30d gets refreshed at the start of promotePatterns.
+      // No causal_edges link to this pattern, so it'd be reset to 0 — promotion
+      // should not happen if we relied on the seeded value alone. Verify
+      // separately that with linked edges, promotion fires.
+      expect(result.promoted).toHaveLength(0);
+
+      const after = await getPatternRow(id);
+      expect(after.status).toBe('candidate');
+    });
+
+    it('candidate → provisional fires when activations are real (linked edges within 30d)', async () => {
+      const id = await setupPattern({ status: 'candidate', instanceCount: 12 });
+
+      // Create 4 active edges linked to this pattern within 30d so the refresh
+      // sets activation_count_30d to 4
+      const { edgeIds } = await buildLinearChain(4);
+      for (const edgeId of edgeIds) {
+        await testDb`UPDATE public.causal_edges SET pattern_id = ${id}::uuid WHERE id = ${edgeId}::uuid`;
+      }
+
+      const result = await promotePatterns();
+      expect(result.promoted).toHaveLength(1);
+      expect(result.promoted[0]!.to).toBe('provisional');
+    });
+
+    it('provisional → canonical at dwell >= 14d + activations >= 5', async () => {
+      const fifteenDaysAgo = new Date(Date.now() - 15 * 86400 * 1000);
+      const id = await setupPattern({
+        status: 'provisional',
+        instanceCount: 20,
+        promotedAt: fifteenDaysAgo,
+      });
+
+      // Seed 5 fresh activations
+      const { edgeIds } = await buildLinearChain(5);
+      for (const edgeId of edgeIds) {
+        await testDb`UPDATE public.causal_edges SET pattern_id = ${id}::uuid WHERE id = ${edgeId}::uuid`;
+      }
+
+      const result = await promotePatterns();
+      expect(result.promoted).toHaveLength(1);
+      expect(result.promoted[0]!.to).toBe('canonical');
+    });
+
+    it('does NOT promote provisional → canonical if dwell time is too short', async () => {
+      const twoDaysAgo = new Date(Date.now() - 2 * 86400 * 1000);
+      const id = await setupPattern({
+        status: 'provisional',
+        instanceCount: 20,
+        promotedAt: twoDaysAgo,
+      });
+      const { edgeIds } = await buildLinearChain(5);
+      for (const edgeId of edgeIds) {
+        await testDb`UPDATE public.causal_edges SET pattern_id = ${id}::uuid WHERE id = ${edgeId}::uuid`;
+      }
+
+      const result = await promotePatterns();
+      expect(result.promoted).toHaveLength(0);
+    });
+
+    it('cascading: a pattern crossing two thresholds in one call only steps once', async () => {
+      // Set up a pattern that satisfies BOTH staging→candidate AND
+      // candidate→provisional. Snapshot semantics mean it can only move once
+      // per promotePatterns() call.
+      const id = await setupPattern({
+        status: 'staging',
+        instanceCount: 12, // > both thresholds
+        lastSeenAt: new Date(),
+      });
+      const { edgeIds } = await buildLinearChain(4);
+      for (const edgeId of edgeIds) {
+        await testDb`UPDATE public.causal_edges SET pattern_id = ${id}::uuid WHERE id = ${edgeId}::uuid`;
+      }
+
+      const result = await promotePatterns();
+      expect(result.promoted).toHaveLength(1);
+      expect(result.promoted[0]!.to).toBe('candidate');
+
+      const after = await getPatternRow(id);
+      expect(after.status).toBe('candidate');
+    });
+  });
+
+  describe('demotions — reverse transitions on inactivity', () => {
+    it('canonical → provisional after 30d idle with no activations', async () => {
+      const id = await setupPattern({
+        status: 'canonical',
+        instanceCount: 50,
+        activationCount30d: 0,
+        lastSeenAt: new Date(Date.now() - 35 * 86400 * 1000),
+      });
+
+      const result = await promotePatterns();
+      expect(result.demoted).toHaveLength(1);
+      expect(result.demoted[0]!.from).toBe('canonical');
+      expect(result.demoted[0]!.to).toBe('provisional');
+
+      const after = await getPatternRow(id);
+      expect(after.status).toBe('provisional');
+    });
+
+    it('provisional → candidate after 30d idle', async () => {
+      const id = await setupPattern({
+        status: 'provisional',
+        instanceCount: 20,
+        lastSeenAt: new Date(Date.now() - 35 * 86400 * 1000),
+      });
+
+      const result = await promotePatterns();
+      expect(result.demoted.find((d) => d.id === id)?.to).toBe('candidate');
+    });
+
+    it('candidate → staging after 30d idle', async () => {
+      const id = await setupPattern({
+        status: 'candidate',
+        instanceCount: 7,
+        lastSeenAt: new Date(Date.now() - 35 * 86400 * 1000),
+      });
+
+      const result = await promotePatterns();
+      expect(result.demoted.find((d) => d.id === id)?.to).toBe('staging');
+    });
+
+    it('does NOT demote when there are recent activations', async () => {
+      const id = await setupPattern({
+        status: 'canonical',
+        instanceCount: 50,
+        lastSeenAt: new Date(Date.now() - 35 * 86400 * 1000),
+      });
+      // One fresh activation
+      const { edgeIds } = await buildLinearChain(1);
+      await testDb`UPDATE public.causal_edges SET pattern_id = ${id}::uuid WHERE id = ${edgeIds[0]!}::uuid`;
+
+      const result = await promotePatterns();
+      expect(result.demoted).toHaveLength(0);
+    });
+
+    it('one promotePatterns call demotes at most one level', async () => {
+      // Set up a canonical pattern with very old last_seen and no activations.
+      // After demotion to provisional in this call, the test asserts the row
+      // is at provisional NOT candidate or staging.
+      const id = await setupPattern({
+        status: 'canonical',
+        instanceCount: 50,
+        lastSeenAt: new Date(Date.now() - 100 * 86400 * 1000),
+      });
+
+      await promotePatterns();
+      const after = await getPatternRow(id);
+      expect(after.status).toBe('provisional');
+    });
+  });
+
+  describe('rejection — terminal staging timeout', () => {
+    it('staging → rejected after 14d with zero activations', async () => {
+      const id = await setupPattern({
+        status: 'staging',
+        instanceCount: 1,
+        firstSeenAt: new Date(Date.now() - 20 * 86400 * 1000),
+        lastSeenAt: new Date(Date.now() - 20 * 86400 * 1000),
+      });
+
+      const result = await promotePatterns();
+      expect(result.rejected).toHaveLength(1);
+      expect(result.rejected[0]!.id).toBe(id);
+
+      const after = await getPatternRow(id);
+      expect(after.status).toBe('rejected');
+      expect(after.rejected_at).not.toBeNull();
+      expect(after.rejection_reason).toContain('No activations');
+    });
+
+    it('does NOT reject staging if any activation exists', async () => {
+      const id = await setupPattern({
+        status: 'staging',
+        instanceCount: 1,
+        firstSeenAt: new Date(Date.now() - 20 * 86400 * 1000),
+      });
+      const { edgeIds } = await buildLinearChain(1);
+      await testDb`UPDATE public.causal_edges SET pattern_id = ${id}::uuid WHERE id = ${edgeIds[0]!}::uuid`;
+
+      const result = await promotePatterns();
+      expect(result.rejected).toHaveLength(0);
+    });
+
+    it('does NOT reject young staging patterns', async () => {
+      await setupPattern({
+        status: 'staging',
+        instanceCount: 1,
+        firstSeenAt: new Date(),
+      });
+      const result = await promotePatterns();
+      expect(result.rejected).toHaveLength(0);
+    });
+  });
+
+  describe('concurrency — Q5 status-guarded UPDATE', () => {
+    it('parallel promotePatterns calls produce a single transition per pattern', async () => {
+      const id = await setupPattern({ status: 'staging', instanceCount: 5, lastSeenAt: new Date() });
+
+      const results = await Promise.all([promotePatterns(), promotePatterns()]);
+
+      // Sum across both calls: exactly one promotion event for the pattern
+      const allPromoted = [...results[0]!.promoted, ...results[1]!.promoted];
+      const promotionsForThisPattern = allPromoted.filter((p) => p.id === id);
+      expect(promotionsForThisPattern).toHaveLength(1);
+
+      const after = await getPatternRow(id);
+      expect(after.status).toBe('candidate');
     });
   });
 });

@@ -26,19 +26,21 @@
  *   - `activePatterns` filters the catalog by status + entity involvement
  *     for MCP/HTTP/viz consumers.
  *
- * Heuristics implemented in this group (G2 — d9v.3 + d9v.4):
+ * Heuristics implemented in this group (G3 — d9v.5 + d9v.6):
  *   - Migration 012 extends `valid_pattern_status` to include `'rejected'`.
  *   - `collectChains` — recursive CTE walking active causal_edges from events
  *     within `lookbackDays`. Cycle protection via path-array exclusion.
- *     Capped at `maxChains` and `maxChainLength`.
- *   - `normaliseChain` — fetches each event's `entity_type` + `predicate_category`
- *     (with fallback to the predicate string when `fact_predicates.category`
- *     is NULL) and produces a `TemplateNode[]` keyed by canonical JSON.
- *   - `detectCausalPatterns` — clusters chains by template hash, upserts
- *     `causal_patterns` rows for clusters meeting `instanceThreshold`, and
- *     stamps each participating edge with `pattern_id` + `pattern_position`.
+ *   - `normaliseChain` + `detectCausalPatterns` — clusters chains by template
+ *     hash, upserts to staging at `instanceThreshold`, stamps participating
+ *     edges with `pattern_id` + `pattern_position`.
+ *   - `promotePatterns` — single-pass lifecycle driver. Refreshes
+ *     `activation_count_30d` from `causal_edges`, then runs status-guarded
+ *     UPDATE ... WHERE status=$prev RETURNING for each transition (Q5 SQL
+ *     CAS — no row locks, atomic across pipeline + manual API races).
+ *     Snapshots eligibility BEFORE applying any UPDATE so demotions step at
+ *     most one level per call.
  *
- * Later groups add lifecycle, naming, matching, ghosts, and the
+ * Later groups add naming, edge-time matching, ghosts, and the
  * active-patterns query.
  */
 
@@ -427,4 +429,319 @@ async function recomputePatternAggregates(patternId: string): Promise<void> {
     ) sub
     WHERE p.id = sub.pattern_id
   `);
+}
+
+// ============================================
+// Lifecycle — promotion + demotion + rejection (G3)
+// ============================================
+
+export type PatternStatus = 'staging' | 'candidate' | 'provisional' | 'canonical' | 'rejected';
+
+export const PATTERN_STATUSES: readonly PatternStatus[] = [
+  'staging',
+  'candidate',
+  'provisional',
+  'canonical',
+  'rejected',
+] as const;
+
+/**
+ * Lifecycle thresholds — env-tunable per spec 17:206-212. Defaults track the
+ * spec exactly; tests override via `PromoteOptions` rather than mutating
+ * these constants so we keep the production path predictable.
+ */
+export const LIFECYCLE_DEFAULTS = {
+  /** staging → candidate: instance_count threshold + recency window (days). */
+  stagingToCandidate: { instances: 5, lookbackDays: 14 },
+  /** candidate → provisional: instance_count + activations in last 30d. */
+  candidateToProvisional: { instances: 10, activations30d: 3 },
+  /** provisional → canonical: dwell time in provisional (days) + activations. */
+  provisionalToCanonical: { dwellDays: 14, activations30d: 5 },
+  /** Demote one level when activation_count_30d == 0 for this many days. */
+  demotion: { idleDays: 30 },
+  /** staging → rejected: never activated within this many days of first_seen_at. */
+  rejection: { stagingDays: 14 },
+} as const;
+
+export interface PromoteOptions {
+  /** Override for tests — must match the LIFECYCLE_DEFAULTS shape. */
+  thresholds?: Partial<typeof LIFECYCLE_DEFAULTS>;
+}
+
+export interface PromotionEvent {
+  id: string;
+  from: PatternStatus;
+  to: PatternStatus;
+  /** Pattern name at the time of transition (may be NULL — naming runs in G4). */
+  name: string | null;
+}
+
+export interface RejectionEvent {
+  id: string;
+  reason: string;
+}
+
+export interface PromoteResult {
+  promoted: PromotionEvent[];
+  demoted: PromotionEvent[];
+  rejected: RejectionEvent[];
+}
+
+interface PatternSnapshot {
+  id: string;
+  status: PatternStatus;
+  name: string | null;
+  instanceCount: number;
+  activationCount30d: number;
+  firstSeenAt: Date;
+  lastSeenAt: Date | null;
+  promotedAt: Date | null;
+}
+
+/**
+ * Single-pass promotion + demotion + rejection driver.
+ *
+ * Algorithm:
+ *   1. Refresh `activation_count_30d` for every non-rejected pattern from the
+ *      live `causal_edges` table (count of edges with `pattern_id = id` and
+ *      `created_at >= NOW() - 30 days`). This makes the column self-healing
+ *      against edge expiry / pattern reassignment.
+ *   2. Snapshot all non-rejected patterns at this moment.
+ *   3. From the snapshot, compute eligibility for each transition.
+ *   4. Apply each transition with `UPDATE ... WHERE id = ANY($eligible) AND
+ *      status = $prev RETURNING *`. The status guard is the SQL CAS — if a
+ *      concurrent caller beat us, the WHERE returns 0 rows and we skip.
+ *   5. Demotions are computed off the SAME snapshot so a pattern moves at
+ *      most one level per call (the spec contract).
+ *
+ * Returns the lists of promoted, demoted, and rejected pattern IDs with
+ * their before/after status — the reasoning agent or a future hook can fan
+ * those out (G4 wires Haiku naming on `promoted` rows where `to === 'candidate'`).
+ */
+export async function promotePatterns(opts: PromoteOptions = {}): Promise<PromoteResult> {
+  const t = mergeThresholds(opts.thresholds);
+
+  await refreshActivationCounts();
+  const snapshot = await snapshotPatterns();
+
+  const stagingToCandidateIds = snapshot
+    .filter((p) =>
+      p.status === 'staging' &&
+      p.instanceCount >= t.stagingToCandidate.instances &&
+      withinDays(p.lastSeenAt, t.stagingToCandidate.lookbackDays),
+    )
+    .map((p) => p.id);
+
+  const candidateToProvisionalIds = snapshot
+    .filter((p) =>
+      p.status === 'candidate' &&
+      p.instanceCount >= t.candidateToProvisional.instances &&
+      p.activationCount30d >= t.candidateToProvisional.activations30d,
+    )
+    .map((p) => p.id);
+
+  const provisionalToCanonicalIds = snapshot
+    .filter((p) =>
+      p.status === 'provisional' &&
+      olderThanDays(p.promotedAt, t.provisionalToCanonical.dwellDays) &&
+      p.activationCount30d >= t.provisionalToCanonical.activations30d,
+    )
+    .map((p) => p.id);
+
+  // Demotion: any non-staging pattern with zero activations in 30d AND whose
+  // last_seen (or first_seen as fallback) is past the idle window. Each pattern
+  // demotes at most one level per call because the snapshot fixed its status
+  // at function entry.
+  const demoteCandidates = snapshot.filter((p) =>
+    p.status !== 'staging' &&
+    p.status !== 'rejected' &&
+    p.activationCount30d === 0 &&
+    olderThanDays(p.lastSeenAt ?? p.firstSeenAt, t.demotion.idleDays),
+  );
+
+  const canonicalDemoteIds = demoteCandidates.filter((p) => p.status === 'canonical').map((p) => p.id);
+  const provisionalDemoteIds = demoteCandidates.filter((p) => p.status === 'provisional').map((p) => p.id);
+  const candidateDemoteIds = demoteCandidates.filter((p) => p.status === 'candidate').map((p) => p.id);
+
+  // Rejection: staging with zero activations and aged out.
+  const rejectionIds = snapshot
+    .filter((p) =>
+      p.status === 'staging' &&
+      p.activationCount30d === 0 &&
+      olderThanDays(p.firstSeenAt, t.rejection.stagingDays),
+    )
+    .map((p) => p.id);
+
+  const promoted: PromotionEvent[] = [];
+  const demoted: PromotionEvent[] = [];
+  const rejected: RejectionEvent[] = [];
+
+  // Apply promotions in order — staging→candidate first since spec calls naming
+  // on `promoted` events whose `to === 'candidate'` (G4).
+  promoted.push(...(await casTransition(stagingToCandidateIds, 'staging', 'candidate', { setPromotedAt: true })));
+  promoted.push(...(await casTransition(candidateToProvisionalIds, 'candidate', 'provisional', { setPromotedAt: true })));
+  promoted.push(...(await casTransition(provisionalToCanonicalIds, 'provisional', 'canonical', { setPromotedAt: true })));
+
+  // Apply demotions — order independent because the eligibility was computed
+  // off the snapshot, but for clarity demote canonical first.
+  demoted.push(...(await casTransition(canonicalDemoteIds, 'canonical', 'provisional')));
+  demoted.push(...(await casTransition(provisionalDemoteIds, 'provisional', 'candidate')));
+  demoted.push(...(await casTransition(candidateDemoteIds, 'candidate', 'staging')));
+
+  // Rejection — terminal. Sets rejected_at + rejection_reason.
+  if (rejectionIds.length > 0) {
+    const rejectedRows = await rawQuery<{ id: string }>(sql`
+      UPDATE public.causal_patterns
+      SET status           = 'rejected',
+          rejected_at      = NOW(),
+          rejection_reason = 'No activations within rejection window',
+          updated_at       = NOW()
+      WHERE id = ANY(${`{${rejectionIds.join(',')}}`}::uuid[])
+        AND status = 'staging'
+      RETURNING id
+    `);
+    for (const r of rejectedRows) {
+      rejected.push({ id: r.id, reason: 'No activations within rejection window' });
+    }
+  }
+
+  return { promoted, demoted, rejected };
+}
+
+function mergeThresholds(overrides?: Partial<typeof LIFECYCLE_DEFAULTS>): typeof LIFECYCLE_DEFAULTS {
+  if (!overrides) return LIFECYCLE_DEFAULTS;
+  return {
+    stagingToCandidate: { ...LIFECYCLE_DEFAULTS.stagingToCandidate, ...overrides.stagingToCandidate },
+    candidateToProvisional: { ...LIFECYCLE_DEFAULTS.candidateToProvisional, ...overrides.candidateToProvisional },
+    provisionalToCanonical: { ...LIFECYCLE_DEFAULTS.provisionalToCanonical, ...overrides.provisionalToCanonical },
+    demotion: { ...LIFECYCLE_DEFAULTS.demotion, ...overrides.demotion },
+    rejection: { ...LIFECYCLE_DEFAULTS.rejection, ...overrides.rejection },
+  };
+}
+
+function withinDays(when: Date | null, days: number): boolean {
+  if (!when) return false;
+  return Date.now() - when.getTime() <= days * 86400 * 1000;
+}
+
+function olderThanDays(when: Date | null, days: number): boolean {
+  if (!when) return false;
+  return Date.now() - when.getTime() >= days * 86400 * 1000;
+}
+
+/**
+ * Recompute `activation_count_30d` for every non-rejected pattern from
+ * `causal_edges`. An "activation" is an edge linked to the pattern within
+ * the last 30 days (`created_at >= NOW() - 30 days` and `expired_at IS NULL`).
+ *
+ * Self-healing: works regardless of whether `matchEdgeToPattern` (G4) has
+ * had a chance to incrementally bump the column.
+ */
+async function refreshActivationCounts(): Promise<void> {
+  await rawQuery(sql`
+    UPDATE public.causal_patterns p
+    SET activation_count_30d = COALESCE(sub.cnt, 0),
+        updated_at           = NOW()
+    FROM (
+      SELECT cp.id AS pattern_id,
+             COUNT(ce.id)::int AS cnt
+      FROM public.causal_patterns cp
+      LEFT JOIN public.causal_edges ce
+        ON ce.pattern_id = cp.id
+        AND ce.expired_at IS NULL
+        AND ce.created_at >= NOW() - INTERVAL '30 days'
+      WHERE cp.status != 'rejected'
+      GROUP BY cp.id
+    ) sub
+    WHERE p.id = sub.pattern_id
+  `);
+}
+
+async function snapshotPatterns(): Promise<PatternSnapshot[]> {
+  // Aliasing `activation_count_30d` to `activations30d` works around a
+  // limitation of the snake-to-camel transformer in src/db/raw.ts which only
+  // handles `_<lowercase letter>` and would leave `_30d` intact, producing
+  // the awkward field name `activationCount_30d` instead of `activationCount30d`.
+  type Row = {
+    id: string;
+    status: PatternStatus;
+    name: string | null;
+    instanceCount: number;
+    activations30d: number;
+    firstSeenAt: Date | string;
+    lastSeenAt: Date | string | null;
+    promotedAt: Date | string | null;
+  };
+
+  const rows = await rawQuery<Row>(sql`
+    SELECT id,
+           status,
+           name,
+           instance_count,
+           activation_count_30d AS activations30d,
+           first_seen_at,
+           last_seen_at,
+           promoted_at
+    FROM public.causal_patterns
+    WHERE status != 'rejected'
+  `);
+
+  return rows.map((r) => ({
+    id: r.id,
+    status: r.status,
+    name: r.name,
+    instanceCount: r.instanceCount,
+    activationCount30d: r.activations30d ?? 0,
+    firstSeenAt: toDate(r.firstSeenAt)!,
+    lastSeenAt: toDate(r.lastSeenAt),
+    promotedAt: toDate(r.promotedAt),
+  }));
+}
+
+function toDate(v: Date | string | null | undefined): Date | null {
+  if (v == null) return null;
+  return v instanceof Date ? v : new Date(v);
+}
+
+interface CasOptions {
+  setPromotedAt?: boolean;
+}
+
+/**
+ * Status-guarded UPDATE for one transition. Returns the rows that the CAS
+ * actually flipped (a concurrent caller beat us on rows that don't appear
+ * in the result set).
+ */
+async function casTransition(
+  ids: string[],
+  fromStatus: PatternStatus,
+  toStatus: PatternStatus,
+  opts: CasOptions = {},
+): Promise<PromotionEvent[]> {
+  if (ids.length === 0) return [];
+
+  const idsLiteral = `{${ids.join(',')}}`;
+
+  type Row = { id: string; name: string | null };
+
+  const rows = opts.setPromotedAt
+    ? await rawQuery<Row>(sql`
+        UPDATE public.causal_patterns
+        SET status      = ${toStatus},
+            promoted_at = NOW(),
+            updated_at  = NOW()
+        WHERE id = ANY(${idsLiteral}::uuid[])
+          AND status = ${fromStatus}
+        RETURNING id, name
+      `)
+    : await rawQuery<Row>(sql`
+        UPDATE public.causal_patterns
+        SET status     = ${toStatus},
+            updated_at = NOW()
+        WHERE id = ANY(${idsLiteral}::uuid[])
+          AND status = ${fromStatus}
+        RETURNING id, name
+      `);
+
+  return rows.map((r) => ({ id: r.id, from: fromStatus, to: toStatus, name: r.name }));
 }
