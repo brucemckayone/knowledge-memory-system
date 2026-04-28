@@ -1,0 +1,49 @@
+{
+  "scenario": "expired-but-cited",
+  "description": "Active causal edge cites an expired fact as sole evidence. Heuristic flags with severity=high (corroboration_count=1).",
+  "data_set_level": 1,
+  "fixture": "phase5-contradictions/fixtures/expired-but-cited.sql",
+  "phases_exercised": ["detection"],
+
+  "stages": [
+    {
+      "stage": "detection",
+      "driver": "service_call",
+      "service_call": "detectExpiredButCited",
+      "assertions": [
+        {
+          "type": "row_count",
+          "table": "contradictions",
+          "filter": { "contradiction_type": "expired_but_cited", "resolved_at": null },
+          "expected": 1,
+          "because": "One unresolved expired_but_cited contradiction must be flagged for the (edge, expired-fact) pair"
+        },
+        {
+          "type": "column_values",
+          "table": "contradictions",
+          "filter": { "contradiction_type": "expired_but_cited" },
+          "assertions": [
+            { "column": "edge_a_id", "expected": "30000000-0000-0000-0000-000000000201" },
+            { "column": "fact_a_id", "expected": "10000000-0000-0000-0000-000000000701" },
+            { "column": "detected_by", "expected": "sql_heuristic" },
+            { "column": "severity", "expected": "high" }
+          ]
+        },
+        {
+          "type": "duplicate_rejection",
+          "table": "contradictions",
+          "filter": { "contradiction_type": "expired_but_cited" },
+          "description": "Re-running the heuristic must not create a duplicate row for the same (edge, fact) pair",
+          "assertion": "row_count_stable_across_runs"
+        }
+      ]
+    }
+  ],
+
+  "benchmark_targets": {
+    "detection_latency_ms": { "max": 250, "because": "Single edge with edge_source_refs join" },
+    "severity_assignment": { "expected": "high", "because": "corroboration_count=1 → sole source" }
+  },
+
+  "graduation_notes": "Add expired-but-cited-corroborated.sql (edge with corroboration_count=3 — severity should drop to 'medium' or 'low'). Add expired-but-cited-multi-fact.sql (one edge cites two expired facts — should flag two rows)."
+}

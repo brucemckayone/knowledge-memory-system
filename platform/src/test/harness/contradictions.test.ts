@@ -25,7 +25,13 @@ import {
   deleteFromTables,
   loadFixture,
 } from '../setup.js';
-import { detectOpposingObjects, detectContradictions } from '../../services/contradictions.js';
+import {
+  detectOpposingObjects,
+  detectExpiredButCited,
+  detectCyclicCausal,
+  detectTemporalImpossible,
+  detectContradictions,
+} from '../../services/contradictions.js';
 import { loadExpected, runAssertion } from './assertion-runner.js';
 
 // ============================================
@@ -191,18 +197,125 @@ describe('Phase 5 — fixture-driven: opposing-object-exclusive (nmemo-cae.3)', 
 });
 
 // ============================================
-// Orchestrator (cae.3 — partial; full coverage lands in group C)
+// Fixture-driven: expired-but-cited (cae.4)
 // ============================================
 
-describe('Phase 5 — detectContradictions orchestrator (nmemo-cae.3)', () => {
+describe('Phase 5 — fixture-driven: expired-but-cited (nmemo-cae.4)', () => {
+  const expectedDoc = loadExpected('phase5-contradictions/expected/expired-but-cited.expected.json');
+  const detectionStage = expectedDoc.stages.find(s => s.stage === 'detection');
+  if (!detectionStage) throw new Error('expired-but-cited.expected.json: missing detection stage');
+
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase5-contradictions/fixtures/expired-but-cited.sql');
+    await detectExpiredButCited();
+  });
+
+  for (const assertion of detectionStage.assertions) {
+    it(`${assertion.type} — ${('because' in assertion && assertion.because) || ('description' in assertion && assertion.description) || 'asserts contract'}`, async () => {
+      await runAssertion(testDb, assertion, {
+        rerun: detectExpiredButCited,
+      });
+    });
+  }
+});
+
+// ============================================
+// Fixture-driven: cyclic-no-span (cae.5 positive)
+// ============================================
+
+describe('Phase 5 — fixture-driven: cyclic-no-span (nmemo-cae.5)', () => {
+  const expectedDoc = loadExpected('phase5-contradictions/expected/cyclic-no-span.expected.json');
+  const detectionStage = expectedDoc.stages.find(s => s.stage === 'detection');
+  if (!detectionStage) throw new Error('cyclic-no-span.expected.json: missing detection stage');
+
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase5-contradictions/fixtures/cyclic-no-span.sql');
+    await detectCyclicCausal();
+  });
+
+  for (const assertion of detectionStage.assertions) {
+    it(`${assertion.type} — ${('because' in assertion && assertion.because) || ('description' in assertion && assertion.description) || 'asserts contract'}`, async () => {
+      await runAssertion(testDb, assertion, {
+        rerun: detectCyclicCausal,
+      });
+    });
+  }
+});
+
+// ============================================
+// Fixture-driven: cyclic-with-span (cae.5 negative)
+// ============================================
+
+describe('Phase 5 — fixture-driven: cyclic-with-span (nmemo-cae.5)', () => {
+  const expectedDoc = loadExpected('phase5-contradictions/expected/cyclic-with-span.expected.json');
+  const detectionStage = expectedDoc.stages.find(s => s.stage === 'detection');
+  if (!detectionStage) throw new Error('cyclic-with-span.expected.json: missing detection stage');
+
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase5-contradictions/fixtures/cyclic-with-span.sql');
+    await detectCyclicCausal();
+  });
+
+  for (const assertion of detectionStage.assertions) {
+    it(`${assertion.type} — ${('because' in assertion && assertion.because) || ('description' in assertion && assertion.description) || 'asserts contract'}`, async () => {
+      await runAssertion(testDb, assertion, {
+        rerun: detectCyclicCausal,
+      });
+    });
+  }
+});
+
+// ============================================
+// Fixture-driven: temporal-impossible (cae.6)
+// ============================================
+
+describe('Phase 5 — fixture-driven: temporal-impossible (nmemo-cae.6)', () => {
+  const expectedDoc = loadExpected('phase5-contradictions/expected/temporal-impossible.expected.json');
+  const detectionStage = expectedDoc.stages.find(s => s.stage === 'detection');
+  if (!detectionStage) throw new Error('temporal-impossible.expected.json: missing detection stage');
+
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase5-contradictions/fixtures/temporal-impossible.sql');
+    await detectTemporalImpossible();
+  });
+
+  for (const assertion of detectionStage.assertions) {
+    it(`${assertion.type} — ${('because' in assertion && assertion.because) || ('description' in assertion && assertion.description) || 'asserts contract'}`, async () => {
+      await runAssertion(testDb, assertion, {
+        rerun: detectTemporalImpossible,
+      });
+    });
+  }
+});
+
+// ============================================
+// Orchestrator — all four heuristics fire on a combined fixture set
+// ============================================
+
+describe('Phase 5 — detectContradictions orchestrator (cae.3-.6)', () => {
   beforeAll(async () => {
     await cleanSlate();
     await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    await loadFixture('phase5-contradictions/fixtures/expired-but-cited.sql');
+    await loadFixture('phase5-contradictions/fixtures/cyclic-no-span.sql');
+    await loadFixture('phase5-contradictions/fixtures/temporal-impossible.sql');
   });
 
-  it('runs all heuristics and returns aggregate counts', async () => {
+  it('runs all four heuristics and returns aggregate counts', async () => {
     const result = await detectContradictions();
-    expect(result.detected).toBeGreaterThanOrEqual(1);
-    expect(result.byType.opposing_object).toBeGreaterThanOrEqual(1);
+    expect(result.detected).toBeGreaterThanOrEqual(4);
+    expect(result.byType.opposing_object).toBe(1);
+    expect(result.byType.expired_but_cited).toBe(1);
+    expect(result.byType.cyclic_causal).toBe(1);
+    expect(result.byType.temporal_impossible).toBe(1);
+  });
+
+  it('second run is a no-op (idempotent — partial unique index)', async () => {
+    const result = await detectContradictions();
+    expect(result.detected).toBe(0);
   });
 });

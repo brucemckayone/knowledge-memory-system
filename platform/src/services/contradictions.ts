@@ -134,26 +134,160 @@ export async function detectOpposingObjects(): Promise<number> {
 }
 
 // ============================================
+// Detection — expired_but_cited
+// ============================================
+
+/**
+ * Flag active causal edges whose `edge_source_refs` row of type `fact` points
+ * at a fact that has been expired. The edge's grounding is compromised — at
+ * least one of its evidence sources is no longer trusted.
+ *
+ * Severity:
+ *   - corroboration_count = 1 → 'high' (sole source)
+ *   - strength >= 0.7         → 'medium'
+ *   - otherwise               → 'low'
+ */
+export async function detectExpiredButCited(): Promise<number> {
+  const result = await db.execute(sql`
+    INSERT INTO public.contradictions (
+      contradiction_type, edge_a_id, fact_a_id,
+      detected_by, detection_reasoning, detection_context, severity
+    )
+    SELECT DISTINCT
+      'expired_but_cited',
+      e.id,
+      f.id,
+      'sql_heuristic',
+      format('Edge %s cites expired fact %s (expired_at=%s)', e.id, f.id, f.expired_at),
+      jsonb_build_object(
+        'corroboration_count', e.corroboration_count,
+        'edge_strength', e.strength,
+        'fact_expired_at', f.expired_at
+      ),
+      CASE
+        WHEN e.corroboration_count = 1 THEN 'high'
+        WHEN e.strength >= 0.7         THEN 'medium'
+        ELSE 'low'
+      END
+    FROM public.causal_edges e
+    JOIN public.edge_source_refs r ON r.edge_id = e.id AND r.ref_type = 'fact'
+    JOIN public.facts f ON f.id = r.ref_id
+    WHERE e.expired_at IS NULL
+      AND f.expired_at IS NOT NULL
+    ON CONFLICT DO NOTHING
+    RETURNING id
+  `);
+  return (result as unknown as { length?: number }).length ?? 0;
+}
+
+// ============================================
+// Detection — cyclic_causal
+// ============================================
+
+/**
+ * Flag pairs of active causal edges that form a cycle (A→B and B→A) where
+ * neither edge has a `temporal_span` set. True causality requires temporal
+ * ordering; a cycle without temporal separation is a modelling error. Edges
+ * with `temporal_span` set legitimately model time-windowed cycles
+ * (e.g. periodic feedback loops) and are excluded.
+ *
+ * One contradiction per cycle (canonicalised via LEAST/GREATEST so the same
+ * pair never produces two rows even if encountered in either order).
+ */
+export async function detectCyclicCausal(): Promise<number> {
+  const result = await db.execute(sql`
+    INSERT INTO public.contradictions (
+      contradiction_type, edge_a_id, edge_b_id,
+      detected_by, detection_reasoning, severity
+    )
+    SELECT
+      'cyclic_causal',
+      LEAST(e1.id, e2.id),
+      GREATEST(e1.id, e2.id),
+      'sql_heuristic',
+      format(
+        'Cyclic causality between edges %s and %s with no temporal_span on either',
+        LEAST(e1.id, e2.id), GREATEST(e1.id, e2.id)
+      ),
+      'medium'
+    FROM public.causal_edges e1
+    JOIN public.causal_edges e2 ON
+      e1.cause_event_id  = e2.effect_event_id
+      AND e1.effect_event_id = e2.cause_event_id
+      AND e1.id < e2.id
+    WHERE e1.expired_at IS NULL AND e1.temporal_span IS NULL
+      AND e2.expired_at IS NULL AND e2.temporal_span IS NULL
+    ON CONFLICT DO NOTHING
+    RETURNING id
+  `);
+  return (result as unknown as { length?: number }).length ?? 0;
+}
+
+// ============================================
+// Detection — temporal_impossible
+// ============================================
+
+/**
+ * Flag active causal edges whose cause event's `occurred_at` is later than the
+ * effect event's `occurred_at`. Effect cannot precede cause. Severity is
+ * always 'high' — temporal violations indicate either bad source data or a
+ * write-path bug.
+ */
+export async function detectTemporalImpossible(): Promise<number> {
+  const result = await db.execute(sql`
+    INSERT INTO public.contradictions (
+      contradiction_type, edge_a_id,
+      detected_by, detection_reasoning, detection_context, severity
+    )
+    SELECT
+      'temporal_impossible',
+      e.id,
+      'sql_heuristic',
+      format(
+        'Edge %s cause %s (occurred_at=%s) occurs after effect %s (occurred_at=%s)',
+        e.id, ev1.id, ev1.occurred_at, ev2.id, ev2.occurred_at
+      ),
+      jsonb_build_object(
+        'cause_occurred_at',  ev1.occurred_at,
+        'effect_occurred_at', ev2.occurred_at,
+        'inversion_seconds',  EXTRACT(EPOCH FROM (ev1.occurred_at - ev2.occurred_at))
+      ),
+      'high'
+    FROM public.causal_edges e
+    JOIN public.causal_events ev1 ON ev1.id = e.cause_event_id
+    JOIN public.causal_events ev2 ON ev2.id = e.effect_event_id
+    WHERE e.expired_at IS NULL
+      AND ev1.occurred_at > ev2.occurred_at
+    ON CONFLICT DO NOTHING
+    RETURNING id
+  `);
+  return (result as unknown as { length?: number }).length ?? 0;
+}
+
+// ============================================
 // Orchestrator
 // ============================================
 
 /**
  * Run every detection heuristic in parallel. Each heuristic is INSERT-only
  * with `ON CONFLICT DO NOTHING` so they cannot conflict with each other.
- *
- * Group B ships only `detectOpposingObjects`; later groups extend the
- * orchestrator as the remaining heuristics land.
  */
 export async function detectContradictions(): Promise<DetectionResult> {
-  const [opposingCount] = await Promise.all([
+  const [opposing, expired, cyclic, temporal] = await Promise.all([
     detectOpposingObjects(),
+    detectExpiredButCited(),
+    detectCyclicCausal(),
+    detectTemporalImpossible(),
   ]);
 
   const byType: Partial<Record<ContradictionType, number>> = {};
-  if (opposingCount > 0) byType.opposing_object = opposingCount;
+  if (opposing > 0) byType.opposing_object = opposing;
+  if (expired > 0)  byType.expired_but_cited = expired;
+  if (cyclic > 0)   byType.cyclic_causal = cyclic;
+  if (temporal > 0) byType.temporal_impossible = temporal;
 
   return {
-    detected: opposingCount,
+    detected: opposing + expired + cyclic + temporal,
     byType,
   };
 }
