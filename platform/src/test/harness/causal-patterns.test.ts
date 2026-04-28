@@ -14,15 +14,18 @@
  * transitions, naming, edge-time matching, ghosts, and MCP/HTTP wiring.
  */
 
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi, afterEach } from 'vitest';
 import { testDb, createTestEntity, createTestFact, deleteFromTables } from '../setup.js';
 import {
   detectCausalPatterns,
   collectChains,
   normaliseChain,
   promotePatterns,
+  matchEdgeToPattern,
+  nameCandidatePatterns,
   type PatternStatus,
 } from '../../services/causal-patterns.js';
+import { ml } from '../../services/ml-client.js';
 
 async function cleanSlate(): Promise<void> {
   await deleteFromTables({
@@ -718,6 +721,200 @@ describe('Phase 6 — G3: promotion engine (nmemo-d9v.5 + d9v.6)', () => {
 
       const after = await getPatternRow(id);
       expect(after.status).toBe('candidate');
+    });
+  });
+});
+
+describe('Phase 6 — G4: Haiku naming + edge-time matching (nmemo-d9v.7 + d9v.8)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+    // Clear any test-seeded fact_predicates rows from earlier describes so
+    // matchEdgeToPattern's category lookup falls through to the predicate
+    // string fallback consistently. Migration-seeded predicates
+    // (works_at, manages, etc.) stay untouched.
+    await testDb`DELETE FROM public.fact_predicates WHERE predicate IN ('requires', 'prevents')`;
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('nameCandidatePatterns — Haiku JSON', () => {
+    it('sets name + description on a candidate without an existing name', async () => {
+      vi.spyOn(ml, 'generateJson').mockResolvedValue({
+        name: 'Rule cascade prevention',
+        description: 'A standard rule requires another standard rule which prevents a compliance practice failure.',
+      });
+
+      const id = await setupPattern({ status: 'candidate', name: null });
+      await nameCandidatePatterns([id]);
+
+      const after = await getPatternRow(id);
+      expect(after.name).toBe('Rule cascade prevention');
+    });
+
+    it('does NOT overwrite an existing name (idempotent)', async () => {
+      const spy = vi.spyOn(ml, 'generateJson');
+
+      const id = await setupPattern({ status: 'candidate', name: 'pre-existing name' });
+      await nameCandidatePatterns([id]);
+
+      expect(spy).not.toHaveBeenCalled();
+      const after = await getPatternRow(id);
+      expect(after.name).toBe('pre-existing name');
+    });
+
+    it('leaves name=NULL when ml.generateJson throws (Q3 fallback)', async () => {
+      vi.spyOn(ml, 'generateJson').mockRejectedValue(new Error('ML service unavailable'));
+
+      const id = await setupPattern({ status: 'candidate', name: null });
+      await nameCandidatePatterns([id]);
+
+      const after = await getPatternRow(id);
+      expect(after.name).toBeNull();
+    });
+
+    it('leaves name=NULL when ml.generateJson returns malformed JSON', async () => {
+      vi.spyOn(ml, 'generateJson').mockResolvedValue({ wrong_shape: true } as unknown as { name: string; description: string });
+
+      const id = await setupPattern({ status: 'candidate', name: null });
+      await nameCandidatePatterns([id]);
+
+      const after = await getPatternRow(id);
+      expect(after.name).toBeNull();
+    });
+
+    it('promotePatterns calls naming for new candidates synchronously', async () => {
+      const spy = vi.spyOn(ml, 'generateJson').mockResolvedValue({
+        name: 'auto-named',
+        description: 'auto description',
+      });
+
+      const id = await setupPattern({
+        status: 'staging',
+        instanceCount: 5,
+        lastSeenAt: new Date(),
+        name: null,
+      });
+      await promotePatterns();
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      const after = await getPatternRow(id);
+      expect(after.status).toBe('candidate');
+      expect(after.name).toBe('auto-named');
+    });
+  });
+
+  describe('matchEdgeToPattern — provisional/canonical matching', () => {
+    it('stamps pattern_id and pattern_position on edge whose template matches a canonical 2-window', async () => {
+      const template = [
+        { entity_type: 'standard_rule', predicate_category: 'requires' },
+        { entity_type: 'compliance_practice', predicate_category: 'prevents' },
+      ];
+      const patternId = await setupPattern({
+        status: 'canonical',
+        templateStructure: template,
+        instanceCount: 50,
+      });
+
+      // Create an edge whose nodes match the template
+      const { edgeIds } = await buildLinearChain(1, {
+        entityTypes: ['standard_rule', 'compliance_practice'],
+        predicates: ['requires', 'prevents'],
+      });
+
+      const result = await matchEdgeToPattern(edgeIds[0]!);
+      expect(result).not.toBeNull();
+      expect(result!.patternId).toBe(patternId);
+      expect(result!.patternPosition).toBe(0);
+
+      const [edgeRow] = await testDb<Array<{ pattern_id: string | null; pattern_position: number | null }>>`
+        SELECT pattern_id, pattern_position
+        FROM public.causal_edges
+        WHERE id = ${edgeIds[0]!}::uuid
+      `;
+      expect(edgeRow!.pattern_id).toBe(patternId);
+      expect(edgeRow!.pattern_position).toBe(0);
+    });
+
+    it('does NOT match against staging patterns', async () => {
+      const template = [
+        { entity_type: 'standard_rule', predicate_category: 'requires' },
+        { entity_type: 'compliance_practice', predicate_category: 'prevents' },
+      ];
+      await setupPattern({ status: 'staging', templateStructure: template });
+
+      const { edgeIds } = await buildLinearChain(1, {
+        entityTypes: ['standard_rule', 'compliance_practice'],
+        predicates: ['requires', 'prevents'],
+      });
+
+      const result = await matchEdgeToPattern(edgeIds[0]!);
+      expect(result).toBeNull();
+
+      const [edgeRow] = await testDb<Array<{ pattern_id: string | null }>>`
+        SELECT pattern_id FROM public.causal_edges WHERE id = ${edgeIds[0]!}::uuid
+      `;
+      expect(edgeRow!.pattern_id).toBeNull();
+    });
+
+    it('does NOT match against candidate patterns', async () => {
+      const template = [
+        { entity_type: 'standard_rule', predicate_category: 'requires' },
+        { entity_type: 'compliance_practice', predicate_category: 'prevents' },
+      ];
+      await setupPattern({ status: 'candidate', templateStructure: template });
+
+      const { edgeIds } = await buildLinearChain(1, {
+        entityTypes: ['standard_rule', 'compliance_practice'],
+        predicates: ['requires', 'prevents'],
+      });
+
+      const result = await matchEdgeToPattern(edgeIds[0]!);
+      expect(result).toBeNull();
+    });
+
+    it('returns null when no pattern template matches', async () => {
+      await setupPattern({
+        status: 'canonical',
+        templateStructure: [
+          { entity_type: 'totally_different', predicate_category: 'unrelated' },
+          { entity_type: 'totally_different', predicate_category: 'unrelated' },
+        ],
+      });
+
+      const { edgeIds } = await buildLinearChain(1, {
+        entityTypes: ['standard_rule', 'compliance_practice'],
+        predicates: ['requires', 'prevents'],
+      });
+
+      const result = await matchEdgeToPattern(edgeIds[0]!);
+      expect(result).toBeNull();
+    });
+
+    it('updates pattern.last_seen_at on a successful match', async () => {
+      const template = [
+        { entity_type: 'standard_rule', predicate_category: 'requires' },
+        { entity_type: 'compliance_practice', predicate_category: 'prevents' },
+      ];
+      const patternId = await setupPattern({
+        status: 'canonical',
+        templateStructure: template,
+        lastSeenAt: new Date('2026-01-01T00:00:00Z'),
+      });
+
+      const { edgeIds } = await buildLinearChain(1, {
+        entityTypes: ['standard_rule', 'compliance_practice'],
+        predicates: ['requires', 'prevents'],
+      });
+
+      await matchEdgeToPattern(edgeIds[0]!);
+
+      const [row] = await testDb<Array<{ last_seen_at: Date }>>`
+        SELECT last_seen_at FROM public.causal_patterns WHERE id = ${patternId}::uuid
+      `;
+      expect(row!.last_seen_at.getTime()).toBeGreaterThan(new Date('2026-01-01T00:00:00Z').getTime());
     });
   });
 });

@@ -189,7 +189,7 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
   // with ::jsonb) inside the tx, then chain the audit write. See
   // docs/handoff/phase1-findings.md for the investigation notes.
 
-  return db.transaction(async (tx) => {
+  const edgeId = await db.transaction(async (tx) => {
     // Step 1: exact-match corroboration. SELECT … FOR UPDATE so two
     // concurrent corroborations of the same pair serialise behind the row
     // lock instead of racing into a duplicate edge.
@@ -296,6 +296,21 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
 
     return edgeId;
   });
+
+  // Phase 6 (nmemo-d9v.8): fire-and-forget pattern matching. Wrapped in a
+  // catch so any failure (DB hiccup, missing pattern data, edge already
+  // linked) logs but never surfaces back into edge creation.
+  void import('./causal-patterns.js')
+    .then(({ matchEdgeToPattern }) => matchEdgeToPattern(edgeId))
+    .catch((err) => {
+      console.warn(
+        '[matchEdgeToPattern] failed for edge',
+        edgeId + ':',
+        err instanceof Error ? err.message : err,
+      );
+    });
+
+  return edgeId;
 }
 
 // ============================================

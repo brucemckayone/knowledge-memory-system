@@ -159,6 +159,31 @@ export const ml = {
     }, 600_000);
   },
 
+  /**
+   * Generic JSON-output Haiku call. Wraps /chat with a system prompt that
+   * instructs the model to return raw JSON (no code fences, no prose) and
+   * parses the response. Used by the Phase 6 pattern-naming pipeline; safe
+   * to call for any small structured-output task.
+   *
+   * Throws MlClientError on HTTP failure or JSON parse failure. Callers
+   * should wrap in try/catch when failures must not block the surrounding
+   * operation (e.g. nameCandidatePatterns falls back to name=NULL).
+   */
+  async generateJson<T = Record<string, unknown>>(prompt: string): Promise<T> {
+    type ChatResponse = { response: string };
+    const SYSTEM = 'Respond ONLY with a JSON object. No prose, no code fences, no markdown — just the raw JSON.';
+    const result = await mlFetch<ChatResponse>('/chat', {
+      message: prompt,
+      system_prompt: SYSTEM,
+    }, 60_000);
+    const cleaned = result.response
+      .trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim();
+    return JSON.parse(cleaned) as T;
+  },
+
   async health(): Promise<boolean> {
     try {
       const controller = new AbortController();

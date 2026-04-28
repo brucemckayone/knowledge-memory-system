@@ -73,6 +73,7 @@ TASK_DEFAULTS: Dict[str, Dict[str, str]] = {
     "reconciliation_agent":  {"model": "haiku",  "effort": "low"},
     "gardener_agent":        {"model": "haiku",  "effort": "low"},
     "reasoning_agent":       {"model": "haiku",  "effort": "low"},
+    "pattern_naming":        {"model": "haiku",  "effort": "low"},
 }
 DEFAULT_MODEL = "haiku"
 DEFAULT_EFFORT = "low"

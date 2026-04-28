@@ -26,26 +26,35 @@
  *   - `activePatterns` filters the catalog by status + entity involvement
  *     for MCP/HTTP/viz consumers.
  *
- * Heuristics implemented in this group (G3 — d9v.5 + d9v.6):
+ * Heuristics implemented in this group (G4 — d9v.7 + d9v.8):
  *   - Migration 012 extends `valid_pattern_status` to include `'rejected'`.
  *   - `collectChains` — recursive CTE walking active causal_edges from events
  *     within `lookbackDays`. Cycle protection via path-array exclusion.
  *   - `normaliseChain` + `detectCausalPatterns` — clusters chains by template
  *     hash, upserts to staging at `instanceThreshold`, stamps participating
  *     edges with `pattern_id` + `pattern_position`.
- *   - `promotePatterns` — single-pass lifecycle driver. Refreshes
- *     `activation_count_30d` from `causal_edges`, then runs status-guarded
- *     UPDATE ... WHERE status=$prev RETURNING for each transition (Q5 SQL
- *     CAS — no row locks, atomic across pipeline + manual API races).
- *     Snapshots eligibility BEFORE applying any UPDATE so demotions step at
- *     most one level per call.
+ *   - `promotePatterns` — single-pass lifecycle driver. Status-guarded
+ *     UPDATE for each transition (Q5 SQL CAS). Snapshots eligibility
+ *     BEFORE applying any UPDATE so demotions step at most one level per
+ *     call. SYNC-calls `nameCandidatePatterns` on rows actually flipped to
+ *     `candidate` (Q3).
+ *   - `nameCandidatePatterns` — Haiku low-effort JSON name + description for
+ *     patterns the CAS flipped to `candidate`. Try/catch + name=NULL on
+ *     failure so naming never blocks promotion. Idempotent: skips patterns
+ *     that already have a name set.
+ *   - `matchEdgeToPattern` — fire-and-forget from `createCausalEdge` after
+ *     INSERT/corroborate succeeds. Looks for any provisional/canonical
+ *     pattern whose template has a 2-window matching the edge's
+ *     (cause_type|cause_predicate, effect_type|effect_predicate) shape and
+ *     stamps `pattern_id` + `pattern_position`. Wrapped try/catch — never
+ *     surfaces back into edge creation.
  *
- * Later groups add naming, edge-time matching, ghosts, and the
- * active-patterns query.
+ * Later groups add ghost detection and the active-patterns query.
  */
 
 import { sql } from 'drizzle-orm';
 import { rawQuery } from '../db/raw.js';
+import { ml } from './ml-client.js';
 
 // ============================================
 // Types
@@ -576,9 +585,17 @@ export async function promotePatterns(opts: PromoteOptions = {}): Promise<Promot
   const demoted: PromotionEvent[] = [];
   const rejected: RejectionEvent[] = [];
 
-  // Apply promotions in order — staging→candidate first since spec calls naming
-  // on `promoted` events whose `to === 'candidate'` (G4).
-  promoted.push(...(await casTransition(stagingToCandidateIds, 'staging', 'candidate', { setPromotedAt: true })));
+  // Apply promotions in order — staging→candidate first so we can name new
+  // candidates before the rest of the pipeline runs.
+  const stagingToCandidateRows = await casTransition(stagingToCandidateIds, 'staging', 'candidate', { setPromotedAt: true });
+  promoted.push(...stagingToCandidateRows);
+
+  // Q3: synchronous Haiku naming for newly-promoted candidates. Failures
+  // surface as name=NULL but never block promotion.
+  if (stagingToCandidateRows.length > 0) {
+    await nameCandidatePatterns(stagingToCandidateRows.map((r) => r.id));
+  }
+
   promoted.push(...(await casTransition(candidateToProvisionalIds, 'candidate', 'provisional', { setPromotedAt: true })));
   promoted.push(...(await casTransition(provisionalToCanonicalIds, 'provisional', 'canonical', { setPromotedAt: true })));
 
@@ -744,4 +761,194 @@ async function casTransition(
       `);
 
   return rows.map((r) => ({ id: r.id, from: fromStatus, to: toStatus, name: r.name }));
+}
+
+// ============================================
+// Naming — Haiku low-effort JSON (G4)
+// ============================================
+
+interface PatternNamingResult {
+  name: string;
+  description: string;
+}
+
+/**
+ * Synchronously name and describe each pattern in `patternIds` using Haiku
+ * low-effort JSON output. Idempotent: skips patterns that already have a
+ * name set (so re-running promotePatterns or doing a manual /api/patterns/name
+ * call won't double-charge).
+ *
+ * Failure handling (Q3): a try/catch around each call ensures one bad pattern
+ * doesn't block the others, and ML-service failures leave the row at name=NULL
+ * (the column default) rather than throwing back into promotePatterns.
+ */
+export async function nameCandidatePatterns(patternIds: string[]): Promise<void> {
+  if (patternIds.length === 0) return;
+
+  for (const id of patternIds) {
+    try {
+      const [row] = await rawQuery<{
+        id: string;
+        name: string | null;
+        templateStructure: TemplateNode[];
+        instanceCount: number;
+        avgStrength: number | null;
+      }>(sql`
+        SELECT id, name, template_structure, instance_count, avg_strength
+        FROM public.causal_patterns
+        WHERE id = ${id}::uuid
+      `);
+      if (!row) continue;
+      if (row.name) continue; // idempotent — spec rule
+
+      const prompt = buildNamingPrompt(row.templateStructure, row.instanceCount, row.avgStrength);
+      const result = await ml.generateJson<PatternNamingResult>(prompt);
+
+      // Reject malformed responses up front so we don't write garbage.
+      if (typeof result?.name !== 'string' || typeof result?.description !== 'string') {
+        console.warn(`[nameCandidatePatterns] malformed JSON for ${id} — keeping name=NULL`);
+        continue;
+      }
+
+      await rawQuery(sql`
+        UPDATE public.causal_patterns
+        SET name        = ${result.name.slice(0, 255)},
+            description = ${result.description},
+            updated_at  = NOW()
+        WHERE id = ${id}::uuid
+      `);
+    } catch (err) {
+      console.warn(`[nameCandidatePatterns] failed for ${id}:`, err instanceof Error ? err.message : err);
+    }
+  }
+}
+
+function buildNamingPrompt(template: TemplateNode[], instanceCount: number, avgStrength: number | null): string {
+  return [
+    'This recurring causal pattern has emerged in the knowledge graph:',
+    JSON.stringify(template, null, 2),
+    `Observed ${instanceCount} times. Average causal strength: ${avgStrength?.toFixed(2) ?? 'unknown'}.`,
+    'Generate:',
+    '  1. A short, action-oriented name (3-6 words) — what this pattern represents.',
+    '  2. A one-sentence description explaining the causal relationship the pattern captures.',
+    'Respond with ONLY raw JSON in the form: {"name": "...", "description": "..."}',
+  ].join('\n');
+}
+
+// ============================================
+// Edge-time matching (G4)
+// ============================================
+
+export interface MatchResult {
+  patternId: string;
+  patternPosition: number;
+}
+
+/**
+ * Try to match a newly-created edge against any provisional/canonical pattern
+ * — if its (cause_type, cause_predicate) → (effect_type, effect_predicate)
+ * matches a 2-window in the template, stamp `pattern_id` and `pattern_position`
+ * on the edge and bump the pattern's `last_seen_at`. The activation counter
+ * stays self-healing (recomputed by `promotePatterns`'s refresh step from
+ * `causal_edges.created_at`); we don't need a separate increment here.
+ *
+ * Returns the match if one was applied, or `null` if no pattern matched.
+ *
+ * Designed to be called fire-and-forget from `createCausalEdge` after
+ * INSERT/corroborate succeeds. The wrapping caller wraps in try/catch — but
+ * the function itself returns silently on no-match, never throws on missing
+ * data, and only surfaces errors for genuinely unexpected DB failures.
+ */
+export async function matchEdgeToPattern(edgeId: string): Promise<MatchResult | null> {
+  // Fetch the edge and its events with normalised metadata
+  type EdgeRow = {
+    id: string;
+    causeEventId: string;
+    effectEventId: string;
+    causeEntityType: string | null;
+    causePredicateCategory: string | null;
+    causePredicate: string | null;
+    effectEntityType: string | null;
+    effectPredicateCategory: string | null;
+    effectPredicate: string | null;
+  };
+
+  const [edge] = await rawQuery<EdgeRow>(sql`
+    SELECT
+      e.id,
+      e.cause_event_id,
+      e.effect_event_id,
+      cause_ent.entity_type AS cause_entity_type,
+      cause_fp.category     AS cause_predicate_category,
+      cause_ev.predicate    AS cause_predicate,
+      effect_ent.entity_type AS effect_entity_type,
+      effect_fp.category     AS effect_predicate_category,
+      effect_ev.predicate    AS effect_predicate
+    FROM public.causal_edges e
+    JOIN public.causal_events cause_ev  ON cause_ev.id  = e.cause_event_id
+    JOIN public.causal_events effect_ev ON effect_ev.id = e.effect_event_id
+    LEFT JOIN public.entities cause_ent  ON cause_ent.id  = cause_ev.subject_entity_id
+    LEFT JOIN public.entities effect_ent ON effect_ent.id = effect_ev.subject_entity_id
+    LEFT JOIN public.fact_predicates cause_fp  ON cause_fp.predicate  = cause_ev.predicate
+    LEFT JOIN public.fact_predicates effect_fp ON effect_fp.predicate = effect_ev.predicate
+    WHERE e.id = ${edgeId}::uuid
+      AND e.expired_at IS NULL
+  `);
+
+  if (!edge) return null;
+
+  const causeNode: TemplateNode = {
+    entity_type: edge.causeEntityType ?? null,
+    predicate_category: edge.causePredicateCategory ?? edge.causePredicate ?? '',
+  };
+  const effectNode: TemplateNode = {
+    entity_type: edge.effectEntityType ?? null,
+    predicate_category: edge.effectPredicateCategory ?? edge.effectPredicate ?? '',
+  };
+
+  // Pull provisional + canonical patterns. Staging/candidate are excluded per
+  // spec 17:573 — only stable patterns claim new edges.
+  const candidates = await rawQuery<{
+    id: string;
+    templateStructure: TemplateNode[];
+  }>(sql`
+    SELECT id, template_structure
+    FROM public.causal_patterns
+    WHERE status IN ('provisional', 'canonical')
+  `);
+
+  for (const pattern of candidates) {
+    let tpl = pattern.templateStructure;
+    if (typeof tpl === 'string') {
+      try { tpl = JSON.parse(tpl); } catch { continue; }
+    }
+    if (!Array.isArray(tpl)) continue;
+    for (let i = 0; i + 1 < tpl.length; i++) {
+      if (
+        templateNodeEquals(tpl[i]!, causeNode) &&
+        templateNodeEquals(tpl[i + 1]!, effectNode)
+      ) {
+        await rawQuery(sql`
+          UPDATE public.causal_edges
+          SET pattern_id       = ${pattern.id}::uuid,
+              pattern_position = ${i}::int
+          WHERE id = ${edgeId}::uuid
+            AND expired_at IS NULL
+        `);
+        await rawQuery(sql`
+          UPDATE public.causal_patterns
+          SET last_seen_at = NOW(),
+              updated_at   = NOW()
+          WHERE id = ${pattern.id}::uuid
+        `);
+        return { patternId: pattern.id, patternPosition: i };
+      }
+    }
+  }
+
+  return null;
+}
+
+function templateNodeEquals(a: TemplateNode, b: TemplateNode): boolean {
+  return a.entity_type === b.entity_type && a.predicate_category === b.predicate_category;
 }
