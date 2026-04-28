@@ -688,6 +688,7 @@ const CLEARABLE_TABLES = [
   'reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports',
   'merge_candidates', 'entity_meta', 'memory_entities', 'entity_aliases',
   'contradictions',
+  'fact_history', 'causal_edge_history',
   'causal_edges', 'causal_events', 'causal_patterns', 'facts',
   'entity_merges', 'entities',
 ] as const;
