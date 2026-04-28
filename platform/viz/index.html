@@ -213,6 +213,7 @@ svg { flex: 1; }
     <button class="action-btn" id="btnGarden" title="Trigger the graph gardener to explore topology, find islands, and consolidate entities">Garden</button>
     <button class="action-btn" id="btnReconcile" title="Trigger reconciliation agent to resolve entity identity questions">Reconcile</button>
     <button class="action-btn" id="btnContradictions" title="View flagged contradictions in the graph">Contradictions<span class="badge zero" id="contradictionsBadge">0</span></button>
+    <button class="action-btn" id="btnPatterns" title="View active causal patterns (provisional + canonical)">Patterns<span class="badge zero" id="patternsBadge">0</span></button>
   </div>
   <div class="reset-actions">
     <button class="reset-btn" id="btnClearGraph" title="Delete all graph data (keeps Qdrant)">Clear Graph</button>
@@ -252,6 +253,16 @@ svg { flex: 1; }
     </div>
   </div>
   <div id="ctradList"></div>
+</div>
+<div class="contradictions-panel" id="patternsPanel">
+  <div class="ctrad-header">
+    <h3>Active Patterns</h3>
+    <div class="ctrad-meta">
+      <span id="patternsMeta">Loading…</span>
+      <button class="ctrad-close" id="patternsClose">&times;</button>
+    </div>
+  </div>
+  <div id="patternsList"></div>
 </div>
 <div class="main">
   <svg id="graph"></svg>

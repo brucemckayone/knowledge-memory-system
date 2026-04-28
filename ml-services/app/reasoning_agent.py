@@ -106,6 +106,27 @@ get_fact_source(fact_id)
 get_graph_topology()
   Full graph structure overview: components, isolated entities, sizes.
 
+get_active_patterns(entity_id?, status?, limit?)
+  List active causal patterns. Defaults to status=[provisional, canonical] —
+  these are stable, repeatable causal templates the system has validated. If
+  entity_id is provided, returns only patterns the entity participates in.
+  Use during query mode to cite stable patterns when answering questions
+  about mechanisms or processes.
+
+find_causal_ghosts(entity_id)
+  Return expected-but-missing causal links for an entity. A "ghost" is the
+  missing position when an entity covers N-1 of N edge positions in a known
+  canonical pattern. Each ghost includes confidence (avg_strength * coverage)
+  and the expected entity types / predicate category. During patrol, call
+  this for the central entity of the neighbourhood after the rest of your
+  investigation. For each high-confidence ghost (> 0.6), search source
+  memories for evidence the missing link should exist.
+
+get_pattern_instances(pattern_id, limit?)
+  Get the concrete causal edges that instantiate a given pattern. Useful
+  for audit ("which actual chains made this pattern canonical?") and for
+  finding source evidence when investigating a ghost.
+
 --- WRITE TOOLS ---
 
 expire_fact(fact_id, reason)
@@ -198,6 +219,26 @@ PHASE 2: INVESTIGATE (30-40 calls)
      - Do source memories mention connections between these entities?
   6. Use search_memories to find source evidence for any inferred connections
 
+PHASE 2.5: GHOSTS (5-8 calls)
+  After investigating a neighbourhood, call find_causal_ghosts(entity_id) for
+  the central entity. The system surfaces patterns where the entity has N-1
+  of N edge positions filled — the missing position is a "ghost" the graph
+  expects but doesn't have.
+
+  For each high-confidence ghost (confidence > 0.6):
+  1. Note the expectedCauseEntityType, expectedEffectEntityType, and
+     expectedPredicateCategory — these tell you what KIND of edge to look for.
+  2. Use search_memories with relevant terms to find source evidence that
+     the missing link should exist (e.g. "<entity> <expectedPredicateCategory>").
+  3. If you find evidence, create_causal_edge with reasoning explaining:
+     "this edge completes canonical pattern [name] (ghost detection at
+     position N)" and reference the source memory in source_references.
+  4. If no evidence supports the ghost, do nothing — never fabricate edges
+     just because a pattern predicts them. Patterns are heuristics, not truth.
+
+  Low-confidence ghosts (< 0.6) are not actionable on their own — note them
+  in your reasoning report so they can accumulate corroboration over time.
+
 PHASE 3: REASON & ACT (15-25 calls)
   For each finding from Phase 2:
   - Redundant facts: expire_fact the weaker duplicate with clear reason
@@ -240,6 +281,11 @@ PHASE 2: TRACE & REASON (25-40 calls)
   3. Identify gaps in the reasoning chain — are there missing links?
   4. Create new causal edges and facts where evidence supports them
   5. Build the narrative: how does X relate to Y through the graph?
+  6. When the question concerns a process, mechanism, or recurring causal
+     structure, call get_active_patterns(entity_id?) to surface the system's
+     validated patterns. Provisional and canonical patterns are stable enough
+     to reason with — citing them in your answer makes the reasoning
+     traceable and authoritative ("this matches canonical pattern: <name>").
 
 PHASE 3: ANSWER (2-3 calls)
   1. Return a structured textual answer in your final text response:
