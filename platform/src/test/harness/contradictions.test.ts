@@ -661,3 +661,48 @@ describe('Phase 5 — HTTP endpoints (nmemo-cae.10)', () => {
     expect(body.error).toMatch(/required/);
   });
 });
+
+// ============================================
+// Adversarial fixtures (cae.13)
+// ============================================
+
+describe('Phase 5 — fixture-driven: near-contradiction-temporal (nmemo-cae.13)', () => {
+  const expectedDoc = loadExpected('phase5-contradictions/expected/near-contradiction-temporal.expected.json');
+  const detectionStage = expectedDoc.stages.find(s => s.stage === 'detection');
+  if (!detectionStage) throw new Error('near-contradiction-temporal.expected.json: missing detection stage');
+
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase5-contradictions/fixtures/near-contradiction-temporal.sql');
+    await detectOpposingObjects();
+  });
+
+  for (const assertion of detectionStage.assertions) {
+    it(`${assertion.type} — ${('because' in assertion && assertion.because) || 'asserts contract'}`, async () => {
+      await runAssertion(testDb, assertion, { rerun: detectOpposingObjects });
+    });
+  }
+});
+
+describe('Phase 5 — adversarial flood (nmemo-cae.13)', () => {
+  beforeAll(async () => {
+    await cleanSlate();
+    await loadFixture('phase5-contradictions/fixtures/adversarial-flood.sql');
+  });
+
+  it('detectOpposingObjects flags exactly 100 contradictions on a 100-pair flood', async () => {
+    await detectOpposingObjects();
+    const rows = await getContradictions({ contradictionType: 'opposing_object', unresolvedOnly: true, limit: 1000 });
+    expect(rows.length).toBe(100);
+  });
+
+  it('flood detection completes in <2s (design-doc target)', async () => {
+    // Pre-clear flagged rows so we time the heuristic, not the dedup short-circuit.
+    await testDb.unsafe('DELETE FROM public.contradictions');
+    const start = Date.now();
+    await detectOpposingObjects();
+    const elapsed = Date.now() - start;
+    console.log(`[bench] flood detectOpposingObjects elapsed=${elapsed}ms`);
+    expect(elapsed).toBeLessThan(2000);
+  });
+});
