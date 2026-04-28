@@ -30,6 +30,11 @@ import {
   type ContradictionSeverity,
   type ResolutionType,
 } from './contradictions.js';
+import {
+  analyzeImpact,
+  type RootNodeType as ImpactRootNodeType,
+  type HypotheticalAction,
+} from './impact.js';
 import { ml } from './ml-client.js';
 import { config } from '../config.js';
 import { normalizePredicate } from './predicates.js';
@@ -852,6 +857,40 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['contradiction_id', 'resolution_type', 'resolution_reasoning'],
+    },
+  },
+
+  // --- Phase 4 blast radius tool ---
+
+  {
+    name: 'analyze_blast_radius',
+    description:
+      'Compute the impact tree for a fact, entity, or causal_event: direct dependents, transitive causal chains (bidirectional, cycle-safe), citation dependents (via Phase 3 edge_source_refs index), and pattern impact. Each node is severity-scored (critical/high/medium/low). Use BEFORE expire_fact / invalidate_fact: pass hypothetical=expire to preview the cascade severity tally without mutating state. Critical/high severity dependents must be acknowledged in the resolution reasoning.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        node_type: {
+          type: 'string',
+          enum: ['fact', 'entity', 'causal_event'],
+          description: 'Root node type for the impact analysis.',
+        },
+        node_id: {
+          type: 'string',
+          description: 'UUID of the root node.',
+        },
+        max_depth: {
+          type: 'number',
+          minimum: 1,
+          maximum: 10,
+          description: 'Cap on the recursive walk through causal_edges. Default 3.',
+        },
+        hypothetical: {
+          type: 'string',
+          enum: ['expire', 'invalidate', 'weaken'],
+          description: 'Re-score severity as if the root were mutated. Makes ZERO database writes. Use to preview cascade impact before destructive actions.',
+        },
+      },
+      required: ['node_type', 'node_id'],
     },
   },
 ];
@@ -1759,6 +1798,16 @@ async function _handleToolCallInner(
         dismissedReason: toolInput.dismissed_reason as string | undefined,
       });
       return JSON.stringify({ resolved: true });
+    }
+
+    case 'analyze_blast_radius': {
+      const report = await analyzeImpact({
+        nodeType: toolInput.node_type as ImpactRootNodeType,
+        nodeId: toolInput.node_id as string,
+        maxDepth: toolInput.max_depth as number | undefined,
+        hypothetical: toolInput.hypothetical as HypotheticalAction | undefined,
+      });
+      return JSON.stringify(report);
     }
 
     default:

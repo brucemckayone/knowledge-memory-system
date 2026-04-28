@@ -29,6 +29,8 @@ import {
   randomUUID,
 } from '../setup.js';
 import { analyzeImpact } from '../../services/impact.js';
+import { handleToolCall } from '../../services/causal-agent.js';
+import { app } from '../../index.js';
 
 // ============================================
 // Per-test cleanup
@@ -1088,5 +1090,160 @@ describe('Phase 4 — Pattern impact (Phase 6 forward-compat)', () => {
     });
 
     expect(report.patternImpact).toEqual([]);
+  });
+});
+
+// ============================================
+// C4 — MCP tool (nmemo-437.6)
+// ============================================
+
+describe('Phase 4 — MCP tool analyze_blast_radius (nmemo-437.6)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('handleToolCall returns the JSON-stringified report', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+
+    const result = await handleToolCall(
+      'analyze_blast_radius',
+      { node_type: 'fact', node_id: fact.id },
+      { agent: 'reasoning_agent' },
+    );
+    const parsed = JSON.parse(result);
+
+    expect(parsed.root.nodeType).toBe('fact');
+    expect(parsed.root.nodeId).toBe(fact.id);
+    expect(parsed).toHaveProperty('severitySummary');
+    expect(parsed).toHaveProperty('totalAffected');
+    expect(parsed).toHaveProperty('directDependents');
+    expect(parsed).toHaveProperty('transitiveChains');
+    expect(parsed).toHaveProperty('citationDependents');
+    expect(parsed).toHaveProperty('patternImpact');
+  });
+
+  it('passes max_depth and hypothetical through to analyzeImpact', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+
+    const result = await handleToolCall(
+      'analyze_blast_radius',
+      {
+        node_type: 'fact',
+        node_id: fact.id,
+        max_depth: 5,
+        hypothetical: 'expire',
+      },
+      { agent: 'reasoning_agent' },
+    );
+    const parsed = JSON.parse(result);
+
+    expect(parsed.hypothetical).toBe('expire');
+  });
+
+  it('rejects invalid node_type via thrown error', async () => {
+    await expect(
+      handleToolCall(
+        'analyze_blast_radius',
+        { node_type: 'fact', node_id: randomUUID() },
+        { agent: 'reasoning_agent' },
+      ),
+    ).rejects.toThrow(/not found/);
+  });
+});
+
+// ============================================
+// C4 — HTTP endpoint (nmemo-437.7)
+// ============================================
+
+describe('Phase 4 — HTTP GET /api/impact/:type/:id (nmemo-437.7)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('returns 200 with the report for a known fact', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+
+    const res = await app.request(`/api/impact/fact/${fact.id}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.root.nodeType).toBe('fact');
+    expect(body.root.nodeId).toBe(fact.id);
+    expect(body).toHaveProperty('severitySummary');
+  });
+
+  it('honours ?depth query param', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events } = await setupChain(6, fact.id);
+
+    const res = await app.request(`/api/impact/causal_event/${events[0]}?depth=2`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const depths = body.transitiveChains.map((t: { depth: number }) => t.depth);
+    expect(Math.max(...depths, 0)).toBeLessThanOrEqual(2);
+  });
+
+  it('honours ?hypothetical=expire and reports it back', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+
+    const res = await app.request(`/api/impact/fact/${fact.id}?hypothetical=expire`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.hypothetical).toBe('expire');
+  });
+
+  it('returns 400 for invalid node_type', async () => {
+    const res = await app.request(`/api/impact/garbage/${randomUUID()}`);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Invalid node_type/);
+  });
+
+  it('returns 400 for out-of-range depth', async () => {
+    const fakeId = randomUUID();
+    const res = await app.request(`/api/impact/fact/${fakeId}?depth=99`);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Invalid depth/);
+  });
+
+  it('returns 400 for invalid hypothetical', async () => {
+    const fakeId = randomUUID();
+    const res = await app.request(`/api/impact/fact/${fakeId}?hypothetical=destroy`);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Invalid hypothetical/);
+  });
+
+  it('returns 404 for a non-existent root', async () => {
+    const fakeId = randomUUID();
+    const res = await app.request(`/api/impact/fact/${fakeId}`);
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toMatch(/not found/);
   });
 });

@@ -213,6 +213,7 @@ PHASE 3: REASON & ACT (15-25 calls)
   - Every causal edge MUST have reasoning and source_references — no empty justifications
   - When inferring relationships, state your confidence and evidence clearly
   - Subject and object must be DIFFERENT entities (no self-referential facts)
+  - BEFORE DESTRUCTIVE ACTIONS (expire_fact / invalidate_fact): call analyze_blast_radius(node_type='fact', node_id=..., hypothetical='expire') FIRST. Review severitySummary. If the report includes `critical` severity dependents, do NOT proceed without recording the justification in your reasoning. If there are `high` severity dependents, explain why the expiry is still correct despite the blast radius. The hypothetical mode mutates nothing — you must still call expire_fact / invalidate_fact afterwards if you decide to proceed.
 
 PHASE 4: REPORT (exactly 1 call)
   Call save_reasoning_report ONCE — and only once — at the very end of the pass. Aggregate the per-neighbourhood findings into a single report. Do NOT save intermediate checkpoints; do NOT call this tool again after it returns. With:

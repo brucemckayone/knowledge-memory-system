@@ -541,6 +541,62 @@ app.post('/api/decay', async (c) => {
   }
 });
 
+app.get('/api/impact/:type/:id', async (c) => {
+  // Phase 4 — Blast Radius Analysis. Returns the full impact tree for a fact,
+  // entity, or causal_event with severity-scored dependents.
+  // Query params: ?depth=N (default 3), ?hypothetical=expire|invalidate|weaken
+  // (default none — re-scores severity without mutating state).
+  const nodeType = c.req.param('type');
+  const nodeId = c.req.param('id');
+
+  if (nodeType !== 'fact' && nodeType !== 'entity' && nodeType !== 'causal_event') {
+    return c.json(
+      { error: `Invalid node_type "${nodeType}" — expected fact|entity|causal_event` },
+      400,
+    );
+  }
+
+  const depthParam = c.req.query('depth');
+  const maxDepth = depthParam ? parseInt(depthParam, 10) : undefined;
+  if (maxDepth !== undefined && (!Number.isFinite(maxDepth) || maxDepth < 1 || maxDepth > 10)) {
+    return c.json({ error: `Invalid depth "${depthParam}" — expected integer in [1, 10]` }, 400);
+  }
+
+  const hypothetical = c.req.query('hypothetical');
+  if (
+    hypothetical !== undefined &&
+    hypothetical !== 'expire' &&
+    hypothetical !== 'invalidate' &&
+    hypothetical !== 'weaken'
+  ) {
+    return c.json(
+      { error: `Invalid hypothetical "${hypothetical}" — expected expire|invalidate|weaken` },
+      400,
+    );
+  }
+
+  const includePatternsParam = c.req.query('include_patterns');
+  const includePatterns = includePatternsParam !== 'false';
+
+  const { analyzeImpact } = await import('./services/impact.js');
+  try {
+    const report = await analyzeImpact({
+      nodeType,
+      nodeId,
+      maxDepth,
+      hypothetical: hypothetical as 'expire' | 'invalidate' | 'weaken' | undefined,
+      includePatterns,
+    });
+    return c.json(report);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/not found/i.test(message)) {
+      return c.json({ error: message }, 404);
+    }
+    return c.json({ error: message }, 500);
+  }
+});
+
 app.get('/api/contradictions', async (c) => {
   // List contradictions for the viz panel. Defaults to unresolved-only, but
   // ?unresolved=false returns the full set including resolved rows.
