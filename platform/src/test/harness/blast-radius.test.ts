@@ -670,3 +670,423 @@ describe('Phase 4 — Citation dependents (nmemo-437.3)', () => {
     expect(report.citationDependents.map((d) => d.nodeId)).toEqual([edgeId]);
   });
 });
+
+// ============================================
+// C3 — Severity scoring (nmemo-437.4)
+// ============================================
+
+describe('Phase 4 — Severity scoring (nmemo-437.4)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('scores transitive depth=1 as high', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events } = await setupChain(2, fact.id);
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: events[0]! });
+
+    const transitive = report.transitiveChains.find((t) => t.depth === 1);
+    expect(transitive?.severity).toBe('high');
+  });
+
+  it('scores transitive depth=2 as medium', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events } = await setupChain(3, fact.id);
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: events[0]!,
+      maxDepth: 5,
+    });
+
+    const depth2 = report.transitiveChains.find((t) => t.depth === 2);
+    expect(depth2?.severity).toBe('medium');
+  });
+
+  it('scores transitive depth=3 as low', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events } = await setupChain(4, fact.id);
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: events[0]!,
+      maxDepth: 5,
+    });
+
+    const depth3 = report.transitiveChains.find((t) => t.depth === 3);
+    expect(depth3?.severity).toBe('low');
+  });
+
+  it('scores strong active citation (strength>=0.7) as high', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const edgeId = await seedEdgeCitingFact({
+      factId: fact.id,
+      causeEventId: e0,
+      effectEventId: e1,
+      strength: 0.85,
+    });
+
+    const report = await analyzeImpact({ nodeType: 'fact', nodeId: fact.id });
+
+    const citation = report.citationDependents.find((d) => d.nodeId === edgeId);
+    expect(citation?.severity).toBe('high');
+  });
+
+  it('scores weak citation (strength<0.7) as medium', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const edgeId = await seedEdgeCitingFact({
+      factId: fact.id,
+      causeEventId: e0,
+      effectEventId: e1,
+      strength: 0.5,
+    });
+
+    const report = await analyzeImpact({ nodeType: 'fact', nodeId: fact.id });
+
+    const citation = report.citationDependents.find((d) => d.nodeId === edgeId);
+    expect(citation?.severity).toBe('medium');
+  });
+
+  it('scores direct fact sharing entity as medium', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const sibling = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'lives_in',
+      objectValue: 'Boston',
+    });
+
+    const report = await analyzeImpact({ nodeType: 'entity', nodeId: alice.id });
+
+    const direct = report.directDependents.find((d) => d.nodeId === sibling.id);
+    expect(direct?.severity).toBe('medium');
+  });
+
+  it('scores direct edge dependent of causal_event root as high', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const edge = await insertCausalEdge({ causeEventId: e0, effectEventId: e1 });
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: e0 });
+
+    const direct = report.directDependents.find((d) => d.nodeId === edge);
+    expect(direct?.severity).toBe('high');
+  });
+
+  it('severitySummary tallies match per-node severity', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events } = await setupChain(4, fact.id);
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: events[0]!,
+      maxDepth: 5,
+    });
+
+    const allNodes = [
+      ...report.directDependents,
+      ...report.transitiveChains,
+      ...report.citationDependents,
+      ...report.patternImpact,
+    ];
+    const counted = { critical: 0, high: 0, medium: 0, low: 0 };
+    for (const n of allNodes) counted[n.severity]++;
+
+    expect(report.severitySummary).toEqual(counted);
+    expect(report.totalAffected).toBe(allNodes.length);
+  });
+});
+
+// ============================================
+// C3 — Hypothetical mode (nmemo-437.5)
+// ============================================
+
+describe('Phase 4 — Hypothetical mode (nmemo-437.5)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('hypothetical=expire bumps sole-evidence citation to critical', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const edgeId = await seedEdgeCitingFact({
+      factId: fact.id,
+      causeEventId: e0,
+      effectEventId: e1,
+      strength: 0.5,
+      corroborationCount: 1,
+    });
+
+    const reportNoHypo = await analyzeImpact({ nodeType: 'fact', nodeId: fact.id });
+    const reportHypo = await analyzeImpact({
+      nodeType: 'fact',
+      nodeId: fact.id,
+      hypothetical: 'expire',
+    });
+
+    // Without hypothetical: weak strength → medium
+    expect(reportNoHypo.citationDependents.find((d) => d.nodeId === edgeId)?.severity).toBe('medium');
+    // With hypothetical=expire and sole evidence → critical
+    expect(reportHypo.citationDependents.find((d) => d.nodeId === edgeId)?.severity).toBe('critical');
+  });
+
+  it('hypothetical=expire does NOT bump multi-source citation severity', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const bob = await createTestEntity({ canonicalName: 'Bob', entityType: 'person' });
+    const factA = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Charlie',
+    });
+    const factB = await createTestFact({
+      subjectEntityId: bob.id,
+      predicate: 'knows',
+      objectValue: 'Charlie',
+    });
+    const e0 = await insertCausalEvent({ factId: factA.id });
+    const e1 = await insertCausalEvent({ factId: factA.id });
+    const edgeId = await insertCausalEdge({
+      causeEventId: e0,
+      effectEventId: e1,
+      strength: 0.8,
+    });
+    await testDb`
+      INSERT INTO edge_source_refs (edge_id, ref_type, ref_id)
+      VALUES (${edgeId}::uuid, 'fact', ${factA.id}::uuid)
+    `;
+    await testDb`
+      INSERT INTO edge_source_refs (edge_id, ref_type, ref_id)
+      VALUES (${edgeId}::uuid, 'fact', ${factB.id}::uuid)
+    `;
+
+    const report = await analyzeImpact({
+      nodeType: 'fact',
+      nodeId: factA.id,
+      hypothetical: 'expire',
+    });
+
+    const citation = report.citationDependents.find((d) => d.nodeId === edgeId);
+    // Multi-source: even under hypothetical, severity stays high (strength>=0.7)
+    expect(citation?.severity).toBe('high');
+  });
+
+  it('hypothetical=expire makes ZERO database mutations', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const edgeId = await seedEdgeCitingFact({
+      factId: fact.id,
+      causeEventId: e0,
+      effectEventId: e1,
+      strength: 0.5,
+    });
+
+    await analyzeImpact({
+      nodeType: 'fact',
+      nodeId: fact.id,
+      hypothetical: 'expire',
+    });
+
+    // Verify NO mutation across the involved rows
+    const factRow = await testDb`SELECT expired_at, invalid_at FROM facts WHERE id = ${fact.id}::uuid`;
+    expect(factRow[0]!.expired_at).toBeNull();
+    expect(factRow[0]!.invalid_at).toBeNull();
+
+    const edgeRow = await testDb`SELECT expired_at FROM causal_edges WHERE id = ${edgeId}::uuid`;
+    expect(edgeRow[0]!.expired_at).toBeNull();
+
+    // No fact_history row should have been written for this fact
+    const historyRows = await testDb`SELECT count(*)::int AS c FROM fact_history WHERE fact_id = ${fact.id}::uuid`;
+    expect((historyRows[0]! as { c: number }).c).toBe(0);
+  });
+
+  it('without hypothetical, sole-evidence citations stay at base severity', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const edgeId = await seedEdgeCitingFact({
+      factId: fact.id,
+      causeEventId: e0,
+      effectEventId: e1,
+      strength: 0.4, // weak
+    });
+
+    const report = await analyzeImpact({ nodeType: 'fact', nodeId: fact.id });
+
+    const citation = report.citationDependents.find((d) => d.nodeId === edgeId);
+    // No hypothetical → no critical bump even with sole evidence
+    expect(citation?.severity).toBe('medium');
+    expect(report.severitySummary.critical).toBe(0);
+  });
+});
+
+// ============================================
+// C3 — Pattern impact (nmemo-437.4 cont.)
+// ============================================
+
+describe('Phase 4 — Pattern impact (Phase 6 forward-compat)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('returns empty when no patterns exist (Phase 6 not shipped)', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const eventId = await insertCausalEvent({ factId: fact.id });
+    await analyzeImpact({ nodeType: 'causal_event', nodeId: eventId });
+    // No throw → query is safe even with no patterns. Empty patternImpact is the explicit assertion in C1's foundation test.
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: eventId });
+    expect(report.patternImpact).toEqual([]);
+  });
+
+  it('finds provisional/canonical patterns referenced by the root events', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+
+    // Seed a pattern (forward-compat for Phase 6 — verifies the JOIN works)
+    const patternRows = await testDb`
+      INSERT INTO causal_patterns (
+        name, description, template_structure, template_length, status
+      ) VALUES (
+        'Test Pattern', 'A test', '{}'::jsonb, 2, 'canonical'
+      )
+      RETURNING id
+    `;
+    const patternId = (patternRows[0] as { id: string }).id;
+
+    await testDb`
+      INSERT INTO causal_edges (
+        cause_event_id, effect_event_id, strength, reasoning, source_references,
+        extraction_method, corroboration_count, initial_strength, pattern_id, pattern_position
+      ) VALUES (
+        ${e0}::uuid, ${e1}::uuid, 0.7, 'patterned edge', '[]'::jsonb,
+        'manual', 1, 0.7, ${patternId}::uuid, 0
+      )
+    `;
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: e0 });
+
+    expect(report.patternImpact.map((p) => p.nodeId)).toEqual([patternId]);
+    expect(report.patternImpact[0]!.severity).toBe('low');
+    expect(report.patternImpact[0]!.relationship).toBe('pattern_member');
+  });
+
+  it('omits staging-status patterns', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+
+    const patternRows = await testDb`
+      INSERT INTO causal_patterns (
+        name, description, template_structure, template_length, status
+      ) VALUES (
+        'Staging Pattern', 'A test', '{}'::jsonb, 2, 'staging'
+      )
+      RETURNING id
+    `;
+    const patternId = (patternRows[0] as { id: string }).id;
+
+    await testDb`
+      INSERT INTO causal_edges (
+        cause_event_id, effect_event_id, strength, reasoning, source_references,
+        extraction_method, corroboration_count, initial_strength, pattern_id, pattern_position
+      ) VALUES (
+        ${e0}::uuid, ${e1}::uuid, 0.7, 'patterned edge', '[]'::jsonb,
+        'manual', 1, 0.7, ${patternId}::uuid, 0
+      )
+    `;
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: e0 });
+
+    expect(report.patternImpact.map((p) => p.nodeId)).not.toContain(patternId);
+  });
+
+  it('respects includePatterns=false', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const eventId = await insertCausalEvent({ factId: fact.id });
+
+    const report = await analyzeImpact({
+      nodeType: 'causal_event',
+      nodeId: eventId,
+      includePatterns: false,
+    });
+
+    expect(report.patternImpact).toEqual([]);
+  });
+});

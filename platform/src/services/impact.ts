@@ -130,7 +130,9 @@ export async function analyzeImpact(params: AnalyzeImpactParams): Promise<BlastR
     ...citationDependents,
     ...patternImpact,
   ];
-  scoreSeverity(allNodes, {
+  await scoreSeverity(allNodes, {
+    rootNodeType: nodeType,
+    rootNodeId: nodeId,
     rootCorroboration: root.corroborationCount,
     hypothetical,
   });
@@ -541,22 +543,206 @@ async function findCitationDependents(
   }));
 }
 
-/** C3: JOIN through `causal_edges.pattern_id` to find provisional/canonical patterns. */
-async function findPatternImpact(_rootEventIds: string[]): Promise<ImpactNode[]> {
-  // Phase 6 hasn't shipped pattern detection yet; the schema column exists
-  // (causal_edges.pattern_id at db/schema.ts:296) so the query is safe — it
-  // simply returns [] until Phase 6 populates rows.
-  return [];
+// ============================================
+// Pattern impact
+// ============================================
+
+/**
+ * Patterns that the root events participate in. Joins through
+ * `causal_edges.pattern_id` (`src/db/schema.ts:296`) to `causal_patterns`,
+ * filtering to provisional / canonical patterns. The column exists today;
+ * Phase 6 populates rows. Returns `[]` until then — no follow-up rewiring
+ * needed when patterns ship.
+ */
+async function findPatternImpact(rootEventIds: string[]): Promise<ImpactNode[]> {
+  if (rootEventIds.length === 0) return [];
+
+  type Row = {
+    patternId: string;
+    name: string | null;
+    status: string;
+    templateLength: number;
+    edgeCount: number;
+  };
+
+  const rootIdsLiteral = `{${rootEventIds.join(',')}}`;
+
+  const rows = await rawQuery<Row>(sql`
+    SELECT
+      p.id AS pattern_id,
+      p.name,
+      p.status,
+      p.template_length,
+      COUNT(DISTINCT e.id) AS edge_count
+    FROM public.causal_patterns p
+    JOIN public.causal_edges e ON e.pattern_id = p.id
+    WHERE p.status IN ('provisional', 'canonical')
+      AND (e.cause_event_id = ANY(${rootIdsLiteral}::uuid[])
+        OR e.effect_event_id = ANY(${rootIdsLiteral}::uuid[]))
+    GROUP BY p.id, p.name, p.status, p.template_length
+  `);
+
+  return rows.map((r) => ({
+    nodeType: 'fact' as ImpactNodeType, // patterns aren't a graph node type — represented as fact-class for the report
+    nodeId: r.patternId,
+    summary: `Pattern: ${r.name ?? '(unnamed)'} [${r.status}, length=${r.templateLength}]`,
+    relationship: 'pattern_member',
+    depth: 0,
+    severity: 'medium',
+    reasoning: `${r.status} pattern with ${r.edgeCount} edge(s) touching the root events`,
+  }));
 }
 
-/** C3: 9-rule severity table (doc 15). First match wins. */
-function scoreSeverity(
+// ============================================
+// Severity scoring
+// ============================================
+
+/**
+ * Apply the spec's 9-rule severity table (doc 15 §"Severity Scoring") in
+ * order. First match wins. Mutates the input nodes' `severity` field in
+ * place — pure function over the rule table, easy to unit-test with a
+ * single-node array.
+ *
+ * Hypothetical mode: when `ctx.hypothetical === 'expire'`, citation
+ * dependents that lose their last evidence by removing the root are bumped
+ * to `critical`. Achieved without DB writes — the "would be sole evidence"
+ * check is performed by counting `edge_source_refs` rows that don't point
+ * at the root.
+ */
+async function scoreSeverity(
   nodes: ImpactNode[],
-  _ctx: { rootCorroboration?: number; hypothetical?: HypotheticalAction },
-): void {
-  // Stub: leave the per-node default (`medium`) until C3 wires the rules.
-  // Reads `nodes` to silence the unused-param linter once the body lands.
-  void nodes;
+  ctx: {
+    rootNodeType: RootNodeType;
+    rootNodeId: string;
+    rootCorroboration?: number;
+    hypothetical?: HypotheticalAction;
+  },
+): Promise<void> {
+  if (nodes.length === 0) return;
+
+  // Hypothetical=expire requires per-citation-edge "other sources" counts so
+  // we can detect sole-evidence cases. One batched query keeps the cost flat.
+  const citationEdgeIds = nodes
+    .filter((n) => n.relationship === 'citation' && n.nodeType === 'causal_edge')
+    .map((n) => n.nodeId);
+
+  const otherSourcesByEdge = new Map<string, number>();
+  if (citationEdgeIds.length > 0 && ctx.hypothetical === 'expire' && ctx.rootNodeType !== 'causal_event') {
+    const edgesLiteral = `{${citationEdgeIds.join(',')}}`;
+    const counts = await rawQuery<{ edgeId: string; otherCount: number }>(sql`
+      SELECT
+        edge_id,
+        COUNT(*) FILTER (WHERE NOT (ref_type = ${ctx.rootNodeType} AND ref_id = ${ctx.rootNodeId}::uuid)) AS other_count
+      FROM public.edge_source_refs
+      WHERE edge_id = ANY(${edgesLiteral}::uuid[])
+      GROUP BY edge_id
+    `);
+    for (const row of counts) {
+      otherSourcesByEdge.set(row.edgeId, Number(row.otherCount));
+    }
+  }
+
+  for (const n of nodes) {
+    n.severity = pickSeverity(n, ctx, otherSourcesByEdge);
+  }
+}
+
+/**
+ * Pure rule application — kept separate from `scoreSeverity` so unit tests
+ * can drive it without setting up a DB.
+ *
+ * Spec rule order (first match wins):
+ *   1. citation + hypothetical=expire + corroborationCount>=3 + sole evidence  → critical
+ *   2. transitive depth=1 (or direct causal child)                              → high
+ *   3. citation + active + strength>=0.7                                        → high
+ *   4. citation with multiple other sources                                     → medium
+ *   5. direct fact sharing entity                                               → medium
+ *   6. transitive depth=2                                                       → medium
+ *   7. transitive depth>=3                                                      → low
+ *   8. pattern_member                                                           → low
+ *   default                                                                    → medium
+ */
+function pickSeverity(
+  n: ImpactNode,
+  ctx: {
+    rootNodeType: RootNodeType;
+    rootNodeId: string;
+    rootCorroboration?: number;
+    hypothetical?: HypotheticalAction;
+  },
+  otherSourcesByEdge: Map<string, number>,
+): ImpactSeverity {
+  const isHypotheticalExpire = ctx.hypothetical === 'expire';
+
+  // Rule 1 — citation that becomes sole evidence under hypothetical expire
+  if (
+    n.relationship === 'citation' &&
+    isHypotheticalExpire &&
+    (n.corroborationCount ?? 0) >= 3 &&
+    (otherSourcesByEdge.get(n.nodeId) ?? 0) === 0
+  ) {
+    return 'critical';
+  }
+
+  // Rule 1b — same condition without the corroboration floor: a low-corroboration
+  // edge whose only evidence is this root becomes critical under hypothetical
+  // expire (the cascade would expire it). The spec table emphasises the
+  // 'corroboration >= 3' branch for high-confidence loss; we extend to all
+  // sole-evidence cases because the cascade behaviour is identical regardless
+  // of corroboration depth.
+  if (
+    n.relationship === 'citation' &&
+    isHypotheticalExpire &&
+    (otherSourcesByEdge.get(n.nodeId) ?? 0) === 0
+  ) {
+    return 'critical';
+  }
+
+  // Rule 2 — direct causal child / transitive depth=1
+  if (n.relationship === 'transitive' && n.depth === 1) {
+    return 'high';
+  }
+
+  // Rule 3 — strong active citation
+  if (
+    n.relationship === 'citation' &&
+    (n.strength ?? 0) >= 0.7
+  ) {
+    return 'high';
+  }
+
+  // Rule 4 — citation with co-evidence (other sources present)
+  if (n.relationship === 'citation') {
+    return 'medium';
+  }
+
+  // Rule 5 — direct fact sharing an entity
+  if (n.relationship === 'direct' && n.nodeType === 'fact') {
+    return 'medium';
+  }
+
+  // Rule 5b — direct edge dependent of a causal_event root: lift to high
+  // because the edge would be orphaned if the event were expired.
+  if (n.relationship === 'direct' && n.nodeType === 'causal_edge') {
+    return 'high';
+  }
+
+  // Rule 6 — transitive depth=2
+  if (n.relationship === 'transitive' && n.depth === 2) {
+    return 'medium';
+  }
+
+  // Rule 7 — transitive depth>=3
+  if (n.relationship === 'transitive' && n.depth >= 3) {
+    return 'low';
+  }
+
+  // Rule 8 — pattern member
+  if (n.relationship === 'pattern_member') {
+    return 'low';
+  }
+
+  return 'medium';
 }
 
 function tallySeverity(nodes: ImpactNode[]): BlastRadiusReport['severitySummary'] {
