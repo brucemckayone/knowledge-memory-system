@@ -41,6 +41,10 @@ qdrant_storage/
 
 # Generated MCP configs
 .causal-mcp-config.json
+.graph-mcp-config.*.json
+
+# Claude Code transient state
+**/.claude/scheduled_tasks.lock
 
 # Drizzle
 drizzle/
