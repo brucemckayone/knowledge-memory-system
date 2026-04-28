@@ -19,11 +19,14 @@
  * appear in fixtures.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import {
   testDb,
   deleteFromTables,
   loadFixture,
+  createTestEntity,
+  createTestFact,
+  getFact,
 } from '../setup.js';
 import {
   detectOpposingObjects,
@@ -31,8 +34,12 @@ import {
   detectCyclicCausal,
   detectTemporalImpossible,
   detectContradictions,
+  resolveContradiction,
+  getContradictions,
+  getContradictionById,
 } from '../../services/contradictions.js';
 import { loadExpected, runAssertion } from './assertion-runner.js';
+import { handleToolCall } from '../../services/causal-agent.js';
 
 // ============================================
 // Per-test cleanup — contradictions before facts/edges (FK dependents),
@@ -317,5 +324,259 @@ describe('Phase 5 — detectContradictions orchestrator (cae.3-.6)', () => {
   it('second run is a no-op (idempotent — partial unique index)', async () => {
     const result = await detectContradictions();
     expect(result.detected).toBe(0);
+  });
+});
+
+// ============================================
+// Resolver dispatch (cae.7)
+// ============================================
+
+describe('Phase 5 — resolveContradiction dispatcher (nmemo-cae.7)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  /**
+   * Seed an opposing-object contradiction by creating two facts on the same
+   * (subject, predicate) with different objects, then running detection.
+   * Returns the contradiction id + both fact ids so each resolver branch can
+   * verify its specific side effect.
+   */
+  async function seedOpposingContradiction(): Promise<{
+    contradictionId: string;
+    factAId: string;
+    factBId: string;
+  }> {
+    const subj = await createTestEntity({ canonicalName: 'Resolver-Subject', entityType: 'person' });
+    const objA = await createTestEntity({ canonicalName: 'Resolver-Object-A', entityType: 'person' });
+    const objB = await createTestEntity({ canonicalName: 'Resolver-Object-B', entityType: 'person' });
+    await createTestFact({ subjectEntityId: subj.id, predicate: 'knows', objectEntityId: objA.id, confidence: 0.9 });
+    await createTestFact({ subjectEntityId: subj.id, predicate: 'knows', objectEntityId: objB.id, confidence: 0.9 });
+    await detectOpposingObjects();
+    const rows = await getContradictions({ contradictionType: 'opposing_object', unresolvedOnly: true });
+    if (rows.length !== 1) {
+      throw new Error(`seedOpposingContradiction: expected 1 contradiction, got ${rows.length}`);
+    }
+    return {
+      contradictionId: rows[0]!.id,
+      factAId: rows[0]!.factAId!,
+      factBId: rows[0]!.factBId!,
+    };
+  }
+
+  it('expire_a expires fact_a and closes the contradiction', async () => {
+    const { contradictionId, factAId, factBId } = await seedOpposingContradiction();
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'expire_a',
+      resolutionReasoning: 'Fact A had a stale source from 2019; B is supported by 2026 evidence.',
+      actor: 'reasoning_agent',
+    });
+
+    const factA = await getFact(factAId) as { expired_at: Date | null } | null;
+    const factB = await getFact(factBId) as { expired_at: Date | null } | null;
+    expect(factA?.expired_at).not.toBeNull();
+    expect(factB?.expired_at).toBeNull();
+
+    const c = await getContradictionById(contradictionId);
+    expect(c?.resolvedAt).not.toBeNull();
+    expect(c?.resolutionType).toBe('expire_a');
+    expect(c?.resolvedBy).toBe('reasoning_agent');
+  });
+
+  it('expire_b expires fact_b only', async () => {
+    const { contradictionId, factAId, factBId } = await seedOpposingContradiction();
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'expire_b',
+      resolutionReasoning: 'Fact B contradicts the canonical source; expiring it preserves A.',
+      actor: 'reasoning_agent',
+    });
+    const factA = await getFact(factAId) as { expired_at: Date | null } | null;
+    const factB = await getFact(factBId) as { expired_at: Date | null } | null;
+    expect(factA?.expired_at).toBeNull();
+    expect(factB?.expired_at).not.toBeNull();
+  });
+
+  it('expire_both expires both facts', async () => {
+    const { contradictionId, factAId, factBId } = await seedOpposingContradiction();
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'expire_both',
+      resolutionReasoning: 'Both facts depend on a now-debunked source; expiring both is correct.',
+      actor: 'reasoning_agent',
+    });
+    const factA = await getFact(factAId) as { expired_at: Date | null } | null;
+    const factB = await getFact(factBId) as { expired_at: Date | null } | null;
+    expect(factA?.expired_at).not.toBeNull();
+    expect(factB?.expired_at).not.toBeNull();
+  });
+
+  it('invalidate_a sets fact_a invalid_at without expiring', async () => {
+    const { contradictionId, factAId } = await seedOpposingContradiction();
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'invalidate_a',
+      resolutionReasoning: 'Fact A was true once but is no longer; invalidating preserves history.',
+      actor: 'reasoning_agent',
+    });
+    const factA = await getFact(factAId) as { expired_at: Date | null; invalid_at: Date | null } | null;
+    expect(factA?.invalid_at).not.toBeNull();
+    expect(factA?.expired_at).toBeNull();
+  });
+
+  it('both_valid closes without mutating either fact', async () => {
+    const { contradictionId, factAId, factBId } = await seedOpposingContradiction();
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'both_valid',
+      resolutionReasoning: 'Person can know multiple people simultaneously; non-exclusive predicate.',
+      actor: 'reasoning_agent',
+    });
+    const factA = await getFact(factAId) as { expired_at: Date | null } | null;
+    const factB = await getFact(factBId) as { expired_at: Date | null } | null;
+    expect(factA?.expired_at).toBeNull();
+    expect(factB?.expired_at).toBeNull();
+
+    const c = await getContradictionById(contradictionId);
+    expect(c?.resolvedAt).not.toBeNull();
+    expect(c?.resolutionType).toBe('both_valid');
+  });
+
+  it('dismissed closes with dismissed_reason captured', async () => {
+    const { contradictionId } = await seedOpposingContradiction();
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'dismissed',
+      resolutionReasoning: 'False positive — the predicate semantics here permit multiple objects.',
+      actor: 'reasoning_agent',
+      dismissedReason: 'predicate-semantics-permits-multi',
+    });
+    const c = await getContradictionById(contradictionId);
+    expect(c?.resolvedAt).not.toBeNull();
+    expect(c?.resolutionType).toBe('dismissed');
+    expect(c?.dismissedReason).toBe('predicate-semantics-permits-multi');
+  });
+
+  it('reconcile closes without mutation', async () => {
+    const { contradictionId, factAId, factBId } = await seedOpposingContradiction();
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'reconcile',
+      resolutionReasoning: 'Both facts represent valid temporal windows; reconciliation noted.',
+      actor: 'reasoning_agent',
+    });
+    const factA = await getFact(factAId) as { expired_at: Date | null } | null;
+    const factB = await getFact(factBId) as { expired_at: Date | null } | null;
+    expect(factA?.expired_at).toBeNull();
+    expect(factB?.expired_at).toBeNull();
+
+    const c = await getContradictionById(contradictionId);
+    expect(c?.resolutionType).toBe('reconcile');
+  });
+
+  it('rejects reasoning shorter than 20 characters', async () => {
+    const { contradictionId } = await seedOpposingContradiction();
+    await expect(
+      resolveContradiction({
+        contradictionId,
+        resolutionType: 'both_valid',
+        resolutionReasoning: 'too short',
+        actor: 'reasoning_agent',
+      }),
+    ).rejects.toThrow(/reasoning must be at least/);
+  });
+
+  it('rejects already-resolved contradictions', async () => {
+    const { contradictionId } = await seedOpposingContradiction();
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'both_valid',
+      resolutionReasoning: 'First resolution: both facts represent valid relationships.',
+      actor: 'reasoning_agent',
+    });
+    await expect(
+      resolveContradiction({
+        contradictionId,
+        resolutionType: 'expire_a',
+        resolutionReasoning: 'Second resolution: actually expire fact_a after re-evaluation.',
+        actor: 'reasoning_agent',
+      }),
+    ).rejects.toThrow(/already resolved/);
+  });
+
+  it('records resolution_report_id when supplied', async () => {
+    const { contradictionId } = await seedOpposingContradiction();
+    const reportRows = await testDb.unsafe(`
+      INSERT INTO public.reasoning_reports (mode, report)
+      VALUES ('patrol', 'test-report-for-contradiction-resolution')
+      RETURNING id
+    `) as unknown as Array<{ id: string }>;
+    const reportId = reportRows[0]!.id;
+
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'both_valid',
+      resolutionReasoning: 'Linked to a reasoning report — provenance check.',
+      actor: 'reasoning_agent',
+      reasoningReportId: reportId,
+    });
+    const c = await getContradictionById(contradictionId);
+    expect(c?.resolutionReportId).toBe(reportId);
+  });
+});
+
+// ============================================
+// MCP tool dispatch (cae.8)
+// ============================================
+
+describe('Phase 5 — MCP tools (nmemo-cae.8)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('get_contradictions returns unresolved rows by default', async () => {
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    await detectOpposingObjects();
+
+    const result = await handleToolCall('get_contradictions', {}, { agent: 'reasoning_agent' });
+    const parsed = JSON.parse(result) as { contradictions: Array<{ contradictionType: string }> };
+    expect(parsed.contradictions.length).toBeGreaterThanOrEqual(1);
+    expect(parsed.contradictions[0]!.contradictionType).toBe('opposing_object');
+  });
+
+  it('get_contradictions filters by contradiction_type', async () => {
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    await loadFixture('phase5-contradictions/fixtures/temporal-impossible.sql');
+    await detectContradictions();
+
+    const result = await handleToolCall(
+      'get_contradictions',
+      { contradiction_type: 'temporal_impossible' },
+      { agent: 'reasoning_agent' },
+    );
+    const parsed = JSON.parse(result) as { contradictions: Array<{ contradictionType: string }> };
+    expect(parsed.contradictions.every(c => c.contradictionType === 'temporal_impossible')).toBe(true);
+  });
+
+  it('resolve_contradiction via MCP applies the resolution', async () => {
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    await detectOpposingObjects();
+    const [row] = await getContradictions({ unresolvedOnly: true });
+
+    const result = await handleToolCall(
+      'resolve_contradiction',
+      {
+        contradiction_id: row!.id,
+        resolution_type: 'both_valid',
+        resolution_reasoning: 'Non-exclusive predicate — both facts can stand simultaneously.',
+      },
+      { agent: 'reasoning_agent' },
+    );
+    expect(JSON.parse(result)).toEqual({ resolved: true });
+
+    const c = await getContradictionById(row!.id);
+    expect(c?.resolvedAt).not.toBeNull();
+    expect(c?.resolvedBy).toBe('reasoning_agent');
   });
 });

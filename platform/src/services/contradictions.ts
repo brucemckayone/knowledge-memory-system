@@ -23,6 +23,8 @@
 
 import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
+import { expireFact, invalidateFact } from './facts.js';
+import type { Actor } from './audit.js';
 
 // ============================================
 // Types
@@ -335,6 +337,133 @@ export async function getContradictions(
   `);
 
   return result as unknown as ContradictionRow[];
+}
+
+// ============================================
+// Resolution
+// ============================================
+
+export type ResolutionType =
+  | 'expire_a'
+  | 'expire_b'
+  | 'expire_both'
+  | 'invalidate_a'
+  | 'invalidate_b'
+  | 'reconcile'
+  | 'both_valid'
+  | 'dismissed';
+
+export interface ResolveContradictionParams {
+  contradictionId: string;
+  resolutionType: ResolutionType;
+  resolutionReasoning: string;
+  actor: Actor;
+  reasoningReportId?: string | null;
+  /** Required when resolutionType is 'dismissed' — captured to dismissed_reason. */
+  dismissedReason?: string;
+}
+
+const MIN_REASONING_LENGTH = 20;
+
+/**
+ * Apply a resolution to a contradiction. Dispatches into the existing
+ * `expireFact` / `invalidateFact` paths so audit + cascade fire for free,
+ * then closes the contradiction with provenance fields populated.
+ *
+ * Side-effect matrix:
+ *   expire_a       → expireFact(factAId)
+ *   expire_b       → expireFact(factBId)
+ *   expire_both    → expireFact(factAId) AND expireFact(factBId)
+ *   invalidate_a   → invalidateFact(factAId)
+ *   invalidate_b   → invalidateFact(factBId)
+ *   reconcile      → no mutation (agent narrates the reconciliation only)
+ *   both_valid     → no mutation (e.g. temporally-windowed claims)
+ *   dismissed      → no mutation; dismissed_reason captured
+ *
+ * Throws if the contradiction is already resolved or if the reasoning is
+ * shorter than MIN_REASONING_LENGTH characters.
+ */
+export async function resolveContradiction(
+  params: ResolveContradictionParams,
+): Promise<void> {
+  const { contradictionId, resolutionType, resolutionReasoning, actor } = params;
+  const reasoningReportId = params.reasoningReportId ?? null;
+
+  if (!resolutionReasoning || resolutionReasoning.trim().length < MIN_REASONING_LENGTH) {
+    throw new Error(
+      `resolveContradiction: reasoning must be at least ${MIN_REASONING_LENGTH} characters; got ${resolutionReasoning?.length ?? 0}`,
+    );
+  }
+
+  const contradiction = await getContradictionById(contradictionId);
+  if (!contradiction) {
+    throw new Error(`resolveContradiction: contradiction ${contradictionId} not found`);
+  }
+  if (contradiction.resolvedAt) {
+    throw new Error(`resolveContradiction: ${contradictionId} already resolved`);
+  }
+
+  // Dispatch side effects before marking resolved so any failure aborts the
+  // resolution (the contradiction stays open for retry / agent reconsideration).
+  switch (resolutionType) {
+    case 'expire_a': {
+      if (!contradiction.factAId) {
+        throw new Error(`resolveContradiction: expire_a requires fact_a_id (none on ${contradictionId})`);
+      }
+      await expireFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId });
+      break;
+    }
+    case 'expire_b': {
+      if (!contradiction.factBId) {
+        throw new Error(`resolveContradiction: expire_b requires fact_b_id (none on ${contradictionId})`);
+      }
+      await expireFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId });
+      break;
+    }
+    case 'expire_both': {
+      if (!contradiction.factAId || !contradiction.factBId) {
+        throw new Error(`resolveContradiction: expire_both requires both fact_a_id and fact_b_id`);
+      }
+      await expireFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId });
+      await expireFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId });
+      break;
+    }
+    case 'invalidate_a': {
+      if (!contradiction.factAId) {
+        throw new Error(`resolveContradiction: invalidate_a requires fact_a_id`);
+      }
+      await invalidateFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId });
+      break;
+    }
+    case 'invalidate_b': {
+      if (!contradiction.factBId) {
+        throw new Error(`resolveContradiction: invalidate_b requires fact_b_id`);
+      }
+      await invalidateFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId });
+      break;
+    }
+    case 'reconcile':
+    case 'both_valid':
+    case 'dismissed':
+      // No mutation — the agent has narrated why the conflict is acceptable
+      // or accommodated. The closing UPDATE below records the decision.
+      break;
+    default: {
+      const _exhaustive: never = resolutionType;
+      throw new Error(`resolveContradiction: unknown resolution_type ${JSON.stringify(_exhaustive)}`);
+    }
+  }
+
+  await db.execute(sql`
+    UPDATE public.contradictions
+    SET resolved_at          = NOW(),
+        resolved_by          = ${actor},
+        resolution_type      = ${resolutionType},
+        resolution_reasoning = ${resolutionReasoning},
+        resolution_report_id = ${reasoningReportId},
+        dismissed_reason     = ${resolutionType === 'dismissed' ? (params.dismissedReason ?? null) : null}
+    WHERE id = ${contradictionId}::uuid
+  `);
 }
 
 export async function getContradictionById(id: string): Promise<ContradictionRow | null> {

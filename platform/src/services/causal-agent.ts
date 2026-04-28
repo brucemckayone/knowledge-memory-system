@@ -23,6 +23,13 @@ import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entitie
 import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
 import { getEntityCausalHistory, createCausalEdge, expireCausalEdge, reviseCausalEdge, type SourceReference as CausalSourceRef } from './causal.js';
 import { getFactHistory, getEdgeHistory, type Actor } from './audit.js';
+import {
+  getContradictions,
+  resolveContradiction,
+  type ContradictionType,
+  type ContradictionSeverity,
+  type ResolutionType,
+} from './contradictions.js';
 import { ml } from './ml-client.js';
 import { config } from '../config.js';
 import { normalizePredicate } from './predicates.js';
@@ -793,6 +800,58 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         reasoning: { type: 'string', description: 'Why this revision is justified' },
       },
       required: ['edge_id', 'reasoning'],
+    },
+  },
+
+  // --- Phase 5 contradiction tools ---
+
+  {
+    name: 'get_contradictions',
+    description:
+      'Fetch contradictions detected by the SQL heuristics. Returns rows with full provenance (detection_reasoning, detection_context, severity). Defaults to unresolved only. Call this during PHASE 1.5 of the reasoning patrol to surface unresolved conflicts before deciding which neighbourhoods to investigate.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        limit: { type: 'number', description: 'Maximum rows (default 50)' },
+        unresolved_only: { type: 'boolean', description: 'When true (default), excludes resolved contradictions.' },
+        contradiction_type: {
+          type: 'string',
+          enum: ['opposing_object', 'expired_but_cited', 'cyclic_causal', 'temporal_impossible', 'chain_conflict'],
+          description: 'Filter to a specific contradiction type.',
+        },
+        severity: {
+          type: 'string',
+          enum: ['critical', 'high', 'medium', 'low'],
+          description: 'Filter to a specific severity tier.',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'resolve_contradiction',
+    description:
+      'Apply a resolution to an open contradiction. Dispatches into expire/invalidate (when the resolution mutates a fact) and closes the contradiction record with full reasoning. Use after reading get_fact_history / get_edge_history for the involved nodes. Reasoning must be at least 20 characters.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        contradiction_id: { type: 'string', description: 'UUID of the contradiction to resolve' },
+        resolution_type: {
+          type: 'string',
+          enum: ['expire_a', 'expire_b', 'expire_both', 'invalidate_a', 'invalidate_b', 'reconcile', 'both_valid', 'dismissed'],
+          description: 'How to resolve. expire_*/invalidate_* mutate the underlying fact; reconcile/both_valid/dismissed close without mutation.',
+        },
+        resolution_reasoning: {
+          type: 'string',
+          description: 'Why this resolution was chosen. Must be at least 20 characters.',
+          minLength: 20,
+        },
+        dismissed_reason: {
+          type: 'string',
+          description: 'Required when resolution_type is "dismissed" — captures the dismissal rationale to dismissed_reason.',
+        },
+      },
+      required: ['contradiction_id', 'resolution_type', 'resolution_reasoning'],
     },
   },
 ];
@@ -1678,6 +1737,28 @@ async function _handleToolCallInner(
         reasoningReportId: context.reasoningReportId ?? null,
       });
       return JSON.stringify({ revised: true });
+    }
+
+    case 'get_contradictions': {
+      const rows = await getContradictions({
+        limit: toolInput.limit as number | undefined,
+        unresolvedOnly: toolInput.unresolved_only as boolean | undefined,
+        contradictionType: toolInput.contradiction_type as ContradictionType | undefined,
+        severity: toolInput.severity as ContradictionSeverity | undefined,
+      });
+      return JSON.stringify({ contradictions: rows });
+    }
+
+    case 'resolve_contradiction': {
+      await resolveContradiction({
+        contradictionId: toolInput.contradiction_id as string,
+        resolutionType: toolInput.resolution_type as ResolutionType,
+        resolutionReasoning: toolInput.resolution_reasoning as string,
+        actor: context.agent,
+        reasoningReportId: context.reasoningReportId ?? null,
+        dismissedReason: toolInput.dismissed_reason as string | undefined,
+      });
+      return JSON.stringify({ resolved: true });
     }
 
     default:
