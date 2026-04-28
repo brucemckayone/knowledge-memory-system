@@ -1199,3 +1199,126 @@ function showAnswer(text) {
 document.getElementById('answerClose').addEventListener('click', () => {
   document.getElementById('answerPanel').classList.remove('open');
 });
+
+// ============================================================
+// CONTRADICTIONS (Phase 5 — cae.11)
+// ============================================================
+
+const CONTRADICTION_TYPE_LABELS = {
+  opposing_object:     'Opposing object',
+  expired_but_cited:   'Expired but cited',
+  cyclic_causal:       'Cyclic causal',
+  temporal_impossible: 'Temporal impossible',
+  chain_conflict:      'Chain conflict',
+};
+
+const RESOLUTION_TYPE_PROMPT = [
+  'Pick a resolution_type:',
+  '  expire_a / expire_b / expire_both',
+  '  invalidate_a / invalidate_b',
+  '  reconcile / both_valid / dismissed',
+].join('\n');
+
+async function updateContradictionsBadge() {
+  try {
+    const res = await fetch('/api/contradictions?limit=200');
+    if (!res.ok) return;
+    const body = await res.json();
+    const rows = body.contradictions || [];
+    const badge = document.getElementById('contradictionsBadge');
+    if (!badge) return;
+    const count = rows.length;
+    badge.textContent = String(count);
+    badge.classList.toggle('zero', count === 0);
+
+    // If the panel is open, refresh its content with the latest rows.
+    const panel = document.getElementById('contradictionsPanel');
+    if (panel && panel.classList.contains('open')) {
+      renderContradictionsPanel(rows);
+    }
+  } catch {
+    // Best-effort — endpoint failure should not break the badge.
+  }
+}
+
+function renderContradictionsPanel(rows) {
+  const list = document.getElementById('ctradList');
+  const meta = document.getElementById('ctradMeta');
+  if (!list || !meta) return;
+  meta.textContent = `${rows.length} unresolved`;
+  if (rows.length === 0) {
+    list.innerHTML = '<div class="ctrad-empty">No unresolved contradictions.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(r => {
+    const typeLabel = CONTRADICTION_TYPE_LABELS[r.contradictionType] || r.contradictionType;
+    const sevClass = `sev-${r.severity}`;
+    const reasoningText = (r.detectionReasoning || '').replace(/</g, '&lt;');
+    return `
+      <div class="ctrad-row" data-id="${r.id}">
+        <div class="ctrad-row-head">
+          <span class="ctrad-type">${typeLabel}</span>
+          <span class="ctrad-severity ${sevClass}">${r.severity}</span>
+        </div>
+        <div class="ctrad-reasoning">${reasoningText}</div>
+        <div class="ctrad-actions">
+          <button class="ctrad-resolve-btn" data-action="resolve" data-id="${r.id}">Resolve…</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  for (const btn of list.querySelectorAll('[data-action="resolve"]')) {
+    btn.addEventListener('click', () => resolveContradictionUI(btn.getAttribute('data-id')));
+  }
+}
+
+async function resolveContradictionUI(contradictionId) {
+  const resolutionType = window.prompt(RESOLUTION_TYPE_PROMPT);
+  if (!resolutionType) return;
+  const resolutionReasoning = window.prompt('Reasoning (min 20 chars):');
+  if (!resolutionReasoning || resolutionReasoning.trim().length < 20) {
+    alert('Reasoning must be at least 20 characters.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/contradictions/${contradictionId}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resolution_type: resolutionType.trim(),
+        resolution_reasoning: resolutionReasoning,
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok || !body.resolved) {
+      alert(`Resolve failed: ${body.error || res.status}`);
+      return;
+    }
+    await updateContradictionsBadge();
+    if (typeof fetchData === 'function') await fetchData();
+  } catch (err) {
+    alert(`Resolve failed: ${err.message}`);
+  }
+}
+
+document.getElementById('btnContradictions').addEventListener('click', async () => {
+  const panel = document.getElementById('contradictionsPanel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    const res = await fetch('/api/contradictions?limit=200');
+    const body = await res.json();
+    renderContradictionsPanel(body.contradictions || []);
+  }
+});
+
+document.getElementById('ctradClose').addEventListener('click', () => {
+  document.getElementById('contradictionsPanel').classList.remove('open');
+});
+
+// Initial badge population + periodic refresh on the same 5s cadence as
+// the main fetchData poll (independent setInterval — function declarations
+// don't survive late-bound reassignment when held as references in a timer).
+updateContradictionsBadge();
+setInterval(updateContradictionsBadge, 5000);
