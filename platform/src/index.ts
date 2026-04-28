@@ -541,6 +541,92 @@ app.post('/api/decay', async (c) => {
   }
 });
 
+app.get('/api/contradictions', async (c) => {
+  // List contradictions for the viz panel. Defaults to unresolved-only, but
+  // ?unresolved=false returns the full set including resolved rows.
+  const unresolved = c.req.query('unresolved') !== 'false';
+  const limit = parseInt(c.req.query('limit') ?? '50', 10);
+  const type = c.req.query('type');
+  const severity = c.req.query('severity');
+
+  const { getContradictions } = await import('./services/contradictions.js');
+  const rows = await getContradictions({
+    unresolvedOnly: unresolved,
+    limit: Number.isFinite(limit) ? limit : 50,
+    contradictionType: type as 'opposing_object' | 'expired_but_cited' | 'cyclic_causal' | 'temporal_impossible' | 'chain_conflict' | undefined,
+    severity: severity as 'critical' | 'high' | 'medium' | 'low' | undefined,
+  });
+  return c.json({ contradictions: rows });
+});
+
+app.post('/api/contradictions/detect', async (c) => {
+  // Manual trigger for the SQL detection sweep. Same shape as the per-pipeline
+  // auto-trigger in `pipeline.ts` so the viz / reasoning agent can drive it
+  // explicitly without reaching into the pipeline counter.
+  const tStart = Date.now();
+  console.log('[contradictions] manual detect trigger received');
+
+  const { detectContradictions } = await import('./services/contradictions.js');
+  try {
+    const result = await detectContradictions();
+    const durationMs = Date.now() - tStart;
+    console.log(
+      `[contradictions] detect complete detected=${result.detected} byType=${JSON.stringify(result.byType)} durationMs=${durationMs}`,
+    );
+    return c.json({
+      triggered: true,
+      detected: result.detected,
+      byType: result.byType,
+      durationMs,
+    });
+  } catch (err) {
+    return c.json(
+      {
+        triggered: false,
+        error: err instanceof Error ? err.message : String(err),
+        durationMs: Date.now() - tStart,
+      },
+      500,
+    );
+  }
+});
+
+app.post('/api/contradictions/:id/resolve', async (c) => {
+  const id = c.req.param('id');
+  const body: {
+    resolution_type?: string;
+    resolution_reasoning?: string;
+    dismissed_reason?: string;
+  } = await c.req.json().catch(() => ({}));
+
+  if (!body.resolution_type || !body.resolution_reasoning) {
+    return c.json(
+      { resolved: false, error: 'resolution_type and resolution_reasoning are required' },
+      400,
+    );
+  }
+
+  const { resolveContradiction } = await import('./services/contradictions.js');
+  try {
+    await resolveContradiction({
+      contradictionId: id,
+      resolutionType: body.resolution_type as
+        | 'expire_a' | 'expire_b' | 'expire_both'
+        | 'invalidate_a' | 'invalidate_b'
+        | 'reconcile' | 'both_valid' | 'dismissed',
+      resolutionReasoning: body.resolution_reasoning,
+      actor: 'user',
+      dismissedReason: body.dismissed_reason,
+    });
+    return c.json({ resolved: true });
+  } catch (err) {
+    return c.json(
+      { resolved: false, error: err instanceof Error ? err.message : String(err) },
+      400,
+    );
+  }
+});
+
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
   'reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports',

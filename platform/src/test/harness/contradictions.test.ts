@@ -40,6 +40,7 @@ import {
 } from '../../services/contradictions.js';
 import { loadExpected, runAssertion } from './assertion-runner.js';
 import { handleToolCall } from '../../services/causal-agent.js';
+import { app } from '../../index.js';
 
 // ============================================
 // Per-test cleanup — contradictions before facts/edges (FK dependents),
@@ -578,5 +579,85 @@ describe('Phase 5 — MCP tools (nmemo-cae.8)', () => {
     const c = await getContradictionById(row!.id);
     expect(c?.resolvedAt).not.toBeNull();
     expect(c?.resolvedBy).toBe('reasoning_agent');
+  });
+});
+
+// ============================================
+// HTTP endpoints (cae.10)
+// ============================================
+
+describe('Phase 5 — HTTP endpoints (nmemo-cae.10)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('POST /api/contradictions/detect runs the orchestrator', async () => {
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    const res = await app.request('/api/contradictions/detect', { method: 'POST' });
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      triggered: boolean;
+      detected: number;
+      byType: Record<string, number>;
+      durationMs: number;
+    };
+    expect(body.triggered).toBe(true);
+    expect(body.detected).toBeGreaterThanOrEqual(1);
+    expect(body.byType.opposing_object).toBeGreaterThanOrEqual(1);
+    expect(typeof body.durationMs).toBe('number');
+  });
+
+  it('GET /api/contradictions returns the unresolved list by default', async () => {
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    await detectOpposingObjects();
+
+    const res = await app.request('/api/contradictions');
+    expect(res.status).toBe(200);
+    const body = await res.json() as { contradictions: Array<{ contradictionType: string }> };
+    expect(body.contradictions.length).toBeGreaterThanOrEqual(1);
+    expect(body.contradictions[0]!.contradictionType).toBe('opposing_object');
+  });
+
+  it('GET /api/contradictions filters by ?type=', async () => {
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    await loadFixture('phase5-contradictions/fixtures/temporal-impossible.sql');
+    await detectContradictions();
+
+    const res = await app.request('/api/contradictions?type=temporal_impossible');
+    const body = await res.json() as { contradictions: Array<{ contradictionType: string }> };
+    expect(body.contradictions.every(c => c.contradictionType === 'temporal_impossible')).toBe(true);
+  });
+
+  it('POST /api/contradictions/:id/resolve closes a contradiction', async () => {
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    await detectOpposingObjects();
+    const [row] = await getContradictions({ unresolvedOnly: true });
+
+    const res = await app.request(`/api/contradictions/${row!.id}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resolution_type: 'both_valid',
+        resolution_reasoning: 'Endpoint round-trip: knows is non-exclusive, both facts stand.',
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ resolved: true });
+
+    const c = await getContradictionById(row!.id);
+    expect(c?.resolvedAt).not.toBeNull();
+    expect(c?.resolvedBy).toBe('user');
+  });
+
+  it('POST /api/contradictions/:id/resolve rejects missing fields with 400', async () => {
+    const res = await app.request('/api/contradictions/00000000-0000-0000-0000-000000000000/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json() as { resolved: boolean; error?: string };
+    expect(body.resolved).toBe(false);
+    expect(body.error).toMatch(/required/);
   });
 });
