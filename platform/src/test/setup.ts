@@ -190,6 +190,7 @@ export async function deleteFromTables(opts: GlobalCleanupOptions): Promise<void
     'entity_aliases',
     'entity_merges',
     'contradiction_reviews',
+    'contradictions',
     'causal_edges',
     'causal_events',
     'causal_patterns',

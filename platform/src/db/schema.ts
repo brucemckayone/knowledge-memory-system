@@ -469,6 +469,58 @@ export const reasoningReports = pgTable('reasoning_reports', {
 });
 
 // ============================================
+// Phase 5: Contradictions (migration 011_contradictions.sql)
+// ============================================
+
+/**
+ * Contradictions
+ *
+ * First-class records for flagged conflicts: same-subject/predicate facts
+ * with different objects, edges citing expired facts, causal cycles without
+ * temporal separation, edges where cause occurs after effect, and (later)
+ * agent-detected chain conflicts.
+ *
+ * Polymorphic: every row touches at least one of facts / causal_edges /
+ * entities. The DB CHECK `at_least_one_node` enforces this.
+ *
+ * Detection populates rows; resolution closes them via the reasoning agent
+ * (or user) supplying a resolution_type and reasoning. Resolution can chain
+ * into expireFact / invalidateFact via the dispatcher in
+ * `src/services/contradictions.ts`.
+ */
+export const contradictions = pgTable('contradictions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  contradictionType: varchar('contradiction_type', { length: 32 }).notNull(),
+
+  // Polymorphic node references (at least one non-null per CHECK)
+  factAId: uuid('fact_a_id').references(() => facts.id),
+  factBId: uuid('fact_b_id').references(() => facts.id),
+  edgeAId: uuid('edge_a_id').references(() => causalEdges.id),
+  edgeBId: uuid('edge_b_id').references(() => causalEdges.id),
+  entityId: uuid('entity_id').references(() => entities.id),
+
+  // Detection metadata
+  detectedAt: timestamp('detected_at', { withTimezone: true }).defaultNow().notNull(),
+  detectedBy: varchar('detected_by', { length: 32 }).notNull(),
+  detectionReasoning: text('detection_reasoning').notNull(),
+  detectionContext: jsonb('detection_context'),
+  severity: varchar('severity', { length: 10 }).default('medium').notNull(),
+
+  // Resolution
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolvedBy: varchar('resolved_by', { length: 32 }),
+  resolutionType: varchar('resolution_type', { length: 20 }),
+  resolutionReasoning: text('resolution_reasoning'),
+  resolutionReportId: uuid('resolution_report_id').references(() => reasoningReports.id),
+
+  // Dismissal / lifecycle
+  dismissedReason: text('dismissed_reason'),
+});
+
+export type Contradiction = typeof contradictions.$inferSelect;
+export type NewContradiction = typeof contradictions.$inferInsert;
+
+// ============================================
 // Phase 1: Audit Trail (migration 009_audit_trail.sql)
 // ============================================
 
