@@ -28,6 +28,9 @@ import {
   type PatternStatus,
 } from '../../services/causal-patterns.js';
 import { ml } from '../../services/ml-client.js';
+import { handleToolCall } from '../../services/causal-agent.js';
+import { incrementPatrolCount, _resetReasoningPatrolCount } from '../../pipeline.js';
+import { app } from '../../index.js';
 
 async function cleanSlate(): Promise<void> {
   await deleteFromTables({
@@ -1102,6 +1105,149 @@ describe('Phase 6 — G5: reasoning surfaces (nmemo-d9v.9 + d9v.10)', () => {
       const strongConf = strongGhosts.find((g) => g.patternId === strongPatternId)?.confidence ?? 0;
       const weakConf = weakGhosts.find((g) => g.patternId === weakPatternId)?.confidence ?? 0;
       expect(strongConf).toBeGreaterThan(weakConf);
+    });
+  });
+});
+
+describe('Phase 6 — G6: wiring (nmemo-d9v.11 + d9v.13 + d9v.14)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+    await testDb`DELETE FROM public.fact_predicates WHERE predicate IN ('requires', 'prevents')`;
+    _resetReasoningPatrolCount();
+  });
+
+  describe('MCP tools', () => {
+    it('get_active_patterns returns structured list', async () => {
+      const id = await setupPattern({ status: 'canonical', name: 'mcp-test' });
+      const json = await handleToolCall('get_active_patterns', {}, { agent: 'reasoning_agent' });
+      const parsed = JSON.parse(json);
+      expect(Array.isArray(parsed.patterns)).toBe(true);
+      expect(parsed.patterns.find((p: { id: string }) => p.id === id)).toBeDefined();
+    });
+
+    it('find_causal_ghosts returns array', async () => {
+      const entity = await createTestEntity({ canonicalName: `mcp-ghost-${Date.now()}`, entityType: 'test' });
+      const json = await handleToolCall('find_causal_ghosts', { entity_id: entity.id }, { agent: 'reasoning_agent' });
+      const parsed = JSON.parse(json);
+      expect(Array.isArray(parsed.ghosts)).toBe(true);
+    });
+
+    it('get_pattern_instances returns edges for pattern_id', async () => {
+      const template = [
+        { entity_type: 'standard_rule', predicate_category: 'g6_a' },
+        { entity_type: 'standard_rule', predicate_category: 'g6_b' },
+      ];
+      const patternId = await setupPattern({ status: 'canonical', templateStructure: template });
+      const { edgeIds } = await buildLinearChain(1);
+      await testDb`UPDATE public.causal_edges SET pattern_id = ${patternId}::uuid, pattern_position = 0 WHERE id = ${edgeIds[0]!}::uuid`;
+
+      const json = await handleToolCall('get_pattern_instances', { pattern_id: patternId }, { agent: 'reasoning_agent' });
+      const parsed = JSON.parse(json);
+      expect(Array.isArray(parsed.instances)).toBe(true);
+      expect(parsed.instances.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('pipeline auto-trigger', () => {
+    it('does NOT run detection on calls 1 and 2; runs on call 3', async () => {
+      const detectSpy = vi.fn();
+      const promoteSpy = vi.fn();
+
+      // Mock the dynamic import target by setting up a pattern that detection
+      // would discover. Use 3 identical chains so detection has something to do.
+      for (let i = 0; i < 3; i++) {
+        await buildLinearChain(2, { predicates: ['g6_x', 'g6_y', 'g6_y'] });
+      }
+
+      await incrementPatrolCount();
+      await incrementPatrolCount();
+      let patterns = await testDb`SELECT id FROM public.causal_patterns`;
+      expect(patterns).toHaveLength(0);
+
+      await incrementPatrolCount();
+      patterns = await testDb`SELECT id FROM public.causal_patterns`;
+      expect(patterns.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('failure inside detection does not throw to caller', async () => {
+      // Spy on detectCausalPatterns to throw
+      const causalPatterns = await import('../../services/causal-patterns.js');
+      const spy = vi.spyOn(causalPatterns, 'detectCausalPatterns').mockRejectedValue(new Error('boom'));
+
+      // Burn 2 ticks
+      await incrementPatrolCount();
+      await incrementPatrolCount();
+      // Third tick — should swallow the error
+      await expect(incrementPatrolCount()).resolves.toBeUndefined();
+
+      spy.mockRestore();
+    });
+  });
+
+  describe('HTTP endpoints', () => {
+    it('POST /api/patterns/detect returns DetectResult', async () => {
+      for (let i = 0; i < 3; i++) await buildLinearChain(2, { predicates: ['g6_h_a', 'g6_h_b', 'g6_h_b'] });
+
+      const res = await app.fetch(
+        new Request('http://localhost/api/patterns/detect', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ instance_threshold: 3 }),
+        }),
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { chainsExamined: number; newStaging: number };
+      expect(body.chainsExamined).toBeGreaterThan(0);
+      expect(body.newStaging).toBeGreaterThanOrEqual(1);
+    });
+
+    it('POST /api/patterns/promote returns PromoteResult', async () => {
+      await setupPattern({ status: 'staging', instanceCount: 5, lastSeenAt: new Date() });
+
+      // Mock naming to avoid live ML call
+      vi.spyOn(ml, 'generateJson').mockResolvedValue({ name: 'http-test-name', description: 'http-test-desc' });
+
+      const res = await app.fetch(
+        new Request('http://localhost/api/patterns/promote', { method: 'POST' }),
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        promoted: Array<{ to: string }>;
+        demoted: unknown[];
+        rejected: unknown[];
+      };
+      expect(body.promoted).toHaveLength(1);
+      expect(body.promoted[0]!.to).toBe('candidate');
+    });
+
+    it('GET /api/patterns lists provisional + canonical', async () => {
+      await setupPattern({ status: 'canonical' });
+      await setupPattern({ status: 'staging' });
+
+      const res = await app.fetch(new Request('http://localhost/api/patterns'));
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { patterns: Array<{ status: string }> };
+      expect(body.patterns).toHaveLength(1);
+      expect(body.patterns[0]!.status).toBe('canonical');
+    });
+
+    it('GET /api/patterns/:id/instances returns linked edges', async () => {
+      const patternId = await setupPattern({ status: 'canonical' });
+      const { edgeIds } = await buildLinearChain(1);
+      await testDb`UPDATE public.causal_edges SET pattern_id = ${patternId}::uuid, pattern_position = 0 WHERE id = ${edgeIds[0]!}::uuid`;
+
+      const res = await app.fetch(new Request(`http://localhost/api/patterns/${patternId}/instances`));
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { instances: Array<{ id: string }> };
+      expect(body.instances.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('GET /api/ghosts/:entityId returns ghost array', async () => {
+      const entity = await createTestEntity({ canonicalName: `g6-ghost-${Date.now()}`, entityType: 'test' });
+      const res = await app.fetch(new Request(`http://localhost/api/ghosts/${entity.id}`));
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { ghosts: unknown[] };
+      expect(Array.isArray(body.ghosts)).toBe(true);
     });
   });
 });

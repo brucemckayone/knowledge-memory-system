@@ -35,6 +35,11 @@ import {
   type RootNodeType as ImpactRootNodeType,
   type HypotheticalAction,
 } from './impact.js';
+import {
+  activePatterns,
+  findCausalGhosts,
+  type PatternStatus,
+} from './causal-patterns.js';
 import { ml } from './ml-client.js';
 import { config } from '../config.js';
 import { normalizePredicate } from './predicates.js';
@@ -891,6 +896,79 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['node_type', 'node_id'],
+    },
+  },
+
+  // --- Phase 6 pattern lifecycle tools ---
+
+  {
+    name: 'get_active_patterns',
+    description:
+      'List active causal patterns. Defaults to status=[provisional, canonical] — these are the patterns the system has validated as repeatable causal structures. Optional entity_id filter restricts to patterns the entity participates in (joins through causal_edges.pattern_id). Use during query mode to ground answers about processes/mechanisms in stable patterns.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        entity_id: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Optional UUID — only return patterns the entity participates in.',
+        },
+        status: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['staging', 'candidate', 'provisional', 'canonical', 'rejected'],
+          },
+          description: 'Override the default status filter [provisional, canonical].',
+        },
+        limit: {
+          type: 'number',
+          minimum: 1,
+          maximum: 100,
+          description: 'Maximum number of patterns to return. Default 20.',
+        },
+      },
+      required: [],
+    },
+  },
+
+  {
+    name: 'find_causal_ghosts',
+    description:
+      'Find expected-but-missing causal links for an entity, based on canonical pattern templates. A "ghost" is the missing position when an entity covers N-1 of N edge positions in a known pattern. During patrol, call this for the central entity of the neighbourhood: for each high-confidence ghost, search source memories for evidence the missing link should exist before creating the edge.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        entity_id: {
+          type: 'string',
+          format: 'uuid',
+          description: 'UUID of the entity to scan for ghost links.',
+        },
+      },
+      required: ['entity_id'],
+    },
+  },
+
+  {
+    name: 'get_pattern_instances',
+    description:
+      'Get the concrete causal edges that instantiate a given pattern. Useful for audit: "which actual chains in the graph make this pattern canonical?". Returns up to `limit` edges ordered by pattern_position then created_at.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pattern_id: {
+          type: 'string',
+          format: 'uuid',
+          description: 'UUID of the pattern.',
+        },
+        limit: {
+          type: 'number',
+          minimum: 1,
+          maximum: 100,
+          description: 'Maximum number of instances to return. Default 10.',
+        },
+      },
+      required: ['pattern_id'],
     },
   },
 ];
@@ -1810,6 +1888,35 @@ async function _handleToolCallInner(
       return JSON.stringify(report);
     }
 
+    case 'get_active_patterns': {
+      const patterns = await activePatterns({
+        entityId: toolInput.entity_id as string | undefined,
+        status: toolInput.status as PatternStatus[] | undefined,
+        limit: toolInput.limit as number | undefined,
+      });
+      return JSON.stringify({ patterns });
+    }
+
+    case 'find_causal_ghosts': {
+      const ghosts = await findCausalGhosts(toolInput.entity_id as string);
+      return JSON.stringify({ ghosts });
+    }
+
+    case 'get_pattern_instances': {
+      const patternId = toolInput.pattern_id as string;
+      const limit = (toolInput.limit as number | undefined) ?? 10;
+      const rows = await db.execute(sql`
+        SELECT id, cause_event_id, effect_event_id, strength, reasoning,
+               pattern_position, created_at
+        FROM public.causal_edges
+        WHERE pattern_id = ${patternId}::uuid
+          AND expired_at IS NULL
+        ORDER BY pattern_position, created_at
+        LIMIT ${limit}::int
+      `);
+      return JSON.stringify({ instances: rows });
+    }
+
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -2104,7 +2211,18 @@ export async function invokeReasoningAgent(params: ReasoningAgentParams): Promis
     throw new Error(`Reasoning agent failed (${response.status}): ${detail}`);
   }
 
-  return response.json() as Promise<ReasoningAgentResult>;
+  const result = (await response.json()) as ReasoningAgentResult;
+
+  // Phase 6 (nmemo-d9v.13): bump the pattern-detection counter on patrol
+  // success. Every PATTERN_DETECTION_INTERVAL patrols runs detectCausalPatterns
+  // + promotePatterns. Wrapped in try/catch inside incrementPatrolCount —
+  // any failure logs but never surfaces.
+  if (params.mode === 'patrol') {
+    const { incrementPatrolCount } = await import('../pipeline.js');
+    await incrementPatrolCount();
+  }
+
+  return result;
 }
 
 // ============================================

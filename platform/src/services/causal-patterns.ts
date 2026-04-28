@@ -119,6 +119,21 @@ const DEFAULTS: Required<DetectOptions> = {
   maxChains: 1000,
 };
 
+/**
+ * Merge user-supplied options with defaults — explicitly drops `undefined`
+ * values so a partial payload (e.g. from HTTP body parsing) doesn't poison
+ * the SQL with `undefined::int` casts.
+ */
+function mergeDefaults(opts: DetectOptions): Required<DetectOptions> {
+  const o: Required<DetectOptions> = { ...DEFAULTS };
+  if (opts.minChainLength !== undefined) o.minChainLength = opts.minChainLength;
+  if (opts.maxChainLength !== undefined) o.maxChainLength = opts.maxChainLength;
+  if (opts.lookbackDays !== undefined) o.lookbackDays = opts.lookbackDays;
+  if (opts.instanceThreshold !== undefined) o.instanceThreshold = opts.instanceThreshold;
+  if (opts.maxChains !== undefined) o.maxChains = opts.maxChains;
+  return o;
+}
+
 // ============================================
 // Detection — chain collection (G1)
 // ============================================
@@ -133,7 +148,7 @@ const DEFAULTS: Required<DetectOptions> = {
  * normalisation + clustering + upsert on top of these chains.
  */
 export async function collectChains(opts: DetectOptions = {}): Promise<Chain[]> {
-  const o = { ...DEFAULTS, ...opts };
+  const o = mergeDefaults(opts);
 
   type Row = {
     edgePath: string[];
@@ -304,7 +319,7 @@ interface ClusterStats {
 export async function detectCausalPatterns(
   opts: DetectOptions = {},
 ): Promise<DetectResult> {
-  const o = { ...DEFAULTS, ...opts };
+  const o = mergeDefaults(opts);
   const chains = await collectChains(opts);
 
   // 1+2: normalise + cluster

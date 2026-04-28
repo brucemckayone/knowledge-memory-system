@@ -683,6 +683,86 @@ app.post('/api/contradictions/:id/resolve', async (c) => {
   }
 });
 
+// ============================================
+// Phase 6 — Pattern Lifecycle endpoints (nmemo-d9v.14)
+// ============================================
+
+app.post('/api/patterns/detect', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const { detectCausalPatterns } = await import('./services/causal-patterns.js');
+  try {
+    const opts: Record<string, number> = {};
+    if (typeof body.min_chain_length === 'number') opts.minChainLength = body.min_chain_length;
+    if (typeof body.max_chain_length === 'number') opts.maxChainLength = body.max_chain_length;
+    if (typeof body.lookback_days === 'number') opts.lookbackDays = body.lookback_days;
+    if (typeof body.instance_threshold === 'number') opts.instanceThreshold = body.instance_threshold;
+    if (typeof body.max_chains === 'number') opts.maxChains = body.max_chains;
+
+    const result = await detectCausalPatterns(opts);
+    return c.json(result);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+app.post('/api/patterns/promote', async (c) => {
+  const { promotePatterns } = await import('./services/causal-patterns.js');
+  try {
+    const result = await promotePatterns();
+    return c.json(result);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+app.get('/api/patterns', async (c) => {
+  const statusParam = c.req.query('status');
+  const limitParam = c.req.query('limit');
+  const entityIdParam = c.req.query('entity_id');
+  const { activePatterns } = await import('./services/causal-patterns.js');
+  try {
+    const result = await activePatterns({
+      status: statusParam ? (statusParam.split(',') as Array<'staging' | 'candidate' | 'provisional' | 'canonical' | 'rejected'>) : undefined,
+      limit: limitParam ? Number.parseInt(limitParam, 10) : undefined,
+      entityId: entityIdParam ?? undefined,
+    });
+    return c.json({ patterns: result });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+app.get('/api/patterns/:id/instances', async (c) => {
+  const id = c.req.param('id');
+  const limitParam = c.req.query('limit');
+  const limit = limitParam ? Number.parseInt(limitParam, 10) : 10;
+  try {
+    const rows = await db.execute(sql`
+      SELECT id, cause_event_id, effect_event_id, strength, reasoning,
+             pattern_position, created_at
+      FROM public.causal_edges
+      WHERE pattern_id = ${id}::uuid
+        AND expired_at IS NULL
+      ORDER BY pattern_position, created_at
+      LIMIT ${limit}::int
+    `);
+    return c.json({ instances: rows });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+app.get('/api/ghosts/:entityId', async (c) => {
+  const entityId = c.req.param('entityId');
+  const { findCausalGhosts } = await import('./services/causal-patterns.js');
+  try {
+    const ghosts = await findCausalGhosts(entityId);
+    return c.json({ ghosts });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
   'reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports',

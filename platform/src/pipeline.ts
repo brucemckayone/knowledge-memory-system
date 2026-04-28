@@ -39,6 +39,40 @@ let graphAgentRunCount = 0;
 const DECAY_RUN_INTERVAL = 10; // run applyConfidenceDecay every N graph agent runs
 let decayRunCount = 0;
 
+// ============================================
+// Pattern-Detection Auto-Trigger Counter (Phase 6 — nmemo-d9v.13)
+// ============================================
+const PATTERN_DETECTION_INTERVAL = 3; // run pattern detect+promote every N reasoning patrols
+let reasoningPatrolCount = 0;
+
+/**
+ * Called from invokeReasoningAgent() on patrol success. Every
+ * PATTERN_DETECTION_INTERVAL invocations, runs detectCausalPatterns +
+ * promotePatterns. Wrapped in try/catch so any failure logs but never
+ * surfaces back into the patrol HTTP response.
+ */
+export async function incrementPatrolCount(): Promise<void> {
+  reasoningPatrolCount++;
+  if (reasoningPatrolCount < PATTERN_DETECTION_INTERVAL) return;
+  reasoningPatrolCount = 0;
+
+  try {
+    const { detectCausalPatterns, promotePatterns } = await import('./services/causal-patterns.js');
+    const detection = await detectCausalPatterns();
+    const promotion = await promotePatterns();
+    console.log(
+      `[patterns] auto-trigger: ${detection.newStaging} new staging, ${promotion.promoted.length} promoted, ${promotion.demoted.length} demoted, ${promotion.rejected.length} rejected`,
+    );
+  } catch (err) {
+    console.warn('[patterns] auto-trigger failed:', err instanceof Error ? err.message : err);
+  }
+}
+
+/** Test-only — reset the counter so unit tests don't have to wait for natural cycles. */
+export function _resetReasoningPatrolCount(): void {
+  reasoningPatrolCount = 0;
+}
+
 export interface IngestResult extends ExtractResult {}
 
 export interface ResolvedEntity {
