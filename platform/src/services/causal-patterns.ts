@@ -26,7 +26,7 @@
  *   - `activePatterns` filters the catalog by status + entity involvement
  *     for MCP/HTTP/viz consumers.
  *
- * Heuristics implemented in this group (G4 — d9v.7 + d9v.8):
+ * Heuristics implemented in this group (G5 — d9v.9 + d9v.10):
  *   - Migration 012 extends `valid_pattern_status` to include `'rejected'`.
  *   - `collectChains` — recursive CTE walking active causal_edges from events
  *     within `lookbackDays`. Cycle protection via path-array exclusion.
@@ -48,8 +48,16 @@
  *     (cause_type|cause_predicate, effect_type|effect_predicate) shape and
  *     stamps `pattern_id` + `pattern_position`. Wrapped try/catch — never
  *     surfaces back into edge creation.
+ *   - `findCausalGhosts` — for an entity with edges at N-1 of N positions in
+ *     a canonical pattern, return the missing position as a "ghost". The
+ *     reasoning agent can then look for evidence that the ghost edge should
+ *     exist. Confidence = `avg_strength * (covered_positions / total_positions)`.
+ *   - `activePatterns` — list provisional/canonical patterns (defaults), with
+ *     optional filter by entity involvement (joins through
+ *     `causal_edges.pattern_id` to causal_events).
  *
- * Later groups add ghost detection and the active-patterns query.
+ * Later groups add MCP tool wiring, HTTP endpoints, viz overlay, prompt
+ * updates, and the test/benchmark closeout.
  */
 
 import { sql } from 'drizzle-orm';
@@ -951,4 +959,215 @@ export async function matchEdgeToPattern(edgeId: string): Promise<MatchResult | 
 
 function templateNodeEquals(a: TemplateNode, b: TemplateNode): boolean {
   return a.entity_type === b.entity_type && a.predicate_category === b.predicate_category;
+}
+
+// ============================================
+// Reasoning surfaces (G5)
+// ============================================
+
+export interface ActivePatternsOptions {
+  status?: PatternStatus[];
+  entityId?: string;
+  limit?: number;
+}
+
+export interface ActivePattern {
+  id: string;
+  name: string | null;
+  description: string | null;
+  status: PatternStatus;
+  templateStructure: TemplateNode[];
+  templateLength: number;
+  instanceCount: number;
+  activations30d: number;
+  avgStrength: number | null;
+  lastSeenAt: Date | null;
+}
+
+/**
+ * List active patterns. Default status filter `['provisional', 'canonical']`
+ * (the stable ones — staging and candidate are still being validated).
+ * Optional `entityId` joins through `causal_edges.pattern_id` to events to
+ * find patterns the entity participates in.
+ *
+ * Ordered by `last_seen_at DESC NULLS LAST` so freshly-active patterns
+ * surface first.
+ */
+export async function activePatterns(opts: ActivePatternsOptions = {}): Promise<ActivePattern[]> {
+  const status = opts.status ?? ['provisional', 'canonical'];
+  const limit = opts.limit ?? 20;
+  const statusLiteral = `{${status.join(',')}}`;
+
+  type Row = {
+    id: string;
+    name: string | null;
+    description: string | null;
+    status: PatternStatus;
+    templateStructure: TemplateNode[] | string;
+    templateLength: number;
+    instanceCount: number;
+    activations30d: number;
+    avgStrength: number | null;
+    lastSeenAt: Date | string | null;
+  };
+
+  const rows = opts.entityId
+    ? await rawQuery<Row>(sql`
+        SELECT DISTINCT
+          cp.id,
+          cp.name,
+          cp.description,
+          cp.status,
+          cp.template_structure,
+          cp.template_length,
+          cp.instance_count,
+          cp.activation_count_30d AS activations30d,
+          cp.avg_strength,
+          cp.last_seen_at
+        FROM public.causal_patterns cp
+        JOIN public.causal_edges ce ON ce.pattern_id = cp.id AND ce.expired_at IS NULL
+        JOIN public.causal_events cause_ev ON cause_ev.id = ce.cause_event_id
+        JOIN public.causal_events effect_ev ON effect_ev.id = ce.effect_event_id
+        WHERE cp.status = ANY(${statusLiteral})
+          AND (
+            cause_ev.subject_entity_id = ${opts.entityId}::uuid
+            OR effect_ev.subject_entity_id = ${opts.entityId}::uuid
+          )
+        ORDER BY cp.last_seen_at DESC NULLS LAST
+        LIMIT ${limit}::int
+      `)
+    : await rawQuery<Row>(sql`
+        SELECT
+          id,
+          name,
+          description,
+          status,
+          template_structure,
+          template_length,
+          instance_count,
+          activation_count_30d AS activations30d,
+          avg_strength,
+          last_seen_at
+        FROM public.causal_patterns
+        WHERE status = ANY(${statusLiteral})
+        ORDER BY last_seen_at DESC NULLS LAST
+        LIMIT ${limit}::int
+      `);
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    status: r.status,
+    templateStructure: parseTemplate(r.templateStructure),
+    templateLength: r.templateLength,
+    instanceCount: r.instanceCount,
+    activations30d: r.activations30d ?? 0,
+    avgStrength: r.avgStrength,
+    lastSeenAt: toDate(r.lastSeenAt),
+  }));
+}
+
+function parseTemplate(v: TemplateNode[] | string | null | undefined): TemplateNode[] {
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string') {
+    try { return JSON.parse(v) as TemplateNode[]; } catch { return []; }
+  }
+  return [];
+}
+
+export interface Ghost {
+  patternId: string;
+  patternName: string | null;
+  expectedCauseEntityType: string | null;
+  expectedEffectEntityType: string | null;
+  expectedPredicateCategory: string;
+  positionInPattern: number;
+  confidence: number;
+  reasoning: string;
+}
+
+/**
+ * Find expected-but-missing causal links for an entity, based on canonical
+ * patterns the entity is already participating in. A "ghost" is the missing
+ * position when the entity has edges at N-1 of N pattern positions. The
+ * reasoning agent picks these up during patrol to ask: "is there evidence
+ * this missing link should actually exist?"
+ *
+ * Confidence is `avg_strength * (covered_positions / total_positions)` so
+ * stronger patterns with more coverage rank higher.
+ */
+export async function findCausalGhosts(entityId: string): Promise<Ghost[]> {
+  type Row = {
+    patternId: string;
+    patternName: string | null;
+    templateStructure: TemplateNode[] | string;
+    templateLength: number;
+    avgStrength: number | null;
+    coveredPositions: number[];
+  };
+
+  // Each canonical pattern with at least one entity-touching edge: aggregate
+  // the set of edge positions covered by edges where this entity is on either
+  // end. The "edge position" is causal_edges.pattern_position (0..N-2 for an
+  // N-event chain).
+  const rows = await rawQuery<Row>(sql`
+    SELECT
+      cp.id              AS pattern_id,
+      cp.name            AS pattern_name,
+      cp.template_structure,
+      cp.template_length,
+      cp.avg_strength,
+      array_agg(DISTINCT ce.pattern_position ORDER BY ce.pattern_position)
+        FILTER (WHERE ce.pattern_position IS NOT NULL)
+        AS covered_positions
+    FROM public.causal_patterns cp
+    JOIN public.causal_edges   ce ON ce.pattern_id = cp.id AND ce.expired_at IS NULL
+    JOIN public.causal_events  cause_ev  ON cause_ev.id  = ce.cause_event_id
+    JOIN public.causal_events  effect_ev ON effect_ev.id = ce.effect_event_id
+    WHERE cp.status = 'canonical'
+      AND (
+        cause_ev.subject_entity_id  = ${entityId}::uuid
+        OR effect_ev.subject_entity_id = ${entityId}::uuid
+      )
+    GROUP BY cp.id
+  `);
+
+  const ghosts: Ghost[] = [];
+  for (const r of rows) {
+    const tpl = parseTemplate(r.templateStructure);
+    const totalEdgePositions = Math.max(0, r.templateLength - 1);
+    if (totalEdgePositions === 0) continue;
+
+    const covered = new Set(r.coveredPositions ?? []);
+    if (covered.size !== totalEdgePositions - 1) continue; // not N-1 of N
+
+    // Find the missing edge position
+    let missing = -1;
+    for (let i = 0; i < totalEdgePositions; i++) {
+      if (!covered.has(i)) {
+        missing = i;
+        break;
+      }
+    }
+    if (missing < 0) continue;
+
+    const completeness = covered.size / totalEdgePositions;
+    const strength = r.avgStrength ?? 0.5;
+    const confidence = strength * completeness;
+
+    ghosts.push({
+      patternId: r.patternId,
+      patternName: r.patternName,
+      expectedCauseEntityType: tpl[missing]?.entity_type ?? null,
+      expectedEffectEntityType: tpl[missing + 1]?.entity_type ?? null,
+      expectedPredicateCategory: tpl[missing]?.predicate_category ?? '',
+      positionInPattern: missing,
+      confidence,
+      reasoning: `Entity covers ${covered.size} of ${totalEdgePositions} edge positions in pattern '${r.patternName ?? r.patternId}'; position ${missing} is missing.`,
+    });
+  }
+
+  ghosts.sort((a, b) => b.confidence - a.confidence);
+  return ghosts.slice(0, 10);
 }
