@@ -52,8 +52,10 @@ INSERT INTO public.facts (id, subject_entity_id, predicate, object_entity_id, co
 ON CONFLICT (id) DO NOTHING;
 
 -- Reasoning report (seed) --------------------------------------------------
-INSERT INTO public.reasoning_reports (id, summary, created_at) VALUES
+-- Live schema (migration 008): mode + report (NOT NULL); no `summary` column.
+INSERT INTO public.reasoning_reports (id, mode, report, created_at) VALUES
   ('50000000-0000-0000-0000-000000000001',
+   'patrol',
    'Initial ingestion of upstream + independent facts and derived causal edges',
    TIMESTAMPTZ '2026-01-02 00:00:00+00')
 ON CONFLICT (id) DO NOTHING;
@@ -69,43 +71,72 @@ INSERT INTO public.fact_history
    '50000000-0000-0000-0000-000000000001', 'graph_agent', TIMESTAMPTZ '2026-01-02 00:00:02+00');
 
 -- Causal events ------------------------------------------------------------
-INSERT INTO public.causal_events (id, fact_id, event_type, description, occurred_at) VALUES
-  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'fact_asserted',
+-- Live schema (migration 002): column is `transition_type` (CHECK enum
+-- 'created'|'strengthened'|'weakened'|'expired'|'invalidated'); description is
+-- `source_text`. The previous v1.0 fixture used `event_type='fact_asserted'`
+-- — neither the column nor that enum value exists.
+-- Three events so we can build three edges with distinct (cause, effect)
+-- pairs (idx_causal_edges_unique forbids duplicates).
+INSERT INTO public.causal_events (id, fact_id, transition_type, source_text, occurred_at) VALUES
+  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'created',
    'Upstream fact observation', TIMESTAMPTZ '2026-01-02 00:00:03+00'),
-  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'fact_asserted',
-   'Independent fact observation', TIMESTAMPTZ '2026-01-02 00:00:04+00')
+  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'created',
+   'Independent fact observation', TIMESTAMPTZ '2026-01-02 00:00:04+00'),
+  ('20000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', 'strengthened',
+   'Independent fact corroborated from a second source', TIMESTAMPTZ '2026-01-02 00:00:04.5+00')
 ON CONFLICT (id) DO NOTHING;
 
 -- Causal edges -------------------------------------------------------------
+-- Live schema (migration 002): extraction_method + initial_strength NOT NULL.
+-- corroboration_count drives cascadeFactExpiry behaviour: > 1 weakens, = 1
+-- expires. E1 and E2 set to 2 so cascade weakens (matches expected.json).
+--
 -- E1 cites only F_upstream → cascade-weaken
 INSERT INTO public.causal_edges
-  (id, cause_event_id, effect_event_id, strength, reasoning, source_references, created_at) VALUES
+  (id, cause_event_id, effect_event_id, strength, reasoning, source_references,
+   extraction_method, initial_strength, corroboration_count, created_at) VALUES
   ('30000000-0000-0000-0000-000000000001',
    '20000000-0000-0000-0000-000000000001',
    '20000000-0000-0000-0000-000000000002',
    0.80, 'Upstream manufacturing implies downstream distribution pattern',
    '[{"type":"fact","id":"10000000-0000-0000-0000-000000000001","relevance":"primary"}]'::jsonb,
+   'fixture', 0.80, 2,
    TIMESTAMPTZ '2026-01-02 00:00:05+00');
 
 -- E2 cites both → cascade-weaken (survives)
+-- Uses CE3 (alternate effect) to avoid (cause,effect) collision with E1.
 INSERT INTO public.causal_edges
-  (id, cause_event_id, effect_event_id, strength, reasoning, source_references, created_at) VALUES
+  (id, cause_event_id, effect_event_id, strength, reasoning, source_references,
+   extraction_method, initial_strength, corroboration_count, created_at) VALUES
   ('30000000-0000-0000-0000-000000000002',
    '20000000-0000-0000-0000-000000000001',
-   '20000000-0000-0000-0000-000000000002',
+   '20000000-0000-0000-0000-000000000003',
    0.90, 'Combined manufacturing + distribution evidence',
    '[{"type":"fact","id":"10000000-0000-0000-0000-000000000001","relevance":"primary"},{"type":"fact","id":"10000000-0000-0000-0000-000000000002","relevance":"supporting"}]'::jsonb,
+   'fixture', 0.90, 2,
    TIMESTAMPTZ '2026-01-02 00:00:06+00');
 
 -- E3 cites only F_independent → NO cascade
 INSERT INTO public.causal_edges
-  (id, cause_event_id, effect_event_id, strength, reasoning, source_references, created_at) VALUES
+  (id, cause_event_id, effect_event_id, strength, reasoning, source_references,
+   extraction_method, initial_strength, corroboration_count, created_at) VALUES
   ('30000000-0000-0000-0000-000000000003',
    '20000000-0000-0000-0000-000000000002',
    '20000000-0000-0000-0000-000000000001',
    0.70, 'Distribution network independent of upstream manufacturer',
    '[{"type":"fact","id":"10000000-0000-0000-0000-000000000002","relevance":"primary"}]'::jsonb,
+   'fixture', 0.70, 1,
    TIMESTAMPTZ '2026-01-02 00:00:07+00');
+
+-- Reverse-lookup index — populated by syncEdgeSourceRefs in the service path.
+-- Fixture seeds it directly so cascadeFactExpiry's findEdgesCitingReference
+-- query returns E1 and E2 when F_upstream is expired.
+INSERT INTO public.edge_source_refs (edge_id, ref_type, ref_id, relevance) VALUES
+  ('30000000-0000-0000-0000-000000000001', 'fact', '10000000-0000-0000-0000-000000000001', 'primary'),
+  ('30000000-0000-0000-0000-000000000002', 'fact', '10000000-0000-0000-0000-000000000001', 'primary'),
+  ('30000000-0000-0000-0000-000000000002', 'fact', '10000000-0000-0000-0000-000000000002', 'supporting'),
+  ('30000000-0000-0000-0000-000000000003', 'fact', '10000000-0000-0000-0000-000000000002', 'primary')
+ON CONFLICT (edge_id, ref_type, ref_id) DO NOTHING;
 
 -- causal_edge_history seed rows -------------------------------------------
 INSERT INTO public.causal_edge_history

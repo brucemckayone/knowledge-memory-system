@@ -20,17 +20,18 @@ INSERT INTO public.facts (id, subject_entity_id, predicate, object_entity_id, co
    '00000000-0000-0000-0000-000000000002', 0.9, NOW())
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.causal_events (id, fact_id, event_type, description, occurred_at) VALUES
-  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'fact_asserted',
+INSERT INTO public.causal_events (id, fact_id, transition_type, source_text, occurred_at) VALUES
+  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'created',
    'Upstream fact observation', NOW())
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.causal_edges
-  (id, cause_event_id, effect_event_id, strength, reasoning, source_references, created_at) VALUES
+  (id, cause_event_id, effect_event_id, strength, reasoning, source_references,
+   extraction_method, initial_strength, created_at) VALUES
   ('30000000-0000-0000-0000-000000000001',
    '20000000-0000-0000-0000-000000000001',
    '20000000-0000-0000-0000-000000000001',
-   0.80, 'Seed edge', '[]'::jsonb, NOW())
+   0.80, 'Seed edge', '[]'::jsonb, 'fixture', 0.80, NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ADVERSARIAL DELTA: cascade row with NO parent mutation and NULL report ---

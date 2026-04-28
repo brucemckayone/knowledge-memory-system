@@ -14,9 +14,10 @@ INSERT INTO public.entities (id, canonical_name, entity_type, embedding, confide
   ('00000000-0000-0000-0000-000000000002', 'BetaSoft Inc',  'company', ARRAY(SELECT random() FROM generate_series(1, 768))::vector, 1.0)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.reasoning_reports (id, summary, created_at)
+INSERT INTO public.reasoning_reports (id, mode, report, created_at)
 VALUES
   ('50000000-0000-0000-0000-000000000001',
+   'patrol',
    'Corroborated by secondary source.',
    TIMESTAMPTZ '2026-01-01 00:30:00+00')
 ON CONFLICT (id) DO NOTHING;
