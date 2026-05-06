@@ -24,7 +24,7 @@ import {
 } from './lib/manifest.js';
 import { sha256File } from './lib/hash.js';
 import { loadAndAssertDatabaseUrl } from './lib/db-guard.js';
-import { resolvePgTools, runPgRestore, ConnInfo } from './lib/pg-tools.js';
+import { resolvePgTools, runPgRestore, runPsqlFile, ConnInfo } from './lib/pg-tools.js';
 import { dropAndRecreateDatabase, loadExtensions, countEntitiesAndFacts } from './lib/db-bootstrap.js';
 import { deleteCollection } from './lib/qdrant.js';
 
@@ -74,11 +74,17 @@ export async function loadSnapshot(name: string): Promise<{
   console.log(`  → drop + recreate ${conn.database}`);
   await dropAndRecreateDatabase(conn);
 
-  console.log(`  → preload extensions (so pg_restore's --clean DROPs succeed)`);
+  console.log(`  → preload extensions (so DROPs in the dump preamble succeed)`);
   await loadExtensions(conn);
 
-  console.log(`  → pg_restore from ${dumpAbs}`);
-  await runPgRestore(pgTools, conn as ConnInfo, DEFAULT_PG_RESTORE_FLAGS, dumpAbs);
+  const dumpFormat = entry.pg_dump_format ?? 'custom';
+  if (dumpFormat === 'plain') {
+    console.log(`  → psql apply (plain) from ${dumpAbs}`);
+    await runPsqlFile(pgTools, conn as ConnInfo, dumpAbs);
+  } else {
+    console.log(`  → pg_restore from ${dumpAbs}`);
+    await runPgRestore(pgTools, conn as ConnInfo, DEFAULT_PG_RESTORE_FLAGS, dumpAbs);
+  }
 
   if (entry.files.qdrant_memories) {
     const qdrantCollection = entry.name === 'empty' ? 'memories' : 'memories';

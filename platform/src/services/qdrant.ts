@@ -118,6 +118,14 @@ export async function getMemory(id: string) {
 /**
  * Retrieve vectors for multiple memory IDs.
  * Used by graph-meta to compute entity centroids from source vectors.
+ *
+ * Returns the Map sorted by memory id so callers that accumulate values in
+ * iteration order (e.g. centroid mean computation in graph-meta) produce
+ * stable IEEE-754 results across calls. Qdrant's retrieve does not guarantee
+ * response ordering — segment-internal — and floating-point addition is not
+ * associative, so an unsorted iteration would yield slightly different
+ * centroids on each call. Sorting fixes both reproducibility and snapshot
+ * byte-stability.
  */
 export async function getMemoryVectors(ids: string[]): Promise<Map<string, number[]>> {
   if (ids.length === 0) return new Map();
@@ -126,8 +134,9 @@ export async function getMemoryVectors(ids: string[]): Promise<Map<string, numbe
     with_payload: false,
     with_vector: true,
   });
+  const sorted = [...results].sort((a, b) => String(a.id).localeCompare(String(b.id)));
   const map = new Map<string, number[]>();
-  for (const r of results) {
+  for (const r of sorted) {
     if (r.vector && Array.isArray(r.vector)) {
       map.set(String(r.id), r.vector as number[]);
     }

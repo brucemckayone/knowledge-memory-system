@@ -16,7 +16,7 @@
         "postgres": "test-snapshots/empty/cognitive.dump"
       },
       "expected_hashes": {
-        "cognitive.dump": "sha256:48e21b0433a1f2aa9c362cb314fd08261ac614131724580c0911ae12338e2415"
+        "cognitive.dump": "sha256:3d947c2eb5e140b1dd527cb1f60c1ffa0c110fec4302b8b628b11c636cebe48d"
       },
       "schema_version": 12,
       "postgres_version": "16",
@@ -26,10 +26,100 @@
         "total_memories": 0,
         "ingest_time_ms": 0
       },
-      "regenerated_at": "2026-05-06T08:43:22.046Z",
+      "regenerated_at": "2026-05-06T12:01:29.720Z",
       "regeneration_command": "pnpm snapshot:generate empty",
       "deterministic": false,
       "notes": "Schema-only LLM baseline. pg_dump --format=custom embeds a timestamp in the dump header, so byte-stable hashing is approximate; the first ensure call populates expected_hashes and subsequent runs detect drift but do not block. Larger drift indicates a migration or pg_dump flag change. Per doc 28 §10 lock B7."
+    },
+    {
+      "name": "synthetic-1k",
+      "kind": "synthetic",
+      "description": "1000 deterministic synthetic entities across 5 cluster modes with 10 bridge pairs (entities pinned to different cluster modes, sharing no memories/facts/aliases). Centroids computed by the production updateEntityMeta code path. Used as the benchmark sweet-spot per doc 28 §2.2.",
+      "generator_params": {
+        "entity_count": 1000,
+        "cluster_count": 5,
+        "facts_per_entity_mean": 3.2,
+        "centroid_dim": 768,
+        "bridge_pairs": 10,
+        "seed": 42
+      },
+      "pg_dump_flags": [
+        "--format=plain",
+        "--no-owner",
+        "--no-privileges",
+        "--no-tablespaces",
+        "--no-comments",
+        "--no-publications",
+        "--no-subscriptions",
+        "--no-security-labels"
+      ],
+      "pg_dump_format": "plain",
+      "files": {
+        "postgres": "test-snapshots/synthetic-1k/cognitive.dump",
+        "ground_truth": "test-snapshots/synthetic-1k/ground_truth.json"
+      },
+      "expected_hashes": {
+        "cognitive.dump": "sha256:d37346ab708007c5c7465d32ed04b0de7c060134b9ba281cc64d4353476e68c2",
+        "ground_truth.json": "sha256:ee4d61df29d6b4d0b60a72b251d0ae9765f28cde4ce5e1fe8dc9c7aae3c33751"
+      },
+      "schema_version": 12,
+      "postgres_version": "16",
+      "stats": {
+        "total_entities": 1000,
+        "total_facts": 3200,
+        "total_memories": 2487,
+        "bridge_pairs_count": 10,
+        "ingest_time_ms": 0
+      },
+      "regenerated_at": "2026-05-06T12:02:37.682Z",
+      "regeneration_command": "pnpm snapshot:synthetic synthetic-1k",
+      "deterministic": true,
+      "notes": "Per doc 28 §3.3: layered generation (per-memory vectors → memory_entities → updateEntityMeta computes centroids). Bridge-pair entity IDs land in ground_truth.json (invisible to algorithms — never written to entities/same_as_links). Plain-format dump + post-process strips pg_dump's wall-clock header so identical seed yields identical SHA-256."
+    },
+    {
+      "name": "synthetic-10k",
+      "kind": "synthetic",
+      "description": "10000 deterministic synthetic entities across 5 cluster modes with 50 bridge pairs. Required for unconditional cluster-bridging phases per doc 28 §4.3 and benchmark scale ceiling per §2.2.",
+      "generator_params": {
+        "entity_count": 10000,
+        "cluster_count": 5,
+        "facts_per_entity_mean": 3.2,
+        "centroid_dim": 768,
+        "bridge_pairs": 50,
+        "seed": 42
+      },
+      "pg_dump_flags": [
+        "--format=plain",
+        "--no-owner",
+        "--no-privileges",
+        "--no-tablespaces",
+        "--no-comments",
+        "--no-publications",
+        "--no-subscriptions",
+        "--no-security-labels"
+      ],
+      "pg_dump_format": "plain",
+      "files": {
+        "postgres": "test-snapshots/synthetic-10k/cognitive.dump",
+        "ground_truth": "test-snapshots/synthetic-10k/ground_truth.json"
+      },
+      "expected_hashes": {
+        "cognitive.dump": "sha256:0fee388a368ed247786e1d45aea9469fa2fbad87026779b34d0f621772787834",
+        "ground_truth.json": "sha256:5204721db378c1baa1c3c2c9fa92a20a3188c3f6d7bd12aa8885d194cc0b5ad7"
+      },
+      "schema_version": 12,
+      "postgres_version": "16",
+      "stats": {
+        "total_entities": 10000,
+        "total_facts": 32000,
+        "total_memories": 25014,
+        "bridge_pairs_count": 50,
+        "ingest_time_ms": 0
+      },
+      "regenerated_at": "2026-05-06T09:30:58.320Z",
+      "regeneration_command": "pnpm snapshot:synthetic synthetic-10k",
+      "deterministic": true,
+      "notes": "Same generator as synthetic-1k. Targets §5.1 thresholds (<30s generate, <5s load). Plain-format dump strategy as synthetic-1k."
     }
   ]
 }

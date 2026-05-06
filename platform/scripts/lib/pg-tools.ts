@@ -175,6 +175,43 @@ export async function runPgDump(
 }
 
 /**
+ * Apply a plain-text SQL dump via psql. Used for synthetic snapshots, which
+ * dump with `--format=plain` so byte-stable hashes survive regeneration (the
+ * custom format embeds a per-run timestamp in its header). Streams the file
+ * on stdin in docker-exec mode.
+ */
+export async function runPsqlFile(
+  resolution: PgToolResolution,
+  conn: ConnInfo,
+  inputPath: string,
+): Promise<void> {
+  const baseArgs = [
+    `--host=${resolution.mode === 'docker' ? hostFromDocker(conn.host) : conn.host}`,
+    `--port=${resolution.mode === 'docker' ? '5432' : String(conn.port)}`,
+    `--username=${conn.user}`,
+    `--dbname=${conn.database}`,
+    '--no-psqlrc',
+    '--quiet',
+    '-v', 'ON_ERROR_STOP=0',
+  ];
+  const env = { ...process.env, PGPASSWORD: conn.password };
+  if (resolution.mode === 'host') {
+    const psql = resolution.pgDump.replace(/pg_dump(\.exe)?$/, 'psql$1');
+    await runProcessStdinFromFile(psql, baseArgs, env, inputPath);
+  } else {
+    const dockerArgs = [
+      'exec',
+      '-i',
+      '-e', `PGPASSWORD=${conn.password}`,
+      resolution.container!,
+      'psql',
+      ...baseArgs,
+    ];
+    await runProcessStdinFromFile('docker', dockerArgs, env, inputPath);
+  }
+}
+
+/**
  * Run pg_restore against an input file. The input file is streamed on stdin
  * in docker-exec mode so the container does not need a mounted host path.
  */

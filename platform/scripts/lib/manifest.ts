@@ -60,6 +60,8 @@ export interface SnapshotStats {
   [key: string]: unknown;
 }
 
+export type SnapshotDumpFormat = 'custom' | 'plain';
+
 export interface SnapshotEntry {
   name: string;
   kind: SnapshotKind;
@@ -73,6 +75,14 @@ export interface SnapshotEntry {
   generator_params?: GeneratorParams;
 
   pg_dump_flags?: string[];
+  /**
+   * Dump format dispatch for load-snapshot. `custom` → pg_restore, `plain` →
+   * psql apply. Defaults to `custom` when omitted (matches doc 28 §3.5 default).
+   * Synthetic snapshots use `plain` to satisfy the §4.2 byte-identical-dump
+   * determinism contract — custom-format dumps embed a generation timestamp
+   * in the header that breaks SHA-256 equality across regenerations.
+   */
+  pg_dump_format?: SnapshotDumpFormat;
   files: SnapshotFiles;
   expected_hashes: Record<string, string>;
   schema_version: number;

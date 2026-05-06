@@ -1,0 +1,66 @@
+{
+  "phase": "j77.2 synthetic generator baseline",
+  "machine": {
+    "platform": "win32",
+    "kernel": "MINGW64_NT-10.0-26200",
+    "node": "v25.8.2",
+    "postgres_image": "nmemo-postgres (Postgres 16.13, AGE 1.5.0)",
+    "pg_dump_resolution": "docker exec nmemo-postgres-1"
+  },
+  "thresholds_ref": "docs/architecture/truth-graph/28-test-data-snapshots.md §5.1",
+  "operations": [
+    {
+      "operation": "snapshot:generate (synthetic, cold)",
+      "snapshot": "synthetic-1k",
+      "duration_ms": 21271,
+      "threshold_target_ms": null,
+      "threshold_hard_cap_ms": null,
+      "stats": { "entities": 1000, "memories": 2487, "facts": 3200, "bridge_pairs": 10 },
+      "notes": "Drop+recreate, migrate, 1000 entities + ~2.5k memories + 3.2k facts + 10 bridge pairs, real updateEntityMeta per entity, pg_dump --format=plain (deterministic), strip header timestamp, write ground_truth.json. §5.1 has no explicit 1k generate threshold; this is the baseline regression line."
+    },
+    {
+      "operation": "snapshot:ensure (cache hit)",
+      "snapshot": "synthetic-1k",
+      "duration_ms": 18,
+      "threshold_target_ms": 100,
+      "threshold_hard_cap_ms": 500,
+      "notes": "sha256 hash of the 10.5 MB plain dump. Comfortably under the §5.1 target."
+    },
+    {
+      "operation": "snapshot:load (cold restore)",
+      "snapshot": "synthetic-1k",
+      "duration_ms": 2074,
+      "threshold_target_ms": 1000,
+      "threshold_hard_cap_ms": 3000,
+      "stats": { "entities": 1000, "facts": 3200 },
+      "notes": "Drop+recreate, preload extensions, psql apply (plain), row-count check. Above the <1s target but within the 3s hard cap. Plain-format apply via psql is unavoidably slower than custom-format pg_restore; the trade-off favours determinism (cold-eyes review B6 / §4.2 invariant). Optimisation deferred until a Phase 1 consumer needs it."
+    },
+    {
+      "operation": "snapshot:verify",
+      "snapshot": "synthetic-10k",
+      "duration_ms": null,
+      "stats": { "files_checked": 2 },
+      "notes": "Both cognitive.dump (109 MB) and ground_truth.json (7.5 KB) hash-match the manifest's expected_hashes. Verifies determinism contract holds across regenerations."
+    },
+    {
+      "operation": "snapshot:load (cold restore)",
+      "snapshot": "synthetic-10k",
+      "duration_ms": 10977,
+      "threshold_target_ms": 5000,
+      "threshold_hard_cap_ms": 15000,
+      "stats": { "entities": 10000, "facts": 32000 },
+      "notes": "Above the <5s target but within the 15s hard cap. Same plain-format trade-off as 1k. Optimisation candidate for j77.4 if a benchmark consumer breaches the cap."
+    }
+  ],
+  "disk_size": [
+    { "snapshot": "synthetic-1k", "cognitive_dump_bytes": 10988823, "ground_truth_bytes": 1541 },
+    { "snapshot": "synthetic-10k", "cognitive_dump_bytes": 109250261, "ground_truth_bytes": 7462, "threshold_target_bytes": 52428800, "threshold_hard_cap_bytes": 209715200, "notes": "10k dump (104 MB) is over the §5.1 <50 MB target but well under the 200 MB hard cap. Plain-format dump is roughly 2x larger than custom would be; the determinism trade-off is still worth it." }
+  ],
+  "captured_at": "2026-05-06T12:02:00Z",
+  "commit_at_capture": "j77.2 working tree pre-commit",
+  "follow_ups": [
+    "j77.3 — LLM-pipeline generator (frankenstein, NIST SP 800-63B, mixed corpus)",
+    "j77.4 — restoration helpers + ensureSnapshot extension to setup.ts; consider per-snapshot pg_dump_format override if 10k load needs to drop under the 5s target",
+    "synthetic-50k future work — currently design-only per §4.3"
+  ]
+}
