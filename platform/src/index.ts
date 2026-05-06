@@ -1007,6 +1007,96 @@ app.post('/api/reason/query', async (c) => {
   }
 });
 
+// ============================================
+// Learning Platform API (/api/learn/)
+// Thin write layer for the learning platform's MCP server.
+// Keeps the learning platform fully decoupled — all graph ops go via HTTP.
+// ============================================
+
+app.post('/api/learn/record', async (c) => {
+  const body = await c.req.json<{
+    subjectName: string;
+    subjectType: string;
+    predicate: string;
+    objectName?: string;
+    objectType?: string;
+    objectValue?: string;
+    confidence?: number;
+    sourceText?: string;
+  }>();
+
+  if (!body.subjectName || !body.predicate) {
+    return c.json({ error: 'subjectName and predicate are required' }, 400);
+  }
+
+  const { resolveEntity } = await import('./services/entities.js');
+  const { createFact } = await import('./services/facts.js');
+
+  const subject = await resolveEntity(
+    body.subjectName,
+    body.sourceText ?? body.subjectName,
+    body.subjectType,
+  );
+
+  let objectEntityId: string | undefined;
+  if (body.objectName) {
+    const obj = await resolveEntity(
+      body.objectName,
+      body.sourceText ?? body.objectName,
+      body.objectType ?? 'concept',
+    );
+    objectEntityId = obj.id;
+  }
+
+  const factId = await createFact({
+    subjectEntityId: subject.id,
+    predicate: body.predicate,
+    objectEntityId,
+    objectValue: body.objectValue,
+    confidence: body.confidence ?? 0.8,
+    sourceText: body.sourceText,
+    actor: 'user',
+    reasoning: `Learning platform: ${body.predicate} via /api/learn/record`,
+  });
+
+  return c.json({ entityId: subject.id, factId });
+});
+
+app.get('/api/learn/concept/:name', async (c) => {
+  const name = decodeURIComponent(c.req.param('name'));
+  const { findEntitiesByName } = await import('./services/entities.js');
+  const { getEntityFacts } = await import('./services/facts.js');
+
+  const matches = await findEntitiesByName(name, { fuzzy: true, limit: 5 });
+  if (matches.length === 0) return c.json({ entity: null, facts: [] });
+
+  const best = matches[0]!;
+  const factsResult = await getEntityFacts(best.id);
+
+  return c.json({
+    entity: {
+      id: best.id,
+      canonicalName: best.canonicalName,
+      entityType: best.entityType,
+      confidence: best.confidence,
+    },
+    facts: factsResult,
+  });
+});
+
+app.get('/api/learn/learner-facts', async (c) => {
+  const { findEntitiesByName } = await import('./services/entities.js');
+  const { getEntityFacts } = await import('./services/facts.js');
+
+  const matches = await findEntitiesByName('Learner', { fuzzy: false, limit: 3, type: 'person' });
+  const learnerEntity = matches[0];
+
+  if (!learnerEntity) return c.json({ facts: [] });
+
+  const facts = await getEntityFacts(learnerEntity.id);
+  return c.json({ facts, learnerId: learnerEntity.id });
+});
+
 // MCP health probe — spawns causal-mcp.ts, asks for tools/list, returns the catalogue.
 app.get('/api/mcp-health', async (c) => {
   const { checkCausalMcpHealth } = await import('./services/causal-agent.js');

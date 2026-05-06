@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adaptive Learning</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242736;
+    --border: #2e3248;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --accent: #6366f1;
+    --accent-dim: #4f52c4;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef4444;
+    --radius: 8px;
+    --gap: 16px;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Nav */
+  nav { display: flex; align-items: center; gap: var(--gap); padding: 0 20px; height: 48px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  nav .logo { font-weight: 700; font-size: 16px; color: var(--accent); letter-spacing: -0.5px; }
+  nav .tabs { display: flex; gap: 4px; }
+  nav .tab { padding: 6px 14px; border-radius: var(--radius); cursor: pointer; color: var(--muted); transition: all 0.15s; border: none; background: none; font-size: 13px; }
+  nav .tab:hover { color: var(--text); background: var(--surface2); }
+  nav .tab.active { color: var(--text); background: var(--surface2); font-weight: 500; }
+  nav .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-left: auto; }
+  nav .status-dot.ok { background: var(--green); }
+
+  /* Views */
+  .views { flex: 1; overflow: hidden; }
+  .view { display: none; height: 100%; overflow-y: auto; padding: 24px; }
+  .view.active { display: flex; flex-direction: column; gap: 20px; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); }
+
+  /* Stat cards */
+  .stat-card { background: var(--surface2); border-radius: var(--radius); padding: 16px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .stat-card .label { color: var(--muted); font-size: 12px; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--radius); cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; border: 1px solid transparent; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-dim); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border-color: var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Input */
+  input, textarea, select { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 8px 12px; font-size: 13px; width: 100%; outline: none; font-family: inherit; }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* Chat */
+  .chat-view { display: flex !important; flex-direction: row !important; gap: var(--gap); height: 100%; padding: 0 !important; }
+  .chat-sidebar { width: 220px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .chat-main { flex: 1; display: flex; flex-direction: column; }
+  .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 72%; padding: 10px 14px; border-radius: 10px; line-height: 1.5; }
+  .msg.user { background: var(--accent); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+  .msg.assistant { background: var(--surface2); color: var(--text); align-self: flex-start; border-bottom-left-radius: 2px; }
+  .msg-input { display: flex; gap: 8px; padding: 16px; border-top: 1px solid var(--border); }
+  .msg-input textarea { min-height: 44px; max-height: 120px; }
+
+  /* Quiz */
+  .quiz-question { background: var(--surface2); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .quiz-question .q-text { font-size: 15px; font-weight: 500; margin-bottom: 16px; line-height: 1.6; }
+  .quiz-feedback { margin-top: 16px; padding: 16px; border-radius: var(--radius); border: 1px solid var(--border); }
+  .quiz-feedback.good { border-color: var(--green); background: rgba(34, 197, 94, 0.05); }
+  .quiz-feedback.partial { border-color: var(--yellow); background: rgba(234, 179, 8, 0.05); }
+  .quiz-feedback.poor { border-color: var(--red); background: rgba(239, 68, 68, 0.05); }
+
+  /* Score pill */
+  .score-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .score-pill.high { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+  .score-pill.mid { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
+  .score-pill.low { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+
+  /* Course list */
+  .course-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: border-color 0.15s; }
+  .course-card:hover { border-color: var(--accent); }
+  .course-card .title { font-weight: 600; margin-bottom: 4px; }
+  .course-card .meta { color: var(--muted); font-size: 12px; }
+  .course-card .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgba(99, 102, 241, 0.15); color: var(--accent); }
+  .course-card .status-badge.building { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
+
+  /* Gap analysis */
+  .gap-card { background: var(--surface2); border-radius: var(--radius); padding: 20px; }
+  .gap-card .concept-tag { display: inline-block; padding: 4px 10px; border-radius: 20px; background: rgba(99, 102, 241, 0.15); color: var(--accent); font-size: 12px; font-weight: 600; margin-bottom: 12px; }
+  .gap-card .lesson { line-height: 1.7; white-space: pre-wrap; }
+  .gap-card .follow-ups { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .gap-card .follow-up { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .gap-card .follow-up .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  /* Sessions list */
+  .session-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 12px; transition: all 0.1s; }
+  .session-item:hover { background: var(--surface2); color: var(--text); }
+  .session-item.active { background: var(--surface2); color: var(--text); }
+
+  /* Progress bar */
+  .progress-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .progress-bar .fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+
+  /* Loading */
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-row { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+
+  /* Section list */
+  .section-item { padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: border-color 0.15s; }
+  .section-item:hover { border-color: var(--accent); }
+  .section-item .s-title { font-weight: 500; margin-bottom: 4px; }
+  .section-item .s-meta { color: var(--muted); font-size: 12px; }
+
+  /* Toast */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 18px; font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100; }
+  #toast.show { opacity: 1; }
+
+  /* Back / breadcrumb */
+  .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: 4px; user-select: none; }
+  .back-link:hover { color: var(--text); background: var(--surface2); }
+
+  /* Course detail */
+  .course-header { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 12px; }
+  .course-header h1 { font-size: 22px; font-weight: 700; line-height: 1.3; }
+  .course-header .desc { color: var(--muted); line-height: 1.6; max-width: 800px; }
+
+  .section-row { display: flex; gap: 16px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); cursor: pointer; transition: border-color 0.15s; align-items: flex-start; }
+  .section-row:hover { border-color: var(--accent); }
+  .section-row .num { flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--surface2); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; }
+  .section-row .body { flex: 1; min-width: 0; }
+  .section-row .body .s-title { font-weight: 600; margin-bottom: 4px; }
+  .section-row .body .s-desc { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+  .section-row .body .s-meta { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 12px; }
+  .section-row .progress-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .section-row .progress-badge.none { background: var(--surface2); color: var(--muted); }
+  .section-row .progress-badge.partial { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
+  .section-row .progress-badge.done { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+
+  /* Section view */
+  .section-header h1 { font-size: 22px; font-weight: 700; line-height: 1.3; margin-bottom: 8px; }
+  .section-header .desc { color: var(--muted); line-height: 1.6; }
+
+  .objectives-box { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; }
+  .objectives-box h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .objectives-box ul { padding-left: 20px; }
+  .objectives-box li { margin-bottom: 4px; line-height: 1.5; }
+
+  /* Lesson */
+  .lesson-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+  .lesson-empty { text-align: center; padding: 40px 24px; }
+  .lesson-empty .hint { color: var(--muted); margin-bottom: 16px; }
+  .lesson-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .lesson-meta .read-time { color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+  .lesson-meta .regen-link { color: var(--accent); cursor: pointer; font-size: 12px; user-select: none; }
+  .lesson-meta .regen-link:hover { text-decoration: underline; }
+
+  /* Markdown body */
+  .md { line-height: 1.7; color: var(--text); }
+  .md h1, .md h2, .md h3, .md h4 { line-height: 1.3; margin-top: 1.4em; margin-bottom: 0.6em; font-weight: 700; }
+  .md h1:first-child, .md h2:first-child, .md h3:first-child { margin-top: 0; }
+  .md h1 { font-size: 20px; }
+  .md h2 { font-size: 17px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .md h3 { font-size: 15px; color: var(--text); }
+  .md p { margin-bottom: 0.9em; }
+  .md ul, .md ol { padding-left: 24px; margin-bottom: 0.9em; }
+  .md li { margin-bottom: 4px; }
+  .md strong { color: var(--text); font-weight: 700; }
+  .md em { color: var(--text); }
+  .md code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 13px; color: #f0bd8e; }
+  .md pre { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 1em; overflow-x: auto; }
+  .md pre code { background: none; padding: 0; color: var(--text); font-size: 12.5px; line-height: 1.55; display: block; }
+  .md blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--muted); margin-bottom: 0.9em; }
+  .md a { color: var(--accent); }
+
+  /* Key takeaways */
+  .takeaways-box { background: rgba(99, 102, 241, 0.07); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: var(--radius); padding: 16px 20px; margin-top: 20px; }
+  .takeaways-box h3 { font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .takeaways-box ul { padding-left: 20px; }
+  .takeaways-box li { margin-bottom: 6px; line-height: 1.5; }
+
+  /* Inline questions */
+  .question-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+  .question-row .q-head { display: flex; align-items: center; padding: 12px 16px; cursor: pointer; gap: 12px; user-select: none; }
+  .question-row .q-head:hover { background: var(--surface2); }
+  .question-row .q-head .q-text-preview { flex: 1; font-size: 13px; line-height: 1.5; }
+  .question-row .q-head .q-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; font-size: 11px; color: var(--muted); }
+  .question-row .q-head .chevron { color: var(--muted); font-size: 12px; transition: transform 0.15s; }
+  .question-row.open .q-head .chevron { transform: rotate(90deg); }
+  .question-row .q-body { display: none; padding: 0 16px 16px; border-top: 1px solid var(--border); }
+  .question-row.open .q-body { display: block; }
+  .question-row .q-body .q-full { font-size: 14px; line-height: 1.6; padding: 14px 0 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">◈ Adaptive Learn</span>
+  <div class="tabs">
+    <button class="tab active" onclick="showView('courses')">Courses</button>
+    <button class="tab" onclick="showView('learn')">Learn</button>
+    <button class="tab" onclick="showView('quiz')">Quiz</button>
+    <button class="tab" onclick="showView('gaps')">My Gaps</button>
+    <button class="tab" onclick="showView('progress')">Progress</button>
+  </div>
+  <div class="status-dot" id="statusDot"></div>
+</nav>
+
+<div class="views">
+
+  <!-- COURSES VIEW -->
+  <div class="view active" id="view-courses">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h1 style="font-size:20px;font-weight:700">Courses</h1>
+      <button class="btn btn-primary" onclick="showNewCourse()">+ New Course</button>
+    </div>
+
+    <div id="newCourseForm" style="display:none" class="card">
+      <h2>Create a Course</h2>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="display:block;margin-bottom:6px;color:var(--muted);font-size:12px">TOPIC</label>
+          <input type="text" id="courseTopicInput" placeholder="e.g. React hooks, Linear algebra, Stoic philosophy..." />
+        </div>
+        <div>
+          <label style="display:block;margin-bottom:6px;color:var(--muted);font-size:12px">PASTE CONTENT (optional — leave blank to generate from AI knowledge)</label>
+          <textarea id="courseContentInput" placeholder="Paste a book chapter, article, or notes here..." style="min-height:120px"></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" id="createCourseBtn" onclick="createCourse()">Create Course</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('newCourseForm').style.display='none'">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="coursesList" style="display:flex;flex-direction:column;gap:10px">
+      <div class="loading-row"><div class="spinner"></div> Loading courses...</div>
+    </div>
+  </div>
+
+  <!-- COURSE DETAIL VIEW -->
+  <div class="view" id="view-course-detail">
+    <div class="back-link" onclick="navigateTo('courses')">← All courses</div>
+    <div id="courseDetailContent">
+      <div class="loading-row"><div class="spinner"></div> Loading course...</div>
+    </div>
+  </div>
+
+  <!-- SECTION VIEW -->
+  <div class="view" id="view-section">
+    <div class="back-link" id="sectionBackLink">← Back to course</div>
+    <div id="sectionContent">
+      <div class="loading-row"><div class="spinner"></div> Loading section...</div>
+    </div>
+  </div>
+
+  <!-- LEARN (CHAT) VIEW -->
+  <div class="view chat-view" id="view-learn">
+    <div class="chat-sidebar">
+      <button class="btn btn-primary" style="width:100%" onclick="newChatSession()">+ New Chat</button>
+      <div id="sessionsList"></div>
+    </div>
+    <div class="chat-main">
+      <div class="messages" id="messagesList">
+        <div style="color:var(--muted);text-align:center;margin-top:40px;font-size:13px">
+          Start a conversation. Ask questions, explain concepts, say what you're struggling with.<br>
+          <span style="font-size:12px;margin-top:8px;display:block">The system learns from how you respond.</span>
+        </div>
+      </div>
+      <div class="msg-input">
+        <textarea id="chatInput" placeholder="Ask a question or explain a concept..." rows="2" onkeydown="handleChatKey(event)"></textarea>
+        <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUIZ VIEW -->
+  <div class="view" id="view-quiz">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h1 style="font-size:20px;font-weight:700">Quiz</h1>
+      <select id="quizSectionSelect" style="width:280px" onchange="loadNextQuestion()">
+        <option value="">Select a section...</option>
+      </select>
+    </div>
+
+    <div id="quizArea">
+      <div style="color:var(--muted);text-align:center;padding:40px">Select a course section to start quizzing</div>
+    </div>
+  </div>
+
+  <!-- GAPS VIEW -->
+  <div class="view" id="view-gaps">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h1 style="font-size:20px;font-weight:700">My Gaps</h1>
+      <button class="btn btn-primary" id="analyzeGapsBtn" onclick="runGapAnalysis()">Analyze My Gaps</button>
+    </div>
+
+    <div id="gapContent">
+      <div class="card" style="text-align:center;padding:40px">
+        <div style="color:var(--muted);margin-bottom:16px">Click "Analyze My Gaps" to find your highest-impact knowledge gaps and get targeted content to address them.</div>
+        <div style="color:var(--muted);font-size:12px">Needs quiz history to work well — complete some quizzes first.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROGRESS VIEW -->
+  <div class="view" id="view-progress">
+    <h1 style="font-size:20px;font-weight:700">Progress</h1>
+
+    <div class="grid-3" id="statsGrid">
+      <div class="stat-card"><div class="value" id="stat-attempts">—</div><div class="label">Quiz Attempts</div></div>
+      <div class="stat-card"><div class="value" id="stat-concepts">—</div><div class="label">Concepts Encountered</div></div>
+      <div class="stat-card"><div class="value" id="stat-confidence">—</div><div class="label">Avg Understanding</div></div>
+      <div class="stat-card"><div class="value" id="stat-confusions">—</div><div class="label">Active Confusions</div></div>
+      <div class="stat-card"><div class="value" id="stat-gaps">—</div><div class="label">Known Gaps</div></div>
+      <div class="stat-card"><div class="value" id="stat-score">—</div><div class="label">Avg Quiz Score</div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Recent Activity</h3>
+        <div id="recentActivity"><div class="loading-row"><div class="spinner"></div> Loading...</div></div>
+      </div>
+      <div class="card">
+        <h3>Understanding State</h3>
+        <div id="knowledgeState"><div class="loading-row"><div class="spinner"></div> Loading...</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  currentView: 'courses',
+  currentSession: null,
+  currentQuestion: null,
+  courses: [],
+  sections: [],
+  currentCourse: null,   // full course (with sections) when viewing detail
+  currentSection: null,  // full section (with questions, lesson) when viewing
+};
+
+// Configure marked once it's available — falls back to a tiny inline renderer if CDN failed.
+function renderMarkdown(md) {
+  if (!md) return '';
+  if (typeof marked !== 'undefined' && marked.parse) {
+    try {
+      return marked.parse(md, { breaks: false, gfm: true });
+    } catch (e) {
+      console.warn('marked failed:', e);
+    }
+  }
+  return tinyMarkdown(md);
+}
+
+// Minimal markdown fallback covering headings, bold, italic, code, code fences, lists, paragraphs.
+function tinyMarkdown(src) {
+  const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = src.split(/\r?\n/);
+  const out = [];
+  let inCode = false, codeLang = '', codeBuf = [];
+  let inList = false, listType = '';
+  let paraBuf = [];
+
+  const flushPara = () => {
+    if (paraBuf.length === 0) return;
+    let p = paraBuf.join(' ').trim();
+    if (!p) { paraBuf = []; return; }
+    p = escape(p);
+    p = p.replace(/`([^`]+)`/g, '<code>$1</code>');
+    p = p.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    p = p.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    p = p.replace(/_([^_]+)_/g, '<em>$1</em>');
+    out.push('<p>' + p + '</p>');
+    paraBuf = [];
+  };
+  const flushList = () => {
+    if (inList) { out.push(`</${listType}>`); inList = false; }
+  };
+
+  for (const raw of lines) {
+    if (inCode) {
+      if (raw.trim().startsWith('```')) {
+        out.push(`<pre><code class="lang-${codeLang}">${escape(codeBuf.join('\n'))}</code></pre>`);
+        inCode = false; codeBuf = []; codeLang = '';
+      } else {
+        codeBuf.push(raw);
+      }
+      continue;
+    }
+    if (raw.trim().startsWith('```')) {
+      flushPara(); flushList();
+      inCode = true;
+      codeLang = raw.trim().slice(3).trim();
+      continue;
+    }
+    if (/^#{1,6}\s/.test(raw)) {
+      flushPara(); flushList();
+      const m = raw.match(/^(#{1,6})\s+(.*)$/);
+      if (m) {
+        let inner = escape(m[2]);
+        inner = inner.replace(/`([^`]+)`/g, '<code>$1</code>');
+        inner = inner.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        out.push(`<h${m[1].length}>${inner}</h${m[1].length}>`);
+      }
+      continue;
+    }
+    const ulMatch = raw.match(/^\s*[-*]\s+(.*)$/);
+    const olMatch = raw.match(/^\s*\d+\.\s+(.*)$/);
+    if (ulMatch || olMatch) {
+      flushPara();
+      const wantType = ulMatch ? 'ul' : 'ol';
+      if (!inList || listType !== wantType) {
+        flushList();
+        out.push(`<${wantType}>`);
+        inList = true; listType = wantType;
+      }
+      let inner = escape((ulMatch || olMatch)[1]);
+      inner = inner.replace(/`([^`]+)`/g, '<code>$1</code>');
+      inner = inner.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      inner = inner.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      out.push(`<li>${inner}</li>`);
+      continue;
+    }
+    if (raw.trim() === '') {
+      flushPara(); flushList();
+      continue;
+    }
+    paraBuf.push(raw);
+  }
+  if (inCode) out.push(`<pre><code>${escape(codeBuf.join('\n'))}</code></pre>`);
+  flushPara(); flushList();
+  return out.join('\n');
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(`${method} ${path} → ${r.status}`);
+  return r.json();
+}
+
+function toast(msg, duration = 3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function scorePill(score) {
+  if (score === null || score === undefined) return '';
+  const pct = Math.round(score * 100);
+  const cls = score >= 0.7 ? 'high' : score >= 0.4 ? 'mid' : 'low';
+  const label = score >= 0.7 ? 'Good' : score >= 0.4 ? 'Partial' : 'Needs Work';
+  return `<span class="score-pill ${cls}">${label} ${pct}%</span>`;
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+const TAB_VIEWS = ['courses', 'learn', 'quiz', 'gaps', 'progress'];
+
+// Used by nav tab onclick — uses event.target so the visual active state follows the click.
+function showView(name) {
+  navigateTo(name);
+}
+
+// Programmatic navigation. Hides every view, shows the one named, sets the matching nav tab active.
+function navigateTo(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const target = document.getElementById(`view-${name}`);
+  if (!target) { console.warn(`view-${name} not found`); return; }
+  target.classList.add('active');
+
+  // Tab highlight: course-detail and section views highlight Courses tab
+  let tabName = name;
+  if (name === 'course-detail' || name === 'section') tabName = 'courses';
+  if (TAB_VIEWS.includes(tabName)) {
+    const tabIdx = TAB_VIEWS.indexOf(tabName);
+    document.querySelectorAll('nav .tab')[tabIdx]?.classList.add('active');
+  }
+
+  state.currentView = name;
+
+  if (name === 'courses') loadCourses();
+  else if (name === 'learn') loadSessions();
+  else if (name === 'quiz') loadQuizSections();
+  else if (name === 'progress') loadProgress();
+}
+
+// ── Health check ──────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const h = await api('GET', '/health');
+    document.getElementById('statusDot').className = `status-dot ${h.nmemo ? 'ok' : ''}`;
+  } catch { document.getElementById('statusDot').className = 'status-dot'; }
+}
+
+// ── Courses ────────────────────────────────────────────────────────────────
+function showNewCourse() {
+  document.getElementById('newCourseForm').style.display = 'block';
+  document.getElementById('courseTopicInput').focus();
+}
+
+async function loadCourses() {
+  try {
+    state.courses = await api('GET', '/api/courses');
+    renderCourses();
+  } catch (e) {
+    document.getElementById('coursesList').innerHTML = `<div style="color:var(--red)">Failed to load courses: ${e.message}</div>`;
+  }
+}
+
+function renderCourses() {
+  const el = document.getElementById('coursesList');
+  if (state.courses.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px">No courses yet. Create one to get started.</div>';
+    return;
+  }
+  el.innerHTML = state.courses.map(c => `
+    <div class="course-card" onclick="openCourse('${c.id}')">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="title">${c.title}</div>
+        <span class="status-badge ${c.status === 'building' ? 'building' : ''}">${c.status}</span>
+      </div>
+      <div class="meta">${c.description ?? c.topic ?? ''}</div>
+    </div>
+  `).join('');
+}
+
+async function createCourse() {
+  const topic = document.getElementById('courseTopicInput').value.trim();
+  const sourceText = document.getElementById('courseContentInput').value.trim();
+  if (!topic) { toast('Enter a topic'); return; }
+
+  const btn = document.getElementById('createCourseBtn');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+
+  try {
+    const r = await api('POST', '/api/courses', {
+      topic,
+      sourceType: sourceText ? 'paste' : 'generated',
+      sourceText: sourceText || undefined,
+    });
+    document.getElementById('newCourseForm').style.display = 'none';
+    document.getElementById('courseTopicInput').value = '';
+    document.getElementById('courseContentInput').value = '';
+    toast('Course is being generated — this takes ~30 seconds');
+    await loadCourses();
+    // Poll until ready
+    pollCourse(r.courseId);
+  } catch (e) {
+    toast(`Error: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Course';
+  }
+}
+
+async function pollCourse(courseId) {
+  let attempts = 0;
+  const interval = setInterval(async () => {
+    attempts++;
+    if (attempts > 60) { clearInterval(interval); return; }
+    try {
+      const course = await api('GET', `/api/courses/${courseId}`);
+      if (course.status === 'ready') {
+        clearInterval(interval);
+        await loadCourses();
+        toast(`"${course.title}" is ready!`);
+      } else if (course.status === 'error') {
+        clearInterval(interval);
+        toast('Course generation failed');
+      }
+    } catch { /* ignore */ }
+  }, 5000);
+}
+
+async function openCourse(courseId) {
+  navigateTo('course-detail');
+  const el = document.getElementById('courseDetailContent');
+  el.innerHTML = '<div class="loading-row"><div class="spinner"></div> Loading course...</div>';
+  try {
+    const course = await api('GET', `/api/courses/${courseId}`);
+    if (course.status === 'building') {
+      el.innerHTML = '<div class="card" style="text-align:center;padding:40px;color:var(--muted)">Course is still being built. Refresh in a moment.</div>';
+      return;
+    }
+    state.currentCourse = course;
+    renderCourseDetail(course);
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--red);padding:20px">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderCourseDetail(course) {
+  const sections = course.sections ?? [];
+  const html = `
+    <div class="course-header">
+      <h1>${escapeHtml(course.title)}</h1>
+      ${course.description ? `<div class="desc">${escapeHtml(course.description)}</div>` : ''}
+      <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+        <span class="status-badge ${course.status === 'building' ? 'building' : ''}">${escapeHtml(course.status)}</span>
+        <span style="color:var(--muted);font-size:12px">${sections.length} section${sections.length === 1 ? '' : 's'}</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${sections.length === 0
+        ? '<div style="color:var(--muted);text-align:center;padding:40px">No sections in this course.</div>'
+        : sections.map(sec => sectionRowHtml(sec)).join('')}
+    </div>
+  `;
+  document.getElementById('courseDetailContent').innerHTML = html;
+}
+
+function sectionRowHtml(sec) {
+  const conceptCount = (sec.conceptEntityIds ?? []).length;
+  const qs = sec.questions ?? [];
+  const qCount = qs.length;
+  // Progress: count questions where any attempt exists. Backend gives full questions but
+  // not attempt counts on the course-detail payload; we can infer presence cheaply only on
+  // the section view, so on this list we just show a generic badge based on lessonContent.
+  const hasLesson = !!sec.lessonContent;
+  const badgeClass = hasLesson ? 'partial' : 'none';
+  const badgeText = hasLesson ? 'Lesson ready' : 'Not started';
+  return `
+    <div class="section-row" onclick="openSection('${sec.id}')">
+      <div class="num">${sec.orderIndex + 1}</div>
+      <div class="body">
+        <div class="s-title">${escapeHtml(sec.title)}</div>
+        ${sec.description ? `<div class="s-desc">${escapeHtml(sec.description)}</div>` : ''}
+        <div class="s-meta">
+          <span>${conceptCount} concept${conceptCount === 1 ? '' : 's'} · ${qCount} question${qCount === 1 ? '' : 's'}</span>
+          <span class="progress-badge ${badgeClass}">${badgeText}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Section view ──────────────────────────────────────────────────────────
+async function openSection(sectionId) {
+  navigateTo('section');
+  const el = document.getElementById('sectionContent');
+  el.innerHTML = '<div class="loading-row"><div class="spinner"></div> Loading section...</div>';
+  // Wire back link to current course
+  const back = document.getElementById('sectionBackLink');
+  back.onclick = () => {
+    if (state.currentCourse) openCourse(state.currentCourse.id);
+    else navigateTo('courses');
+  };
+
+  try {
+    const section = await api('GET', `/api/sections/${sectionId}`);
+    state.currentSection = section;
+    renderSection(section);
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--red);padding:20px">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderSection(section) {
+  const objectives = section.learningObjectives ?? [];
+  const questions = section.questions ?? [];
+  const totalAttempts = questions.reduce((s, q) => s + (q.attemptCount ?? 0), 0);
+  const html = `
+    <div class="section-header">
+      ${section.courseTitle ? `<div style="color:var(--muted);font-size:12px;margin-bottom:4px">${escapeHtml(section.courseTitle)}</div>` : ''}
+      <h1>${escapeHtml(section.title)}</h1>
+      ${section.description ? `<div class="desc">${escapeHtml(section.description)}</div>` : ''}
+    </div>
+
+    ${objectives.length > 0 ? `
+      <div class="objectives-box">
+        <h3>Learning objectives</h3>
+        <ul>${objectives.map(o => `<li>${escapeHtml(o)}</li>`).join('')}</ul>
+      </div>
+    ` : ''}
+
+    <div id="lessonArea">
+      ${renderLessonArea(section)}
+    </div>
+
+    <div>
+      <h2 style="font-size:16px;font-weight:600;margin-bottom:12px">Questions <span style="color:var(--muted);font-weight:400;font-size:13px">${questions.length} total · ${totalAttempts} attempt${totalAttempts === 1 ? '' : 's'}</span></h2>
+      <div id="questionsList">
+        ${questions.length === 0
+          ? '<div style="color:var(--muted);padding:20px;text-align:center">No questions in this section.</div>'
+          : questions.map(q => questionRowHtml(q)).join('')}
+      </div>
+    </div>
+  `;
+  document.getElementById('sectionContent').innerHTML = html;
+}
+
+function renderLessonArea(section) {
+  if (section.lessonContent) {
+    const takeaways = Array.isArray(section.lessonKeyTakeaways) ? section.lessonKeyTakeaways : [];
+    return `
+      <div class="lesson-card">
+        <div class="lesson-meta">
+          <span class="read-time">${section.lessonReadMinutes ? `~${section.lessonReadMinutes} min read` : 'Lesson'}</span>
+          <span class="regen-link" onclick="generateLesson('${section.id}', true)">Regenerate</span>
+        </div>
+        <div class="md">${renderMarkdown(section.lessonContent)}</div>
+        ${takeaways.length > 0 ? `
+          <div class="takeaways-box">
+            <h3>Key takeaways</h3>
+            <ul>${takeaways.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+  return `
+    <div class="lesson-card lesson-empty">
+      <div class="hint">No lesson generated yet.</div>
+      <button class="btn btn-primary" onclick="generateLesson('${section.id}', false)">
+        Generate Lesson
+      </button>
+      <div style="margin-top:10px;color:var(--muted);font-size:11px">Takes about 30-90 seconds.</div>
+    </div>
+  `;
+}
+
+async function generateLesson(sectionId, regenerate) {
+  const area = document.getElementById('lessonArea');
+  area.innerHTML = `
+    <div class="lesson-card lesson-empty">
+      <div class="loading-row" style="justify-content:center"><div class="spinner"></div> Generating lesson — this takes 30-90 seconds...</div>
+    </div>
+  `;
+  try {
+    const url = regenerate
+      ? `/api/sections/${sectionId}/lesson?regenerate=true`
+      : `/api/sections/${sectionId}/lesson`;
+    const lesson = await api('POST', url);
+    // Reload the section to get the freshest values and re-render
+    const section = await api('GET', `/api/sections/${sectionId}`);
+    state.currentSection = section;
+    area.innerHTML = renderLessonArea(section);
+    toast(regenerate ? 'Lesson regenerated' : 'Lesson generated');
+  } catch (e) {
+    area.innerHTML = `
+      <div class="lesson-card">
+        <div style="color:var(--red);margin-bottom:12px">Failed to generate lesson: ${escapeHtml(e.message)}</div>
+        <button class="btn btn-secondary" onclick="generateLesson('${sectionId}', ${regenerate})">Try again</button>
+      </div>
+    `;
+  }
+}
+
+// ── Inline questions ──────────────────────────────────────────────────────
+function questionRowHtml(q) {
+  const score = q.bestScore;
+  const attempted = (q.attemptCount ?? 0) > 0;
+  let scoreEl = '';
+  if (attempted && score != null) {
+    const cls = score >= 0.7 ? 'high' : score >= 0.4 ? 'mid' : 'low';
+    scoreEl = `<span class="score-pill ${cls}">${Math.round(score * 100)}%</span>`;
+  } else {
+    scoreEl = '<span class="score-pill" style="background:var(--surface2);color:var(--muted)">Not attempted</span>';
+  }
+  // Show first ~120 chars in the head; full text inside the body
+  const previewMax = 140;
+  const text = q.questionText ?? '';
+  const preview = text.length > previewMax ? text.slice(0, previewMax) + '…' : text;
+  return `
+    <div class="question-row" id="q-${q.id}">
+      <div class="q-head" onclick="toggleQuestion('${q.id}')">
+        <span class="chevron">▶</span>
+        <span class="q-text-preview">${escapeHtml(preview)}</span>
+        <span class="q-meta">
+          ${'★'.repeat(q.difficulty)}${'☆'.repeat(5 - q.difficulty)}
+          ${scoreEl}
+        </span>
+      </div>
+      <div class="q-body">
+        <div class="q-full">${escapeHtml(text)}</div>
+        <textarea id="qa-${q.id}" placeholder="Write your answer here..." style="min-height:100px;margin-bottom:12px"></textarea>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" id="qb-${q.id}" onclick="submitInlineAnswer('${q.id}')">Submit Answer</button>
+        </div>
+        <div id="qf-${q.id}"></div>
+      </div>
+    </div>
+  `;
+}
+
+function toggleQuestion(qid) {
+  const row = document.getElementById(`q-${qid}`);
+  if (row) row.classList.toggle('open');
+}
+
+async function submitInlineAnswer(questionId) {
+  const ta = document.getElementById(`qa-${questionId}`);
+  const btn = document.getElementById(`qb-${questionId}`);
+  const fb = document.getElementById(`qf-${questionId}`);
+  const answerText = ta.value.trim();
+  if (!answerText) { toast('Write an answer first'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Evaluating...';
+  fb.innerHTML = '';
+
+  try {
+    const r = await api('POST', `/api/quiz/questions/${questionId}/attempt`, { answerText });
+    const scoreClass = r.score >= 0.7 ? 'good' : r.score >= 0.4 ? 'partial' : 'poor';
+    fb.innerHTML = `
+      <div class="quiz-feedback ${scoreClass}" style="margin-top:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          ${scorePill(r.score)}
+          <span style="font-weight:600">${escapeHtml(r.scoreLabel ?? '')}</span>
+        </div>
+        <div style="line-height:1.6;white-space:pre-wrap">${escapeHtml(r.feedback ?? '')}</div>
+        ${r.explanation ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);color:var(--muted);font-size:12px">${escapeHtml(r.explanation)}</div>` : ''}
+      </div>
+    `;
+    btn.textContent = 'Submit Answer';
+    btn.disabled = false;
+  } catch (e) {
+    toast(`Evaluation failed: ${e.message}`);
+    btn.disabled = false;
+    btn.textContent = 'Submit Answer';
+  }
+}
+
+// ── Chat / Learn ──────────────────────────────────────────────────────────
+async function loadSessions() {
+  try {
+    const sessions = await api('GET', '/api/chat/sessions');
+    const el = document.getElementById('sessionsList');
+    el.innerHTML = sessions.map(s => `
+      <div class="session-item ${state.currentSession === s.id ? 'active' : ''}"
+           onclick="openSession('${s.id}')">
+        ${s.title ?? `Chat ${new Date(s.createdAt).toLocaleDateString()}`}
+      </div>
+    `).join('');
+    if (!state.currentSession && sessions.length > 0) {
+      openSession(sessions[0].id);
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function newChatSession() {
+  const s = await api('POST', '/api/chat/sessions', {});
+  state.currentSession = s.id;
+  await loadSessions();
+  document.getElementById('messagesList').innerHTML = '';
+}
+
+async function openSession(sessionId) {
+  state.currentSession = sessionId;
+  document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const messages = await api('GET', `/api/chat/sessions/${sessionId}/messages`);
+  const el = document.getElementById('messagesList');
+  el.innerHTML = messages.map(m => `
+    <div class="msg ${m.role}">${m.content}</div>
+  `).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const content = input.value.trim();
+  if (!content) return;
+
+  if (!state.currentSession) {
+    const s = await api('POST', '/api/chat/sessions', {});
+    state.currentSession = s.id;
+    await loadSessions();
+  }
+
+  input.value = '';
+  const el = document.getElementById('messagesList');
+
+  // Optimistic user message
+  el.innerHTML += `<div class="msg user">${content}</div>`;
+  el.innerHTML += `<div class="msg assistant loading-row" id="thinkingMsg"><div class="spinner"></div> Thinking...</div>`;
+  el.scrollTop = el.scrollHeight;
+
+  const sendBtn = document.getElementById('sendBtn');
+  sendBtn.disabled = true;
+  input.disabled = true;
+
+  try {
+    const r = await api('POST', `/api/chat/sessions/${state.currentSession}/messages`, { content });
+    document.getElementById('thinkingMsg')?.remove();
+    el.innerHTML += `<div class="msg assistant">${r.content}</div>`;
+    el.scrollTop = el.scrollHeight;
+  } catch (e) {
+    document.getElementById('thinkingMsg')?.remove();
+    toast(`Error: ${e.message}`);
+  } finally {
+    sendBtn.disabled = false;
+    input.disabled = false;
+    input.focus();
+  }
+}
+
+// ── Quiz ─────────────────────────────────────────────────────────────────
+async function loadQuizSections() {
+  if (state.courses.length === 0) await loadCourses();
+  const sel = document.getElementById('quizSectionSelect');
+  sel.innerHTML = '<option value="">Select a section...</option>';
+
+  for (const course of state.courses) {
+    if (course.status !== 'ready') continue;
+    try {
+      const full = await api('GET', `/api/courses/${course.id}`);
+      for (const sec of (full.sections ?? [])) {
+        const opt = document.createElement('option');
+        opt.value = sec.id;
+        opt.textContent = `${course.title} › ${sec.title}`;
+        sel.appendChild(opt);
+      }
+    } catch { /* ignore */ }
+  }
+}
+
+async function populateQuizSections(course) {
+  const sel = document.getElementById('quizSectionSelect');
+  sel.innerHTML = '<option value="">Select a section...</option>';
+  for (const sec of (course.sections ?? [])) {
+    const opt = document.createElement('option');
+    opt.value = sec.id;
+    opt.textContent = `${course.title} › ${sec.title}`;
+    sel.appendChild(opt);
+  }
+  if (course.sections?.length > 0) {
+    sel.value = course.sections[0].id;
+    await loadNextQuestion();
+  }
+}
+
+async function loadNextQuestion() {
+  const sectionId = document.getElementById('quizSectionSelect').value;
+  if (!sectionId) return;
+
+  document.getElementById('quizArea').innerHTML = '<div class="loading-row"><div class="spinner"></div> Loading question...</div>';
+
+  try {
+    const r = await api('GET', `/api/quiz/sections/${sectionId}/next-question`);
+    if (!r.question) {
+      document.getElementById('quizArea').innerHTML = '<div class="card" style="text-align:center;padding:40px;color:var(--muted)">No questions in this section yet.</div>';
+      return;
+    }
+    state.currentQuestion = r.question;
+    renderQuestion(r.question);
+  } catch (e) {
+    document.getElementById('quizArea').innerHTML = `<div style="color:var(--red)">${e.message}</div>`;
+  }
+}
+
+function renderQuestion(q) {
+  document.getElementById('quizArea').innerHTML = `
+    <div class="quiz-question">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <span style="color:var(--muted);font-size:12px">DIFFICULTY ${'★'.repeat(q.difficulty)}${'☆'.repeat(5 - q.difficulty)}</span>
+        <span class="score-pill ${q.bestScore >= 0.7 ? 'high' : q.bestScore >= 0.4 ? 'mid' : 'low'}">${q.attemptCount > 0 ? `Best: ${Math.round((q.bestScore ?? 0) * 100)}%` : 'Not attempted'}</span>
+      </div>
+      <div class="q-text">${q.questionText}</div>
+      <textarea id="answerInput" placeholder="Write your answer here..." style="min-height:100px;margin-bottom:12px"></textarea>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="submitAnswerBtn" onclick="submitAnswer('${q.id}')">Submit Answer</button>
+        <button class="btn btn-secondary" onclick="loadNextQuestion()">Skip →</button>
+      </div>
+    </div>
+  `;
+}
+
+async function submitAnswer(questionId) {
+  const answerText = document.getElementById('answerInput').value.trim();
+  if (!answerText) { toast('Write an answer first'); return; }
+
+  const btn = document.getElementById('submitAnswerBtn');
+  btn.disabled = true;
+  btn.textContent = 'Evaluating...';
+
+  try {
+    const r = await api('POST', `/api/quiz/questions/${questionId}/attempt`, { answerText });
+    const scoreClass = r.score >= 0.7 ? 'good' : r.score >= 0.4 ? 'partial' : 'poor';
+    const feedbackHtml = `
+      <div class="quiz-feedback ${scoreClass}">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          ${scorePill(r.score)}
+          <span style="font-weight:600">${r.scoreLabel}</span>
+        </div>
+        <div style="line-height:1.6;white-space:pre-wrap">${r.feedback}</div>
+        ${r.explanation ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);color:var(--muted);font-size:12px">${r.explanation}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-primary" onclick="loadNextQuestion()">Next Question →</button>
+      </div>
+    `;
+    document.querySelector('.quiz-question').innerHTML += feedbackHtml;
+    btn.style.display = 'none';
+    document.getElementById('answerInput').disabled = true;
+  } catch (e) {
+    toast(`Evaluation failed: ${e.message}`);
+    btn.disabled = false;
+    btn.textContent = 'Submit Answer';
+  }
+}
+
+// ── Gap Analysis ──────────────────────────────────────────────────────────
+async function runGapAnalysis() {
+  const btn = document.getElementById('analyzeGapsBtn');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+  document.getElementById('gapContent').innerHTML = '<div class="loading-row" style="padding:20px"><div class="spinner"></div> Analyzing your knowledge gaps — this may take 20-30 seconds...</div>';
+
+  try {
+    const r = await api('POST', '/api/learner/gap-analysis', {});
+    document.getElementById('gapContent').innerHTML = `
+      <div class="gap-card">
+        <div class="concept-tag">Target: ${r.targetConcept}</div>
+        <div style="margin-bottom:16px">
+          <div style="font-weight:600;margin-bottom:6px">Why you're struggling</div>
+          <div style="color:var(--muted);line-height:1.6">${r.rootCause}</div>
+        </div>
+        <div style="margin-bottom:16px">
+          <div style="font-weight:600;margin-bottom:6px">Why it matters</div>
+          <div style="color:var(--muted);line-height:1.6">${r.whyItMatters}</div>
+        </div>
+        <div style="margin-bottom:16px">
+          <div style="font-weight:600;margin-bottom:12px">Targeted lesson</div>
+          <div class="lesson">${r.lesson}</div>
+        </div>
+        <div>
+          <div style="font-weight:600;margin-bottom:8px">Check your understanding</div>
+          <div class="follow-ups">
+            ${r.followUpQuestions.map(q => `
+              <div class="follow-up">
+                <div>${q.questionText}</div>
+                <div class="hint">Hint: ${q.hint}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:12px">
+          <strong>Next steps:</strong> ${r.nextSteps}
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    document.getElementById('gapContent').innerHTML = `<div style="color:var(--red);padding:20px">${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Analyze My Gaps';
+  }
+}
+
+// ── Progress ──────────────────────────────────────────────────────────────
+async function loadProgress() {
+  try {
+    const [stats, activity, knowledge] = await Promise.all([
+      api('GET', '/api/learner/stats'),
+      api('GET', '/api/learner/recent-activity?limit=8'),
+      api('GET', '/api/learner/knowledge'),
+    ]);
+
+    document.getElementById('stat-attempts').textContent = stats.quizAttempts;
+    document.getElementById('stat-concepts').textContent = stats.conceptsEncountered;
+    document.getElementById('stat-confidence').textContent = Math.round(stats.avgUnderstandingConfidence * 100) + '%';
+    document.getElementById('stat-confusions').textContent = stats.activeConfusions;
+    document.getElementById('stat-gaps').textContent = stats.knownGaps;
+    document.getElementById('stat-score').textContent = Math.round((stats.avgQuizScore ?? 0) * 100) + '%';
+
+    // Recent activity
+    document.getElementById('recentActivity').innerHTML = activity.length === 0
+      ? '<div style="color:var(--muted)">No activity yet</div>'
+      : activity.map(a => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
+            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px">${a.questionText}</div>
+            <div style="color:var(--muted);font-size:11px">${new Date(a.createdAt).toLocaleString()}</div>
+          </div>
+          ${scorePill(a.score)}
+        </div>
+      `).join('');
+
+    // Knowledge state
+    const byPred = knowledge.byPredicate ?? {};
+    const understands = byPred['understands'] ?? [];
+    const confused = byPred['confused_by'] ?? [];
+    document.getElementById('knowledgeState').innerHTML = `
+      <div style="margin-bottom:12px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">UNDERSTANDS (${understands.length})</div>
+        ${understands.slice(0, 8).map(f => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <div class="progress-bar" style="flex:1"><div class="fill" style="width:${Math.round((f.confidence ?? 0) * 100)}%"></div></div>
+            <div style="font-size:11px;color:var(--muted);width:60px;text-align:right">${Math.round((f.confidence ?? 0) * 100)}%</div>
+          </div>
+        `).join('')}
+      </div>
+      ${confused.length > 0 ? `
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">CONFUSIONS (${confused.length})</div>
+          ${confused.slice(0, 5).map(f => `
+            <div style="font-size:12px;color:var(--red);padding:4px 0">${f.objectValue ?? 'Unknown confusion'}</div>
+          `).join('')}
+        </div>
+      ` : ''}
+    `;
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+checkHealth();
+setInterval(checkHealth, 30000);
+loadCourses();
+</script>
+</body>
+</html>
