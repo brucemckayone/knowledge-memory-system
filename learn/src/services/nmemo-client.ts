@@ -105,6 +105,13 @@ export async function getConcept(name: string): Promise<ConceptResult> {
   return get<ConceptResult>(`/api/learn/concept/${encoded}`);
 }
 
+export async function getEntityById(id: string): Promise<NmemoEntity | null> {
+  const r = await fetch(`${base()}/api/learn/entity/${encodeURIComponent(id)}`);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`Nmemo /api/learn/entity/:id ${r.status}: ${await r.text()}`);
+  return r.json() as Promise<NmemoEntity>;
+}
+
 export async function getLearnerFacts(): Promise<{ facts: NmemoFact[] }> {
   return get<{ facts: NmemoFact[] }>('/api/learn/learner-facts');
 }
@@ -152,6 +159,18 @@ export interface ConceptCluster {
 
 export async function getConceptClusters(minSize: number, lookbackDays = 30): Promise<{ minSize: number; lookbackDays: number; clusters: ConceptCluster[] }> {
   return get(`/api/learn/concept-clusters?min_size=${minSize}&lookback_days=${lookbackDays}`);
+}
+
+// ── Graph snapshot ───────────────────────────────────────────────────────
+
+export interface GraphSnapshot {
+  conceptCount: number;
+  factCount: number;
+  growthThisWeek: number;
+}
+
+export async function getGraphSnapshot(): Promise<GraphSnapshot> {
+  return get<GraphSnapshot>('/api/learn/graph-snapshot');
 }
 
 // ── Blast radius / impact ────────────────────────────────────────────────

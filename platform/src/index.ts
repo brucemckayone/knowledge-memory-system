@@ -1097,6 +1097,19 @@ app.get('/api/learn/learner-facts', async (c) => {
   return c.json({ facts, learnerId: learnerEntity.id });
 });
 
+app.get('/api/learn/entity/:id', async (c) => {
+  const id = c.req.param('id');
+  const { getEntityById } = await import('./services/entities.js');
+  const entity = await getEntityById(id);
+  if (!entity) return c.json({ error: 'Entity not found' }, 404);
+  return c.json({
+    id: entity.id,
+    canonicalName: entity.canonicalName,
+    entityType: entity.entityType,
+    confidence: entity.confidence,
+  });
+});
+
 // Decay candidates: concept entities whose most recent fact is older than
 // threshold_days AND whose peak confidence was previously high. Heuristic only —
 // "fading" is approximated by stale-but-once-confident learner facts.
@@ -1206,6 +1219,33 @@ app.get('/api/learn/concept-clusters', async (c) => {
   }
   clusters.sort((x, y) => y.edgeCount - x.edgeCount);
   return c.json({ minSize, lookbackDays, clusters: clusters.slice(0, 50) });
+});
+
+// Graph snapshot for the learn dashboard: total concepts, fact count, and
+// concept growth over the last 7 days. Cheap aggregate read.
+app.get('/api/learn/graph-snapshot', async (c) => {
+  const [conceptRow, factRow, growthRow] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(entities)
+      .where(eq(entities.entityType, 'concept')),
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(facts)
+      .where(isNull(facts.expiredAt)),
+    db.execute<{ count: number }>(sql`
+      SELECT count(*)::int AS count
+      FROM public.entities
+      WHERE entity_type = 'concept'
+        AND created_at >= NOW() - INTERVAL '7 days'
+    `),
+  ]);
+  const growthThisWeek = Array.isArray(growthRow) && growthRow[0]
+    ? Number((growthRow[0] as { count: number }).count ?? 0)
+    : 0;
+  return c.json({
+    conceptCount: conceptRow[0]?.count ?? 0,
+    factCount: factRow[0]?.count ?? 0,
+    growthThisWeek,
+  });
 });
 
 // MCP health probe — spawns causal-mcp.ts, asks for tools/list, returns the catalogue.

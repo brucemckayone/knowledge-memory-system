@@ -109,3 +109,11 @@ export const flashcards = sqliteTable('flashcards', {
   generatedAt: text('generated_at').notNull().default(sql`(datetime('now'))`),
   generationSource: text('generation_source').notNull(),                     // e.g. 'flashcard-generator', 'manual', 'imported'
 });
+
+export const flashcardReviews = sqliteTable('flashcard_reviews', {
+  id: text('id').primaryKey(),
+  flashcardId: text('flashcard_id').notNull(),                               // references flashcards.id; no FK so reviews survive card deletion
+  learnerId: text('learner_id').notNull().default('default'),
+  knew: integer('knew').notNull(),                                           // 1 = knew it, 0 = didn't
+  reviewedAt: text('reviewed_at').notNull().default(sql`(datetime('now'))`),
+});

@@ -112,6 +112,17 @@ CREATE TABLE IF NOT EXISTS flashcards (
 CREATE INDEX IF NOT EXISTS idx_flashcards_concept_entity_id ON flashcards(concept_entity_id);
 CREATE INDEX IF NOT EXISTS idx_flashcards_course_id ON flashcards(course_id);
 CREATE INDEX IF NOT EXISTS idx_flashcards_generated_at ON flashcards(generated_at DESC);
+
+CREATE TABLE IF NOT EXISTS flashcard_reviews (
+  id TEXT PRIMARY KEY,
+  flashcard_id TEXT NOT NULL,
+  learner_id TEXT NOT NULL DEFAULT 'default',
+  knew INTEGER NOT NULL,
+  reviewed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_flashcard_reviews_flashcard_id ON flashcard_reviews(flashcard_id);
+CREATE INDEX IF NOT EXISTS idx_flashcard_reviews_reviewed_at ON flashcard_reviews(reviewed_at DESC);
 `;
 
 // Lesson columns added in v0.2 — wrapped in try/catch because SQLite ALTER TABLE
