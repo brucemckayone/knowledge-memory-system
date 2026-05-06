@@ -224,6 +224,32 @@
   #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 18px; font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100; }
   #toast.show { opacity: 1; }
 
+  /* Notes panel — per-section notes shipped in v0.2. */
+  .notes-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin: 20px 0; }
+  .notes-panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+  .notes-panel h2 .count { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .notes-empty { color: var(--muted); font-size: 12px; padding: 4px 0; }
+  .note-item { padding: 10px 0; border-top: 1px solid var(--border); }
+  .note-item:first-child { border-top: none; padding-top: 0; }
+  .note-anchor { font-style: italic; color: var(--muted); font-size: 11px; margin-bottom: 4px; line-height: 1.4; }
+  .note-content { font-size: 13px; line-height: 1.5; margin-bottom: 6px; word-break: break-word; }
+  .note-content textarea { width: 100%; min-height: 70px; font-size: 13px; padding: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: inherit; resize: vertical; }
+  .note-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .note-actions button { font-size: 11px; padding: 3px 8px; border-radius: 4px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); cursor: pointer; }
+  .note-actions button:hover { color: var(--text); border-color: var(--accent); }
+  .note-actions button.danger:hover { color: var(--red); border-color: var(--red); }
+  .note-actions button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .note-actions .promoted-badge { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: rgba(34, 197, 94, 0.15); color: var(--green); }
+  .note-actions .fact-link { font-size: 10px; color: var(--muted); }
+
+  /* Promote dialog — small in-page modal */
+  .promote-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: center; justify-content: center; }
+  .promote-modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; min-width: 360px; max-width: 480px; }
+  .promote-modal h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .promote-modal label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .promote-modal select, .promote-modal input { padding: 6px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 13px; }
+  .promote-modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+
   /* Back / breadcrumb */
   .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: 4px; user-select: none; }
   .back-link:hover { color: var(--text); background: var(--surface2); }
@@ -484,6 +510,7 @@ const state = {
   dashboardError: null,
   dashboardRegenerating: false,
   bridgeCache: {},       // { [sectionId]: Insight[] } — cached cross-course bridge insights
+  notesCache: {},        // { [sectionId]: Note[] } — cached per-section notes for tab-bounce performance
 };
 
 // Configure marked once it's available — falls back to a tiny inline renderer if CDN failed.
@@ -923,6 +950,11 @@ function renderSection(section) {
       ${renderLessonArea(section)}
     </div>
 
+    <div id="notesPanel" class="notes-panel">
+      <h2>Notes <span class="count">loading…</span></h2>
+      <div class="notes-empty">Highlight any lesson text and pick "Take a note" to start.</div>
+    </div>
+
     <div>
       <h2 style="font-size:16px;font-weight:600;margin-bottom:12px">Questions <span style="color:var(--muted);font-weight:400;font-size:13px">${questions.length} total · ${totalAttempts} attempt${totalAttempts === 1 ? '' : 's'}</span></h2>
       <div id="questionsList">
@@ -936,6 +968,8 @@ function renderSection(section) {
   mountLessonBody(section);
   // Fire-and-forget — bridge is silent if no matches; section UX never blocks on it.
   loadCrossCourseBridge(section);
+  // Fire-and-forget — notes load lazily; cached per-section to make tab-bounce instant.
+  renderNotesPanel(section.id);
 }
 
 // Fetches cross_course_link insights and renders banners for any whose entities overlap
@@ -1147,11 +1181,28 @@ function handleHighlightAction(action, selectedText, sectionId) {
   const host = getExplainerHost();
 
   if (action === 'note') {
-    const onSave = ({ selectedText: sel, draft }) => {
-      // Persistence is shipped in 57x.5; for now log + toast.
-      console.log('TODO: persist note', { selectedText: sel, contentMd: draft, sectionId });
-      toast('Note saved (in-memory only — persistence lands in v0.3)');
-      closeExplainerPopover();
+    const onSave = async ({ selectedText: sel, draft }) => {
+      const anchorText = (sel || '').trim();
+      const contentMd = (draft || '').trim();
+      if (!sectionId) {
+        toast('Cannot save note — no section context');
+        return;
+      }
+      if (!anchorText || !contentMd) {
+        toast('Note needs both highlight and content');
+        return;
+      }
+      try {
+        await api('POST', '/api/notes', { sectionId, anchorText, contentMd });
+        toast('Note saved');
+        // Invalidate cache so the panel refreshes from server.
+        delete state.notesCache[sectionId];
+        closeExplainerPopover();
+        renderNotesPanel(sectionId);
+      } catch (e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        toast(`Save failed: ${msg}`);
+      }
     };
     const onCancel = () => closeExplainerPopover();
     window.render(
@@ -1201,6 +1252,222 @@ function handleHighlightAction(action, selectedText, sectionId) {
     const msg = e && e.message ? e.message : String(e);
     renderPopover('error', `_Couldn't reach explainer service: ${msg}_`, msg);
   });
+}
+
+// ── Notes panel (Phase 5.5) ────────────────────────────────────────────────
+// Per-section notes list. Lifecycle: rendered when the section view mounts;
+// re-rendered after save/edit/delete/promote. Uses state.notesCache for
+// instant re-renders when the learner tab-bounces back into the same section.
+async function renderNotesPanel(sectionId) {
+  if (!sectionId) return;
+  const panel = document.getElementById('notesPanel');
+  if (!panel) return;
+  // Guard against stale renders when the user has already navigated away.
+  if (!state.currentSection || state.currentSection.id !== sectionId) return;
+
+  let notes = state.notesCache[sectionId];
+  if (!Array.isArray(notes)) {
+    try {
+      const resp = await api('GET', `/api/notes?section_id=${encodeURIComponent(sectionId)}`);
+      notes = Array.isArray(resp && resp.notes) ? resp.notes : [];
+      state.notesCache[sectionId] = notes;
+    } catch (e) {
+      panel.innerHTML = `<h2>Notes</h2><div class="notes-empty" style="color:var(--red)">Failed to load notes: ${escapeHtml(e.message)}</div>`;
+      return;
+    }
+    // Re-check section is still active after the await.
+    if (!state.currentSection || state.currentSection.id !== sectionId) return;
+  }
+
+  const headCount = `<span class="count">${notes.length} note${notes.length === 1 ? '' : 's'}</span>`;
+  if (notes.length === 0) {
+    panel.innerHTML = `
+      <h2>Notes ${headCount}</h2>
+      <div class="notes-empty">Highlight any lesson text and pick "Take a note" to start.</div>
+    `;
+    return;
+  }
+
+  const itemsHtml = notes.map(noteRowHtml).join('');
+  panel.innerHTML = `
+    <h2>Notes ${headCount}</h2>
+    <div id="notesList">${itemsHtml}</div>
+  `;
+}
+
+function noteRowHtml(n) {
+  const id = n.id;
+  const anchorPreviewMax = 120;
+  let anchor = n.anchorText || '';
+  if (anchor.length > anchorPreviewMax) anchor = anchor.slice(0, anchorPreviewMax) + '…';
+  const promoted = !!n.promotedToGraph;
+  const factShort = (n.factId || '').slice(0, 8);
+
+  const promotedActions = promoted
+    ? `<span class="promoted-badge">📊 Promoted</span>
+       <span class="fact-link" title="Nmemo fact ID">fact: ${escapeHtml(factShort)}…</span>`
+    : `<button class="primary" onclick="openPromoteDialog('${id}')">Promote to graph</button>`;
+
+  return `
+    <div class="note-item" id="note-${id}">
+      <div class="note-anchor">"${escapeHtml(anchor)}"</div>
+      <div class="note-content" id="note-content-${id}">${renderMarkdown(n.contentMd || '')}</div>
+      <div class="note-actions">
+        ${promotedActions}
+        <button onclick="startEditNote('${id}')">Edit</button>
+        <button class="danger" onclick="deleteNote('${id}')">Delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function findCachedNote(noteId) {
+  const sid = state.currentSection ? state.currentSection.id : null;
+  if (!sid) return null;
+  const list = state.notesCache[sid];
+  if (!Array.isArray(list)) return null;
+  return list.find(n => n.id === noteId) || null;
+}
+
+function startEditNote(noteId) {
+  const n = findCachedNote(noteId);
+  if (!n) return;
+  const contentEl = document.getElementById(`note-content-${noteId}`);
+  const itemEl = document.getElementById(`note-${noteId}`);
+  if (!contentEl || !itemEl) return;
+  const safe = escapeHtml(n.contentMd || '');
+  contentEl.innerHTML = `<textarea id="note-edit-${noteId}">${safe}</textarea>`;
+  // Replace the actions row in-place so we don't lose other items.
+  const actions = itemEl.querySelector('.note-actions');
+  if (actions) {
+    actions.innerHTML = `
+      <button class="primary" onclick="saveEditNote('${noteId}')">Save</button>
+      <button onclick="cancelEditNote()">Cancel</button>
+    `;
+  }
+  const ta = document.getElementById(`note-edit-${noteId}`);
+  if (ta) ta.focus();
+}
+
+function cancelEditNote() {
+  const sid = state.currentSection ? state.currentSection.id : null;
+  if (!sid) return;
+  renderNotesPanel(sid);
+}
+
+async function saveEditNote(noteId) {
+  const ta = document.getElementById(`note-edit-${noteId}`);
+  if (!ta) return;
+  const contentMd = ta.value.trim();
+  if (!contentMd) { toast('Note cannot be empty'); return; }
+  try {
+    await api('PATCH', `/api/notes/${noteId}`, { contentMd });
+    toast('Note updated');
+    const sid = state.currentSection ? state.currentSection.id : null;
+    if (sid) {
+      delete state.notesCache[sid];
+      renderNotesPanel(sid);
+    }
+  } catch (e) {
+    toast(`Update failed: ${e.message}`);
+  }
+}
+
+async function deleteNote(noteId) {
+  if (!confirm('Delete this note?')) return;
+  try {
+    await api('DELETE', `/api/notes/${noteId}`);
+    toast('Note deleted');
+    const sid = state.currentSection ? state.currentSection.id : null;
+    if (sid) {
+      delete state.notesCache[sid];
+      renderNotesPanel(sid);
+    }
+  } catch (e) {
+    toast(`Delete failed: ${e.message}`);
+  }
+}
+
+// ── Promote-to-graph dialog ────────────────────────────────────────────────
+function getPromoteHost() {
+  let host = document.getElementById('promoteDialogHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'promoteDialogHost';
+    document.body.appendChild(host);
+  }
+  return host;
+}
+
+function closePromoteDialog() {
+  const host = document.getElementById('promoteDialogHost');
+  if (host) host.innerHTML = '';
+}
+
+function openPromoteDialog(noteId) {
+  const host = getPromoteHost();
+  host.innerHTML = `
+    <div class="promote-modal-backdrop" onclick="if(event.target===this)closePromoteDialog()">
+      <div class="promote-modal">
+        <h3>Promote note to graph</h3>
+        <label>
+          What kind of signal is this?
+          <select id="promote-kind">
+            <option value="understanding">Understanding (I get this)</option>
+            <option value="confusion">Confusion (I'm stuck)</option>
+          </select>
+        </label>
+        <label>
+          Concept name (optional — leave empty to use this section's first concept)
+          <input id="promote-concept" type="text" placeholder="e.g. Linked List Data Structure" />
+        </label>
+        <div class="actions">
+          <button onclick="closePromoteDialog()">Cancel</button>
+          <button class="btn btn-primary" onclick="confirmPromote('${noteId}')">Confirm</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function confirmPromote(noteId) {
+  const kindEl = document.getElementById('promote-kind');
+  const conceptEl = document.getElementById('promote-concept');
+  const kind = kindEl ? kindEl.value : 'understanding';
+  const conceptName = conceptEl ? conceptEl.value.trim() : '';
+  const body = { kind };
+  if (conceptName) body.conceptName = conceptName;
+
+  // We can't use api() because we need to read the JSON on non-2xx (e.g. 409).
+  let r;
+  try {
+    r = await fetch(`/api/notes/${noteId}/promote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    toast(`Promote failed: ${e.message}`);
+    return;
+  }
+  let payload = null;
+  try { payload = await r.json(); } catch { /* ignore */ }
+  if (r.ok) {
+    closePromoteDialog();
+    toast('Note promoted to graph');
+  } else if (r.status === 409) {
+    closePromoteDialog();
+    toast('Already promoted');
+  } else {
+    const msg = (payload && (payload.detail || payload.error)) || `${r.status}`;
+    toast(`Promote failed: ${msg}`);
+    return;
+  }
+  const sid = state.currentSection ? state.currentSection.id : null;
+  if (sid) {
+    delete state.notesCache[sid];
+    renderNotesPanel(sid);
+  }
 }
 
 async function generateLesson(sectionId, regenerate) {

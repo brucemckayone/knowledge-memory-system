@@ -10,12 +10,14 @@ import { chatRoutes } from './routes/chat.js';
 import { quizRoutes } from './routes/quiz.js';
 import { learnerRoutes } from './routes/learner.js';
 import { sectionRoutes } from './routes/sections.js';
+import { lessonOverlayRoutes } from './routes/lesson-overlays.js';
 import { insightRoutes } from './routes/insights.js';
 import { flashcardRoutes } from './routes/flashcards.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { articleRoutes } from './routes/articles.js';
 import { lessonPinRoutes } from './routes/lesson-pin.js';
 import { explainRoutes } from './routes/explain.js';
+import { noteRoutes } from './routes/notes.js';
 import {
   startPatrolCron,
   startPatrolRun,
@@ -53,6 +55,9 @@ app.route('/api/courses', courseRoutes);
 app.route('/api/chat', chatRoutes);
 app.route('/api/quiz', quizRoutes);
 app.route('/api/learner', learnerRoutes);
+// Mount overlay routes BEFORE sectionRoutes so /:id/overlay paths take precedence
+// over /:id (which would otherwise be matched as a 404 section lookup).
+app.route('/api/sections', lessonOverlayRoutes);
 app.route('/api/sections', sectionRoutes);
 app.route('/api/insights', insightRoutes);
 app.route('/api/flashcards', flashcardRoutes);
@@ -60,6 +65,7 @@ app.route('/api/dashboard', dashboardRoutes);
 app.route('/api/articles', articleRoutes);
 app.route('/api/lesson-pin', lessonPinRoutes);
 app.route('/api/explain', explainRoutes);
+app.route('/api/notes', noteRoutes);
 
 // ── Patrol endpoints ───────────────────────────────────────────────────────
 // POST /api/patrol/run-now  → 202 + runId, or 409 if already in flight

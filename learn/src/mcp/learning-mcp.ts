@@ -21,6 +21,7 @@ import {
 import { db, insights, sections } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 import type { ComponentKindName, ComponentGenInput } from '../agents/component-generator.js';
+import { applyEditOp, buildEditOp, OverlayError } from '../services/lesson-overlay.js';
 
 const NMEMO_URL = process.env.NMEMO_URL ?? 'http://localhost:3001';
 // Override base URL for this process (MCP server is spawned with env from config)
@@ -209,6 +210,28 @@ const TOOLS = [
     },
   },
   // ── Component generation ────────────────────────────────────────────────
+  // ── Lesson overlay edits ────────────────────────────────────────────────
+  {
+    name: 'edit_lesson_section',
+    description: 'Apply an edit operation to a lesson section. Writes to a per-learner overlay only — canonical course content is never mutated. Each call increments the version. Use to clarify, expand, or correct lessons in response to learner questions.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        section_id: { type: 'string', description: 'Section to edit.' },
+        op_kind: {
+          type: 'string',
+          enum: ['insert_block', 'replace_block', 'append_clarification', 'add_example'],
+          description: 'Edit operation kind.',
+        },
+        after_index: { type: 'number', description: 'For insert_block — block index after which to insert (-1 = start).' },
+        index: { type: 'number', description: 'For replace_block — block index to replace.' },
+        block: { type: 'object', description: 'For insert_block / replace_block / add_example — a LessonBlock { type: "markdown", content } or { type: "component", kind, props, children? }.' },
+        markdown: { type: 'string', description: 'For append_clarification, or add_example as a markdown shorthand.' },
+        learner_id: { type: 'string', description: 'Optional learner id (defaults to "default").' },
+      },
+      required: ['section_id', 'op_kind'],
+    },
+  },
   {
     name: 'generate_component',
     description: 'Generate a ready-to-render component spec (Mermaid diagram, Callout, CodeRunner, StepThrough, FlashcardDeck, ConceptMap, or SvgFigure) for a given concept/context. Use this when an interactive visual would help the learner. Returns either a component spec or a markdown fallback if generation fails.',
@@ -526,6 +549,40 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
             return JSON.stringify({ inserted: false, id: row[0].id, idempotencyKey, reason: 'race' });
           }
           throw err;
+        }
+      }
+
+      case 'edit_lesson_section': {
+        const sectionId = args.section_id as string;
+        if (!sectionId) {
+          return JSON.stringify({ error: 'section_id is required' });
+        }
+        const learnerId = (args.learner_id as string | undefined) ?? 'default';
+        try {
+          const op = buildEditOp({
+            op_kind: args.op_kind,
+            after_index: args.after_index,
+            index: args.index,
+            block: args.block,
+            markdown: args.markdown,
+          });
+          const overlay = await applyEditOp(sectionId, op, learnerId);
+          return JSON.stringify({
+            ok: true,
+            overlay: {
+              id: overlay.id,
+              version: overlay.version,
+              sectionId: overlay.sectionId,
+              learnerId: overlay.learnerId,
+              blockCount: overlay.blocks.length,
+              createdAt: overlay.createdAt,
+            },
+          });
+        } catch (err) {
+          if (err instanceof OverlayError) {
+            return JSON.stringify({ error: err.message, status: err.status });
+          }
+          return JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
         }
       }
 
