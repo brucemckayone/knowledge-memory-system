@@ -15,7 +15,7 @@ import {
 } from './lib/manifest.js';
 import { sha256File } from './lib/hash.js';
 
-export type VerifyStatus = 'ok' | 'missing' | 'mismatch' | 'no-hash';
+export type VerifyStatus = 'ok' | 'missing' | 'mismatch' | 'no-hash' | 'pending-first-generate';
 
 export interface VerifyResult {
   name: string;
@@ -28,6 +28,12 @@ export interface VerifyResult {
 
 export async function verifyEntry(entry: SnapshotEntry): Promise<VerifyResult[]> {
   const results: VerifyResult[] = [];
+  // Entries that have never been regenerated (empty expected_hashes + null
+  // regenerated_at) are reported as `pending-first-generate` rather than
+  // `missing`. This catches manifest entries committed against a live stack
+  // they can't run against on this machine — see doc 28 §6 "snapshot file
+  // referenced in manifest is on a teammate's machine but not on yours."
+  const isPending = !entry.regenerated_at && Object.keys(entry.expected_hashes).length === 0;
   for (const [fileKey, relPath] of Object.entries(entry.files)) {
     if (!relPath) continue;
     const abs = entryFileAbsPath(entry, fileKey as keyof SnapshotEntry['files']);
@@ -35,7 +41,13 @@ export async function verifyEntry(entry: SnapshotEntry): Promise<VerifyResult[]>
     const fileBaseName = abs.split(/[\\/]/).pop() ?? abs;
     const expected = entry.expected_hashes[fileBaseName];
     if (!existsSync(abs)) {
-      results.push({ name: entry.name, fileKey, status: 'missing', expected, path: abs });
+      results.push({
+        name: entry.name,
+        fileKey,
+        status: isPending ? 'pending-first-generate' : 'missing',
+        expected,
+        path: abs,
+      });
       continue;
     }
     const actual = await sha256File(abs);
@@ -66,12 +78,19 @@ export async function verifyAll(name?: string): Promise<{
     if (entry.deprecated) continue;
     results.push(...await verifyEntry(entry));
   }
-  const ok = results.every((r) => r.status === 'ok' || r.status === 'no-hash');
+  const ok = results.every(
+    (r) => r.status === 'ok' || r.status === 'no-hash' || r.status === 'pending-first-generate',
+  );
   return { results, ok };
 }
 
 function formatLine(r: VerifyResult): string {
-  const sigil = r.status === 'ok' ? '✓' : r.status === 'no-hash' ? '·' : '✗';
+  const sigil =
+    r.status === 'ok'
+      ? '✓'
+      : r.status === 'no-hash' || r.status === 'pending-first-generate'
+        ? '·'
+        : '✗';
   const detail =
     r.status === 'mismatch'
       ? ` (expected ${r.expected?.slice(0, 23)}…, got ${r.actual?.slice(0, 23)}…)`
@@ -79,7 +98,9 @@ function formatLine(r: VerifyResult): string {
         ? ` (file not found: ${r.path})`
         : r.status === 'no-hash'
           ? ` (no expected_hash recorded — run snapshot:ensure to populate)`
-          : '';
+          : r.status === 'pending-first-generate'
+            ? ` (entry committed without an initial regeneration — run snapshot:generate against the live stack)`
+            : '';
   return `  ${sigil} ${r.name}.${r.fileKey} ${r.status}${detail}`;
 }
 

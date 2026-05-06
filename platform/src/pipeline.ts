@@ -352,3 +352,13 @@ async function drainQueue(): Promise<void> {
   }
   draining = false;
 }
+
+/**
+ * Snapshot of the in-memory ingest queue. The LLM-pipeline snapshot generator
+ * (doc 28 §3.4) polls this between chunks: a chunk is "complete" when the
+ * queue is empty AND no item is currently draining. Returns immediately —
+ * no I/O.
+ */
+export function getIngestQueueStatus(): { queued: number; draining: boolean } {
+  return { queued: ingestQueue.length, draining };
+}

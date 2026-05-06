@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { ingest, store, extract, enqueueIngest } from './pipeline.js';
+import { ingest, store, extract, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, gardeningReports } from './db/index.js';
 import { isNull, sql, inArray, eq } from 'drizzle-orm';
 import { getMergeCandidates } from './services/graph-meta.js';
@@ -49,6 +49,12 @@ app.post('/ingest/queue', async (c) => {
   if (!body.text) return c.json({ error: 'text is required' }, 400);
   const result = enqueueIngest(body.text, body.source);
   return c.json(result, 202);
+});
+
+app.get('/ingest/queue/status', (c) => {
+  // Snapshot of the in-memory ingest queue. Doc 28 §3.4: the LLM-pipeline
+  // generator polls this to know when a queued chunk has finished ingesting.
+  return c.json(getIngestQueueStatus());
 });
 
 // ============================================
