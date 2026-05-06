@@ -55,3 +55,6 @@ drizzle/
 .dolt/
 .beads-credential-key
 test-data/
+
+# Snapshot cache (per-machine; manifest is the source of truth)
+platform/test-snapshots/

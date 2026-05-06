@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "name": "empty",
+      "kind": "llm",
+      "description": "Schema-only baseline. No source corpus, no entities, no facts. Used as the cluster-bridging Phase 1 sanity-check snapshot and as the gating fixture for snapshot infrastructure (j77.1).",
+      "source_corpus": null,
+      "ingest_params": {},
+      "pg_dump_flags": [
+        "--format=custom",
+        "--no-sync",
+        "--no-comments"
+      ],
+      "files": {
+        "postgres": "test-snapshots/empty/cognitive.dump"
+      },
+      "expected_hashes": {
+        "cognitive.dump": "sha256:48e21b0433a1f2aa9c362cb314fd08261ac614131724580c0911ae12338e2415"
+      },
+      "schema_version": 12,
+      "postgres_version": "16",
+      "stats": {
+        "total_entities": 0,
+        "total_facts": 0,
+        "total_memories": 0,
+        "ingest_time_ms": 0
+      },
+      "regenerated_at": "2026-05-06T08:43:22.046Z",
+      "regeneration_command": "pnpm snapshot:generate empty",
+      "deterministic": false,
+      "notes": "Schema-only LLM baseline. pg_dump --format=custom embeds a timestamp in the dump header, so byte-stable hashing is approximate; the first ensure call populates expected_hashes and subsequent runs detect drift but do not block. Larger drift indicates a migration or pg_dump flag change. Per doc 28 §10 lock B7."
+    }
+  ]
+}

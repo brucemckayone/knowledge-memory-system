@@ -30,7 +30,13 @@
     "benchmark:continuous": "tsx src/benchmark/index.ts --mode continuous --duration 30m",
     "benchmark:continuous:fast": "GARDENER_FREQUENT_INTERVAL=30s GARDENER_PERIODIC_INTERVAL=2m pnpm run benchmark:continuous",
     "benchmark:continuous:dashboard": "tsx src/benchmark/index.ts --mode continuous --duration 30m --dashboard",
-    "cleanup:tasks": "tsx src/scripts/cleanup-tasks.ts"
+    "cleanup:tasks": "tsx src/scripts/cleanup-tasks.ts",
+    "snapshot:ensure": "tsx scripts/snapshot-ensure.ts",
+    "snapshot:generate": "tsx scripts/generate-snapshot.ts",
+    "snapshot:synthetic": "tsx scripts/generate-synthetic.ts",
+    "snapshot:load": "tsx scripts/load-snapshot.ts",
+    "snapshot:verify": "tsx scripts/snapshot-verify.ts",
+    "test:snapshot": "vitest run --config vitest.snapshot.config.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.8.0",
