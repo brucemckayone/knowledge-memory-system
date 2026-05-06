@@ -155,6 +155,19 @@
   .msg-input { display: flex; gap: 8px; padding: 16px; border-top: 1px solid var(--border); }
   .msg-input textarea { min-height: 44px; max-height: 120px; }
 
+  /* Pin-to-lesson affordance on chat-rendered components (yjp.4 stub) */
+  .pin-wrap { position: relative; }
+  .pin-wrap > .pin-btn {
+    position: absolute; top: 4px; right: 4px; z-index: 2;
+    background: var(--surface); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 6px; font-size: 11px; line-height: 1.2; cursor: pointer;
+    opacity: 0; transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .pin-wrap:hover > .pin-btn { opacity: 0.85; }
+  .pin-wrap > .pin-btn:hover { opacity: 1; color: var(--accent); border-color: var(--accent); }
+  .pin-wrap > .pin-btn[disabled] { cursor: default; opacity: 0.6; }
+
   /* Quiz */
   .quiz-question { background: var(--surface2); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
   .quiz-question .q-text { font-size: 15px; font-weight: 500; margin-bottom: 16px; line-height: 1.6; }
@@ -1211,6 +1224,67 @@ function parseChatBlocks(m) {
   return null;
 }
 
+// POST a pin-to-lesson request. The endpoint is a stub (returns 501 with
+// reason) until the lesson-overlay feature ships in v0.3 — we surface that
+// to the learner as a "Coming soon" toast.
+async function pinChatBlock(sessionId, messageId, blockIndex) {
+  try {
+    const r = await fetch('/api/lesson-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, messageId, blockIndex }),
+    });
+    let payload = null;
+    try { payload = await r.json(); } catch { /* non-JSON response */ }
+    if (r.status === 501 || (payload && payload.ok === false)) {
+      toast('Coming soon — lesson overlays land in v0.3');
+    } else if (r.ok) {
+      toast('Pinned to lesson');
+    } else {
+      toast(`Pin failed (${r.status})`);
+    }
+  } catch (e) {
+    toast(`Pin failed: ${e.message}`);
+  }
+}
+
+// Decorate a freshly-rendered chat assistant bubble with "Pin to lesson"
+// buttons over each component block. Markdown blocks are skipped. Walks
+// `.lesson-renderer`'s top-level children, which line up 1:1 with `blocks`
+// (LessonRenderer renders one element per block in document order).
+function decorateChatComponents(bubbleEl, blocks, sessionId, messageId) {
+  if (!sessionId || !messageId) return;
+  const renderer = bubbleEl.querySelector('.lesson-renderer');
+  if (!renderer) return;
+  const children = Array.from(renderer.children);
+  const n = Math.min(children.length, blocks.length);
+  for (let i = 0; i < n; i++) {
+    const block = blocks[i];
+    if (!block || block.type !== 'component') continue;
+    const child = children[i];
+    if (!child || child.classList.contains('pin-wrap')) continue;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pin-wrap';
+    renderer.insertBefore(wrapper, child);
+    wrapper.appendChild(child);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pin-btn';
+    btn.textContent = '📌 Pin to lesson';
+    btn.title = 'Coming soon — lesson overlays land in v0.3';
+    btn.setAttribute('aria-label', 'Pin to lesson (coming soon)');
+    const idx = i;
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      pinChatBlock(sessionId, messageId, idx);
+    });
+    wrapper.appendChild(btn);
+  }
+}
+
 // Renders a chat message into the messages list. Structured assistant
 // responses (responseBlocks present) mount LessonRenderer into a placeholder
 // div; everything else uses the legacy plain-text rendering.
@@ -1227,6 +1301,9 @@ function appendChatMessage(listEl, m) {
     // responses can be wider.
     wrap.style.maxWidth = '90%';
     window.render(window.h`<${lib.LessonRenderer} blocks=${blocks} />`, wrap);
+    // After mount, overlay a small "Pin to lesson" affordance on each
+    // component block. Chat-only — the lesson Section view does NOT call this.
+    decorateChatComponents(wrap, blocks, state.currentSession, m.id);
     return wrap;
   }
 
@@ -1284,6 +1361,7 @@ async function sendMessage() {
     const r = await api('POST', `/api/chat/sessions/${state.currentSession}/messages`, { content });
     document.getElementById('thinkingMsg')?.remove();
     appendChatMessage(el, {
+      id: r.id,
       role: 'assistant',
       content: r.content,
       responseBlocks: r.responseBlocks ?? null,

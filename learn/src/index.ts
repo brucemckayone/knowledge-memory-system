@@ -14,6 +14,7 @@ import { insightRoutes } from './routes/insights.js';
 import { flashcardRoutes } from './routes/flashcards.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { articleRoutes } from './routes/articles.js';
+import { lessonPinRoutes } from './routes/lesson-pin.js';
 import {
   startPatrolCron,
   startPatrolRun,
@@ -56,6 +57,7 @@ app.route('/api/insights', insightRoutes);
 app.route('/api/flashcards', flashcardRoutes);
 app.route('/api/dashboard', dashboardRoutes);
 app.route('/api/articles', articleRoutes);
+app.route('/api/lesson-pin', lessonPinRoutes);
 
 // ── Patrol endpoints ───────────────────────────────────────────────────────
 // POST /api/patrol/run-now  → 202 + runId, or 409 if already in flight
