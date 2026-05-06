@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { eq, desc } from 'drizzle-orm';
 import { db, sections, questions, quizAttempts, courses } from '../db/index.js';
-import { generateLesson } from '../agents/lesson-generator.js';
+import { generateLessonAuto } from '../agents/lesson-generator.js';
 
 export const sectionRoutes = new Hono();
 
@@ -40,6 +40,7 @@ sectionRoutes.get('/:id', async (c) => {
     lessonKeyTakeaways: section.lessonKeyTakeaways
       ? (JSON.parse(section.lessonKeyTakeaways) as string[])
       : null,
+    // lessonBlocks is the raw JSON string; the renderer parses it. Keep as-is for backwards-compat with v0.1 clients.
     courseTitle: course?.title ?? null,
     questions: questionsWithStats,
   });
@@ -58,9 +59,11 @@ sectionRoutes.post('/:id/lesson', async (c) => {
   const [section] = await db.select().from(sections).where(eq(sections.id, id));
   if (!section) return c.json({ error: 'Section not found' }, 404);
 
-  if (section.lessonContent && !regenerate) {
+  // Cache hit if either format already exists. Renderer prefers blocks; falls back to content.
+  if ((section.lessonBlocks || section.lessonContent) && !regenerate) {
     return c.json({
       content: section.lessonContent,
+      blocks: section.lessonBlocks ? (JSON.parse(section.lessonBlocks) as unknown[]) : null,
       estimatedReadMinutes: section.lessonReadMinutes,
       keyTakeaways: section.lessonKeyTakeaways
         ? (JSON.parse(section.lessonKeyTakeaways) as string[])
@@ -72,13 +75,32 @@ sectionRoutes.post('/:id/lesson', async (c) => {
 
   let lesson;
   try {
-    lesson = await generateLesson(id);
+    lesson = await generateLessonAuto(id);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return c.json({ error: `Lesson generation failed: ${msg}` }, 500);
   }
 
   const generatedAt = new Date().toISOString();
+  // Structured mode writes lesson_blocks and leaves lesson_content untouched
+  // (callers can keep an old markdown copy for fallback). Markdown mode writes
+  // lesson_content as before.
+  if (lesson.format === 'structured') {
+    await db.update(sections).set({
+      lessonBlocks: JSON.stringify(lesson.blocks),
+      lessonGeneratedAt: generatedAt,
+      lessonReadMinutes: lesson.estimatedReadMinutes,
+      lessonKeyTakeaways: JSON.stringify(lesson.keyTakeaways),
+    }).where(eq(sections.id, id));
+    return c.json({
+      blocks: lesson.blocks,
+      estimatedReadMinutes: lesson.estimatedReadMinutes,
+      keyTakeaways: lesson.keyTakeaways,
+      generatedAt,
+      cached: false,
+    });
+  }
+
   await db.update(sections).set({
     lessonContent: lesson.content,
     lessonGeneratedAt: generatedAt,

@@ -107,6 +107,7 @@ const ALTER_STMTS: string[] = [
   `ALTER TABLE sections ADD COLUMN lesson_generated_at TEXT`,
   `ALTER TABLE sections ADD COLUMN lesson_read_minutes INTEGER`,
   `ALTER TABLE sections ADD COLUMN lesson_key_takeaways TEXT`,
+  `ALTER TABLE sections ADD COLUMN lesson_blocks TEXT`,
   `ALTER TABLE insights ADD COLUMN idempotency_key TEXT`,
 ];
 

@@ -23,6 +23,7 @@ export const sections = sqliteTable('sections', {
   conceptEntityIds: text('concept_entity_ids').notNull().default('[]'),    // JSON array of Nmemo entity IDs
   orderIndex: integer('order_index').notNull().default(0),
   lessonContent: text('lesson_content'),                                   // markdown lesson body, null until generated
+  lessonBlocks: text('lesson_blocks'),                                     // JSON LessonBlock[] for v0.2 structured lessons; preferred over lessonContent when present
   lessonGeneratedAt: text('lesson_generated_at'),                          // ISO timestamp when last generated
   lessonReadMinutes: integer('lesson_read_minutes'),                       // estimated read time in minutes
   lessonKeyTakeaways: text('lesson_key_takeaways'),                        // JSON array of key takeaways

@@ -72,11 +72,13 @@
 <script src="components/Mermaid.js"></script>
 <script src="components/SvgFigure.js"></script>
 <script src="components/CodeRunner.js"></script>
-<!-- v2 components (8z5.3): StepThrough, FlashcardDeck, ConceptMap (lazy-loads d3), Highlight. -->
+<!-- v2 components: StepThrough, FlashcardDeck, ConceptMap (lazy-loads d3), Highlight. -->
 <script src="components/StepThrough.js"></script>
 <script src="components/FlashcardDeck.js"></script>
 <script src="components/ConceptMap.js"></script>
 <script src="components/Highlight.js"></script>
+<!-- v0.2 lesson document renderer: walks LessonBlock[] and dispatches to the registry above. -->
+<script src="components/LessonRenderer.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1236,7 +1238,7 @@ loadCourses();
     console.warn('[smoke] framework or component library missing');
     return;
   }
-  const { Callout, Mermaid, SvgFigure, CodeRunner, StepThrough, FlashcardDeck, ConceptMap, Highlight } = window.LearnComponents;
+  const { Callout, Mermaid, SvgFigure, CodeRunner, StepThrough, FlashcardDeck, ConceptMap, Highlight, LessonRenderer } = window.LearnComponents;
   const root = document.getElementById('app-root');
   if (!root) return;
   // Cover the whole viewport so the smoke harness is the only thing visible.
@@ -1306,6 +1308,17 @@ loadCourses();
           will wire these to actual agent calls).
         </div>
       <//>
+
+      <hr style=${{border:'none',borderTop:'1px solid var(--border)',margin:'8px 0'}} />
+      <p style=${{color:'var(--muted)',fontSize:'13px'}}>LessonRenderer below — walks a LessonBlock[] and dispatches each block.</p>
+
+      <${LessonRenderer} blocks=${[
+        { type: 'markdown', content: '## Lesson document demo\n\nThis whole block is rendered as **markdown** by `LessonRenderer`. Underneath, a Callout follows, then more markdown.' },
+        { type: 'component', kind: 'Callout', props: { variant: 'insight', title: 'Why mix prose and components' },
+          children: 'Markdown carries the explanation; components carry the *interactivity*. The renderer just walks the array and dispatches each block to a known component (or shows an error for an unknown kind — try changing `Callout` to `NotARealKind`).' },
+        { type: 'markdown', content: '### Things to watch out for\n\n- Unknown component kinds render an inline error block, never crash.\n- Backwards-compat: a section with only `lessonContent` (no `lessonBlocks`) is treated as a single markdown block by `lessonToBlocks`.' },
+        { type: 'component', kind: 'NotARealKind', props: {} },
+      ]} />
     </div>
   `;
   window.render(window.h`<${Demo} />`, root);
