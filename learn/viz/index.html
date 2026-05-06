@@ -77,6 +77,8 @@
 <script src="components/FlashcardDeck.js"></script>
 <script src="components/ConceptMap.js"></script>
 <script src="components/Highlight.js"></script>
+<!-- Phase-5 popover for the on-demand explainer agent + note-editor stub. -->
+<script src="components/ExplainerPopover.js"></script>
 <!-- v0.2 lesson document renderer: walks LessonBlock[] and dispatches to the registry above. -->
 <script src="components/LessonRenderer.js"></script>
 <!-- v0.2 dashboard cards: home tab. -->
@@ -1058,6 +1060,9 @@ function renderLessonArea(section) {
 
 // Mounts the Preact LessonRenderer into #lessonBody for the given section. No-op if the
 // container or LessonRenderer is missing (e.g. lesson-empty state, or library not yet loaded).
+// Wraps the renderer in <Highlight> so text-selection actions (Explain / Example / Why /
+// Note) bubble up to handleHighlightAction, which fires the explainer agent or opens the
+// note-editor stub.
 function mountLessonBody(section) {
   const target = document.getElementById('lessonBody');
   if (!target) return;
@@ -1068,12 +1073,134 @@ function mountLessonBody(section) {
     return;
   }
   const blocks = lib.lessonToBlocks(section);
-  window.render(window.h`<${lib.LessonRenderer} blocks=${blocks} />`, target);
+  const sectionId = section && section.id ? section.id : null;
+  const onAction = (action, text) => handleHighlightAction(action, text, sectionId);
+  if (typeof lib.Highlight === 'function') {
+    window.render(
+      window.h`<${lib.Highlight} onAction=${onAction}><${lib.LessonRenderer} blocks=${blocks} /><//>`,
+      target,
+    );
+  } else {
+    // No Highlight available — render plain so the lesson still works.
+    window.render(window.h`<${lib.LessonRenderer} blocks=${blocks} />`, target);
+  }
 }
 
 function unmountLessonBody() {
   const target = document.getElementById('lessonBody');
   if (target && window.render) window.render(null, target);
+  // Tear down any open explainer popover when the section view unmounts.
+  closeExplainerPopover();
+}
+
+// ── Explainer popover (Phase 5) ────────────────────────────────────────────
+// One global host element for the popover. Mounted lazily; cleared on dismiss.
+function getExplainerHost() {
+  let host = document.getElementById('explainerPopoverHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'explainerPopoverHost';
+    document.body.appendChild(host);
+  }
+  return host;
+}
+
+function closeExplainerPopover() {
+  const host = document.getElementById('explainerPopoverHost');
+  if (host && window.render) window.render(null, host);
+}
+
+// Capture the bounding rect of the current document selection BEFORE we
+// render the popover (rendering can cause layout shift / lose selection).
+function captureSelectionRect() {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  if (!rect || (rect.width === 0 && rect.height === 0)) return null;
+  return {
+    left: rect.left, top: rect.top,
+    right: rect.right, bottom: rect.bottom,
+  };
+}
+
+// Called by the Highlight component when the learner picks an action from the
+// floating menu. `action` is one of explain | example | why | note.
+function handleHighlightAction(action, selectedText, sectionId) {
+  const lib = window.LearnComponents;
+  if (!lib || typeof lib.ExplainerPopover !== 'function') {
+    console.warn('[explainer] ExplainerPopover component missing — cannot show popover');
+    return;
+  }
+  const text = (selectedText || '').trim();
+  if (!text) return;
+
+  // The Highlight component clears the native selection right after firing
+  // onAction, so we capture the rect first. If the rect is already gone (very
+  // fast double-click), fall back to a centred floating rect near the top.
+  let anchorRect = captureSelectionRect();
+  if (!anchorRect) {
+    const cx = window.innerWidth / 2;
+    anchorRect = { left: cx - 1, right: cx + 1, top: 80, bottom: 80 };
+  }
+
+  const host = getExplainerHost();
+
+  if (action === 'note') {
+    const onSave = ({ selectedText: sel, draft }) => {
+      // Persistence is shipped in 57x.5; for now log + toast.
+      console.log('TODO: persist note', { selectedText: sel, contentMd: draft, sectionId });
+      toast('Note saved (in-memory only — persistence lands in v0.3)');
+      closeExplainerPopover();
+    };
+    const onCancel = () => closeExplainerPopover();
+    window.render(
+      window.h`<${lib.ExplainerPopover}
+        mode=${'note'}
+        anchorRect=${anchorRect}
+        selectedText=${text}
+        onSave=${onSave}
+        onCancel=${onCancel}
+      />`,
+      host,
+    );
+    return;
+  }
+
+  // Agent-backed actions: explain | example | why.
+  const renderPopover = (state, contentMd, errorText) => {
+    const onCancel = () => closeExplainerPopover();
+    window.render(
+      window.h`<${lib.ExplainerPopover}
+        mode=${'agent'}
+        anchorRect=${anchorRect}
+        action=${action}
+        state=${state}
+        contentMd=${contentMd || ''}
+        errorText=${errorText || ''}
+        selectedText=${text}
+        onCancel=${onCancel}
+      />`,
+      host,
+    );
+  };
+
+  renderPopover('loading', '');
+  api('POST', '/api/explain', {
+    selectedText: text,
+    action,
+    sectionId: sectionId || undefined,
+  }).then((res) => {
+    if (res && res.ok) {
+      renderPopover('ok', res.contentMd || '');
+    } else {
+      const err = (res && (res.errorText || res.error)) || 'agent failed';
+      renderPopover('error', (res && res.contentMd) || `_Couldn't generate an explanation right now._`, err);
+    }
+  }).catch((e) => {
+    const msg = e && e.message ? e.message : String(e);
+    renderPopover('error', `_Couldn't reach explainer service: ${msg}_`, msg);
+  });
 }
 
 async function generateLesson(sectionId, regenerate) {
