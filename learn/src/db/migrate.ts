@@ -1,6 +1,13 @@
 import { createClient } from '@libsql/client';
 import { config } from '../config.js';
 
+// v0.2 Lesson Evolution decision: no separate `lesson_versions` table.
+// `lesson_overlays.version` + UNIQUE(learner_id, section_id, version) +
+// the (section_id, version DESC) index cover version-history navigation.
+// Each prior row IS the prior version, so reverts read directly from
+// lesson_overlays. A separate metadata table would only be useful if we
+// wanted to record diff summaries without the full blocks payload —
+// punt until handlers/UI prove the need.
 const DDL = `
 CREATE TABLE IF NOT EXISTS courses (
   id TEXT PRIMARY KEY,
@@ -137,6 +144,34 @@ CREATE TABLE IF NOT EXISTS articles (
 
 CREATE INDEX IF NOT EXISTS idx_articles_type ON articles(type);
 CREATE INDEX IF NOT EXISTS idx_articles_generated_at ON articles(generated_at DESC);
+
+CREATE TABLE IF NOT EXISTS lesson_overlays (
+  id TEXT PRIMARY KEY,
+  learner_id TEXT NOT NULL DEFAULT 'default',
+  section_id TEXT NOT NULL,
+  blocks TEXT NOT NULL DEFAULT '[]',
+  version INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (learner_id, section_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lesson_overlays_learner_section ON lesson_overlays(learner_id, section_id);
+CREATE INDEX IF NOT EXISTS idx_lesson_overlays_section_version ON lesson_overlays(section_id, version DESC);
+
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  learner_id TEXT NOT NULL DEFAULT 'default',
+  section_id TEXT NOT NULL,
+  anchor_text TEXT NOT NULL,
+  content_md TEXT NOT NULL,
+  promoted_to_graph INTEGER NOT NULL DEFAULT 0,
+  fact_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_notes_section_id ON notes(section_id);
+CREATE INDEX IF NOT EXISTS idx_notes_learner_section ON notes(learner_id, section_id);
+CREATE INDEX IF NOT EXISTS idx_notes_promoted_to_graph ON notes(promoted_to_graph);
 `;
 
 // Lesson columns added in v0.2 — wrapped in try/catch because SQLite ALTER TABLE

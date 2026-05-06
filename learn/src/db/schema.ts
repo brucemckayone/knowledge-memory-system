@@ -129,3 +129,30 @@ export const articles = sqliteTable('articles', {
   generatedAt: text('generated_at').notNull().default(sql`(datetime('now'))`),
   viewedAt: text('viewed_at'),
 });
+
+// v0.2 Lesson Evolution — per-learner overlays on top of section.lessonBlocks.
+// Each (learner, section, version) triple is unique; the version column itself
+// carries the history, so reverts read prior versions directly from this table.
+// (No separate lesson_versions table — see migrate.ts decision note.)
+export const lessonOverlays = sqliteTable('lesson_overlays', {
+  id: text('id').primaryKey(),
+  learnerId: text('learner_id').notNull().default('default'),
+  sectionId: text('section_id').notNull(),                                   // references sections.id (no FK — overlays may outlive sections)
+  blocks: text('blocks').notNull().default('[]'),                            // JSON LessonBlock[]
+  version: integer('version').notNull().default(1),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+});
+
+// v0.2 Lesson Evolution — learner notes anchored to lesson excerpts.
+// promotedToGraph = 1 once the note has been promoted into Nmemo as a fact;
+// factId then carries the Nmemo fact id for traceability.
+export const notes = sqliteTable('notes', {
+  id: text('id').primaryKey(),
+  learnerId: text('learner_id').notNull().default('default'),
+  sectionId: text('section_id').notNull(),                                   // references sections.id (no FK — notes may outlive sections)
+  anchorText: text('anchor_text').notNull(),                                 // the highlighted excerpt
+  contentMd: text('content_md').notNull(),                                   // learner's note (markdown)
+  promotedToGraph: integer('promoted_to_graph').notNull().default(0),        // SQLite boolean (0/1)
+  factId: text('fact_id'),                                                   // Nmemo fact id once promoted; NULL otherwise
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+});
