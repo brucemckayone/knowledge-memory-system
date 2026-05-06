@@ -72,6 +72,11 @@
 <script src="components/Mermaid.js"></script>
 <script src="components/SvgFigure.js"></script>
 <script src="components/CodeRunner.js"></script>
+<!-- v2 components (8z5.3): StepThrough, FlashcardDeck, ConceptMap (lazy-loads d3), Highlight. -->
+<script src="components/StepThrough.js"></script>
+<script src="components/FlashcardDeck.js"></script>
+<script src="components/ConceptMap.js"></script>
+<script src="components/Highlight.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1231,7 +1236,7 @@ loadCourses();
     console.warn('[smoke] framework or component library missing');
     return;
   }
-  const { Callout, Mermaid, SvgFigure, CodeRunner } = window.LearnComponents;
+  const { Callout, Mermaid, SvgFigure, CodeRunner, StepThrough, FlashcardDeck, ConceptMap, Highlight } = window.LearnComponents;
   const root = document.getElementById('app-root');
   if (!root) return;
   // Cover the whole viewport so the smoke harness is the only thing visible.
@@ -1239,7 +1244,7 @@ loadCourses();
   const Demo = () => window.h`
     <div style=${{maxWidth:'880px',margin:'0 auto',display:'flex',flexDirection:'column',gap:'16px'}}>
       <h1 style=${{fontSize:'20px',fontWeight:'700'}}>Components smoke test</h1>
-      <p style=${{color:'var(--muted)',fontSize:'13px'}}>nmemo-8z5.2 — one of each component below.</p>
+      <p style=${{color:'var(--muted)',fontSize:'13px'}}>One of each v1 component below.</p>
 
       <${Callout} variant="info" title="Callout · info">An informational note rendered by the Callout component.<//>
       <${Callout} variant="warning" title="Callout · warning">A warning callout — yellow accent.<//>
@@ -1259,6 +1264,48 @@ loadCourses();
       />
 
       <${CodeRunner} lang="js" code=${"console.log('hello from sandbox');\nconsole.log('1 + 2 =', 1 + 2);"} />
+
+      <hr style=${{border:'none',borderTop:'1px solid var(--border)',margin:'8px 0'}} />
+      <p style=${{color:'var(--muted)',fontSize:'13px'}}>v2 components below.</p>
+
+      <${StepThrough} steps=${[
+        { title: 'Step 1 · Premise', content: 'Start by stating the premise of the lesson clearly.' },
+        { title: 'Step 2 · Mechanism', content: 'Walk through the mechanism with the simplest possible example.' },
+        { title: 'Step 3 · Edge cases', content: 'Now consider when the mechanism breaks down.' },
+        { title: 'Step 4 · Synthesis', content: 'Tie it back to a real-world consequence the learner cares about.' },
+      ]} onStepChange=${(i) => console.log('[smoke] StepThrough step:', i)} />
+
+      <${FlashcardDeck} cards=${[
+        { front: 'What is a hash collision?', back: 'When two distinct inputs produce the same hash output.', hint: 'Pigeonhole principle.' },
+        { front: 'Define O(log n)', back: 'Runtime grows logarithmically with input size — e.g. binary search.' },
+        { front: 'Why is HTTPS preferable to HTTP?', back: 'Encrypts traffic + authenticates the server, defeating MITM attackers.' },
+      ]} onComplete=${(r) => console.log('[smoke] FlashcardDeck complete:', r)} />
+
+      <${ConceptMap}
+        nodes=${[
+          { id: 'a', label: 'Hash function', type: 'concept' },
+          { id: 'b', label: 'Collision', type: 'concept' },
+          { id: 'c', label: 'Pigeonhole', type: 'fact' },
+          { id: 'd', label: 'Birthday attack', type: 'concept' },
+          { id: 'e', label: 'SHA-256', type: 'fact' },
+        ]}
+        edges=${[
+          { source: 'a', target: 'b', label: 'can produce' },
+          { source: 'c', target: 'b', label: 'guarantees' },
+          { source: 'b', target: 'd', label: 'enables' },
+          { source: 'a', target: 'e', label: 'example' },
+        ]}
+        width=${600} height=${300}
+        onNodeClick=${(n) => console.log('[smoke] ConceptMap node click:', n.id, n.label)}
+      />
+
+      <${Highlight} onAction=${(action, text) => console.log('[smoke] Highlight action:', action, '·', text)}>
+        <div style=${{padding:'16px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'var(--radius)',lineHeight:'1.7'}}>
+          Try selecting any text in this paragraph. A floating action menu should appear with
+          Explain / Example / Why / Note buttons. Clicking an action logs to the console (Phase 5
+          will wire these to actual agent calls).
+        </div>
+      <//>
     </div>
   `;
   window.render(window.h`<${Demo} />`, root);
