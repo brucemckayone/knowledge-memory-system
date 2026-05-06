@@ -5,6 +5,64 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Adaptive Learning</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<!-- Preact + signals + htm CDN scripts. Order matters:
+     preact → preact/hooks + @preact/signals-core → @preact/signals → htm.
+     Mermaid is loaded lazily via window.loadMermaid() (~1MB gzipped, only fetched
+     on first diagram render — keeps initial page weight tiny). -->
+<script src="https://cdn.jsdelivr.net/npm/preact@10/dist/preact.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/preact@10/hooks/dist/hooks.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@preact/signals-core@1/dist/signals-core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@preact/signals@1/dist/signals.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3/dist/htm.min.js"></script>
+<script>
+// Bootstrap globals for the component library.
+// h is htm bound to preact.h, so app code can write: h`<App foo=${x} />`.
+// render(vnode, target) wraps preact.render so callers don't need to pick a symbol.
+//
+// Smoke-usage (do NOT mount here — components live in their own module):
+//   const App = () => h`<div>hello ${signal('world').value}</div>`;
+//   render(h`<${App} />`, document.getElementById('app-root'));
+(function bootstrapPhase3() {
+  if (typeof preact === 'undefined' || typeof htm === 'undefined') {
+    console.warn('[phase3] preact/htm not loaded — framework primitives unavailable');
+    return;
+  }
+  window.h = htm.bind(preact.h);
+  window.render = (vnode, target) => preact.render(vnode, target);
+  // Signals: expose the common ergonomics directly. preactSignalsCore has signal/computed/effect/batch.
+  if (typeof preactSignalsCore !== 'undefined') {
+    window.signal = preactSignalsCore.signal;
+    window.computed = preactSignalsCore.computed;
+    window.effect = preactSignalsCore.effect;
+    window.batch = preactSignalsCore.batch;
+  }
+  // Lazy mermaid loader — keeps the ~1MB mermaid bundle off initial page load.
+  // Returns a Promise<typeof mermaid>. Idempotent.
+  window.loadMermaid = (() => {
+    let pending = null;
+    return () => {
+      if (typeof mermaid !== 'undefined') return Promise.resolve(mermaid);
+      if (pending) return pending;
+      pending = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+        s.onload = () => {
+          if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+            resolve(mermaid);
+          } else {
+            reject(new Error('mermaid script loaded but global is undefined'));
+          }
+        };
+        s.onerror = () => reject(new Error('mermaid script failed to load'));
+        document.head.appendChild(s);
+      });
+      return pending;
+    };
+  })();
+})();
+</script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -349,6 +407,9 @@
 
 <div id="toast"></div>
 
+<!-- Render root for the Preact component library. Empty until something mounts here. -->
+<div id="app-root"></div>
+
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
 const state = {
@@ -519,8 +580,9 @@ function navigateTo(name) {
 // ── Health check ──────────────────────────────────────────────────────────
 async function checkHealth() {
   try {
-    const h = await api('GET', '/health');
-    document.getElementById('statusDot').className = `status-dot ${h.nmemo ? 'ok' : ''}`;
+    // Renamed from `h` to avoid visual collision with the global Preact-htm `h` (window.h).
+    const health = await api('GET', '/health');
+    document.getElementById('statusDot').className = `status-dot ${health.nmemo ? 'ok' : ''}`;
   } catch { document.getElementById('statusDot').className = 'status-dot'; }
 }
 
