@@ -52,11 +52,65 @@ export const hasTrgmExtension = extensions.pg_trgm;
 const TEST_DB_URL = process.env.TEST_DATABASE_URL ||
   `postgres://${process.env.PGUSER || 'cognitive'}:${process.env.PGPASSWORD || 'cognitive'}@${process.env.PGHOST || '127.0.0.1'}:${process.env.PGPORT || '5433'}/cognitive_test`;
 
-export const testDb = postgres(TEST_DB_URL, {
+const POSTGRES_OPTIONS = {
   connection: {
     search_path: 'public, ag_catalog, "$user"',
   },
-});
+} as const;
+
+/**
+ * Live postgres handle. Mutated by `closeTestDbPool` / `openTestDbPool` so
+ * `ensureSnapshot` can drop and restore the cognitive_test database without
+ * leaving stale connections behind. The exported `testDb` is a Proxy over
+ * this handle so existing `import { testDb }` consumers stay backward-compatible
+ * (ES module bindings are not live; mutating an export's value would not
+ * propagate to importers, but a Proxy that forwards to the live handle does).
+ */
+let _testDbHandle: ReturnType<typeof postgres> = postgres(TEST_DB_URL, POSTGRES_OPTIONS);
+
+/**
+ * `testDb` proxies to the live `_testDbHandle`. Tagged-template usage
+ * (`testDb\`SELECT 1\``) hits the apply trap; method usage (`testDb.unsafe`,
+ * `testDb.begin`, `testDb.end`) hits the get trap. Both forward to whichever
+ * handle is currently open.
+ */
+export const testDb: ReturnType<typeof postgres> = new Proxy(function () {} as unknown as ReturnType<typeof postgres>, {
+  apply(_target, _thisArg, args: unknown[]) {
+    return (_testDbHandle as unknown as (...a: unknown[]) => unknown)(...args);
+  },
+  get(_target, prop, _receiver) {
+    const value = (_testDbHandle as unknown as Record<string | symbol, unknown>)[prop];
+    if (typeof value === 'function') {
+      return (value as (...a: unknown[]) => unknown).bind(_testDbHandle);
+    }
+    return value;
+  },
+}) as ReturnType<typeof postgres>;
+
+/**
+ * Close the live test-DB pool. Required before pg_restore --clean --if-exists
+ * runs against cognitive_test, since active connections block the DROP.
+ *
+ * Safe to call when the pool is already closed (no-op).
+ */
+export async function closeTestDbPool(): Promise<void> {
+  try {
+    await _testDbHandle.end({ timeout: 5 });
+  } catch {
+    // Already closed or never opened — fine.
+  }
+}
+
+/**
+ * Reopen the live test-DB pool against `cognitive_test`. Pairs with
+ * `closeTestDbPool`. Idempotent in the sense that the previous handle is
+ * abandoned (closed first by the caller) and a fresh one takes its place.
+ */
+export async function openTestDbPool(): Promise<void> {
+  _testDbHandle = postgres(TEST_DB_URL, POSTGRES_OPTIONS);
+  // Verify the handle works against the freshly-restored DB.
+  await _testDbHandle`SELECT 1`;
+}
 
 // ML Services URL
 export const ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://127.0.0.1:8000';
@@ -514,6 +568,100 @@ export function mockMLService(responses: Record<string, unknown>) {
   });
 }
 
+// ============================================
+// Snapshot restoration helpers (doc 28 §3.6)
+// ============================================
+//
+// Imported lazily via dynamic import so the regular vitest suite (which
+// excludes *.snapshot.test.ts) does not pull in the snapshot scripts on
+// every test-file evaluation. The helpers themselves stay synchronous-style
+// from the caller's perspective.
+
+/**
+ * A bridge-pair record from a synthetic snapshot's `ground_truth.json`.
+ * Mirrors the structure produced by `scripts/generate-synthetic.ts`.
+ */
+export interface BridgePair {
+  a: string;
+  b: string;
+  reason: string;
+}
+
+/**
+ * Doc 28 §3.6 helper. Closes the live test-DB pool (so `pg_restore --clean
+ * --if-exists` can drop `cognitive_test`), invokes `snapshot:ensure` to
+ * regenerate the cached snapshot file if missing or hash-mismatched, then
+ * loads that snapshot into `cognitive_test` and reopens the pool against
+ * the freshly-restored DB.
+ *
+ * After this resolves, `testDb` queries see exactly the snapshot's state.
+ *
+ * Must be called from within `vitest.snapshot.config.ts` (single-fork,
+ * file-parallelism off) — the default suite excludes `*.snapshot.test.ts`
+ * to avoid pool-conflicts during pg_restore.
+ */
+export async function ensureSnapshot(name: string): Promise<void> {
+  // 1. Close the existing connection pool (so pg_restore can drop the DB).
+  await closeTestDbPool();
+  // 2. Invoke snapshot-ensure.ts (regenerates if missing or hash mismatch).
+  //    This populates the cached dump file under platform/test-snapshots/<name>/
+  //    but does not yet touch cognitive_test.
+  const ensureMod = await import('../../scripts/snapshot-ensure.js');
+  await ensureMod.ensureSnapshot(name);
+  // 3. Restore the cached snapshot into cognitive_test. The doc 28 §3.6
+  //    contract is that ensureSnapshot leaves the DB in the snapshot's state,
+  //    so the caller can immediately query it via testDb.
+  const loadMod = await import('../../scripts/load-snapshot.js');
+  await loadMod.loadSnapshot(name);
+  // 4. Reopen the pool against the freshly-restored DB.
+  await openTestDbPool();
+}
+
+/**
+ * Doc 28 §3.6 helper. Reads the side-channel `ground_truth.json` for a
+ * synthetic snapshot and returns the labelled bridge-pair list. Errors
+ * clearly when the file is missing (per §6 edge cases — instructing the
+ * caller to run `pnpm snapshot:ensure --force <name>`).
+ *
+ * Synchronous file IO behind an async signature so the helper can grow
+ * additional checks (e.g. hash verification) without changing callers.
+ */
+export async function loadGroundTruth(name: string): Promise<BridgePair[]> {
+  // Dynamic import keeps the regular suite from pulling the manifest module
+  // on unrelated test-file evaluations.
+  const manifestMod = await import('../../scripts/lib/manifest.js');
+  const entry = manifestMod.findEntry(manifestMod.loadManifest(), name);
+  const groundTruthAbs = manifestMod.entryFileAbsPath(entry, 'ground_truth');
+  if (!groundTruthAbs) {
+    throw new Error(
+      `loadGroundTruth: snapshot "${name}" has no files.ground_truth in the manifest. ` +
+      `Only synthetic snapshots ship a ground_truth.json. Synthetic-only contract per doc 28 §3.3.`
+    );
+  }
+  if (!existsSync(groundTruthAbs)) {
+    throw new Error(
+      `loadGroundTruth: ground_truth.json missing for "${name}" at ${groundTruthAbs}. ` +
+      `Run \`pnpm snapshot:ensure --force ${name}\` to regenerate.`
+    );
+  }
+  const raw = readFileSync(groundTruthAbs, 'utf-8');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new Error(`loadGroundTruth: ground_truth.json for "${name}" is not valid JSON: ${detail}`);
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error(`loadGroundTruth: ground_truth.json for "${name}" is not an object`);
+  }
+  const bridgePairs = (parsed as Record<string, unknown>).bridge_pairs;
+  if (!Array.isArray(bridgePairs)) {
+    throw new Error(`loadGroundTruth: ground_truth.json for "${name}" missing bridge_pairs array`);
+  }
+  return bridgePairs as BridgePair[];
+}
+
 // Global hooks
 beforeAll(async () => {
   // Verify database connection
@@ -527,7 +675,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Close database connection
-  await testDb.end();
+  await closeTestDbPool();
 });
 
 // Per-test hooks can be added in individual test files
