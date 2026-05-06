@@ -71,19 +71,26 @@ chatRoutes.post('/sessions/:id/messages', async (c) => {
     courseTopic,
   });
 
-  // Store assistant response
+  // Store assistant response. When the tutor returned structured blocks, the
+  // canonical render-target is response_blocks; content holds a plain-text
+  // collapse so legacy clients still see something sensible.
   const assistantMsgId = randomUUID();
+  const responseBlocksJson = result.blocks && result.blocks.length > 0
+    ? JSON.stringify(result.blocks)
+    : null;
   await db.insert(chatMessages).values({
     id: assistantMsgId,
     sessionId,
     role: 'assistant',
     content: result.response,
     nmemoUpdates: result.nmemoUpdates.length > 0 ? JSON.stringify(result.nmemoUpdates) : null,
+    responseBlocks: responseBlocksJson,
   });
 
   return c.json({
     id: assistantMsgId,
     role: 'assistant',
     content: result.response,
+    responseBlocks: result.blocks ?? null,
   });
 });

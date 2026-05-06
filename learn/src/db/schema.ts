@@ -68,6 +68,7 @@ export const chatMessages = sqliteTable('chat_messages', {
   role: text('role').notNull(), // 'user' | 'assistant'
   content: text('content').notNull(),
   nmemoUpdates: text('nmemo_updates'), // JSON: what agent recorded to graph (null if nothing)
+  responseBlocks: text('response_blocks'), // JSON LessonBlock[] for structured tutor responses; null for plain-string responses
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
 
@@ -116,4 +117,15 @@ export const flashcardReviews = sqliteTable('flashcard_reviews', {
   learnerId: text('learner_id').notNull().default('default'),
   knew: integer('knew').notNull(),                                           // 1 = knew it, 0 = didn't
   reviewedAt: text('reviewed_at').notNull().default(sql`(datetime('now'))`),
+});
+
+export const articles = sqliteTable('articles', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),                                              // 'synthesis' | 'cross_course_summary'
+  title: text('title').notNull(),
+  contentMd: text('content_md').notNull(),
+  relatedEntityIds: text('related_entity_ids').notNull().default('[]'),      // JSON array
+  relatedCourseIds: text('related_course_ids').notNull().default('[]'),      // JSON array
+  generatedAt: text('generated_at').notNull().default(sql`(datetime('now'))`),
+  viewedAt: text('viewed_at'),
 });

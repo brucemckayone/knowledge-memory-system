@@ -123,6 +123,20 @@ CREATE TABLE IF NOT EXISTS flashcard_reviews (
 
 CREATE INDEX IF NOT EXISTS idx_flashcard_reviews_flashcard_id ON flashcard_reviews(flashcard_id);
 CREATE INDEX IF NOT EXISTS idx_flashcard_reviews_reviewed_at ON flashcard_reviews(reviewed_at DESC);
+
+CREATE TABLE IF NOT EXISTS articles (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content_md TEXT NOT NULL,
+  related_entity_ids TEXT NOT NULL DEFAULT '[]',
+  related_course_ids TEXT NOT NULL DEFAULT '[]',
+  generated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  viewed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_articles_type ON articles(type);
+CREATE INDEX IF NOT EXISTS idx_articles_generated_at ON articles(generated_at DESC);
 `;
 
 // Lesson columns added in v0.2 — wrapped in try/catch because SQLite ALTER TABLE
@@ -135,6 +149,7 @@ const ALTER_STMTS: string[] = [
   `ALTER TABLE sections ADD COLUMN lesson_key_takeaways TEXT`,
   `ALTER TABLE sections ADD COLUMN lesson_blocks TEXT`,
   `ALTER TABLE insights ADD COLUMN idempotency_key TEXT`,
+  `ALTER TABLE chat_messages ADD COLUMN response_blocks TEXT`,
 ];
 
 const POST_ALTER_STMTS: string[] = [

@@ -234,6 +234,26 @@
   .section-header h1 { font-size: 22px; font-weight: 700; line-height: 1.3; margin-bottom: 8px; }
   .section-header .desc { color: var(--muted); line-height: 1.6; }
 
+  /* Cross-course bridge banner — surfaces "you've seen this before in [Course X]" */
+  .bridge-banners { display: flex; flex-direction: column; gap: 8px; }
+  .bridge-banner {
+    background: rgba(99, 102, 241, 0.07);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    display: block;
+    text-decoration: none;
+    color: inherit;
+  }
+  .bridge-banner:hover { background: rgba(99, 102, 241, 0.13); border-color: var(--accent); }
+  .bridge-banner .bridge-head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; }
+  .bridge-banner .bridge-head .arrow { font-size: 14px; line-height: 1; }
+  .bridge-banner .bridge-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; line-height: 1.4; }
+  .bridge-banner .bridge-cta { font-size: 12px; color: var(--accent); }
+
   .objectives-box { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; }
   .objectives-box h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
   .objectives-box ul { padding-left: 20px; }
@@ -448,6 +468,7 @@ const state = {
   dashboardLoading: false,
   dashboardError: null,
   dashboardRegenerating: false,
+  bridgeCache: {},       // { [sectionId]: Insight[] } — cached cross-course bridge insights
 };
 
 // Configure marked once it's available — falls back to a tiny inline renderer if CDN failed.
@@ -874,6 +895,8 @@ function renderSection(section) {
       ${section.description ? `<div class="desc">${escapeHtml(section.description)}</div>` : ''}
     </div>
 
+    <div id="sectionBridge"></div>
+
     ${objectives.length > 0 ? `
       <div class="objectives-box">
         <h3>Learning objectives</h3>
@@ -896,6 +919,89 @@ function renderSection(section) {
   `;
   document.getElementById('sectionContent').innerHTML = html;
   mountLessonBody(section);
+  // Fire-and-forget — bridge is silent if no matches; section UX never blocks on it.
+  loadCrossCourseBridge(section);
+}
+
+// Fetches cross_course_link insights and renders banners for any whose entities overlap
+// the current section's concepts AND whose related courses include another course.
+// Silent (no banner) when there are no matches. Cached per section so back-nav is instant.
+async function loadCrossCourseBridge(section) {
+  if (!section || !section.id) return;
+  const slotId = 'sectionBridge';
+  const sectionId = section.id;
+  const concepts = Array.isArray(section.conceptEntityIds) ? section.conceptEntityIds : [];
+  if (concepts.length === 0) return; // nothing to bridge from
+  const currentCourseId = section.courseId;
+
+  let matches;
+  if (state.bridgeCache[sectionId]) {
+    matches = state.bridgeCache[sectionId];
+  } else {
+    let resp;
+    try {
+      resp = await api('GET', `/api/insights?type=cross_course_link&include_dismissed=false&limit=10`);
+    } catch (e) {
+      // Bridge is non-critical; never fail the section view.
+      console.warn('cross-course bridge fetch failed:', e);
+      return;
+    }
+    // Re-check we're still on the same section (user may have navigated away).
+    if (!state.currentSection || state.currentSection.id !== sectionId) return;
+
+    const conceptSet = new Set(concepts);
+    const all = Array.isArray(resp && resp.insights) ? resp.insights : [];
+    matches = all.filter(it => {
+      const eIds = Array.isArray(it.relatedEntityIds) ? it.relatedEntityIds : [];
+      const cIds = Array.isArray(it.relatedCourseIds) ? it.relatedCourseIds : [];
+      if (!eIds.some(id => conceptSet.has(id))) return false;
+      // Must touch at least one course OTHER than the current one.
+      return cIds.some(cid => cid && cid !== currentCourseId);
+    }).slice(0, 3); // cap to avoid clutter
+    state.bridgeCache[sectionId] = matches;
+  }
+
+  // Re-check container still belongs to the active section (defensive against fast nav).
+  const slot = document.getElementById(slotId);
+  if (!slot) return;
+  if (!state.currentSection || state.currentSection.id !== sectionId) return;
+  if (matches.length === 0) return; // silent
+
+  // Build a course id → title map. Prefer state.courses (loaded on app boot or course nav).
+  const idToTitle = new Map();
+  try {
+    const cached = Array.isArray(state.courses) ? state.courses : [];
+    for (const c of cached) {
+      if (c && c.id && c.title) idToTitle.set(c.id, c.title);
+    }
+  } catch { /* noop */ }
+  const titleFor = (cid) => idToTitle.get(cid) || (typeof cid === 'string' ? cid.slice(0, 8) : '');
+
+  const bannersHtml = matches.map(it => {
+    const cIds = Array.isArray(it.relatedCourseIds) ? it.relatedCourseIds : [];
+    const targetCourseId = cIds.find(cid => cid && cid !== currentCourseId);
+    if (!targetCourseId) return '';
+    const targetTitle = titleFor(targetCourseId);
+    return `
+      <div class="bridge-banner" data-course-id="${escapeHtml(targetCourseId)}" role="link" tabindex="0">
+        <div class="bridge-head"><span class="arrow">↗</span> You've seen this before in ${escapeHtml(targetTitle)}</div>
+        <div class="bridge-title">${escapeHtml(it.title || '')}</div>
+        <div class="bridge-cta">Open course →</div>
+      </div>
+    `;
+  }).filter(Boolean).join('');
+
+  if (!bannersHtml) return;
+  slot.innerHTML = `<div class="bridge-banners" style="margin-bottom:16px">${bannersHtml}</div>`;
+  // Wire click + keyboard activation. Reuse existing openCourse() for navigation.
+  slot.querySelectorAll('.bridge-banner').forEach(el => {
+    const courseId = el.getAttribute('data-course-id');
+    if (!courseId) return;
+    el.addEventListener('click', () => openCourse(courseId));
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCourse(courseId); }
+    });
+  });
 }
 
 function hasLessonBody(section) {
@@ -1087,6 +1193,50 @@ async function newChatSession() {
   document.getElementById('messagesList').innerHTML = '';
 }
 
+// Parse a chat message's stored response_blocks (JSON string from the DB) into a
+// LessonBlock[] suitable for LessonRenderer. Returns null when the message has
+// no structured payload — caller falls back to plain content rendering.
+function parseChatBlocks(m) {
+  // The GET /messages endpoint returns the raw row, so blocks may live under
+  // either responseBlocks (drizzle camelCase) or response_blocks (raw column).
+  const raw = m.responseBlocks ?? m.response_blocks;
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch { /* fall through */ }
+  } else if (Array.isArray(raw) && raw.length > 0) {
+    return raw;
+  }
+  return null;
+}
+
+// Renders a chat message into the messages list. Structured assistant
+// responses (responseBlocks present) mount LessonRenderer into a placeholder
+// div; everything else uses the legacy plain-text rendering.
+function appendChatMessage(listEl, m) {
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${m.role}`;
+  listEl.appendChild(wrap);
+
+  const blocks = m.role === 'assistant' ? parseChatBlocks(m) : null;
+  const lib = window.LearnComponents;
+  if (blocks && lib && typeof lib.LessonRenderer === 'function' && window.h && window.render) {
+    // Loosen the bubble so embedded components (Mermaid, ConceptMap, etc.) get
+    // proper width. The .msg styles were sized for short text; structured
+    // responses can be wider.
+    wrap.style.maxWidth = '90%';
+    window.render(window.h`<${lib.LessonRenderer} blocks=${blocks} />`, wrap);
+    return wrap;
+  }
+
+  // Fallback: legacy rendering — content is interpolated into innerHTML to
+  // preserve byte-identical behaviour for plain-string responses (which may
+  // contain inline HTML or markdown the old chat used to display verbatim).
+  wrap.innerHTML = m.content ?? '';
+  return wrap;
+}
+
 async function openSession(sessionId) {
   state.currentSession = sessionId;
   document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
@@ -1094,9 +1244,8 @@ async function openSession(sessionId) {
 
   const messages = await api('GET', `/api/chat/sessions/${sessionId}/messages`);
   const el = document.getElementById('messagesList');
-  el.innerHTML = messages.map(m => `
-    <div class="msg ${m.role}">${m.content}</div>
-  `).join('');
+  el.innerHTML = '';
+  for (const m of messages) appendChatMessage(el, m);
   el.scrollTop = el.scrollHeight;
 }
 
@@ -1119,8 +1268,12 @@ async function sendMessage() {
   const el = document.getElementById('messagesList');
 
   // Optimistic user message
-  el.innerHTML += `<div class="msg user">${content}</div>`;
-  el.innerHTML += `<div class="msg assistant loading-row" id="thinkingMsg"><div class="spinner"></div> Thinking...</div>`;
+  appendChatMessage(el, { role: 'user', content });
+  const thinking = document.createElement('div');
+  thinking.className = 'msg assistant loading-row';
+  thinking.id = 'thinkingMsg';
+  thinking.innerHTML = '<div class="spinner"></div> Thinking...';
+  el.appendChild(thinking);
   el.scrollTop = el.scrollHeight;
 
   const sendBtn = document.getElementById('sendBtn');
@@ -1130,7 +1283,11 @@ async function sendMessage() {
   try {
     const r = await api('POST', `/api/chat/sessions/${state.currentSession}/messages`, { content });
     document.getElementById('thinkingMsg')?.remove();
-    el.innerHTML += `<div class="msg assistant">${r.content}</div>`;
+    appendChatMessage(el, {
+      role: 'assistant',
+      content: r.content,
+      responseBlocks: r.responseBlocks ?? null,
+    });
     el.scrollTop = el.scrollHeight;
   } catch (e) {
     document.getElementById('thinkingMsg')?.remove();
