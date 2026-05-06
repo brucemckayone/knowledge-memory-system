@@ -69,3 +69,30 @@ export const chatMessages = sqliteTable('chat_messages', {
   nmemoUpdates: text('nmemo_updates'), // JSON: what agent recorded to graph (null if nothing)
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
+
+export const insights = sqliteTable('insights', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),                                              // open vocabulary; patrol agent may invent new types
+  title: text('title').notNull(),
+  contentMd: text('content_md').notNull(),
+  importance: real('importance').notNull().default(0.5),                     // 0..1
+  relatedEntityIds: text('related_entity_ids').notNull().default('[]'),      // JSON array
+  relatedCourseIds: text('related_course_ids').notNull().default('[]'),      // JSON array
+  relatedFactIds: text('related_fact_ids').notNull().default('[]'),          // JSON array
+  relatedSectionIds: text('related_section_ids').notNull().default('[]'),    // JSON array
+  actionableUrl: text('actionable_url'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  dismissedAt: text('dismissed_at'),
+  viewedAt: text('viewed_at'),
+});
+
+export const patrolRuns = sqliteTable('patrol_runs', {
+  id: text('id').primaryKey(),
+  startedAt: text('started_at').notNull().default(sql`(datetime('now'))`),
+  finishedAt: text('finished_at'),
+  status: text('status').notNull().default('running'),                       // 'running' | 'ok' | 'error'
+  insightsProduced: integer('insights_produced').notNull().default(0),
+  mcpCalls: integer('mcp_calls').notNull().default(0),
+  durationMs: integer('duration_ms'),
+  errorText: text('error_text'),
+});

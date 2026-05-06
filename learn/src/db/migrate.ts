@@ -66,6 +66,37 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   nmemo_updates TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS insights (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content_md TEXT NOT NULL,
+  importance REAL NOT NULL DEFAULT 0.5,
+  related_entity_ids TEXT NOT NULL DEFAULT '[]',
+  related_course_ids TEXT NOT NULL DEFAULT '[]',
+  related_fact_ids TEXT NOT NULL DEFAULT '[]',
+  related_section_ids TEXT NOT NULL DEFAULT '[]',
+  actionable_url TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  dismissed_at TEXT,
+  viewed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_insights_created_at ON insights(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_insights_dismissed_at ON insights(dismissed_at);
+CREATE INDEX IF NOT EXISTS idx_insights_type ON insights(type);
+
+CREATE TABLE IF NOT EXISTS patrol_runs (
+  id TEXT PRIMARY KEY,
+  started_at TEXT NOT NULL DEFAULT (datetime('now')),
+  finished_at TEXT,
+  status TEXT NOT NULL DEFAULT 'running',
+  insights_produced INTEGER NOT NULL DEFAULT 0,
+  mcp_calls INTEGER NOT NULL DEFAULT 0,
+  duration_ms INTEGER,
+  error_text TEXT
+);
 `;
 
 // Lesson columns added in v0.2 — wrapped in try/catch because SQLite ALTER TABLE
