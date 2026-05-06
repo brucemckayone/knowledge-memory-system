@@ -20,6 +20,7 @@ import {
 } from '../services/nmemo-client.js';
 import { db, insights, sections } from '../db/index.js';
 import { eq } from 'drizzle-orm';
+import type { ComponentKindName, ComponentGenInput } from '../agents/component-generator.js';
 
 const NMEMO_URL = process.env.NMEMO_URL ?? 'http://localhost:3001';
 // Override base URL for this process (MCP server is spawned with env from config)
@@ -205,6 +206,36 @@ const TOOLS = [
         actionable_url: { type: 'string', description: 'Optional URL the learner can click' },
       },
       required: ['type', 'title', 'content_md', 'related_entity_ids'],
+    },
+  },
+  // ── Component generation ────────────────────────────────────────────────
+  {
+    name: 'generate_component',
+    description: 'Generate a ready-to-render component spec (Mermaid diagram, Callout, CodeRunner, StepThrough, FlashcardDeck, ConceptMap, or SvgFigure) for a given concept/context. Use this when an interactive visual would help the learner. Returns either a component spec or a markdown fallback if generation fails.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        kind: {
+          type: 'string',
+          enum: ['Callout', 'Mermaid', 'SvgFigure', 'CodeRunner', 'StepThrough', 'FlashcardDeck', 'ConceptMap'],
+          description: 'The component kind to generate.',
+        },
+        context: {
+          type: 'string',
+          description: 'Free-text describing what the learner is asking about / what concept this is for.',
+        },
+        learner_state: {
+          type: 'object',
+          properties: {
+            confidence: { type: 'number', description: '0..1' },
+            courseId: { type: 'string' },
+            sectionId: { type: 'string' },
+            conceptName: { type: 'string' },
+          },
+          description: 'Optional learner context to tailor the generation.',
+        },
+      },
+      required: ['kind', 'context'],
     },
   },
 ] as const;
@@ -496,6 +527,16 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
           }
           throw err;
         }
+      }
+
+      case 'generate_component': {
+        const { generateComponent } = await import('../agents/component-generator.js');
+        const result = await generateComponent({
+          kind: args.kind as ComponentKindName,
+          context: args.context as string,
+          learnerState: args.learner_state as ComponentGenInput['learnerState'],
+        });
+        return JSON.stringify(result);
       }
 
       default:
