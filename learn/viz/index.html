@@ -15,6 +15,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@preact/signals-core@1/dist/signals-core.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@preact/signals@1/dist/signals.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/htm@3/dist/htm.min.js"></script>
+<!-- DOMPurify — required by SvgFigure to sanitise agent-supplied SVG before injecting. -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <script>
 // Bootstrap globals for the component library.
 // h is htm bound to preact.h, so app code can write: h`<App foo=${x} />`.
@@ -63,6 +65,13 @@
   })();
 })();
 </script>
+
+<!-- Component library — each registers on window.LearnComponents.
+     Loaded after framework primitives + DOMPurify, before the main app script. -->
+<script src="components/Callout.js"></script>
+<script src="components/Mermaid.js"></script>
+<script src="components/SvgFigure.js"></script>
+<script src="components/CodeRunner.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1211,6 +1220,64 @@ async function loadProgress() {
 checkHealth();
 setInterval(checkHealth, 30000);
 loadCourses();
+
+// ── Component-library smoke test ─────────────────────────────────────────
+// Append `?debug=components` to render one of each component into #app-root.
+// Inert when the flag is absent — does not interfere with the existing app.
+(function smokeTestComponents() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('debug') !== 'components') return;
+  if (!window.h || !window.render || !window.LearnComponents) {
+    console.warn('[smoke] framework or component library missing');
+    return;
+  }
+  const { Callout, Mermaid, SvgFigure, CodeRunner } = window.LearnComponents;
+  const root = document.getElementById('app-root');
+  if (!root) return;
+  // Cover the whole viewport so the smoke harness is the only thing visible.
+  root.style.cssText = 'position:fixed;inset:0;background:var(--bg);overflow:auto;padding:24px;z-index:1000';
+  const Demo = () => window.h`
+    <div style=${{maxWidth:'880px',margin:'0 auto',display:'flex',flexDirection:'column',gap:'16px'}}>
+      <h1 style=${{fontSize:'20px',fontWeight:'700'}}>Components smoke test</h1>
+      <p style=${{color:'var(--muted)',fontSize:'13px'}}>nmemo-8z5.2 — one of each component below.</p>
+
+      <${Callout} variant="info" title="Callout · info">An informational note rendered by the Callout component.<//>
+      <${Callout} variant="warning" title="Callout · warning">A warning callout — yellow accent.<//>
+      <${Callout} variant="insight" title="Callout · insight">An insight callout — purple accent.<//>
+      <${Callout} variant="takeaway" title="Callout · takeaway">A takeaway callout — green accent.<//>
+
+      <${Mermaid} src=${'graph LR; A[Start] --> B[Process]; B --> C[End]'} />
+
+      <${SvgFigure}
+        src=${'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80" viewBox="0 0 200 80"><rect x="10" y="10" width="180" height="60" rx="6" fill="#6366f1"/><text x="100" y="48" font-family="sans-serif" font-size="16" fill="white" text-anchor="middle">Safe SVG</text></svg>'}
+        caption="A simple SVG figure (sanitised via DOMPurify)."
+      />
+
+      <${SvgFigure}
+        src=${'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40"><script>window.__pwned = true;<\/script><text x="10" y="25" fill="#ef4444">Malicious SVG (script should be stripped)</text></svg>'}
+        caption="Malicious-input test — the script tag should be stripped before injection."
+      />
+
+      <${CodeRunner} lang="js" code=${"console.log('hello from sandbox');\nconsole.log('1 + 2 =', 1 + 2);"} />
+    </div>
+  `;
+  window.render(window.h`<${Demo} />`, root);
+  console.log('[smoke] components mounted:', Object.keys(window.LearnComponents));
+
+  // Optional: ?debug=components&run=1 auto-clicks the CodeRunner Run button
+  // so headless harnesses can assert that the output appears in the DOM.
+  if (params.get('run') === '1') {
+    setTimeout(() => {
+      const runBtn = root.querySelector('.code-runner button.btn-primary');
+      if (runBtn) {
+        runBtn.click();
+        console.log('[smoke] CodeRunner Run clicked');
+      } else {
+        console.warn('[smoke] CodeRunner Run button not found');
+      }
+    }, 500);
+  }
+})();
 </script>
 </body>
 </html>

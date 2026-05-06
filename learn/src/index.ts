@@ -45,6 +45,23 @@ app.route('/api/learner', learnerRoutes);
 app.route('/api/sections', sectionRoutes);
 app.route('/api/insights', insightRoutes);
 
+// Serve viz/components/*.js statically. Whitelist regex prevents directory traversal.
+const componentsDir = join(__dirname, '../viz/components');
+const componentFileRe = /^[A-Za-z][A-Za-z0-9_-]*\.js$/;
+const cachedComponents: Record<string, string> = {};
+app.get('/components/:file', (c) => {
+  const file = c.req.param('file');
+  if (!componentFileRe.test(file)) return c.text('Not found', 404);
+  try {
+    const body = config.NODE_ENV === 'production'
+      ? (cachedComponents[file] ??= readFileSync(join(componentsDir, file), 'utf-8'))
+      : readFileSync(join(componentsDir, file), 'utf-8');
+    return c.body(body, 200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+  } catch {
+    return c.text('Not found', 404);
+  }
+});
+
 // ── Server ─────────────────────────────────────────────────────────────────
 if (!process.env.VITEST) {
   serve({ fetch: app.fetch, port: config.PORT }, (info) => {
