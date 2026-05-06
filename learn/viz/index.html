@@ -657,6 +657,7 @@ function mountDashboard() {
   const handlers = {
     onReload: () => loadDashboard({ force: true }),
     onRegenerateFlashcards: () => loadDashboard({ regenerate: true }),
+    onNavigateCourse: (courseId) => { if (courseId) openCourse(courseId); },
     onNavigateSection: (sectionId, opts) => {
       if (opts && opts.quiz) {
         // Jump to the Quiz tab and pre-select the section.
@@ -686,6 +687,7 @@ function mountDashboard() {
     onReload=${handlers.onReload}
     onRegenerateFlashcards=${handlers.onRegenerateFlashcards}
     onNavigateSection=${handlers.onNavigateSection}
+    onNavigateCourse=${handlers.onNavigateCourse}
   />`, target);
 }
 

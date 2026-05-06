@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { desc, eq, isNull, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, inArray, sql } from 'drizzle-orm';
 import {
   db, courses, sections, quizAttempts, questions,
   chatMessages, chatSessions, insights, flashcards,
@@ -75,12 +75,25 @@ interface CrossCourseConnection {
   kind: 'direct' | 'same_as';
 }
 
+interface CrossCourseLinkInsight {
+  id: string;
+  title: string;
+  contentMd: string;
+  relatedEntityIds: string[];
+  relatedCourseIds: string[];
+  importance: number;
+  createdAt: string;
+}
+
 interface DashboardResponse {
   jumpBackIn: DashboardJumpBackIn | null;
   dailyQuiz: NextQuestionResult;
   dailyFlashcards: { cards: DashboardFlashcard[]; generatedNew: number };
   insights: { items: DashboardInsight[]; total: number };
-  crossCourseConnections: { concepts: CrossCourseConnection[] };
+  crossCourseConnections: {
+    concepts: CrossCourseConnection[];
+    linkInsights: CrossCourseLinkInsight[];
+  };
   graphSnapshot: { conceptCount: number; growthThisWeek: number; factCount?: number };
   timing?: Record<string, number>;
 }
@@ -293,16 +306,37 @@ async function buildInsights(): Promise<{ items: DashboardInsight[]; total: numb
   }
 }
 
-async function buildCrossCourseConnections(): Promise<{ concepts: CrossCourseConnection[] }> {
+async function buildCrossCourseConnections(): Promise<{
+  concepts: CrossCourseConnection[];
+  linkInsights: CrossCourseLinkInsight[];
+}> {
   try {
-    const [secs, sameAsRes, courseRows] = await Promise.all([
+    const linkInsightsWhere = and(
+      isNull(insights.dismissedAt),
+      eq(insights.type, 'cross_course_link'),
+    );
+    const [secs, sameAsRes, courseRows, linkInsightRows] = await Promise.all([
       db.select({
         courseId: sections.courseId,
         conceptEntityIds: sections.conceptEntityIds,
       }).from(sections),
       getSameAsConcepts().catch(() => ({ links: [] as SameAsConceptLink[] })),
       db.select({ id: courses.id, title: courses.title }).from(courses),
+      db.select().from(insights)
+        .where(linkInsightsWhere)
+        .orderBy(desc(insights.importance), desc(insights.createdAt))
+        .limit(INSIGHTS_LIMIT),
     ]);
+
+    const linkInsights: CrossCourseLinkInsight[] = linkInsightRows.map(r => ({
+      id: r.id,
+      title: r.title,
+      contentMd: r.contentMd,
+      relatedEntityIds: parseJsonArray(r.relatedEntityIds),
+      relatedCourseIds: parseJsonArray(r.relatedCourseIds),
+      importance: r.importance,
+      createdAt: r.createdAt,
+    }));
 
     const courseTitles = new Map(courseRows.map(c => [c.id, c.title]));
     const entityToCourses = new Map<string, Set<string>>();
@@ -373,10 +407,10 @@ async function buildCrossCourseConnections(): Promise<{ concepts: CrossCourseCon
       if (concepts.length >= CCC_TOP_N) break;
     }
 
-    return { concepts };
+    return { concepts, linkInsights };
   } catch (err) {
     console.error('[dashboard] buildCrossCourseConnections failed', err);
-    return { concepts: [] };
+    return { concepts: [], linkInsights: [] };
   }
 }
 
@@ -423,7 +457,7 @@ dashboardRoutes.get('/', async (c) => {
     dailyQuiz: dq.status === 'fulfilled' ? dq.value : { question: null, rationale: { reason: 'Daily quiz unavailable' } },
     dailyFlashcards: df.status === 'fulfilled' ? df.value : { cards: [], generatedNew: 0 },
     insights: ins.status === 'fulfilled' ? ins.value : { items: [], total: 0 },
-    crossCourseConnections: ccc.status === 'fulfilled' ? ccc.value : { concepts: [] },
+    crossCourseConnections: ccc.status === 'fulfilled' ? ccc.value : { concepts: [], linkInsights: [] },
     graphSnapshot: gs.status === 'fulfilled' ? gs.value : { conceptCount: 0, growthThisWeek: 0 },
   };
 

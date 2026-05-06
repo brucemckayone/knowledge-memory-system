@@ -7,6 +7,7 @@
 //   onRegenerateFlashcards: () => void
 //   onNavigateSection: (sectionId, opts?) => void   — opts.quiz: jump straight to quiz view
 //   onNavigateChat: (sessionId) => void
+//   onNavigateCourse: (courseId) => void   — used by CrossCourseCard linkInsights
 //   regenerating: boolean
 (function(){
   const { h } = window;
@@ -360,13 +361,33 @@
 
   // ── Card 5: Cross-course connections ─────────────────────────────────────
   function CrossCourseCard(props) {
-    const { ccc } = props;
+    const { ccc, onNavigateCourse } = props;
     const concepts = ccc && Array.isArray(ccc.concepts) ? ccc.concepts : [];
-    if (concepts.length === 0) {
+    const linkInsights = ccc && Array.isArray(ccc.linkInsights) ? ccc.linkInsights : [];
+
+    if (concepts.length === 0 && linkInsights.length === 0) {
       return h`<${Card} title="Cross-course connections">
         <${Empty}>No cross-course connections yet. They'll appear as your learning expands.<//>
       <//>`;
     }
+
+    // Resolve course titles for linkInsights. Source 1: deterministic concepts'
+    // courses (id→title). Source 2: window.state.courses cache (set by index.html
+    // loadCourses()). Fall back to a truncated id.
+    const idToTitle = new Map();
+    for (const c of concepts) {
+      for (const co of (c.courses || [])) {
+        if (co && co.courseId && co.courseTitle) idToTitle.set(co.courseId, co.courseTitle);
+      }
+    }
+    try {
+      const cached = (window.state && Array.isArray(window.state.courses)) ? window.state.courses : [];
+      for (const c of cached) {
+        if (c && c.id && c.title && !idToTitle.has(c.id)) idToTitle.set(c.id, c.title);
+      }
+    } catch { /* noop */ }
+    const courseTitleFor = (cid) => idToTitle.get(cid) || (typeof cid === 'string' ? cid.slice(0, 8) : '');
+
     const chipStyle = {
       display: 'inline-block', padding: '2px 8px', borderRadius: '10px',
       background: 'rgba(99,102,241,0.15)', color: 'var(--accent)',
@@ -378,8 +399,66 @@
       textTransform: 'uppercase', letterSpacing: '0.5px', marginLeft: '8px',
     };
     const rowStyle = { padding: '10px 0', borderBottom: '1px solid var(--border)' };
-    return h`<${Card} title="Cross-course connections">
+    const insightRowStyle = {
+      padding: '10px 0', borderBottom: '1px solid var(--border)',
+      cursor: 'pointer', borderRadius: '4px', transition: 'background 0.15s',
+    };
+    const dividerStyle = {
+      borderTop: '1px solid var(--border)',
+      margin: '12px 0 6px',
+      paddingTop: '8px',
+      fontSize: '10px', color: 'var(--muted)',
+      textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600',
+    };
+    const sectionHeadStyle = {
+      fontSize: '10px', color: 'var(--muted)',
+      textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600',
+      marginBottom: '4px',
+    };
+    const exploreStyle = {
+      color: 'var(--accent)', fontSize: '11px', fontWeight: '500',
+      marginLeft: '8px', whiteSpace: 'nowrap',
+    };
+
+    const handleInsightClick = (it) => {
+      const ids = Array.isArray(it.relatedCourseIds) ? it.relatedCourseIds : [];
+      if (ids.length === 0) return;
+      // First course wins. (Bead spec: "navigate to the first course".)
+      if (typeof onNavigateCourse === 'function') onNavigateCourse(ids[0]);
+    };
+
+    const renderLinkInsights = () => h`
       <div>
+        ${linkInsights.length > 0 && concepts.length > 0
+          ? h`<div style=${sectionHeadStyle}>From the patrol</div>`
+          : null}
+        ${linkInsights.map(it => {
+          const courseIds = Array.isArray(it.relatedCourseIds) ? it.relatedCourseIds : [];
+          const hasCourses = courseIds.length > 0;
+          return h`
+            <div key=${it.id} class="ccc-insight-row" style=${insightRowStyle}
+                 onClick=${() => handleInsightClick(it)}
+                 onMouseEnter=${(e) => e.currentTarget.style.background = 'var(--surface2)'}
+                 onMouseLeave=${(e) => e.currentTarget.style.background = 'transparent'}>
+              <div style=${{display:'flex',alignItems:'center',marginBottom:'4px'}}>
+                <span style=${{fontWeight:'600',fontSize:'13px',flex:'1',minWidth:'0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${truncate(it.title, 80)}</span>
+                ${hasCourses ? h`<span style=${exploreStyle}>explore →</span>` : null}
+              </div>
+              <div style=${{color:'var(--muted)',fontSize:'12px',lineHeight:'1.5',marginBottom:'4px'}} title=${it.contentMd}>
+                ${truncate(it.contentMd, 200)}
+              </div>
+              ${hasCourses ? h`<div>${courseIds.map(cid => h`<span key=${cid} style=${chipStyle}>${truncate(courseTitleFor(cid), 32)}</span>`)}</div>` : null}
+            </div>
+          `;
+        })}
+      </div>
+    `;
+
+    const renderConcepts = () => h`
+      <div>
+        ${linkInsights.length > 0 && concepts.length > 0
+          ? h`<div style=${dividerStyle}>Detected overlaps</div>`
+          : null}
         ${concepts.map(c => h`
           <div key=${c.conceptEntityId} style=${rowStyle}>
             <div style=${{display:'flex',alignItems:'center',marginBottom:'4px'}}>
@@ -390,6 +469,11 @@
           </div>
         `)}
       </div>
+    `;
+
+    return h`<${Card} title="Cross-course connections">
+      ${linkInsights.length > 0 ? renderLinkInsights() : null}
+      ${concepts.length > 0 ? renderConcepts() : null}
     <//>`;
   }
 
@@ -416,7 +500,7 @@
 
   // ── Top-level grid ───────────────────────────────────────────────────────
   function DashboardCards(props) {
-    const { data, loading, error, onReload, onRegenerateFlashcards, onNavigateSection, regenerating } = props;
+    const { data, loading, error, onReload, onRegenerateFlashcards, onNavigateSection, onNavigateCourse, regenerating } = props;
     const headerStyle = {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       marginBottom: '4px',
@@ -464,7 +548,7 @@
           <${DailyQuizCard} dq=${d.dailyQuiz} onNavigateSection=${onNavigateSection} />
           <${DailyFlashcardsCard} df=${d.dailyFlashcards} onRegenerate=${onRegenerateFlashcards} regenerating=${regenerating} />
           <${InsightsCard} ins=${d.insights} patrolMinutes=${(d.timing && d.timing.patrolMinutes) || null} />
-          <${CrossCourseCard} ccc=${d.crossCourseConnections} />
+          <${CrossCourseCard} ccc=${d.crossCourseConnections} onNavigateCourse=${onNavigateCourse} />
           <${GraphSnapshotCard} gs=${d.graphSnapshot} />
         </div>
       </div>
