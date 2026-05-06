@@ -1097,6 +1097,117 @@ app.get('/api/learn/learner-facts', async (c) => {
   return c.json({ facts, learnerId: learnerEntity.id });
 });
 
+// Decay candidates: concept entities whose most recent fact is older than
+// threshold_days AND whose peak confidence was previously high. Heuristic only —
+// "fading" is approximated by stale-but-once-confident learner facts.
+app.get('/api/learn/decay-candidates', async (c) => {
+  const thresholdDays = parseInt(c.req.query('threshold_days') ?? '14', 10);
+  if (!Number.isFinite(thresholdDays) || thresholdDays < 1 || thresholdDays > 365) {
+    return c.json({ error: 'threshold_days must be 1..365' }, 400);
+  }
+  const rows = await db.execute(sql`
+    SELECT
+      e.id          AS entity_id,
+      e.canonical_name AS canonical_name,
+      e.entity_type AS entity_type,
+      MAX(f.created_at) AS last_fact_at,
+      MAX(f.confidence) AS peak_confidence,
+      COUNT(f.id)::int  AS fact_count
+    FROM public.entities e
+    JOIN public.facts f ON f.object_entity_id = e.id OR f.subject_entity_id = e.id
+    WHERE e.entity_type = 'concept'
+      AND f.expired_at IS NULL
+    GROUP BY e.id, e.canonical_name, e.entity_type
+    HAVING MAX(f.created_at) < NOW() - (${thresholdDays}::int || ' days')::interval
+       AND MAX(f.confidence) >= 0.7
+    ORDER BY MAX(f.created_at) ASC
+    LIMIT 50
+  `);
+  return c.json({ thresholdDays, candidates: rows });
+});
+
+// Same-as links restricted to concept entities — used by the patrol to find
+// the same concept named differently across courses.
+app.get('/api/learn/same-as-concepts', async (c) => {
+  const rows = await db.execute(sql`
+    SELECT
+      sal.id, sal.entity_a_id, sal.entity_b_id,
+      ea.canonical_name AS a_name, eb.canonical_name AS b_name,
+      sal.reasoning, sal.confidence, sal.created_at
+    FROM public.same_as_links sal
+    JOIN public.entities ea ON ea.id = sal.entity_a_id
+    JOIN public.entities eb ON eb.id = sal.entity_b_id
+    WHERE ea.entity_type = 'concept' AND eb.entity_type = 'concept'
+    ORDER BY sal.created_at DESC
+    LIMIT 200
+  `);
+  return c.json({ links: rows });
+});
+
+// Dense clusters: connected components of concept entities co-occurring in
+// recent (last 30 days) facts. Heuristic — uses a simple BFS over fact edges.
+app.get('/api/learn/concept-clusters', async (c) => {
+  const minSize = parseInt(c.req.query('min_size') ?? '3', 10);
+  const lookbackDays = parseInt(c.req.query('lookback_days') ?? '30', 10);
+  if (!Number.isFinite(minSize) || minSize < 2 || minSize > 50) {
+    return c.json({ error: 'min_size must be 2..50' }, 400);
+  }
+  if (!Number.isFinite(lookbackDays) || lookbackDays < 1 || lookbackDays > 365) {
+    return c.json({ error: 'lookback_days must be 1..365' }, 400);
+  }
+  const edges = await db.execute<{ a: string; b: string; a_name: string; b_name: string }>(sql`
+    SELECT
+      f.subject_entity_id AS a, f.object_entity_id AS b,
+      sa.canonical_name AS a_name, ob.canonical_name AS b_name
+    FROM public.facts f
+    JOIN public.entities sa ON sa.id = f.subject_entity_id AND sa.entity_type = 'concept'
+    JOIN public.entities ob ON ob.id = f.object_entity_id AND ob.entity_type = 'concept'
+    WHERE f.expired_at IS NULL
+      AND f.created_at > NOW() - (${lookbackDays}::int || ' days')::interval
+    LIMIT 5000
+  `);
+  // Build undirected adjacency
+  const adj = new Map<string, Set<string>>();
+  const names = new Map<string, string>();
+  for (const e of edges as Array<{ a: string; b: string; a_name: string; b_name: string }>) {
+    if (!e.a || !e.b || e.a === e.b) continue;
+    names.set(e.a, e.a_name);
+    names.set(e.b, e.b_name);
+    if (!adj.has(e.a)) adj.set(e.a, new Set());
+    if (!adj.has(e.b)) adj.set(e.b, new Set());
+    adj.get(e.a)!.add(e.b);
+    adj.get(e.b)!.add(e.a);
+  }
+  // Connected components via BFS
+  const seen = new Set<string>();
+  const clusters: Array<{ entityIds: string[]; entityNames: string[]; size: number; edgeCount: number }> = [];
+  for (const start of adj.keys()) {
+    if (seen.has(start)) continue;
+    const component: string[] = [];
+    const queue = [start];
+    seen.add(start);
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      component.push(node);
+      for (const nbr of adj.get(node) ?? []) {
+        if (!seen.has(nbr)) { seen.add(nbr); queue.push(nbr); }
+      }
+    }
+    if (component.length >= minSize) {
+      let edgeCount = 0;
+      for (const n of component) edgeCount += (adj.get(n)?.size ?? 0);
+      clusters.push({
+        entityIds: component,
+        entityNames: component.map(id => names.get(id) ?? id),
+        size: component.length,
+        edgeCount: edgeCount / 2,
+      });
+    }
+  }
+  clusters.sort((x, y) => y.edgeCount - x.edgeCount);
+  return c.json({ minSize, lookbackDays, clusters: clusters.slice(0, 50) });
+});
+
 // MCP health probe — spawns causal-mcp.ts, asks for tools/list, returns the catalogue.
 app.get('/api/mcp-health', async (c) => {
   const { checkCausalMcpHealth } = await import('./services/causal-agent.js');

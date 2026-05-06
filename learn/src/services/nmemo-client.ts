@@ -112,3 +112,44 @@ export async function getLearnerFacts(): Promise<{ facts: NmemoFact[] }> {
 export async function getImpact(type: 'fact' | 'entity', id: string) {
   return get(`/api/impact/${type}/${id}?depth=3`);
 }
+
+// ── Patrol read endpoints ─────────────────────────────────────────────────
+
+export interface DecayCandidate {
+  entity_id: string;
+  canonical_name: string;
+  entity_type: string;
+  last_fact_at: string;
+  peak_confidence: number;
+  fact_count: number;
+}
+
+export async function getDecayCandidates(thresholdDays: number): Promise<{ thresholdDays: number; candidates: DecayCandidate[] }> {
+  return get(`/api/learn/decay-candidates?threshold_days=${encodeURIComponent(String(thresholdDays))}`);
+}
+
+export interface SameAsConceptLink {
+  id: string;
+  entity_a_id: string;
+  entity_b_id: string;
+  a_name: string;
+  b_name: string;
+  reasoning: string;
+  confidence: number;
+  created_at: string;
+}
+
+export async function getSameAsConcepts(): Promise<{ links: SameAsConceptLink[] }> {
+  return get('/api/learn/same-as-concepts');
+}
+
+export interface ConceptCluster {
+  entityIds: string[];
+  entityNames: string[];
+  size: number;
+  edgeCount: number;
+}
+
+export async function getConceptClusters(minSize: number, lookbackDays = 30): Promise<{ minSize: number; lookbackDays: number; clusters: ConceptCluster[] }> {
+  return get(`/api/learn/concept-clusters?min_size=${minSize}&lookback_days=${lookbackDays}`);
+}

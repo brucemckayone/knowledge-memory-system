@@ -9,13 +9,17 @@
  */
 
 import 'dotenv/config';
+import { createHash, randomUUID } from 'node:crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
   getGraphS, getLearnerFacts, getConcept, recordFact,
   queryReasoning, getContradictions, getActivePatterns, getImpact,
+  getDecayCandidates, getSameAsConcepts, getConceptClusters,
 } from '../services/nmemo-client.js';
+import { db, insights, sections } from '../db/index.js';
+import { eq } from 'drizzle-orm';
 
 const NMEMO_URL = process.env.NMEMO_URL ?? 'http://localhost:3001';
 // Override base URL for this process (MCP server is spawned with env from config)
@@ -150,6 +154,57 @@ const TOOLS = [
         reasoning: { type: 'string', description: 'Why this is the highest-value next step' },
       },
       required: ['next_concept', 'reasoning'],
+    },
+  },
+  // ── Patrol read tools ────────────────────────────────────────────────────
+  {
+    name: 'get_decay_candidates',
+    description: 'Find concept entities whose facts have not been touched in over threshold_days days but had peak confidence >= 0.7. Heuristic — surfaces concepts the learner once knew but appears to be forgetting. Returns at most 50 candidates ordered oldest-first.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        threshold_days: { type: 'number', description: 'Minimum days of inactivity (1..365). Typical: 14.' },
+      },
+      required: ['threshold_days'],
+    },
+  },
+  {
+    name: 'find_cross_course_overlaps',
+    description: 'Find concept entities that appear in 2+ courses (via section.conceptEntityIds), or are linked by a same_as relation across courses. Returns each shared concept with the courses it touches. Used for cross-course intelligence.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'find_dense_clusters',
+    description: 'Find connected components of concept entities densely linked by recent (last 30 days) facts. Returns clusters of size >= min_size ranked by edge count. Heuristic — uses BFS on undirected fact-edge graph; not graph-theoretic density.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        min_size: { type: 'number', description: 'Minimum cluster size (2..50). Typical: 3.' },
+      },
+      required: ['min_size'],
+    },
+  },
+  {
+    name: 'write_insight',
+    description: 'Append-only insight record. IDEMPOTENT on (type, sorted(related_entity_ids)) — calling twice with the same key returns the existing insight id rather than inserting a duplicate. Use this from the patrol agent to surface findings to the learner.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        type: { type: 'string', description: 'Open-vocabulary type tag (e.g. "decay", "overlap", "synthesis_candidate")' },
+        title: { type: 'string', description: 'Short headline (one line)' },
+        content_md: { type: 'string', description: 'Markdown body explaining the insight' },
+        related_entity_ids: { type: 'array', items: { type: 'string' }, description: 'Nmemo entity IDs (used in idempotency key)' },
+        related_course_ids: { type: 'array', items: { type: 'string' }, description: 'Optional course IDs' },
+        related_fact_ids: { type: 'array', items: { type: 'string' }, description: 'Optional Nmemo fact IDs' },
+        related_section_ids: { type: 'array', items: { type: 'string' }, description: 'Optional learn section IDs' },
+        importance: { type: 'number', description: '0..1 priority (default 0.5)' },
+        actionable_url: { type: 'string', description: 'Optional URL the learner can click' },
+      },
+      required: ['type', 'title', 'content_md', 'related_entity_ids'],
     },
   },
 ] as const;
@@ -324,6 +379,123 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
           sourceText: `Recommended because: ${args.reasoning}`,
         });
         return JSON.stringify({ recorded: true, factId: r.factId, nextConcept: args.next_concept });
+      }
+
+      case 'get_decay_candidates': {
+        const thresholdDays = args.threshold_days as number;
+        const r = await getDecayCandidates(thresholdDays);
+        return JSON.stringify(r);
+      }
+
+      case 'find_cross_course_overlaps': {
+        // Combine learn-side section.conceptEntityIds (concepts shared across courses)
+        // with platform same-as links between concept entities.
+        const [secs, sameAs] = await Promise.all([
+          db.select({
+            id: sections.id,
+            courseId: sections.courseId,
+            conceptEntityIds: sections.conceptEntityIds,
+          }).from(sections),
+          getSameAsConcepts(),
+        ]);
+
+        const entityToCourses: Record<string, Set<string>> = {};
+        for (const s of secs) {
+          let ids: string[] = [];
+          try { ids = JSON.parse(s.conceptEntityIds) as string[]; } catch { /* skip */ }
+          for (const eid of ids) {
+            if (!entityToCourses[eid]) entityToCourses[eid] = new Set();
+            entityToCourses[eid].add(s.courseId);
+          }
+        }
+        const directOverlaps = Object.entries(entityToCourses)
+          .filter(([, courses]) => courses.size >= 2)
+          .map(([entityId, courses]) => ({
+            entityId,
+            courseIds: [...courses],
+            kind: 'direct' as const,
+          }));
+
+        const sameAsOverlaps = sameAs.links.map(l => ({
+          entityAId: l.entity_a_id,
+          entityBId: l.entity_b_id,
+          aName: l.a_name,
+          bName: l.b_name,
+          courseIdsA: [...(entityToCourses[l.entity_a_id] ?? [])],
+          courseIdsB: [...(entityToCourses[l.entity_b_id] ?? [])],
+          confidence: l.confidence,
+          reasoning: l.reasoning,
+          kind: 'same_as' as const,
+        })).filter(o => o.courseIdsA.length > 0 || o.courseIdsB.length > 0);
+
+        return JSON.stringify({ directOverlaps, sameAsOverlaps });
+      }
+
+      case 'find_dense_clusters': {
+        const minSize = args.min_size as number;
+        const r = await getConceptClusters(minSize, 30);
+        return JSON.stringify(r);
+      }
+
+      case 'write_insight': {
+        const type = args.type as string;
+        const title = args.title as string;
+        const contentMd = args.content_md as string;
+        const relatedEntityIds = (args.related_entity_ids as string[] | undefined) ?? [];
+        const relatedCourseIds = (args.related_course_ids as string[] | undefined) ?? [];
+        const relatedFactIds = (args.related_fact_ids as string[] | undefined) ?? [];
+        const relatedSectionIds = (args.related_section_ids as string[] | undefined) ?? [];
+        const importance = (args.importance as number | undefined) ?? 0.5;
+        const actionableUrl = (args.actionable_url as string | undefined) ?? null;
+
+        const sortedIds = [...relatedEntityIds].sort();
+        const idempotencyKey = createHash('sha256')
+          .update(`${type}|${sortedIds.join(',')}`)
+          .digest('hex');
+
+        // Idempotent insert: try to insert; on UNIQUE conflict on idempotency_key,
+        // return the existing row's id.
+        const existing = await db.select({ id: insights.id })
+          .from(insights)
+          .where(eq(insights.idempotencyKey, idempotencyKey))
+          .limit(1);
+
+        if (existing[0]) {
+          return JSON.stringify({
+            inserted: false,
+            id: existing[0].id,
+            idempotencyKey,
+            reason: 'duplicate',
+          });
+        }
+
+        const id = randomUUID();
+        try {
+          await db.insert(insights).values({
+            id,
+            type,
+            title,
+            contentMd,
+            importance,
+            relatedEntityIds: JSON.stringify(relatedEntityIds),
+            relatedCourseIds: JSON.stringify(relatedCourseIds),
+            relatedFactIds: JSON.stringify(relatedFactIds),
+            relatedSectionIds: JSON.stringify(relatedSectionIds),
+            actionableUrl,
+            idempotencyKey,
+          });
+          return JSON.stringify({ inserted: true, id, idempotencyKey });
+        } catch (err) {
+          // Race: another writer beat us between SELECT and INSERT. Re-read.
+          const row = await db.select({ id: insights.id })
+            .from(insights)
+            .where(eq(insights.idempotencyKey, idempotencyKey))
+            .limit(1);
+          if (row[0]) {
+            return JSON.stringify({ inserted: false, id: row[0].id, idempotencyKey, reason: 'race' });
+          }
+          throw err;
+        }
       }
 
       default:

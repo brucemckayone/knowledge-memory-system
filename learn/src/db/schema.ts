@@ -81,6 +81,7 @@ export const insights = sqliteTable('insights', {
   relatedFactIds: text('related_fact_ids').notNull().default('[]'),          // JSON array
   relatedSectionIds: text('related_section_ids').notNull().default('[]'),    // JSON array
   actionableUrl: text('actionable_url'),
+  idempotencyKey: text('idempotency_key'),                                   // sha256(type + '|' + sorted_entity_ids); UNIQUE
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   dismissedAt: text('dismissed_at'),
   viewedAt: text('viewed_at'),

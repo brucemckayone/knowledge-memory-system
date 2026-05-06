@@ -107,6 +107,11 @@ const ALTER_STMTS: string[] = [
   `ALTER TABLE sections ADD COLUMN lesson_generated_at TEXT`,
   `ALTER TABLE sections ADD COLUMN lesson_read_minutes INTEGER`,
   `ALTER TABLE sections ADD COLUMN lesson_key_takeaways TEXT`,
+  `ALTER TABLE insights ADD COLUMN idempotency_key TEXT`,
+];
+
+const POST_ALTER_STMTS: string[] = [
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_insights_idempotency_key ON insights(idempotency_key)`,
 ];
 
 async function migrate() {
@@ -127,6 +132,10 @@ async function migrate() {
         throw err;
       }
     }
+  }
+
+  for (const stmt of POST_ALTER_STMTS) {
+    await client.execute(stmt);
   }
 
   console.log('Migrations applied.');
