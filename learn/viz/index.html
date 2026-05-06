@@ -79,6 +79,8 @@
 <script src="components/Highlight.js"></script>
 <!-- v0.2 lesson document renderer: walks LessonBlock[] and dispatches to the registry above. -->
 <script src="components/LessonRenderer.js"></script>
+<!-- v0.2 dashboard cards: home tab. -->
+<script src="components/Dashboard.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -288,7 +290,8 @@
 <nav>
   <span class="logo">◈ Adaptive Learn</span>
   <div class="tabs">
-    <button class="tab active" onclick="showView('courses')">Courses</button>
+    <button class="tab active" onclick="showView('dashboard')">Dashboard</button>
+    <button class="tab" onclick="showView('courses')">Courses</button>
     <button class="tab" onclick="showView('learn')">Learn</button>
     <button class="tab" onclick="showView('quiz')">Quiz</button>
     <button class="tab" onclick="showView('gaps')">My Gaps</button>
@@ -299,8 +302,13 @@
 
 <div class="views">
 
+  <!-- DASHBOARD VIEW -->
+  <div class="view active" id="view-dashboard">
+    <div id="dashboard-root"></div>
+  </div>
+
   <!-- COURSES VIEW -->
-  <div class="view active" id="view-courses">
+  <div class="view" id="view-courses">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <h1 style="font-size:20px;font-weight:700">Courses</h1>
       <button class="btn btn-primary" onclick="showNewCourse()">+ New Course</button>
@@ -429,13 +437,17 @@
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
 const state = {
-  currentView: 'courses',
+  currentView: 'dashboard',
   currentSession: null,
   currentQuestion: null,
   courses: [],
   sections: [],
   currentCourse: null,   // full course (with sections) when viewing detail
   currentSection: null,  // full section (with questions, lesson) when viewing
+  dashboard: null,       // cached DashboardResponse — null until first fetch
+  dashboardLoading: false,
+  dashboardError: null,
+  dashboardRegenerating: false,
 };
 
 // Configure marked once it's available — falls back to a tiny inline renderer if CDN failed.
@@ -562,7 +574,7 @@ function scorePill(score) {
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────────
-const TAB_VIEWS = ['courses', 'learn', 'quiz', 'gaps', 'progress'];
+const TAB_VIEWS = ['dashboard', 'courses', 'learn', 'quiz', 'gaps', 'progress'];
 
 // Used by nav tab onclick — uses event.target so the visual active state follows the click.
 function showView(name) {
@@ -573,6 +585,8 @@ function showView(name) {
 function navigateTo(name) {
   // Tear down the Preact lesson tree when leaving the section view so it doesn't leak.
   if (state.currentView === 'section' && name !== 'section') unmountLessonBody();
+  // Tear down the dashboard tree when leaving so it doesn't keep mounted state.
+  if (state.currentView === 'dashboard' && name !== 'dashboard') unmountDashboard();
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   const target = document.getElementById(`view-${name}`);
@@ -589,7 +603,8 @@ function navigateTo(name) {
 
   state.currentView = name;
 
-  if (name === 'courses') loadCourses();
+  if (name === 'dashboard') loadDashboard();
+  else if (name === 'courses') loadCourses();
   else if (name === 'learn') loadSessions();
   else if (name === 'quiz') loadQuizSections();
   else if (name === 'progress') loadProgress();
@@ -602,6 +617,81 @@ async function checkHealth() {
     const health = await api('GET', '/health');
     document.getElementById('statusDot').className = `status-dot ${health.nmemo ? 'ok' : ''}`;
   } catch { document.getElementById('statusDot').className = 'status-dot'; }
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+async function loadDashboard(opts) {
+  const force = opts && opts.force;
+  const regenerate = opts && opts.regenerate;
+  // Tab-bounce shortcut: if we have cached data and aren't forcing, just remount.
+  if (state.dashboard && !force && !regenerate) {
+    mountDashboard();
+    return;
+  }
+  state.dashboardLoading = true;
+  state.dashboardError = null;
+  if (regenerate) state.dashboardRegenerating = true;
+  mountDashboard();
+  try {
+    const path = regenerate ? '/api/dashboard?regenerate=true' : '/api/dashboard';
+    const data = await api('GET', path);
+    state.dashboard = data;
+    state.dashboardError = null;
+  } catch (e) {
+    state.dashboardError = e.message || String(e);
+  } finally {
+    state.dashboardLoading = false;
+    state.dashboardRegenerating = false;
+    mountDashboard();
+  }
+}
+
+function mountDashboard() {
+  const target = document.getElementById('dashboard-root');
+  if (!target) return;
+  const lib = window.LearnComponents;
+  if (!lib || typeof lib.DashboardCards !== 'function' || !window.h || !window.render) {
+    target.innerHTML = '<div style="color:var(--muted);padding:40px;text-align:center">Dashboard component not loaded.</div>';
+    return;
+  }
+  const handlers = {
+    onReload: () => loadDashboard({ force: true }),
+    onRegenerateFlashcards: () => loadDashboard({ regenerate: true }),
+    onNavigateSection: (sectionId, opts) => {
+      if (opts && opts.quiz) {
+        // Jump to the Quiz tab and pre-select the section.
+        navigateTo('quiz');
+        const sel = document.getElementById('quizSectionSelect');
+        // The select is populated async in loadQuizSections — wait briefly.
+        const trySet = (n) => {
+          if (n <= 0) return;
+          if (sel && Array.from(sel.options).some(o => o.value === sectionId)) {
+            sel.value = sectionId;
+            loadNextQuestion();
+          } else {
+            setTimeout(() => trySet(n - 1), 200);
+          }
+        };
+        trySet(20);
+      } else {
+        openSection(sectionId);
+      }
+    },
+  };
+  window.render(window.h`<${lib.DashboardCards}
+    data=${state.dashboard}
+    loading=${state.dashboardLoading}
+    error=${state.dashboardError}
+    regenerating=${state.dashboardRegenerating}
+    onReload=${handlers.onReload}
+    onRegenerateFlashcards=${handlers.onRegenerateFlashcards}
+    onNavigateSection=${handlers.onNavigateSection}
+  />`, target);
+}
+
+function unmountDashboard() {
+  const target = document.getElementById('dashboard-root');
+  if (target && window.render) window.render(null, target);
 }
 
 // ── Courses ────────────────────────────────────────────────────────────────
@@ -1263,7 +1353,7 @@ async function loadProgress() {
 // ── Init ──────────────────────────────────────────────────────────────────
 checkHealth();
 setInterval(checkHealth, 30000);
-loadCourses();
+loadDashboard();
 
 // ── Component-library smoke test ─────────────────────────────────────────
 // Append `?debug=components` to render one of each component into #app-root.
