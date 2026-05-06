@@ -571,6 +571,8 @@ function showView(name) {
 
 // Programmatic navigation. Hides every view, shows the one named, sets the matching nav tab active.
 function navigateTo(name) {
+  // Tear down the Preact lesson tree when leaving the section view so it doesn't leak.
+  if (state.currentView === 'section' && name !== 'section') unmountLessonBody();
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   const target = document.getElementById(`view-${name}`);
@@ -747,6 +749,9 @@ function sectionRowHtml(sec) {
 
 // ── Section view ──────────────────────────────────────────────────────────
 async function openSection(sectionId) {
+  // If we're re-entering from another section, unmount the prior Preact tree
+  // before nuking #sectionContent so Preact's vnode bookkeeping stays consistent.
+  unmountLessonBody();
   navigateTo('section');
   const el = document.getElementById('sectionContent');
   el.innerHTML = '<div class="loading-row"><div class="spinner"></div> Loading section...</div>';
@@ -798,10 +803,20 @@ function renderSection(section) {
     </div>
   `;
   document.getElementById('sectionContent').innerHTML = html;
+  mountLessonBody(section);
+}
+
+function hasLessonBody(section) {
+  if (!section) return false;
+  if (typeof section.lessonContent === 'string' && section.lessonContent.trim()) return true;
+  const raw = section.lessonBlocks;
+  if (typeof raw === 'string' && raw.trim()) return true;
+  if (Array.isArray(raw) && raw.length > 0) return true;
+  return false;
 }
 
 function renderLessonArea(section) {
-  if (section.lessonContent) {
+  if (hasLessonBody(section)) {
     const takeaways = Array.isArray(section.lessonKeyTakeaways) ? section.lessonKeyTakeaways : [];
     return `
       <div class="lesson-card">
@@ -809,7 +824,7 @@ function renderLessonArea(section) {
           <span class="read-time">${section.lessonReadMinutes ? `~${section.lessonReadMinutes} min read` : 'Lesson'}</span>
           <span class="regen-link" onclick="generateLesson('${section.id}', true)">Regenerate</span>
         </div>
-        <div class="md">${renderMarkdown(section.lessonContent)}</div>
+        <div class="md" id="lessonBody"></div>
         ${takeaways.length > 0 ? `
           <div class="takeaways-box">
             <h3>Key takeaways</h3>
@@ -830,6 +845,26 @@ function renderLessonArea(section) {
   `;
 }
 
+// Mounts the Preact LessonRenderer into #lessonBody for the given section. No-op if the
+// container or LessonRenderer is missing (e.g. lesson-empty state, or library not yet loaded).
+function mountLessonBody(section) {
+  const target = document.getElementById('lessonBody');
+  if (!target) return;
+  const lib = window.LearnComponents;
+  if (!lib || typeof lib.LessonRenderer !== 'function' || typeof lib.lessonToBlocks !== 'function') {
+    // Graceful degrade: fall back to the old markdown path if the renderer isn't available.
+    target.innerHTML = renderMarkdown(section.lessonContent ?? '');
+    return;
+  }
+  const blocks = lib.lessonToBlocks(section);
+  window.render(window.h`<${lib.LessonRenderer} blocks=${blocks} />`, target);
+}
+
+function unmountLessonBody() {
+  const target = document.getElementById('lessonBody');
+  if (target && window.render) window.render(null, target);
+}
+
 async function generateLesson(sectionId, regenerate) {
   const area = document.getElementById('lessonArea');
   area.innerHTML = `
@@ -845,7 +880,9 @@ async function generateLesson(sectionId, regenerate) {
     // Reload the section to get the freshest values and re-render
     const section = await api('GET', `/api/sections/${sectionId}`);
     state.currentSection = section;
+    unmountLessonBody();
     area.innerHTML = renderLessonArea(section);
+    mountLessonBody(section);
     toast(regenerate ? 'Lesson regenerated' : 'Lesson generated');
   } catch (e) {
     area.innerHTML = `
