@@ -153,3 +153,45 @@ export interface ConceptCluster {
 export async function getConceptClusters(minSize: number, lookbackDays = 30): Promise<{ minSize: number; lookbackDays: number; clusters: ConceptCluster[] }> {
   return get(`/api/learn/concept-clusters?min_size=${minSize}&lookback_days=${lookbackDays}`);
 }
+
+// ── Blast radius / impact ────────────────────────────────────────────────
+
+export interface BlastRadiusReport {
+  root: { nodeType: string; nodeId: string; summary: string };
+  severitySummary: { critical: number; high: number; medium: number; low: number };
+  totalAffected: number;
+}
+
+export async function getBlastRadius(type: 'fact' | 'entity' | 'causal_event', id: string, depth = 2): Promise<BlastRadiusReport> {
+  return get<BlastRadiusReport>(`/api/impact/${type}/${encodeURIComponent(id)}?depth=${depth}`);
+}
+
+// ── Struggle areas (composed from learner-facts + contradictions) ────────
+
+export interface StruggleArea {
+  entityId: string | null;
+  predicate: string;
+  confidence: number;
+  objectValue: string | null;
+  sourceText: string | null;
+  createdAt: string;
+}
+
+export async function getStruggleAreas(): Promise<{ weakAreas: StruggleArea[]; confusions: StruggleArea[] }> {
+  const learner = await getLearnerFacts();
+  const weakAreas: StruggleArea[] = [];
+  const confusions: StruggleArea[] = [];
+  for (const f of learner.facts) {
+    const row: StruggleArea = {
+      entityId: f.objectEntityId ?? null,
+      predicate: f.predicate,
+      confidence: f.confidence ?? 0,
+      objectValue: f.objectValue ?? null,
+      sourceText: f.sourceText ?? null,
+      createdAt: (f as unknown as { createdAt?: string }).createdAt ?? '',
+    };
+    if (f.predicate === 'understands' && (f.confidence ?? 1) < 0.6) weakAreas.push(row);
+    else if (f.predicate === 'confused_by' || f.predicate === 'lacks_understanding_of' || f.predicate === 'struggles_with') confusions.push(row);
+  }
+  return { weakAreas, confusions };
+}
