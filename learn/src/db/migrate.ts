@@ -97,6 +97,21 @@ CREATE TABLE IF NOT EXISTS patrol_runs (
   duration_ms INTEGER,
   error_text TEXT
 );
+
+CREATE TABLE IF NOT EXISTS flashcards (
+  id TEXT PRIMARY KEY,
+  concept_entity_id TEXT NOT NULL,
+  course_id TEXT,
+  front_text TEXT NOT NULL,
+  back_text TEXT NOT NULL,
+  hint_text TEXT,
+  generated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  generation_source TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_flashcards_concept_entity_id ON flashcards(concept_entity_id);
+CREATE INDEX IF NOT EXISTS idx_flashcards_course_id ON flashcards(course_id);
+CREATE INDEX IF NOT EXISTS idx_flashcards_generated_at ON flashcards(generated_at DESC);
 `;
 
 // Lesson columns added in v0.2 — wrapped in try/catch because SQLite ALTER TABLE

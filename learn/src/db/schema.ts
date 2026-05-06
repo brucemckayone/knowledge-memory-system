@@ -98,3 +98,14 @@ export const patrolRuns = sqliteTable('patrol_runs', {
   durationMs: integer('duration_ms'),
   errorText: text('error_text'),
 });
+
+export const flashcards = sqliteTable('flashcards', {
+  id: text('id').primaryKey(),
+  conceptEntityId: text('concept_entity_id').notNull(),                      // Nmemo entity ID (no FK — external)
+  courseId: text('course_id'),                                               // optional learn course scope
+  frontText: text('front_text').notNull(),
+  backText: text('back_text').notNull(),
+  hintText: text('hint_text'),
+  generatedAt: text('generated_at').notNull().default(sql`(datetime('now'))`),
+  generationSource: text('generation_source').notNull(),                     // e.g. 'flashcard-generator', 'manual', 'imported'
+});
