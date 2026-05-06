@@ -306,8 +306,27 @@
   .lesson-empty .hint { color: var(--muted); margin-bottom: 16px; }
   .lesson-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
   .lesson-meta .read-time { color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+  .lesson-meta-actions { display: inline-flex; align-items: center; gap: 12px; }
   .lesson-meta .regen-link { color: var(--accent); cursor: pointer; font-size: 12px; user-select: none; }
   .lesson-meta .regen-link:hover { text-decoration: underline; }
+
+  /* Lesson overlay: edited badge + version history dropdown */
+  .overlay-badge-host { display: inline-flex; align-items: center; }
+  .overlay-badge { background: rgba(99, 102, 241, 0.15); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 600; cursor: pointer; user-select: none; line-height: 1.6; transition: background 0.15s, border-color 0.15s; }
+  .overlay-badge:hover { background: rgba(99, 102, 241, 0.25); border-color: var(--accent); }
+  .overlay-history-dropdown { position: absolute; min-width: 240px; max-width: 320px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); z-index: 1000; overflow: hidden; animation: overlayDropdownIn 0.12s ease-out; }
+  @keyframes overlayDropdownIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .overlay-history-header { padding: 10px 14px; font-size: 11px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  .overlay-history-body { max-height: 280px; overflow-y: auto; }
+  .overlay-history-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .overlay-history-row:last-child { border-bottom: none; }
+  .overlay-history-row.current { background: rgba(99, 102, 241, 0.07); }
+  .overlay-history-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .overlay-history-row-version { font-size: 13px; font-weight: 600; color: var(--text); }
+  .overlay-history-row-time { font-size: 11px; color: var(--muted); }
+  .overlay-history-revert { background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+  .overlay-history-revert:hover { color: var(--text); border-color: var(--accent); }
+  .overlay-history-loading, .overlay-history-empty { padding: 14px; font-size: 12px; color: var(--muted); text-align: center; }
 
   /* Markdown body */
   .md { line-height: 1.7; color: var(--text); }
@@ -511,6 +530,8 @@ const state = {
   dashboardRegenerating: false,
   bridgeCache: {},       // { [sectionId]: Insight[] } — cached cross-course bridge insights
   notesCache: {},        // { [sectionId]: Note[] } — cached per-section notes for tab-bounce performance
+  currentOverlay: null,  // OverlayRow | null — latest overlay for the section currently mounted in #lessonBody
+  overlayCache: {},      // { [sectionId]: { overlay: OverlayRow|null, history?: OverlayRow[] } } — keyed by section so tab-bounce skips refetch
 };
 
 // Configure marked once it's available — falls back to a tiny inline renderer if CDN failed.
@@ -1069,7 +1090,11 @@ function renderLessonArea(section) {
       <div class="lesson-card">
         <div class="lesson-meta">
           <span class="read-time">${section.lessonReadMinutes ? `~${section.lessonReadMinutes} min read` : 'Lesson'}</span>
-          <span class="regen-link" onclick="generateLesson('${section.id}', true)">Regenerate</span>
+          <div class="lesson-meta-actions">
+            <!-- Edited badge slot — populated by mountLessonBody when an overlay exists. -->
+            <span class="overlay-badge-host" id="overlayBadgeHost"></span>
+            <span class="regen-link" onclick="generateLesson('${section.id}', true)">Regenerate</span>
+          </div>
         </div>
         <div class="md" id="lessonBody"></div>
         ${takeaways.length > 0 ? `
@@ -1097,6 +1122,15 @@ function renderLessonArea(section) {
 // Wraps the renderer in <Highlight> so text-selection actions (Explain / Example / Why /
 // Note) bubble up to handleHighlightAction, which fires the explainer agent or opens the
 // note-editor stub.
+//
+// Lesson-overlay flow (Phase 5):
+// 1. Pre-render canonical blocks immediately so the page paints fast — the overlay fetch is
+//    non-blocking. v0.2 known UX nit: a brief flash of canonical content if an overlay is
+//    later applied.
+// 2. Fire `GET /api/sections/:id/overlay` (skipped if `state.overlayCache[sectionId]` is
+//    populated). On success, if `overlay !== null`, swap to `overlay.blocks` and surface the
+//    edited badge. On failure, log and silently keep the canonical view — overlay UX should
+//    never block the lesson.
 function mountLessonBody(section) {
   const target = document.getElementById('lessonBody');
   if (!target) return;
@@ -1106,8 +1140,42 @@ function mountLessonBody(section) {
     target.innerHTML = renderMarkdown(section.lessonContent ?? '');
     return;
   }
-  const blocks = lib.lessonToBlocks(section);
   const sectionId = section && section.id ? section.id : null;
+
+  // Render once with canonical blocks so the user sees the lesson immediately.
+  renderLessonInto(target, lib, lib.lessonToBlocks(section), sectionId);
+
+  // Reset prior overlay state and clear any open dropdown left over from a previous section.
+  state.currentOverlay = null;
+  closeOverlayHistoryDropdown();
+  renderOverlayBadge(null);
+
+  if (!sectionId) return;
+
+  // Use cached overlay if available, otherwise fetch.
+  const cached = state.overlayCache[sectionId];
+  if (cached) {
+    applyOverlayToMount(section, cached.overlay, target, lib);
+    return;
+  }
+
+  api('GET', `/api/sections/${sectionId}/overlay`)
+    .then((res) => {
+      const overlay = (res && res.overlay) || null;
+      // Cache (even null) so tab-bounce doesn't re-fetch.
+      state.overlayCache[sectionId] = { overlay };
+      // Bail if the user navigated to a different section while the request was in flight.
+      if (!state.currentSection || state.currentSection.id !== sectionId) return;
+      applyOverlayToMount(section, overlay, target, lib);
+    })
+    .catch((e) => {
+      // Overlay fetch is best-effort — never surface failures, just keep canonical content.
+      console.warn('[overlay] fetch failed:', e);
+    });
+}
+
+// Render `blocks` into `target`, wrapping in Highlight so popover actions still work.
+function renderLessonInto(target, lib, blocks, sectionId) {
   const onAction = (action, text) => handleHighlightAction(action, text, sectionId);
   if (typeof lib.Highlight === 'function') {
     window.render(
@@ -1115,9 +1183,20 @@ function mountLessonBody(section) {
       target,
     );
   } else {
-    // No Highlight available — render plain so the lesson still works.
     window.render(window.h`<${lib.LessonRenderer} blocks=${blocks} />`, target);
   }
+}
+
+// Apply a fetched/cached overlay: if non-null, re-render with overlay.blocks and show the badge.
+function applyOverlayToMount(section, overlay, target, lib) {
+  state.currentOverlay = overlay;
+  if (!overlay || !Array.isArray(overlay.blocks) || overlay.blocks.length === 0) {
+    renderOverlayBadge(null);
+    return;
+  }
+  const sectionId = section && section.id ? section.id : null;
+  renderLessonInto(target, lib, overlay.blocks, sectionId);
+  renderOverlayBadge(overlay);
 }
 
 function unmountLessonBody() {
@@ -1125,6 +1204,179 @@ function unmountLessonBody() {
   if (target && window.render) window.render(null, target);
   // Tear down any open explainer popover when the section view unmounts.
   closeExplainerPopover();
+  // Clear overlay state on view-leave (cache survives so tab-bounce stays cheap).
+  state.currentOverlay = null;
+  closeOverlayHistoryDropdown();
+}
+
+// ── Lesson overlay: edited-badge + version history ────────────────────────
+// Renders the small "✎ Edited · vN" badge inside the lesson-card meta row.
+// Pass null to clear it.
+function renderOverlayBadge(overlay) {
+  const host = document.getElementById('overlayBadgeHost');
+  if (!host) return;
+  if (!overlay) {
+    host.innerHTML = '';
+    return;
+  }
+  const v = Number(overlay.version) || 1;
+  host.innerHTML = `<button type="button" class="overlay-badge" id="overlayBadgeBtn" title="Lesson edited — click to see version history">✎ Edited · v${v}</button>`;
+  const btn = document.getElementById('overlayBadgeBtn');
+  if (btn) btn.addEventListener('click', toggleOverlayHistoryDropdown);
+}
+
+let overlayHistoryDocClickHandler = null;
+
+function closeOverlayHistoryDropdown() {
+  const dd = document.getElementById('overlayHistoryDropdown');
+  if (dd) dd.remove();
+  if (overlayHistoryDocClickHandler) {
+    document.removeEventListener('click', overlayHistoryDocClickHandler, true);
+    overlayHistoryDocClickHandler = null;
+  }
+}
+
+async function toggleOverlayHistoryDropdown(ev) {
+  if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+  if (document.getElementById('overlayHistoryDropdown')) {
+    closeOverlayHistoryDropdown();
+    return;
+  }
+  const sectionId = state.currentSection ? state.currentSection.id : null;
+  if (!sectionId) return;
+
+  const anchor = document.getElementById('overlayBadgeBtn');
+  if (!anchor) return;
+
+  // Build skeleton with loading state, anchored under the badge.
+  const dd = document.createElement('div');
+  dd.id = 'overlayHistoryDropdown';
+  dd.className = 'overlay-history-dropdown';
+  dd.innerHTML = '<div class="overlay-history-loading">Loading versions…</div>';
+  document.body.appendChild(dd);
+  positionOverlayHistoryDropdown(dd, anchor);
+
+  // Click-outside closes the dropdown. Capture phase so the badge's own click
+  // doesn't accidentally re-open it via the toggle path.
+  overlayHistoryDocClickHandler = (e) => {
+    if (!dd.contains(e.target) && e.target !== anchor) {
+      closeOverlayHistoryDropdown();
+    }
+  };
+  document.addEventListener('click', overlayHistoryDocClickHandler, true);
+
+  let history;
+  const cached = state.overlayCache[sectionId];
+  if (cached && Array.isArray(cached.history)) {
+    history = cached.history;
+  } else {
+    try {
+      const res = await api('GET', `/api/sections/${sectionId}/overlay/history`);
+      history = (res && Array.isArray(res.versions)) ? res.versions : [];
+      state.overlayCache[sectionId] = {
+        overlay: cached ? cached.overlay : (history[0] || null),
+        history,
+      };
+    } catch (e) {
+      // If the dropdown was closed in the meantime, drop silently.
+      if (!document.getElementById('overlayHistoryDropdown')) return;
+      dd.innerHTML = `<div class="overlay-history-loading" style="color:var(--red)">Failed to load history</div>`;
+      return;
+    }
+  }
+
+  // Bail if the user closed the dropdown while history was loading.
+  if (!document.getElementById('overlayHistoryDropdown')) return;
+  renderOverlayHistoryDropdown(dd, sectionId, history);
+}
+
+function positionOverlayHistoryDropdown(dd, anchor) {
+  const r = anchor.getBoundingClientRect();
+  // Anchor the dropdown's right edge to the badge's right edge so it doesn't run off-screen.
+  const top = r.bottom + window.scrollY + 4;
+  const right = Math.max(8, window.innerWidth - r.right);
+  dd.style.top = `${top}px`;
+  dd.style.right = `${right}px`;
+}
+
+function renderOverlayHistoryDropdown(dd, sectionId, versions) {
+  if (!Array.isArray(versions) || versions.length === 0) {
+    dd.innerHTML = '<div class="overlay-history-empty">No versions yet.</div>';
+    return;
+  }
+  const currentVersion = state.currentOverlay ? state.currentOverlay.version : null;
+  const rows = versions.map((v) => {
+    const ver = Number(v.version) || 0;
+    const ts = formatRelativeTime(v.createdAt);
+    const isCurrent = ver === currentVersion;
+    const cls = isCurrent ? 'overlay-history-row current' : 'overlay-history-row';
+    return `
+      <div class="${cls}" data-version="${ver}">
+        <div class="overlay-history-row-main">
+          <span class="overlay-history-row-version">v${ver}${isCurrent ? ' · current' : ''}</span>
+          <span class="overlay-history-row-time">${escapeHtml(ts)}</span>
+        </div>
+        <button type="button" class="overlay-history-revert" data-version="${ver}">Revert</button>
+      </div>
+    `;
+  }).join('');
+  dd.innerHTML = `
+    <div class="overlay-history-header">Version history</div>
+    <div class="overlay-history-body">${rows}</div>
+  `;
+  // Wire revert buttons.
+  dd.querySelectorAll('.overlay-history-revert').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const v = parseInt(btn.getAttribute('data-version') || '0', 10);
+      if (Number.isInteger(v) && v > 0) revertToOverlayVersion(sectionId, v);
+    });
+  });
+}
+
+async function revertToOverlayVersion(sectionId, version) {
+  if (!confirm(`Revert to v${version}? This creates a new version mirroring it.`)) return;
+  closeOverlayHistoryDropdown();
+  try {
+    const res = await fetch(`/api/sections/${sectionId}/overlay/revert?to_version=${version}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status}: ${text || res.statusText}`);
+    }
+    toast(`Reverted to v${version}`);
+    // Invalidate cache so mountLessonBody refetches the new latest + history.
+    delete state.overlayCache[sectionId];
+    // Bail if user navigated away during the round trip.
+    if (!state.currentSection || state.currentSection.id !== sectionId) return;
+    mountLessonBody(state.currentSection);
+  } catch (e) {
+    const msg = (e && e.message) ? e.message : String(e);
+    toast(`Revert failed: ${msg}`);
+  }
+}
+
+// "2 hours ago" / "just now" / "3 days ago". Falls back to the raw string for unparseable inputs.
+function formatRelativeTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return 'just now';
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 45) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} minute${min === 1 ? '' : 's'} ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day} day${day === 1 ? '' : 's'} ago`;
+  const mo = Math.floor(day / 30);
+  if (mo < 12) return `${mo} month${mo === 1 ? '' : 's'} ago`;
+  const yr = Math.floor(mo / 12);
+  return `${yr} year${yr === 1 ? '' : 's'} ago`;
 }
 
 // ── Explainer popover (Phase 5) ────────────────────────────────────────────
