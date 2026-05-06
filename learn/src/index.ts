@@ -11,6 +11,12 @@ import { quizRoutes } from './routes/quiz.js';
 import { learnerRoutes } from './routes/learner.js';
 import { sectionRoutes } from './routes/sections.js';
 import { insightRoutes } from './routes/insights.js';
+import {
+  startPatrolCron,
+  startPatrolRun,
+  isPatrolInFlight,
+  getRecentPatrolRuns,
+} from './services/patrol-cron.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -45,6 +51,33 @@ app.route('/api/learner', learnerRoutes);
 app.route('/api/sections', sectionRoutes);
 app.route('/api/insights', insightRoutes);
 
+// ── Patrol endpoints ───────────────────────────────────────────────────────
+// POST /api/patrol/run-now  → 202 + runId, or 409 if already in flight
+app.post('/api/patrol/run-now', async (c) => {
+  if (isPatrolInFlight()) {
+    return c.json({ error: 'patrol already in flight' }, 409);
+  }
+  try {
+    const runId = await startPatrolRun();
+    if (!runId) {
+      // Race: mutex flipped between check and start. Treat as 409.
+      return c.json({ error: 'patrol already in flight' }, 409);
+    }
+    return c.json({ ok: true, runId, status: 'running' }, 202);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ error: 'failed to start patrol', detail: msg }, 500);
+  }
+});
+
+// GET /api/patrol/runs?limit=N  → { runs, total }
+app.get('/api/patrol/runs', async (c) => {
+  const limitRaw = parseInt(c.req.query('limit') ?? '20', 10);
+  const limit = Number.isFinite(limitRaw) ? limitRaw : 20;
+  const { runs, total } = await getRecentPatrolRuns(limit);
+  return c.json({ runs, total });
+});
+
 // Serve viz/components/*.js statically. Whitelist regex prevents directory traversal.
 const componentsDir = join(__dirname, '../viz/components');
 const componentFileRe = /^[A-Za-z][A-Za-z0-9_-]*\.js$/;
@@ -64,6 +97,7 @@ app.get('/components/:file', (c) => {
 
 // ── Server ─────────────────────────────────────────────────────────────────
 if (!process.env.VITEST) {
+  startPatrolCron();
   serve({ fetch: app.fetch, port: config.PORT }, (info) => {
     console.log(`Learning platform listening on :${info.port}`);
     console.log(`Nmemo platform: ${config.NMEMO_URL}`);

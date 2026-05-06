@@ -6,6 +6,8 @@ const schema = z.object({
   PORT: z.coerce.number().default(3002),
   DB_PATH: z.string().default('./learn.db'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  // Background patrol cron interval, minutes. Unset/0 = disabled.
+  PATROL_INTERVAL_MIN: z.coerce.number().nonnegative().optional(),
 });
 
 const parsed = schema.safeParse(process.env);
