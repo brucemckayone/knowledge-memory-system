@@ -53,6 +53,7 @@ export interface AgentOptions {
 export interface AgentResult {
   result: string;
   cost?: Record<string, unknown>;
+  numTurns?: number;
 }
 
 function buildArgs(prompt: string, opts: AgentOptions, systemPromptFile?: string): string[] {
@@ -143,6 +144,7 @@ export async function runAgent(prompt: string, opts: AgentOptions = {}): Promise
       resolve({
         result: (data.result as string) ?? '',
         cost: data.cost as Record<string, unknown> | undefined,
+        numTurns: typeof data.num_turns === 'number' ? data.num_turns : undefined,
       });
     });
 
