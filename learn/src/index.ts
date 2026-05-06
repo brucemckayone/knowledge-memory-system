@@ -10,6 +10,7 @@ import { chatRoutes } from './routes/chat.js';
 import { quizRoutes } from './routes/quiz.js';
 import { learnerRoutes } from './routes/learner.js';
 import { sectionRoutes } from './routes/sections.js';
+import { insightRoutes } from './routes/insights.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -42,6 +43,7 @@ app.route('/api/chat', chatRoutes);
 app.route('/api/quiz', quizRoutes);
 app.route('/api/learner', learnerRoutes);
 app.route('/api/sections', sectionRoutes);
+app.route('/api/insights', insightRoutes);
 
 // ── Server ─────────────────────────────────────────────────────────────────
 if (!process.env.VITEST) {
