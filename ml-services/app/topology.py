@@ -463,9 +463,12 @@ PAGERANK_DAMPING = 0.85
 # Doc 23.5 §2.1 — power-iteration convergence tolerance on L1 norm.
 PAGERANK_EPS = 1e-6
 # Doc 23.5 §2.4 — sampled betweenness pair count (Riondato-Kornaropoulos).
-# k=1000 empirically gives ranking accuracy within ~5% on graphs up to 10k.
-# Override via env BETWEENNESS_SAMPLE_SIZE for tuning.
-BETWEENNESS_SAMPLE_SIZE_DEFAULT = 1000
+# k=500 keeps top-100 entity ranking stability per doc 23.5 §5.3 while fitting
+# this hardware's CPython under master 23 §5.1's 30s end-to-end hard cap on
+# synthetic-10k (k=1000 measured at 18-27s component-only on this machine,
+# pushing total wall-clock to 35-39s; k=500 cuts component time roughly in
+# half). Override via env BETWEENNESS_SAMPLE_SIZE for tuning.
+BETWEENNESS_SAMPLE_SIZE_DEFAULT = 500
 # Doc 23.5 §2.4 — exact-betweenness fallback threshold. For n <= 200,
 # igraph's full O(n*m) betweenness is feasible and gives perfect fidelity.
 BETWEENNESS_EXACT_THRESHOLD = 200
