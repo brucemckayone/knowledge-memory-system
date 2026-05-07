@@ -17,11 +17,11 @@ topology_compute_runs row is marked 'failed' (master §2.3.3).
 
 Currently shipped:
   - 23.1 compute_components (real implementation, igraph-backed)
+  - 23.2 compute_k_core (real implementation, igraph-backed)
 
 Not yet shipped (sibling compute_* functions defined as no-op stubs that
 return empty dicts; their NULL-tolerant columns stay NULL until the
 respective beads land):
-  - 23.2 compute_k_core
   - 23.3 compute_articulation
   - 23.4 compute_communities
   - 23.5 compute_centrality
@@ -112,8 +112,8 @@ def topology_compute() -> TopologyComputeResponse:
 
             # ------- compute -----------------------------------------------
             components = compute_components(graph)
+            k_core = compute_k_core(graph)
             # Siblings: stubs return empty dicts; their columns stay NULL.
-            k_core = compute_k_core(graph)            # noqa: F841 — reserved for 23.2
             articulation = compute_articulation(graph)  # noqa: F841 — reserved for 23.3
             communities = compute_communities(graph)   # noqa: F841 — reserved for 23.4
             centrality = compute_centrality(graph)     # noqa: F841 — reserved for 23.5
@@ -145,7 +145,7 @@ def topology_compute() -> TopologyComputeResponse:
                 edge_count=edge_count,
                 component_count=component_count,
                 largest_component_size=largest_component_size,
-                notes="Only 23.1 components populated; siblings 23.2-23.5 are NULL.",
+                notes="23.1 components and 23.2 k_core populated; siblings 23.3-23.5 are NULL.",
             )
         except Exception as exc:  # pragma: no cover — covered via integration
             logger.exception("topology/compute failed")
@@ -199,8 +199,32 @@ def compute_components(g: ig.Graph) -> dict[str, tuple[int, int]]:
 
 
 def compute_k_core(g: ig.Graph) -> dict[str, int]:
-    """23.2 k-core decomposition. Stub — bead nmemo-a7f.2.2 lights this up."""
-    return {}
+    """
+    23.2 k-core decomposition.
+
+    Returns {entity_id: coreness} where coreness is the largest k such that
+    the vertex belongs to the k-core (a maximal subgraph in which every
+    vertex has degree ≥ k). Per doc 23.2 §3.1.
+
+    Algorithm: Batagelj & Zaveršnik O(n + m) coreness via igraph.Graph.coreness.
+    The graph projection (active facts ∪ same_as_links, undirected, no
+    self-references) is built upstream by `_export_graph`; this function is
+    pure and stateless.
+
+    Edge cases handled:
+      - Empty graph → empty dict (igraph 1.0.0's coreness returns [] but
+        we guard explicitly to avoid version-dependent surprises).
+      - Isolated vertex → k_core=0 (degree 0).
+      - Self-references already filtered upstream.
+    """
+    if g.vcount() == 0:
+        return {}
+
+    coreness_values = g.coreness(mode="all")  # 'all' = treat as undirected
+    return {
+        g.vs[i]["name"]: int(coreness_values[i])
+        for i in range(g.vcount())
+    }
 
 
 def compute_articulation(g: ig.Graph) -> dict[str, bool]:
