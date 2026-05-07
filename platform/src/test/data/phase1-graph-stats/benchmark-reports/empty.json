@@ -1,0 +1,30 @@
+{
+  "name": "empty",
+  "source": "snapshot",
+  "source_detail": "manifest entry \"empty\"",
+  "computed_at": "2026-05-07T07:20:34.566Z",
+  "computed_duration_ms": 35,
+  "total_entities": 0,
+  "total_facts": 0,
+  "total_active_facts": 0,
+  "total_memories": 0,
+  "embedding_cluster_count": null,
+  "mean_intra_cluster_distance": null,
+  "mean_inter_cluster_distance": null,
+  "centroid_sim_mean": null,
+  "centroid_sim_median": null,
+  "centroid_sim_p10": null,
+  "centroid_sim_p90": null,
+  "centroid_sample_size": 0,
+  "fact_density": null,
+  "orphan_rate": null,
+  "predicate_diversity": 0,
+  "merge_candidates_pending": 0,
+  "computation_version": 1,
+  "cluster_columns_version": null,
+  "thresholds": {
+    "target_ms": 50,
+    "hard_cap_ms": 200
+  },
+  "notes": "Schema-only baseline; every numeric column is zero or NULL."
+}
