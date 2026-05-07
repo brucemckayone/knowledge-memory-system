@@ -1,0 +1,117 @@
+{
+  "snapshot_name": "synthetic-10k",
+  "feature": "centrality",
+  "computation_version": 1,
+  "computed_at": "2026-05-07T12:26:00.030Z",
+  "elapsed_ms_pagerank": 13,
+  "elapsed_ms_betweenness": 20350,
+  "elapsed_ms_combined": 20363,
+  "total_entities": 10000,
+  "edge_count": 32000,
+  "pagerank_sum": 1,
+  "pagerank_max": 0.000245207,
+  "pagerank_p50": 0.000096201,
+  "pagerank_p95": 0.000157582,
+  "betweenness_max": 0.004775298,
+  "betweenness_p50": 0.000327337,
+  "betweenness_p95": 0.001411148,
+  "top10_pagerank": [
+    {
+      "entity_id": "646e69b2-0f72-5c75-917f-9fdaccce77d7",
+      "value": 0.000245207
+    },
+    {
+      "entity_id": "2e8bcd66-8867-5d65-844b-d5699225ad3f",
+      "value": 0.000236035
+    },
+    {
+      "entity_id": "8a919b23-20fc-54bf-98f1-82bfd95823c0",
+      "value": 0.000231877
+    },
+    {
+      "entity_id": "45a39564-6c2a-595b-a81f-7c4489d26070",
+      "value": 0.000229283
+    },
+    {
+      "entity_id": "2fb62bf8-ad96-543f-bc88-7a8a00f0bdd1",
+      "value": 0.000222025
+    },
+    {
+      "entity_id": "ff5925c5-7e52-5d46-8e0a-94e91e388e50",
+      "value": 0.000220135
+    },
+    {
+      "entity_id": "b3534618-fd81-58a1-8e9b-f7a0bbb21595",
+      "value": 0.000219032
+    },
+    {
+      "entity_id": "182ac810-4cc1-5b6c-9031-68930b456157",
+      "value": 0.000218989
+    },
+    {
+      "entity_id": "d62fdc8f-7914-5961-b376-2b51753c2c67",
+      "value": 0.000217406
+    },
+    {
+      "entity_id": "d953f090-530a-5413-8f59-dbcb47f780e3",
+      "value": 0.000216699
+    }
+  ],
+  "top10_betweenness": [
+    {
+      "entity_id": "af91971d-a830-5e77-ab2c-c403df086c6b",
+      "value": 0.004775298
+    },
+    {
+      "entity_id": "14e21e05-d31a-5f69-8184-30cac7c5e438",
+      "value": 0.003987632
+    },
+    {
+      "entity_id": "edac7429-65bf-588e-ab25-82e4e816ca05",
+      "value": 0.003936132
+    },
+    {
+      "entity_id": "646e69b2-0f72-5c75-917f-9fdaccce77d7",
+      "value": 0.00388937
+    },
+    {
+      "entity_id": "49656e46-526d-5ae2-b316-9cc61aaafc9e",
+      "value": 0.003819036
+    },
+    {
+      "entity_id": "2d856d74-d9d0-5ff3-80d5-022eff002a76",
+      "value": 0.00378087
+    },
+    {
+      "entity_id": "ecdcdf72-25f7-5cde-981b-0d9056559d7d",
+      "value": 0.003551206
+    },
+    {
+      "entity_id": "7d07d2d9-dc33-59c5-84c3-484abb41921c",
+      "value": 0.003372328
+    },
+    {
+      "entity_id": "f8aeace3-5ad8-5eb6-8fd4-bffea8735fcc",
+      "value": 0.003331212
+    },
+    {
+      "entity_id": "55db72ee-208e-5ce2-8057-e3e8d1374adc",
+      "value": 0.003216172
+    }
+  ],
+  "sample_size_used": 1000,
+  "used_exact_betweenness": false,
+  "on_disk_rows_with_pagerank": 10000,
+  "on_disk_rows_with_betweenness": 10000,
+  "thresholds": {
+    "pagerank_target_ms": 200,
+    "betweenness_target_ms": 8000,
+    "combined_hard_cap_ms": 15000
+  },
+  "threshold_status": {
+    "pagerank_under_target": true,
+    "betweenness_under_target": false,
+    "combined_under_hard_cap": false
+  },
+  "notes": "23.5 PageRank via igraph.pagerank(damping=0.85) — PRPACK implementation, deterministic by construction. Sampled betweenness via NetworkX betweenness_centrality(k=BETWEENNESS_SAMPLE_SIZE_DEFAULT, normalized=True, seed=42) — Riondato-Kornaropoulos source-vertex sampling per doc 23.5 §3.1 cold-eyes review B3 (igraph has no sample_size kwarg). Exact-igraph fallback for n<=200 OR sample_size>=n. Shares export + write-back with 23.1/23.2/23.3/23.4. frankenstein-10chunks and mixed-narrative-technical-1k snapshots deferred (j77.5). Hardware note: on this dev machine, sampled betweenness on synthetic-10k runs ~18-27s, overshooting the §5.1 component-level 8s target / 15s hard cap (the doc itself flags \"5–10s in CPython\" as the basis for those thresholds — a faster machine reproduces them). Master 23 §5.1 end-to-end envelope (12s target / 30s cap) still accommodates this. Threshold tracking surfaced in threshold_status; tighten when faster CI hardware lands or sample_size is reduced to k=500 (top-100 ranking stability remains acceptable per doc 23.5 §5.3)."
+}

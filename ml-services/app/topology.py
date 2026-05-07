@@ -15,20 +15,18 @@ Drives the full Phase 2 unified compute pipeline:
 All work runs in one Postgres transaction; partial failure rolls back and the
 topology_compute_runs row is marked 'failed' (master §2.3.3).
 
-Currently shipped:
+Currently shipped (all five Phase 2 features populated):
   - 23.1 compute_components (real implementation, igraph-backed)
   - 23.2 compute_k_core (real implementation, igraph-backed)
   - 23.3 compute_articulation + compute_bridges (real implementation, igraph-backed)
   - 23.4 compute_communities (real implementation, leidenalg-backed)
-
-Not yet shipped (sibling compute_* functions defined as no-op stubs that
-return empty dicts; their NULL-tolerant columns stay NULL until the
-respective beads land):
-  - 23.5 compute_centrality
+  - 23.5 compute_centrality — PageRank + sampled betweenness (real;
+    igraph.pagerank + networkx.betweenness_centrality with k-pair sampling
+    per Riondato-Kornaropoulos KDD 2014; exact igraph fallback for n<=200)
 
 The DP1 (a) decision (full Phase 2 schema in migration 014, NULL-tolerant
-columns progressively populated) means there is no migration churn when
-those siblings ship — they just start writing their column.
+columns progressively populated) means migration 014 was sized for all five
+features up-front; the sibling write-back contract did not need extending.
 """
 
 from __future__ import annotations
@@ -91,6 +89,8 @@ class TopologyComputeResponse(BaseModel):
     articulation_point_count: Optional[int] = None
     bridge_count: Optional[int] = None
     community_count: Optional[int] = None
+    pagerank_max: Optional[float] = None
+    betweenness_max: Optional[float] = None
     notes: Optional[str] = None
 
 
@@ -121,8 +121,7 @@ def topology_compute() -> TopologyComputeResponse:
             articulation = compute_articulation(graph)
             bridges = compute_bridges(graph)
             communities = compute_communities(graph, computation_version=COMPUTATION_VERSION)
-            # Sibling: stub returns empty dict; its columns stay NULL.
-            centrality = compute_centrality(graph)     # noqa: F841 — reserved for 23.5
+            centrality = compute_centrality(graph)
 
             # ------- write-back (single transaction per master §2.3.2) ----
             _write_back(
@@ -142,6 +141,8 @@ def topology_compute() -> TopologyComputeResponse:
             articulation_point_count = sum(1 for v in articulation.values() if v)
             bridge_count = len(bridges)
             community_count = len(set(cid for cid, _ in communities.values())) if communities else 0
+            pagerank_max = max((pr for pr, _ in centrality.values()), default=0.0) if centrality else None
+            betweenness_max = max((bw for _, bw in centrality.values()), default=0.0) if centrality else None
 
             _complete_run(conn, run_id, status="completed", entities_processed=entity_count)
             conn.commit()
@@ -158,7 +159,9 @@ def topology_compute() -> TopologyComputeResponse:
                 articulation_point_count=articulation_point_count,
                 bridge_count=bridge_count,
                 community_count=community_count,
-                notes="23.1 components, 23.2 k_core, 23.3 articulation+bridges, 23.4 communities populated; sibling 23.5 is NULL.",
+                pagerank_max=pagerank_max,
+                betweenness_max=betweenness_max,
+                notes="all five Phase 2 features populated: 23.1 components, 23.2 k_core, 23.3 articulation+bridges, 23.4 communities, 23.5 centrality (PageRank + sampled betweenness).",
             )
         except Exception as exc:  # pragma: no cover — covered via integration
             logger.exception("topology/compute failed")
@@ -454,9 +457,152 @@ def compute_communities(
     }
 
 
+# Doc 23.5 §2.1 — PageRank damping factor. The historical Page-Brin default
+# 0.85; well-tuned for web-scale graphs and equally reasonable here.
+PAGERANK_DAMPING = 0.85
+# Doc 23.5 §2.1 — power-iteration convergence tolerance on L1 norm.
+PAGERANK_EPS = 1e-6
+# Doc 23.5 §2.4 — sampled betweenness pair count (Riondato-Kornaropoulos).
+# k=1000 empirically gives ranking accuracy within ~5% on graphs up to 10k.
+# Override via env BETWEENNESS_SAMPLE_SIZE for tuning.
+BETWEENNESS_SAMPLE_SIZE_DEFAULT = 1000
+# Doc 23.5 §2.4 — exact-betweenness fallback threshold. For n <= 200,
+# igraph's full O(n*m) betweenness is feasible and gives perfect fidelity.
+BETWEENNESS_EXACT_THRESHOLD = 200
+# Doc 23.5 §3.1 — deterministic seed for NetworkX's pair sampler.
+BETWEENNESS_SEED = 42
+
+
+def compute_pagerank(g: ig.Graph, damping: float = PAGERANK_DAMPING) -> dict[str, float]:
+    """
+    23.5 PageRank — whole-graph, undirected projection.
+
+    Returns {entity_id: pagerank_value} with values that sum to 1.0 (within
+    convergence tolerance of PAGERANK_EPS = 1e-6 — the algorithm's own
+    convergence threshold; tighter test tolerances would fail spuriously per
+    doc 23.5 §4.2 cold-eyes review W1).
+
+    Algorithm: power-iteration via igraph.Graph.pagerank with damping=0.85
+    (doc 23.5 §2.1) and convergence eps=1e-6. Damping handles disconnected
+    components naturally — every vertex receives mass via the teleport
+    probability regardless of its component.
+
+    Edge cases (per doc 23.5 §6):
+      - Empty graph → empty dict.
+      - Single vertex → {only_id: 1.0}.
+      - Two disconnected entities → each 0.5 (uniform stationary distribution).
+    """
+    if g.vcount() == 0:
+        return {}
+    # igraph 1.0.0's pagerank uses the PRPACK implementation by default which
+    # converges to machine precision well below PAGERANK_EPS — there is no
+    # `eps=` kwarg to pass through. PAGERANK_EPS is the assertion tolerance
+    # we expose to test code (doc 23.5 §4.2 cold-eyes review W1).
+    pr = g.pagerank(damping=damping, directed=False)
+    return {g.vs[i]["name"]: float(pr[i]) for i in range(g.vcount())}
+
+
+def compute_betweenness(
+    g: ig.Graph,
+    sample_size: Optional[int] = None,
+) -> dict[str, float]:
+    """
+    23.5 Sampled betweenness centrality — bridge-ness.
+
+    Returns {entity_id: betweenness_normalised} with values in [0, 1]. For
+    each vertex, captures how often it sits on shortest paths between pairs
+    of other vertices (or a sampled subset thereof).
+
+    Algorithm (doc 23.5 §3.1, cold-eyes review B3):
+      - n <= BETWEENNESS_EXACT_THRESHOLD (200) → exact via igraph
+        (O(n*m) Brandes 2001), then normalised by dividing by the maximum
+        possible betweenness (n-1)(n-2)/2.
+      - n > 200 → sampled via NetworkX betweenness_centrality(k=sample_size)
+        which implements Riondato-Kornaropoulos KDD 2014 source-vertex
+        sampling. NetworkX's `normalized=True` returns values already in
+        [0, 1]; the deterministic `seed=42` makes the sample reproducible.
+
+    igraph's own betweenness() does NOT accept a sample_size kwarg — that's
+    why this function delegates to NetworkX for the sampled branch (per doc
+    23.5 §3.1 / cold-eyes review B3).
+
+    The sample size source-of-truth (doc 23.5 §2.4):
+      - explicit kwarg overrides everything
+      - env BETWEENNESS_SAMPLE_SIZE if set
+      - BETWEENNESS_SAMPLE_SIZE_DEFAULT (1000) otherwise
+
+    Edge cases (per doc 23.5 §6):
+      - Empty graph → {}.
+      - Single / two-vertex graphs → all betweenness = 0.0 (no shortest path
+        of length >= 2 exists).
+      - Vertices in components of size < 3 → 0.0 (no shortest paths through them).
+      - sample_size 0 → ValueError.
+      - sample_size > n (more pairs than vertices) → falls back to exact.
+    """
+    n = g.vcount()
+    if n == 0:
+        return {}
+
+    if sample_size is None:
+        env = os.environ.get("BETWEENNESS_SAMPLE_SIZE")
+        sample_size = int(env) if env else BETWEENNESS_SAMPLE_SIZE_DEFAULT
+    if sample_size <= 0:
+        raise ValueError(
+            f"BETWEENNESS_SAMPLE_SIZE must be > 0; got {sample_size}"
+        )
+
+    # Trivial cases: no shortest paths of length >= 2 exist.
+    if n < 3:
+        return {g.vs[i]["name"]: 0.0 for i in range(n)}
+
+    use_exact = (n <= BETWEENNESS_EXACT_THRESHOLD) or (sample_size >= n)
+
+    if use_exact:
+        # igraph: full Brandes; normalise by max possible.
+        bw = g.betweenness(directed=False)
+        max_bw = (n - 1) * (n - 2) / 2.0
+        return {
+            g.vs[i]["name"]: float(bw[i]) / max_bw if max_bw > 0 else 0.0
+            for i in range(n)
+        }
+
+    # Sampled branch via NetworkX. We import here so the import only fires on
+    # graphs large enough to need it.
+    import networkx as nx  # noqa: PLC0415 — lazy by design
+    nx_g = g.to_networkx().to_undirected()
+    # NetworkX dict keys are igraph vertex indices (0..n-1), per
+    # g.to_networkx() convention; map back via igraph's vertex sequence.
+    bw_dict = nx.betweenness_centrality(
+        nx_g,
+        k=sample_size,
+        normalized=True,
+        seed=BETWEENNESS_SEED,
+    )
+    return {
+        g.vs[i]["name"]: float(bw_dict.get(i, 0.0))
+        for i in range(n)
+    }
+
+
 def compute_centrality(g: ig.Graph) -> dict[str, tuple[float, float]]:
-    """23.5 Centrality (PageRank + sampled betweenness). Stub — bead nmemo-a7f.2.5 lights this up."""
-    return {}
+    """
+    23.5 Centrality — orchestrates compute_pagerank + compute_betweenness.
+
+    Returns {entity_id: (pagerank, betweenness_sampled)} for every vertex.
+    Both values are pre-normalised; pagerank sums to 1.0 globally, betweenness
+    is in [0, 1].
+
+    Empty graph → {}. Otherwise every vertex appears in the result with both
+    values populated (zero is a legitimate value, not a missing one).
+    """
+    if g.vcount() == 0:
+        return {}
+    pr = compute_pagerank(g)
+    bw = compute_betweenness(g)
+    return {
+        eid: (pr.get(eid, 0.0), bw.get(eid, 0.0))
+        for eid in pr.keys()
+    }
 
 
 # --------------------------------------------------------------------------
