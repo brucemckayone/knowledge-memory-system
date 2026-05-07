@@ -73,6 +73,39 @@ export function _resetReasoningPatrolCount(): void {
   reasoningPatrolCount = 0;
 }
 
+// ============================================
+// Graph-Stats Auto-Trigger Counter (Phase 1 — nmemo-a7f.1.1, doc 22 §3.3)
+// ============================================
+const GRAPH_STATS_INTERVAL = 5; // run computeGraphStats every N reasoning patrols
+let graphStatsPatrolCount = 0;
+
+/**
+ * Called from invokeReasoningAgent() on patrol success. Every
+ * GRAPH_STATS_INTERVAL invocations, runs computeGraphStats. Wrapped in
+ * try/catch so any failure logs but never surfaces back into the patrol
+ * HTTP response (mirrors incrementPatrolCount above).
+ */
+export async function incrementGraphStatsCount(): Promise<void> {
+  graphStatsPatrolCount++;
+  if (graphStatsPatrolCount < GRAPH_STATS_INTERVAL) return;
+  graphStatsPatrolCount = 0;
+
+  try {
+    const { computeGraphStats } = await import('./services/graph-stats.js');
+    const stats = await computeGraphStats();
+    console.log(
+      `[graph-stats] auto-trigger: total_entities=${stats.totalEntities} active_facts=${stats.totalActiveFacts} duration=${stats.computedDurationMs}ms`,
+    );
+  } catch (err) {
+    console.warn('[graph-stats] auto-trigger failed:', err instanceof Error ? err.message : err);
+  }
+}
+
+/** Test-only — reset the counter so unit tests don't have to wait for natural cycles. */
+export function _resetGraphStatsCount(): void {
+  graphStatsPatrolCount = 0;
+}
+
 export interface IngestResult extends ExtractResult {}
 
 export interface ResolvedEntity {

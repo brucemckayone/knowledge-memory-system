@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   real,
+  doublePrecision,
   boolean,
   unique,
   primaryKey,
@@ -594,6 +595,54 @@ export const edgeSourceRefs = pgTable('edge_source_refs', {
   lookupIdx: index('idx_edge_source_refs_lookup').on(t.refType, t.refId),
   edgeIdx: index('idx_edge_source_refs_edge').on(t.edgeId),
 }));
+
+/**
+ * Graph Stats (singleton)
+ *
+ * Aggregate graph-level statistics. Singleton enforced by CHECK (id = 1).
+ * Phase 1 of cluster-bridging master plan (21). Spec:
+ * docs/architecture/truth-graph/22-graph-stats-foundation.md.
+ *
+ * Cluster columns (embedding_cluster_count, mean_intra_cluster_distance,
+ * mean_inter_cluster_distance) stay NULL until Phase 3 HDBSCAN ships.
+ * `cluster_columns_version` is bumped by the Phase 3 backfill.
+ */
+export const graphStats = pgTable('graph_stats', {
+  id: integer('id').primaryKey().default(1),
+
+  // Scale
+  totalEntities: integer('total_entities').default(0).notNull(),
+  totalFacts: integer('total_facts').default(0).notNull(),
+  totalActiveFacts: integer('total_active_facts').default(0).notNull(),
+  totalMemories: integer('total_memories').default(0).notNull(),
+
+  // Embedding clusters (NULL until Phase 3)
+  embeddingClusterCount: integer('embedding_cluster_count'),
+  meanIntraClusterDistance: doublePrecision('mean_intra_cluster_distance'),
+  meanInterClusterDistance: doublePrecision('mean_inter_cluster_distance'),
+
+  // Centroid distribution (sampled pairwise centroid similarity)
+  centroidSimMean: doublePrecision('centroid_sim_mean'),
+  centroidSimMedian: doublePrecision('centroid_sim_median'),
+  centroidSimP10: doublePrecision('centroid_sim_p10'),
+  centroidSimP90: doublePrecision('centroid_sim_p90'),
+  centroidSampleSize: integer('centroid_sample_size'),
+
+  // Graph health
+  factDensity: doublePrecision('fact_density'),
+  orphanRate: doublePrecision('orphan_rate'),
+  predicateDiversity: integer('predicate_diversity'),
+  mergeCandidatesPending: integer('merge_candidates_pending').default(0).notNull(),
+
+  // Bookkeeping
+  computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
+  computedDurationMs: integer('computed_duration_ms'),
+  computationVersion: integer('computation_version').default(1).notNull(),
+  clusterColumnsVersion: integer('cluster_columns_version'),
+});
+
+export type GraphStats = typeof graphStats.$inferSelect;
+export type NewGraphStats = typeof graphStats.$inferInsert;
 
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;

@@ -1008,6 +1008,28 @@ app.post('/api/reason/query', async (c) => {
 });
 
 // ============================================
+// Graph Stats (Phase 1 — nmemo-a7f.1.1)
+// Singleton aggregate stats over the whole graph. See doc 22 §3.3.
+// ============================================
+
+app.post('/api/graph-stats/compute', async (c) => {
+  const { computeGraphStats } = await import('./services/graph-stats.js');
+  const start = Date.now();
+  try {
+    const stats = await computeGraphStats();
+    return c.json({ ok: true, stats, durationMs: Date.now() - start });
+  } catch (err) {
+    return c.json({ ok: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 500);
+  }
+});
+
+app.get('/api/graph-stats', async (c) => {
+  const { getGraphStats } = await import('./services/graph-stats.js');
+  const stats = await getGraphStats();
+  return c.json({ stats });
+});
+
+// ============================================
 // Learning Platform API (/api/learn/)
 // Thin write layer for the learning platform's MCP server.
 // Keeps the learning platform fully decoupled — all graph ops go via HTTP.

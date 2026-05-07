@@ -2217,9 +2217,14 @@ export async function invokeReasoningAgent(params: ReasoningAgentParams): Promis
   // success. Every PATTERN_DETECTION_INTERVAL patrols runs detectCausalPatterns
   // + promotePatterns. Wrapped in try/catch inside incrementPatrolCount —
   // any failure logs but never surfaces.
+  //
+  // Phase 1 cluster-bridging (nmemo-a7f.1.1, doc 22 §3.3): bump the
+  // graph-stats counter on the same patrol-success edge. Independent counter
+  // and interval — both run sequentially; neither blocks the other.
   if (params.mode === 'patrol') {
-    const { incrementPatrolCount } = await import('../pipeline.js');
+    const { incrementPatrolCount, incrementGraphStatsCount } = await import('../pipeline.js');
     await incrementPatrolCount();
+    await incrementGraphStatsCount();
   }
 
   return result;
