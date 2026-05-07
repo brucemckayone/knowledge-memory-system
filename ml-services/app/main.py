@@ -101,6 +101,9 @@ app.include_router(reconciliation_agent_router, tags=["Reconciliation Agent"])
 # Graph gardener
 app.include_router(gardener_agent_router, tags=["Graph Gardener"])
 app.include_router(reasoning_agent_router, tags=["Reasoning Agent"])
+# Phase 2: Topology primitives (T0)
+from .topology import router as topology_router
+app.include_router(topology_router, tags=["Topology"])
 
 
 @app.get("/health")

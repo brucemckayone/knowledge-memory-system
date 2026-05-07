@@ -1,0 +1,18 @@
+{
+  "snapshot_name": "synthetic-10k",
+  "feature": "connected_components",
+  "computation_version": 1,
+  "computed_at": "2026-05-07T08:24:06.258Z",
+  "elapsed_ms_compute_only": 8,
+  "total_entities": 10000,
+  "edge_count": 32000,
+  "component_count": 16,
+  "largest_component_size": 9985,
+  "smallest_component_size": 1,
+  "mean_component_size": 625,
+  "thresholds": {
+    "target_ms": 300,
+    "hard_cap_ms": 1000
+  },
+  "notes": "23.1 connected components only; sibling features (k-core / articulation / community / centrality) are NULL until their beads land."
+}

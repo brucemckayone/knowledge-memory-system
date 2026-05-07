@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { ingest, store, extract, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
+import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, gardeningReports } from './db/index.js';
 import { isNull, sql, inArray, eq } from 'drizzle-orm';
 import { getMergeCandidates } from './services/graph-meta.js';
@@ -1027,6 +1028,73 @@ app.get('/api/graph-stats', async (c) => {
   const { getGraphStats } = await import('./services/graph-stats.js');
   const stats = await getGraphStats();
   return c.json({ stats });
+});
+
+// ============================================
+// Topology (Phase 2 — nmemo-a7f.2.1, doc 23 §2.4 + 23.1 §3.3)
+// POST /api/topology/compute proxies to the ml-services sidecar (igraph).
+// GET  /api/components/:component_id reads the local entity_topology table.
+// ============================================
+
+app.post('/api/topology/compute', async (c) => {
+  const start = Date.now();
+  try {
+    const response = await fetch(`${config.ML_SERVICES_URL}/topology/compute`, { method: 'POST' });
+    const body = (await response.json()) as Record<string, unknown>;
+    if (!response.ok) {
+      return c.json({ ok: false, status: response.status, error: body, durationMs: Date.now() - start }, response.status as 409 | 500);
+    }
+    return c.json({ ok: true, result: body, durationMs: Date.now() - start });
+  } catch (err) {
+    return c.json({ ok: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 502);
+  }
+});
+
+app.get('/api/components/:component_id', async (c) => {
+  const idStr = c.req.param('component_id');
+  const componentId = Number.parseInt(idStr, 10);
+  if (!Number.isInteger(componentId)) {
+    return c.json({ error: `component_id must be an integer, got "${idStr}"` }, 400);
+  }
+  const { db } = await import('./db/index.js');
+  const { sql } = await import('drizzle-orm');
+  const rows = (await db.execute(sql`
+    SELECT
+      e.id::text          AS entity_id,
+      e.canonical_name    AS canonical_name,
+      e.entity_type       AS entity_type,
+      et.component_id     AS component_id,
+      et.component_size   AS component_size,
+      et.computed_at      AS computed_at,
+      et.computation_version AS computation_version
+    FROM public.entity_topology et
+    JOIN public.entities e ON e.id = et.entity_id
+    WHERE et.component_id = ${componentId}
+    ORDER BY e.canonical_name ASC
+  `)) as unknown as Array<{
+    entity_id: string;
+    canonical_name: string;
+    entity_type: string;
+    component_id: number;
+    component_size: number;
+    computed_at: Date;
+    computation_version: number;
+  }>;
+  if (rows.length === 0) {
+    return c.json({ component_id: componentId, size: 0, entities: [] });
+  }
+  const head = rows[0]!;
+  return c.json({
+    component_id: head.component_id,
+    size: head.component_size,
+    computed_at: head.computed_at instanceof Date ? head.computed_at.toISOString() : String(head.computed_at),
+    computation_version: head.computation_version,
+    entities: rows.map((r) => ({
+      id: r.entity_id,
+      canonical_name: r.canonical_name,
+      entity_type: r.entity_type,
+    })),
+  });
 });
 
 // ============================================

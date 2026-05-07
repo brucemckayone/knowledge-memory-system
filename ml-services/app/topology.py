@@ -1,0 +1,429 @@
+"""
+Topology Compute Service — Phase 2 (T0 topology primitives).
+
+Implements docs/architecture/truth-graph/23-topology-primitives.md §2.3 and
+§8.1, plus the connected-components contract in 23.1 §3.1-§3.2.
+
+Single endpoint:
+
+    POST /topology/compute
+
+Drives the full Phase 2 unified compute pipeline:
+
+    _acquire_run → _export_graph → compute_components (and siblings) → _write_back → _complete_run
+
+All work runs in one Postgres transaction; partial failure rolls back and the
+topology_compute_runs row is marked 'failed' (master §2.3.3).
+
+Currently shipped:
+  - 23.1 compute_components (real implementation, igraph-backed)
+
+Not yet shipped (sibling compute_* functions defined as no-op stubs that
+return empty dicts; their NULL-tolerant columns stay NULL until the
+respective beads land):
+  - 23.2 compute_k_core
+  - 23.3 compute_articulation
+  - 23.4 compute_communities
+  - 23.5 compute_centrality
+
+The DP1 (a) decision (full Phase 2 schema in migration 014, NULL-tolerant
+columns progressively populated) means there is no migration churn when
+those siblings ship — they just start writing their column.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import time
+from typing import Any, Optional
+
+import igraph as ig
+import psycopg
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from psycopg.rows import dict_row
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+# --------------------------------------------------------------------------
+# Config
+# --------------------------------------------------------------------------
+
+# Default to the dev DB on the host; can be overridden via env. The platform
+# Node service reads the same URL in src/config.ts.
+_DEFAULT_DB_URL = "postgresql://cognitive:cognitive@127.0.0.1:5433/cognitive"
+
+
+def _conn_str() -> str:
+    raw = os.environ.get("DATABASE_URL", _DEFAULT_DB_URL)
+    # postgres:// → postgresql:// for psycopg / libpq
+    if raw.startswith("postgres://"):
+        raw = "postgresql://" + raw[len("postgres://"):]
+    return raw
+
+
+# Bumped here when the algorithm changes; rewritten transactionally on every
+# compute. See master §2.6: bookkeeping, not a filter for downstream consumers.
+COMPUTATION_VERSION = 1
+
+# A run older than this is considered abandoned; new compute calls clean it up
+# and proceed. Master §8.1 step 3.
+RUN_TIMEOUT_SECONDS = 300
+
+
+# --------------------------------------------------------------------------
+# Public API
+# --------------------------------------------------------------------------
+
+class TopologyComputeResponse(BaseModel):
+    run_id: str
+    status: str
+    computation_version: int
+    elapsed_ms: int
+    entities_processed: int
+    edge_count: int
+    component_count: Optional[int] = None
+    largest_component_size: Optional[int] = None
+    notes: Optional[str] = None
+
+
+@router.post("/topology/compute", response_model=TopologyComputeResponse)
+def topology_compute() -> TopologyComputeResponse:
+    """Run the unified topology compute routine. See module docstring."""
+    start = time.perf_counter()
+
+    with psycopg.connect(_conn_str(), row_factory=dict_row) as conn:
+        # ------- §8.1 — concurrency / progress tracking -----------------
+        in_flight = _check_in_progress(conn)
+        if in_flight is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"topology compute already in progress (run_id={in_flight}). Try again after it finishes.",
+            )
+
+        run_id = _acquire_run(conn)
+        conn.commit()
+
+        try:
+            # ------- export -------------------------------------------------
+            graph, entity_count, edge_count = _export_graph(conn)
+
+            # ------- compute -----------------------------------------------
+            components = compute_components(graph)
+            # Siblings: stubs return empty dicts; their columns stay NULL.
+            k_core = compute_k_core(graph)            # noqa: F841 — reserved for 23.2
+            articulation = compute_articulation(graph)  # noqa: F841 — reserved for 23.3
+            communities = compute_communities(graph)   # noqa: F841 — reserved for 23.4
+            centrality = compute_centrality(graph)     # noqa: F841 — reserved for 23.5
+
+            # ------- write-back (single transaction per master §2.3.2) ----
+            _write_back(
+                conn,
+                components=components,
+                k_core=k_core,
+                articulation=articulation,
+                communities=communities,
+                centrality=centrality,
+                computation_version=COMPUTATION_VERSION,
+            )
+
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            component_count = len(set(cid for cid, _ in components.values())) if components else 0
+            largest_component_size = max((sz for _, sz in components.values()), default=0)
+
+            _complete_run(conn, run_id, status="completed", entities_processed=entity_count)
+            conn.commit()
+
+            return TopologyComputeResponse(
+                run_id=run_id,
+                status="completed",
+                computation_version=COMPUTATION_VERSION,
+                elapsed_ms=elapsed_ms,
+                entities_processed=entity_count,
+                edge_count=edge_count,
+                component_count=component_count,
+                largest_component_size=largest_component_size,
+                notes="Only 23.1 components populated; siblings 23.2-23.5 are NULL.",
+            )
+        except Exception as exc:  # pragma: no cover — covered via integration
+            logger.exception("topology/compute failed")
+            try:
+                conn.rollback()
+                _complete_run(
+                    conn,
+                    run_id,
+                    status="failed",
+                    entities_processed=None,
+                    error_detail=str(exc),
+                )
+                conn.commit()
+            except Exception:
+                logger.exception("failed to mark topology run as failed")
+            raise HTTPException(status_code=500, detail=f"topology/compute failed: {exc}")
+
+
+# --------------------------------------------------------------------------
+# Compute functions (one per Phase 2 feature)
+# --------------------------------------------------------------------------
+
+def compute_components(g: ig.Graph) -> dict[str, tuple[int, int]]:
+    """
+    23.1 Connected components.
+
+    Returns {entity_id: (component_id, component_size)}.
+
+    Component IDs are deterministic: sorted by (size desc, smallest member
+    UUID asc), then numbered 0..N-1. Per doc 23.1 §2.3.
+    """
+    if g.vcount() == 0:
+        return {}
+
+    raw = g.connected_components()  # mode kw redundant on undirected
+    member_lists: list[list[int]] = [list(component) for component in raw]
+
+    # Canonical sort: size desc, smallest member UUID (vertex name) asc
+    sorted_components = sorted(
+        member_lists,
+        key=lambda members: (-len(members), min(g.vs[i]["name"] for i in members)),
+    )
+
+    result: dict[str, tuple[int, int]] = {}
+    for component_id, members in enumerate(sorted_components):
+        size = len(members)
+        for vertex_idx in members:
+            entity_id = g.vs[vertex_idx]["name"]
+            result[entity_id] = (component_id, size)
+    return result
+
+
+def compute_k_core(g: ig.Graph) -> dict[str, int]:
+    """23.2 k-core decomposition. Stub — bead nmemo-a7f.2.2 lights this up."""
+    return {}
+
+
+def compute_articulation(g: ig.Graph) -> dict[str, bool]:
+    """23.3 Articulation points. Stub — bead nmemo-a7f.2.3 lights this up."""
+    return {}
+
+
+def compute_communities(g: ig.Graph) -> dict[str, tuple[int, float]]:
+    """23.4 Community detection (Leiden). Stub — bead nmemo-a7f.2.4 lights this up."""
+    return {}
+
+
+def compute_centrality(g: ig.Graph) -> dict[str, tuple[float, float]]:
+    """23.5 Centrality (PageRank + sampled betweenness). Stub — bead nmemo-a7f.2.5 lights this up."""
+    return {}
+
+
+# --------------------------------------------------------------------------
+# Run lifecycle (master §8.1)
+# --------------------------------------------------------------------------
+
+def _check_in_progress(conn: psycopg.Connection) -> Optional[str]:
+    """Return run_id of a fresh-enough in-progress row, else None.
+
+    Stale in-progress rows older than RUN_TIMEOUT_SECONDS are auto-marked
+    'failed' here so a crashed sidecar doesn't block forever.
+    """
+    with conn.cursor() as cur:
+        # Mark abandoned in-progress rows as failed.
+        cur.execute(
+            """
+            UPDATE public.topology_compute_runs
+            SET status = 'failed',
+                completed_at = NOW(),
+                error_detail = 'janitor: abandoned by stale sidecar (older than timeout)'
+            WHERE status = 'in_progress'
+              AND started_at < NOW() - INTERVAL '%s seconds'
+            """ % RUN_TIMEOUT_SECONDS
+        )
+        cur.execute(
+            "SELECT id::text AS id FROM public.topology_compute_runs WHERE status = 'in_progress' LIMIT 1"
+        )
+        row = cur.fetchone()
+        return row["id"] if row else None
+
+
+def _acquire_run(conn: psycopg.Connection) -> str:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO public.topology_compute_runs (status, computation_version)
+            VALUES ('in_progress', %s)
+            RETURNING id::text AS id
+            """,
+            (COMPUTATION_VERSION,),
+        )
+        row = cur.fetchone()
+        assert row is not None
+        return row["id"]
+
+
+def _complete_run(
+    conn: psycopg.Connection,
+    run_id: str,
+    *,
+    status: str,
+    entities_processed: Optional[int],
+    error_detail: Optional[str] = None,
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE public.topology_compute_runs
+            SET completed_at = NOW(),
+                status = %s,
+                entities_processed = %s,
+                error_detail = %s
+            WHERE id = %s::uuid
+            """,
+            (status, entities_processed, error_detail, run_id),
+        )
+
+
+# --------------------------------------------------------------------------
+# Graph export (master §2.3.1 — deterministic ordering lock)
+# --------------------------------------------------------------------------
+
+def _export_graph(conn: psycopg.Connection) -> tuple[ig.Graph, int, int]:
+    """
+    Build the in-memory igraph from current Postgres state.
+
+    Vertex set = entities (ORDER BY id) → vertex.name = entity_id (str).
+    Edge set = active facts where object_entity_id IS NOT NULL (excluding
+    self-references) ∪ same_as_links. Edge ordering: fact edges first,
+    then same_as edges, ties broken by edge_id ASC. Per master §2.3.1.
+
+    Self-referential facts (subject = object) are excluded — per 23.1 §2.1
+    they don't affect connectivity.
+
+    Returns (graph, entity_count, edge_count).
+    """
+    with conn.cursor() as cur:
+        cur.execute("SELECT id::text AS id FROM public.entities ORDER BY id")
+        entity_rows = cur.fetchall()
+        entity_ids = [row["id"] for row in entity_rows]
+        idx_of = {eid: i for i, eid in enumerate(entity_ids)}
+
+        cur.execute(
+            """
+            SELECT 'fact' AS edge_kind, id::text AS edge_id,
+                   subject_entity_id::text AS src, object_entity_id::text AS dst
+            FROM public.facts
+            WHERE expired_at IS NULL
+              AND object_entity_id IS NOT NULL
+              AND subject_entity_id <> object_entity_id
+            UNION ALL
+            SELECT 'same_as' AS edge_kind, id::text AS edge_id,
+                   entity_a_id::text AS src, entity_b_id::text AS dst
+            FROM public.same_as_links
+            ORDER BY edge_kind, edge_id
+            """
+        )
+        edge_rows = cur.fetchall()
+
+    g = ig.Graph(directed=False)
+    g.add_vertices(len(entity_ids))
+    g.vs["name"] = entity_ids
+
+    edges: list[tuple[int, int]] = []
+    for row in edge_rows:
+        src_idx = idx_of.get(row["src"])
+        dst_idx = idx_of.get(row["dst"])
+        if src_idx is None or dst_idx is None:
+            # Endpoint missing from entities — defensive skip; shouldn't happen
+            # given FK cascade, but cheap insurance.
+            continue
+        edges.append((src_idx, dst_idx))
+
+    if edges:
+        g.add_edges(edges)
+
+    return g, len(entity_ids), len(edges)
+
+
+# --------------------------------------------------------------------------
+# Write-back (master §2.3.2 — canonical upsert)
+# --------------------------------------------------------------------------
+
+def _write_back(
+    conn: psycopg.Connection,
+    *,
+    components: dict[str, tuple[int, int]],
+    k_core: dict[str, int],
+    articulation: dict[str, bool],
+    communities: dict[str, tuple[int, float]],
+    centrality: dict[str, tuple[float, float]],
+    computation_version: int,
+) -> None:
+    """
+    Single bulk upsert covering every entity in the graph that any compute_*
+    function returned a result for. Master §2.3.2.
+
+    Each feature contributes its own columns; absent results stay NULL on
+    INSERT (default) and are not overwritten on UPDATE either (we explicitly
+    only SET feature columns whose dict has the entity_id).
+
+    Implementation note: master §2.3.2 specifies one upsert across all five
+    features. Until the siblings ship, only `components` populates entries,
+    so the unioned key set equals components.keys(). When siblings light up
+    they extend the key union without changing the SQL shape — that's the
+    DP1/DP2 (a) story.
+    """
+    all_entity_ids: set[str] = (
+        set(components.keys())
+        | set(k_core.keys())
+        | set(articulation.keys())
+        | set(communities.keys())
+        | set(centrality.keys())
+    )
+    if not all_entity_ids:
+        return
+
+    rows: list[tuple[Any, ...]] = []
+    for entity_id in all_entity_ids:
+        comp = components.get(entity_id)
+        comm = communities.get(entity_id)
+        cent = centrality.get(entity_id)
+        rows.append((
+            entity_id,
+            comp[0] if comp else None,                          # component_id
+            comp[1] if comp else None,                          # component_size
+            k_core.get(entity_id),                              # k_core
+            articulation.get(entity_id, False),                 # is_articulation_point
+            comm[0] if comm else None,                          # community_id
+            comm[1] if comm else None,                          # participation_coef
+            cent[0] if cent else None,                          # pagerank
+            cent[1] if cent else None,                          # betweenness_sampled
+            computation_version,
+        ))
+
+    with conn.cursor() as cur:
+        # executemany is fine here; entity counts are bounded by the graph
+        # export at sub-second speeds even for 10k. For the 100k+ horizon,
+        # a COPY-based path would be added.
+        cur.executemany(
+            """
+            INSERT INTO public.entity_topology (
+                entity_id, component_id, component_size, k_core,
+                is_articulation_point, community_id, participation_coef,
+                pagerank, betweenness_sampled,
+                computed_at, computation_version
+            ) VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+            ON CONFLICT (entity_id) DO UPDATE SET
+                component_id          = EXCLUDED.component_id,
+                component_size        = EXCLUDED.component_size,
+                k_core                = EXCLUDED.k_core,
+                is_articulation_point = EXCLUDED.is_articulation_point,
+                community_id          = EXCLUDED.community_id,
+                participation_coef    = EXCLUDED.participation_coef,
+                pagerank              = EXCLUDED.pagerank,
+                betweenness_sampled   = EXCLUDED.betweenness_sampled,
+                computed_at           = NOW(),
+                computation_version   = EXCLUDED.computation_version
+            """,
+            rows,
+        )
