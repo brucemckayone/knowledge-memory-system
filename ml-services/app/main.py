@@ -105,6 +105,10 @@ app.include_router(reasoning_agent_router, tags=["Reasoning Agent"])
 from .topology import router as topology_router
 app.include_router(topology_router, tags=["Topology"])
 
+# Phase 3: Semantic clustering (T1) — truth-graph doc 24.1
+from .semantic_clustering import router as semantic_clustering_router
+app.include_router(semantic_clustering_router, tags=["Clustering"])
+
 
 @app.get("/health")
 async def health():

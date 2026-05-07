@@ -16,9 +16,9 @@
         "postgres": "test-snapshots/empty/cognitive.dump"
       },
       "expected_hashes": {
-        "cognitive.dump": "sha256:e793a1c9593ca08ad7febbae98399612cee65ef853b054633820f504ae0b9ede"
+        "cognitive.dump": "sha256:d4b1265911ba63d191e4a12a3eae3f747be998755c5f81d87aea9bd7ce5a849a"
       },
-      "schema_version": 14,
+      "schema_version": 15,
       "postgres_version": "16",
       "stats": {
         "total_entities": 0,
@@ -26,7 +26,7 @@
         "total_memories": 0,
         "ingest_time_ms": 0
       },
-      "regenerated_at": "2026-05-07T08:16:31.689Z",
+      "regenerated_at": "2026-05-07T13:34:18.754Z",
       "regeneration_command": "pnpm snapshot:generate empty",
       "deterministic": false,
       "notes": "Schema-only LLM baseline. pg_dump --format=custom embeds a timestamp in the dump header, so byte-stable hashing is approximate; the first ensure call populates expected_hashes and subsequent runs detect drift but do not block. Larger drift indicates a migration or pg_dump flag change. Per doc 28 §10 lock B7."
@@ -98,10 +98,10 @@
         "ground_truth": "test-snapshots/synthetic-1k/ground_truth.json"
       },
       "expected_hashes": {
-        "cognitive.dump": "sha256:55f1b76bfb9f5330461de8d91d129aee679d0a847014837632c762254b4f70ff",
+        "cognitive.dump": "sha256:48bbe05f5d0c95a925199a4b989f1d38a4bfa543eb89d5d5d08ed3b99284b2b2",
         "ground_truth.json": "sha256:ee4d61df29d6b4d0b60a72b251d0ae9765f28cde4ce5e1fe8dc9c7aae3c33751"
       },
-      "schema_version": 14,
+      "schema_version": 15,
       "postgres_version": "16",
       "stats": {
         "total_entities": 1000,
@@ -110,7 +110,7 @@
         "bridge_pairs_count": 10,
         "ingest_time_ms": 0
       },
-      "regenerated_at": "2026-05-07T08:17:03.552Z",
+      "regenerated_at": "2026-05-07T13:34:55.546Z",
       "regeneration_command": "pnpm snapshot:synthetic synthetic-1k",
       "deterministic": true,
       "notes": "Per doc 28 §3.3: layered generation (per-memory vectors → memory_entities → updateEntityMeta computes centroids). Bridge-pair entity IDs land in ground_truth.json (invisible to algorithms — never written to entities/same_as_links). Plain-format dump + post-process strips pg_dump's wall-clock header so identical seed yields identical SHA-256."
@@ -143,10 +143,10 @@
         "ground_truth": "test-snapshots/synthetic-10k/ground_truth.json"
       },
       "expected_hashes": {
-        "cognitive.dump": "sha256:46921489f610db2d1a065b3e45e9297e2af74ea8f8252078df4b312689fc71a7",
+        "cognitive.dump": "sha256:bcfe2198077c1fd0855b10853b855f5abac97390049bd6b63050c8114e31defb",
         "ground_truth.json": "sha256:5204721db378c1baa1c3c2c9fa92a20a3188c3f6d7bd12aa8885d194cc0b5ad7"
       },
-      "schema_version": 14,
+      "schema_version": 15,
       "postgres_version": "16",
       "stats": {
         "total_entities": 10000,
@@ -155,7 +155,7 @@
         "bridge_pairs_count": 50,
         "ingest_time_ms": 0
       },
-      "regenerated_at": "2026-05-07T08:22:34.899Z",
+      "regenerated_at": "2026-05-07T13:43:26.926Z",
       "regeneration_command": "pnpm snapshot:synthetic synthetic-10k",
       "deterministic": true,
       "notes": "Same generator as synthetic-1k. Targets §5.1 thresholds (<30s generate, <5s load). Plain-format dump strategy as synthetic-1k."

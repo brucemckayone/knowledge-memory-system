@@ -1098,6 +1098,76 @@ app.get('/api/components/:component_id', async (c) => {
 });
 
 // ============================================
+// Clustering (Phase 3 — nmemo-a7f.3.1, doc 24.1)
+// POST /api/clustering/compute proxies to the ml-services sidecar (HDBSCAN).
+// GET  /api/clusters/:cluster_id reads the local entity_clusters table.
+// ============================================
+
+app.post('/api/clustering/compute', async (c) => {
+  const start = Date.now();
+  try {
+    const response = await fetch(`${config.ML_SERVICES_URL}/clustering/compute`, { method: 'POST' });
+    const body = (await response.json()) as Record<string, unknown>;
+    if (!response.ok) {
+      return c.json({ ok: false, status: response.status, error: body, durationMs: Date.now() - start }, response.status as 409 | 500);
+    }
+    return c.json({ ok: true, result: body, durationMs: Date.now() - start });
+  } catch (err) {
+    return c.json({ ok: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 502);
+  }
+});
+
+app.get('/api/clusters/:cluster_id', async (c) => {
+  const idStr = c.req.param('cluster_id');
+  const clusterId = Number.parseInt(idStr, 10);
+  if (!Number.isInteger(clusterId)) {
+    return c.json({ error: `cluster_id must be an integer (use -1 for noise), got "${idStr}"` }, 400);
+  }
+  const { db } = await import('./db/index.js');
+  const { sql } = await import('drizzle-orm');
+  const rows = (await db.execute(sql`
+    SELECT
+      e.id::text             AS entity_id,
+      e.canonical_name       AS canonical_name,
+      e.entity_type          AS entity_type,
+      ec.cluster_id          AS cluster_id,
+      ec.cluster_size        AS cluster_size,
+      ec.cluster_probability AS cluster_probability,
+      ec.computed_at         AS computed_at,
+      ec.computation_version AS computation_version
+    FROM public.entity_clusters ec
+    JOIN public.entities e ON e.id = ec.entity_id
+    WHERE ec.cluster_id = ${clusterId}
+    ORDER BY ec.cluster_probability DESC NULLS LAST, e.canonical_name ASC
+  `)) as unknown as Array<{
+    entity_id: string;
+    canonical_name: string;
+    entity_type: string;
+    cluster_id: number;
+    cluster_size: number | null;
+    cluster_probability: number | null;
+    computed_at: Date;
+    computation_version: number;
+  }>;
+  if (rows.length === 0) {
+    return c.json({ cluster_id: clusterId, size: 0, entities: [] });
+  }
+  const head = rows[0]!;
+  return c.json({
+    cluster_id: head.cluster_id,
+    size: head.cluster_size,
+    computed_at: head.computed_at instanceof Date ? head.computed_at.toISOString() : String(head.computed_at),
+    computation_version: head.computation_version,
+    entities: rows.map((r) => ({
+      id: r.entity_id,
+      canonical_name: r.canonical_name,
+      entity_type: r.entity_type,
+      cluster_probability: r.cluster_probability,
+    })),
+  });
+});
+
+// ============================================
 // Learning Platform API (/api/learn/)
 // Thin write layer for the learning platform's MCP server.
 // Keeps the learning platform fully decoupled — all graph ops go via HTTP.

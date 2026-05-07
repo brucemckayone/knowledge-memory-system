@@ -33,3 +33,10 @@ python-igraph>=0.11
 networkx>=3.2
 leidenalg>=0.10
 psycopg[binary]>=3.1,<4
+
+# Phase 3 — semantic clustering (truth-graph doc 24.1). HDBSCAN cosine
+# clustering over entity_meta.centroid. hdbscan brings scikit-learn as a
+# transitive dep; we pin sklearn explicitly per the scoping note. Pre-built
+# wheels on manylinux x86_64 and win_amd64.
+hdbscan>=0.8
+scikit-learn>=1.3
