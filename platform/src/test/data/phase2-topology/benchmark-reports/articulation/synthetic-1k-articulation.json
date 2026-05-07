@@ -1,0 +1,21 @@
+{
+  "snapshot_name": "synthetic-1k",
+  "feature": "articulation_and_bridges",
+  "computation_version": 1,
+  "computed_at": "2026-05-07T11:55:19.004Z",
+  "elapsed_ms_articulation": 0,
+  "elapsed_ms_bridges": 0,
+  "elapsed_ms_total": 0,
+  "total_entities": 1000,
+  "edge_count": 3200,
+  "articulation_point_count": 6,
+  "bridge_count": 6,
+  "articulation_rate": 0.006,
+  "on_disk_articulation_point_rows": 6,
+  "on_disk_topology_bridges_rows": 6,
+  "thresholds": {
+    "target_ms": 30,
+    "hard_cap_ms": 100
+  },
+  "notes": "23.3 articulation via igraph.Graph.articulation_points() + bridges via igraph.Graph.bridges(); shares export + write-back with 23.1/23.2. topology_bridges rewritten unconditionally per master 23 §2.3.2. frankenstein-10chunks and mixed-narrative-technical-1k snapshots deferred (j77.5)."
+}

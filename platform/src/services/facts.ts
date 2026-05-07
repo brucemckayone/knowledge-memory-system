@@ -302,6 +302,36 @@ export async function expireFact(params: ExpireFactParams): Promise<void> {
     return;
   }
 
+  // Doc 23.3 §3.4 — structural-impact warning: if this fact is currently a
+  // bridge (its removal would split a component), surface that. Non-blocking;
+  // proceed regardless. Best-effort: a missing topology_bridges row simply
+  // means topology hasn't been computed yet, which is not an error here.
+  try {
+    const bridgeRows = (await db.execute(sql`
+      SELECT source_entity_id::text AS source_entity_id,
+             target_entity_id::text AS target_entity_id
+      FROM public.topology_bridges
+      WHERE fact_id = ${factId}::uuid
+      LIMIT 1
+    `)) as unknown as Array<{ source_entity_id: string; target_entity_id: string }>;
+    if (bridgeRows.length > 0) {
+      const b = bridgeRows[0]!;
+      console.warn(
+        `[topology] expireFact: factId=${factId} is a current BRIDGE between ` +
+          `entities ${b.source_entity_id} and ${b.target_entity_id}; ` +
+          `expiry will fragment this component. Reason: ${reasoning}`,
+      );
+    }
+  } catch (err) {
+    // Topology schema may be absent in some test contexts — never block.
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(
+        '[topology] expireFact: bridge check failed (non-fatal):',
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
   await db.transaction(async (tx) => {
     await tx
       .update(facts)

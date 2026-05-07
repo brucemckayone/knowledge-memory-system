@@ -18,11 +18,11 @@ topology_compute_runs row is marked 'failed' (master §2.3.3).
 Currently shipped:
   - 23.1 compute_components (real implementation, igraph-backed)
   - 23.2 compute_k_core (real implementation, igraph-backed)
+  - 23.3 compute_articulation + compute_bridges (real implementation, igraph-backed)
 
 Not yet shipped (sibling compute_* functions defined as no-op stubs that
 return empty dicts; their NULL-tolerant columns stay NULL until the
 respective beads land):
-  - 23.3 compute_articulation
   - 23.4 compute_communities
   - 23.5 compute_centrality
 
@@ -86,6 +86,8 @@ class TopologyComputeResponse(BaseModel):
     edge_count: int
     component_count: Optional[int] = None
     largest_component_size: Optional[int] = None
+    articulation_point_count: Optional[int] = None
+    bridge_count: Optional[int] = None
     notes: Optional[str] = None
 
 
@@ -113,8 +115,9 @@ def topology_compute() -> TopologyComputeResponse:
             # ------- compute -----------------------------------------------
             components = compute_components(graph)
             k_core = compute_k_core(graph)
+            articulation = compute_articulation(graph)
+            bridges = compute_bridges(graph)
             # Siblings: stubs return empty dicts; their columns stay NULL.
-            articulation = compute_articulation(graph)  # noqa: F841 — reserved for 23.3
             communities = compute_communities(graph)   # noqa: F841 — reserved for 23.4
             centrality = compute_centrality(graph)     # noqa: F841 — reserved for 23.5
 
@@ -126,12 +129,15 @@ def topology_compute() -> TopologyComputeResponse:
                 articulation=articulation,
                 communities=communities,
                 centrality=centrality,
+                bridges=bridges,
                 computation_version=COMPUTATION_VERSION,
             )
 
             elapsed_ms = int((time.perf_counter() - start) * 1000)
             component_count = len(set(cid for cid, _ in components.values())) if components else 0
             largest_component_size = max((sz for _, sz in components.values()), default=0)
+            articulation_point_count = sum(1 for v in articulation.values() if v)
+            bridge_count = len(bridges)
 
             _complete_run(conn, run_id, status="completed", entities_processed=entity_count)
             conn.commit()
@@ -145,7 +151,9 @@ def topology_compute() -> TopologyComputeResponse:
                 edge_count=edge_count,
                 component_count=component_count,
                 largest_component_size=largest_component_size,
-                notes="23.1 components and 23.2 k_core populated; siblings 23.3-23.5 are NULL.",
+                articulation_point_count=articulation_point_count,
+                bridge_count=bridge_count,
+                notes="23.1 components, 23.2 k_core, 23.3 articulation+bridges populated; siblings 23.4-23.5 are NULL.",
             )
         except Exception as exc:  # pragma: no cover — covered via integration
             logger.exception("topology/compute failed")
@@ -228,8 +236,88 @@ def compute_k_core(g: ig.Graph) -> dict[str, int]:
 
 
 def compute_articulation(g: ig.Graph) -> dict[str, bool]:
-    """23.3 Articulation points. Stub — bead nmemo-a7f.2.3 lights this up."""
-    return {}
+    """
+    23.3 Articulation points.
+
+    Returns {entity_id: is_articulation_point} for every vertex in the graph
+    (True for cut vertices; False otherwise — explicit value preserves
+    `is_articulation_point NOT NULL DEFAULT FALSE` semantics in
+    entity_topology).
+
+    Algorithm: Tarjan's depth-first articulation algorithm via
+    igraph.Graph.articulation_points(), O(n + m). Per master §2.4 the
+    DFS forest visits one component at a time, so the result naturally
+    spans every component in the graph.
+
+    Edge cases (per 23.3 §2.4 + §6):
+      - Empty graph → empty dict.
+      - Vertex in a component of size 1 → not an articulation point.
+      - Vertex in a component of size 2 → not an articulation point.
+      - Self-references already filtered in `_export_graph`.
+    """
+    if g.vcount() == 0:
+        return {}
+
+    cut_indices = set(g.articulation_points())
+    return {
+        g.vs[i]["name"]: (i in cut_indices)
+        for i in range(g.vcount())
+    }
+
+
+# A single bridge edge mapped back to a fact_id XOR same_as_link_id.
+# Tuple shape: (low_entity_id, high_entity_id, fact_id_or_None, same_as_link_id_or_None).
+# `low/high` enforce master §2.3.2 LEAST/GREATEST canonical ordering so the
+# `topology_bridges_ordering` CHECK constraint passes on insert.
+BridgeRow = tuple[str, str, Optional[str], Optional[str]]
+
+
+def compute_bridges(g: ig.Graph) -> list[BridgeRow]:
+    """
+    23.3 Bridge edges.
+
+    Returns a list of canonicalised (low_id, high_id, fact_id, same_as_link_id)
+    rows ready for bulk insertion into public.topology_bridges. Exactly one of
+    fact_id / same_as_link_id is non-None per row, matching the table's
+    `topology_bridges_one_kind` CHECK constraint.
+
+    Algorithm: igraph.Graph.bridges() (Tarjan, O(n + m)). The export-time
+    edge attributes `kind` and `edge_id` (set by `_export_graph`) are used to
+    map igraph edge indices back to either a fact_id or a same_as_link_id.
+
+    Edge ordering for the canonical column constraint
+    (`source_entity_id < target_entity_id`) is enforced row-by-row via Python
+    string compare on the entity-id UUIDs — equivalent to PG `LEAST/GREATEST`
+    on UUID strings, since UUID textual ordering matches.
+
+    Multi-edge handling (master §2.2): igraph.bridges() inherently won't
+    flag an edge whose endpoints are also connected by another edge (the
+    parallel edge keeps the graph connected on removal). So a fact + same_as
+    on the same vertex pair simply doesn't appear in the result. No special
+    deduplication is required here.
+    """
+    if g.ecount() == 0:
+        return []
+
+    bridge_indices = g.bridges()
+    rows: list[BridgeRow] = []
+    for edge_idx in bridge_indices:
+        edge = g.es[edge_idx]
+        src_uuid = g.vs[edge.source]["name"]
+        dst_uuid = g.vs[edge.target]["name"]
+        if src_uuid < dst_uuid:
+            low, high = src_uuid, dst_uuid
+        else:
+            low, high = dst_uuid, src_uuid
+        kind = edge["kind"]
+        edge_id = edge["edge_id"]
+        if kind == "fact":
+            rows.append((low, high, edge_id, None))
+        elif kind == "same_as":
+            rows.append((low, high, None, edge_id))
+        else:  # pragma: no cover — defensive; export only emits these two
+            raise ValueError(f"unexpected edge kind in bridge result: {kind!r}")
+    return rows
 
 
 def compute_communities(g: ig.Graph) -> dict[str, tuple[int, float]]:
@@ -354,6 +442,8 @@ def _export_graph(conn: psycopg.Connection) -> tuple[ig.Graph, int, int]:
     g.vs["name"] = entity_ids
 
     edges: list[tuple[int, int]] = []
+    edge_kinds: list[str] = []
+    edge_ids: list[str] = []
     for row in edge_rows:
         src_idx = idx_of.get(row["src"])
         dst_idx = idx_of.get(row["dst"])
@@ -362,9 +452,17 @@ def _export_graph(conn: psycopg.Connection) -> tuple[ig.Graph, int, int]:
             # given FK cascade, but cheap insurance.
             continue
         edges.append((src_idx, dst_idx))
+        edge_kinds.append(row["edge_kind"])
+        edge_ids.append(row["edge_id"])
 
     if edges:
         g.add_edges(edges)
+        # Edge attributes parallel the vertex `name` attribute pattern: they
+        # ride alongside igraph's edge index so 23.3 can map bridge indices
+        # back to the originating fact_id / same_as_link_id without
+        # reconstructing edge ordering.
+        g.es["kind"] = edge_kinds
+        g.es["edge_id"] = edge_ids
 
     return g, len(entity_ids), len(edges)
 
@@ -381,6 +479,7 @@ def _write_back(
     articulation: dict[str, bool],
     communities: dict[str, tuple[int, float]],
     centrality: dict[str, tuple[float, float]],
+    bridges: Optional[list[BridgeRow]] = None,
     computation_version: int,
 ) -> None:
     """
@@ -404,8 +503,6 @@ def _write_back(
         | set(communities.keys())
         | set(centrality.keys())
     )
-    if not all_entity_ids:
-        return
 
     rows: list[tuple[Any, ...]] = []
     for entity_id in all_entity_ids:
@@ -426,28 +523,54 @@ def _write_back(
         ))
 
     with conn.cursor() as cur:
-        # executemany is fine here; entity counts are bounded by the graph
-        # export at sub-second speeds even for 10k. For the 100k+ horizon,
-        # a COPY-based path would be added.
-        cur.executemany(
-            """
-            INSERT INTO public.entity_topology (
-                entity_id, component_id, component_size, k_core,
-                is_articulation_point, community_id, participation_coef,
-                pagerank, betweenness_sampled,
-                computed_at, computation_version
-            ) VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
-            ON CONFLICT (entity_id) DO UPDATE SET
-                component_id          = EXCLUDED.component_id,
-                component_size        = EXCLUDED.component_size,
-                k_core                = EXCLUDED.k_core,
-                is_articulation_point = EXCLUDED.is_articulation_point,
-                community_id          = EXCLUDED.community_id,
-                participation_coef    = EXCLUDED.participation_coef,
-                pagerank              = EXCLUDED.pagerank,
-                betweenness_sampled   = EXCLUDED.betweenness_sampled,
-                computed_at           = NOW(),
-                computation_version   = EXCLUDED.computation_version
-            """,
-            rows,
-        )
+        if rows:
+            # executemany is fine here; entity counts are bounded by the graph
+            # export at sub-second speeds even for 10k. For the 100k+ horizon,
+            # a COPY-based path would be added.
+            cur.executemany(
+                """
+                INSERT INTO public.entity_topology (
+                    entity_id, component_id, component_size, k_core,
+                    is_articulation_point, community_id, participation_coef,
+                    pagerank, betweenness_sampled,
+                    computed_at, computation_version
+                ) VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+                ON CONFLICT (entity_id) DO UPDATE SET
+                    component_id          = EXCLUDED.component_id,
+                    component_size        = EXCLUDED.component_size,
+                    k_core                = EXCLUDED.k_core,
+                    is_articulation_point = EXCLUDED.is_articulation_point,
+                    community_id          = EXCLUDED.community_id,
+                    participation_coef    = EXCLUDED.participation_coef,
+                    pagerank              = EXCLUDED.pagerank,
+                    betweenness_sampled   = EXCLUDED.betweenness_sampled,
+                    computed_at           = NOW(),
+                    computation_version   = EXCLUDED.computation_version
+                """,
+                rows,
+            )
+
+        # ---------- 23.3 §3.2: rewrite topology_bridges ----------
+        # `bridges=None` is the legacy call shape (used by the .2.1 / .2.2 test
+        # drivers that don't yet exercise this feature) — leave the table
+        # untouched in that case. When .2.3 ships, callers always pass a list
+        # (possibly empty) and we DELETE-then-INSERT in the same transaction
+        # per master §2.3.2 / cold-eyes review B1 (unconditional DELETE,
+        # canonical ordering enforced by `compute_bridges`).
+        if bridges is not None:
+            cur.execute("DELETE FROM public.topology_bridges")
+            if bridges:
+                bridge_rows = [
+                    (low, high, fact_id, same_as_link_id, computation_version)
+                    for (low, high, fact_id, same_as_link_id) in bridges
+                ]
+                cur.executemany(
+                    """
+                    INSERT INTO public.topology_bridges
+                        (source_entity_id, target_entity_id, fact_id, same_as_link_id, computation_version)
+                    VALUES
+                        (%s::uuid, %s::uuid, %s::uuid, %s::uuid, %s)
+                    ON CONFLICT (source_entity_id, target_entity_id) DO NOTHING
+                    """,
+                    bridge_rows,
+                )

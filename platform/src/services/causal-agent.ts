@@ -1395,6 +1395,35 @@ async function _handleToolCallInner(
       const targetId = toolInput.target_entity_id as string;
       const mergeReason = toolInput.reasoning as string;
 
+      // Doc 23.3 §3.4 — structural-impact warning: if either side of the
+      // merge is currently flagged as an articulation point, deleting the
+      // source (or rerouting through the survivor) is likely to fragment
+      // a component. Non-blocking; surface and proceed.
+      try {
+        const apRows = (await db.execute(sql`
+          SELECT entity_id::text AS entity_id, is_articulation_point
+          FROM public.entity_topology
+          WHERE entity_id = ANY(ARRAY[${sourceId}::uuid, ${targetId}::uuid])
+            AND is_articulation_point = TRUE
+        `)) as unknown as Array<{ entity_id: string; is_articulation_point: boolean }>;
+        if (apRows.length > 0) {
+          const flagged = apRows.map((r) => r.entity_id).join(', ');
+          console.warn(
+            `[topology] execute_merge: ARTICULATION POINT involved in merge ` +
+              `(source=${sourceId}, target=${targetId}); flagged entities: ${flagged}; ` +
+              `merge will likely fragment a component. Reason: ${mergeReason}`,
+          );
+        }
+      } catch (err) {
+        // Topology schema may be absent — never block.
+        if (process.env.NODE_ENV !== 'test') {
+          console.warn(
+            '[topology] execute_merge: articulation check failed (non-fatal):',
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+
       try {
         const result = await db.execute(
           sql`SELECT public.merge_entities(${sourceId}::uuid, ${targetId}::uuid, ${mergeReason}, 'reconciliation_agent')`
