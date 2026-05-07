@@ -19,11 +19,11 @@ Currently shipped:
   - 23.1 compute_components (real implementation, igraph-backed)
   - 23.2 compute_k_core (real implementation, igraph-backed)
   - 23.3 compute_articulation + compute_bridges (real implementation, igraph-backed)
+  - 23.4 compute_communities (real implementation, leidenalg-backed)
 
 Not yet shipped (sibling compute_* functions defined as no-op stubs that
 return empty dicts; their NULL-tolerant columns stay NULL until the
 respective beads land):
-  - 23.4 compute_communities
   - 23.5 compute_centrality
 
 The DP1 (a) decision (full Phase 2 schema in migration 014, NULL-tolerant
@@ -35,10 +35,12 @@ from __future__ import annotations
 
 import logging
 import os
+import random
 import time
 from typing import Any, Optional
 
 import igraph as ig
+import leidenalg
 import psycopg
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -88,6 +90,7 @@ class TopologyComputeResponse(BaseModel):
     largest_component_size: Optional[int] = None
     articulation_point_count: Optional[int] = None
     bridge_count: Optional[int] = None
+    community_count: Optional[int] = None
     notes: Optional[str] = None
 
 
@@ -117,8 +120,8 @@ def topology_compute() -> TopologyComputeResponse:
             k_core = compute_k_core(graph)
             articulation = compute_articulation(graph)
             bridges = compute_bridges(graph)
-            # Siblings: stubs return empty dicts; their columns stay NULL.
-            communities = compute_communities(graph)   # noqa: F841 — reserved for 23.4
+            communities = compute_communities(graph, computation_version=COMPUTATION_VERSION)
+            # Sibling: stub returns empty dict; its columns stay NULL.
             centrality = compute_centrality(graph)     # noqa: F841 — reserved for 23.5
 
             # ------- write-back (single transaction per master §2.3.2) ----
@@ -138,6 +141,7 @@ def topology_compute() -> TopologyComputeResponse:
             largest_component_size = max((sz for _, sz in components.values()), default=0)
             articulation_point_count = sum(1 for v in articulation.values() if v)
             bridge_count = len(bridges)
+            community_count = len(set(cid for cid, _ in communities.values())) if communities else 0
 
             _complete_run(conn, run_id, status="completed", entities_processed=entity_count)
             conn.commit()
@@ -153,7 +157,8 @@ def topology_compute() -> TopologyComputeResponse:
                 largest_component_size=largest_component_size,
                 articulation_point_count=articulation_point_count,
                 bridge_count=bridge_count,
-                notes="23.1 components, 23.2 k_core, 23.3 articulation+bridges populated; siblings 23.4-23.5 are NULL.",
+                community_count=community_count,
+                notes="23.1 components, 23.2 k_core, 23.3 articulation+bridges, 23.4 communities populated; sibling 23.5 is NULL.",
             )
         except Exception as exc:  # pragma: no cover — covered via integration
             logger.exception("topology/compute failed")
@@ -320,9 +325,133 @@ def compute_bridges(g: ig.Graph) -> list[BridgeRow]:
     return rows
 
 
-def compute_communities(g: ig.Graph) -> dict[str, tuple[int, float]]:
-    """23.4 Community detection (Leiden). Stub — bead nmemo-a7f.2.4 lights this up."""
-    return {}
+# Doc 23.4 §2.4 / cold-eyes review W2 — leidenalg.find_partition() in 0.10.x
+# does not accept a `seed=` kwarg (0.11.x does, but we stay version-stable by
+# pinning the random source at the igraph level instead). Identical
+# computation_version + identical input → identical community assignments.
+LEIDEN_SEED_SALT = 0x10c4_ce11  # arbitrary fixed salt; keep stable across versions
+# Doc 23.4 §2.3 — modularity formulation default; tuning deferred.
+LEIDEN_RESOLUTION = 1.0
+# Doc 23.4 §3.1 — leidenalg's recommended n_iterations default for converged
+# partitions. Two passes is the published Leiden contract.
+LEIDEN_N_ITERATIONS = 2
+
+
+def _compute_seed(computation_version: int) -> int:
+    """Derive the per-run seed from the computation version + a fixed salt.
+
+    Single source of truth so test drivers and benchmark scripts can predict
+    the seed without re-deriving the formula.
+    """
+    return (computation_version * 1_000_003) ^ LEIDEN_SEED_SALT
+
+
+def _canonicalise_community_ids(membership: list[int], g: ig.Graph) -> list[int]:
+    """Re-label membership[i] using doc 23.4 §2.5 canonical ordering.
+
+    Sort communities by (size desc, smallest member UUID asc), then number
+    them 0..N-1. Returns a new list parallel to vertex order.
+    """
+    # Bucket vertices by raw leiden label.
+    buckets: dict[int, list[int]] = {}
+    for vidx, label in enumerate(membership):
+        buckets.setdefault(label, []).append(vidx)
+
+    # Canonical sort: size desc, smallest member UUID asc.
+    sorted_labels = sorted(
+        buckets.keys(),
+        key=lambda lbl: (
+            -len(buckets[lbl]),
+            min(g.vs[i]["name"] for i in buckets[lbl]),
+        ),
+    )
+    relabel = {old: new for new, old in enumerate(sorted_labels)}
+    return [relabel[m] for m in membership]
+
+
+def _compute_participation(g: ig.Graph, community_ids: list[int]) -> list[Optional[float]]:
+    """Guimerà-Amaral participation coefficient (Nature 2005).
+
+    P(v) = 1 - sum_over_communities_c [ (k_v_c / k_v) ** 2 ]
+
+    Returns a list parallel to vertex order. Per doc 23.4 §6:
+      - degree-0 vertex → None (NULL on disk; "couldn't compute")
+      - degree>0 vertex with all neighbours in same community → 0.0 (computed,
+        zero — distinguishes from the NULL case)
+    """
+    n = g.vcount()
+    out: list[Optional[float]] = [None] * n
+    if n == 0:
+        return out
+
+    degrees = g.degree()  # undirected degree per vertex
+    for v in range(n):
+        k_v = degrees[v]
+        if k_v == 0:
+            out[v] = None
+            continue
+        # Tally neighbour community memberships. Self-loops are filtered
+        # upstream (`_export_graph` skips subject==object), but defensively
+        # exclude self if it ever slipped in.
+        per_comm: dict[int, int] = {}
+        for nb in g.neighbors(v):
+            cid = community_ids[nb]
+            per_comm[cid] = per_comm.get(cid, 0) + 1
+        s = 0.0
+        for k_v_c in per_comm.values():
+            ratio = k_v_c / k_v
+            s += ratio * ratio
+        out[v] = float(1.0 - s)
+    return out
+
+
+def compute_communities(
+    g: ig.Graph,
+    computation_version: int = COMPUTATION_VERSION,
+) -> dict[str, tuple[int, Optional[float]]]:
+    """
+    23.4 Community detection — Leiden algorithm via leidenalg.
+
+    Returns {entity_id: (community_id, participation_coef)} where:
+      - community_id is canonically assigned (size desc, smallest-member-UUID
+        tiebreak), 0..N-1
+      - participation_coef is the Guimerà-Amaral coefficient, or None for
+        zero-degree (isolated) vertices
+
+    Algorithm: leidenalg.find_partition with ModularityVertexPartition,
+    n_iterations=2. Determinism is enforced at the igraph level via
+    igraph.set_random_number_generator() — leidenalg 0.10.x does not accept a
+    `seed=` kwarg (cold-eyes review W2 in doc 23.4 §2.4). Identical
+    computation_version + identical input → identical assignments.
+
+    Edge cases (per doc 23.4 §6):
+      - Empty graph → {}
+      - Single entity → community_id=0, participation_coef=None
+      - Two disconnected entities → two communities of size 1 each
+      - Disconnected components → communities never span components
+      - Vertex with all neighbours in same community → 0.0 (not None)
+    """
+    if g.vcount() == 0:
+        return {}
+
+    # Pin igraph's random source for determinism. Doc 23.4 §2.4.
+    seed = _compute_seed(computation_version)
+    rng = random.Random(seed)
+    ig.set_random_number_generator(rng)
+
+    partition = leidenalg.find_partition(
+        g,
+        leidenalg.ModularityVertexPartition,
+        n_iterations=LEIDEN_N_ITERATIONS,
+    )
+    raw_membership: list[int] = list(partition.membership)
+    canonical_ids = _canonicalise_community_ids(raw_membership, g)
+    participation = _compute_participation(g, canonical_ids)
+
+    return {
+        g.vs[i]["name"]: (canonical_ids[i], participation[i])
+        for i in range(g.vcount())
+    }
 
 
 def compute_centrality(g: ig.Graph) -> dict[str, tuple[float, float]]:
@@ -477,7 +606,7 @@ def _write_back(
     components: dict[str, tuple[int, int]],
     k_core: dict[str, int],
     articulation: dict[str, bool],
-    communities: dict[str, tuple[int, float]],
+    communities: dict[str, tuple[int, Optional[float]]],
     centrality: dict[str, tuple[float, float]],
     bridges: Optional[list[BridgeRow]] = None,
     computation_version: int,
