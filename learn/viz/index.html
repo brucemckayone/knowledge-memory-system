@@ -388,25 +388,125 @@
   .section-header h1 { font-size: 22px; font-weight: 700; line-height: 1.3; margin-bottom: 8px; }
   .section-header .desc { color: var(--muted); line-height: 1.6; }
 
-  /* Cross-course bridge banner — surfaces "you've seen this before in [Course X]" */
-  .bridge-banners { display: flex; flex-direction: column; gap: 8px; }
-  .bridge-banner {
-    background: rgba(99, 102, 241, 0.07);
-    border: 1px solid rgba(99, 102, 241, 0.3);
+  /* Cross-course bridge — enriched per-section card (nmemo-3va) */
+  .bridge-cards { display: flex; flex-direction: column; gap: 10px; }
+  .connection-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--radius);
+    padding: 8px 12px; font-size: 13px; color: var(--text);
+  }
+  .connection-banner-text strong { color: var(--accent); }
+  .connection-banner-dismiss {
+    background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer;
+    line-height: 1; padding: 0 6px;
+  }
+  .connection-banner-dismiss:hover { color: var(--text); }
+  .bridge-card {
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.28);
     border-left: 3px solid var(--accent);
     border-radius: var(--radius);
     padding: 12px 16px;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-    display: block;
-    text-decoration: none;
-    color: inherit;
   }
-  .bridge-banner:hover { background: rgba(99, 102, 241, 0.13); border-color: var(--accent); }
-  .bridge-banner .bridge-head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; }
-  .bridge-banner .bridge-head .arrow { font-size: 14px; line-height: 1; }
-  .bridge-banner .bridge-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; line-height: 1.4; }
-  .bridge-banner .bridge-cta { font-size: 12px; color: var(--accent); }
+  .bridge-card .bridge-head {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 8px;
+  }
+  .bridge-card .bridge-prior-course {
+    font-size: 12px; color: var(--accent); text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 600;
+  }
+  .bridge-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .bridge-badge-sameas { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+  .bridge-badge-direct { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+  .bridge-confidence {
+    font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600;
+    background: rgba(99, 102, 241, 0.18); color: var(--accent);
+  }
+  .bridge-names {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 4px;
+  }
+  .bridge-prior-name { color: #c084fc; }
+  .bridge-this-name { color: var(--text); }
+  .bridge-arrow { color: var(--muted); font-weight: 400; }
+  .bridge-name-hint { font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.5; }
+  .bridge-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .btn-bridge-cta, .btn-bridge-open {
+    background: transparent; border: 1px solid rgba(99, 102, 241, 0.4);
+    color: var(--accent); font-size: 12px; padding: 6px 12px;
+    border-radius: var(--radius); cursor: pointer; font-weight: 500;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn-bridge-cta:hover:not(:disabled), .btn-bridge-open:hover { background: rgba(99, 102, 241, 0.12); border-color: var(--accent); }
+  .btn-bridge-cta:disabled { opacity: 0.6; cursor: progress; }
+  .bridge-explainer {
+    margin-top: 10px; padding: 12px; background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: 14px; line-height: 1.6; color: var(--text);
+    max-height: 300px; overflow-y: auto;
+  }
+  .bridge-explainer p { margin-bottom: 8px; }
+  .bridge-explainer p:last-child { margin-bottom: 0; }
+  .bridge-explainer-error { color: var(--muted); font-style: italic; font-size: 13px; }
+
+  /* Synthesis affordance card */
+  .synthesis-card {
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    border-left: 3px solid var(--green);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+  }
+  .synthesis-card .synthesis-head {
+    font-size: 12px; color: var(--green); text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px;
+  }
+  .synthesis-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 6px 0;
+  }
+  .synthesis-row-title { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; }
+  .btn-synthesis-read, .btn-synthesis-generate {
+    background: transparent; border: 1px solid rgba(34, 197, 94, 0.4);
+    color: var(--green); font-size: 12px; padding: 6px 12px;
+    border-radius: var(--radius); cursor: pointer; font-weight: 500;
+  }
+  .btn-synthesis-read:hover, .btn-synthesis-generate:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.12);
+  }
+  .btn-synthesis-generate:disabled { opacity: 0.6; cursor: progress; }
+  .btn-synthesis-generate { margin-top: 6px; }
+  .synthesis-empty { font-size: 13px; color: var(--muted); margin-bottom: 8px; line-height: 1.5; }
+
+  .synthesis-modal {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .synthesis-modal-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); max-width: 720px; width: 100%;
+    max-height: 85vh; display: flex; flex-direction: column;
+  }
+  .synthesis-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+  }
+  .synthesis-modal-header h2 { font-size: 18px; font-weight: 600; margin: 0; }
+  .synthesis-modal-close {
+    background: none; border: none; color: var(--muted); font-size: 24px;
+    cursor: pointer; line-height: 1; padding: 0 8px;
+  }
+  .synthesis-modal-close:hover { color: var(--text); }
+  .synthesis-modal-body {
+    padding: 20px; overflow-y: auto; line-height: 1.6;
+  }
 
   .objectives-box { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; }
   .objectives-box h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
@@ -1024,6 +1124,7 @@ function renderSection(section) {
     </div>
 
     <div id="sectionBridge"></div>
+    <div id="sectionSynthesis"></div>
 
     ${objectives.length > 0 ? `
       <div class="objectives-box">
@@ -1054,28 +1155,30 @@ function renderSection(section) {
   mountLessonBody(section);
   // Fire-and-forget — bridge is silent if no matches; section UX never blocks on it.
   loadCrossCourseBridge(section);
+  // Fire-and-forget — synthesis card is silent if no matching articles.
+  loadSynthesisAffordance(section);
   // Fire-and-forget — notes load lazily; cached per-section to make tab-bounce instant.
   renderNotesPanel(section.id);
 }
 
-// Fetches cross_course_link insights and renders banners for any whose entities overlap
-// the current section's concepts AND whose related courses include another course.
-// Silent (no banner) when there are no matches. Cached per section so back-nav is instant.
+// Fetches enriched bridge data via GET /api/sections/:id/bridge and renders one
+// card per overlap (direct or same_as). Each card carries: prior course title,
+// both concept names (visually distinct for same_as), confidence badge for
+// same_as, and a "Show me the bridge" CTA that fetches an inline explainer.
+// Silent when there are no overlaps; cached per section so back-nav is instant.
 async function loadCrossCourseBridge(section) {
   if (!section || !section.id) return;
   const slotId = 'sectionBridge';
   const sectionId = section.id;
   const concepts = Array.isArray(section.conceptEntityIds) ? section.conceptEntityIds : [];
   if (concepts.length === 0) return; // nothing to bridge from
-  const currentCourseId = section.courseId;
 
-  let matches;
+  let payload;
   if (state.bridgeCache[sectionId]) {
-    matches = state.bridgeCache[sectionId];
+    payload = state.bridgeCache[sectionId];
   } else {
-    let resp;
     try {
-      resp = await api('GET', `/api/insights?type=cross_course_link&include_dismissed=false&limit=10`);
+      payload = await api('GET', `/api/sections/${encodeURIComponent(sectionId)}/bridge`);
     } catch (e) {
       // Bridge is non-critical; never fail the section view.
       console.warn('cross-course bridge fetch failed:', e);
@@ -1083,60 +1186,257 @@ async function loadCrossCourseBridge(section) {
     }
     // Re-check we're still on the same section (user may have navigated away).
     if (!state.currentSection || state.currentSection.id !== sectionId) return;
-
-    const conceptSet = new Set(concepts);
-    const all = Array.isArray(resp && resp.insights) ? resp.insights : [];
-    matches = all.filter(it => {
-      const eIds = Array.isArray(it.relatedEntityIds) ? it.relatedEntityIds : [];
-      const cIds = Array.isArray(it.relatedCourseIds) ? it.relatedCourseIds : [];
-      if (!eIds.some(id => conceptSet.has(id))) return false;
-      // Must touch at least one course OTHER than the current one.
-      return cIds.some(cid => cid && cid !== currentCourseId);
-    }).slice(0, 3); // cap to avoid clutter
-    state.bridgeCache[sectionId] = matches;
+    state.bridgeCache[sectionId] = payload;
   }
 
-  // Re-check container still belongs to the active section (defensive against fast nav).
   const slot = document.getElementById(slotId);
   if (!slot) return;
   if (!state.currentSection || state.currentSection.id !== sectionId) return;
-  if (matches.length === 0) return; // silent
 
-  // Build a course id → title map. Prefer state.courses (loaded on app boot or course nav).
-  const idToTitle = new Map();
-  try {
-    const cached = Array.isArray(state.courses) ? state.courses : [];
-    for (const c of cached) {
-      if (c && c.id && c.title) idToTitle.set(c.id, c.title);
-    }
-  } catch { /* noop */ }
-  const titleFor = (cid) => idToTitle.get(cid) || (typeof cid === 'string' ? cid.slice(0, 8) : '');
+  const overlaps = Array.isArray(payload && payload.overlaps) ? payload.overlaps : [];
+  if (overlaps.length === 0) return; // silent
 
-  const bannersHtml = matches.map(it => {
-    const cIds = Array.isArray(it.relatedCourseIds) ? it.relatedCourseIds : [];
-    const targetCourseId = cIds.find(cid => cid && cid !== currentCourseId);
-    if (!targetCourseId) return '';
-    const targetTitle = titleFor(targetCourseId);
+  // Connection banner — single line above the bridge cards if multi-course
+  // history is detected (any overlap means the learner has seen these ideas
+  // in another course). Cold-start single-course learners simply see no
+  // overlaps and so no banner.
+  const courseSet = new Set();
+  for (const o of overlaps) if (o.priorCourseId) courseSet.add(o.priorCourseId);
+  const courseTitles = [...new Set(overlaps.map(o => o.priorCourseTitle).filter(Boolean))];
+  const courseLabel = courseTitles.length === 1
+    ? courseTitles[0]
+    : (courseTitles.length === 2
+        ? `${courseTitles[0]} and ${courseTitles[1]}`
+        : `${courseTitles[0]} and ${courseTitles.length - 1} other course${courseTitles.length - 1 === 1 ? '' : 's'}`);
+  const dismissed = sessionStorage.getItem('bridgeBannerDismissed:' + sectionId) === '1';
+  const bannerHtml = (!dismissed && courseTitles.length > 0) ? `
+    <div class="connection-banner" role="status">
+      <span class="connection-banner-text">You've seen these ideas before in <strong>${escapeHtml(courseLabel)}</strong>.</span>
+      <button type="button" class="connection-banner-dismiss" aria-label="Dismiss">×</button>
+    </div>
+  ` : '';
+
+  const cardsHtml = overlaps.slice(0, 5).map((o, idx) => {
+    const isSameAs = o.kind === 'same_as';
+    const badgeClass = isSameAs ? 'bridge-badge-sameas' : 'bridge-badge-direct';
+    const badgeText = isSameAs ? 'Semantically equivalent' : 'Same concept across courses';
+    const confidencePct = (typeof o.confidence === 'number') ? Math.round(o.confidence * 100) : null;
+    const confidenceBadge = (isSameAs && confidencePct !== null)
+      ? `<span class="bridge-confidence">${confidencePct}% match</span>`
+      : '';
+    const namesHtml = isSameAs
+      ? `<div class="bridge-names">
+           <span class="bridge-prior-name">${escapeHtml(o.priorConceptName)}</span>
+           <span class="bridge-arrow">→</span>
+           <span class="bridge-this-name">${escapeHtml(o.thisConceptName)}</span>
+         </div>
+         <div class="bridge-name-hint">in <strong>${escapeHtml(o.priorCourseTitle)}</strong> this was called "${escapeHtml(o.priorConceptName)}"; here we call it "${escapeHtml(o.thisConceptName)}".</div>`
+      : `<div class="bridge-names">
+           <span class="bridge-this-name">${escapeHtml(o.thisConceptName)}</span>
+         </div>`;
     return `
-      <div class="bridge-banner" data-course-id="${escapeHtml(targetCourseId)}" role="link" tabindex="0">
-        <div class="bridge-head"><span class="arrow">↗</span> You've seen this before in ${escapeHtml(targetTitle)}</div>
-        <div class="bridge-title">${escapeHtml(it.title || '')}</div>
-        <div class="bridge-cta">Open course →</div>
+      <div class="bridge-card" data-overlap-idx="${idx}" data-prior-course-id="${escapeHtml(o.priorCourseId || '')}">
+        <div class="bridge-head">
+          <span class="bridge-prior-course">Prior: ${escapeHtml(o.priorCourseTitle)}</span>
+          <span class="bridge-badge ${badgeClass}">${badgeText}</span>
+          ${confidenceBadge}
+        </div>
+        ${namesHtml}
+        <div class="bridge-actions">
+          <button type="button" class="btn-bridge-cta" data-action="show-bridge">Show me the bridge</button>
+          <button type="button" class="btn-bridge-open" data-action="open-course">Open ${escapeHtml(o.priorCourseTitle)}</button>
+        </div>
+        <div class="bridge-explainer" data-bridge-explainer hidden></div>
       </div>
     `;
-  }).filter(Boolean).join('');
+  }).join('');
 
-  if (!bannersHtml) return;
-  slot.innerHTML = `<div class="bridge-banners" style="margin-bottom:16px">${bannersHtml}</div>`;
-  // Wire click + keyboard activation. Reuse existing openCourse() for navigation.
-  slot.querySelectorAll('.bridge-banner').forEach(el => {
-    const courseId = el.getAttribute('data-course-id');
-    if (!courseId) return;
-    el.addEventListener('click', () => openCourse(courseId));
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCourse(courseId); }
+  slot.innerHTML = `<div class="bridge-cards" style="margin-bottom:16px">${bannerHtml}${cardsHtml}</div>`;
+
+  // Wire dismiss for the banner.
+  const banner = slot.querySelector('.connection-banner');
+  if (banner) {
+    const btn = banner.querySelector('.connection-banner-dismiss');
+    if (btn) btn.addEventListener('click', () => {
+      sessionStorage.setItem('bridgeBannerDismissed:' + sectionId, '1');
+      banner.remove();
+    });
+  }
+
+  // Wire each card's CTAs.
+  slot.querySelectorAll('.bridge-card').forEach(card => {
+    const idx = parseInt(card.getAttribute('data-overlap-idx') || '-1', 10);
+    const overlap = overlaps[idx];
+    if (!overlap) return;
+    const explainerEl = card.querySelector('[data-bridge-explainer]');
+
+    const openBtn = card.querySelector('.btn-bridge-open');
+    if (openBtn) openBtn.addEventListener('click', () => {
+      if (overlap.priorCourseId) openCourse(overlap.priorCourseId);
+    });
+
+    const showBtn = card.querySelector('.btn-bridge-cta');
+    if (showBtn) showBtn.addEventListener('click', async () => {
+      if (!explainerEl) return;
+      // Toggle: hide if already open and loaded.
+      if (!explainerEl.hidden && explainerEl.dataset.loaded === '1') {
+        explainerEl.hidden = true;
+        return;
+      }
+      explainerEl.hidden = false;
+      if (explainerEl.dataset.loaded === '1') return; // already fetched, just re-show
+      explainerEl.innerHTML = '<div class="loading-row"><div class="spinner"></div> Building the bridge…</div>';
+      showBtn.disabled = true;
+      try {
+        const r = await api('POST', '/api/explain/bridge', {
+          aEntityId: overlap.priorConceptId,
+          bEntityId: overlap.thisConceptId,
+          aName: overlap.priorConceptName,
+          bName: overlap.thisConceptName,
+          aCourseTitle: overlap.priorCourseTitle,
+          bCourseTitle: (state.currentSection && state.currentSection.courseTitle) || (payload.currentCourseTitle || ''),
+          kind: overlap.kind,
+        });
+        if (r && r.ok && typeof r.contentMd === 'string') {
+          explainerEl.innerHTML = renderMarkdown(r.contentMd);
+        } else {
+          const msg = (r && r.errorText) ? r.errorText : 'Explainer temporarily unavailable.';
+          explainerEl.innerHTML = `<div class="bridge-explainer-error">${escapeHtml(msg)}</div>`;
+        }
+        explainerEl.dataset.loaded = '1';
+      } catch (e) {
+        explainerEl.innerHTML = `<div class="bridge-explainer-error">${escapeHtml((e && e.message) || 'Explainer failed.')}</div>`;
+      } finally {
+        showBtn.disabled = false;
+      }
     });
   });
+}
+
+// Fetches synthesis articles whose relatedEntityIds overlap this section's
+// conceptEntityIds. If none, optionally renders a "Generate synthesis" CTA
+// when the section has ≥3 concepts (lightweight heuristic for cluster-worthy
+// sections — the platform's concept-clusters endpoint is the canonical source
+// but the section's own concept count is a sufficient client-side proxy).
+async function loadSynthesisAffordance(section) {
+  if (!section || !section.id) return;
+  const sectionId = section.id;
+  const slot = document.getElementById('sectionSynthesis');
+  if (!slot) return;
+  const concepts = Array.isArray(section.conceptEntityIds) ? section.conceptEntityIds : [];
+  if (concepts.length === 0) return;
+
+  let payload;
+  try {
+    payload = await api('GET', `/api/articles/by-section/${encodeURIComponent(sectionId)}`);
+  } catch (e) {
+    console.warn('synthesis affordance fetch failed:', e);
+    return;
+  }
+  if (!state.currentSection || state.currentSection.id !== sectionId) return;
+  if (!slot.isConnected) return;
+
+  const articles = Array.isArray(payload && payload.articles) ? payload.articles : [];
+  const generateEligible = concepts.length >= 3;
+  if (articles.length === 0 && !generateEligible) return; // silent
+
+  const articlesHtml = articles.length > 0
+    ? articles.slice(0, 3).map(a => `
+        <div class="synthesis-row" data-article-id="${escapeHtml(a.id)}">
+          <div class="synthesis-row-title">${escapeHtml(a.title || 'Untitled synthesis')}</div>
+          <button type="button" class="btn-synthesis-read">Read synthesis</button>
+        </div>
+      `).join('')
+    : '';
+
+  const generateBtn = generateEligible
+    ? `<button type="button" class="btn-synthesis-generate">${articles.length > 0 ? 'Generate another' : 'Generate synthesis'}</button>`
+    : '';
+
+  slot.innerHTML = `
+    <div class="synthesis-card" style="margin-bottom:16px">
+      <div class="synthesis-head">Synthesis ${articles.length > 0 ? 'available' : 'opportunity'}</div>
+      <div class="synthesis-body">
+        ${articles.length > 0
+          ? articlesHtml
+          : '<div class="synthesis-empty">These concepts may connect to others across your courses. Generate a synthesis article to find out.</div>'}
+        ${generateBtn}
+      </div>
+    </div>
+  `;
+
+  slot.querySelectorAll('.synthesis-row').forEach(row => {
+    const articleId = row.getAttribute('data-article-id');
+    const btn = row.querySelector('.btn-synthesis-read');
+    if (btn && articleId) {
+      btn.addEventListener('click', () => openSynthesisArticle(articleId));
+    }
+  });
+
+  const genBtn = slot.querySelector('.btn-synthesis-generate');
+  if (genBtn) {
+    genBtn.addEventListener('click', async () => {
+      genBtn.disabled = true;
+      const originalLabel = genBtn.textContent;
+      genBtn.textContent = 'Generating…';
+      try {
+        const created = await api('POST', '/api/articles/generate', {
+          conceptEntityIds: concepts,
+          sectionId,
+        });
+        if (created && created.id) {
+          // Invalidate cache for this section so re-render shows the new row.
+          if (!state.currentSection || state.currentSection.id !== sectionId) return;
+          await loadSynthesisAffordance(section);
+          openSynthesisArticle(created.id);
+        } else {
+          genBtn.textContent = originalLabel;
+        }
+      } catch (e) {
+        genBtn.textContent = originalLabel;
+        console.warn('synthesis generation failed:', e);
+        alert('Synthesis generation failed: ' + ((e && e.message) || 'unknown error'));
+      } finally {
+        genBtn.disabled = false;
+      }
+    });
+  }
+}
+
+// Open a synthesis article in a simple modal-style overlay. Uses the existing
+// /api/articles/:id route (which also stamps viewed_at). Renders contentMd via
+// the page's markdown renderer.
+async function openSynthesisArticle(articleId) {
+  if (!articleId) return;
+  let article;
+  try {
+    article = await api('GET', `/api/articles/${encodeURIComponent(articleId)}`);
+  } catch (e) {
+    alert('Failed to load synthesis article: ' + ((e && e.message) || 'unknown error'));
+    return;
+  }
+  if (!article || !article.id) return;
+  // Lightweight modal: append to body, ESC + click-outside dismiss.
+  let modal = document.getElementById('synthesisModal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'synthesisModal';
+  modal.className = 'synthesis-modal';
+  modal.innerHTML = `
+    <div class="synthesis-modal-card" role="dialog" aria-modal="true">
+      <div class="synthesis-modal-header">
+        <h2>${escapeHtml(article.title || 'Synthesis')}</h2>
+        <button type="button" class="synthesis-modal-close" aria-label="Close">×</button>
+      </div>
+      <div class="synthesis-modal-body">${renderMarkdown(article.contentMd || '')}</div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const close = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  modal.querySelector('.synthesis-modal-close').addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
 }
 
 function hasLessonBody(section) {
