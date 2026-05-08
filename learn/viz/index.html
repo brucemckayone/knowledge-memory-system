@@ -576,6 +576,44 @@
   .question-row .q-body { display: none; padding: 0 16px 16px; border-top: 1px solid var(--border); }
   .question-row.open .q-body { display: block; }
   .question-row .q-body .q-full { font-size: 14px; line-height: 1.6; padding: 14px 0 12px; }
+
+  /* Nmemo write chips + click-to-expand detail card (nmemo-4jc) */
+  .nmemo-chip { transition: background 0.15s, border-color 0.15s; }
+  .nmemo-chip:hover { background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.5); }
+  .nmemo-chip.is-open { background: rgba(99,102,241,0.22); border-color: var(--accent); }
+  .nmemo-chip-card {
+    position: fixed;
+    z-index: 1000;
+    width: 320px;
+    max-width: calc(100vw - 24px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    padding: 12px 14px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .nmemo-chip-card .ncc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .nmemo-chip-card .ncc-icon { font-size: 16px; }
+  .nmemo-chip-card .ncc-tool { font-weight: 600; color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .nmemo-chip-card .ncc-conf { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .nmemo-chip-card .ncc-concept { font-weight: 600; margin-bottom: 6px; }
+  .nmemo-chip-card .ncc-body { color: var(--text); margin-bottom: 8px; white-space: pre-wrap; word-break: break-word; }
+  .nmemo-chip-card .ncc-body.is-misconception { color: #fca5a5; }
+  .nmemo-chip-card .ncc-meta { display: flex; gap: 10px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 8px; flex-wrap: wrap; }
+  .nmemo-chip-card .ncc-fact { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  @media (max-width: 600px) {
+    .nmemo-chip-card.is-mobile-pinned {
+      left: 12px !important;
+      right: 12px !important;
+      bottom: 12px !important;
+      top: auto !important;
+      width: auto;
+      max-width: none;
+    }
+  }
 </style>
 </head>
 <body>
@@ -2880,14 +2918,197 @@ function renderNmemoUpdateChips(parentEl, updates) {
     const meta = NMEMO_TOOL_ICONS[u.tool];
     const concept = (typeof u.concept === 'string' && u.concept) ? u.concept : '(unspecified)';
     const conf = typeof u.confidence === 'number' ? ` (${u.confidence.toFixed(2)})` : '';
-    const chip = document.createElement('small');
+    const chip = document.createElement('button');
+    chip.type = 'button';
     chip.className = 'chip nmemo-chip';
-    chip.style.cssText = 'background:rgba(99,102,241,0.10);color:#4338ca;padding:2px 8px;border-radius:10px;border:1px solid rgba(99,102,241,0.25);cursor:default;';
-    chip.title = u.evidence || u.misconception || u.tool;
+    chip.style.cssText = 'background:rgba(99,102,241,0.10);color:#a5b4fc;padding:2px 8px;border-radius:10px;border:1px solid rgba(99,102,241,0.25);cursor:pointer;font-size:12px;font-family:inherit;line-height:1.4;';
+    chip.setAttribute('aria-haspopup', 'dialog');
+    chip.setAttribute('aria-expanded', 'false');
     chip.textContent = `${meta.icon} ${meta.label}: ${concept}${conf}`;
+    chip.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      openNmemoChipCard(chip, u);
+    });
     strip.appendChild(chip);
   }
   parentEl.appendChild(strip);
+}
+
+// Single-card-open state. Holds the currently open chip card host + the chip
+// element it's anchored to, so a second click elsewhere closes the previous
+// card before opening a new one.
+let _chipCardOpen = null;
+
+function getChipCardHost() {
+  let host = document.getElementById('nmemoChipCardHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'nmemoChipCardHost';
+    document.body.appendChild(host);
+  }
+  return host;
+}
+
+function closeNmemoChipCard() {
+  if (!_chipCardOpen) return;
+  const { chipEl, cardEl, onDocClick, onKey, onResize } = _chipCardOpen;
+  if (chipEl) {
+    chipEl.classList.remove('is-open');
+    chipEl.setAttribute('aria-expanded', 'false');
+  }
+  if (cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
+  document.removeEventListener('mousedown', onDocClick, true);
+  document.removeEventListener('keydown', onKey, true);
+  window.removeEventListener('resize', onResize, true);
+  window.removeEventListener('scroll', onResize, true);
+  _chipCardOpen = null;
+}
+
+// Position the card below the chip if there's room; otherwise above. On
+// narrow viewports (<= 600px) the CSS pins it to the viewport bottom so it
+// never clips off-screen.
+function positionChipCardBelow(chipEl, cardEl) {
+  const r = chipEl.getBoundingClientRect();
+  const margin = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (vw <= 600) {
+    cardEl.classList.add('is-mobile-pinned');
+    return;
+  }
+  cardEl.classList.remove('is-mobile-pinned');
+  // Measure card.
+  const cw = cardEl.offsetWidth || 320;
+  const ch = cardEl.offsetHeight || 0;
+  let left = Math.min(Math.max(margin, r.left), vw - cw - margin);
+  let top = r.bottom + 6;
+  // Flip up if not enough room below.
+  if (top + ch + margin > vh && r.top - ch - 6 > margin) {
+    top = r.top - ch - 6;
+  }
+  cardEl.style.left = `${Math.round(left)}px`;
+  cardEl.style.top = `${Math.round(top)}px`;
+}
+
+// Format an ISO timestamp as a coarse relative time ("just now", "2m ago",
+// "3h ago", "5d ago"). Falls back to the raw string when unparseable.
+function formatRelativeTime(iso) {
+  if (!iso || typeof iso !== 'string') return '';
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  const diffSec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (diffSec < 30) return 'just now';
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const m = Math.floor(diffSec / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+function openNmemoChipCard(chipEl, update) {
+  // If clicking the same chip whose card is open, toggle closed.
+  if (_chipCardOpen && _chipCardOpen.chipEl === chipEl) {
+    closeNmemoChipCard();
+    return;
+  }
+  // Close any previously open card first.
+  closeNmemoChipCard();
+
+  const meta = NMEMO_TOOL_ICONS[update.tool] || { icon: '•', label: update.tool || 'write' };
+  const concept = (typeof update.concept === 'string' && update.concept) ? update.concept : '(unspecified)';
+  const confTxt = typeof update.confidence === 'number' ? `confidence ${update.confidence.toFixed(2)}` : '';
+  const bodyText = update.evidence || update.misconception || '';
+  const isMisc = !update.evidence && !!update.misconception;
+  const factShort = (update.factId || '').slice(0, 12);
+  const rel = formatRelativeTime(update.recordedAt);
+
+  const card = document.createElement('div');
+  card.className = 'nmemo-chip-card';
+  card.setAttribute('role', 'dialog');
+
+  const head = document.createElement('div');
+  head.className = 'ncc-head';
+  const iconEl = document.createElement('span');
+  iconEl.className = 'ncc-icon';
+  iconEl.textContent = meta.icon;
+  const toolEl = document.createElement('span');
+  toolEl.className = 'ncc-tool';
+  toolEl.textContent = (update.tool || meta.label).replace(/_/g, ' ');
+  head.appendChild(iconEl);
+  head.appendChild(toolEl);
+  if (confTxt) {
+    const c = document.createElement('span');
+    c.className = 'ncc-conf';
+    c.textContent = confTxt;
+    head.appendChild(c);
+  }
+  card.appendChild(head);
+
+  const conceptEl = document.createElement('div');
+  conceptEl.className = 'ncc-concept';
+  conceptEl.textContent = concept;
+  card.appendChild(conceptEl);
+
+  if (bodyText) {
+    const body = document.createElement('div');
+    body.className = `ncc-body${isMisc ? ' is-misconception' : ''}`;
+    body.textContent = bodyText;
+    card.appendChild(body);
+  }
+
+  if (factShort || rel) {
+    const metaRow = document.createElement('div');
+    metaRow.className = 'ncc-meta';
+    if (factShort) {
+      const f = document.createElement('span');
+      f.className = 'ncc-fact';
+      f.textContent = factShort;
+      f.title = update.factId || '';
+      metaRow.appendChild(f);
+    }
+    if (rel) {
+      const t = document.createElement('span');
+      t.className = 'ncc-time';
+      t.textContent = rel;
+      if (update.recordedAt) t.title = update.recordedAt;
+      metaRow.appendChild(t);
+    }
+    card.appendChild(metaRow);
+  }
+
+  // Stop clicks inside the card from bubbling to the doc-level dismiss handler.
+  card.addEventListener('mousedown', (ev) => { ev.stopPropagation(); });
+
+  const host = getChipCardHost();
+  host.appendChild(card);
+
+  chipEl.classList.add('is-open');
+  chipEl.setAttribute('aria-expanded', 'true');
+  positionChipCardBelow(chipEl, card);
+
+  const onDocClick = (ev) => {
+    if (card.contains(ev.target) || chipEl.contains(ev.target)) return;
+    closeNmemoChipCard();
+  };
+  const onKey = (ev) => {
+    if (ev.key === 'Escape') {
+      ev.stopPropagation();
+      closeNmemoChipCard();
+    }
+  };
+  const onResize = () => {
+    if (_chipCardOpen && _chipCardOpen.cardEl && _chipCardOpen.chipEl) {
+      positionChipCardBelow(_chipCardOpen.chipEl, _chipCardOpen.cardEl);
+    }
+  };
+  document.addEventListener('mousedown', onDocClick, true);
+  document.addEventListener('keydown', onKey, true);
+  window.addEventListener('resize', onResize, true);
+  window.addEventListener('scroll', onResize, true);
+
+  _chipCardOpen = { chipEl, cardEl: card, onDocClick, onKey, onResize };
 }
 
 // Renders a chat message into the messages list. Structured assistant
