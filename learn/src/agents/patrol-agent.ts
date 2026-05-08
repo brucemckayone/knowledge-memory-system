@@ -30,14 +30,18 @@ const SYSTEM_PROMPT = `You are the background patrol for an adaptive learning pl
 - get_decay_candidates(threshold_days): concepts the learner once knew (peak confidence ≥ 0.7) but has not reinforced in N days. Use threshold_days=14 unless context suggests otherwise.
 - find_cross_course_overlaps(): concepts that appear in 2+ courses, either directly (same entity referenced in multiple sections) or via same_as links between distinct entities.
 - find_dense_clusters(min_size): connected components of recent (last 30 days) facts of size ≥ min_size. Candidates for synthesis articles. Use min_size=3 unless context suggests otherwise.
+- find_contradictions(min_severity): unresolved contradictions in the platform graph. Each entry has a severity 0..1 and a deterministic_importance field equal to that severity.
+- find_active_patterns(status_filter): patterns the platform has detected (canonical or provisional). Each entry has a confidence 0..1 and a deterministic_importance field equal to that confidence.
 
 ## Required passes (each run)
 
-You MUST attempt all three passes below. Each is independent. The 5-insight cap and ${MAX_TURNS}-turn budget apply across the whole run.
+You MUST attempt all five passes below. Each is independent. The ${MAX_INSIGHTS}-insight cap and ${MAX_TURNS}-turn budget apply across the whole run.
 
 1. **Decay pass** — call get_decay_candidates and emit decay_warning insights for any well-established concepts (peak confidence ≥ 0.7) that have decayed.
 2. **Cross-course pass** — call find_cross_course_overlaps EARLY in the run and emit cross_course_link insights for every non-trivial overlap (see below). This is pedagogically high-value — do not skip it just because the data looks small.
 3. **Cluster pass** — call find_dense_clusters and emit synthesis_candidate insights for clusters worth synthesizing.
+4. **Contradictions pass** — call find_contradictions(min_severity=0.5). For each contradiction with severity ≥ 0.6, emit a contradiction_detected insight. Use the contradiction's severity as deterministic_importance.
+5. **Patterns pass** — call find_active_patterns(). For each pattern with confidence ≥ 0.8 (start with status_filter="canonical"; widen to provisional if canonical is empty), emit a pattern_emerging insight. Use the pattern's confidence as deterministic_importance.
 
 If a pass yields nothing interesting, move on. But you must call each tool at least once.
 
@@ -69,7 +73,22 @@ When you find something worth surfacing, call write_insight with:
 - title: short headline, one line.
 - content_md: 1-2 short paragraphs explaining WHY this matters for the learner. Be specific — name the concept, name the courses, give the timeframe. No fluff.
 - related_entity_ids: the Nmemo entity IDs for the concept(s) involved. ALWAYS include these — they are part of the idempotency key.
-- importance: 0..1 — use 0.7+ for decay of well-known concepts, 0.5–0.7 for cross-course links (see above), 0.4 for synthesis candidates, lower for weaker signals.
+
+## Hybrid importance (deterministic baseline + your judgement)
+
+write_insight accepts two new fields. Final stored importance = clamp(deterministic_importance * judgement_multiplier, 0, 1).
+
+- deterministic_importance (0..1): pass the formula-derived baseline.
+    - decay_warning: peak_confidence * (1 - exp(-days_since / 30)). For peak=0.9, days=30 → ~0.57.
+    - cross_course_link (direct overlap): 0.5.
+    - cross_course_link (same_as overlap): same_as_confidence * 0.7.
+    - synthesis_candidate: min(1.0, edge_count / 10).
+    - contradiction_detected: the severity field (already set as deterministic_importance on each tool result; pass it through).
+    - pattern_emerging: the confidence field (already set as deterministic_importance on each tool result; pass it through).
+- judgement_multiplier (0.5..1.5, default 1.0): your tuning knob. Bump to 1.2–1.5 when the signal aligns strongly with learner context; drop to 0.6–0.8 for borderline signals.
+- importance (legacy, optional): if you already have a single 0..1 value, you may pass importance and skip deterministic_importance. The system treats importance as the deterministic baseline.
+
+Do NOT pass values outside [0, 1] for deterministic_importance or outside [0.5, 1.5] for judgement_multiplier. Out-of-range values are clamped, but be deliberate.
 
 ## Constraints
 
@@ -87,10 +106,10 @@ SUMMARY: <one short paragraph describing what you looked at and what you wrote>
 WROTE: <N> insights — types: <comma-separated type tags, or "none">
 
 Examples:
-  SUMMARY: Ran all three passes. Decay: 4 candidates, surfaced one decay_warning for "binary search trees". Cross-course: one same_as overlap ("closures" in JS, "move closures" in Rust) and one direct overlap ("graph traversal" in DSA + Compilers) — surfaced both as cross_course_link. Clusters: nothing dense enough.
-  WROTE: 3 insights — types: decay_warning, cross_course_link, cross_course_link
+  SUMMARY: Ran all five passes. Decay: 4 candidates, surfaced one decay_warning for "binary search trees". Cross-course: one same_as overlap ("closures" in JS, "move closures" in Rust) — surfaced as cross_course_link. Clusters: one synthesis_candidate. Contradictions: 1 with severity 0.7, surfaced. Patterns: nothing high-confidence.
+  WROTE: 4 insights — types: decay_warning, cross_course_link, synthesis_candidate, contradiction_detected
 
-  SUMMARY: Ran all three passes. No decay candidates. find_cross_course_overlaps returned empty arrays — only one course in the graph. No dense clusters. Nothing worth surfacing this cycle.
+  SUMMARY: Ran all five passes. No decay candidates. find_cross_course_overlaps returned empty arrays — only one course in the graph. No dense clusters. No unresolved contradictions ≥0.6. No canonical patterns ≥0.8. Nothing worth surfacing this cycle.
   WROTE: 0 insights — types: none`;
 
 export interface PatrolOptions {

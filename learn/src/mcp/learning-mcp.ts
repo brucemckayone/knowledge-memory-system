@@ -22,6 +22,9 @@ import { db, insights, sections } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 import type { ComponentKindName, ComponentGenInput } from '../agents/component-generator.js';
 import { applyEditOp, buildEditOp, OverlayError } from '../services/lesson-overlay.js';
+import {
+  hybridImportance, clamp, decideInsert,
+} from '../services/insight-lifecycle.js';
 
 const NMEMO_URL = process.env.NMEMO_URL ?? 'http://localhost:3001';
 // Override base URL for this process (MCP server is spawned with env from config)
@@ -191,19 +194,47 @@ const TOOLS = [
     },
   },
   {
-    name: 'write_insight',
-    description: 'Append-only insight record. IDEMPOTENT on (type, sorted(related_entity_ids)) — calling twice with the same key returns the existing insight id rather than inserting a duplicate. Use this from the patrol agent to surface findings to the learner.',
+    name: 'find_contradictions',
+    description: 'Find unresolved contradictions in the graph (pairs of facts that cannot both be true). Returns each contradiction with severity (0..1) and supporting evidence. Use deterministic_importance=severity when emitting contradiction_detected insights.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        type: { type: 'string', description: 'Open-vocabulary type tag (e.g. "decay", "overlap", "synthesis_candidate")' },
+        min_severity: { type: 'number', description: 'Minimum severity 0..1. Default 0.5.' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'find_active_patterns',
+    description: 'Find active patterns the platform has detected (canonical or provisional). Returns each with confidence (0..1). Use deterministic_importance=confidence when emitting pattern_emerging insights.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        status_filter: {
+          type: 'string',
+          description: 'Optional status filter: "canonical" | "provisional". Omit for both.',
+          enum: ['canonical', 'provisional'],
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'write_insight',
+    description: 'Append-only insight record. IDEMPOTENT on (type, sorted(related_entity_ids)) — for the same key: if the existing row is dismissed (forever) it blocks re-emit; if it is currently snoozed it blocks until the snooze expires; if the snooze has expired or it was auto_expired, a new row is inserted. Pass deterministic_importance + judgement_multiplier for hybrid scoring; final stored importance = clamp(det * judged, 0, 1).',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        type: { type: 'string', description: 'Open-vocabulary type tag (e.g. "decay_warning", "cross_course_link", "contradiction_detected")' },
         title: { type: 'string', description: 'Short headline (one line)' },
         content_md: { type: 'string', description: 'Markdown body explaining the insight' },
         related_entity_ids: { type: 'array', items: { type: 'string' }, description: 'Nmemo entity IDs (used in idempotency key)' },
         related_course_ids: { type: 'array', items: { type: 'string' }, description: 'Optional course IDs' },
         related_fact_ids: { type: 'array', items: { type: 'string' }, description: 'Optional Nmemo fact IDs' },
         related_section_ids: { type: 'array', items: { type: 'string' }, description: 'Optional learn section IDs' },
-        importance: { type: 'number', description: '0..1 priority (default 0.5)' },
+        importance: { type: 'number', description: '0..1 priority (default 0.5). Used as the deterministic baseline if deterministic_importance is not given (back-compat).' },
+        deterministic_importance: { type: 'number', description: '0..1 baseline importance computed by the detection tool. If omitted, falls back to "importance".' },
+        judgement_multiplier: { type: 'number', description: 'Agent judgment 0.5..1.5. Default 1.0. Final stored importance = clamp(deterministic_importance * judgement_multiplier, 0, 1).' },
         actionable_url: { type: 'string', description: 'Optional URL the learner can click' },
       },
       required: ['type', 'title', 'content_md', 'related_entity_ids'],
@@ -524,6 +555,46 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
         return JSON.stringify(r);
       }
 
+      case 'find_contradictions': {
+        const minSeverity = typeof args.min_severity === 'number' ? args.min_severity : 0.5;
+        const r = await getContradictions();
+        // Best-effort severity filter; the platform's contradiction shape is
+        // open vocabulary, so we read severity defensively.
+        const all = Array.isArray(r.contradictions) ? r.contradictions : [];
+        const filtered = all.filter((c: unknown) => {
+          if (typeof c !== 'object' || c === null) return false;
+          const sev = (c as { severity?: unknown }).severity;
+          if (typeof sev !== 'number') return true; // keep if severity unknown
+          return sev >= minSeverity;
+        });
+        // Annotate each with deterministic_importance for downstream use.
+        const enriched = filtered.map((c: unknown) => {
+          const sev = (c as { severity?: number }).severity;
+          const det = typeof sev === 'number' ? clamp(sev, 0, 1) : 0.5;
+          return { ...(c as object), deterministic_importance: det };
+        });
+        return JSON.stringify({ contradictions: enriched });
+      }
+
+      case 'find_active_patterns': {
+        const statusFilter = typeof args.status_filter === 'string' ? args.status_filter : undefined;
+        const r = await getActivePatterns();
+        const all = Array.isArray(r.patterns) ? r.patterns : [];
+        const filtered = statusFilter
+          ? all.filter((p: unknown) => {
+              if (typeof p !== 'object' || p === null) return false;
+              const status = (p as { status?: unknown }).status;
+              return status === statusFilter;
+            })
+          : all;
+        const enriched = filtered.map((p: unknown) => {
+          const conf = (p as { confidence?: number }).confidence;
+          const det = typeof conf === 'number' ? clamp(conf, 0, 1) : 0.5;
+          return { ...(p as object), deterministic_importance: det };
+        });
+        return JSON.stringify({ patterns: enriched });
+      }
+
       case 'write_insight': {
         const type = args.type as string;
         const title = args.title as string;
@@ -532,28 +603,81 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
         const relatedCourseIds = (args.related_course_ids as string[] | undefined) ?? [];
         const relatedFactIds = (args.related_fact_ids as string[] | undefined) ?? [];
         const relatedSectionIds = (args.related_section_ids as string[] | undefined) ?? [];
-        const importance = (args.importance as number | undefined) ?? 0.5;
         const actionableUrl = (args.actionable_url as string | undefined) ?? null;
+
+        // Hybrid importance: deterministic baseline * agent judgement multiplier.
+        // Back-compat: if deterministic_importance is absent, treat the legacy
+        // "importance" arg as the deterministic baseline (multiplier defaults
+        // to 1.0, so behavior is unchanged when neither new field is set).
+        const legacyImportance = typeof args.importance === 'number' ? args.importance : 0.5;
+        const deterministicArg = typeof args.deterministic_importance === 'number'
+          ? args.deterministic_importance
+          : legacyImportance;
+        const judgementArg = typeof args.judgement_multiplier === 'number'
+          ? args.judgement_multiplier
+          : 1.0;
+        const deterministicImportance = clamp(deterministicArg, 0, 1);
+        const importance = hybridImportance(deterministicArg, judgementArg);
 
         const sortedIds = [...relatedEntityIds].sort();
         const idempotencyKey = createHash('sha256')
           .update(`${type}|${sortedIds.join(',')}`)
           .digest('hex');
 
-        // Idempotent insert: try to insert; on UNIQUE conflict on idempotency_key,
-        // return the existing row's id.
-        const existing = await db.select({ id: insights.id })
+        // Lookup logic:
+        //   dismissalKind='dismissed'                  → block forever.
+        //   dismissalKind='snoozed' AND snoozedUntil>now → block until snooze expires.
+        //   dismissalKind='snoozed' (expired)          → allow re-emit (insert new row).
+        //   dismissalKind='auto_expired'               → allow re-emit.
+        //   dismissalKind=null and not auto-expired by TTL → existing active row, treat as dup.
+        const existingRows = await db.select()
           .from(insights)
-          .where(eq(insights.idempotencyKey, idempotencyKey))
-          .limit(1);
+          .where(eq(insights.idempotencyKey, idempotencyKey));
 
-        if (existing[0]) {
+        const now = new Date();
+        const existing = existingRows.length > 0
+          ? [...existingRows].sort((a, b) =>
+              (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0]!
+          : null;
+        const decision = decideInsert(existing, now);
+
+        if (decision === 'block_dismissed') {
           return JSON.stringify({
             inserted: false,
-            id: existing[0].id,
+            id: existing!.id,
+            idempotencyKey,
+            reason: 'dismissed_forever',
+          });
+        }
+        if (decision === 'block_snoozed') {
+          return JSON.stringify({
+            inserted: false,
+            id: existing!.id,
+            idempotencyKey,
+            reason: 'snoozed',
+            snoozedUntil: existing!.snoozedUntil,
+          });
+        }
+        if (decision === 'block_duplicate') {
+          return JSON.stringify({
+            inserted: false,
+            id: existing!.id,
             idempotencyKey,
             reason: 'duplicate',
           });
+        }
+        // Reinsert paths: free up the unique index by moving the old row's
+        // idempotency_key aside, and (for the TTL path) mark it auto_expired.
+        if (existing && decision !== 'insert') {
+          const newKindForOld = decision === 'reinsert_after_ttl'
+            ? 'auto_expired'
+            : existing.dismissalKind;  // preserve 'snoozed' / 'auto_expired'
+          await db.update(insights)
+            .set({
+              idempotencyKey: `${idempotencyKey}#superseded-${existing.id}`,
+              dismissalKind: newKindForOld,
+            })
+            .where(eq(insights.id, existing.id));
         }
 
         const id = randomUUID();
@@ -564,6 +688,7 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
             title,
             contentMd,
             importance,
+            deterministicImportance,
             relatedEntityIds: JSON.stringify(relatedEntityIds),
             relatedCourseIds: JSON.stringify(relatedCourseIds),
             relatedFactIds: JSON.stringify(relatedFactIds),
@@ -571,7 +696,13 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
             actionableUrl,
             idempotencyKey,
           });
-          return JSON.stringify({ inserted: true, id, idempotencyKey });
+          return JSON.stringify({
+            inserted: true,
+            id,
+            idempotencyKey,
+            importance,
+            deterministicImportance,
+          });
         } catch (err) {
           // Race: another writer beat us between SELECT and INSERT. Re-read.
           const row = await db.select({ id: insights.id })

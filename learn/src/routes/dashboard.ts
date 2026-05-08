@@ -9,6 +9,7 @@ import {
   type SameAsConceptLink,
 } from '../services/nmemo-client.js';
 import { pickNextQuestionAnywhere, type NextQuestionResult } from '../services/quiz-picker.js';
+import { isVisible } from '../services/insight-lifecycle.js';
 
 export const dashboardRoutes = new Hono();
 
@@ -276,16 +277,22 @@ async function buildDailyFlashcards(regenerate: boolean): Promise<{ cards: Dashb
 
 async function buildInsights(): Promise<{ items: DashboardInsight[]; total: number }> {
   try {
-    const where = isNull(insights.dismissedAt);
+    // Pull a wider page than INSIGHTS_LIMIT so the lifecycle filter (TTL +
+    // snooze) can drop hidden rows in app code without starving the dashboard.
     const rows = await db.select().from(insights)
-      .where(where)
+      .where(isNull(insights.dismissedAt))
       .orderBy(desc(insights.importance), desc(insights.createdAt))
-      .limit(INSIGHTS_LIMIT);
-    const [{ total } = { total: 0 }] = await db
-      .select({ total: sql<number>`count(*)` })
-      .from(insights)
-      .where(where);
-    const items: DashboardInsight[] = rows.map(r => ({
+      .limit(INSIGHTS_LIMIT * 5);
+
+    const now = new Date();
+    const visible = rows.filter(r => isVisible({
+      type: r.type,
+      createdAt: r.createdAt,
+      dismissalKind: r.dismissalKind,
+      snoozedUntil: r.snoozedUntil,
+    }, now));
+
+    const items: DashboardInsight[] = visible.slice(0, INSIGHTS_LIMIT).map(r => ({
       id: r.id,
       type: r.type,
       title: r.title,
@@ -299,7 +306,7 @@ async function buildInsights(): Promise<{ items: DashboardInsight[]; total: numb
       createdAt: r.createdAt,
       viewedAt: r.viewedAt,
     }));
-    return { items, total: Number(total) };
+    return { items, total: visible.length };
   } catch (err) {
     console.error('[dashboard] buildInsights failed', err);
     return { items: [], total: 0 };
@@ -325,10 +332,18 @@ async function buildCrossCourseConnections(): Promise<{
       db.select().from(insights)
         .where(linkInsightsWhere)
         .orderBy(desc(insights.importance), desc(insights.createdAt))
-        .limit(INSIGHTS_LIMIT),
+        .limit(INSIGHTS_LIMIT * 5),
     ]);
 
-    const linkInsights: CrossCourseLinkInsight[] = linkInsightRows.map(r => ({
+    const now = new Date();
+    const visibleLinkInsightRows = linkInsightRows.filter(r => isVisible({
+      type: r.type,
+      createdAt: r.createdAt,
+      dismissalKind: r.dismissalKind,
+      snoozedUntil: r.snoozedUntil,
+    }, now));
+
+    const linkInsights: CrossCourseLinkInsight[] = visibleLinkInsightRows.slice(0, INSIGHTS_LIMIT).map(r => ({
       id: r.id,
       title: r.title,
       contentMd: r.contentMd,
