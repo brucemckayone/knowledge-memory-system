@@ -36,6 +36,10 @@ import {
 import { writeProseBlock } from './lesson-prose.js';
 import { generateArtifact, type ArtifactSpec } from './artifact-generator.js';
 import { generateComponent, type ComponentKindName } from './component-generator.js';
+import {
+  loadLearnerLessonContext,
+  type LearnerLessonContext,
+} from './learner-lesson-context.js';
 
 // ---------------------------------------------------------------------------
 // Public types — preserved from v0.2 so route layer doesn't change.
@@ -84,6 +88,9 @@ interface LessonContext {
   sectionTitle: string;
   sectionDescription: string | null;
   learningObjectives: string[];
+  /** Nmemo entity IDs attached to this section by the course generator.
+   *  Empty array when the section has no graph-aware concepts. */
+  conceptEntityIds: string[];
   orderIndex: number;
   nextSectionTitle: string | null;
   prevSectionTitle: string | null;
@@ -104,12 +111,23 @@ async function buildContext(sectionId: string): Promise<LessonContext> {
   const next = idx >= 0 && idx < allSections.length - 1 ? allSections[idx + 1] : null;
   const prev = idx > 0 ? allSections[idx - 1] : null;
 
+  let conceptEntityIds: string[] = [];
+  try {
+    const parsed = JSON.parse(section.conceptEntityIds ?? '[]');
+    if (Array.isArray(parsed)) {
+      conceptEntityIds = parsed.filter((x): x is string => typeof x === 'string' && x.length > 0);
+    }
+  } catch (err) {
+    console.warn(`[lesson-generator] could not parse conceptEntityIds for section ${sectionId}:`, err);
+  }
+
   return {
     courseTitle: course.title,
     courseDescription: course.description,
     sectionTitle: section.title,
     sectionDescription: section.description,
     learningObjectives: JSON.parse(section.learningObjectives) as string[],
+    conceptEntityIds,
     orderIndex: section.orderIndex,
     nextSectionTitle: next?.title ?? null,
     prevSectionTitle: prev?.title ?? null,
@@ -160,21 +178,43 @@ function neighbourProseDigest(outline: LessonOutline, item: ArtifactItem): strin
   return parts.join('\n');
 }
 
+/** Project a `LearnerLessonContext` onto the artifact-builder's `learnerState`
+ *  shape. Cold-start (or undefined) collapses to a minimal payload that does
+ *  not surface any personalisation cue in downstream prompts. */
+function projectLearnerStateForArtifact(
+  ctx: LessonContext,
+  learner: LearnerLessonContext | undefined,
+): {
+  conceptName: string;
+  forgottenConcepts?: string[];
+  confusions?: Array<{ concept: string; misconception: string }>;
+  missingPrereqs?: string[];
+} {
+  const base = { conceptName: ctx.sectionTitle };
+  if (!learner || learner.coldStart === true) return base;
+  const forgottenConcepts = learner.forgottenConcepts.map((f) => f.name);
+  const confusions = learner.confusions.map((c) => ({ concept: c.concept, misconception: c.misconception }));
+  const missingPrereqs = learner.missingPrereqs.map((p) => p.concept);
+  return {
+    ...base,
+    ...(forgottenConcepts.length > 0 ? { forgottenConcepts } : {}),
+    ...(confusions.length > 0 ? { confusions } : {}),
+    ...(missingPrereqs.length > 0 ? { missingPrereqs } : {}),
+  };
+}
+
 async function buildOneArtifact(
   outline: LessonOutline,
   item: ArtifactItem,
   ctx: LessonContext,
+  learner: LearnerLessonContext | undefined,
 ): Promise<ArtifactSuccess | ArtifactFail> {
   if (item.type === 'fixed') {
     const kind = FIXED_TO_COMPONENT[item.fixedKind!];
     const result = await generateComponent({
       kind,
       context: item.spec,
-      learnerState: {
-        courseId: undefined,
-        sectionId: undefined,
-        conceptName: ctx.sectionTitle,
-      },
+      learnerState: projectLearnerStateForArtifact(ctx, learner),
     });
     if (result.kind === 'markdown') {
       return { ok: false, reason: `fixed-kind ${item.fixedKind} fell back to markdown` };
@@ -194,9 +234,7 @@ async function buildOneArtifact(
     intent,
     context: item.spec,
     lessonContext,
-    learnerState: {
-      conceptName: ctx.sectionTitle,
-    },
+    learnerState: projectLearnerStateForArtifact(ctx, learner),
   });
   if (!result.ok) {
     return { ok: false, reason: `artifact agent: ${result.errorText}` };
@@ -224,6 +262,7 @@ async function buildArtifactsBounded(
   outline: LessonOutline,
   artifacts: ArtifactItem[],
   ctx: LessonContext,
+  learner: LearnerLessonContext | undefined,
   concurrency = 3,
 ): Promise<Map<string, ArtifactSuccess | ArtifactFail>> {
   const out = new Map<string, ArtifactSuccess | ArtifactFail>();
@@ -236,7 +275,7 @@ async function buildArtifactsBounded(
         if (idx >= artifacts.length) return;
         const item = artifacts[idx]!;
         try {
-          const r = await buildOneArtifact(outline, item, ctx);
+          const r = await buildOneArtifact(outline, item, ctx, learner);
           out.set(item.id, r);
           if (!r.ok) {
             console.warn(`[lesson-generator] artifact ${item.id} failed: ${r.reason}`);
@@ -387,6 +426,24 @@ async function generateLessonStructuredV3(
   const ctx = await buildContext(sectionId);
   console.log(`[lesson-generator] starting pipeline for section ${sectionId} ("${ctx.sectionTitle}")`);
 
+  // Single platform fetch for learner state. Degrades to cold-start on any
+  // failure / timeout — pipeline must never abort because of a flaky platform
+  // call. The same snapshot is threaded through every parallel stage.
+  const learnerContext = await loadLearnerLessonContext(ctx.conceptEntityIds);
+  // Pass the typed context downstream only when we're personalising. For
+  // cold-start lessons we pass `undefined`, which makes outliner / prose /
+  // artifact prompts byte-identical to the v0.3 baseline.
+  const personalised: LearnerLessonContext | undefined =
+    learnerContext.coldStart === false ? learnerContext : undefined;
+  console.log(
+    `[lesson-generator] learner-state: coldStart=${learnerContext.coldStart} ` +
+    `facts=${learnerContext.relevantFacts.length} ` +
+    `confusions=${learnerContext.confusions.length} ` +
+    `forgotten=${learnerContext.forgottenConcepts.length} ` +
+    `missingPrereqs=${learnerContext.missingPrereqs.length} ` +
+    `(fetchedAt=${learnerContext.fetchedAt})`,
+  );
+
   // Stage 1 — outline.
   await emit('outlining');
   const outline = await generateLessonOutline({
@@ -398,6 +455,7 @@ async function generateLessonStructuredV3(
     orderIndex: ctx.orderIndex,
     prevSectionTitle: ctx.prevSectionTitle,
     nextSectionTitle: ctx.nextSectionTitle,
+    learnerContext: personalised,
   });
   const proseItems = outline.items.filter((it): it is ProseItem => it.kind === 'prose');
   const artifactItems = outline.items.filter((it): it is ArtifactItem => it.kind === 'artifact');
@@ -417,6 +475,7 @@ async function generateLessonStructuredV3(
         sectionTitle: ctx.sectionTitle,
         sectionDescription: ctx.sectionDescription,
         learningObjectives: ctx.learningObjectives,
+        learnerContext: personalised,
       });
       console.log(`[lesson-generator] prose ${item.id} written (${md.length} chars)`);
       return [item.id, md] as const;
@@ -427,7 +486,7 @@ async function generateLessonStructuredV3(
     }
   }));
 
-  const artifactProm = buildArtifactsBounded(outline, artifactItems, ctx, 3);
+  const artifactProm = buildArtifactsBounded(outline, artifactItems, ctx, personalised, 3);
 
   // Track prose finishing independently so we can flip the stage label to
   // building_artifacts when only artifacts remain.

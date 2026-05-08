@@ -11,6 +11,7 @@
  */
 import { runAgent } from '../services/agent.js';
 import type { LessonOutline, OutlineItem, ProseItem } from './lesson-outliner.js';
+import type { LearnerLessonContext } from './learner-lesson-context.js';
 
 export interface ProseWriterInput {
   outline: LessonOutline;
@@ -20,6 +21,10 @@ export interface ProseWriterInput {
   sectionTitle: string;
   sectionDescription: string | null;
   learningObjectives: string[];
+  /** Optional learner state. When `coldStart === false`, the prose writer
+   *  may quote the listed confusion/gap. Cold-start (or undefined) yields
+   *  a byte-identical user prompt to the canonical baseline. */
+  learnerContext?: LearnerLessonContext;
 }
 
 const SYSTEM_PROMPT = `You write a single block of lesson prose. You are part of a multi-agent pipeline — other agents write the surrounding blocks and build the interactive widgets. Your output is ONLY the markdown for your assigned block.
@@ -40,6 +45,16 @@ First character '{', last character '}'. No prose, no markdown fences around the
 - Do NOT repeat material covered by neighbouring blocks (you'll see their intents in the outline).
 - Do NOT introduce a top-level heading — the lesson title sits above your block already. Use \`###\` if you need a sub-heading inside this block.
 - Hit the word target loosely (±20%). Don't pad to fill it; don't truncate to underrun it.
+
+# Personalisation
+
+When the user prompt includes a "## Learner context" block, this lesson is being regenerated for a learner with graph-tracked beliefs. Your block MUST address listed confusions / forgotten concepts / missing prereqs ONLY when (and only when) the assigned block's \`intent\` references that concept. Otherwise, write canonical prose — do not name learner state in unrelated paragraphs.
+
+If you DO address a listed confusion:
+- Name the misconception ONLY to refute it. The corrected belief MUST follow within the same paragraph (≤ 3 sentences). Never quote the wrong belief in isolation — that risks reinforcing it.
+- Use second-person directly: "You may have written X — that's not quite right; the truth is Y, because…".
+
+NEVER fabricate a learner fact that wasn't supplied. If no "## Learner context" block is present, write a canonical block exactly as you would for a cold-start lesson.
 
 # Hard rules
 
@@ -91,11 +106,55 @@ function buildUserPrompt(input: ProseWriterInput): string {
     `id: ${item.id}`,
     `wordTarget: ${item.wordTarget}`,
     `intent: ${item.intent}`,
-    '',
-    'Write ONLY the markdown for this block. Output the JSON object.',
   );
+  // Personalisation block — gated strictly on coldStart === false. Filtered
+  // to learner-state items plausibly relevant to this prose item's intent
+  // (over-inclusion is acceptable; the model picks). Cold-start callers
+  // produce byte-identical prompts to the v0.3 baseline.
+  if (input.learnerContext && input.learnerContext.coldStart === false) {
+    const block = renderProseLearnerContextBlock(input.learnerContext, item.intent);
+    if (block.length > 0) {
+      parts.push('', '## Learner context (use ONLY when intent above references one of these)', block);
+    }
+  }
+  parts.push('', 'Write ONLY the markdown for this block. Output the JSON object.');
   return parts.join('\n');
 }
+
+const PROSE_TRUNC = 80;
+function clip(s: string, n = PROSE_TRUNC): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  return t.length > n ? t.slice(0, n) + '…' : t;
+}
+
+/**
+ * Filter a `LearnerLessonContext` to entries whose concept name appears as a
+ * substring of the prose item's intent (case-insensitive). Over-inclusion is
+ * acceptable — the model picks; the worst case (no overlap) returns an empty
+ * block, which is silently omitted upstream.
+ */
+function renderProseLearnerContextBlock(ctx: LearnerLessonContext, intent: string): string {
+  const intentLc = intent.toLowerCase();
+  const lines: string[] = [];
+  const mentions = (concept: string): boolean =>
+    concept.length > 0 && intentLc.includes(concept.toLowerCase());
+
+  for (const c of ctx.confusions) {
+    if (!mentions(c.concept)) continue;
+    lines.push(`- confused: "${c.concept}" — they wrote: "${clip(c.misconception)}"`);
+  }
+  for (const f of ctx.forgottenConcepts) {
+    if (!mentions(f.name)) continue;
+    lines.push(`- forgot: "${f.name}" — last seen ${f.daysSince} day(s) ago at confidence ${f.lastConfidence.toFixed(2)}`);
+  }
+  for (const p of ctx.missingPrereqs) {
+    if (!mentions(p.concept) && !mentions(p.neededFor)) continue;
+    lines.push(`- missing prereq: "${p.concept}" — needed for "${p.neededFor}"`);
+  }
+  return lines.join('\n');
+}
+
+export const __test = { buildUserPrompt, renderProseLearnerContextBlock };
 
 function tryParse(s: string): unknown { try { return JSON.parse(s); } catch { return null; } }
 function parseLoose(raw: string): unknown | null {
