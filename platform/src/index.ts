@@ -1168,6 +1168,73 @@ app.get('/api/clusters/:cluster_id', async (c) => {
 });
 
 // ============================================
+// Drift detection (Phase 3 — nmemo-a7f.3.2, doc 24.2)
+// POST /api/drift/compute proxies to the ml-services sidecar (ADWIN sweep).
+// GET  /api/drift/events?entity_id=X reads recent drift events for one entity.
+// ============================================
+
+app.post('/api/drift/compute', async (c) => {
+  const start = Date.now();
+  try {
+    const response = await fetch(`${config.ML_SERVICES_URL}/drift/compute`, { method: 'POST' });
+    const body = (await response.json()) as Record<string, unknown>;
+    if (!response.ok) {
+      return c.json({ ok: false, status: response.status, error: body, durationMs: Date.now() - start }, response.status as 409 | 500);
+    }
+    return c.json({ ok: true, result: body, durationMs: Date.now() - start });
+  } catch (err) {
+    return c.json({ ok: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 502);
+  }
+});
+
+app.get('/api/drift/events', async (c) => {
+  const entityId = c.req.query('entity_id');
+  if (!entityId) {
+    return c.json({ error: 'entity_id query parameter is required' }, 400);
+  }
+  const limitRaw = c.req.query('limit');
+  const limit = limitRaw ? Math.max(1, Math.min(200, Number.parseInt(limitRaw, 10) || 10)) : 10;
+  const { db } = await import('./db/index.js');
+  const { sql } = await import('drizzle-orm');
+  const rows = (await db.execute(sql`
+    SELECT
+      id::text                  AS event_id,
+      entity_id::text           AS entity_id,
+      detected_at,
+      drift_magnitude,
+      cluster_id_at_detection,
+      target_cluster_id,
+      triggered_action,
+      reconciliation_run_id,
+      error_detail,
+      computation_version
+    FROM public.entity_drift_events
+    WHERE entity_id = ${entityId}::uuid
+    ORDER BY detected_at DESC
+    LIMIT ${limit}
+  `)) as unknown as Array<{
+    event_id: string;
+    entity_id: string;
+    detected_at: Date;
+    drift_magnitude: number;
+    cluster_id_at_detection: number | null;
+    target_cluster_id: number | null;
+    triggered_action: string;
+    reconciliation_run_id: string | null;
+    error_detail: string | null;
+    computation_version: number;
+  }>;
+  return c.json({
+    entity_id: entityId,
+    count: rows.length,
+    events: rows.map((r) => ({
+      ...r,
+      detected_at: r.detected_at instanceof Date ? r.detected_at.toISOString() : String(r.detected_at),
+    })),
+  });
+});
+
+// ============================================
 // Learning Platform API (/api/learn/)
 // Thin write layer for the learning platform's MCP server.
 // Keeps the learning platform fully decoupled — all graph ops go via HTTP.

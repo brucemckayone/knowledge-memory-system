@@ -109,6 +109,10 @@ app.include_router(topology_router, tags=["Topology"])
 from .semantic_clustering import router as semantic_clustering_router
 app.include_router(semantic_clustering_router, tags=["Clustering"])
 
+# Phase 3: Drift detection (T1) — truth-graph doc 24.2
+from .drift import router as drift_router
+app.include_router(drift_router, tags=["Drift"])
+
 
 @app.get("/health")
 async def health():

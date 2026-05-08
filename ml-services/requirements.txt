@@ -40,3 +40,10 @@ psycopg[binary]>=3.1,<4
 # wheels on manylinux x86_64 and win_amd64.
 hdbscan>=0.8
 scikit-learn>=1.3
+
+# Phase 3 — drift detection (truth-graph doc 24.2). ADWIN streaming
+# change-point detector. Pinned per master §10 lock (21-cluster-bridging-master
+# line 431): river.drift.ADWIN(delta=...).update(value).drift_detected (property)
+# is the verified API for this range. Pure-python; mismatched river_version
+# on unpickle resets per-entity state with a warning.
+river>=0.21,<1.0
