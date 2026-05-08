@@ -23,6 +23,7 @@ import { bindReason } from './agents/reason.js';
 import { bindReset } from './agents/reset.js';
 import { loadTopology, bindColorModeDropdown, bindCentralityToggle, bindTopologyButton } from './layers/topology.js';
 import { loadClusters, bindClusterButton, bindHullsToggle } from './layers/clusters.js';
+import { bindCrossClusterPanel, refreshCrossCluster } from './panels/cross-cluster.js';
 
 export async function fetchData() {
   try {
@@ -109,6 +110,7 @@ bindCentralityToggle();
 bindTopologyButton();
 bindClusterButton();
 bindHullsToggle();
+bindCrossClusterPanel();
 
 // Polling registry — runs every poller once on start, then on its interval.
 register('graph', async () => {
@@ -121,6 +123,7 @@ register('patterns', refreshPatterns, 5000);
 // Topology button or the backend's auto-trigger after gardener / clustering.
 register('topology', loadTopology, 15000);
 register('clusters', loadClusters, 15000);
+register('crossCluster', refreshCrossCluster, 15000);
 
 if (document.getElementById('autoRefresh').checked) startAll();
 else {
@@ -132,4 +135,5 @@ else {
   refreshPatterns();
   loadTopology();
   loadClusters();
+  refreshCrossCluster();
 }

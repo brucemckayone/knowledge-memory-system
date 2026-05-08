@@ -48,10 +48,14 @@ export function renderAll() {
     labelColor: '#768390', fontSize: '9px', fontWeight: '400',
   });
 
-  // Merge candidate edges
+  // Merge candidate edges (viz.4: cross-cluster generator rows in distinct
+  // purple, three-signal in the original orange)
   renderEdges(groups.mergeEdges, visibleEdges.filter(e => e._edgeType === 'mergeCandidate'), {
-    stroke: COLOR_MERGE, width: d => 1.5 + (d.combinedScore || 0) * 3, opacity: 0.6,
-    dash: '6,4', label: d => (d.combinedScore || 0).toFixed(2),
+    stroke: d => d.candidateSource === 'cross_cluster_generator' ? '#9b59b6' : COLOR_MERGE,
+    width: d => 1.5 + (d.combinedScore || 0) * 3,
+    opacity: 0.6,
+    dash: d => d.candidateSource === 'cross_cluster_generator' ? '4,2,1,2' : '6,4',
+    label: d => (d.combinedScore || 0).toFixed(2),
   });
 
   // Same-as identity links

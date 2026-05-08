@@ -34,6 +34,11 @@ export const computeTopology = () => postJson('/api/topology/compute');
 export const getClusters = () => getJson('/api/clusters');
 export const computeClustering = () => postJson('/api/clustering/compute');
 
+// ---- Cross-cluster candidates (Phase 4 — viz.4) ----
+export const getCrossClusterCandidates = (limit = 200) =>
+  getJson(`/api/cross-cluster/candidates?limit=${limit}`);
+export const generateCrossCluster = () => postJson('/api/cross-cluster/generate');
+
 // ---- Contradictions ----
 export const getContradictions = (limit = 200) => getJson(`/api/contradictions?limit=${limit}`);
 export const resolveContradiction = (id, body) =>

@@ -266,6 +266,8 @@ export async function getMergeCandidates(): Promise<Array<{
   status: string;
   detectionCount: number;
   resolution: string | null;
+  // mig 017 — distinguishes 'three_signal_scoring' from 'cross_cluster_generator'
+  candidateSource: string;
 }>> {
   const rows = await db.execute(sql`
     SELECT
@@ -273,6 +275,7 @@ export async function getMergeCandidates(): Promise<Array<{
       mc.centroid_similarity, mc.memory_overlap, mc.structural_similarity,
       mc.combined_score, mc.status, mc.detection_count, mc.resolution,
       mc.resolution_reasoning,
+      mc.candidate_source,
       a.canonical_name as a_name, a.entity_type as a_type,
       b.canonical_name as b_name, b.entity_type as b_type
     FROM merge_candidates mc
@@ -292,5 +295,6 @@ export async function getMergeCandidates(): Promise<Array<{
     status: r.status as string,
     detectionCount: r.detection_count as number,
     resolution: r.resolution as string | null,
+    candidateSource: (r.candidate_source as string) ?? 'three_signal_scoring',
   }));
 }

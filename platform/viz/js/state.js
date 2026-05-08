@@ -36,6 +36,8 @@ export const state = {
     loaded: false,
   },
   showClusterHulls: false,
+  // viz.4 — cross-cluster candidates (Phase 4)
+  crossClusterCandidates: [],
   refs: {
     svg: null,
     g: null,

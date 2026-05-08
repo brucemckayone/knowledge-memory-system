@@ -368,6 +368,8 @@ app.get('/api/viz/unified', async (c) => {
         structuralSimilarity: mc.structuralSimilarity,
         combinedScore: mc.combinedScore,
         status: mc.status,
+        // mig 017 — viz.4 differentiates cross-cluster vs three-signal merges
+        candidateSource: mc.candidateSource,
       });
     }
   }
