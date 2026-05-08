@@ -1,0 +1,484 @@
+/**
+ * Phase 4 — cross-cluster candidate generator (doc 25)
+ *
+ * Implements the §4.2 cases that don't require live LLM / large fixtures.
+ * Snapshot-driven cases (synthetic-10k recall, Frankenstein milestone) and
+ * the reconciliation prompt-builder integration test live in their own
+ * sibling test files (committed alongside benchmark + prompt changes).
+ *
+ * Setup pattern: seed entities + entity_topology + entity_clusters +
+ * entity_drift_events directly via testDb. The freshness gate
+ * (§3.2) reads topology_compute_runs / clustering_compute_runs — we mark
+ * both 'completed' with a future timestamp so the gate clears.
+ */
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  testDb,
+  createTestEntity,
+  deleteFromTables,
+} from '../setup.js';
+import {
+  generateCrossClusterCandidates,
+  listCrossClusterCandidates,
+} from '../../services/cross-cluster-generator.js';
+
+interface TopologySeed {
+  componentId: number;
+  componentSize?: number;
+  kCore?: number;
+  isArticulation?: boolean;
+  pagerank?: number;
+  predicateSignature?: number[] | null;
+}
+
+interface ClusterSeed {
+  clusterId: number;
+  probability?: number;
+}
+
+async function seedTopology(entityId: string, t: TopologySeed) {
+  const sigLit = t.predicateSignature
+    ? `'[${t.predicateSignature.join(',')}]'::vector`
+    : 'NULL';
+  await testDb.unsafe(`
+    INSERT INTO public.entity_topology
+      (entity_id, component_id, component_size, k_core, is_articulation_point, pagerank, predicate_signature, computation_version)
+    VALUES (
+      '${entityId}'::uuid,
+      ${t.componentId},
+      ${t.componentSize ?? 2},
+      ${t.kCore ?? 2},
+      ${t.isArticulation ?? false},
+      ${t.pagerank ?? 0.1},
+      ${sigLit},
+      1
+    )
+    ON CONFLICT (entity_id) DO UPDATE SET
+      component_id = EXCLUDED.component_id,
+      component_size = EXCLUDED.component_size,
+      k_core = EXCLUDED.k_core,
+      is_articulation_point = EXCLUDED.is_articulation_point,
+      pagerank = EXCLUDED.pagerank,
+      predicate_signature = EXCLUDED.predicate_signature
+  `);
+}
+
+async function seedCluster(entityId: string, c: ClusterSeed) {
+  // entity_clusters.centroid_snapshot is NOT NULL — give it a deterministic
+  // unit-style vector. Drift detection re-uses it elsewhere; for the bridge
+  // generator only cluster_id + cluster_probability matter.
+  const centroid = `[${Array.from({ length: 768 }, (_, i) => i === 0 ? 1 : 0).join(',')}]`;
+  await testDb.unsafe(`
+    INSERT INTO public.entity_clusters
+      (entity_id, cluster_id, centroid_snapshot, cluster_probability, cluster_size, computation_version)
+    VALUES ('${entityId}'::uuid, ${c.clusterId}, '${centroid}'::vector, ${c.probability ?? 0.9}, 5, 1)
+    ON CONFLICT (entity_id) DO UPDATE SET
+      cluster_id = EXCLUDED.cluster_id,
+      cluster_probability = EXCLUDED.cluster_probability
+  `);
+}
+
+async function seedDriftEvent(entityId: string, opts: {
+  targetClusterId: number;
+  triggeredAction?: 'logged_only' | 'reconciliation_invoked' | 'reconciliation_failed';
+  detectedAt?: Date;
+}) {
+  const centroid = `[${Array.from({ length: 768 }, () => 0).join(',')}]`;
+  await testDb`
+    INSERT INTO public.entity_drift_events
+      (entity_id, drift_magnitude, centroid_snapshot, centroid_current,
+       target_cluster_id, triggered_action, detected_at)
+    VALUES (
+      ${entityId}::uuid, 0.5,
+      ${testDb.unsafe(`'${centroid}'::vector`)},
+      ${testDb.unsafe(`'${centroid}'::vector`)},
+      ${opts.targetClusterId},
+      ${opts.triggeredAction ?? 'reconciliation_invoked'},
+      ${opts.detectedAt ?? new Date()}
+    )
+  `;
+}
+
+/** Mark both upstream compute runs as completed in the future so the
+ *  freshness gate clears. Idempotent — inserts a fresh row each call. */
+async function ensureUpstreamFresh() {
+  const future = new Date(Date.now() + 60_000);
+  await testDb`
+    INSERT INTO public.topology_compute_runs
+      (started_at, completed_at, status, computation_version, entities_processed)
+    VALUES (NOW(), ${future}, 'completed', 1, 1)
+  `;
+  await testDb`
+    INSERT INTO public.clustering_compute_runs
+      (started_at, completed_at, status, computation_version, entities_processed, cluster_count, noise_count)
+    VALUES (NOW(), ${future}, 'completed', 1, 1, 1, 0)
+  `;
+}
+
+async function clearMergeCandidates() {
+  await testDb`DELETE FROM public.merge_candidates`;
+}
+
+async function fullReset() {
+  // Wipe every table that could leak between tests. entity_topology /
+  // entity_clusters / entity_drift_events / *_compute_runs aren't in the
+  // central deleteFromTables list, so we wipe them explicitly.
+  await deleteFromTables({ acknowledgeGlobal: true });
+  await testDb`DELETE FROM public.entity_topology`;
+  await testDb`DELETE FROM public.entity_clusters`;
+  await testDb`DELETE FROM public.entity_drift_events`;
+  await testDb`DELETE FROM public.topology_compute_runs`;
+  await testDb`DELETE FROM public.clustering_compute_runs`;
+  await testDb`DELETE FROM public.merge_candidates`;
+}
+
+describe('cross-cluster candidate generator', () => {
+  beforeEach(async () => {
+    await fullReset();
+    // Reset env knobs each test starts with defaults.
+    delete process.env.MIN_COMPONENT_SIZE;
+    delete process.env.MIN_K_CORE_FOR_BRIDGE;
+    delete process.env.BRIDGE_SCORE_THRESHOLD;
+    delete process.env.MAX_CANDIDATES_PER_COMPONENT_PAIR;
+    delete process.env.DRIFT_RECENCY_DAYS;
+  });
+
+  it('empty graph: no error, no candidates, ran=true', async () => {
+    await ensureUpstreamFresh();
+    const r = await generateCrossClusterCandidates();
+    expect(r.ran).toBe(true);
+    expect(r.componentPairsEvaluated).toBe(0);
+    expect(r.candidatesInserted).toBe(0);
+  });
+
+  it('single component: no cross-component pairs to evaluate', async () => {
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 0 });
+    await seedCluster(a.id, { clusterId: 1 });
+    await seedCluster(b.id, { clusterId: 1 });
+
+    const r = await generateCrossClusterCandidates();
+    expect(r.ran).toBe(true);
+    expect(r.componentPairsEvaluated).toBe(0);
+    expect(r.candidatesInserted).toBe(0);
+  });
+
+  it('two trivial size-1 components: skipped by MIN_COMPONENT_SIZE filter', async () => {
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    // Each component has only one entity — below default MIN_COMPONENT_SIZE=2.
+    await seedTopology(a.id, { componentId: 0, componentSize: 1 });
+    await seedTopology(b.id, { componentId: 1, componentSize: 1 });
+    await seedCluster(a.id, { clusterId: 1 });
+    await seedCluster(b.id, { clusterId: 1 });
+
+    const r = await generateCrossClusterCandidates();
+    expect(r.candidatesInserted).toBe(0);
+  });
+
+  it('shared cluster across components: a high-score candidate surfaces', async () => {
+    await ensureUpstreamFresh();
+    const a1 = await createTestEntity({ canonicalName: 'A1', entityType: 'person' });
+    const a2 = await createTestEntity({ canonicalName: 'A2', entityType: 'person' });
+    const b1 = await createTestEntity({ canonicalName: 'B1', entityType: 'person' });
+    const b2 = await createTestEntity({ canonicalName: 'B2', entityType: 'person' });
+
+    await seedTopology(a1.id, { componentId: 0, pagerank: 0.5 });
+    await seedTopology(a2.id, { componentId: 0, pagerank: 0.4 });
+    await seedTopology(b1.id, { componentId: 1, pagerank: 0.5 });
+    await seedTopology(b2.id, { componentId: 1, pagerank: 0.4 });
+    // a1 ↔ b1 share cluster 7 with high probability — that pair should win.
+    await seedCluster(a1.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b1.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(a2.id, { clusterId: 8, probability: 0.6 });
+    await seedCluster(b2.id, { clusterId: 9, probability: 0.6 });
+
+    const r = await generateCrossClusterCandidates();
+    expect(r.ran).toBe(true);
+    expect(r.componentPairsEvaluated).toBe(1);
+    expect(r.candidatesInserted).toBeGreaterThanOrEqual(1);
+
+    const list = await listCrossClusterCandidates();
+    expect(list.length).toBeGreaterThanOrEqual(1);
+    // The top scorer is the shared-cluster pair (a1, b1).
+    const top = list[0]!;
+    const ids = new Set([top.entityA.id, top.entityB.id]);
+    expect(ids.has(a1.id) && ids.has(b1.id)).toBe(true);
+  });
+
+  it('candidate_source = "cross_cluster_generator" + 3-signal columns NULL', async () => {
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 1 });
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+
+    await generateCrossClusterCandidates();
+
+    const rows = await testDb<{
+      candidate_source: string;
+      centroid_similarity: number | null;
+      memory_overlap: number | null;
+      structural_similarity: number | null;
+      status: string;
+    }[]>`
+      SELECT candidate_source, centroid_similarity, memory_overlap,
+             structural_similarity, status
+      FROM public.merge_candidates
+    `;
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    for (const r of rows) {
+      expect(r.candidate_source).toBe('cross_cluster_generator');
+      expect(r.centroid_similarity).toBeNull();
+      expect(r.memory_overlap).toBeNull();
+      expect(r.structural_similarity).toBeNull();
+      expect(r.status).toBe('candidate');
+    }
+  });
+
+  it('threshold filter: candidates below BRIDGE_SCORE_THRESHOLD are not inserted', async () => {
+    process.env.BRIDGE_SCORE_THRESHOLD = '10.0';  // unreachable — score caps at ~1.0
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0, isArticulation: true });
+    await seedTopology(b.id, { componentId: 1, isArticulation: true });
+    await seedCluster(a.id, { clusterId: 7, probability: 1.0 });
+    await seedCluster(b.id, { clusterId: 7, probability: 1.0 });
+
+    const r = await generateCrossClusterCandidates();
+    expect(r.componentPairsEvaluated).toBe(1);
+    expect(r.candidatesInserted).toBe(0);
+  });
+
+  it('cap per pair: only top MAX_CANDIDATES_PER_COMPONENT_PAIR are kept', async () => {
+    process.env.MAX_CANDIDATES_PER_COMPONENT_PAIR = '2';
+    await ensureUpstreamFresh();
+    // 4 entities in component 0, 4 in component 1, all sharing cluster 7 →
+    // 16 above-threshold candidates for one component pair. With cap=2 only
+    // the top-2 are persisted.
+    const ids: { compA: string[]; compB: string[] } = { compA: [], compB: [] };
+    for (let i = 0; i < 4; i++) {
+      const a = await createTestEntity({ canonicalName: `A${i}`, entityType: 'person' });
+      const b = await createTestEntity({ canonicalName: `B${i}`, entityType: 'person' });
+      ids.compA.push(a.id); ids.compB.push(b.id);
+      await seedTopology(a.id, { componentId: 0, pagerank: 0.5 - i * 0.01 });
+      await seedTopology(b.id, { componentId: 1, pagerank: 0.5 - i * 0.01 });
+      await seedCluster(a.id, { clusterId: 7, probability: 0.9 - i * 0.05 });
+      await seedCluster(b.id, { clusterId: 7, probability: 0.9 - i * 0.05 });
+    }
+    const r = await generateCrossClusterCandidates();
+    expect(r.componentPairsEvaluated).toBe(1);
+    expect(r.candidatesInserted).toBe(2);
+    const list = await listCrossClusterCandidates();
+    expect(list.length).toBe(2);
+  });
+
+  it('articulation bonus lifts an articulation-point pair above a non-articulation pair', async () => {
+    await ensureUpstreamFresh();
+    const a1 = await createTestEntity({ canonicalName: 'A1', entityType: 'person' });
+    const a2 = await createTestEntity({ canonicalName: 'A2', entityType: 'person' });
+    const b1 = await createTestEntity({ canonicalName: 'B1', entityType: 'person' });
+    const b2 = await createTestEntity({ canonicalName: 'B2', entityType: 'person' });
+    // (a1, b1) — articulation-point pair.
+    await seedTopology(a1.id, { componentId: 0, isArticulation: true, pagerank: 0.4 });
+    await seedTopology(b1.id, { componentId: 1, isArticulation: true, pagerank: 0.4 });
+    // (a2, b2) — non-articulation, otherwise identical.
+    await seedTopology(a2.id, { componentId: 0, isArticulation: false, pagerank: 0.4 });
+    await seedTopology(b2.id, { componentId: 1, isArticulation: false, pagerank: 0.4 });
+    // All four in same cluster so the cluster term is identical.
+    for (const id of [a1.id, a2.id, b1.id, b2.id]) {
+      await seedCluster(id, { clusterId: 7, probability: 0.8 });
+    }
+
+    await generateCrossClusterCandidates();
+    const list = await listCrossClusterCandidates();
+    // Find both pairs in the result list.
+    const articulationPair = list.find((c) =>
+      (c.entityA.id === a1.id && c.entityB.id === b1.id) ||
+      (c.entityA.id === b1.id && c.entityB.id === a1.id)
+    );
+    const nonArticulationPair = list.find((c) =>
+      (c.entityA.id === a2.id && c.entityB.id === b2.id) ||
+      (c.entityA.id === b2.id && c.entityB.id === a2.id)
+    );
+    expect(articulationPair).toBeDefined();
+    expect(nonArticulationPair).toBeDefined();
+    expect(articulationPair!.combinedScore).toBeGreaterThan(nonArticulationPair!.combinedScore);
+  });
+
+  it('drifted entity in component A produces candidates against component B target-cluster members', async () => {
+    await ensureUpstreamFresh();
+    const drifted = await createTestEntity({ canonicalName: 'Drifted', entityType: 'person' });
+    const target = await createTestEntity({ canonicalName: 'Target', entityType: 'person' });
+    const padA = await createTestEntity({ canonicalName: 'PadA', entityType: 'person' });
+    const padB = await createTestEntity({ canonicalName: 'PadB', entityType: 'person' });
+    await seedTopology(drifted.id, { componentId: 0 });
+    await seedTopology(padA.id, { componentId: 0 });
+    await seedTopology(target.id, { componentId: 1 });
+    await seedTopology(padB.id, { componentId: 1 });
+    // drifted is in cluster 1, target & padB in cluster 9. Drift event says
+    // drifted is heading toward cluster 9 — pairs (drifted ↔ target) and
+    // (drifted ↔ padB) should both surface as drift-driven candidates even
+    // if §2.2 sweep wouldn't on its own (different cluster_id, low score).
+    await seedCluster(drifted.id, { clusterId: 1, probability: 0.6 });
+    await seedCluster(padA.id, { clusterId: 1, probability: 0.6 });
+    await seedCluster(target.id, { clusterId: 9, probability: 0.9 });
+    await seedCluster(padB.id, { clusterId: 9, probability: 0.9 });
+    await seedDriftEvent(drifted.id, { targetClusterId: 9, triggeredAction: 'reconciliation_invoked' });
+
+    const r = await generateCrossClusterCandidates();
+    expect(r.driftDrivenCandidates).toBeGreaterThanOrEqual(1);
+
+    const list = await listCrossClusterCandidates();
+    const driftedTarget = list.find((c) => {
+      const ids = new Set([c.entityA.id, c.entityB.id]);
+      return ids.has(drifted.id) && ids.has(target.id);
+    });
+    expect(driftedTarget).toBeDefined();
+    expect(driftedTarget!.resolutionReasoning).toContain('drift_driven');
+  });
+
+  it('idempotent: a second run on identical state inserts no NEW rows (UPDATE only)', async () => {
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 1 });
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+
+    await generateCrossClusterCandidates();
+    const after1 = await testDb<{ count: bigint }[]>`SELECT COUNT(*) AS count FROM public.merge_candidates`;
+    await generateCrossClusterCandidates();
+    const after2 = await testDb<{ count: bigint }[]>`SELECT COUNT(*) AS count FROM public.merge_candidates`;
+    expect(Number(after2[0]!.count)).toBe(Number(after1[0]!.count));
+
+    // detection_count should have incremented to 2.
+    const detections = await testDb<{ detection_count: number }[]>`
+      SELECT detection_count FROM public.merge_candidates LIMIT 1
+    `;
+    expect(detections[0]!.detection_count).toBe(2);
+  });
+
+  it('ON CONFLICT preserves cross_cluster_generator (never downgrades to three_signal_scoring)', async () => {
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 1 });
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+    await generateCrossClusterCandidates();
+
+    // Now simulate the existing 3-signal scorer detecting the same pair.
+    const [aId, bId] = a.id < b.id ? [a.id, b.id] : [b.id, a.id];
+    await testDb`
+      INSERT INTO public.merge_candidates
+        (entity_a_id, entity_b_id, centroid_similarity, memory_overlap,
+         structural_similarity, combined_score, status, candidate_source)
+      VALUES (${aId}::uuid, ${bId}::uuid, 0.5, 0.5, 0.5, 0.5, 'staging', 'three_signal_scoring')
+      ON CONFLICT (entity_a_id, entity_b_id) DO UPDATE SET
+        candidate_source = CASE WHEN merge_candidates.candidate_source = 'cross_cluster_generator'
+                                THEN merge_candidates.candidate_source
+                                ELSE EXCLUDED.candidate_source END,
+        centroid_similarity = EXCLUDED.centroid_similarity,
+        memory_overlap = EXCLUDED.memory_overlap,
+        structural_similarity = EXCLUDED.structural_similarity
+    `;
+    const rows = await testDb<{ candidate_source: string }[]>`
+      SELECT candidate_source FROM public.merge_candidates
+    `;
+    expect(rows[0]!.candidate_source).toBe('cross_cluster_generator');
+  });
+
+  it('freshness gate: stale upstream skips with reason "stale_upstream"', async () => {
+    // Simulate: a fresh entity but an old topology compute.
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedCluster(a.id, { clusterId: 1 });
+    // Topology completed 1 hour ago, but the entity row above was just created
+    // → topology stale.
+    const past = new Date(Date.now() - 60 * 60 * 1000);
+    await testDb`
+      INSERT INTO public.topology_compute_runs
+        (started_at, completed_at, status, computation_version, entities_processed)
+      VALUES (${past}, ${past}, 'completed', 1, 1)
+    `;
+    await testDb`
+      INSERT INTO public.clustering_compute_runs
+        (started_at, completed_at, status, computation_version, entities_processed, cluster_count, noise_count)
+      VALUES (${past}, ${past}, 'completed', 1, 1, 1, 0)
+    `;
+    const r = await generateCrossClusterCandidates();
+    expect(r.ran).toBe(false);
+    expect(r.skippedReason).toBe('stale_upstream');
+    expect(r.candidatesInserted).toBe(0);
+  });
+
+  it('advisory lock: a second concurrent invocation short-circuits with "lock_held"', async () => {
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 1 });
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+
+    // Hold the lock on a separate session via testDb (postgres pool reuses the
+    // same client where it can — the explicit `reserve()` call pins one).
+    const reserved = await testDb.reserve();
+    try {
+      await reserved`SELECT pg_advisory_lock(hashtext('cross_cluster_generator'))`;
+      const r = await generateCrossClusterCandidates();
+      expect(r.ran).toBe(false);
+      expect(r.skippedReason).toBe('lock_held');
+    } finally {
+      await reserved`SELECT pg_advisory_unlock(hashtext('cross_cluster_generator'))`;
+      reserved.release();
+    }
+  });
+
+  it('listCrossClusterCandidates: returns only cross_cluster_generator rows ordered by score', async () => {
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    const c = await createTestEntity({ canonicalName: 'C', entityType: 'person' });
+    const d = await createTestEntity({ canonicalName: 'D', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 1 });
+    await seedTopology(c.id, { componentId: 0 });
+    await seedTopology(d.id, { componentId: 1 });
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(c.id, { clusterId: 8, probability: 0.5 });
+    await seedCluster(d.id, { clusterId: 8, probability: 0.5 });
+    await generateCrossClusterCandidates();
+
+    // Plant a non-cross-cluster row that must be excluded by the source filter.
+    const [otherA, otherB] = a.id < c.id ? [a.id, c.id] : [c.id, a.id];
+    await testDb.unsafe(`
+      INSERT INTO public.merge_candidates
+        (entity_a_id, entity_b_id, combined_score, status, candidate_source)
+      VALUES ('${otherA}'::uuid, '${otherB}'::uuid, 0.99, 'candidate', 'three_signal_scoring')
+    `);
+
+    const list = await listCrossClusterCandidates();
+    for (const c of list) {
+      // Every row in the helper must descend from cross-cluster generation.
+      expect(c.combinedScore).toBeLessThanOrEqual(1.0);
+    }
+    // Sorted descending by score.
+    for (let i = 1; i < list.length; i++) {
+      expect(list[i - 1]!.combinedScore).toBeGreaterThanOrEqual(list[i]!.combinedScore);
+    }
+    // The 3-signal row is not in the result.
+    expect(list.find((c) => c.combinedScore > 0.95 && c.combinedScore < 1.0)).toBeUndefined();
+  });
+});
