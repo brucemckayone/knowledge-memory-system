@@ -26,6 +26,10 @@ export const getUnified = () => getJson('/api/viz/unified');
 export const getGraphStats = () => getJson('/api/graph-stats');
 export const computeGraphStats = () => postJson('/api/graph-stats/compute');
 
+// ---- Topology (Phase 2 — viz.2) ----
+export const getTopology = () => getJson('/api/topology');
+export const computeTopology = () => postJson('/api/topology/compute');
+
 // ---- Contradictions ----
 export const getContradictions = (limit = 200) => getJson(`/api/contradictions?limit=${limit}`);
 export const resolveContradiction = (id, body) =>

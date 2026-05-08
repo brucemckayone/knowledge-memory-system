@@ -24,31 +24,46 @@ app.get('/health', async (c) => {
   return c.json({ status: db ? 'ok' : 'degraded', db });
 });
 
+// `contentType` (optional) hints the graph agent: 'prose' | 'code-ts' | 'code-sql'.
+// Defaults to 'prose' when omitted — backward compatible with all existing callers.
+type ContentTypeBody = 'prose' | 'code-ts' | 'code-sql';
+
+function parseContentType(v: unknown): ContentTypeBody | undefined {
+  if (v === 'prose' || v === 'code-ts' || v === 'code-sql') return v;
+  return undefined;
+}
+
 app.post('/ingest', async (c) => {
-  const body = await c.req.json<{ text: string; source?: string }>();
+  const body = await c.req.json<{ text: string; source?: string; contentType?: string }>();
   if (!body.text) return c.json({ error: 'text is required' }, 400);
-  const result = await ingest(body.text, { source: body.source });
+  const result = await ingest(body.text, {
+    source: body.source,
+    contentType: parseContentType(body.contentType),
+  });
   return c.json(result);
 });
 
 app.post('/store', async (c) => {
-  const body = await c.req.json<{ text: string; source?: string }>();
+  const body = await c.req.json<{ text: string; source?: string; contentType?: string }>();
   if (!body.text) return c.json({ error: 'text is required' }, 400);
-  const memoryId = await store(body.text, { source: body.source });
+  const memoryId = await store(body.text, {
+    source: body.source,
+    contentType: parseContentType(body.contentType),
+  });
   return c.json({ memoryId });
 });
 
 app.post('/extract', async (c) => {
-  const body = await c.req.json<{ memoryId: string }>();
+  const body = await c.req.json<{ memoryId: string; contentType?: string }>();
   if (!body.memoryId) return c.json({ error: 'memoryId is required' }, 400);
-  const result = await extract(body.memoryId);
+  const result = await extract(body.memoryId, { contentType: parseContentType(body.contentType) });
   return c.json(result);
 });
 
 app.post('/ingest/queue', async (c) => {
-  const body = await c.req.json<{ text: string; source?: string }>();
+  const body = await c.req.json<{ text: string; source?: string; contentType?: string }>();
   if (!body.text) return c.json({ error: 'text is required' }, 400);
-  const result = enqueueIngest(body.text, body.source);
+  const result = enqueueIngest(body.text, body.source, parseContentType(body.contentType));
   return c.json(result, 202);
 });
 
@@ -899,6 +914,98 @@ app.post('/api/topology/compute', async (c) => {
   } catch (err) {
     return c.json({ ok: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 502);
   }
+});
+
+// GET /api/topology — full snapshot for the viz topology layer (viz.2).
+// Returns one row per entity with all 5 Phase 2 features (component, k-core,
+// articulation, community, centrality + predicate_signature) plus the global
+// bridges list. Cheap when pre-computed; on a 1k-entity graph it's a few ms.
+app.get('/api/topology', async (c) => {
+  const { db } = await import('./db/index.js');
+  const { sql } = await import('drizzle-orm');
+
+  type EntityRow = {
+    entity_id: string;
+    component_id: number | null;
+    component_size: number | null;
+    k_core: number | null;
+    is_articulation_point: boolean;
+    community_id: number | null;
+    participation_coef: number | null;
+    pagerank: number | null;
+    betweenness_sampled: number | null;
+    predicate_signature: string | null;
+    computed_at: Date | null;
+    computation_version: number | null;
+  };
+  type BridgeRow = {
+    source_entity_id: string;
+    target_entity_id: string;
+    fact_id: string | null;
+    same_as_link_id: string | null;
+    computed_at: Date;
+  };
+
+  const entityRows = (await db.execute(sql`
+    SELECT
+      entity_id::text             AS entity_id,
+      component_id,
+      component_size,
+      k_core,
+      is_articulation_point,
+      community_id,
+      participation_coef,
+      pagerank,
+      betweenness_sampled,
+      predicate_signature::text   AS predicate_signature,
+      computed_at,
+      computation_version
+    FROM public.entity_topology
+  `)) as unknown as EntityRow[];
+
+  const bridgeRows = (await db.execute(sql`
+    SELECT
+      source_entity_id::text  AS source_entity_id,
+      target_entity_id::text  AS target_entity_id,
+      fact_id::text           AS fact_id,
+      same_as_link_id::text   AS same_as_link_id,
+      computed_at
+    FROM public.topology_bridges
+  `)) as unknown as BridgeRow[];
+
+  // Parse pgvector text "[0.1,0.2,...]" to number[] so the client doesn't
+  // have to. Returns null when the signature is missing (zero-norm column).
+  function parseVector(s: string | null): number[] | null {
+    if (!s) return null;
+    const trimmed = s.replace(/^\[|\]$/g, '');
+    if (!trimmed) return null;
+    const parts = trimmed.split(',').map((x) => Number.parseFloat(x));
+    return parts.every((x) => Number.isFinite(x)) ? parts : null;
+  }
+
+  const entities = entityRows.map((r) => ({
+    id: r.entity_id,
+    componentId: r.component_id,
+    componentSize: r.component_size,
+    kCore: r.k_core,
+    isArticulationPoint: r.is_articulation_point,
+    communityId: r.community_id,
+    participationCoef: r.participation_coef,
+    pagerank: r.pagerank,
+    betweennessSampled: r.betweenness_sampled,
+    predicateSignature: parseVector(r.predicate_signature),
+    computedAt: r.computed_at instanceof Date ? r.computed_at.toISOString() : null,
+  }));
+
+  const bridges = bridgeRows.map((r) => ({
+    sourceEntityId: r.source_entity_id,
+    targetEntityId: r.target_entity_id,
+    factId: r.fact_id,
+    sameAsLinkId: r.same_as_link_id,
+    computedAt: r.computed_at instanceof Date ? r.computed_at.toISOString() : String(r.computed_at),
+  }));
+
+  return c.json({ entities, bridges });
 });
 
 app.get('/api/components/:component_id', async (c) => {

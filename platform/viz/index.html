@@ -87,6 +87,16 @@ svg { flex: 1; }
 .layout-btn.active { border-color: #1f6feb; color: #c9d1d9; }
 .layout-btn:hover { border-color: #484f58; }
 
+/* Color mode + centrality selectors (viz.2) */
+.viz-select { font-size: 11px; padding: 3px 6px; border: 1px solid #30363d; background: #0d1117; color: #8b949e; cursor: pointer; border-radius: 4px; margin-left: 4px; }
+.viz-select:focus { outline: none; border-color: #1f6feb; color: #c9d1d9; }
+.viz-select:hover { border-color: #484f58; }
+.viz-select-label { font-size: 10px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-left: 6px; }
+
+/* Predicate signature micro-bars (detail panel — viz.2) */
+.psig-row { display: flex; align-items: flex-end; gap: 1px; height: 22px; padding: 2px 0; background: #0d1117; border: 1px solid #21262d; border-radius: 3px; margin-top: 4px; }
+.psig-bar { display: inline-block; width: 4px; background: #58a6ff; border-radius: 1px; }
+
 /* Tooltip */
 .tooltip { position: absolute; background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; font-size: 12px; color: #c9d1d9; pointer-events: none; max-width: 350px; white-space: pre-wrap; z-index: 10; }
 
@@ -219,6 +229,17 @@ svg { flex: 1; }
     <button class="layout-btn active" data-layout="force">Force</button>
     <button class="layout-btn" data-layout="dag">DAG</button>
   </div>
+  <span class="viz-select-label">color</span>
+  <select class="viz-select" id="colorModeSelect" title="Entity color encoding">
+    <option value="type" selected>by Type</option>
+    <option value="component">by Component</option>
+    <option value="community">by Community</option>
+  </select>
+  <span class="viz-select-label">halo</span>
+  <select class="viz-select" id="centralitySelect" title="Centrality halo metric (size scales with the chosen score)">
+    <option value="pagerank" selected>PageRank</option>
+    <option value="betweenness">Betweenness</option>
+  </select>
   <div class="header-spacer"></div>
   <div class="stats" id="stats"></div>
   <label class="auto-toggle">
@@ -228,6 +249,7 @@ svg { flex: 1; }
     <button class="action-btn" id="btnIngestToggle" title="Paste text to ingest into the graph">Ingest</button>
     <button class="action-btn" id="btnGarden" title="Trigger the graph gardener to explore topology, find islands, and consolidate entities">Garden</button>
     <button class="action-btn" id="btnReconcile" title="Trigger reconciliation agent to resolve entity identity questions">Reconcile</button>
+    <button class="action-btn" id="btnTopology" title="Recompute topology (component, k-core, articulation, community, centrality, predicate signature) — Phase 2">Topology</button>
     <button class="action-btn" id="btnContradictions" title="View flagged contradictions in the graph">Contradictions<span class="badge zero" id="contradictionsBadge">0</span></button>
     <button class="action-btn" id="btnPatterns" title="View active causal patterns (provisional + canonical)">Patterns<span class="badge zero" id="patternsBadge">0</span></button>
   </div>

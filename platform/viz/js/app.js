@@ -21,6 +21,7 @@ import { bindGarden } from './agents/garden.js';
 import { bindReconcile } from './agents/reconcile.js';
 import { bindReason } from './agents/reason.js';
 import { bindReset } from './agents/reset.js';
+import { loadTopology, bindColorModeDropdown, bindCentralityToggle, bindTopologyButton } from './layers/topology.js';
 
 export async function fetchData() {
   try {
@@ -102,6 +103,9 @@ bindGarden();
 bindReconcile();
 bindReason();
 bindReset();
+bindColorModeDropdown();
+bindCentralityToggle();
+bindTopologyButton();
 
 // Polling registry — runs every poller once on start, then on its interval.
 register('graph', async () => {
@@ -110,6 +114,9 @@ register('graph', async () => {
 }, 5000);
 register('contradictions', refreshContradictions, 5000);
 register('patterns', refreshPatterns, 5000);
+// Topology refreshes on a slower cadence — its compute is opt-in via the
+// Topology button or the backend's auto-trigger after gardener / clustering.
+register('topology', loadTopology, 15000);
 
 if (document.getElementById('autoRefresh').checked) startAll();
 else {
@@ -119,4 +126,5 @@ else {
   refreshStats();
   refreshContradictions();
   refreshPatterns();
+  loadTopology();
 }

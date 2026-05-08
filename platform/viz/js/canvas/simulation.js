@@ -45,6 +45,7 @@ export function initSvg(updatePinnedTooltipPosition) {
   groups.causalAnchors = g.append('g').attr('class', 'layer-causal');
   groups.causalEdges = g.append('g').attr('class', 'layer-causal');
   groups.causalNodes = g.append('g').attr('class', 'layer-causal');
+  groups.bridges = g.append('g').attr('class', 'layer-bridges');
   groups.contradictionOverlay = g.append('g').attr('class', 'layer-contradictions');
   groups.entityNodes = g.append('g');
 

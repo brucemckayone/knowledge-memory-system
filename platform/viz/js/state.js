@@ -19,6 +19,14 @@ export const state = {
   tooltipPinnedNode: null,
   refreshTimer: null,
   contradictions: [],
+  // viz.2 — topology (Phase 2)
+  topology: {
+    entities: {},   // entityId → { componentId, kCore, isArticulationPoint, communityId, pagerank, betweennessSampled, predicateSignature, ... }
+    bridges: [],    // [{ sourceEntityId, targetEntityId, factId, sameAsLinkId }]
+    loaded: false,
+  },
+  colorMode: 'type',         // 'type' | 'component' | 'community'
+  centralityMetric: 'pagerank', // 'pagerank' | 'betweenness'
   refs: {
     svg: null,
     g: null,

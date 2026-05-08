@@ -6,6 +6,7 @@ import { showTooltip, hideTooltip, updatePinnedTooltipPosition, pinTooltipForNod
 import { toggleFocus } from './focus.js';
 import { showNodeDetail, showEdgeDetail } from '../panels/detail.js';
 import { renderContradictionsOverlay } from '../overlays/contradictions.js';
+import { resolveEntityColor, renderTopologyOverlay } from '../layers/topology.js';
 
 export function renderAll() {
   const { nodes, edges } = state.data;
@@ -93,14 +94,17 @@ export function renderAll() {
     hideLabel: true,
   });
 
-  // Entity nodes
+  // Entity nodes (color via resolveEntityColor — driven by state.colorMode)
   renderNodes(groups.entityNodes, visibleNodes.filter(n => n._nodeType === 'entity'), {
-    fill: d => COLOR_ENTITY[d.entityType] || COLOR_ENTITY.other,
+    fill: d => resolveEntityColor(d),
     stroke: d => d.id === state.selectedId ? '#fff' : '#21262d',
     strokeWidth: d => d.id === state.selectedId ? 3 : 1.5 + Math.min((d.factCount || 0), 10) * 0.2,
     opacity: 1,
     labelColor: '#c9d1d9', fontSize: '11px', fontWeight: '500',
   });
+
+  // Topology overlay (viz.2 — articulation rings + centrality halos + bridges)
+  renderTopologyOverlay();
 
   // Contradictions overlay (Phase 5 — viz.1)
   renderContradictionsOverlay();
@@ -126,6 +130,14 @@ export function renderAll() {
       .attr('x', d => (d.source.x + d.target.x) / 2)
       .attr('y', d => (d.source.y + d.target.y) / 2);
     g.selectAll('g.node').attr('transform', d => `translate(${d.x},${d.y})`);
+    // viz.2 — bridges + contradiction-overlay underlays piggyback on the same
+    // tick so their coords stay synced with the simulation.
+    g.selectAll('line.bridge')
+      .attr('x1', b => b._src?.x ?? 0).attr('y1', b => b._src?.y ?? 0)
+      .attr('x2', b => b._tgt?.x ?? 0).attr('y2', b => b._tgt?.y ?? 0);
+    g.selectAll('line.contradiction-underlay')
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
     updatePinnedTooltipPosition();
   });
 }

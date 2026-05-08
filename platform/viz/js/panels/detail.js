@@ -2,6 +2,37 @@ import { esc } from '../util.js';
 import { state } from '../state.js';
 import { fetchImpact } from './impact.js';
 
+// viz.2 — Topology section renderer for entity detail. Returns '' when no
+// entity_topology row exists for the given entity.
+function topologySection(entityId) {
+  const t = state.topology.entities[entityId];
+  if (!t) return '';
+  const rows = [];
+  rows.push(field('Component', t.componentId != null ? `${t.componentId} (size ${t.componentSize})` : '—'));
+  rows.push(field('k-core', t.kCore != null ? String(t.kCore) : '—'));
+  rows.push(field('Articulation', t.isArticulationPoint ? 'yes' : 'no'));
+  rows.push(field('Community', t.communityId != null ? String(t.communityId) : '—'));
+  if (t.participationCoef != null) rows.push(field('Participation', t.participationCoef.toFixed(3)));
+  if (t.pagerank != null) rows.push(field('PageRank', t.pagerank.toFixed(4)));
+  if (t.betweennessSampled != null) rows.push(field('Betweenness', t.betweennessSampled.toFixed(4)));
+  let html = `<div class="section-label">Topology</div>${rows.filter(Boolean).join('')}`;
+  if (Array.isArray(t.predicateSignature) && t.predicateSignature.length > 0) {
+    html += `<div class="field-label" style="margin-top:6px">Predicate signature (${t.predicateSignature.length}-dim)</div>`;
+    html += predicateSignatureBars(t.predicateSignature);
+  }
+  return html;
+}
+
+function predicateSignatureBars(sig) {
+  const max = Math.max(...sig, 0.0001);
+  const cells = sig.map((v, i) => {
+    const h = Math.max(1, Math.round((v / max) * 18));
+    const opacity = v > 0 ? 0.85 : 0.15;
+    return `<span class="psig-bar" style="height:${h}px;opacity:${opacity}" title="bin ${i}: ${v.toFixed(3)}"></span>`;
+  }).join('');
+  return `<div class="psig-row">${cells}</div>`;
+}
+
 function field(label, value) {
   if (value == null || value === '') return '';
   return `<div class="field"><div class="field-label">${esc(label)}</div><div class="field-value">${esc(String(value))}</div></div>`;
@@ -70,6 +101,9 @@ export function showNodeDetail(d) {
         html += `</div>`;
       }
     }
+
+    // Topology section (viz.2)
+    html += topologySection(d.id);
 
     const merges = data.edges.filter(e => e._edgeType === 'mergeCandidate' && ((e.source.id || e.source) === d.id || (e.target.id || e.target) === d.id));
     if (merges.length > 0) {
