@@ -49,7 +49,19 @@ Output this JSON:
     }
   ],
   "nextSteps": "string — what to study after this"
-}`;
+}
+
+## Root-cause id trailer (REQUIRED)
+
+After the JSON, on its own final line, emit a structured root-cause trailer so the persistence layer can index the gap by entity id directly (no brittle name lookup). The MCP tools you used (search_curriculum, get_prerequisite_chain, get_struggle_areas) returned entity ids — pick the id of the concrete root-cause entity:
+
+ROOT_CAUSE: { "entityId": "ent_xxx", "conceptName": "binary search trees" }
+
+Rules:
+  - entityId MUST be the exact id string returned by an MCP tool. Do NOT fabricate ids.
+  - If you genuinely could not resolve a single concrete entity id (e.g. the gap is generic / cold-start), emit:
+    ROOT_CAUSE: { "entityId": null, "conceptName": "<best-guess concept name>" }
+  - Emit the trailer on a single line as the very last line of your output. Do NOT wrap it in code fences.`;
 
 export interface GapAnalysisResult {
   targetConcept: string;
@@ -58,6 +70,49 @@ export interface GapAnalysisResult {
   lesson: string;
   followUpQuestions: Array<{ questionText: string; hint: string }>;
   nextSteps: string;
+  /** Structured root-cause entity id emitted by the agent's ROOT_CAUSE: trailer.
+   *  null when the agent could not resolve a concrete entity id. The persistence
+   *  layer prefers this over a name-based lookup. */
+  rootCauseEntityId: string | null;
+  /** The concept name from the ROOT_CAUSE: trailer when available. Falls back
+   *  to targetConcept when the trailer is missing. */
+  rootCauseConceptName: string | null;
+}
+
+export interface ParsedRootCause {
+  entityId: string | null;
+  conceptName: string | null;
+}
+
+/**
+ * Parse the `ROOT_CAUSE: { ... }` trailer the gap-analyzer emits at the end of
+ * its output. Tolerates: missing trailer, malformed JSON, surrounding code
+ * fences, trailing whitespace. Returns nulls when the trailer is absent or
+ * unparseable — callers fall back to name-based lookup in that case.
+ */
+export function parseRootCauseTrailer(raw: string): ParsedRootCause {
+  if (!raw) return { entityId: null, conceptName: null };
+  // Match `ROOT_CAUSE:` followed by a balanced-ish JSON object on the same or
+  // next line. Anchor on the LAST occurrence (the agent might mention the
+  // marker mid-prose; the trailer is always last).
+  const re = /ROOT_CAUSE\s*:\s*(\{[^{}]*\})/gi;
+  let lastMatch: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw)) !== null) lastMatch = m;
+  if (!lastMatch) return { entityId: null, conceptName: null };
+
+  try {
+    const obj = JSON.parse(lastMatch[1]!) as { entityId?: unknown; conceptName?: unknown };
+    const entityId = typeof obj.entityId === 'string' && obj.entityId.length > 0
+      ? obj.entityId
+      : null;
+    const conceptName = typeof obj.conceptName === 'string' && obj.conceptName.length > 0
+      ? obj.conceptName
+      : null;
+    return { entityId, conceptName };
+  } catch {
+    return { entityId: null, conceptName: null };
+  }
 }
 
 export async function analyzeGapsAndGenerateContent(params: {
@@ -84,10 +139,20 @@ Use the MCP tools to understand their current state, then generate a focused min
     timeoutMs: 900_000, // 15 min — gap analyzer can recursively trigger Nmemo reasoning agent
   });
 
+  // Strip the ROOT_CAUSE: trailer before extracting the JSON body so the
+  // greedy {...} match doesn't accidentally swallow the trailer's braces.
+  const rootCause = parseRootCauseTrailer(result.result);
+  const withoutTrailer = result.result.replace(/ROOT_CAUSE\s*:\s*\{[^{}]*\}\s*$/i, '').trim();
+
   try {
-    const jsonMatch = result.result.match(/\{[\s\S]*\}/);
+    const jsonMatch = withoutTrailer.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON in output');
-    return JSON.parse(jsonMatch[0]) as GapAnalysisResult;
+    const parsed = JSON.parse(jsonMatch[0]) as Omit<GapAnalysisResult, 'rootCauseEntityId' | 'rootCauseConceptName'>;
+    return {
+      ...parsed,
+      rootCauseEntityId: rootCause.entityId,
+      rootCauseConceptName: rootCause.conceptName ?? parsed.targetConcept ?? null,
+    };
   } catch {
     return {
       targetConcept: 'General review needed',
@@ -99,6 +164,11 @@ Use the MCP tools to understand their current state, then generate a focused min
         { questionText: 'Can you explain what you understand about the main topic in your own words?', hint: 'Start from the beginning' },
       ],
       nextSteps: 'Continue with quizzes to help the system learn where to focus.',
+      rootCauseEntityId: rootCause.entityId,
+      rootCauseConceptName: rootCause.conceptName,
     };
   }
 }
+
+// Test-only hooks.
+export const __test = { parseRootCauseTrailer };

@@ -388,25 +388,125 @@
   .section-header h1 { font-size: 22px; font-weight: 700; line-height: 1.3; margin-bottom: 8px; }
   .section-header .desc { color: var(--muted); line-height: 1.6; }
 
-  /* Cross-course bridge banner — surfaces "you've seen this before in [Course X]" */
-  .bridge-banners { display: flex; flex-direction: column; gap: 8px; }
-  .bridge-banner {
-    background: rgba(99, 102, 241, 0.07);
-    border: 1px solid rgba(99, 102, 241, 0.3);
+  /* Cross-course bridge — enriched per-section card (nmemo-3va) */
+  .bridge-cards { display: flex; flex-direction: column; gap: 10px; }
+  .connection-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--radius);
+    padding: 8px 12px; font-size: 13px; color: var(--text);
+  }
+  .connection-banner-text strong { color: var(--accent); }
+  .connection-banner-dismiss {
+    background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer;
+    line-height: 1; padding: 0 6px;
+  }
+  .connection-banner-dismiss:hover { color: var(--text); }
+  .bridge-card {
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.28);
     border-left: 3px solid var(--accent);
     border-radius: var(--radius);
     padding: 12px 16px;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-    display: block;
-    text-decoration: none;
-    color: inherit;
   }
-  .bridge-banner:hover { background: rgba(99, 102, 241, 0.13); border-color: var(--accent); }
-  .bridge-banner .bridge-head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; }
-  .bridge-banner .bridge-head .arrow { font-size: 14px; line-height: 1; }
-  .bridge-banner .bridge-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; line-height: 1.4; }
-  .bridge-banner .bridge-cta { font-size: 12px; color: var(--accent); }
+  .bridge-card .bridge-head {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 8px;
+  }
+  .bridge-card .bridge-prior-course {
+    font-size: 12px; color: var(--accent); text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 600;
+  }
+  .bridge-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .bridge-badge-sameas { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+  .bridge-badge-direct { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+  .bridge-confidence {
+    font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600;
+    background: rgba(99, 102, 241, 0.18); color: var(--accent);
+  }
+  .bridge-names {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 4px;
+  }
+  .bridge-prior-name { color: #c084fc; }
+  .bridge-this-name { color: var(--text); }
+  .bridge-arrow { color: var(--muted); font-weight: 400; }
+  .bridge-name-hint { font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.5; }
+  .bridge-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .btn-bridge-cta, .btn-bridge-open {
+    background: transparent; border: 1px solid rgba(99, 102, 241, 0.4);
+    color: var(--accent); font-size: 12px; padding: 6px 12px;
+    border-radius: var(--radius); cursor: pointer; font-weight: 500;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn-bridge-cta:hover:not(:disabled), .btn-bridge-open:hover { background: rgba(99, 102, 241, 0.12); border-color: var(--accent); }
+  .btn-bridge-cta:disabled { opacity: 0.6; cursor: progress; }
+  .bridge-explainer {
+    margin-top: 10px; padding: 12px; background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: 14px; line-height: 1.6; color: var(--text);
+    max-height: 300px; overflow-y: auto;
+  }
+  .bridge-explainer p { margin-bottom: 8px; }
+  .bridge-explainer p:last-child { margin-bottom: 0; }
+  .bridge-explainer-error { color: var(--muted); font-style: italic; font-size: 13px; }
+
+  /* Synthesis affordance card */
+  .synthesis-card {
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    border-left: 3px solid var(--green);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+  }
+  .synthesis-card .synthesis-head {
+    font-size: 12px; color: var(--green); text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px;
+  }
+  .synthesis-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 6px 0;
+  }
+  .synthesis-row-title { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; }
+  .btn-synthesis-read, .btn-synthesis-generate {
+    background: transparent; border: 1px solid rgba(34, 197, 94, 0.4);
+    color: var(--green); font-size: 12px; padding: 6px 12px;
+    border-radius: var(--radius); cursor: pointer; font-weight: 500;
+  }
+  .btn-synthesis-read:hover, .btn-synthesis-generate:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.12);
+  }
+  .btn-synthesis-generate:disabled { opacity: 0.6; cursor: progress; }
+  .btn-synthesis-generate { margin-top: 6px; }
+  .synthesis-empty { font-size: 13px; color: var(--muted); margin-bottom: 8px; line-height: 1.5; }
+
+  .synthesis-modal {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .synthesis-modal-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); max-width: 720px; width: 100%;
+    max-height: 85vh; display: flex; flex-direction: column;
+  }
+  .synthesis-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+  }
+  .synthesis-modal-header h2 { font-size: 18px; font-weight: 600; margin: 0; }
+  .synthesis-modal-close {
+    background: none; border: none; color: var(--muted); font-size: 24px;
+    cursor: pointer; line-height: 1; padding: 0 8px;
+  }
+  .synthesis-modal-close:hover { color: var(--text); }
+  .synthesis-modal-body {
+    padding: 20px; overflow-y: auto; line-height: 1.6;
+  }
 
   .objectives-box { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; }
   .objectives-box h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
@@ -476,6 +576,44 @@
   .question-row .q-body { display: none; padding: 0 16px 16px; border-top: 1px solid var(--border); }
   .question-row.open .q-body { display: block; }
   .question-row .q-body .q-full { font-size: 14px; line-height: 1.6; padding: 14px 0 12px; }
+
+  /* Nmemo write chips + click-to-expand detail card (nmemo-4jc) */
+  .nmemo-chip { transition: background 0.15s, border-color 0.15s; }
+  .nmemo-chip:hover { background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.5); }
+  .nmemo-chip.is-open { background: rgba(99,102,241,0.22); border-color: var(--accent); }
+  .nmemo-chip-card {
+    position: fixed;
+    z-index: 1000;
+    width: 320px;
+    max-width: calc(100vw - 24px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    padding: 12px 14px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .nmemo-chip-card .ncc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .nmemo-chip-card .ncc-icon { font-size: 16px; }
+  .nmemo-chip-card .ncc-tool { font-weight: 600; color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .nmemo-chip-card .ncc-conf { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .nmemo-chip-card .ncc-concept { font-weight: 600; margin-bottom: 6px; }
+  .nmemo-chip-card .ncc-body { color: var(--text); margin-bottom: 8px; white-space: pre-wrap; word-break: break-word; }
+  .nmemo-chip-card .ncc-body.is-misconception { color: #fca5a5; }
+  .nmemo-chip-card .ncc-meta { display: flex; gap: 10px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 8px; flex-wrap: wrap; }
+  .nmemo-chip-card .ncc-fact { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  @media (max-width: 600px) {
+    .nmemo-chip-card.is-mobile-pinned {
+      left: 12px !important;
+      right: 12px !important;
+      bottom: 12px !important;
+      top: auto !important;
+      width: auto;
+      max-width: none;
+    }
+  }
 </style>
 </head>
 <body>
@@ -812,6 +950,7 @@ function mountDashboard() {
     // Quiz tab is gone in v0.3 — every section nav opens the section view, where
     // inline questions live alongside the lesson. `opts.quiz` is now ignored.
     onNavigateSection: (sectionId) => { if (sectionId) openSection(sectionId); },
+    onFixGap: (sectionId) => { if (sectionId) openSection(sectionId); },
   };
   window.render(window.h`<${lib.DashboardCards}
     data=${state.dashboard}
@@ -822,6 +961,7 @@ function mountDashboard() {
     onRegenerateFlashcards=${handlers.onRegenerateFlashcards}
     onNavigateSection=${handlers.onNavigateSection}
     onNavigateCourse=${handlers.onNavigateCourse}
+    onFixGap=${handlers.onFixGap}
   />`, target);
 }
 
@@ -1023,7 +1163,9 @@ function renderSection(section) {
       ${section.description ? `<div class="desc">${escapeHtml(section.description)}</div>` : ''}
     </div>
 
+    <div id="sectionGap"></div>
     <div id="sectionBridge"></div>
+    <div id="sectionSynthesis"></div>
 
     ${objectives.length > 0 ? `
       <div class="objectives-box">
@@ -1054,28 +1196,33 @@ function renderSection(section) {
   mountLessonBody(section);
   // Fire-and-forget — bridge is silent if no matches; section UX never blocks on it.
   loadCrossCourseBridge(section);
+  // Fire-and-forget — synthesis card is silent if no matching articles.
+  loadSynthesisAffordance(section);
+  // Fire-and-forget — gap card silent unless one of this section's concepts
+  // is the root cause of the learner's top gap (nmemo-7b3).
+  loadSectionGapCard(section);
   // Fire-and-forget — notes load lazily; cached per-section to make tab-bounce instant.
   renderNotesPanel(section.id);
 }
 
-// Fetches cross_course_link insights and renders banners for any whose entities overlap
-// the current section's concepts AND whose related courses include another course.
-// Silent (no banner) when there are no matches. Cached per section so back-nav is instant.
+// Fetches enriched bridge data via GET /api/sections/:id/bridge and renders one
+// card per overlap (direct or same_as). Each card carries: prior course title,
+// both concept names (visually distinct for same_as), confidence badge for
+// same_as, and a "Show me the bridge" CTA that fetches an inline explainer.
+// Silent when there are no overlaps; cached per section so back-nav is instant.
 async function loadCrossCourseBridge(section) {
   if (!section || !section.id) return;
   const slotId = 'sectionBridge';
   const sectionId = section.id;
   const concepts = Array.isArray(section.conceptEntityIds) ? section.conceptEntityIds : [];
   if (concepts.length === 0) return; // nothing to bridge from
-  const currentCourseId = section.courseId;
 
-  let matches;
+  let payload;
   if (state.bridgeCache[sectionId]) {
-    matches = state.bridgeCache[sectionId];
+    payload = state.bridgeCache[sectionId];
   } else {
-    let resp;
     try {
-      resp = await api('GET', `/api/insights?type=cross_course_link&include_dismissed=false&limit=10`);
+      payload = await api('GET', `/api/sections/${encodeURIComponent(sectionId)}/bridge`);
     } catch (e) {
       // Bridge is non-critical; never fail the section view.
       console.warn('cross-course bridge fetch failed:', e);
@@ -1083,60 +1230,326 @@ async function loadCrossCourseBridge(section) {
     }
     // Re-check we're still on the same section (user may have navigated away).
     if (!state.currentSection || state.currentSection.id !== sectionId) return;
-
-    const conceptSet = new Set(concepts);
-    const all = Array.isArray(resp && resp.insights) ? resp.insights : [];
-    matches = all.filter(it => {
-      const eIds = Array.isArray(it.relatedEntityIds) ? it.relatedEntityIds : [];
-      const cIds = Array.isArray(it.relatedCourseIds) ? it.relatedCourseIds : [];
-      if (!eIds.some(id => conceptSet.has(id))) return false;
-      // Must touch at least one course OTHER than the current one.
-      return cIds.some(cid => cid && cid !== currentCourseId);
-    }).slice(0, 3); // cap to avoid clutter
-    state.bridgeCache[sectionId] = matches;
+    state.bridgeCache[sectionId] = payload;
   }
 
-  // Re-check container still belongs to the active section (defensive against fast nav).
   const slot = document.getElementById(slotId);
   if (!slot) return;
   if (!state.currentSection || state.currentSection.id !== sectionId) return;
-  if (matches.length === 0) return; // silent
 
-  // Build a course id → title map. Prefer state.courses (loaded on app boot or course nav).
-  const idToTitle = new Map();
-  try {
-    const cached = Array.isArray(state.courses) ? state.courses : [];
-    for (const c of cached) {
-      if (c && c.id && c.title) idToTitle.set(c.id, c.title);
-    }
-  } catch { /* noop */ }
-  const titleFor = (cid) => idToTitle.get(cid) || (typeof cid === 'string' ? cid.slice(0, 8) : '');
+  const overlaps = Array.isArray(payload && payload.overlaps) ? payload.overlaps : [];
+  if (overlaps.length === 0) return; // silent
 
-  const bannersHtml = matches.map(it => {
-    const cIds = Array.isArray(it.relatedCourseIds) ? it.relatedCourseIds : [];
-    const targetCourseId = cIds.find(cid => cid && cid !== currentCourseId);
-    if (!targetCourseId) return '';
-    const targetTitle = titleFor(targetCourseId);
+  // Connection banner — single line above the bridge cards if multi-course
+  // history is detected (any overlap means the learner has seen these ideas
+  // in another course). Cold-start single-course learners simply see no
+  // overlaps and so no banner.
+  const courseSet = new Set();
+  for (const o of overlaps) if (o.priorCourseId) courseSet.add(o.priorCourseId);
+  const courseTitles = [...new Set(overlaps.map(o => o.priorCourseTitle).filter(Boolean))];
+  const courseLabel = courseTitles.length === 1
+    ? courseTitles[0]
+    : (courseTitles.length === 2
+        ? `${courseTitles[0]} and ${courseTitles[1]}`
+        : `${courseTitles[0]} and ${courseTitles.length - 1} other course${courseTitles.length - 1 === 1 ? '' : 's'}`);
+  const dismissed = sessionStorage.getItem('bridgeBannerDismissed:' + sectionId) === '1';
+  const bannerHtml = (!dismissed && courseTitles.length > 0) ? `
+    <div class="connection-banner" role="status">
+      <span class="connection-banner-text">You've seen these ideas before in <strong>${escapeHtml(courseLabel)}</strong>.</span>
+      <button type="button" class="connection-banner-dismiss" aria-label="Dismiss">×</button>
+    </div>
+  ` : '';
+
+  const cardsHtml = overlaps.slice(0, 5).map((o, idx) => {
+    const isSameAs = o.kind === 'same_as';
+    const badgeClass = isSameAs ? 'bridge-badge-sameas' : 'bridge-badge-direct';
+    const badgeText = isSameAs ? 'Semantically equivalent' : 'Same concept across courses';
+    const confidencePct = (typeof o.confidence === 'number') ? Math.round(o.confidence * 100) : null;
+    const confidenceBadge = (isSameAs && confidencePct !== null)
+      ? `<span class="bridge-confidence">${confidencePct}% match</span>`
+      : '';
+    const namesHtml = isSameAs
+      ? `<div class="bridge-names">
+           <span class="bridge-prior-name">${escapeHtml(o.priorConceptName)}</span>
+           <span class="bridge-arrow">→</span>
+           <span class="bridge-this-name">${escapeHtml(o.thisConceptName)}</span>
+         </div>
+         <div class="bridge-name-hint">in <strong>${escapeHtml(o.priorCourseTitle)}</strong> this was called "${escapeHtml(o.priorConceptName)}"; here we call it "${escapeHtml(o.thisConceptName)}".</div>`
+      : `<div class="bridge-names">
+           <span class="bridge-this-name">${escapeHtml(o.thisConceptName)}</span>
+         </div>`;
     return `
-      <div class="bridge-banner" data-course-id="${escapeHtml(targetCourseId)}" role="link" tabindex="0">
-        <div class="bridge-head"><span class="arrow">↗</span> You've seen this before in ${escapeHtml(targetTitle)}</div>
-        <div class="bridge-title">${escapeHtml(it.title || '')}</div>
-        <div class="bridge-cta">Open course →</div>
+      <div class="bridge-card" data-overlap-idx="${idx}" data-prior-course-id="${escapeHtml(o.priorCourseId || '')}">
+        <div class="bridge-head">
+          <span class="bridge-prior-course">Prior: ${escapeHtml(o.priorCourseTitle)}</span>
+          <span class="bridge-badge ${badgeClass}">${badgeText}</span>
+          ${confidenceBadge}
+        </div>
+        ${namesHtml}
+        <div class="bridge-actions">
+          <button type="button" class="btn-bridge-cta" data-action="show-bridge">Show me the bridge</button>
+          <button type="button" class="btn-bridge-open" data-action="open-course">Open ${escapeHtml(o.priorCourseTitle)}</button>
+        </div>
+        <div class="bridge-explainer" data-bridge-explainer hidden></div>
       </div>
     `;
-  }).filter(Boolean).join('');
+  }).join('');
 
-  if (!bannersHtml) return;
-  slot.innerHTML = `<div class="bridge-banners" style="margin-bottom:16px">${bannersHtml}</div>`;
-  // Wire click + keyboard activation. Reuse existing openCourse() for navigation.
-  slot.querySelectorAll('.bridge-banner').forEach(el => {
-    const courseId = el.getAttribute('data-course-id');
-    if (!courseId) return;
-    el.addEventListener('click', () => openCourse(courseId));
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCourse(courseId); }
+  slot.innerHTML = `<div class="bridge-cards" style="margin-bottom:16px">${bannerHtml}${cardsHtml}</div>`;
+
+  // Wire dismiss for the banner.
+  const banner = slot.querySelector('.connection-banner');
+  if (banner) {
+    const btn = banner.querySelector('.connection-banner-dismiss');
+    if (btn) btn.addEventListener('click', () => {
+      sessionStorage.setItem('bridgeBannerDismissed:' + sectionId, '1');
+      banner.remove();
+    });
+  }
+
+  // Wire each card's CTAs.
+  slot.querySelectorAll('.bridge-card').forEach(card => {
+    const idx = parseInt(card.getAttribute('data-overlap-idx') || '-1', 10);
+    const overlap = overlaps[idx];
+    if (!overlap) return;
+    const explainerEl = card.querySelector('[data-bridge-explainer]');
+
+    const openBtn = card.querySelector('.btn-bridge-open');
+    if (openBtn) openBtn.addEventListener('click', () => {
+      if (overlap.priorCourseId) openCourse(overlap.priorCourseId);
+    });
+
+    const showBtn = card.querySelector('.btn-bridge-cta');
+    if (showBtn) showBtn.addEventListener('click', async () => {
+      if (!explainerEl) return;
+      // Toggle: hide if already open and loaded.
+      if (!explainerEl.hidden && explainerEl.dataset.loaded === '1') {
+        explainerEl.hidden = true;
+        return;
+      }
+      explainerEl.hidden = false;
+      if (explainerEl.dataset.loaded === '1') return; // already fetched, just re-show
+      explainerEl.innerHTML = '<div class="loading-row"><div class="spinner"></div> Building the bridge…</div>';
+      showBtn.disabled = true;
+      try {
+        const r = await api('POST', '/api/explain/bridge', {
+          aEntityId: overlap.priorConceptId,
+          bEntityId: overlap.thisConceptId,
+          aName: overlap.priorConceptName,
+          bName: overlap.thisConceptName,
+          aCourseTitle: overlap.priorCourseTitle,
+          bCourseTitle: (state.currentSection && state.currentSection.courseTitle) || (payload.currentCourseTitle || ''),
+          kind: overlap.kind,
+        });
+        if (r && r.ok && typeof r.contentMd === 'string') {
+          explainerEl.innerHTML = renderMarkdown(r.contentMd);
+        } else {
+          const msg = (r && r.errorText) ? r.errorText : 'Explainer temporarily unavailable.';
+          explainerEl.innerHTML = `<div class="bridge-explainer-error">${escapeHtml(msg)}</div>`;
+        }
+        explainerEl.dataset.loaded = '1';
+      } catch (e) {
+        explainerEl.innerHTML = `<div class="bridge-explainer-error">${escapeHtml((e && e.message) || 'Explainer failed.')}</div>`;
+      } finally {
+        showBtn.disabled = false;
+      }
     });
   });
+}
+
+// Fetches synthesis articles whose relatedEntityIds overlap this section's
+// conceptEntityIds. If none, optionally renders a "Generate synthesis" CTA
+// when the section has ≥3 concepts (lightweight heuristic for cluster-worthy
+// sections — the platform's concept-clusters endpoint is the canonical source
+// but the section's own concept count is a sufficient client-side proxy).
+async function loadSynthesisAffordance(section) {
+  if (!section || !section.id) return;
+  const sectionId = section.id;
+  const slot = document.getElementById('sectionSynthesis');
+  if (!slot) return;
+  const concepts = Array.isArray(section.conceptEntityIds) ? section.conceptEntityIds : [];
+  if (concepts.length === 0) return;
+
+  let payload;
+  try {
+    payload = await api('GET', `/api/articles/by-section/${encodeURIComponent(sectionId)}`);
+  } catch (e) {
+    console.warn('synthesis affordance fetch failed:', e);
+    return;
+  }
+  if (!state.currentSection || state.currentSection.id !== sectionId) return;
+  if (!slot.isConnected) return;
+
+  const articles = Array.isArray(payload && payload.articles) ? payload.articles : [];
+  const generateEligible = concepts.length >= 3;
+  if (articles.length === 0 && !generateEligible) return; // silent
+
+  const articlesHtml = articles.length > 0
+    ? articles.slice(0, 3).map(a => `
+        <div class="synthesis-row" data-article-id="${escapeHtml(a.id)}">
+          <div class="synthesis-row-title">${escapeHtml(a.title || 'Untitled synthesis')}</div>
+          <button type="button" class="btn-synthesis-read">Read synthesis</button>
+        </div>
+      `).join('')
+    : '';
+
+  const generateBtn = generateEligible
+    ? `<button type="button" class="btn-synthesis-generate">${articles.length > 0 ? 'Generate another' : 'Generate synthesis'}</button>`
+    : '';
+
+  slot.innerHTML = `
+    <div class="synthesis-card" style="margin-bottom:16px">
+      <div class="synthesis-head">Synthesis ${articles.length > 0 ? 'available' : 'opportunity'}</div>
+      <div class="synthesis-body">
+        ${articles.length > 0
+          ? articlesHtml
+          : '<div class="synthesis-empty">These concepts may connect to others across your courses. Generate a synthesis article to find out.</div>'}
+        ${generateBtn}
+      </div>
+    </div>
+  `;
+
+  slot.querySelectorAll('.synthesis-row').forEach(row => {
+    const articleId = row.getAttribute('data-article-id');
+    const btn = row.querySelector('.btn-synthesis-read');
+    if (btn && articleId) {
+      btn.addEventListener('click', () => openSynthesisArticle(articleId));
+    }
+  });
+
+  const genBtn = slot.querySelector('.btn-synthesis-generate');
+  if (genBtn) {
+    genBtn.addEventListener('click', async () => {
+      genBtn.disabled = true;
+      const originalLabel = genBtn.textContent;
+      genBtn.textContent = 'Generating…';
+      try {
+        const created = await api('POST', '/api/articles/generate', {
+          conceptEntityIds: concepts,
+          sectionId,
+        });
+        if (created && created.id) {
+          // Invalidate cache for this section so re-render shows the new row.
+          if (!state.currentSection || state.currentSection.id !== sectionId) return;
+          await loadSynthesisAffordance(section);
+          openSynthesisArticle(created.id);
+        } else {
+          genBtn.textContent = originalLabel;
+        }
+      } catch (e) {
+        genBtn.textContent = originalLabel;
+        console.warn('synthesis generation failed:', e);
+        alert('Synthesis generation failed: ' + ((e && e.message) || 'unknown error'));
+      } finally {
+        genBtn.disabled = false;
+      }
+    });
+  }
+}
+
+// Inline gap card on the section page (nmemo-7b3). Silent unless one of the
+// section's concepts is the root cause of the learner's top gap. The CTA
+// kicks /api/learner/fix-gap with this section id, then resumes lesson
+// polling so the user sees the regeneration progress in-place.
+async function loadSectionGapCard(section) {
+  if (!section || !section.id) return;
+  const slot = document.getElementById('sectionGap');
+  if (!slot) return;
+  const concepts = Array.isArray(section.conceptEntityIds) ? section.conceptEntityIds : [];
+  if (concepts.length === 0) return;
+
+  let payload;
+  try {
+    payload = await api('GET', '/api/learner/gap-analysis/top');
+  } catch (e) {
+    console.warn('section gap card fetch failed:', e);
+    return;
+  }
+  if (!state.currentSection || state.currentSection.id !== section.id) return;
+  if (!slot.isConnected) return;
+
+  if (!payload || payload.coldStart || !payload.gap) return;
+  const gap = payload.gap;
+  const rootId = gap.rootCauseEntityId;
+  if (!rootId || !concepts.includes(rootId)) return; // root cause not in this section
+
+  const headline = escapeHtml(gap.rootCauseConceptName || gap.title || 'Knowledge gap');
+  const reason = escapeHtml(gap.rootCauseReason || '');
+  const why = escapeHtml(gap.whyItMatters || '');
+
+  slot.innerHTML = `
+    <div class="gap-card" style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;background:var(--surface)">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Why this matters for you</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">Gap: ${headline}</div>
+      ${reason ? `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;line-height:1.4">${reason}</div>` : ''}
+      ${why ? `<div style="font-size:12px;margin-bottom:10px;line-height:1.4"><strong>Blocks:</strong> ${why}</div>` : ''}
+      <button type="button" class="btn btn-primary btn-fix-gap">Fix this gap</button>
+      <span class="gap-card-status" style="margin-left:10px;font-size:12px;color:var(--muted)"></span>
+    </div>
+  `;
+
+  const btn = slot.querySelector('.btn-fix-gap');
+  const status = slot.querySelector('.gap-card-status');
+  if (btn) {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      if (status) status.textContent = 'Regenerating lesson…';
+      try {
+        const res = await fetch('/api/learner/fix-gap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gapEntityId: rootId, sectionId: section.id }),
+        });
+        if (!res.ok && res.status !== 202) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || `HTTP ${res.status}`);
+        }
+        // Resume polling — the existing lesson-status polling path will pick
+        // up the new generation and re-render when ready.
+        if (typeof startLessonPoll === 'function') startLessonPoll(section.id, null);
+        if (status) status.textContent = 'Lesson regenerating with gap-bias…';
+      } catch (e) {
+        btn.disabled = false;
+        if (status) status.textContent = 'Failed: ' + ((e && e.message) || 'unknown error');
+      }
+    });
+  }
+}
+
+// Open a synthesis article in a simple modal-style overlay. Uses the existing
+// /api/articles/:id route (which also stamps viewed_at). Renders contentMd via
+// the page's markdown renderer.
+async function openSynthesisArticle(articleId) {
+  if (!articleId) return;
+  let article;
+  try {
+    article = await api('GET', `/api/articles/${encodeURIComponent(articleId)}`);
+  } catch (e) {
+    alert('Failed to load synthesis article: ' + ((e && e.message) || 'unknown error'));
+    return;
+  }
+  if (!article || !article.id) return;
+  // Lightweight modal: append to body, ESC + click-outside dismiss.
+  let modal = document.getElementById('synthesisModal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'synthesisModal';
+  modal.className = 'synthesis-modal';
+  modal.innerHTML = `
+    <div class="synthesis-modal-card" role="dialog" aria-modal="true">
+      <div class="synthesis-modal-header">
+        <h2>${escapeHtml(article.title || 'Synthesis')}</h2>
+        <button type="button" class="synthesis-modal-close" aria-label="Close">×</button>
+      </div>
+      <div class="synthesis-modal-body">${renderMarkdown(article.contentMd || '')}</div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const close = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  modal.querySelector('.synthesis-modal-close').addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
 }
 
 function hasLessonBody(section) {
@@ -2464,6 +2877,240 @@ function decorateChatComponents(bubbleEl, blocks, sessionId, messageId) {
   }
 }
 
+// Parse an assistant message's nmemoUpdates column (JSON string from the DB,
+// or already-parsed array on freshly-posted echoes). Returns [] when missing
+// or malformed — caller skips chip-strip rendering for empty arrays.
+function parseNmemoUpdates(m) {
+  const raw = m.nmemoUpdates ?? m.nmemo_updates;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }
+  return [];
+}
+
+// Map a write tool name to a short visual icon + label. Reads are excluded by
+// upstream filtering, but we double-check here to keep the surface clean.
+const NMEMO_TOOL_ICONS = {
+  record_understanding:    { icon: '📝', label: 'understands' },
+  record_confusion:        { icon: '❓', label: 'confused' },
+  record_quiz_result:      { icon: '🧪', label: 'quiz' },
+  flag_prerequisite_gap:   { icon: '🚩', label: 'gap' },
+  update_learning_trajectory: { icon: '🧭', label: 'next' },
+};
+
+// Render a chip strip under an assistant message that has nmemoUpdates.
+// Writes-only — read tool calls are NOT surfaced (filtered by the agent
+// parser). When the array is empty, nothing is rendered (no clutter).
+function renderNmemoUpdateChips(parentEl, updates) {
+  if (!Array.isArray(updates) || updates.length === 0) return;
+  const writes = updates.filter((u) => u && NMEMO_TOOL_ICONS[u.tool]);
+  if (writes.length === 0) return;
+
+  const strip = document.createElement('div');
+  strip.className = 'nmemo-chips';
+  strip.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:12px;';
+
+  for (const u of writes) {
+    const meta = NMEMO_TOOL_ICONS[u.tool];
+    const concept = (typeof u.concept === 'string' && u.concept) ? u.concept : '(unspecified)';
+    const conf = typeof u.confidence === 'number' ? ` (${u.confidence.toFixed(2)})` : '';
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip nmemo-chip';
+    chip.style.cssText = 'background:rgba(99,102,241,0.10);color:#a5b4fc;padding:2px 8px;border-radius:10px;border:1px solid rgba(99,102,241,0.25);cursor:pointer;font-size:12px;font-family:inherit;line-height:1.4;';
+    chip.setAttribute('aria-haspopup', 'dialog');
+    chip.setAttribute('aria-expanded', 'false');
+    chip.textContent = `${meta.icon} ${meta.label}: ${concept}${conf}`;
+    chip.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      openNmemoChipCard(chip, u);
+    });
+    strip.appendChild(chip);
+  }
+  parentEl.appendChild(strip);
+}
+
+// Single-card-open state. Holds the currently open chip card host + the chip
+// element it's anchored to, so a second click elsewhere closes the previous
+// card before opening a new one.
+let _chipCardOpen = null;
+
+function getChipCardHost() {
+  let host = document.getElementById('nmemoChipCardHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'nmemoChipCardHost';
+    document.body.appendChild(host);
+  }
+  return host;
+}
+
+function closeNmemoChipCard() {
+  if (!_chipCardOpen) return;
+  const { chipEl, cardEl, onDocClick, onKey, onResize } = _chipCardOpen;
+  if (chipEl) {
+    chipEl.classList.remove('is-open');
+    chipEl.setAttribute('aria-expanded', 'false');
+  }
+  if (cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
+  document.removeEventListener('mousedown', onDocClick, true);
+  document.removeEventListener('keydown', onKey, true);
+  window.removeEventListener('resize', onResize, true);
+  window.removeEventListener('scroll', onResize, true);
+  _chipCardOpen = null;
+}
+
+// Position the card below the chip if there's room; otherwise above. On
+// narrow viewports (<= 600px) the CSS pins it to the viewport bottom so it
+// never clips off-screen.
+function positionChipCardBelow(chipEl, cardEl) {
+  const r = chipEl.getBoundingClientRect();
+  const margin = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (vw <= 600) {
+    cardEl.classList.add('is-mobile-pinned');
+    return;
+  }
+  cardEl.classList.remove('is-mobile-pinned');
+  // Measure card.
+  const cw = cardEl.offsetWidth || 320;
+  const ch = cardEl.offsetHeight || 0;
+  let left = Math.min(Math.max(margin, r.left), vw - cw - margin);
+  let top = r.bottom + 6;
+  // Flip up if not enough room below.
+  if (top + ch + margin > vh && r.top - ch - 6 > margin) {
+    top = r.top - ch - 6;
+  }
+  cardEl.style.left = `${Math.round(left)}px`;
+  cardEl.style.top = `${Math.round(top)}px`;
+}
+
+// Format an ISO timestamp as a coarse relative time ("just now", "2m ago",
+// "3h ago", "5d ago"). Falls back to the raw string when unparseable.
+function formatRelativeTime(iso) {
+  if (!iso || typeof iso !== 'string') return '';
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  const diffSec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (diffSec < 30) return 'just now';
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const m = Math.floor(diffSec / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+function openNmemoChipCard(chipEl, update) {
+  // If clicking the same chip whose card is open, toggle closed.
+  if (_chipCardOpen && _chipCardOpen.chipEl === chipEl) {
+    closeNmemoChipCard();
+    return;
+  }
+  // Close any previously open card first.
+  closeNmemoChipCard();
+
+  const meta = NMEMO_TOOL_ICONS[update.tool] || { icon: '•', label: update.tool || 'write' };
+  const concept = (typeof update.concept === 'string' && update.concept) ? update.concept : '(unspecified)';
+  const confTxt = typeof update.confidence === 'number' ? `confidence ${update.confidence.toFixed(2)}` : '';
+  const bodyText = update.evidence || update.misconception || '';
+  const isMisc = !update.evidence && !!update.misconception;
+  const factShort = (update.factId || '').slice(0, 12);
+  const rel = formatRelativeTime(update.recordedAt);
+
+  const card = document.createElement('div');
+  card.className = 'nmemo-chip-card';
+  card.setAttribute('role', 'dialog');
+
+  const head = document.createElement('div');
+  head.className = 'ncc-head';
+  const iconEl = document.createElement('span');
+  iconEl.className = 'ncc-icon';
+  iconEl.textContent = meta.icon;
+  const toolEl = document.createElement('span');
+  toolEl.className = 'ncc-tool';
+  toolEl.textContent = (update.tool || meta.label).replace(/_/g, ' ');
+  head.appendChild(iconEl);
+  head.appendChild(toolEl);
+  if (confTxt) {
+    const c = document.createElement('span');
+    c.className = 'ncc-conf';
+    c.textContent = confTxt;
+    head.appendChild(c);
+  }
+  card.appendChild(head);
+
+  const conceptEl = document.createElement('div');
+  conceptEl.className = 'ncc-concept';
+  conceptEl.textContent = concept;
+  card.appendChild(conceptEl);
+
+  if (bodyText) {
+    const body = document.createElement('div');
+    body.className = `ncc-body${isMisc ? ' is-misconception' : ''}`;
+    body.textContent = bodyText;
+    card.appendChild(body);
+  }
+
+  if (factShort || rel) {
+    const metaRow = document.createElement('div');
+    metaRow.className = 'ncc-meta';
+    if (factShort) {
+      const f = document.createElement('span');
+      f.className = 'ncc-fact';
+      f.textContent = factShort;
+      f.title = update.factId || '';
+      metaRow.appendChild(f);
+    }
+    if (rel) {
+      const t = document.createElement('span');
+      t.className = 'ncc-time';
+      t.textContent = rel;
+      if (update.recordedAt) t.title = update.recordedAt;
+      metaRow.appendChild(t);
+    }
+    card.appendChild(metaRow);
+  }
+
+  // Stop clicks inside the card from bubbling to the doc-level dismiss handler.
+  card.addEventListener('mousedown', (ev) => { ev.stopPropagation(); });
+
+  const host = getChipCardHost();
+  host.appendChild(card);
+
+  chipEl.classList.add('is-open');
+  chipEl.setAttribute('aria-expanded', 'true');
+  positionChipCardBelow(chipEl, card);
+
+  const onDocClick = (ev) => {
+    if (card.contains(ev.target) || chipEl.contains(ev.target)) return;
+    closeNmemoChipCard();
+  };
+  const onKey = (ev) => {
+    if (ev.key === 'Escape') {
+      ev.stopPropagation();
+      closeNmemoChipCard();
+    }
+  };
+  const onResize = () => {
+    if (_chipCardOpen && _chipCardOpen.cardEl && _chipCardOpen.chipEl) {
+      positionChipCardBelow(_chipCardOpen.chipEl, _chipCardOpen.cardEl);
+    }
+  };
+  document.addEventListener('mousedown', onDocClick, true);
+  document.addEventListener('keydown', onKey, true);
+  window.addEventListener('resize', onResize, true);
+  window.addEventListener('scroll', onResize, true);
+
+  _chipCardOpen = { chipEl, cardEl: card, onDocClick, onKey, onResize };
+}
+
 // Renders a chat message into the messages list. Structured assistant
 // responses (responseBlocks present) mount LessonRenderer into a placeholder
 // div; everything else uses the legacy plain-text rendering.
@@ -2483,6 +3130,7 @@ function appendChatMessage(listEl, m) {
     // After mount, overlay a small "Pin to lesson" affordance on each
     // component block. Chat-only — the lesson Section view does NOT call this.
     decorateChatComponents(wrap, blocks, state.sectionChat?.sessionId ?? null, m.id);
+    if (m.role === 'assistant') renderNmemoUpdateChips(wrap, parseNmemoUpdates(m));
     return wrap;
   }
 
@@ -2490,6 +3138,7 @@ function appendChatMessage(listEl, m) {
   // preserve byte-identical behaviour for plain-string responses (which may
   // contain inline HTML or markdown the old chat used to display verbatim).
   wrap.innerHTML = m.content ?? '';
+  if (m.role === 'assistant') renderNmemoUpdateChips(wrap, parseNmemoUpdates(m));
   return wrap;
 }
 

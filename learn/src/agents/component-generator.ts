@@ -37,6 +37,12 @@ export interface ComponentGenInput {
     courseId?: string;
     sectionId?: string;
     conceptName?: string;
+    /** Concepts the learner once knew but whose last fact is older than 14 days. */
+    forgottenConcepts?: string[];
+    /** Active confusions on this section's concepts. */
+    confusions?: Array<{ concept: string; misconception: string }>;
+    /** Prerequisite concepts the learner is flagged as lacking. */
+    missingPrereqs?: string[];
   };
 }
 
@@ -191,6 +197,20 @@ function buildUserPrompt(input: ComponentGenInput): string {
     if (ls.sectionId) bits.push(`section ${ls.sectionId}`);
     if (ls.courseId) bits.push(`course ${ls.courseId}`);
     if (bits.length > 0) parts.push('', `Learner state: ${bits.join(', ')}.`);
+    const personal: string[] = [];
+    if (Array.isArray(ls.forgottenConcepts) && ls.forgottenConcepts.length > 0) {
+      personal.push(`Forgotten (decay candidates): ${ls.forgottenConcepts.map((s) => `"${s}"`).join(', ')}.`);
+    }
+    if (Array.isArray(ls.confusions) && ls.confusions.length > 0) {
+      personal.push(`Active confusions: ${ls.confusions.map((c) => `"${c.concept}" → "${c.misconception}"`).join('; ')}.`);
+    }
+    if (Array.isArray(ls.missingPrereqs) && ls.missingPrereqs.length > 0) {
+      personal.push(`Missing prerequisites: ${ls.missingPrereqs.map((s) => `"${s}"`).join(', ')}.`);
+    }
+    if (personal.length > 0) {
+      parts.push('', 'Personalisation cues:');
+      parts.push(...personal);
+    }
   }
   parts.push('', 'Output the JSON object only.');
   return parts.join('\n');

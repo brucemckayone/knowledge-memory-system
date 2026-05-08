@@ -20,10 +20,30 @@ import {
   applyEditOp,
   revertToVersion,
   buildEditOp,
+  compactAllOverlays,
   OverlayError,
 } from '../services/lesson-overlay.js';
 
 export const lessonOverlayRoutes = new Hono();
+export const overlayAdminRoutes = new Hono();
+
+/**
+ * POST /api/admin/compact-overlays
+ * Runs the retention sweep across all (learner, section) pairs. Idempotent.
+ * Returns { pairsScanned, rowsKept, rowsDeleted }.
+ *
+ * Intentionally not auth-gated in the POC — deployment is a single-user
+ * developer instance. Wire to real auth before any multi-tenant rollout.
+ */
+overlayAdminRoutes.post('/compact-overlays', async (c) => {
+  try {
+    const stats = await compactAllOverlays();
+    return c.json({ ok: true, ...stats });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ error: 'compaction failed', detail: msg }, 500);
+  }
+});
 
 function asLearnerId(v: unknown, fallback = 'default'): string {
   return typeof v === 'string' && v.length > 0 ? v : fallback;

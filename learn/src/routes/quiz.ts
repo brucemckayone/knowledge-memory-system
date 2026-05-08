@@ -77,7 +77,11 @@ quizRoutes.post('/questions/:questionId/attempt', async (c) => {
     answerText: body.answerText,
   });
 
-  // Store attempt
+  // Store attempt.
+  // nmemo-15o: `nmemoUpdates` column is deprecated (zero readers across
+  // learn/). The DEFAULT '[]' on the column keeps it populated for any
+  // legacy clients still inspecting it; we no longer write to it from
+  // the quiz path. Physical column drop is deferred to a later release.
   const attemptId = randomUUID();
   await db.insert(quizAttempts).values({
     id: attemptId,
@@ -87,7 +91,6 @@ quizRoutes.post('/questions/:questionId/attempt', async (c) => {
     score: evaluation.score,
     feedback: evaluation.feedback,
     agentReasoning: evaluation.internalNotes,
-    nmemoUpdates: '[]',
   });
 
   return c.json({

@@ -11,6 +11,7 @@
  * outline drives quality of the whole lesson, hence the model+effort.
  */
 import { runAgent } from '../services/agent.js';
+import type { LearnerLessonContext } from './learner-lesson-context.js';
 
 export type OutlineFixedKind =
   | 'Mermaid'
@@ -60,6 +61,14 @@ export interface OutlinerInput {
   nextSectionTitle: string | null;
   /** Optional source text to ground the outline in (course-supplied material). */
   sourceText?: string;
+  /** Optional learner state. When `coldStart === false`, the outliner will
+   *  weave personalisation into the outline. When undefined or `coldStart === true`,
+   *  the user prompt is byte-identical to the canonical (cold-start) baseline. */
+  learnerContext?: LearnerLessonContext;
+  /** When true, the outliner runs with WebSearch enabled so it can ground the
+   *  outline in current state for fast-moving topics. Disabled by default —
+   *  cold-start prompts and tool list stay byte-identical to the v0.3 baseline. */
+  enableWebSearch?: boolean;
 }
 
 const ALLOWED_FIXED_KINDS = new Set<OutlineFixedKind>([
@@ -143,6 +152,19 @@ A good spec names:
 
 A bad spec: "Show the algorithm working." A good spec: "Animated visualisation of bubble sort on the array [5,1,4,2,8]. Each pass highlights the pair being compared, swaps with a 300ms transition, and shows the running 'sorted' suffix shaded green. Play/Pause/Step buttons. Goal: the learner sees the largest element bubble to the right on each pass."
 
+# Personalisation (when learner state is supplied)
+
+When the user prompt includes a "## Learner state" block, the lesson is being regenerated for a learner who already has graph-tracked beliefs about this section's concepts. Treat that block as authoritative:
+
+- If \`confusions\` are listed, AT LEAST ONE outline item MUST directly target the listed misconception. The prose item's \`intent\` MUST name the wrong belief and the corrected belief, in that order ("learner thinks X; corrects to Y").
+- If \`forgottenConcepts\` are listed, prefer a \`FlashcardDeck\` artifact over plain prose for that concept (3–5 cards, fronts = atomic facts the learner once knew).
+- If \`missingPrereqs\` are listed, prefer a \`Mermaid\` (flowchart prereq → section concept) or \`ConceptMap\` (when 3+ prereqs) artifact whose spec mentions both the prereq and the section concept by name.
+- If a learning objective is fully covered by an \`established\` entry, the corresponding prose item's \`wordTarget\` should drop to ~150 (terse review) instead of full explanation. Don't drop the item entirely — the lesson must still flow.
+- Mix of confusion + missing prereq → freeform \`Artifact\` with \`intent: walkthrough\` that builds from the prereq up through the corrected mental model.
+- DO NOT invent personalisation: confusions, forgotten concepts, missing prereqs, and established entries appear ONLY when the supplied lists name them. Don't fabricate a remedial item for a concept not on the lists.
+
+When NO "## Learner state" block is supplied, generate a canonical (cold-start) outline — do not reference any learner state.
+
 # Lesson shape
 
 Items together must cover: motivation → core mechanics → worked example or interactive moment → pitfalls → forward link. The "intro" and "outro" fields handle opening framing and forward-pointing wrap-up; "items" carry the substantive teaching.
@@ -183,8 +205,66 @@ function buildUserPrompt(input: OutlinerInput): string {
     const excerpt = trimmed.length > 4000 ? trimmed.slice(0, 4000) + '\n…[truncated]' : trimmed;
     parts.push('', '## Source text (ground the outline in this material)', excerpt);
   }
+  // Personalisation block — gated strictly on coldStart === false. Cold-start
+  // (or absent) contexts produce a byte-identical user prompt to the v0.3
+  // baseline.
+  if (input.learnerContext && input.learnerContext.coldStart === false) {
+    const block = renderLearnerStateBlock(input.learnerContext);
+    if (block.length > 0) parts.push('', '## Learner state', block);
+  }
+  if (input.enableWebSearch) {
+    parts.push(
+      '',
+      '## Web research',
+      'You MAY call WebSearch (one or two queries max) to discover current state for this section: recent API changes, new releases, deprecations, framework versions. Use the results to ground individual outline items in concrete, dated specifics. Outline items themselves remain prose/artifact specs — do not include citation metadata in the outline JSON.',
+    );
+  }
   parts.push('', 'Output the JSON outline only.');
   return parts.join('\n');
+}
+
+const TRUNC_LEN = 80;
+function clip(s: string, n = TRUNC_LEN): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  return t.length > n ? t.slice(0, n) + '…' : t;
+}
+
+/** Render the human-readable Learner state block for the outliner user prompt. */
+function renderLearnerStateBlock(ctx: LearnerLessonContext): string {
+  const lines: string[] = [];
+  if (ctx.prioritisedGap) {
+    lines.push('Prioritised gap (the lesson MUST target this — remedial slant):');
+    lines.push(`- Concept: ${ctx.prioritisedGap.rootCauseConceptName}`);
+    lines.push(`- Why the learner has this gap: ${ctx.prioritisedGap.rootCauseReason}`);
+    lines.push(`- What this blocks: ${ctx.prioritisedGap.whyItMatters}`);
+    lines.push('Bias the outline so at least one prose item directly addresses the gap. Use "Why this matters" to connect the gap to downstream understanding.');
+  }
+  if (ctx.confusions.length > 0) {
+    lines.push('Confusions:');
+    for (const c of ctx.confusions) {
+      const src = c.sourceText ? ` (source: "${clip(c.sourceText)}")` : '';
+      lines.push(`- ${c.concept} — they wrote: "${clip(c.misconception)}"${src}`);
+    }
+  }
+  if (ctx.forgottenConcepts.length > 0) {
+    lines.push('Forgotten concepts (decay candidates):');
+    for (const f of ctx.forgottenConcepts) {
+      lines.push(`- ${f.name} — last seen ${f.daysSince} day(s) ago at confidence ${f.lastConfidence.toFixed(2)}`);
+    }
+  }
+  if (ctx.missingPrereqs.length > 0) {
+    lines.push('Missing prerequisites:');
+    for (const p of ctx.missingPrereqs) {
+      lines.push(`- ${p.concept} — needed for "${p.neededFor}"`);
+    }
+  }
+  if (ctx.established.length > 0) {
+    lines.push('Already established (trim or skip motivation prose):');
+    for (const e of ctx.established) {
+      lines.push(`- ${e.concept} (confidence ${e.confidence.toFixed(2)})`);
+    }
+  }
+  return lines.join('\n');
 }
 
 function tryParse(s: string): unknown { try { return JSON.parse(s); } catch { return null; } }
@@ -281,12 +361,14 @@ function validate(parsed: unknown): LessonOutline | null {
  * Throws on failure (no fallback — the orchestrator must decide).
  */
 export async function generateLessonOutline(input: OutlinerInput): Promise<LessonOutline> {
+  const tools = input.enableWebSearch ? 'WebSearch' : 'none';
+  const maxTurns = input.enableWebSearch ? 4 : 1;
   const result = await runAgent(buildUserPrompt(input), {
     model: 'sonnet',
     effort: 'max',
     systemPrompt: SYSTEM_PROMPT,
-    tools: 'none',
-    maxTurns: 1,
+    tools,
+    maxTurns,
     timeoutMs: 600_000,
   });
   const raw = result.result ?? '';
@@ -298,4 +380,4 @@ export async function generateLessonOutline(input: OutlinerInput): Promise<Lesso
   return outline;
 }
 
-export const __test = { validate, parseLoose };
+export const __test = { validate, parseLoose, buildUserPrompt, renderLearnerStateBlock };

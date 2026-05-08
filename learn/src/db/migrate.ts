@@ -191,11 +191,22 @@ const ALTER_STMTS: string[] = [
   `ALTER TABLE insights ADD COLUMN idempotency_key TEXT`,
   `ALTER TABLE chat_messages ADD COLUMN response_blocks TEXT`,
   `ALTER TABLE chat_sessions ADD COLUMN section_id TEXT`,
+  // nmemo-fv9: patrol + insights lifecycle (dismissal/snooze/expiry + hybrid importance)
+  `ALTER TABLE insights ADD COLUMN deterministic_importance REAL`,
+  `ALTER TABLE insights ADD COLUMN dismissal_kind TEXT`,
+  `ALTER TABLE insights ADD COLUMN snoozed_until TEXT`,
+  // nmemo-15o: notes soft-delete (archive). Default NULL = active row.
+  `ALTER TABLE notes ADD COLUMN archived_at TEXT`,
 ];
 
 const POST_ALTER_STMTS: string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_insights_idempotency_key ON insights(idempotency_key)`,
   `CREATE INDEX IF NOT EXISTS idx_chat_sessions_learner_section ON chat_sessions(learner_id, section_id)`,
+  // nmemo-fv9: lookup paths for filtering active insights by lifecycle state.
+  `CREATE INDEX IF NOT EXISTS idx_insights_dismissal_kind ON insights(dismissal_kind)`,
+  `CREATE INDEX IF NOT EXISTS idx_insights_snoozed_until ON insights(snoozed_until)`,
+  // nmemo-15o: filter active notes by archived_at IS NULL.
+  `CREATE INDEX IF NOT EXISTS idx_notes_archived_at ON notes(archived_at)`,
 ];
 
 async function migrate() {

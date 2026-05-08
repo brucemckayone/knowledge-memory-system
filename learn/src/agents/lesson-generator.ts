@@ -22,7 +22,9 @@
  */
 
 import { eq } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
 import { runAgent } from '../services/agent.js';
+import { ingestContent } from '../services/nmemo-client.js';
 import { db, courses, sections } from '../db/index.js';
 import {
   generateLessonOutline,
@@ -33,9 +35,15 @@ import {
   type OutlineFixedKind,
   type OutlineArtifactIntent,
 } from './lesson-outliner.js';
-import { writeProseBlock } from './lesson-prose.js';
+import { writeProseBlock, type ProseWriterResult } from './lesson-prose.js';
 import { generateArtifact, type ArtifactSpec } from './artifact-generator.js';
 import { generateComponent, type ComponentKindName } from './component-generator.js';
+import {
+  loadLearnerLessonContext,
+  withPrioritisedGap,
+  type LearnerLessonContext,
+  type PrioritisedGap,
+} from './learner-lesson-context.js';
 
 // ---------------------------------------------------------------------------
 // Public types — preserved from v0.2 so route layer doesn't change.
@@ -47,9 +55,12 @@ export interface GeneratedLesson {
   keyTakeaways: string[];
 }
 
+export type { LessonCitation } from './lesson-types.js';
+import type { LessonCitation } from './lesson-types.js';
+
 export type LessonBlock =
-  | { type: 'markdown'; content: string }
-  | { type: 'component'; kind: string; props: Record<string, unknown>; children?: string };
+  | { type: 'markdown'; content: string; citations?: LessonCitation[] }
+  | { type: 'component'; kind: string; props: Record<string, unknown>; children?: string; citations?: LessonCitation[] };
 
 export interface GeneratedLessonStructured {
   blocks: LessonBlock[];
@@ -67,12 +78,134 @@ export interface GenerateLessonOpts {
   /** Called whenever the pipeline transitions to a new stage. Best-effort —
       callback failures must not abort generation. */
   onStage?: (stage: LessonStage) => void | Promise<void>;
+  /** Optional gap-bias hint (nmemo-7b3). When set, the loaded learner
+   *  context is augmented with this gap and `coldStart` is forced to false
+   *  so the outliner / prose writers emit a remedial slant targeting the
+   *  root-cause concept. Used by the "fix this gap" CTA. */
+  prioritisedGap?: PrioritisedGap;
 }
 
 const ALLOWED_KINDS = new Set([
   'Callout', 'Mermaid', 'SvgFigure', 'CodeRunner',
   'StepThrough', 'FlashcardDeck', 'ConceptMap', 'Highlight', 'Artifact',
 ]);
+
+// ---------------------------------------------------------------------------
+// Web-search configuration. Read once per lesson so a flipped env flag at
+// runtime takes effect on the next generation. All flags default ON; setting
+// any to '0' / 'false' / 'no' disables that surface.
+// ---------------------------------------------------------------------------
+
+function envFlag(name: string, defaultOn: boolean): boolean {
+  const v = process.env[name];
+  if (v === undefined || v === '') return defaultOn;
+  if (v === '0' || v.toLowerCase() === 'false' || v.toLowerCase() === 'no') return false;
+  if (v === '1' || v.toLowerCase() === 'true' || v.toLowerCase() === 'yes') return true;
+  return defaultOn;
+}
+
+function envInt(name: string, defaultValue: number): number {
+  const v = process.env[name];
+  if (!v) return defaultValue;
+  const n = Number.parseInt(v, 10);
+  return Number.isFinite(n) && n >= 0 ? n : defaultValue;
+}
+
+interface WebSearchPolicy {
+  /** Master switch — when false, no stage runs WebSearch. */
+  enabled: boolean;
+  outliner: boolean;
+  prose: boolean;
+  artifact: boolean;
+  /** Maximum unique citations the composer will ingest back into the graph. */
+  maxIngestUrls: number;
+  /** Cross-stage cap on number of agent invocations that may opt in to
+   *  WebSearch within a single lesson. Outliner counts as 1 stage when web
+   *  is enabled for it; each prose writer counts as 1; each freeform-intent
+   *  artifact builder counts as 1. Fixed-kind components never opt in. */
+  maxStages: number;
+}
+
+function loadWebSearchPolicy(): WebSearchPolicy {
+  const enabled = envFlag('LEARN_LESSON_WEBSEARCH', true);
+  return {
+    enabled,
+    outliner: enabled && envFlag('LEARN_OUTLINER_WEBSEARCH', true),
+    prose: enabled && envFlag('LEARN_PROSE_WEBSEARCH', true),
+    artifact: enabled && envFlag('LEARN_ARTIFACT_WEBSEARCH', true),
+    maxIngestUrls: envInt('LEARN_LESSON_WEBSEARCH_MAX_INGEST_URLS', 3),
+    maxStages: envInt('LEARN_LESSON_WEBSEARCH_MAX', 5),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Cross-stage WebSearch budget allocator (nmemo-ble).
+//
+// Per-stage `enableWebSearch` is opt-in, but the orchestrator runs the
+// outliner + N prose writers (parallel) + M freeform artifact builders. Each
+// agent's --max-turns caps tool calls *within* a single agent run, but the
+// global cap (3-5 web searches per lesson) is unenforced across stages.
+//
+// The allocator is the orchestrator-level gate. It is pure logic — no LLM
+// calls, no I/O — so it is unit-tested directly and re-used at both Stage 1
+// (outliner) and Stage 2/3 (prose + freeform artifacts) opt-in sites.
+// ---------------------------------------------------------------------------
+
+export type WebSearchStageKind = 'outliner' | 'prose' | 'freeform_artifact';
+
+export interface WebSearchStageRequest {
+  /** Stable id used to look the decision back up at opt-in time. The
+   *  orchestrator uses 'outliner' for the outliner and the outline-item id
+   *  for prose / freeform artifacts. */
+  id: string;
+  kind: WebSearchStageKind;
+  /** Whether the stage is willing to opt in (per-stage policy flag AND'd
+   *  with any agent-side intent gate already applied by the caller). When
+   *  false the allocator never charges a slot for this stage. */
+  wantsWeb: boolean;
+}
+
+export interface WebSearchAllocation {
+  /** Set of stage ids granted a slot. Keyed by `WebSearchStageRequest.id`. */
+  granted: Set<string>;
+  /** Number of slots consumed. Equal to granted.size. */
+  used: number;
+  /** Total slots available at the start of allocation. */
+  max: number;
+  /** Per-kind counts of granted slots — used for the telemetry log line. */
+  byKind: Record<WebSearchStageKind, number>;
+}
+
+/**
+ * Allocate up to `max` web-search slots across `stages` in the order they
+ * appear. Stages with `wantsWeb=false` are never granted (and never charged).
+ * The first `max` stages with `wantsWeb=true` are granted; the rest are
+ * denied. Order matters — callers must pass stages in the order the
+ * orchestrator fires them so the budget mirrors execution.
+ */
+export function allocateWebSearchBudget(
+  stages: WebSearchStageRequest[],
+  max: number,
+): WebSearchAllocation {
+  const granted = new Set<string>();
+  const byKind: Record<WebSearchStageKind, number> = {
+    outliner: 0,
+    prose: 0,
+    freeform_artifact: 0,
+  };
+  if (!Number.isFinite(max) || max <= 0) {
+    return { granted, used: 0, max: Math.max(0, max | 0), byKind };
+  }
+  let remaining = max;
+  for (const s of stages) {
+    if (!s.wantsWeb) continue;
+    if (remaining <= 0) break;
+    granted.add(s.id);
+    byKind[s.kind] += 1;
+    remaining -= 1;
+  }
+  return { granted, used: granted.size, max, byKind };
+}
 
 // ---------------------------------------------------------------------------
 // Context loading — section + course + neighbour titles.
@@ -84,6 +217,9 @@ interface LessonContext {
   sectionTitle: string;
   sectionDescription: string | null;
   learningObjectives: string[];
+  /** Nmemo entity IDs attached to this section by the course generator.
+   *  Empty array when the section has no graph-aware concepts. */
+  conceptEntityIds: string[];
   orderIndex: number;
   nextSectionTitle: string | null;
   prevSectionTitle: string | null;
@@ -104,12 +240,23 @@ async function buildContext(sectionId: string): Promise<LessonContext> {
   const next = idx >= 0 && idx < allSections.length - 1 ? allSections[idx + 1] : null;
   const prev = idx > 0 ? allSections[idx - 1] : null;
 
+  let conceptEntityIds: string[] = [];
+  try {
+    const parsed = JSON.parse(section.conceptEntityIds ?? '[]');
+    if (Array.isArray(parsed)) {
+      conceptEntityIds = parsed.filter((x): x is string => typeof x === 'string' && x.length > 0);
+    }
+  } catch (err) {
+    console.warn(`[lesson-generator] could not parse conceptEntityIds for section ${sectionId}:`, err);
+  }
+
   return {
     courseTitle: course.title,
     courseDescription: course.description,
     sectionTitle: section.title,
     sectionDescription: section.description,
     learningObjectives: JSON.parse(section.learningObjectives) as string[],
+    conceptEntityIds,
     orderIndex: section.orderIndex,
     nextSectionTitle: next?.title ?? null,
     prevSectionTitle: prev?.title ?? null,
@@ -160,21 +307,45 @@ function neighbourProseDigest(outline: LessonOutline, item: ArtifactItem): strin
   return parts.join('\n');
 }
 
+/** Project a `LearnerLessonContext` onto the artifact-builder's `learnerState`
+ *  shape. Cold-start (or undefined) collapses to a minimal payload that does
+ *  not surface any personalisation cue in downstream prompts. */
+function projectLearnerStateForArtifact(
+  ctx: LessonContext,
+  learner: LearnerLessonContext | undefined,
+): {
+  conceptName: string;
+  forgottenConcepts?: string[];
+  confusions?: Array<{ concept: string; misconception: string }>;
+  missingPrereqs?: string[];
+} {
+  const base = { conceptName: ctx.sectionTitle };
+  if (!learner || learner.coldStart === true) return base;
+  const forgottenConcepts = learner.forgottenConcepts.map((f) => f.name);
+  const confusions = learner.confusions.map((c) => ({ concept: c.concept, misconception: c.misconception }));
+  const missingPrereqs = learner.missingPrereqs.map((p) => p.concept);
+  return {
+    ...base,
+    ...(forgottenConcepts.length > 0 ? { forgottenConcepts } : {}),
+    ...(confusions.length > 0 ? { confusions } : {}),
+    ...(missingPrereqs.length > 0 ? { missingPrereqs } : {}),
+  };
+}
+
 async function buildOneArtifact(
   outline: LessonOutline,
   item: ArtifactItem,
   ctx: LessonContext,
+  learner: LearnerLessonContext | undefined,
+  policy: WebSearchPolicy,
+  webBudget: Set<string>,
 ): Promise<ArtifactSuccess | ArtifactFail> {
   if (item.type === 'fixed') {
     const kind = FIXED_TO_COMPONENT[item.fixedKind!];
     const result = await generateComponent({
       kind,
       context: item.spec,
-      learnerState: {
-        courseId: undefined,
-        sectionId: undefined,
-        conceptName: ctx.sectionTitle,
-      },
+      learnerState: projectLearnerStateForArtifact(ctx, learner),
     });
     if (result.kind === 'markdown') {
       return { ok: false, reason: `fixed-kind ${item.fixedKind} fell back to markdown` };
@@ -190,13 +361,17 @@ async function buildOneArtifact(
   // freeform
   const intent: OutlineArtifactIntent = item.intent ?? 'free';
   const lessonContext = neighbourProseDigest(outline, item);
+  // Per design: artifact agent gets WebSearch only when intent === 'free'.
+  // generateArtifact double-checks this internally, but we gate at the
+  // orchestrator too so the policy switch is visible here.
+  // Cross-stage budget: only items in `webBudget` get web tools.
+  const enableWebSearch = policy.artifact && intent === 'free' && webBudget.has(item.id);
   const result = await generateArtifact({
     intent,
     context: item.spec,
     lessonContext,
-    learnerState: {
-      conceptName: ctx.sectionTitle,
-    },
+    learnerState: projectLearnerStateForArtifact(ctx, learner),
+    enableWebSearch,
   });
   if (!result.ok) {
     return { ok: false, reason: `artifact agent: ${result.errorText}` };
@@ -224,6 +399,9 @@ async function buildArtifactsBounded(
   outline: LessonOutline,
   artifacts: ArtifactItem[],
   ctx: LessonContext,
+  learner: LearnerLessonContext | undefined,
+  policy: WebSearchPolicy,
+  webBudget: Set<string>,
   concurrency = 3,
 ): Promise<Map<string, ArtifactSuccess | ArtifactFail>> {
   const out = new Map<string, ArtifactSuccess | ArtifactFail>();
@@ -236,7 +414,7 @@ async function buildArtifactsBounded(
         if (idx >= artifacts.length) return;
         const item = artifacts[idx]!;
         try {
-          const r = await buildOneArtifact(outline, item, ctx);
+          const r = await buildOneArtifact(outline, item, ctx, learner, policy, webBudget);
           out.set(item.id, r);
           if (!r.ok) {
             console.warn(`[lesson-generator] artifact ${item.id} failed: ${r.reason}`);
@@ -275,6 +453,7 @@ function compose(
   outline: LessonOutline,
   proseById: Map<string, string>,
   artifactById: Map<string, ArtifactSuccess | ArtifactFail>,
+  citationsById: Map<string, LessonCitation[]>,
 ): LessonBlock[] {
   const blocks: LessonBlock[] = [];
   blocks.push({ type: 'markdown', content: outline.intro });
@@ -282,7 +461,10 @@ function compose(
     if (item.kind === 'prose') {
       const md = proseById.get(item.id);
       if (md && md.trim().length > 0) {
-        blocks.push({ type: 'markdown', content: md });
+        const cites = citationsById.get(item.id);
+        const block: LessonBlock = { type: 'markdown', content: md };
+        if (cites && cites.length > 0) block.citations = cites;
+        blocks.push(block);
       } else {
         blocks.push({
           type: 'markdown',
@@ -302,6 +484,96 @@ function compose(
   }
   blocks.push({ type: 'markdown', content: outline.outro });
   return blocks;
+}
+
+// ---------------------------------------------------------------------------
+// Citation collection + ingest-back. Runs at the composer stage: collect every
+// unique URL from `LessonBlock.citations[]` and POST each to /ingest exactly
+// once. Failures are logged + skipped — the lesson still ships with its
+// citations intact.
+// ---------------------------------------------------------------------------
+
+function shortUrlHash(url: string): string {
+  return createHash('sha1').update(url).digest('hex').slice(0, 12);
+}
+
+/**
+ * Collect unique URLs from all `citations[]` arrays across the supplied blocks.
+ * Returns URLs in first-seen order so logs / tests are deterministic.
+ */
+export function collectCitationUrls(blocks: LessonBlock[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const b of blocks) {
+    const cites = b.citations;
+    if (!cites || cites.length === 0) continue;
+    for (const c of cites) {
+      if (!c || typeof c.url !== 'string') continue;
+      const u = c.url.trim();
+      if (!u || seen.has(u)) continue;
+      seen.add(u);
+      out.push(u);
+    }
+  }
+  return out;
+}
+
+interface IngestSourcesDeps {
+  /** Override for the platform call — used in tests so unit tests don't hit the network. */
+  ingest?: (text: string, source: string) => Promise<{ memoryId: string; entities?: unknown[]; facts?: unknown[] }>;
+  /** Override for the URL fetcher — used in tests. The default uses fetch(). */
+  fetchUrl?: (url: string) => Promise<string>;
+}
+
+async function defaultFetchUrl(url: string): Promise<string> {
+  const r = await fetch(url, { redirect: 'follow' });
+  if (!r.ok) throw new Error(`fetch ${url} → ${r.status}`);
+  const ct = r.headers.get('content-type') || '';
+  if (ct.includes('application/json')) {
+    return JSON.stringify(await r.json());
+  }
+  return await r.text();
+}
+
+/**
+ * Collect unique citation URLs from `blocks`, fetch each, and POST to /ingest.
+ * Caps at `policy.maxIngestUrls`. Per-URL failures are logged and skipped —
+ * the lesson must still ship even when ingest fails.
+ */
+export async function ingestLessonSources(
+  sectionId: string,
+  blocks: LessonBlock[],
+  policy: WebSearchPolicy,
+  deps: IngestSourcesDeps = {},
+): Promise<{ ingested: string[]; failed: Array<{ url: string; reason: string }> }> {
+  const ingest = deps.ingest ?? ingestContent;
+  const fetcher = deps.fetchUrl ?? defaultFetchUrl;
+  const urls = collectCitationUrls(blocks);
+  if (urls.length === 0) return { ingested: [], failed: [] };
+  const limited = urls.slice(0, Math.max(0, policy.maxIngestUrls));
+  if (limited.length < urls.length) {
+    console.warn(`[lesson-ingest] capped ingest to first ${limited.length}/${urls.length} citation URLs (LEARN_LESSON_WEBSEARCH_MAX_INGEST_URLS=${policy.maxIngestUrls})`);
+  }
+  const ingested: string[] = [];
+  const failed: Array<{ url: string; reason: string }> = [];
+  for (const url of limited) {
+    try {
+      const text = await fetcher(url);
+      if (!text || !text.trim()) {
+        failed.push({ url, reason: 'empty content' });
+        continue;
+      }
+      const source = `learn:lesson:${sectionId}:websearch:${shortUrlHash(url)}`;
+      const result = await ingest(text, source);
+      console.log(`[lesson-ingest] ingested ${url} → memoryId ${result.memoryId}`);
+      ingested.push(url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[lesson-ingest] failed to ingest ${url}: ${msg}`);
+      failed.push({ url, reason: msg });
+    }
+  }
+  return { ingested, failed };
 }
 
 // ---------------------------------------------------------------------------
@@ -385,7 +657,49 @@ async function generateLessonStructuredV3(
   };
 
   const ctx = await buildContext(sectionId);
+  const policy = loadWebSearchPolicy();
   console.log(`[lesson-generator] starting pipeline for section ${sectionId} ("${ctx.sectionTitle}")`);
+  console.log(
+    `[lesson-generator] websearch policy: enabled=${policy.enabled} ` +
+    `outliner=${policy.outliner} prose=${policy.prose} artifact=${policy.artifact} ` +
+    `maxIngest=${policy.maxIngestUrls} maxStages=${policy.maxStages}`,
+  );
+
+  // Cross-stage WebSearch budget. The outliner runs first (one stage), so
+  // we allocate its slot up-front; prose + freeform artifacts share the
+  // remainder once the outline reveals how many of each there are.
+  const outlinerWantsWeb = policy.outliner;
+  const outlinerAlloc = allocateWebSearchBudget(
+    [{ id: 'outliner', kind: 'outliner', wantsWeb: outlinerWantsWeb }],
+    policy.enabled ? policy.maxStages : 0,
+  );
+  const outlinerGotWeb = outlinerAlloc.granted.has('outliner');
+  const remainingAfterOutliner = Math.max(0, outlinerAlloc.max - outlinerAlloc.used);
+
+  // Single platform fetch for learner state. Degrades to cold-start on any
+  // failure / timeout — pipeline must never abort because of a flaky platform
+  // call. The same snapshot is threaded through every parallel stage.
+  const baseLearnerContext = await loadLearnerLessonContext(ctx.conceptEntityIds);
+  // Apply gap-bias if the caller passed a `prioritisedGap`. The helper
+  // forces coldStart=false because the gap is itself the personalisation
+  // signal — even a learner with no relevant facts on this section's
+  // concepts gets a remedial slant when explicitly steered here.
+  const learnerContext: LearnerLessonContext = opts.prioritisedGap
+    ? withPrioritisedGap(baseLearnerContext, opts.prioritisedGap)
+    : baseLearnerContext;
+  // Pass the typed context downstream only when we're personalising. For
+  // cold-start lessons we pass `undefined`, which makes outliner / prose /
+  // artifact prompts byte-identical to the v0.3 baseline.
+  const personalised: LearnerLessonContext | undefined =
+    learnerContext.coldStart === false ? learnerContext : undefined;
+  console.log(
+    `[lesson-generator] learner-state: coldStart=${learnerContext.coldStart} ` +
+    `facts=${learnerContext.relevantFacts.length} ` +
+    `confusions=${learnerContext.confusions.length} ` +
+    `forgotten=${learnerContext.forgottenConcepts.length} ` +
+    `missingPrereqs=${learnerContext.missingPrereqs.length} ` +
+    `(fetchedAt=${learnerContext.fetchedAt})`,
+  );
 
   // Stage 1 — outline.
   await emit('outlining');
@@ -398,10 +712,32 @@ async function generateLessonStructuredV3(
     orderIndex: ctx.orderIndex,
     prevSectionTitle: ctx.prevSectionTitle,
     nextSectionTitle: ctx.nextSectionTitle,
+    learnerContext: personalised,
+    enableWebSearch: outlinerGotWeb,
   });
   const proseItems = outline.items.filter((it): it is ProseItem => it.kind === 'prose');
   const artifactItems = outline.items.filter((it): it is ArtifactItem => it.kind === 'artifact');
   console.log(`[lesson-generator] outline has ${proseItems.length} prose, ${artifactItems.length} artifacts`);
+
+  // Allocate remaining budget across prose writers (in outline order) then
+  // freeform artifact builders (in outline order). Fixed-kind components
+  // never opt in to web tools, so they're absent from the request list.
+  const stageRequests: WebSearchStageRequest[] = [];
+  for (const p of proseItems) {
+    stageRequests.push({ id: p.id, kind: 'prose', wantsWeb: policy.prose });
+  }
+  for (const a of artifactItems) {
+    if (a.type === 'freeform' && (a.intent ?? 'free') === 'free') {
+      stageRequests.push({ id: a.id, kind: 'freeform_artifact', wantsWeb: policy.artifact });
+    }
+  }
+  const downstreamAlloc = allocateWebSearchBudget(stageRequests, remainingAfterOutliner);
+  const totalUsed = outlinerAlloc.used + downstreamAlloc.used;
+  console.log(
+    `[lesson-websearch] used ${totalUsed}/${policy.maxStages} slots across ` +
+    `{outliner: ${outlinerGotWeb}, prose: ${downstreamAlloc.byKind.prose}, ` +
+    `freeform_artifacts: ${downstreamAlloc.byKind.freeform_artifact}}`,
+  );
 
   // Stages 2 + 3 — prose writers and artifact builders run concurrently.
   // We label the stage by what's still outstanding: start with writing_prose
@@ -410,24 +746,27 @@ async function generateLessonStructuredV3(
   await emit('writing_prose');
   const proseProm = Promise.all(proseItems.map(async (item) => {
     try {
-      const md = await writeProseBlock({
+      const result = await writeProseBlock({
         outline,
         item,
         courseTitle: ctx.courseTitle,
         sectionTitle: ctx.sectionTitle,
         sectionDescription: ctx.sectionDescription,
         learningObjectives: ctx.learningObjectives,
+        learnerContext: personalised,
+        enableWebSearch: policy.prose && downstreamAlloc.granted.has(item.id),
       });
-      console.log(`[lesson-generator] prose ${item.id} written (${md.length} chars)`);
-      return [item.id, md] as const;
+      const citeCount = result.citations?.length ?? 0;
+      console.log(`[lesson-generator] prose ${item.id} written (${result.markdown.length} chars, ${citeCount} citations)`);
+      return [item.id, result] as const;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[lesson-generator] prose ${item.id} failed: ${msg}`);
-      return [item.id, ''] as const;
+      return [item.id, { markdown: '' } as ProseWriterResult] as const;
     }
   }));
 
-  const artifactProm = buildArtifactsBounded(outline, artifactItems, ctx, 3);
+  const artifactProm = buildArtifactsBounded(outline, artifactItems, ctx, personalised, policy, downstreamAlloc.granted, 3);
 
   // Track prose finishing independently so we can flip the stage label to
   // building_artifacts when only artifacts remain.
@@ -436,11 +775,18 @@ async function generateLessonStructuredV3(
     await emit('building_artifacts');
   }
   const artifactById = await artifactProm;
-  const proseById = new Map<string, string>(proseEntries);
+  const proseById = new Map<string, string>();
+  const citationsById = new Map<string, LessonCitation[]>();
+  for (const [id, result] of proseEntries) {
+    proseById.set(id, result.markdown);
+    if (result.citations && result.citations.length > 0) {
+      citationsById.set(id, result.citations);
+    }
+  }
 
   // Stage 4 — compose.
   await emit('composing');
-  const blocks = compose(outline, proseById, artifactById);
+  const blocks = compose(outline, proseById, artifactById, citationsById);
 
   // Validate every emitted block. Anything that fails the validator is
   // dropped and replaced with a placeholder to keep the lesson complete.
@@ -455,6 +801,24 @@ async function generateLessonStructuredV3(
       continue;
     }
     validated.push({ type: 'markdown', content: '_[Block dropped: failed validation]_' });
+  }
+
+  // Ingest-back: collect cited URLs from final blocks and feed them into
+  // /ingest. Failures are logged but do NOT block the lesson — the learner
+  // still receives every citation in the rendered lesson regardless of
+  // whether the URL made it into the graph.
+  if (policy.enabled && policy.maxIngestUrls > 0) {
+    try {
+      const { ingested, failed } = await ingestLessonSources(sectionId, validated, policy);
+      const total = ingested.length + failed.length;
+      if (total > 0) {
+        console.log(`[lesson-generator] ingest-back: ${ingested.length}/${total} URL(s) ingested into graph`);
+      }
+    } catch (err) {
+      // Belt-and-suspenders — ingestLessonSources already swallows per-URL
+      // errors, but if the whole call throws, swallow here too.
+      console.warn('[lesson-generator] ingest-back phase threw (lesson still ships):', err);
+    }
   }
 
   // Takeaways from a prose sample.
@@ -584,3 +948,13 @@ export async function generateLessonAuto(
 // today, but documented as public API in the original module).
 export const generateLesson = generateLessonLegacy;
 export const generateLessonStructured = generateLessonStructuredV3;
+
+// Test-only exports — env-gated configuration and pure helpers.
+export const __test = {
+  loadWebSearchPolicy,
+  envFlag,
+  envInt,
+  collectCitationUrls,
+  shortUrlHash,
+  allocateWebSearchBudget,
+};

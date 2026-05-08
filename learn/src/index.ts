@@ -10,7 +10,7 @@ import { chatRoutes } from './routes/chat.js';
 import { quizRoutes } from './routes/quiz.js';
 import { learnerRoutes } from './routes/learner.js';
 import { sectionRoutes } from './routes/sections.js';
-import { lessonOverlayRoutes } from './routes/lesson-overlays.js';
+import { lessonOverlayRoutes, overlayAdminRoutes } from './routes/lesson-overlays.js';
 import { insightRoutes } from './routes/insights.js';
 import { flashcardRoutes } from './routes/flashcards.js';
 import { dashboardRoutes } from './routes/dashboard.js';
@@ -27,6 +27,7 @@ import {
 } from './services/patrol-cron.js';
 import { db, courses, sections } from './db/index.js';
 import { and, eq, sql as dsql } from 'drizzle-orm';
+import { compactAllOverlays } from './services/lesson-overlay.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -70,6 +71,7 @@ app.route('/api/lesson-pin', lessonPinRoutes);
 app.route('/api/explain', explainRoutes);
 app.route('/api/notes', noteRoutes);
 app.route('/api/artifacts', artifactRoutes);
+app.route('/api/admin', overlayAdminRoutes);
 
 // ── Patrol endpoints ───────────────────────────────────────────────────────
 // POST /api/patrol/run-now  → 202 + runId, or 409 if already in flight
@@ -155,6 +157,18 @@ async function sweepOrphans(): Promise<void> {
     }
   } catch (err) {
     console.error('[startup] orphan lesson sweep failed:', err);
+  }
+
+  // nmemo-15o: bound lesson_overlays growth on each boot. Idempotent — only
+  // deletes rows beyond the retention policy. Failure is non-fatal: the
+  // admin endpoint /api/admin/compact-overlays can be invoked manually.
+  try {
+    const stats = await compactAllOverlays();
+    if (stats.rowsDeleted > 0) {
+      console.log(`[startup] overlay compaction: scanned ${stats.pairsScanned} pair(s), kept ${stats.rowsKept}, deleted ${stats.rowsDeleted}`);
+    }
+  } catch (err) {
+    console.error('[startup] overlay compaction failed:', err);
   }
 }
 

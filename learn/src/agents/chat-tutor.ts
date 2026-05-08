@@ -75,7 +75,26 @@ const SYSTEM_PROMPT_STRUCTURED = `You are an expert tutor helping a learner unde
 
 2. **Silently update the knowledge graph** — use the learning MCP tools to record what you learned about the learner's understanding. Do this BEFORE writing your response.
 
-3. **Compose a structured response document** — your final reply is a JSON object with a "blocks" array that mixes markdown prose and interactive components.
+3. **Compose a structured response document** — your final reply is a JSON object with a "blocks" array that mixes markdown prose and interactive components, plus an "nmemoUpdates" array enumerating every write tool you called.
+
+## Learner state (provided)
+
+The orchestrator pre-fetches the learner's state for the current section and supplies it inline in the user prompt under "Learner's current state in this section". Use it as your primary context. Specifically:
+- Concept confidences: how strongly the learner has demonstrated each concept in this section.
+- Recent gaps / struggle areas: weak spots and confusions worth circling back to.
+- Cross-course overlaps: concepts that appear in other courses the learner has touched.
+
+If the pre-fetch is empty (cold-start learner with no prior facts), respond normally without mentioning "no data available". Your first writes will bootstrap the graph for next time.
+
+If the learner's message references a concept that is missing from the pre-fetch, you may still call the read tools (get_learner_understanding, get_struggle_areas) for that specific concept before composing — but do not duplicate work the orchestrator already did.
+
+## Cross-course weaving (worked example)
+
+If a concept the learner mentions appears in cross-course overlaps:
+- Acknowledge the connection: "You learned about closures in JavaScript. In Rust, the same idea is called a 'move closure', and here's how they map…"
+- Optionally call find_cross_course_overlaps to confirm or expand the mapping.
+- Optionally call update_learning_trajectory if a natural next step across courses is clear.
+Do not force a cross-course mention if no overlap exists.
 
 ## When to call MCP tools (ONLY when there is clear evidence)
 
@@ -104,8 +123,25 @@ Your final assistant message MUST be a JSON object with EXACTLY this shape:
     { "type": "markdown", "content": "..." },
     { "type": "component", "kind": "Mermaid|Callout|SvgFigure|CodeRunner|StepThrough|FlashcardDeck|ConceptMap|Highlight",
       "props": { ... }, "children": "optional markdown string" }
+  ],
+  "nmemoUpdates": [
+    { "tool": "record_understanding", "concept": "closures", "confidence": 0.8, "evidence": "...", "factId": "fact_..." }
   ]
 }
+
+### nmemoUpdates — required field
+
+For EVERY write tool you call (record_understanding, record_confusion, record_quiz_result, flag_prerequisite_gap, update_learning_trajectory), append one object to "nmemoUpdates" mirroring the call. Shape:
+
+{ "tool": "record_understanding" | "record_confusion" | "record_quiz_result" | "flag_prerequisite_gap" | "update_learning_trajectory",
+  "concept": "<concept name>",
+  "confidence"?: number,
+  "misconception"?: string,
+  "evidence"?: string,
+  "factId"?: string }
+
+If you made no write calls, return an empty array: "nmemoUpdates": [].
+Do NOT include read tool calls (get_*, find_*, search_*) in nmemoUpdates — only writes.
 
 Allowed component kinds (use exactly, case-sensitive):
 - Callout: { variant: 'info'|'warning'|'insight'|'takeaway', title?: string }, with markdown children
@@ -147,13 +183,42 @@ If generate_component returns a markdown fallback ({ kind: "markdown", content: 
 - First character: '{'. Last character: '}'. No prose before or after. No \`\`\`json fences.
 - "blocks" is a non-empty array. Every entry must have a valid "type" ("markdown" or "component").
 - For component blocks, "kind" must be one of the allowed kinds exactly.
+- "nmemoUpdates" must be present (use [] if you made no writes).
 - Escape newlines inside JSON strings as \\n.`;
+
+/**
+ * One MCP write call surfaced back to the chat UI as a chip. Mirrors the
+ * tool-call signature so the route layer can persist it verbatim.
+ */
+export interface NmemoUpdate {
+  tool: string;
+  concept?: string;
+  confidence?: number;
+  misconception?: string;
+  evidence?: string;
+  factId?: string;
+  recordedAt?: string;
+  // Tutor may include extra free-form fields; preserve them for forward-compat.
+  [key: string]: unknown;
+}
 
 export interface ChatTutorResult {
   response: string;
   blocks?: LessonBlock[];
-  nmemoUpdates: Array<{ tool: string; args: Record<string, unknown> }>;
+  /**
+   * Write-tool calls the tutor made (record_*, flag_*, update_*). Empty array
+   * when the agent returned plain text or made no writes — never null.
+   */
+  nmemoUpdates: NmemoUpdate[];
 }
+
+const WRITE_TOOLS = new Set([
+  'record_understanding',
+  'record_confusion',
+  'record_quiz_result',
+  'flag_prerequisite_gap',
+  'update_learning_trajectory',
+]);
 
 const ALLOWED_KINDS = new Set([
   'Callout', 'Mermaid', 'SvgFigure', 'CodeRunner',
@@ -207,21 +272,67 @@ function validateBlock(b: unknown): LessonBlock | null {
 }
 
 /**
- * Try to parse a structured `{ blocks: [...] }` response from the agent's raw
- * text. Returns null on any failure (caller falls back to a single markdown
- * block wrapping the raw text).
+ * Validate one entry in `nmemoUpdates`. Strips entries whose `tool` is missing
+ * or is a read-only tool (we surface writes only). Tolerates extra fields so
+ * the tutor can carry forward-compatible payloads.
  */
-function parseStructuredBlocks(raw: string): LessonBlock[] | null {
+function validateNmemoUpdate(u: unknown): NmemoUpdate | null {
+  if (!u || typeof u !== 'object' || Array.isArray(u)) return null;
+  const o = u as Record<string, unknown>;
+  if (typeof o.tool !== 'string') return null;
+  if (!WRITE_TOOLS.has(o.tool)) return null;
+  const out: NmemoUpdate = { tool: o.tool };
+  if (typeof o.concept === 'string') out.concept = o.concept;
+  if (typeof o.confidence === 'number') out.confidence = o.confidence;
+  if (typeof o.misconception === 'string') out.misconception = o.misconception;
+  if (typeof o.evidence === 'string') out.evidence = o.evidence;
+  if (typeof o.factId === 'string') out.factId = o.factId;
+  if (typeof o.recordedAt === 'string') out.recordedAt = o.recordedAt;
+  // Preserve unknown string fields for forward-compat (e.g. nextConcept).
+  for (const [k, v] of Object.entries(o)) {
+    if (k in out) continue;
+    if (k === 'tool') continue;
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+function extractNmemoUpdates(parsed: Record<string, unknown>): NmemoUpdate[] {
+  const arr = parsed.nmemoUpdates;
+  if (!Array.isArray(arr)) return [];
+  const out: NmemoUpdate[] = [];
+  for (const u of arr) {
+    const v = validateNmemoUpdate(u);
+    if (v) out.push(v);
+  }
+  return out;
+}
+
+export interface ParsedStructuredResponse {
+  blocks: LessonBlock[];
+  nmemoUpdates: NmemoUpdate[];
+}
+
+/**
+ * Try to parse a structured `{ blocks: [...] , nmemoUpdates: [...] }` response
+ * from the agent's raw text. Returns null on any failure (caller falls back to
+ * a single markdown block wrapping the raw text). nmemoUpdates is always an
+ * array (possibly empty); only validated write-tool entries survive.
+ */
+function parseStructuredBlocks(raw: string): ParsedStructuredResponse | null {
   const parsed = parseLoose(raw);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
   const obj = parsed as Record<string, unknown>;
   if (!Array.isArray(obj.blocks)) return null;
   const blocks: LessonBlock[] = [];
-  for (const raw of obj.blocks) {
-    const b = validateBlock(raw);
+  for (const rawBlock of obj.blocks) {
+    const b = validateBlock(rawBlock);
     if (b) blocks.push(b);
   }
-  return blocks.length > 0 ? blocks : null;
+  if (blocks.length === 0) return null;
+  return { blocks, nmemoUpdates: extractNmemoUpdates(obj) };
 }
 
 /**
@@ -265,6 +376,12 @@ export async function processChatMessage(params: {
   courseTopic?: string;
   sectionTitle?: string;
   sectionExcerpt?: string;
+  /**
+   * Pre-fetched learner state (concept confidences, gaps, cross-course
+   * overlaps), pre-formatted as a markdown-ish block. Empty/undefined means
+   * cold-start — the tutor handles that gracefully.
+   */
+  learnerContextBlock?: string;
 }): Promise<ChatTutorResult> {
   const mcpConfigPath = writeMcpConfig('learn', MCP_SCRIPT, {
     NMEMO_URL: config.NMEMO_URL,
@@ -290,12 +407,16 @@ export async function processChatMessage(params: {
     ? contextParts.join('\n') + '\n\n'
     : '';
 
+  const learnerStateNote = (params.learnerContextBlock && params.learnerContextBlock.trim().length > 0)
+    ? `Learner's current state in this section:\n${params.learnerContextBlock.trim()}\n\n`
+    : '';
+
   const structured = isStructuredEnabled();
   const tail = structured
     ? 'First check their understanding state via MCP tools if relevant, decide if any write calls are warranted, then compose your structured JSON response. If a component would help, call generate_component to produce its props. Output ONLY the JSON object.'
     : 'First check their understanding state via MCP tools if relevant, then respond as their tutor.';
 
-  const prompt = `${contextNote}${historyText ? `Recent conversation:\n${historyText}\n\n` : ''}Learner's latest message: "${params.message}"\n\n${tail}`;
+  const prompt = `${contextNote}${learnerStateNote}${historyText ? `Recent conversation:\n${historyText}\n\n` : ''}Learner's latest message: "${params.message}"\n\n${tail}`;
 
   const result = await runAgent(prompt, {
     model: 'haiku',
@@ -319,12 +440,12 @@ export async function processChatMessage(params: {
 
   // v0.2 path: parse structured blocks. On failure, wrap raw text in a single
   // markdown block so the response still renders.
-  const blocks = parseStructuredBlocks(raw);
-  if (blocks) {
+  const parsed = parseStructuredBlocks(raw);
+  if (parsed) {
     return {
-      response: blocksToPlainText(blocks),
-      blocks,
-      nmemoUpdates: [],
+      response: blocksToPlainText(parsed.blocks),
+      blocks: parsed.blocks,
+      nmemoUpdates: parsed.nmemoUpdates,
     };
   }
 
@@ -343,4 +464,6 @@ export const __test = {
   fallbackBlocks,
   blocksToPlainText,
   isStructuredEnabled,
+  validateNmemoUpdate,
+  extractNmemoUpdates,
 };

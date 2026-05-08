@@ -6,9 +6,15 @@ import {
 } from '../db/index.js';
 import {
   getDecayCandidates, getSameAsConcepts, getGraphSnapshot, getEntityById,
+  getLearnerFacts,
   type SameAsConceptLink,
 } from '../services/nmemo-client.js';
 import { pickNextQuestionAnywhere, type NextQuestionResult } from '../services/quiz-picker.js';
+import { isVisible } from '../services/insight-lifecycle.js';
+import {
+  getTopGap, isCachedGapFresh, isBelowGapColdStart,
+  GAP_COLD_START_FACT_THRESHOLD, type PersistedGap,
+} from '../services/gap-persistence.js';
 
 export const dashboardRoutes = new Hono();
 
@@ -85,6 +91,20 @@ interface CrossCourseLinkInsight {
   createdAt: string;
 }
 
+interface DashboardTopGap {
+  coldStart: boolean;
+  threshold: number;
+  factCount: number;
+  refreshing: boolean;
+  gap: PersistedGap | null;
+  /** When the top gap maps to a section (a section whose conceptEntityIds
+   *  includes the root-cause concept), the dashboard card's CTA links there.
+   *  Null when no section currently teaches the concept. */
+  candidateSectionId: string | null;
+  candidateSectionTitle: string | null;
+  candidateCourseId: string | null;
+}
+
 interface DashboardResponse {
   jumpBackIn: DashboardJumpBackIn | null;
   dailyQuiz: NextQuestionResult;
@@ -95,6 +115,7 @@ interface DashboardResponse {
     linkInsights: CrossCourseLinkInsight[];
   };
   graphSnapshot: { conceptCount: number; growthThisWeek: number; factCount?: number };
+  topGap: DashboardTopGap;
   timing?: Record<string, number>;
 }
 
@@ -276,16 +297,22 @@ async function buildDailyFlashcards(regenerate: boolean): Promise<{ cards: Dashb
 
 async function buildInsights(): Promise<{ items: DashboardInsight[]; total: number }> {
   try {
-    const where = isNull(insights.dismissedAt);
+    // Pull a wider page than INSIGHTS_LIMIT so the lifecycle filter (TTL +
+    // snooze) can drop hidden rows in app code without starving the dashboard.
     const rows = await db.select().from(insights)
-      .where(where)
+      .where(isNull(insights.dismissedAt))
       .orderBy(desc(insights.importance), desc(insights.createdAt))
-      .limit(INSIGHTS_LIMIT);
-    const [{ total } = { total: 0 }] = await db
-      .select({ total: sql<number>`count(*)` })
-      .from(insights)
-      .where(where);
-    const items: DashboardInsight[] = rows.map(r => ({
+      .limit(INSIGHTS_LIMIT * 5);
+
+    const now = new Date();
+    const visible = rows.filter(r => isVisible({
+      type: r.type,
+      createdAt: r.createdAt,
+      dismissalKind: r.dismissalKind,
+      snoozedUntil: r.snoozedUntil,
+    }, now));
+
+    const items: DashboardInsight[] = visible.slice(0, INSIGHTS_LIMIT).map(r => ({
       id: r.id,
       type: r.type,
       title: r.title,
@@ -299,7 +326,7 @@ async function buildInsights(): Promise<{ items: DashboardInsight[]; total: numb
       createdAt: r.createdAt,
       viewedAt: r.viewedAt,
     }));
-    return { items, total: Number(total) };
+    return { items, total: visible.length };
   } catch (err) {
     console.error('[dashboard] buildInsights failed', err);
     return { items: [], total: 0 };
@@ -325,10 +352,18 @@ async function buildCrossCourseConnections(): Promise<{
       db.select().from(insights)
         .where(linkInsightsWhere)
         .orderBy(desc(insights.importance), desc(insights.createdAt))
-        .limit(INSIGHTS_LIMIT),
+        .limit(INSIGHTS_LIMIT * 5),
     ]);
 
-    const linkInsights: CrossCourseLinkInsight[] = linkInsightRows.map(r => ({
+    const now = new Date();
+    const visibleLinkInsightRows = linkInsightRows.filter(r => isVisible({
+      type: r.type,
+      createdAt: r.createdAt,
+      dismissalKind: r.dismissalKind,
+      snoozedUntil: r.snoozedUntil,
+    }, now));
+
+    const linkInsights: CrossCourseLinkInsight[] = visibleLinkInsightRows.slice(0, INSIGHTS_LIMIT).map(r => ({
       id: r.id,
       title: r.title,
       contentMd: r.contentMd,
@@ -414,6 +449,78 @@ async function buildCrossCourseConnections(): Promise<{
   }
 }
 
+/**
+ * Build the dashboard "Top gap" payload (nmemo-7b3). Read-only — never kicks
+ * the gap-analyzer agent itself. Soft-cache freshness is reported via
+ * `refreshing` so the client can show a subtle pending indicator; the
+ * dedicated GET /api/learner/gap-analysis/top route handles actual reruns.
+ */
+async function buildTopGap(): Promise<DashboardTopGap> {
+  // Fact count gates the cold-start affordance.
+  let factCount = 0;
+  try {
+    const facts = await getLearnerFacts();
+    factCount = facts.facts.length;
+  } catch (err) {
+    console.warn('[dashboard] buildTopGap fact-count fetch failed:', err);
+  }
+
+  if (isBelowGapColdStart(factCount)) {
+    return {
+      coldStart: true,
+      threshold: GAP_COLD_START_FACT_THRESHOLD,
+      factCount,
+      refreshing: false,
+      gap: null,
+      candidateSectionId: null,
+      candidateSectionTitle: null,
+      candidateCourseId: null,
+    };
+  }
+
+  const [gap, fresh] = await Promise.all([getTopGap(), isCachedGapFresh()]);
+  let candidateSectionId: string | null = null;
+  let candidateSectionTitle: string | null = null;
+  let candidateCourseId: string | null = null;
+
+  if (gap?.rootCauseEntityId) {
+    // First section whose conceptEntityIds includes the root-cause concept.
+    // Earliest by orderIndex wins, mirroring the design doc's "earliest is
+    // selected" rule for cross-section gaps.
+    try {
+      const rootId = gap.rootCauseEntityId;
+      const rows = await db.select({
+        id: sections.id,
+        title: sections.title,
+        courseId: sections.courseId,
+        orderIndex: sections.orderIndex,
+        conceptEntityIds: sections.conceptEntityIds,
+      }).from(sections);
+      const candidates = rows
+        .filter(r => parseJsonArray(r.conceptEntityIds).includes(rootId))
+        .sort((a, b) => a.orderIndex - b.orderIndex);
+      if (candidates.length > 0) {
+        candidateSectionId = candidates[0]!.id;
+        candidateSectionTitle = candidates[0]!.title;
+        candidateCourseId = candidates[0]!.courseId;
+      }
+    } catch (err) {
+      console.warn('[dashboard] buildTopGap section lookup failed:', err);
+    }
+  }
+
+  return {
+    coldStart: false,
+    threshold: GAP_COLD_START_FACT_THRESHOLD,
+    factCount,
+    refreshing: !fresh,
+    gap,
+    candidateSectionId,
+    candidateSectionTitle,
+    candidateCourseId,
+  };
+}
+
 async function buildGraphSnapshot(): Promise<{ conceptCount: number; growthThisWeek: number; factCount?: number }> {
   try {
     const snap = await getGraphSnapshot();
@@ -441,13 +548,14 @@ dashboardRoutes.get('/', async (c) => {
     return p.then(v => { tStart[name] = Date.now() - tStart[name]; return v; });
   }
 
-  const [jbi, dq, df, ins, ccc, gs] = await Promise.allSettled([
+  const [jbi, dq, df, ins, ccc, gs, tg] = await Promise.allSettled([
     timed('jumpBackIn', buildJumpBackIn()),
     timed('dailyQuiz', buildDailyQuiz()),
     timed('dailyFlashcards', buildDailyFlashcards(regenerate)),
     timed('insights', buildInsights()),
     timed('crossCourseConnections', buildCrossCourseConnections()),
     timed('graphSnapshot', buildGraphSnapshot()),
+    timed('topGap', buildTopGap()),
   ]);
 
   const totalMs = Date.now() - t0;
@@ -459,6 +567,16 @@ dashboardRoutes.get('/', async (c) => {
     insights: ins.status === 'fulfilled' ? ins.value : { items: [], total: 0 },
     crossCourseConnections: ccc.status === 'fulfilled' ? ccc.value : { concepts: [], linkInsights: [] },
     graphSnapshot: gs.status === 'fulfilled' ? gs.value : { conceptCount: 0, growthThisWeek: 0 },
+    topGap: tg.status === 'fulfilled' ? tg.value : {
+      coldStart: false,
+      threshold: GAP_COLD_START_FACT_THRESHOLD,
+      factCount: 0,
+      refreshing: false,
+      gap: null,
+      candidateSectionId: null,
+      candidateSectionTitle: null,
+      candidateCourseId: null,
+    },
   };
 
   if (debug) response.timing = { ...tStart, total: totalMs };

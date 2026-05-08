@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { db, notes, sections } from '../db/index.js';
 import { recordFact, getEntityById } from '../services/nmemo-client.js';
 
@@ -17,8 +17,16 @@ function shapeNote(row: NoteRow) {
     contentMd: row.contentMd,
     promotedToGraph: row.promotedToGraph === 1,
     factId: row.factId,
+    archivedAt: row.archivedAt ?? null,
     createdAt: row.createdAt,
   };
+}
+
+// Treat "1", "true", "yes" as truthy. Default false (archived rows excluded).
+function asBoolFlag(v: string | undefined): boolean {
+  if (!v) return false;
+  const lc = v.toLowerCase();
+  return lc === '1' || lc === 'true' || lc === 'yes';
 }
 
 /**
@@ -59,16 +67,20 @@ noteRoutes.post('/', async (c) => {
 });
 
 /**
- * GET /api/notes?section_id=…&include_promoted=true|false
- * Default include_promoted=true. Filter optional.
+ * GET /api/notes?section_id=…&include_promoted=true|false&include_archived=1
+ * Default include_promoted=true; default include_archived=false (so archived
+ * notes vanish from the dashboard's note-creation surface). Pass
+ * include_archived=1 to opt in (e.g. for an "archived" tab).
  */
 noteRoutes.get('/', async (c) => {
   const sectionId = c.req.query('section_id');
   const includePromoted = c.req.query('include_promoted') !== 'false';
+  const includeArchived = asBoolFlag(c.req.query('include_archived'));
 
-  const conds: ReturnType<typeof eq>[] = [];
+  const conds: Array<ReturnType<typeof eq> | ReturnType<typeof isNull>> = [];
   if (sectionId) conds.push(eq(notes.sectionId, sectionId));
   if (!includePromoted) conds.push(eq(notes.promotedToGraph, 0));
+  if (!includeArchived) conds.push(isNull(notes.archivedAt));
   const where = conds.length > 0 ? and(...conds) : undefined;
 
   const rows = await db.select().from(notes)
@@ -111,6 +123,41 @@ noteRoutes.delete('/:id', async (c) => {
   if (!existing) return c.json({ error: 'Note not found' }, 404);
   await db.delete(notes).where(eq(notes.id, id));
   return c.json({ ok: true, id });
+});
+
+/**
+ * POST /api/notes/:id/archive
+ * Soft-delete: stamps archivedAt = now. Idempotent — archiving an already
+ * archived note returns 200 with the existing archivedAt unchanged.
+ */
+noteRoutes.post('/:id/archive', async (c) => {
+  const id = c.req.param('id');
+  const [existing] = await db.select().from(notes).where(eq(notes.id, id));
+  if (!existing) return c.json({ error: 'Note not found' }, 404);
+  if (existing.archivedAt) {
+    return c.json(shapeNote(existing));
+  }
+  const archivedAt = new Date().toISOString();
+  await db.update(notes).set({ archivedAt }).where(eq(notes.id, id));
+  const [row] = await db.select().from(notes).where(eq(notes.id, id));
+  return c.json(shapeNote(row));
+});
+
+/**
+ * POST /api/notes/:id/unarchive
+ * Restores an archived note (clears archivedAt). 200 even if not archived
+ * (idempotent).
+ */
+noteRoutes.post('/:id/unarchive', async (c) => {
+  const id = c.req.param('id');
+  const [existing] = await db.select().from(notes).where(eq(notes.id, id));
+  if (!existing) return c.json({ error: 'Note not found' }, 404);
+  if (!existing.archivedAt) {
+    return c.json(shapeNote(existing));
+  }
+  await db.update(notes).set({ archivedAt: null }).where(eq(notes.id, id));
+  const [row] = await db.select().from(notes).where(eq(notes.id, id));
+  return c.json(shapeNote(row));
 });
 
 /**
