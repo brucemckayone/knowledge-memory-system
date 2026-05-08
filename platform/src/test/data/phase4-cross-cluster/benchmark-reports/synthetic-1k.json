@@ -1,0 +1,85 @@
+{
+  "snapshot": "synthetic-1k",
+  "generatedAt": "2026-05-08T10:13:36.053Z",
+  "weights": {
+    "cluster": 0.35,
+    "drift_a": 0.125,
+    "drift_b": 0.125,
+    "role": 0.2,
+    "centrality": 0.15,
+    "articulation": 0.05
+  },
+  "thresholds": {
+    "MIN_COMPONENT_SIZE": "default(2)",
+    "MIN_K_CORE_FOR_BRIDGE": "default(1)",
+    "BRIDGE_SCORE_THRESHOLD": "default(0.3)",
+    "MAX_CANDIDATES_PER_COMPONENT_PAIR": "default(5)",
+    "DRIFT_RECENCY_DAYS": "default(30)"
+  },
+  "topology": {
+    "entity_count": 1000,
+    "edge_count": 3200,
+    "pagerank_max": 0.00225961086893146
+  },
+  "clustering": {
+    "entity_count": 1000,
+    "cluster_count": 5,
+    "noise_count": 0
+  },
+  "generator": {
+    "ran": true,
+    "componentPairsEvaluated": 0,
+    "candidatesInserted": 0,
+    "driftDrivenCandidates": 0,
+    "durationMs": 1191
+  },
+  "score": {
+    "recall": 0,
+    "precision": 0,
+    "f1": 0,
+    "truePositives": 0,
+    "falsePositives": 0,
+    "falseNegatives": 10,
+    "candidatesEmitted": 0,
+    "groundTruthSize": 10
+  },
+  "perSignalContributions": {
+    "cluster": {
+      "mean": 0,
+      "max": 0,
+      "nonZero": 0
+    },
+    "drift_a": {
+      "mean": 0,
+      "max": 0,
+      "nonZero": 0
+    },
+    "drift_b": {
+      "mean": 0,
+      "max": 0,
+      "nonZero": 0
+    },
+    "role": {
+      "mean": 0,
+      "max": 0,
+      "nonZero": 0
+    },
+    "centrality": {
+      "mean": 0,
+      "max": 0,
+      "nonZero": 0
+    },
+    "articulation": {
+      "mean": 0,
+      "max": 0,
+      "nonZero": 0
+    }
+  },
+  "groundTruthDistribution": {
+    "crossComponent": 0,
+    "sameComponent": 10,
+    "unknown": 0
+  },
+  "totalElapsedMs": 5068,
+  "notes": "Per doc 25 §5.2 baseline (acceptance: recall >= 0.6 / precision >= 0.3, tuneable). Phase 4 by design targets cross-component identity pairs only; intra-component and orphan-singleton pairs are structurally invisible to this generator. The groundTruthDistribution field surfaces how many ground-truth pairs fall into each class so the recall figure is interpretable: a recall of 0 against a fixture whose sameComponent count is high is NOT a generator regression — it indicates the fixture is testing intra-component ambiguity, which is the existing 3-signal scorer's domain. Run via vitest snapshot config (single fork). Topology + clustering compute drive the same Python entrypoints exercised by topology-*.test.ts / clustering-hdbscan.test.ts."
+}
