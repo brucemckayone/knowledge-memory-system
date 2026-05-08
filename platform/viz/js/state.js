@@ -25,8 +25,17 @@ export const state = {
     bridges: [],    // [{ sourceEntityId, targetEntityId, factId, sameAsLinkId }]
     loaded: false,
   },
-  colorMode: 'type',         // 'type' | 'component' | 'community'
+  colorMode: 'type',         // 'type' | 'component' | 'community' | 'cluster'
   centralityMetric: 'pagerank', // 'pagerank' | 'betweenness'
+  // viz.3 — clusters (Phase 3.1)
+  clusters: {
+    entities: {},   // entityId → { clusterId, clusterProbability, clusterSize }
+    summary: {},    // clusterId (string) → size
+    noiseCount: 0,
+    clusterCount: 0,
+    loaded: false,
+  },
+  showClusterHulls: false,
   refs: {
     svg: null,
     g: null,

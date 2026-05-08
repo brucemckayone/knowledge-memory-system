@@ -234,7 +234,11 @@ svg { flex: 1; }
     <option value="type" selected>by Type</option>
     <option value="component">by Component</option>
     <option value="community">by Community</option>
+    <option value="cluster">by Cluster</option>
   </select>
+  <label class="auto-toggle" title="Show convex hulls per cluster (slow at scale)">
+    <input type="checkbox" id="clusterHullsToggle"> Hulls
+  </label>
   <span class="viz-select-label">halo</span>
   <select class="viz-select" id="centralitySelect" title="Centrality halo metric (size scales with the chosen score)">
     <option value="pagerank" selected>PageRank</option>
@@ -250,6 +254,7 @@ svg { flex: 1; }
     <button class="action-btn" id="btnGarden" title="Trigger the graph gardener to explore topology, find islands, and consolidate entities">Garden</button>
     <button class="action-btn" id="btnReconcile" title="Trigger reconciliation agent to resolve entity identity questions">Reconcile</button>
     <button class="action-btn" id="btnTopology" title="Recompute topology (component, k-core, articulation, community, centrality, predicate signature) — Phase 2">Topology</button>
+    <button class="action-btn" id="btnCluster" title="Recompute HDBSCAN clusters from entity_meta centroids — Phase 3.1">Cluster</button>
     <button class="action-btn" id="btnContradictions" title="View flagged contradictions in the graph">Contradictions<span class="badge zero" id="contradictionsBadge">0</span></button>
     <button class="action-btn" id="btnPatterns" title="View active causal patterns (provisional + canonical)">Patterns<span class="badge zero" id="patternsBadge">0</span></button>
   </div>

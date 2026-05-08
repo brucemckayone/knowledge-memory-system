@@ -10,25 +10,20 @@
 import { state, COLOR_ENTITY } from '../state.js';
 import { getTopology, computeTopology } from '../api.js';
 import { renderAll } from '../canvas/render.js';
-
-// Deterministic palette for component / community coloring. Component_id 0
-// always lands on palette[0]; isolates (component_size === 1) override to grey.
-const PALETTE = [
-  '#4a90d9', '#27ae60', '#e67e22', '#9b59b6', '#1abc9c', '#e74c3c',
-  '#f0883e', '#d29922', '#58a6ff', '#3fb950', '#bc8cff', '#ff7b72',
-  '#79c0ff', '#56d364', '#d2a8ff', '#ffa657', '#a5d6ff', '#7ee787',
-  '#ffab70', '#f97583', '#b392f0', '#85e89d', '#9ecbff', '#f1e05a',
-];
-const ISOLATE_GREY = '#3d4047';
-
-function paletteFor(idx) {
-  if (idx == null) return ISOLATE_GREY;
-  return PALETTE[((idx % PALETTE.length) + PALETTE.length) % PALETTE.length];
-}
+import { paletteFor, ISOLATE_GREY } from './palette.js';
 
 export function resolveEntityColor(d) {
   const mode = state.colorMode;
-  if (mode === 'type' || !state.topology.loaded) {
+  if (mode === 'type') {
+    return COLOR_ENTITY[d.entityType] || COLOR_ENTITY.other;
+  }
+  if (mode === 'cluster') {
+    if (!state.clusters.loaded) return COLOR_ENTITY[d.entityType] || COLOR_ENTITY.other;
+    const c = state.clusters.entities[d.id];
+    if (!c || c.clusterId === -1) return ISOLATE_GREY; // noise
+    return paletteFor(c.clusterId);
+  }
+  if (!state.topology.loaded) {
     return COLOR_ENTITY[d.entityType] || COLOR_ENTITY.other;
   }
   const t = state.topology.entities[d.id];
@@ -41,6 +36,15 @@ export function resolveEntityColor(d) {
     return paletteFor(t.communityId);
   }
   return COLOR_ENTITY[d.entityType] || COLOR_ENTITY.other;
+}
+
+// Border opacity per soft cluster_probability (viz.3). Noise / no-data → 1.0
+// so the user can still see the stroke clearly.
+export function resolveEntityStrokeOpacity(d) {
+  if (state.colorMode !== 'cluster' || !state.clusters.loaded) return 1.0;
+  const c = state.clusters.entities[d.id];
+  if (!c || c.clusterId === -1 || c.clusterProbability == null) return 1.0;
+  return Math.max(0.15, Math.min(1.0, c.clusterProbability));
 }
 
 export async function loadTopology() {

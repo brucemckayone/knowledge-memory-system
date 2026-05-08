@@ -1077,6 +1077,69 @@ app.post('/api/clustering/compute', async (c) => {
   }
 });
 
+// GET /api/clusters — full snapshot for the viz cluster layer (viz.3).
+// One row per entity that participated in the most recent clustering run.
+// Skips centroid_snapshot in the main list (768 floats × N is too heavy for
+// a polled endpoint); GET /api/clusters/:cluster_id returns it on demand.
+app.get('/api/clusters', async (c) => {
+  const { db } = await import('./db/index.js');
+  const { sql } = await import('drizzle-orm');
+
+  type EntityRow = {
+    entity_id: string;
+    cluster_id: number;
+    cluster_probability: number | null;
+    cluster_size: number | null;
+    computed_at: Date;
+  };
+  type SummaryRow = { cluster_id: number; size: number };
+
+  const [entityRows, summaryRows] = await Promise.all([
+    db.execute(sql`
+      SELECT
+        entity_id::text       AS entity_id,
+        cluster_id,
+        cluster_probability,
+        cluster_size,
+        computed_at
+      FROM public.entity_clusters
+    `) as unknown as Promise<EntityRow[]>,
+    db.execute(sql`
+      SELECT cluster_id, COUNT(*)::int AS size
+      FROM public.entity_clusters
+      GROUP BY cluster_id
+      ORDER BY cluster_id
+    `) as unknown as Promise<SummaryRow[]>,
+  ]);
+
+  const summary: Record<string, number> = {};
+  let noiseCount = 0;
+  let clusterCount = 0;
+  for (const r of summaryRows) {
+    summary[String(r.cluster_id)] = r.size;
+    if (r.cluster_id === -1) noiseCount = r.size;
+    else clusterCount += 1;
+  }
+
+  let computedAt: string | null = null;
+  if (entityRows.length > 0 && entityRows[0]!.computed_at instanceof Date) {
+    computedAt = entityRows[0]!.computed_at.toISOString();
+  }
+
+  return c.json({
+    entities: entityRows.map((r) => ({
+      id: r.entity_id,
+      clusterId: r.cluster_id,
+      clusterProbability: r.cluster_probability,
+      clusterSize: r.cluster_size,
+    })),
+    summary,
+    noiseCount,
+    clusterCount,
+    computedAt,
+  });
+});
+
 app.get('/api/clusters/:cluster_id', async (c) => {
   const idStr = c.req.param('cluster_id');
   const clusterId = Number.parseInt(idStr, 10);

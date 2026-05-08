@@ -6,7 +6,8 @@ import { showTooltip, hideTooltip, updatePinnedTooltipPosition, pinTooltipForNod
 import { toggleFocus } from './focus.js';
 import { showNodeDetail, showEdgeDetail } from '../panels/detail.js';
 import { renderContradictionsOverlay } from '../overlays/contradictions.js';
-import { resolveEntityColor, renderTopologyOverlay } from '../layers/topology.js';
+import { resolveEntityColor, resolveEntityStrokeOpacity, renderTopologyOverlay } from '../layers/topology.js';
+import { renderClusterHulls } from '../layers/clusters.js';
 
 export function renderAll() {
   const { nodes, edges } = state.data;
@@ -99,9 +100,15 @@ export function renderAll() {
     fill: d => resolveEntityColor(d),
     stroke: d => d.id === state.selectedId ? '#fff' : '#21262d',
     strokeWidth: d => d.id === state.selectedId ? 3 : 1.5 + Math.min((d.factCount || 0), 10) * 0.2,
-    opacity: 1,
+    // Soft cluster_probability (viz.3): when colorMode === 'cluster' the
+    // border opacity reads as crisp on hard membership / faded on soft.
+    opacity: d => resolveEntityStrokeOpacity(d),
     labelColor: '#c9d1d9', fontSize: '11px', fontWeight: '500',
   });
+
+  // Cluster hulls (viz.3 — only visible when colorMode === 'cluster' and the
+  // hulls toggle is on; renders into the back-most group).
+  renderClusterHulls();
 
   // Topology overlay (viz.2 — articulation rings + centrality halos + bridges)
   renderTopologyOverlay();
@@ -138,6 +145,9 @@ export function renderAll() {
     g.selectAll('line.contradiction-underlay')
       .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
       .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    // viz.3 — keep cluster hulls following the simulation. Cheap no-op when
+    // showClusterHulls is false (renderClusterHulls clears + returns early).
+    if (state.showClusterHulls) renderClusterHulls();
     updatePinnedTooltipPosition();
   });
 }

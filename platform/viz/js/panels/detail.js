@@ -2,6 +2,23 @@ import { esc } from '../util.js';
 import { state } from '../state.js';
 import { fetchImpact } from './impact.js';
 
+// viz.3 — Cluster section renderer (HDBSCAN). Returns '' when the entity
+// did not participate in the most recent clustering run.
+function clusterSection(entityId) {
+  const c = state.clusters.entities[entityId];
+  if (!c) return '';
+  const isNoise = c.clusterId === -1;
+  let html = `<div class="section-label">Cluster</div>`;
+  html += field('Cluster ID', isNoise ? 'noise (-1)' : String(c.clusterId));
+  if (!isNoise) {
+    html += field('Cluster size', c.clusterSize ?? '—');
+    if (c.clusterProbability != null) {
+      html += field('Soft probability', c.clusterProbability.toFixed(3));
+    }
+  }
+  return html;
+}
+
 // viz.2 — Topology section renderer for entity detail. Returns '' when no
 // entity_topology row exists for the given entity.
 function topologySection(entityId) {
@@ -104,6 +121,9 @@ export function showNodeDetail(d) {
 
     // Topology section (viz.2)
     html += topologySection(d.id);
+
+    // Cluster section (viz.3)
+    html += clusterSection(d.id);
 
     const merges = data.edges.filter(e => e._edgeType === 'mergeCandidate' && ((e.source.id || e.source) === d.id || (e.target.id || e.target) === d.id));
     if (merges.length > 0) {

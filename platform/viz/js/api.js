@@ -30,6 +30,10 @@ export const computeGraphStats = () => postJson('/api/graph-stats/compute');
 export const getTopology = () => getJson('/api/topology');
 export const computeTopology = () => postJson('/api/topology/compute');
 
+// ---- Clusters (Phase 3.1 — viz.3) ----
+export const getClusters = () => getJson('/api/clusters');
+export const computeClustering = () => postJson('/api/clustering/compute');
+
 // ---- Contradictions ----
 export const getContradictions = (limit = 200) => getJson(`/api/contradictions?limit=${limit}`);
 export const resolveContradiction = (id, body) =>

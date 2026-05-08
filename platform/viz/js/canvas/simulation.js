@@ -36,6 +36,9 @@ export function initSvg(updatePinnedTooltipPosition) {
 
   // Render order = visual depth (back to front)
   const groups = {};
+  // Cluster hulls go all the way at the back so they tint the area beneath
+  // every other layer (viz.3).
+  groups.clusterHulls = g.append('g').attr('class', 'layer-cluster-hulls');
   groups.sourceLinks = g.append('g').attr('class', 'layer-source');
   groups.sourceNodes = g.append('g').attr('class', 'layer-source');
   groups.mergeEdges = g.append('g').attr('class', 'layer-merge');
