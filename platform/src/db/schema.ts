@@ -362,6 +362,10 @@ export const mergeCandidates = pgTable('merge_candidates', {
   resolutionReasoning: text('resolution_reasoning'),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   resolvedBy: varchar('resolved_by', { length: 50 }),
+  // Phase 4 — distinguishes 3-signal-scoring rows from cross-cluster-generator
+  // rows. ON CONFLICT preserves an existing 'cross_cluster_generator' tag
+  // (doc 25 §2.5 R3 B4 lock).
+  candidateSource: varchar('candidate_source', { length: 40 }).default('three_signal_scoring').notNull(),
 });
 
 export const mergeCandidatesRelations = relations(mergeCandidates, ({ one }) => ({
