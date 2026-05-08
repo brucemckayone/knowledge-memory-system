@@ -1031,6 +1031,30 @@ app.get('/api/graph-stats', async (c) => {
 });
 
 // ============================================
+// Phase 4 — Cross-cluster generator post-compute trigger (doc 25 §3.2)
+// Fire-and-forget; never blocks the HTTP response of /topology/compute or
+// /clustering/compute. The generator's freshness gate handles the "both
+// upstreams fresh" precondition; the advisory lock handles overlap.
+// ============================================
+async function triggerCrossClusterAfterCompute(after: 'topology' | 'clustering'): Promise<void> {
+  try {
+    const { generateCrossClusterCandidates } = await import('./services/cross-cluster-generator.js');
+    const result = await generateCrossClusterCandidates();
+    if (result.ran) {
+      console.log(
+        `[cross-cluster] auto-trigger after ${after}/compute: candidates=${result.candidatesInserted} ` +
+        `drift_driven=${result.driftDrivenCandidates} component_pairs=${result.componentPairsEvaluated} ` +
+        `duration=${result.durationMs}ms`,
+      );
+    } else {
+      console.log(`[cross-cluster] auto-trigger after ${after}/compute skipped: ${result.skippedReason}`);
+    }
+  } catch (err) {
+    console.warn(`[cross-cluster] auto-trigger after ${after}/compute failed:`, err instanceof Error ? err.message : err);
+  }
+}
+
+// ============================================
 // Topology (Phase 2 — nmemo-a7f.2.1, doc 23 §2.4 + 23.1 §3.3)
 // POST /api/topology/compute proxies to the ml-services sidecar (igraph).
 // GET  /api/components/:component_id reads the local entity_topology table.
@@ -1044,6 +1068,13 @@ app.post('/api/topology/compute', async (c) => {
     if (!response.ok) {
       return c.json({ ok: false, status: response.status, error: body, durationMs: Date.now() - start }, response.status as 409 | 500);
     }
+    // Phase 4 trigger (doc 25 §3.2): fire-and-forget the cross-cluster
+    // generator. The generator's own freshness gate checks that BOTH topology
+    // and clustering computes are fresh; if clustering is stale this run
+    // short-circuits with skippedReason='stale_upstream', and the next
+    // /api/clustering/compute success path will retry. Advisory lock keeps
+    // overlapping invocations safe.
+    void triggerCrossClusterAfterCompute('topology');
     return c.json({ ok: true, result: body, durationMs: Date.now() - start });
   } catch (err) {
     return c.json({ ok: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 502);
@@ -1111,6 +1142,8 @@ app.post('/api/clustering/compute', async (c) => {
     if (!response.ok) {
       return c.json({ ok: false, status: response.status, error: body, durationMs: Date.now() - start }, response.status as 409 | 500);
     }
+    // Phase 4 trigger (doc 25 §3.2). Mirrors the topology/compute hook above.
+    void triggerCrossClusterAfterCompute('clustering');
     return c.json({ ok: true, result: body, durationMs: Date.now() - start });
   } catch (err) {
     return c.json({ ok: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 502);
@@ -1232,6 +1265,41 @@ app.get('/api/drift/events', async (c) => {
       detected_at: r.detected_at instanceof Date ? r.detected_at.toISOString() : String(r.detected_at),
     })),
   });
+});
+
+// ============================================
+// Cross-cluster candidate generator (Phase 4 — nmemo-a7f.4.1, doc 25)
+// POST /api/cross-cluster/generate runs the in-process generator (no ml-services
+//   proxy — the generator is platform-side TypeScript reading entity_topology /
+//   entity_clusters / entity_drift_events and writing merge_candidates).
+// GET  /api/cross-cluster/candidates lists cross_cluster_generator-sourced
+//   merge_candidates ordered by combined_score.
+// ============================================
+
+app.post('/api/cross-cluster/generate', async (c) => {
+  const start = Date.now();
+  try {
+    const { generateCrossClusterCandidates } = await import('./services/cross-cluster-generator.js');
+    const result = await generateCrossClusterCandidates();
+    return c.json({ ok: true, result, durationMs: Date.now() - start });
+  } catch (err) {
+    return c.json(
+      { ok: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start },
+      500,
+    );
+  }
+});
+
+app.get('/api/cross-cluster/candidates', async (c) => {
+  const limitRaw = c.req.query('limit');
+  const limit = limitRaw ? Math.max(1, Math.min(500, Number.parseInt(limitRaw, 10) || 100)) : 100;
+  try {
+    const { listCrossClusterCandidates } = await import('./services/cross-cluster-generator.js');
+    const candidates = await listCrossClusterCandidates(limit);
+    return c.json({ count: candidates.length, candidates });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
 });
 
 // ============================================

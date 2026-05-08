@@ -115,10 +115,6 @@ async function ensureUpstreamFresh() {
   `;
 }
 
-async function clearMergeCandidates() {
-  await testDb`DELETE FROM public.merge_candidates`;
-}
-
 async function fullReset() {
   // Wipe every table that could leak between tests. entity_topology /
   // entity_clusters / entity_drift_events / *_compute_runs aren't in the
