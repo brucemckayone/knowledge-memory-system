@@ -52,6 +52,8 @@ test('renderGapContentMd → projectGap preserves structured fields', () => {
     lesson: '...',
     followUpQuestions: [],
     nextSteps: 'Read §3 of the closures section.',
+    rootCauseEntityId: null,
+    rootCauseConceptName: null,
   };
   const contentMd = renderGapContentMd(result);
 
@@ -89,4 +91,81 @@ test('isBelowGapColdStart: threshold honoured', () => {
   assert.equal(isBelowGapColdStart(GAP_COLD_START_FACT_THRESHOLD - 1), true);
   assert.equal(isBelowGapColdStart(GAP_COLD_START_FACT_THRESHOLD), false);
   assert.equal(isBelowGapColdStart(GAP_COLD_START_FACT_THRESHOLD + 5), false);
+});
+
+// ── nmemo-eh1: structured rootCauseEntityId path ───────────────────────────
+
+test('GapAnalysisResult shape carries the structured rootCauseEntityId field', () => {
+  // Compile-time + runtime assertion that the type accepts the new fields.
+  const result: GapAnalysisResult = {
+    targetConcept: 'closures',
+    rootCause: 'r',
+    whyItMatters: 'w',
+    lesson: 'l',
+    followUpQuestions: [],
+    nextSteps: 'n',
+    rootCauseEntityId: 'ent-structured-789',
+    rootCauseConceptName: 'closures',
+  };
+  assert.equal(result.rootCauseEntityId, 'ent-structured-789');
+  assert.equal(result.rootCauseConceptName, 'closures');
+});
+
+test('gapIdempotencyKey: structured id wins over targetConcept name', () => {
+  // Simulates the new flow: the agent emits `rootCauseEntityId` directly; the
+  // persistence layer keys on the structured id even when targetConcept text
+  // drifts between runs ("closures" → "JavaScript closures").
+  const a = gapIdempotencyKey('ent-structured-789', 'closures');
+  const b = gapIdempotencyKey('ent-structured-789', 'JavaScript closures');
+  assert.equal(a, b);
+});
+
+test('gapIdempotencyKey: structured id absent → name fallback exercised', () => {
+  // Backward-compat path — the agent forgot the trailer (or older run); the
+  // route layer's tryResolveRootEntityId returned null too. Idempotency must
+  // still be derivable from the normalised target concept.
+  const a = gapIdempotencyKey(null, 'closures');
+  const b = gapIdempotencyKey(null, 'closures');
+  assert.equal(a, b);
+  // And it MUST differ from the structured-id key, so old name-keyed rows
+  // don't collide with new id-keyed rows.
+  const c = gapIdempotencyKey('ent-structured-789', 'closures');
+  assert.notEqual(a, c);
+});
+
+test('projectGap: structured id stored in relatedEntityIds round-trips', () => {
+  // Confirms the read path surfaces the structured id the route layer wrote.
+  const result: GapAnalysisResult = {
+    targetConcept: 'closures',
+    rootCause: 'You skipped scope chains earlier in the course.',
+    whyItMatters: 'Without closures, callback patterns become opaque.',
+    lesson: '...',
+    followUpQuestions: [],
+    nextSteps: 'Read §3 of the closures section.',
+    rootCauseEntityId: 'ent-from-trailer',
+    rootCauseConceptName: 'closures',
+  };
+  const contentMd = renderGapContentMd(result);
+  const row = {
+    id: 'i2',
+    type: 'gap_analysis',
+    title: 'Gap: closures',
+    contentMd,
+    importance: 0.7,
+    relatedEntityIds: JSON.stringify(['ent-from-trailer']),
+    relatedCourseIds: '[]',
+    relatedFactIds: '[]',
+    relatedSectionIds: '[]',
+    actionableUrl: null,
+    idempotencyKey: 'k',
+    deterministicImportance: 0.7,
+    dismissalKind: null,
+    snoozedUntil: null,
+    createdAt: '2026-05-08T00:00:00Z',
+    dismissedAt: null,
+    viewedAt: null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+  const projected = projectGap(row);
+  assert.equal(projected.rootCauseEntityId, 'ent-from-trailer');
 });

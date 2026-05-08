@@ -498,11 +498,77 @@
     <//>`;
   }
 
+  // ── Secondary gaps modal (nmemo-eh1) ────────────────────────────────────
+  function SecondaryGapsModal(props) {
+    const { onClose, onFixGap } = props;
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [gaps, setGaps] = useState([]);
+
+    useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const r = await fetch('/api/learner/gaps/top?n=3');
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const j = await r.json();
+          if (!cancelled) setGaps(Array.isArray(j.gaps) ? j.gaps : []);
+        } catch (err) {
+          if (!cancelled) setError(err && err.message ? err.message : String(err));
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+      return () => { cancelled = true; };
+    }, []);
+
+    const onBackdropClick = (e) => {
+      if (e.target === e.currentTarget) onClose();
+    };
+
+    return h`<div class="promote-modal-backdrop" onClick=${onBackdropClick}>
+      <div class="promote-modal" style=${{minWidth: '420px', maxWidth: '560px'}}>
+        <h3>Other gaps</h3>
+        ${loading ? h`<div style=${{padding:'12px',color:'var(--muted)',fontSize:'13px'}}>Loading…</div>` : null}
+        ${error ? h`<div style=${{padding:'12px',color:'var(--red)',fontSize:'13px'}}>${error}</div>` : null}
+        ${(!loading && !error && gaps.length === 0)
+          ? h`<div style=${{padding:'12px',color:'var(--muted)',fontSize:'13px'}}>No other visible gaps right now.</div>`
+          : null}
+        ${(!loading && !error && gaps.length > 0) ? h`
+          <div style=${{display:'flex',flexDirection:'column',gap:'10px',marginBottom:'12px'}}>
+            ${gaps.map(g => h`
+              <div key=${g.id} style=${{
+                padding:'10px',
+                border:'1px solid var(--border)',
+                borderRadius:'6px',
+                background:'var(--surface2)',
+              }}>
+                <div style=${{fontSize:'13px',fontWeight:'600',marginBottom:'4px'}}>${g.rootCauseConceptName || g.title}</div>
+                ${g.rootCauseReason ? h`<div style=${{fontSize:'12px',color:'var(--muted)',marginBottom:'4px',lineHeight:'1.4'}}>${g.rootCauseReason}</div>` : null}
+                ${g.whyItMatters ? h`<div style=${{fontSize:'12px',color:'var(--text)',marginBottom:'8px',lineHeight:'1.4'}}><strong>Why it matters:</strong> ${g.whyItMatters}</div>` : null}
+                <div style=${{display:'flex',justifyContent:'flex-end'}}>
+                  <button class="btn btn-secondary" style=${{fontSize:'12px',padding:'4px 10px'}}
+                    onClick=${() => { if (typeof onFixGap === 'function') onFixGap(g); }}>
+                    Fix this gap
+                  </button>
+                </div>
+              </div>
+            `)}
+          </div>
+        ` : null}
+        <div class="actions">
+          <button onClick=${onClose}>Close</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
   // ── Card 7: Top gap (nmemo-7b3) ─────────────────────────────────────────
   function TopGapCard(props) {
     const { tg, onFixGap, onNavigateSection } = props;
     const [fixing, setFixing] = useState(false);
     const [fixError, setFixError] = useState(null);
+    const [showSecondary, setShowSecondary] = useState(false);
 
     if (!tg) return null;
 
@@ -552,6 +618,44 @@
     const whyStyle = { fontSize: '12px', color: 'var(--text)', marginBottom: '12px', lineHeight: '1.4' };
     const ctaWrap = { display: 'flex', alignItems: 'center', gap: '8px', marginTop: 'auto' };
 
+    // "See other gaps" footer — only meaningful when at least the top gap
+    // exists, so render here. Modal lazily fetches /api/learner/gaps/top?n=3.
+    const handleFixSecondary = (secondaryGap) => {
+      // Reuse the same fix-this-gap flow; relies on the top gap's
+      // candidateSectionId since the modal payload doesn't currently include
+      // a per-gap section. Future: extend /gaps/top to surface candidate
+      // sections per row.
+      if (!tg.candidateSectionId) {
+        setFixError('No section currently teaches this concept.');
+        setShowSecondary(false);
+        return;
+      }
+      setShowSecondary(false);
+      (async () => {
+        setFixing(true); setFixError(null);
+        try {
+          const res = await fetch('/api/learner/fix-gap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              gapEntityId: (secondaryGap && secondaryGap.rootCauseEntityId) || '',
+              sectionId: tg.candidateSectionId,
+            }),
+          });
+          if (!res.ok && res.status !== 202) {
+            const j = await res.json().catch(() => ({}));
+            throw new Error(j.error || `HTTP ${res.status}`);
+          }
+          if (typeof onFixGap === 'function') onFixGap(tg.candidateSectionId);
+          else if (typeof onNavigateSection === 'function') onNavigateSection(tg.candidateSectionId);
+        } catch (err) {
+          setFixError(err && err.message ? err.message : String(err));
+        } finally {
+          setFixing(false);
+        }
+      })();
+    };
+
     return h`<${Card} title="Top gap" span=${2}>
       <div style=${headlineStyle}>${gap.rootCauseConceptName || gap.title}</div>
       ${gap.rootCauseReason ? h`<div style=${reasonStyle}>${gap.rootCauseReason}</div>` : null}
@@ -568,6 +672,15 @@
           : null}
       </div>
       ${fixError ? h`<div style=${{color:'var(--red)',fontSize:'12px',marginTop:'8px'}}>${fixError}</div>` : null}
+      <div style=${{marginTop:'10px',paddingTop:'8px',borderTop:'1px solid var(--border)'}}>
+        <button class="btn btn-secondary" style=${{fontSize:'11px',padding:'4px 10px'}}
+          onClick=${() => setShowSecondary(true)}>
+          See other gaps
+        </button>
+      </div>
+      ${showSecondary ? h`<${SecondaryGapsModal}
+        onClose=${() => setShowSecondary(false)}
+        onFixGap=${handleFixSecondary} />` : null}
     <//>`;
   }
 

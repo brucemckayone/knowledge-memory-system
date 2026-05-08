@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
-import { db, quizAttempts, questions, sections } from '../db/index.js';
-import { eq, desc, avg, count } from 'drizzle-orm';
+import { db, insights, quizAttempts, questions, sections } from '../db/index.js';
+import { and, eq, desc, avg, count, isNull } from 'drizzle-orm';
 import { getLearnerFacts, getContradictions, getActivePatterns, queryReasoning, getEntityById } from '../services/nmemo-client.js';
 import { analyzeGapsAndGenerateContent, type GapAnalysisResult } from '../agents/gap-analyzer.js';
 import {
   persistGap, getTopGap, isCachedGapFresh, isBelowGapColdStart,
-  GAP_COLD_START_FACT_THRESHOLD, type PersistedGap,
+  GAP_COLD_START_FACT_THRESHOLD, GAP_INSIGHT_TYPE, type PersistedGap,
 } from '../services/gap-persistence.js';
+import { isVisible } from '../services/insight-lifecycle.js';
 import { generateLessonAuto, type LessonStage } from '../agents/lesson-generator.js';
 import type { PrioritisedGap } from '../agents/learner-lesson-context.js';
 
@@ -17,9 +18,9 @@ export const learnerRoutes = new Hono();
 let inFlightGapRun: Promise<void> | null = null;
 
 async function tryResolveRootEntityId(targetConcept: string): Promise<string | null> {
-  // The gap-analyzer doesn't currently emit a structured root-cause entity
-  // id — it returns prose. Best-effort: look the target concept up by name.
-  // Failures fall back to null (idempotency keys then hash on the name).
+  // Best-effort name lookup against the graph. Used as a FALLBACK only when
+  // the gap-analyzer agent failed to emit its structured ROOT_CAUSE: trailer.
+  // Brittle on concept-name drift — prefer the structured id.
   try {
     const ent = await getEntityById(targetConcept);
     return ent?.id ?? null;
@@ -29,7 +30,13 @@ async function tryResolveRootEntityId(targetConcept: string): Promise<string | n
 }
 
 async function persistGapResult(result: GapAnalysisResult): Promise<void> {
-  const rootCauseEntityId = await tryResolveRootEntityId(result.targetConcept);
+  // Prefer the structured root-cause id the agent emitted via its
+  // `ROOT_CAUSE:` trailer. Fall back to a name lookup only when the agent
+  // omitted the trailer or emitted entityId=null. This keeps backward
+  // compatibility with older runs while removing the brittle name path
+  // from the happy case.
+  const rootCauseEntityId = result.rootCauseEntityId
+    ?? await tryResolveRootEntityId(result.targetConcept);
   await persistGap({ result, rootCauseEntityId });
 }
 
@@ -163,6 +170,68 @@ learnerRoutes.get('/gap-analysis/top', async (c) => {
     gap,
     refreshing: !fresh,
   });
+});
+
+/**
+ * GET /gaps/top?n=3
+ * Top-N currently-visible gap insights (nmemo-eh1). Powers the dashboard
+ * "See other gaps" modal. Ordering: importance desc, createdAt desc.
+ * Visibility filter (TTL + snooze + dismissal) is applied via `isVisible`.
+ *
+ * Default n=3, clamped to [1, 20]. Each row carries the structured fields
+ * the modal needs (title, root-cause concept, why-it-matters, reason,
+ * created timestamp) plus the rootCauseEntityId for the fix-this CTA.
+ */
+learnerRoutes.get('/gaps/top', async (c) => {
+  const nRaw = c.req.query('n');
+  const n = Math.max(1, Math.min(20, Number.parseInt(nRaw ?? '3', 10) || 3));
+
+  // Pull a wider window than n so the visibility filter can drop hidden rows
+  // without starving the response.
+  const rows = await db.select().from(insights)
+    .where(and(
+      eq(insights.type, GAP_INSIGHT_TYPE),
+      isNull(insights.dismissedAt),
+    ))
+    .orderBy(desc(insights.importance), desc(insights.createdAt))
+    .limit(n * 4);
+
+  const now = new Date();
+  const visible = rows.filter(r => isVisible({
+    type: r.type,
+    createdAt: r.createdAt,
+    dismissalKind: r.dismissalKind,
+    snoozedUntil: r.snoozedUntil,
+  }, now)).slice(0, n);
+
+  const projected = visible.map(r => {
+    let rootCauseEntityId: string | null = null;
+    try {
+      const parsed = JSON.parse(r.relatedEntityIds);
+      if (Array.isArray(parsed) && typeof parsed[0] === 'string') rootCauseEntityId = parsed[0];
+    } catch { /* defensive */ }
+
+    const md = r.contentMd;
+    const matchAfter = (s: string, marker: string): string => {
+      const idx = s.indexOf(marker);
+      if (idx < 0) return '';
+      const rest = s.slice(idx + marker.length);
+      const lineEnd = rest.indexOf('\n');
+      return (lineEnd >= 0 ? rest.slice(0, lineEnd) : rest).trim();
+    };
+    return {
+      id: r.id,
+      title: r.title,
+      rootCauseConceptName: r.title.replace(/^Gap:\s*/, '').trim(),
+      rootCauseReason: matchAfter(md, '**Root cause:**'),
+      whyItMatters: matchAfter(md, '**Why this matters:**'),
+      importance: r.importance,
+      createdAt: r.createdAt,
+      rootCauseEntityId,
+    };
+  });
+
+  return c.json({ gaps: projected, requestedN: n });
 });
 
 /**
