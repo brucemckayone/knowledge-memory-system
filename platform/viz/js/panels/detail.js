@@ -2,6 +2,7 @@ import { esc } from '../util.js';
 import { state } from '../state.js';
 import { fetchImpact } from './impact.js';
 import { loadGhostsForEntity } from '../overlays/ghosts.js';
+import { loadHistoryInto } from './history.js';
 
 // viz.5 — Ghosts section (lazy-loaded). Returns a placeholder element id so
 // showNodeDetail can populate it asynchronously.
@@ -266,6 +267,8 @@ export function showEdgeDetail(d) {
       html += `<div class="source-block">${esc(d.sourceText)}</div>`;
     }
     if (d.sourceMemoryId) html += field('Memory ID', d.sourceMemoryId);
+    html += `<div class="section-label">History</div>`;
+    html += `<div id="hist-${esc(d.id)}" class="hist-mount"></div>`;
 
   } else if (d._edgeType === 'causal') {
     html += `<h2>Causal Edge</h2>`;
@@ -280,6 +283,8 @@ export function showEdgeDetail(d) {
         html += `<div class="source-block"><strong>${esc(ref.type)}</strong>: ${esc(ref.id?.slice(0, 8) + '...')}<br>${esc(ref.relevance?.slice(0, 150) || '')}</div>`;
       }
     }
+    html += `<div class="section-label">History</div>`;
+    html += `<div id="hist-${esc(d.id)}" class="hist-mount"></div>`;
 
   } else if (d._edgeType === 'mergeCandidate') {
     const a = data.nodes.find(n => n.id === (d.source.id || d.source));
@@ -308,4 +313,13 @@ export function showEdgeDetail(d) {
   }
 
   panel.innerHTML = html;
+
+  // viz.6 — stream history into the mount placeholder. We do this after
+  // innerHTML is set so the panel renders immediately and history streams
+  // in below. Only fact/causal edges have history.
+  if (d._edgeType === 'fact' || d._edgeType === 'causal') {
+    const target = document.getElementById(`hist-${d.id}`);
+    const kind = d._edgeType === 'fact' ? 'fact' : 'causal';
+    loadHistoryInto(target, kind, d.id);
+  }
 }

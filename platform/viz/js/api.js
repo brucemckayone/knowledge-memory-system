@@ -56,6 +56,12 @@ export const detectPatterns = () => postJson('/api/patterns/detect');
 export const promotePatterns = () => postJson('/api/patterns/promote');
 export const getGhosts = (entityId) => getJson(`/api/ghosts/${encodeURIComponent(entityId)}`);
 
+// ---- Audit history (mig 009 — viz.6) ----
+export const getFactHistory = (id) =>
+  getJson(`/api/facts/${encodeURIComponent(id)}/history`);
+export const getCausalEdgeHistory = (id) =>
+  getJson(`/api/causal-edges/${encodeURIComponent(id)}/history`);
+
 // ---- Impact (Phase 4 blast radius) ----
 export const getImpact = (nodeType, nodeId, opts = {}) => {
   const qs = opts.hypothetical

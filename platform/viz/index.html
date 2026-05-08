@@ -243,6 +243,23 @@ svg { flex: 1; }
 
 /* Detail panel ghosts (viz.5) */
 .ghosts-section { margin-top: 8px; }
+
+/* History timeline (viz.6) — fact_history + causal_edge_history */
+.hist-mount { margin-top: 4px; }
+.hist-timeline { display: flex; flex-direction: column; gap: 6px; padding-left: 12px; border-left: 2px solid #21262d; }
+.hist-row { padding: 6px 8px; background: #0d1117; border: 1px solid #21262d; border-radius: 3px; font-size: 11px; }
+.hist-row-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; font-size: 11px; }
+.hist-event { color: #c9d1d9; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; font-size: 10px; padding: 1px 6px; border: 1px solid #30363d; border-radius: 8px; }
+.hist-actor { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: 10px; }
+.hist-time { color: #8b949e; font-size: 10px; margin-left: auto; }
+.hist-report { color: #58a6ff; font-size: 10px; cursor: pointer; }
+.hist-report:hover { text-decoration: underline; }
+.hist-diff { font-size: 10px; color: #8b949e; padding: 2px 0; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; }
+.hist-diff-label { color: #6e7681; }
+.hist-diff-before { color: #f85149; }
+.hist-diff-arrow { color: #6e7681; padding: 0 4px; }
+.hist-diff-after { color: #3fb950; }
+.hist-reasoning { color: #c9d1d9; margin-top: 4px; font-size: 11px; line-height: 1.4; }
 .answer-panel .answer-close:hover { color: #c9d1d9; }
 </style>
 </head>
