@@ -5,13 +5,13 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { ingest, store, extract, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
 import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, gardeningReports } from './db/index.js';
-import { isNull, sql, inArray, eq } from 'drizzle-orm';
+import { isNull, sql, eq } from 'drizzle-orm';
 import { getMergeCandidates } from './services/graph-meta.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,35 +64,23 @@ app.get('/ingest/queue/status', (c) => {
 
 app.get('/viz', (c) => c.html(vizHtml));
 
-// Serve static JS files for the viz
-app.get('/viz/js/:file', async (c) => {
-  const file = c.req.param('file');
-  if (!file.endsWith('.js')) return c.text('Not found', 404);
+// Serve static JS files for the viz. Supports nested module paths
+// (canvas/, layers/, panels/, agents/, overlays/) introduced by the viz.1
+// ES-module split. Path-traversal protection: resolve against the viz/js
+// root and reject anything that escapes it.
+const vizJsRoot = resolve(__dirname, '../viz/js') + sep;
+app.get('/viz/js/*', async (c) => {
+  const path = c.req.path;
+  const sub = path.startsWith('/viz/js/') ? path.slice('/viz/js/'.length) : '';
+  if (!sub || !sub.endsWith('.js')) return c.text('Not found', 404);
+  const target = resolve(vizJsRoot, sub);
+  if (!target.startsWith(vizJsRoot)) return c.text('Forbidden', 403);
   try {
-    const content = readFileSync(join(__dirname, '../viz/js', file), 'utf-8');
+    const content = readFileSync(target, 'utf-8');
     return c.text(content, 200, { 'Content-Type': 'application/javascript' });
   } catch {
     return c.text('Not found', 404);
   }
-});
-
-app.get('/api/viz/entity-source-vectors', async (c) => {
-  // For each entity, return its linked memory IDs so we can
-  // compute cluster-based similarity from Qdrant vectors
-  const links = await db.select({
-    entityId: memoryEntities.entityId,
-    entityName: entities.canonicalName,
-    memoryId: memoryEntities.memoryId,
-  }).from(memoryEntities)
-    .innerJoin(entities, sql`${memoryEntities.entityId} = ${entities.id}`);
-
-  // Group by entity
-  const byEntity: Record<string, { name: string; memoryIds: string[] }> = {};
-  for (const l of links) {
-    if (!byEntity[l.entityId]) byEntity[l.entityId] = { name: l.entityName, memoryIds: [] };
-    byEntity[l.entityId]!.memoryIds.push(l.memoryId);
-  }
-  return c.json(byEntity);
 });
 
 // Test endpoint for entity summary tools
@@ -108,18 +96,6 @@ app.get('/api/viz/test-query-facts', async (c) => {
   if (!entityId) return c.json({ error: 'entity_id required' }, 400);
   const result = await handleToolCall('query_entity_facts', { entity_id: entityId });
   return c.json(JSON.parse(result));
-});
-
-app.get('/api/viz/causal-edge-sources', async (c) => {
-  const edges = await db.select({
-    id: causalEdges.id,
-    strength: causalEdges.strength,
-    reasoning: causalEdges.reasoning,
-    sourceReferences: causalEdges.sourceReferences,
-    sourceMemoryId: causalEdges.sourceMemoryId,
-    sourceText: causalEdges.sourceText,
-  }).from(causalEdges).where(isNull(causalEdges.expiredAt));
-  return c.json(edges);
 });
 
 app.get('/api/viz/unified', async (c) => {
@@ -811,162 +787,6 @@ app.get('/api/viz/stats', async (c) => {
     causal_events: ce[0]?.count ?? 0,
     causal_edges: cx[0]?.count ?? 0,
   });
-});
-
-app.get('/api/viz/graph-s', async (c) => {
-  const [ents, fcts, memLinks] = await Promise.all([
-    db.select({
-      id: entities.id,
-      canonicalName: entities.canonicalName,
-      entityType: entities.entityType,
-      confidence: entities.confidence,
-    }).from(entities).limit(200),
-    db.select({
-      id: facts.id,
-      subjectEntityId: facts.subjectEntityId,
-      predicate: facts.predicate,
-      objectEntityId: facts.objectEntityId,
-      objectValue: facts.objectValue,
-      confidence: facts.confidence,
-      sourceText: facts.sourceText,
-      sourceMemoryId: facts.sourceMemoryId,
-      createdAt: facts.createdAt,
-    }).from(facts).where(isNull(facts.expiredAt)).limit(500),
-    db.select({
-      entityId: memoryEntities.entityId,
-      memoryId: memoryEntities.memoryId,
-      mentionText: memoryEntities.mentionText,
-      mentionContext: memoryEntities.mentionContext,
-    }).from(memoryEntities).limit(2000),
-  ]);
-
-  // Build source material map: entityId → [{memoryId, mentionText, context}]
-  const sourcesMap: Record<string, { memoryId: string; mentionText: string | null; context: string | null }[]> = {};
-  for (const m of memLinks) {
-    if (!sourcesMap[m.entityId]) sourcesMap[m.entityId] = [];
-    sourcesMap[m.entityId]!.push({
-      memoryId: m.memoryId,
-      mentionText: m.mentionText,
-      context: m.mentionContext,
-    });
-  }
-
-  const nodes: Record<string, unknown>[] = ents.map(e => ({
-    id: e.id, label: e.canonicalName, type: e.entityType, confidence: e.confidence,
-    sources: sourcesMap[e.id] ?? [],
-  }));
-
-  // Build a set of entity IDs for quick lookup
-  const entityIds = new Set(ents.map(e => e.id));
-  const links: Record<string, unknown>[] = [];
-  let valueIdx = 0;
-
-  for (const f of fcts) {
-    if (f.objectEntityId && entityIds.has(f.subjectEntityId) && entityIds.has(f.objectEntityId)) {
-      links.push({
-        id: f.id, source: f.subjectEntityId, target: f.objectEntityId,
-        predicate: f.predicate, confidence: f.confidence, objectValue: null,
-        sourceText: f.sourceText, sourceMemoryId: f.sourceMemoryId,
-      });
-    } else if (!f.objectEntityId && f.objectValue && entityIds.has(f.subjectEntityId)) {
-      const vid = `_val_${valueIdx++}`;
-      const label = f.objectValue.length > 30 ? f.objectValue.slice(0, 30) + '...' : f.objectValue;
-      nodes.push({ id: vid, label, type: '_value', _isValue: true, sources: [] });
-      links.push({
-        id: f.id, source: f.subjectEntityId, target: vid,
-        predicate: f.predicate, confidence: f.confidence, objectValue: f.objectValue,
-        sourceText: f.sourceText, sourceMemoryId: f.sourceMemoryId,
-      });
-    }
-  }
-
-  return c.json({ nodes, links });
-});
-
-app.get('/api/viz/graph-c', async (c) => {
-  const [events, edges] = await Promise.all([
-    db.select({
-      id: causalEvents.id,
-      transitionType: causalEvents.transitionType,
-      subjectEntityId: causalEvents.subjectEntityId,
-      predicate: causalEvents.predicate,
-      occurredAt: causalEvents.occurredAt,
-      sourceText: causalEvents.sourceText,
-      sourceMemoryId: causalEvents.sourceMemoryId,
-      factId: causalEvents.factId,
-      deltaConfidence: causalEvents.deltaConfidence,
-    }).from(causalEvents).limit(200),
-    db.select({
-      id: causalEdges.id,
-      causeEventId: causalEdges.causeEventId,
-      effectEventId: causalEdges.effectEventId,
-      strength: causalEdges.strength,
-      reasoning: causalEdges.reasoning,
-    }).from(causalEdges).where(isNull(causalEdges.expiredAt)).limit(500),
-  ]);
-
-  // Resolve entity names + types for anchor nodes
-  const entityIdSet = new Set(events.map(e => e.subjectEntityId).filter(Boolean) as string[]);
-  let entityMap: Record<string, { name: string; type: string }> = {};
-  if (entityIdSet.size > 0) {
-    const ents = await db.select({
-      id: entities.id,
-      canonicalName: entities.canonicalName,
-      entityType: entities.entityType,
-    }).from(entities).where(inArray(entities.id, [...entityIdSet]));
-    entityMap = Object.fromEntries(ents.map(e => [e.id, { name: e.canonicalName, type: e.entityType }]));
-  }
-
-  const nodes: Record<string, unknown>[] = [];
-  const links: Record<string, unknown>[] = [];
-
-  // Add entity anchor nodes (larger, dimmer — context for the events)
-  for (const [id, ent] of Object.entries(entityMap)) {
-    nodes.push({
-      id, label: ent.name, _nodeType: 'entity', entityType: ent.type,
-    });
-  }
-
-  // Add causal event nodes
-  for (const e of events) {
-    const entName = e.subjectEntityId ? entityMap[e.subjectEntityId]?.name : null;
-    nodes.push({
-      id: e.id,
-      label: `${e.transitionType}: ${e.predicate || '?'}`,
-      _nodeType: 'event',
-      transitionType: e.transitionType,
-      predicate: e.predicate,
-      occurredAt: e.occurredAt,
-      entityName: entName,
-      sourceText: e.sourceText,
-      sourceMemoryId: e.sourceMemoryId,
-      factId: e.factId,
-      deltaConfidence: e.deltaConfidence,
-    });
-    // Link event → its entity anchor
-    if (e.subjectEntityId && entityMap[e.subjectEntityId]) {
-      links.push({
-        id: `_anchor_${e.id}`,
-        source: e.subjectEntityId,
-        target: e.id,
-        _linkType: 'anchor',
-      });
-    }
-  }
-
-  // Add causal edges (CAUSED)
-  const eventIds = new Set(events.map(e => e.id));
-  for (const e of edges) {
-    if (eventIds.has(e.causeEventId) && eventIds.has(e.effectEventId)) {
-      links.push({
-        id: e.id, source: e.causeEventId, target: e.effectEventId,
-        _linkType: 'caused',
-        strength: e.strength, reasoning: e.reasoning,
-      });
-    }
-  }
-
-  return c.json({ nodes, links });
 });
 
 // ============================================
