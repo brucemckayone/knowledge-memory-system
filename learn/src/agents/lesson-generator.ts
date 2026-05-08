@@ -119,6 +119,11 @@ interface WebSearchPolicy {
   artifact: boolean;
   /** Maximum unique citations the composer will ingest back into the graph. */
   maxIngestUrls: number;
+  /** Cross-stage cap on number of agent invocations that may opt in to
+   *  WebSearch within a single lesson. Outliner counts as 1 stage when web
+   *  is enabled for it; each prose writer counts as 1; each freeform-intent
+   *  artifact builder counts as 1. Fixed-kind components never opt in. */
+  maxStages: number;
 }
 
 function loadWebSearchPolicy(): WebSearchPolicy {
@@ -129,7 +134,77 @@ function loadWebSearchPolicy(): WebSearchPolicy {
     prose: enabled && envFlag('LEARN_PROSE_WEBSEARCH', true),
     artifact: enabled && envFlag('LEARN_ARTIFACT_WEBSEARCH', true),
     maxIngestUrls: envInt('LEARN_LESSON_WEBSEARCH_MAX_INGEST_URLS', 3),
+    maxStages: envInt('LEARN_LESSON_WEBSEARCH_MAX', 5),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Cross-stage WebSearch budget allocator (nmemo-ble).
+//
+// Per-stage `enableWebSearch` is opt-in, but the orchestrator runs the
+// outliner + N prose writers (parallel) + M freeform artifact builders. Each
+// agent's --max-turns caps tool calls *within* a single agent run, but the
+// global cap (3-5 web searches per lesson) is unenforced across stages.
+//
+// The allocator is the orchestrator-level gate. It is pure logic — no LLM
+// calls, no I/O — so it is unit-tested directly and re-used at both Stage 1
+// (outliner) and Stage 2/3 (prose + freeform artifacts) opt-in sites.
+// ---------------------------------------------------------------------------
+
+export type WebSearchStageKind = 'outliner' | 'prose' | 'freeform_artifact';
+
+export interface WebSearchStageRequest {
+  /** Stable id used to look the decision back up at opt-in time. The
+   *  orchestrator uses 'outliner' for the outliner and the outline-item id
+   *  for prose / freeform artifacts. */
+  id: string;
+  kind: WebSearchStageKind;
+  /** Whether the stage is willing to opt in (per-stage policy flag AND'd
+   *  with any agent-side intent gate already applied by the caller). When
+   *  false the allocator never charges a slot for this stage. */
+  wantsWeb: boolean;
+}
+
+export interface WebSearchAllocation {
+  /** Set of stage ids granted a slot. Keyed by `WebSearchStageRequest.id`. */
+  granted: Set<string>;
+  /** Number of slots consumed. Equal to granted.size. */
+  used: number;
+  /** Total slots available at the start of allocation. */
+  max: number;
+  /** Per-kind counts of granted slots — used for the telemetry log line. */
+  byKind: Record<WebSearchStageKind, number>;
+}
+
+/**
+ * Allocate up to `max` web-search slots across `stages` in the order they
+ * appear. Stages with `wantsWeb=false` are never granted (and never charged).
+ * The first `max` stages with `wantsWeb=true` are granted; the rest are
+ * denied. Order matters — callers must pass stages in the order the
+ * orchestrator fires them so the budget mirrors execution.
+ */
+export function allocateWebSearchBudget(
+  stages: WebSearchStageRequest[],
+  max: number,
+): WebSearchAllocation {
+  const granted = new Set<string>();
+  const byKind: Record<WebSearchStageKind, number> = {
+    outliner: 0,
+    prose: 0,
+    freeform_artifact: 0,
+  };
+  if (!Number.isFinite(max) || max <= 0) {
+    return { granted, used: 0, max: Math.max(0, max | 0), byKind };
+  }
+  let remaining = max;
+  for (const s of stages) {
+    if (!s.wantsWeb) continue;
+    if (remaining <= 0) break;
+    granted.add(s.id);
+    byKind[s.kind] += 1;
+    remaining -= 1;
+  }
+  return { granted, used: granted.size, max, byKind };
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +338,7 @@ async function buildOneArtifact(
   ctx: LessonContext,
   learner: LearnerLessonContext | undefined,
   policy: WebSearchPolicy,
+  webBudget: Set<string>,
 ): Promise<ArtifactSuccess | ArtifactFail> {
   if (item.type === 'fixed') {
     const kind = FIXED_TO_COMPONENT[item.fixedKind!];
@@ -288,7 +364,8 @@ async function buildOneArtifact(
   // Per design: artifact agent gets WebSearch only when intent === 'free'.
   // generateArtifact double-checks this internally, but we gate at the
   // orchestrator too so the policy switch is visible here.
-  const enableWebSearch = policy.artifact && intent === 'free';
+  // Cross-stage budget: only items in `webBudget` get web tools.
+  const enableWebSearch = policy.artifact && intent === 'free' && webBudget.has(item.id);
   const result = await generateArtifact({
     intent,
     context: item.spec,
@@ -324,6 +401,7 @@ async function buildArtifactsBounded(
   ctx: LessonContext,
   learner: LearnerLessonContext | undefined,
   policy: WebSearchPolicy,
+  webBudget: Set<string>,
   concurrency = 3,
 ): Promise<Map<string, ArtifactSuccess | ArtifactFail>> {
   const out = new Map<string, ArtifactSuccess | ArtifactFail>();
@@ -336,7 +414,7 @@ async function buildArtifactsBounded(
         if (idx >= artifacts.length) return;
         const item = artifacts[idx]!;
         try {
-          const r = await buildOneArtifact(outline, item, ctx, learner, policy);
+          const r = await buildOneArtifact(outline, item, ctx, learner, policy, webBudget);
           out.set(item.id, r);
           if (!r.ok) {
             console.warn(`[lesson-generator] artifact ${item.id} failed: ${r.reason}`);
@@ -584,8 +662,19 @@ async function generateLessonStructuredV3(
   console.log(
     `[lesson-generator] websearch policy: enabled=${policy.enabled} ` +
     `outliner=${policy.outliner} prose=${policy.prose} artifact=${policy.artifact} ` +
-    `maxIngest=${policy.maxIngestUrls}`,
+    `maxIngest=${policy.maxIngestUrls} maxStages=${policy.maxStages}`,
   );
+
+  // Cross-stage WebSearch budget. The outliner runs first (one stage), so
+  // we allocate its slot up-front; prose + freeform artifacts share the
+  // remainder once the outline reveals how many of each there are.
+  const outlinerWantsWeb = policy.outliner;
+  const outlinerAlloc = allocateWebSearchBudget(
+    [{ id: 'outliner', kind: 'outliner', wantsWeb: outlinerWantsWeb }],
+    policy.enabled ? policy.maxStages : 0,
+  );
+  const outlinerGotWeb = outlinerAlloc.granted.has('outliner');
+  const remainingAfterOutliner = Math.max(0, outlinerAlloc.max - outlinerAlloc.used);
 
   // Single platform fetch for learner state. Degrades to cold-start on any
   // failure / timeout — pipeline must never abort because of a flaky platform
@@ -624,11 +713,31 @@ async function generateLessonStructuredV3(
     prevSectionTitle: ctx.prevSectionTitle,
     nextSectionTitle: ctx.nextSectionTitle,
     learnerContext: personalised,
-    enableWebSearch: policy.outliner,
+    enableWebSearch: outlinerGotWeb,
   });
   const proseItems = outline.items.filter((it): it is ProseItem => it.kind === 'prose');
   const artifactItems = outline.items.filter((it): it is ArtifactItem => it.kind === 'artifact');
   console.log(`[lesson-generator] outline has ${proseItems.length} prose, ${artifactItems.length} artifacts`);
+
+  // Allocate remaining budget across prose writers (in outline order) then
+  // freeform artifact builders (in outline order). Fixed-kind components
+  // never opt in to web tools, so they're absent from the request list.
+  const stageRequests: WebSearchStageRequest[] = [];
+  for (const p of proseItems) {
+    stageRequests.push({ id: p.id, kind: 'prose', wantsWeb: policy.prose });
+  }
+  for (const a of artifactItems) {
+    if (a.type === 'freeform' && (a.intent ?? 'free') === 'free') {
+      stageRequests.push({ id: a.id, kind: 'freeform_artifact', wantsWeb: policy.artifact });
+    }
+  }
+  const downstreamAlloc = allocateWebSearchBudget(stageRequests, remainingAfterOutliner);
+  const totalUsed = outlinerAlloc.used + downstreamAlloc.used;
+  console.log(
+    `[lesson-websearch] used ${totalUsed}/${policy.maxStages} slots across ` +
+    `{outliner: ${outlinerGotWeb}, prose: ${downstreamAlloc.byKind.prose}, ` +
+    `freeform_artifacts: ${downstreamAlloc.byKind.freeform_artifact}}`,
+  );
 
   // Stages 2 + 3 — prose writers and artifact builders run concurrently.
   // We label the stage by what's still outstanding: start with writing_prose
@@ -645,7 +754,7 @@ async function generateLessonStructuredV3(
         sectionDescription: ctx.sectionDescription,
         learningObjectives: ctx.learningObjectives,
         learnerContext: personalised,
-        enableWebSearch: policy.prose,
+        enableWebSearch: policy.prose && downstreamAlloc.granted.has(item.id),
       });
       const citeCount = result.citations?.length ?? 0;
       console.log(`[lesson-generator] prose ${item.id} written (${result.markdown.length} chars, ${citeCount} citations)`);
@@ -657,7 +766,7 @@ async function generateLessonStructuredV3(
     }
   }));
 
-  const artifactProm = buildArtifactsBounded(outline, artifactItems, ctx, personalised, policy, 3);
+  const artifactProm = buildArtifactsBounded(outline, artifactItems, ctx, personalised, policy, downstreamAlloc.granted, 3);
 
   // Track prose finishing independently so we can flip the stage label to
   // building_artifacts when only artifacts remain.
@@ -847,4 +956,5 @@ export const __test = {
   envInt,
   collectCitationUrls,
   shortUrlHash,
+  allocateWebSearchBudget,
 };

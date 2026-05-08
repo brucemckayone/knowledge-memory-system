@@ -13,6 +13,7 @@ const policy = {
   prose: true,
   artifact: true,
   maxIngestUrls: 10,
+  maxStages: 5,
 };
 
 // ── collectCitationUrls ────────────────────────────────────────────────────

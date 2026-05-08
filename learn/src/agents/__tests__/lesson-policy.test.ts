@@ -8,6 +8,7 @@ const ENV_KEYS = [
   'LEARN_PROSE_WEBSEARCH',
   'LEARN_ARTIFACT_WEBSEARCH',
   'LEARN_LESSON_WEBSEARCH_MAX_INGEST_URLS',
+  'LEARN_LESSON_WEBSEARCH_MAX',
 ];
 
 function withEnv<T>(overrides: Record<string, string | undefined>, fn: () => T): T {
@@ -31,13 +32,19 @@ function withEnv<T>(overrides: Record<string, string | undefined>, fn: () => T):
   }
 }
 
-test('policy default: all stages enabled, ingest cap 3', () => {
+test('policy default: all stages enabled, ingest cap 3, maxStages 5', () => {
   const p = withEnv({}, () => gen.loadWebSearchPolicy());
   assert.equal(p.enabled, true);
   assert.equal(p.outliner, true);
   assert.equal(p.prose, true);
   assert.equal(p.artifact, true);
   assert.equal(p.maxIngestUrls, 3);
+  assert.equal(p.maxStages, 5);
+});
+
+test('policy: LEARN_LESSON_WEBSEARCH_MAX overrides default cap', () => {
+  const p = withEnv({ LEARN_LESSON_WEBSEARCH_MAX: '2' }, () => gen.loadWebSearchPolicy());
+  assert.equal(p.maxStages, 2);
 });
 
 test('policy: LEARN_LESSON_WEBSEARCH=0 disables every stage', () => {
