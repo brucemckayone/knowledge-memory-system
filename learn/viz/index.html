@@ -77,7 +77,10 @@
 <script src="components/FlashcardDeck.js"></script>
 <script src="components/ConceptMap.js"></script>
 <script src="components/Highlight.js"></script>
-<!-- Phase-5 popover for the on-demand explainer agent + note-editor stub. -->
+<!-- Agent-generated interactive widgets — sandboxed iframe with library allowlist. -->
+<script src="components/Artifact.js"></script>
+<!-- ExplainerPopover (re-added v0.3 task #12): popover for Explain/Example/Why
+     actions, also reopened on click of saved explainer markers in the lesson body. -->
 <script src="components/ExplainerPopover.js"></script>
 <!-- v0.2 lesson document renderer: walks LessonBlock[] and dispatches to the registry above. -->
 <script src="components/LessonRenderer.js"></script>
@@ -146,16 +149,121 @@
   input:focus, textarea:focus { border-color: var(--accent); }
   textarea { resize: vertical; min-height: 80px; }
 
-  /* Chat */
-  .chat-view { display: flex !important; flex-direction: row !important; gap: var(--gap); height: 100%; padding: 0 !important; }
-  .chat-sidebar { width: 220px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
-  .chat-main { flex: 1; display: flex; flex-direction: column; }
+  /* Chat (shared message bubble + composer styles) */
   .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
   .msg { max-width: 72%; padding: 10px 14px; border-radius: 10px; line-height: 1.5; }
   .msg.user { background: var(--accent); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
   .msg.assistant { background: var(--surface2); color: var(--text); align-self: flex-start; border-bottom-left-radius: 2px; }
   .msg-input { display: flex; gap: 8px; padding: 16px; border-top: 1px solid var(--border); }
   .msg-input textarea { min-height: 44px; max-height: 120px; }
+  .chat-empty { color: var(--muted); text-align: center; margin-top: 40px; font-size: 13px; line-height: 1.6; padding: 0 12px; }
+
+  /* Section view — lesson on the left, persistent chat sidebar on the right */
+  .section-view.active { flex-direction: row !important; gap: 0 !important; padding: 0 !important; align-items: stretch; }
+  .section-pane { height: 100%; overflow-y: auto; display: flex; flex-direction: column; }
+  .lesson-pane { flex: 1; min-width: 0; padding: 24px; gap: 20px; }
+  .chat-pane { width: 380px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--surface); overflow: hidden; }
+  .chat-pane.collapsed { display: none; }
+  .chat-pane-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .chat-pane-title { font-weight: 600; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .chat-pane-collapse { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 8px; border-radius: 4px; }
+  .chat-pane-collapse:hover { background: var(--surface); color: var(--text); }
+  .chat-pane-expand { position: absolute; top: 60px; right: 12px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; z-index: 5; }
+  .chat-pane-expand:hover { color: var(--text); border-color: var(--accent); }
+  .chat-quick-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px 0 14px; border-top: 1px solid var(--border); background: var(--surface); }
+  .chat-quick-btn { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); border-radius: 16px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .chat-quick-btn:hover { color: var(--text); border-color: var(--accent); background: var(--surface); }
+
+  /* Artifact-generating placeholder. Lives inside the lesson body, right
+     where the new artifact is going to land. Replaced by the real Artifact
+     component when the response arrives. */
+  .artifact-placeholder {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 12px 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .artifact-placeholder .ph-shimmer {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(110deg, transparent 0%, transparent 40%, rgba(99,102,241,0.10) 50%, transparent 60%, transparent 100%);
+    background-size: 200% 100%;
+    animation: ph-shimmer-anim 2.4s linear infinite;
+  }
+  @keyframes ph-shimmer-anim {
+    0%   { background-position: 200% 0%; }
+    100% { background-position: -200% 0%; }
+  }
+  .artifact-placeholder .ph-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: relative; z-index: 1;
+  }
+  .artifact-placeholder .ph-title {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; font-weight: 600; color: var(--text);
+  }
+  .artifact-placeholder .ph-pulse {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    animation: ph-pulse-anim 1.4s ease-in-out infinite;
+  }
+  @keyframes ph-pulse-anim {
+    0%, 100% { transform: scale(1);   opacity: 0.95; box-shadow: 0 0 0 0 rgba(99,102,241,0.6); }
+    50%      { transform: scale(1.25); opacity: 0.6;  box-shadow: 0 0 0 6px rgba(99,102,241,0); }
+  }
+  .artifact-placeholder .ph-elapsed {
+    font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted);
+    background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 8px;
+    min-width: 56px; text-align: center;
+  }
+  .artifact-placeholder .ph-cancel {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .artifact-placeholder .ph-cancel:hover { color: var(--red); border-color: var(--red); }
+  .artifact-placeholder .ph-body {
+    padding: 18px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    position: relative; z-index: 1;
+  }
+  .artifact-placeholder .ph-phase-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 4px;
+    color: var(--muted); font-size: 13px; line-height: 1.4;
+    transition: color 0.2s;
+  }
+  .artifact-placeholder .ph-phase-row.active { color: var(--text); font-weight: 500; }
+  .artifact-placeholder .ph-phase-row.done   { color: var(--green); }
+  .artifact-placeholder .ph-step-dot {
+    flex-shrink: 0;
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--border);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 9px; line-height: 1; color: transparent;
+  }
+  .artifact-placeholder .ph-phase-row.active .ph-step-dot {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0 rgba(99,102,241,0.5);
+    animation: ph-pulse-anim 1.4s ease-in-out infinite;
+  }
+  .artifact-placeholder .ph-phase-row.done .ph-step-dot {
+    background: var(--green); border-color: var(--green); color: white;
+  }
+  .artifact-placeholder .ph-phase-row.done .ph-step-dot::after { content: '✓'; }
+  .artifact-placeholder .ph-foot {
+    padding: 8px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 11px;
+    background: var(--surface);
+    position: relative; z-index: 1;
+  }
 
   /* Pin-to-lesson affordance on chat-rendered components (yjp.4 stub) */
   .pin-wrap { position: relative; }
@@ -223,6 +331,11 @@
   /* Toast */
   #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 18px; font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100; }
   #toast.show { opacity: 1; }
+
+  /* Explainer markers — saved Explain/Example/Why annotations on lesson text. */
+  .explainer-mark { border-bottom: 1px dotted var(--accent); cursor: pointer; }
+  .explainer-mark:hover { background: rgba(99,102,241,0.10); }
+  .explainer-mark::after { content: '°'; font-size: 0.7em; vertical-align: super; color: var(--accent); margin-left: 1px; }
 
   /* Notes panel — per-section notes shipped in v0.2. */
   .notes-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin: 20px 0; }
@@ -372,10 +485,6 @@
   <div class="tabs">
     <button class="tab active" onclick="showView('dashboard')">Dashboard</button>
     <button class="tab" onclick="showView('courses')">Courses</button>
-    <button class="tab" onclick="showView('learn')">Learn</button>
-    <button class="tab" onclick="showView('quiz')">Quiz</button>
-    <button class="tab" onclick="showView('gaps')">My Gaps</button>
-    <button class="tab" onclick="showView('progress')">Progress</button>
   </div>
   <div class="status-dot" id="statusDot"></div>
 </nav>
@@ -425,87 +534,40 @@
     </div>
   </div>
 
-  <!-- SECTION VIEW -->
-  <div class="view" id="view-section">
-    <div class="back-link" id="sectionBackLink">← Back to course</div>
-    <div id="sectionContent">
-      <div class="loading-row"><div class="spinner"></div> Loading section...</div>
+  <!-- SECTION VIEW (lesson + persistent chat sidebar) -->
+  <div class="view section-view" id="view-section">
+    <div class="section-pane lesson-pane">
+      <div class="back-link" id="sectionBackLink">← Back to course</div>
+      <div id="sectionContent">
+        <div class="loading-row"><div class="spinner"></div> Loading section...</div>
+      </div>
     </div>
-  </div>
-
-  <!-- LEARN (CHAT) VIEW -->
-  <div class="view chat-view" id="view-learn">
-    <div class="chat-sidebar">
-      <button class="btn btn-primary" style="width:100%" onclick="newChatSession()">+ New Chat</button>
-      <div id="sessionsList"></div>
-    </div>
-    <div class="chat-main">
-      <div class="messages" id="messagesList">
-        <div style="color:var(--muted);text-align:center;margin-top:40px;font-size:13px">
-          Start a conversation. Ask questions, explain concepts, say what you're struggling with.<br>
-          <span style="font-size:12px;margin-top:8px;display:block">The system learns from how you respond.</span>
-        </div>
+    <aside class="section-pane chat-pane" id="sectionChatPane" aria-label="Tutor chat">
+      <div class="chat-pane-head">
+        <span class="chat-pane-title">Tutor</span>
+        <button class="chat-pane-collapse" type="button" onclick="toggleSectionChat()" aria-label="Collapse chat">×</button>
+      </div>
+      <div class="messages" id="sectionChatMessages">
+        <div class="chat-empty">Ask about this section. Highlight any lesson text and pick Explain / Example / Why — the answer goes straight into your notes. Use the chat for longer conversations, diagrams, walk-throughs.</div>
+      </div>
+      <div class="chat-quick-actions" role="group" aria-label="Quick prompts">
+        <button class="chat-quick-btn" type="button" onclick="quickPromptSectionChat('diagram')" title="Ask the tutor for a diagram">▦ Diagram</button>
+        <button class="chat-quick-btn" type="button" onclick="quickPromptSectionChat('walkthrough')" title="Walk through this step by step">↦ Walk-through</button>
+        <button class="chat-quick-btn" type="button" onclick="quickPromptSectionChat('example')" title="Get a runnable example">{} Example</button>
+        <button class="chat-quick-btn" type="button" onclick="quickPromptSectionChat('flashcards')" title="Generate review flashcards">⊟ Flashcards</button>
       </div>
       <div class="msg-input">
-        <textarea id="chatInput" placeholder="Ask a question or explain a concept..." rows="2" onkeydown="handleChatKey(event)"></textarea>
-        <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()">Send</button>
+        <textarea id="sectionChatInput" placeholder="Ask about this section…" rows="2" onkeydown="handleSectionChatKey(event)"></textarea>
+        <button class="btn btn-primary" id="sectionSendBtn" onclick="sendSectionMessage()">Send</button>
       </div>
-    </div>
+    </aside>
+    <button class="chat-pane-expand" id="sectionChatExpand" type="button" onclick="toggleSectionChat()" aria-label="Open chat" hidden>«</button>
   </div>
 
-  <!-- QUIZ VIEW -->
-  <div class="view" id="view-quiz">
-    <div style="display:flex;align-items:center;justify-content:space-between">
-      <h1 style="font-size:20px;font-weight:700">Quiz</h1>
-      <select id="quizSectionSelect" style="width:280px" onchange="loadNextQuestion()">
-        <option value="">Select a section...</option>
-      </select>
-    </div>
-
-    <div id="quizArea">
-      <div style="color:var(--muted);text-align:center;padding:40px">Select a course section to start quizzing</div>
-    </div>
-  </div>
-
-  <!-- GAPS VIEW -->
-  <div class="view" id="view-gaps">
-    <div style="display:flex;align-items:center;justify-content:space-between">
-      <h1 style="font-size:20px;font-weight:700">My Gaps</h1>
-      <button class="btn btn-primary" id="analyzeGapsBtn" onclick="runGapAnalysis()">Analyze My Gaps</button>
-    </div>
-
-    <div id="gapContent">
-      <div class="card" style="text-align:center;padding:40px">
-        <div style="color:var(--muted);margin-bottom:16px">Click "Analyze My Gaps" to find your highest-impact knowledge gaps and get targeted content to address them.</div>
-        <div style="color:var(--muted);font-size:12px">Needs quiz history to work well — complete some quizzes first.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- PROGRESS VIEW -->
-  <div class="view" id="view-progress">
-    <h1 style="font-size:20px;font-weight:700">Progress</h1>
-
-    <div class="grid-3" id="statsGrid">
-      <div class="stat-card"><div class="value" id="stat-attempts">—</div><div class="label">Quiz Attempts</div></div>
-      <div class="stat-card"><div class="value" id="stat-concepts">—</div><div class="label">Concepts Encountered</div></div>
-      <div class="stat-card"><div class="value" id="stat-confidence">—</div><div class="label">Avg Understanding</div></div>
-      <div class="stat-card"><div class="value" id="stat-confusions">—</div><div class="label">Active Confusions</div></div>
-      <div class="stat-card"><div class="value" id="stat-gaps">—</div><div class="label">Known Gaps</div></div>
-      <div class="stat-card"><div class="value" id="stat-score">—</div><div class="label">Avg Quiz Score</div></div>
-    </div>
-
-    <div class="grid-2">
-      <div class="card">
-        <h3>Recent Activity</h3>
-        <div id="recentActivity"><div class="loading-row"><div class="spinner"></div> Loading...</div></div>
-      </div>
-      <div class="card">
-        <h3>Understanding State</h3>
-        <div id="knowledgeState"><div class="loading-row"><div class="spinner"></div> Loading...</div></div>
-      </div>
-    </div>
-  </div>
+  <!-- (Learn / Quiz / My Gaps / Progress views removed in the v0.3 cut.
+       Chat lives next to the lesson on the section view. Gap analyzer
+       and progress stats are surfaced via the dashboard. Inline questions
+       live on each section page; there is no standalone quiz tab.) -->
 
 </div>
 
@@ -518,8 +580,11 @@
 // ── State ──────────────────────────────────────────────────────────────────
 const state = {
   currentView: 'dashboard',
-  currentSession: null,
-  currentQuestion: null,
+  // Section-scoped tutor chat. Populated when entering a section via
+  // mountSectionChat; cleared on leave. Only one section chat is active at a
+  // time. Other surfaces (dashboard etc.) may create their own un-scoped
+  // sessions in the future — we don't track them in state until they exist.
+  sectionChat: { sessionId: null, sectionId: null, collapsed: false },
   courses: [],
   sections: [],
   currentCourse: null,   // full course (with sections) when viewing detail
@@ -658,7 +723,9 @@ function scorePill(score) {
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────────
-const TAB_VIEWS = ['dashboard', 'courses', 'learn', 'quiz', 'gaps', 'progress'];
+// Top-level tabs only. Section/course-detail views chain off Courses; the chat
+// lives inside the section view as a sidebar, not as its own destination.
+const TAB_VIEWS = ['dashboard', 'courses'];
 
 // Used by nav tab onclick — uses event.target so the visual active state follows the click.
 function showView(name) {
@@ -668,7 +735,10 @@ function showView(name) {
 // Programmatic navigation. Hides every view, shows the one named, sets the matching nav tab active.
 function navigateTo(name) {
   // Tear down the Preact lesson tree when leaving the section view so it doesn't leak.
-  if (state.currentView === 'section' && name !== 'section') unmountLessonBody();
+  if (state.currentView === 'section' && name !== 'section') {
+    unmountLessonBody();
+    unmountSectionChat();
+  }
   // Tear down the dashboard tree when leaving so it doesn't keep mounted state.
   if (state.currentView === 'dashboard' && name !== 'dashboard') unmountDashboard();
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -689,9 +759,6 @@ function navigateTo(name) {
 
   if (name === 'dashboard') loadDashboard();
   else if (name === 'courses') loadCourses();
-  else if (name === 'learn') loadSessions();
-  else if (name === 'quiz') loadQuizSections();
-  else if (name === 'progress') loadProgress();
 }
 
 // ── Health check ──────────────────────────────────────────────────────────
@@ -742,26 +809,9 @@ function mountDashboard() {
     onReload: () => loadDashboard({ force: true }),
     onRegenerateFlashcards: () => loadDashboard({ regenerate: true }),
     onNavigateCourse: (courseId) => { if (courseId) openCourse(courseId); },
-    onNavigateSection: (sectionId, opts) => {
-      if (opts && opts.quiz) {
-        // Jump to the Quiz tab and pre-select the section.
-        navigateTo('quiz');
-        const sel = document.getElementById('quizSectionSelect');
-        // The select is populated async in loadQuizSections — wait briefly.
-        const trySet = (n) => {
-          if (n <= 0) return;
-          if (sel && Array.from(sel.options).some(o => o.value === sectionId)) {
-            sel.value = sectionId;
-            loadNextQuestion();
-          } else {
-            setTimeout(() => trySet(n - 1), 200);
-          }
-        };
-        trySet(20);
-      } else {
-        openSection(sectionId);
-      }
-    },
+    // Quiz tab is gone in v0.3 — every section nav opens the section view, where
+    // inline questions live alongside the lesson. `opts.quiz` is now ignored.
+    onNavigateSection: (sectionId) => { if (sectionId) openSection(sectionId); },
   };
   window.render(window.h`<${lib.DashboardCards}
     data=${state.dashboard}
@@ -902,12 +952,18 @@ function sectionRowHtml(sec) {
   const conceptCount = (sec.conceptEntityIds ?? []).length;
   const qs = sec.questions ?? [];
   const qCount = qs.length;
-  // Progress: count questions where any attempt exists. Backend gives full questions but
-  // not attempt counts on the course-detail payload; we can infer presence cheaply only on
-  // the section view, so on this list we just show a generic badge based on lessonContent.
-  const hasLesson = !!sec.lessonContent;
-  const badgeClass = hasLesson ? 'partial' : 'none';
-  const badgeText = hasLesson ? 'Lesson ready' : 'Not started';
+  // Four-state badge driven by lessonStatus (server-side) with a fallback to
+  // body presence for older rows that predate the status column.
+  let badgeClass, badgeText;
+  if (sec.lessonStatus === 'building') {
+    badgeClass = 'partial'; badgeText = 'Generating…';
+  } else if (sec.lessonStatus === 'error') {
+    badgeClass = 'none'; badgeText = 'Failed';
+  } else if (sec.lessonStatus === 'ready' || sec.lessonContent || sec.lessonBlocks) {
+    badgeClass = 'partial'; badgeText = 'Lesson ready';
+  } else {
+    badgeClass = 'none'; badgeText = 'Not started';
+  }
   return `
     <div class="section-row" onclick="openSection('${sec.id}')">
       <div class="num">${sec.orderIndex + 1}</div>
@@ -942,6 +998,15 @@ async function openSection(sectionId) {
     const section = await api('GET', `/api/sections/${sectionId}`);
     state.currentSection = section;
     renderSection(section);
+    // Fire-and-forget — chat is non-critical to the lesson surface.
+    mountSectionChat(section);
+    // Persistence-between-changes: if a generation is already in flight on
+    // the server, resume polling so the user sees live progress without
+    // re-kicking the pipeline. Same path as a fresh generateLesson() — but
+    // with no POST.
+    if (section.lessonStatus === 'building') {
+      startLessonPoll(sectionId, null);
+    }
   } catch (e) {
     el.innerHTML = `<div style="color:var(--red);padding:20px">${escapeHtml(e.message)}</div>`;
   }
@@ -1083,7 +1148,53 @@ function hasLessonBody(section) {
   return false;
 }
 
+// Human-readable label for each backend stage. Drives the loading card.
+const LESSON_STAGE_LABELS = {
+  outlining: 'Designing the lesson outline…',
+  writing_prose: 'Writing prose blocks in parallel…',
+  building_artifacts: 'Building interactive artifacts…',
+  composing: 'Composing final lesson — almost done…',
+};
+
+function lessonProgressCardHtml(section, status) {
+  // status is the polled payload; first paint may use the section row directly.
+  const stage = (status && status.stage) || section.lessonStage || 'outlining';
+  const startedIso = (status && status.startedAt) || section.lessonStartedAt;
+  const startedAt = startedIso ? new Date(startedIso).getTime() : Date.now();
+  const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(elapsed % 60).padStart(2, '0');
+  const label = LESSON_STAGE_LABELS[stage] || 'Working…';
+  return `
+    <div class="lesson-card lesson-empty" data-lesson-state="building">
+      <div class="loading-row" style="justify-content:center"><div class="spinner"></div> ${escapeHtml(label)}</div>
+      <div style="margin-top:10px;color:var(--muted);font-size:12px">
+        Elapsed <span data-lesson-elapsed>${mm}:${ss}</span> · typically 4–12 min · safe to leave or come back later
+      </div>
+    </div>
+  `;
+}
+
+function lessonErrorCardHtml(section, status) {
+  const msg = (status && status.error) || section.lessonError || 'Lesson generation failed.';
+  return `
+    <div class="lesson-card" data-lesson-state="error">
+      <div style="color:var(--red);margin-bottom:12px">${escapeHtml(msg)}</div>
+      <button class="btn btn-secondary" onclick="generateLesson('${section.id}', true)">Try again</button>
+    </div>
+  `;
+}
+
 function renderLessonArea(section) {
+  // Building: in-flight generation kicked off here or elsewhere. Persistence
+  // works because this branch is taken whenever the section row carries
+  // lessonStatus='building', regardless of which client started the job.
+  if (section.lessonStatus === 'building') {
+    return lessonProgressCardHtml(section, null);
+  }
+  if (section.lessonStatus === 'error' && !hasLessonBody(section)) {
+    return lessonErrorCardHtml(section, null);
+  }
   if (hasLessonBody(section)) {
     const takeaways = Array.isArray(section.lessonKeyTakeaways) ? section.lessonKeyTakeaways : [];
     return `
@@ -1112,7 +1223,7 @@ function renderLessonArea(section) {
       <button class="btn btn-primary" onclick="generateLesson('${section.id}', false)">
         Generate Lesson
       </button>
-      <div style="margin-top:10px;color:var(--muted);font-size:11px">Takes about 30-90 seconds.</div>
+      <div style="margin-top:10px;color:var(--muted);font-size:11px">Typically 4–12 minutes. Safe to leave the tab.</div>
     </div>
   `;
 }
@@ -1141,6 +1252,19 @@ function mountLessonBody(section) {
     return;
   }
   const sectionId = section && section.id ? section.id : null;
+
+  // Register a section-scoped repair handler the Artifact component can find
+  // via window.LearnArtifactRepair. We use a window registry rather than
+  // threading onFix through LessonRenderer/ComponentBlock so the renderer's
+  // generic block-dispatch contract stays untouched.
+  if (sectionId) {
+    window.LearnArtifactRepair = {
+      sectionId,
+      onFix: (payload) => repairArtifactBlock(sectionId, payload),
+    };
+  } else {
+    window.LearnArtifactRepair = null;
+  }
 
   // Render once with canonical blocks so the user sees the lesson immediately.
   renderLessonInto(target, lib, lib.lessonToBlocks(section), sectionId);
@@ -1175,8 +1299,11 @@ function mountLessonBody(section) {
 }
 
 // Render `blocks` into `target`, wrapping in Highlight so popover actions still work.
+// The Highlight component fires onAction(key, text, blockIndex) — we pass
+// blockIndex through so handlers (artifact insertion, etc.) can place new
+// content adjacent to the highlight without fragile DOM text matching.
 function renderLessonInto(target, lib, blocks, sectionId) {
-  const onAction = (action, text) => handleHighlightAction(action, text, sectionId);
+  const onAction = (action, text, blockIndex) => handleHighlightAction(action, text, sectionId, blockIndex);
   if (typeof lib.Highlight === 'function') {
     window.render(
       window.h`<${lib.Highlight} onAction=${onAction}><${lib.LessonRenderer} blocks=${blocks} /><//>`,
@@ -1184,6 +1311,11 @@ function renderLessonInto(target, lib, blocks, sectionId) {
     );
   } else {
     window.render(window.h`<${lib.LessonRenderer} blocks=${blocks} />`, target);
+  }
+  // Re-mark explainer-saved spans. If notesCache isn't populated yet, the
+  // notes-panel render will re-decorate once notes arrive.
+  if (sectionId) {
+    setTimeout(() => decorateExplainerMarkers(sectionId), 0);
   }
 }
 
@@ -1202,11 +1334,62 @@ function applyOverlayToMount(section, overlay, target, lib) {
 function unmountLessonBody() {
   const target = document.getElementById('lessonBody');
   if (target && window.render) window.render(null, target);
-  // Tear down any open explainer popover when the section view unmounts.
-  closeExplainerPopover();
   // Clear overlay state on view-leave (cache survives so tab-bounce stays cheap).
   state.currentOverlay = null;
   closeOverlayHistoryDropdown();
+  window.LearnArtifactRepair = null;
+}
+
+// Walk up from the artifact's wrapper element to the direct child of
+// .lesson-renderer; that child's index in renderer.children is the block
+// index. Returns -1 if the artifact isn't inside a rendered lesson (e.g.
+// chat-bubble preview, smoke-test page).
+function findArtifactBlockIndex(element) {
+  if (!element || !element.closest) return -1;
+  const renderer = element.closest('.lesson-renderer');
+  if (!renderer) return -1;
+  let node = element;
+  while (node && node.parentElement !== renderer) node = node.parentElement;
+  if (!node) return -1;
+  return Array.prototype.indexOf.call(renderer.children, node);
+}
+
+// POSTs to /api/artifacts/sections/:id/repair-block. On success: invalidate
+// overlay cache, remount lesson body so the new artifact replaces the broken
+// one in place. On failure: toast + return { errorText } so the Artifact
+// component can also surface the message inline.
+async function repairArtifactBlock(sectionId, payload) {
+  const blockIndex = findArtifactBlockIndex(payload && payload.element);
+  if (blockIndex < 0) {
+    const msg = "couldn't locate this artifact in the lesson";
+    toast(`Repair failed: ${msg}`);
+    return { errorText: msg };
+  }
+  const errors = Array.isArray(payload.errors) ? payload.errors : [];
+  try {
+    const r = await fetch(`/api/artifacts/sections/${sectionId}/repair-block`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blockIndex, errors }),
+    });
+    let body = null;
+    try { body = await r.json(); } catch { /* non-JSON */ }
+    if (!r.ok || !(body && body.ok)) {
+      const err = (body && body.errorText) || `request failed (${r.status})`;
+      toast(`Repair failed: ${err}`, 6000);
+      return { errorText: err };
+    }
+    toast('Artifact repaired ✓');
+    delete state.overlayCache[sectionId];
+    if (state.currentSection && state.currentSection.id === sectionId) {
+      mountLessonBody(state.currentSection);
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e && e.message ? e.message : String(e);
+    toast(`Repair failed: ${msg}`, 6000);
+    return { errorText: msg };
+  }
 }
 
 // ── Lesson overlay: edited-badge + version history ────────────────────────
@@ -1379,131 +1562,374 @@ function formatRelativeTime(iso) {
   return `${yr} year${yr === 1 ? '' : 's'} ago`;
 }
 
-// ── Explainer popover (Phase 5) ────────────────────────────────────────────
-// One global host element for the popover. Mounted lazily; cleared on dismiss.
+// ── Highlight actions: explainer popover + notes persistence ───────────────
+// Text actions (explain | example | why) open ExplainerPopover anchored to the
+// selection rect, run /api/explain (saveAsNote=true), and swap the popover to
+// the rendered response. Each saved note also marks its anchorText in the
+// lesson body — clicking the marker reopens the popover from the cached note.
+// 'note' action stays on the manual-empty-note path. Artifact actions are
+// handled separately by handleArtifactAction.
+const ARTIFACT_INTENTS = new Set(['diagram', 'animate', 'plot', 'walkthrough']);
+
+// Singleton DOM host for the popover Preact tree. Re-used across opens so we
+// can unmount cleanly when one popover replaces another.
 function getExplainerHost() {
-  let host = document.getElementById('explainerPopoverHost');
+  let host = document.getElementById('explainerHost');
   if (!host) {
     host = document.createElement('div');
-    host.id = 'explainerPopoverHost';
+    host.id = 'explainerHost';
     document.body.appendChild(host);
   }
   return host;
 }
-
 function closeExplainerPopover() {
-  const host = document.getElementById('explainerPopoverHost');
+  const host = document.getElementById('explainerHost');
   if (host && window.render) window.render(null, host);
 }
 
-// Capture the bounding rect of the current document selection BEFORE we
-// render the popover (rendering can cause layout shift / lose selection).
+// Capture the current selection's bounding rect before the menu's button-click
+// destroys it (Highlight.js calls removeAllRanges on action). Returns null if
+// no usable selection — caller should fall back to the menu position.
 function captureSelectionRect() {
   const sel = window.getSelection();
-  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
-  const range = sel.getRangeAt(0);
-  const rect = range.getBoundingClientRect();
-  if (!rect || (rect.width === 0 && rect.height === 0)) return null;
-  return {
-    left: rect.left, top: rect.top,
-    right: rect.right, bottom: rect.bottom,
-  };
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+  const r = sel.getRangeAt(0).getBoundingClientRect();
+  if (!r || (r.width === 0 && r.height === 0)) return null;
+  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
 }
 
-// Called by the Highlight component when the learner picks an action from the
-// floating menu. `action` is one of explain | example | why | note.
-function handleHighlightAction(action, selectedText, sectionId) {
+// Treat any note whose contentMd starts with the explainer header as
+// agent-derived — these get rendered as inline markers in the lesson body
+// (and still appear in the notes panel).
+function isExplainerNote(n) {
+  if (!n || typeof n.contentMd !== 'string') return false;
+  return /^\*\*(?:Explain|Example|Why)\*\*/.test(n.contentMd);
+}
+
+function openExplainerPopoverAt(anchorRect, props) {
+  const host = getExplainerHost();
   const lib = window.LearnComponents;
-  if (!lib || typeof lib.ExplainerPopover !== 'function') {
-    console.warn('[explainer] ExplainerPopover component missing — cannot show popover');
-    return;
+  if (!lib || typeof lib.ExplainerPopover !== 'function') return;
+  const onCancel = () => closeExplainerPopover();
+  window.render(
+    window.h`<${lib.ExplainerPopover} ...${{ ...props, anchorRect, onCancel }} />`,
+    host,
+  );
+}
+
+// Walk #lessonBody .lesson-renderer text nodes and wrap the first verbatim
+// occurrence of each explainer note's anchorText in a clickable marker span.
+// Notes whose anchorText no longer matches (lesson edited, etc.) are silently
+// skipped. Idempotent: clears existing .explainer-mark wraps before re-marking.
+function decorateExplainerMarkers(sectionId) {
+  if (!sectionId) return;
+  const renderer = document.querySelector('#lessonBody .lesson-renderer');
+  if (!renderer) return;
+  // Strip existing markers first (lesson re-mounts may keep them; safer to redo).
+  renderer.querySelectorAll('.explainer-mark').forEach((el) => {
+    const parent = el.parentNode;
+    if (!parent) return;
+    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+    parent.removeChild(el);
+    parent.normalize();
+  });
+  const cached = state.notesCache[sectionId];
+  if (!Array.isArray(cached)) return;
+  const explainerNotes = cached.filter(isExplainerNote);
+  if (explainerNotes.length === 0) return;
+
+  for (const note of explainerNotes) {
+    const anchor = (note.anchorText || '').trim();
+    if (!anchor) continue;
+    wrapFirstOccurrence(renderer, anchor, note.id);
   }
+}
+
+// Find the first text node descendant of `root` containing `needle` (with no
+// parent already a .explainer-mark) and wrap that text inside a marker span.
+function wrapFirstOccurrence(root, needle, noteId) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(n) {
+      if (!n.nodeValue || n.nodeValue.indexOf(needle) < 0) return NodeFilter.FILTER_REJECT;
+      // Skip if we're inside an existing marker or inside an artifact iframe stand-in.
+      let p = n.parentNode;
+      while (p && p !== root) {
+        if (p.classList && p.classList.contains('explainer-mark')) return NodeFilter.FILTER_REJECT;
+        p = p.parentNode;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const node = walker.nextNode();
+  if (!node) return;
+  const idx = node.nodeValue.indexOf(needle);
+  if (idx < 0) return;
+  const after = node.splitText(idx);
+  after.splitText(needle.length);
+  const span = document.createElement('span');
+  span.className = 'explainer-mark';
+  span.setAttribute('data-note-id', noteId);
+  span.textContent = needle;
+  after.parentNode.replaceChild(span, after);
+  // Prevent selection on click so Highlight.js doesn't pop its menu over us.
+  span.addEventListener('mousedown', (e) => { e.preventDefault(); });
+  span.addEventListener('click', (e) => {
+    e.stopPropagation();
+    onExplainerMarkClick(span);
+  });
+}
+
+function onExplainerMarkClick(span) {
+  const noteId = span.getAttribute('data-note-id');
+  const sectionId = state.currentSection && state.currentSection.id;
+  const cached = sectionId ? state.notesCache[sectionId] : null;
+  const note = Array.isArray(cached) ? cached.find((n) => n.id === noteId) : null;
+  if (!note) return;
+  // Strip the explainer header prefix so the popover body shows just the agent text.
+  const body = (note.contentMd || '').replace(/^\*\*(?:Explain|Example|Why)\*\*[^\n]*\n+/, '');
+  const action = /^\*\*Explain\*\*/.test(note.contentMd) ? 'explain'
+    : /^\*\*Example\*\*/.test(note.contentMd) ? 'example' : 'why';
+  const r = span.getBoundingClientRect();
+  openExplainerPopoverAt(
+    { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height },
+    { mode: 'agent', state: 'ok', action, contentMd: body, selectedText: note.anchorText || '' },
+  );
+}
+
+function handleHighlightAction(action, selectedText, sectionId, blockIndex) {
   const text = (selectedText || '').trim();
   if (!text) return;
-
-  // The Highlight component clears the native selection right after firing
-  // onAction, so we capture the rect first. If the rect is already gone (very
-  // fast double-click), fall back to a centred floating rect near the top.
-  let anchorRect = captureSelectionRect();
-  if (!anchorRect) {
-    const cx = window.innerWidth / 2;
-    anchorRect = { left: cx - 1, right: cx + 1, top: 80, bottom: 80 };
-  }
-
-  const host = getExplainerHost();
-
-  if (action === 'note') {
-    const onSave = async ({ selectedText: sel, draft }) => {
-      const anchorText = (sel || '').trim();
-      const contentMd = (draft || '').trim();
-      if (!sectionId) {
-        toast('Cannot save note — no section context');
-        return;
-      }
-      if (!anchorText || !contentMd) {
-        toast('Note needs both highlight and content');
-        return;
-      }
-      try {
-        await api('POST', '/api/notes', { sectionId, anchorText, contentMd });
-        toast('Note saved');
-        // Invalidate cache so the panel refreshes from server.
-        delete state.notesCache[sectionId];
-        closeExplainerPopover();
-        renderNotesPanel(sectionId);
-      } catch (e) {
-        const msg = (e && e.message) ? e.message : String(e);
-        toast(`Save failed: ${msg}`);
-      }
-    };
-    const onCancel = () => closeExplainerPopover();
-    window.render(
-      window.h`<${lib.ExplainerPopover}
-        mode=${'note'}
-        anchorRect=${anchorRect}
-        selectedText=${text}
-        onSave=${onSave}
-        onCancel=${onCancel}
-      />`,
-      host,
-    );
+  if (!sectionId) {
+    toast('No section context — open a lesson first');
     return;
   }
 
-  // Agent-backed actions: explain | example | why.
-  const renderPopover = (state, contentMd, errorText) => {
-    const onCancel = () => closeExplainerPopover();
-    window.render(
-      window.h`<${lib.ExplainerPopover}
-        mode=${'agent'}
-        anchorRect=${anchorRect}
-        action=${action}
-        state=${state}
-        contentMd=${contentMd || ''}
-        errorText=${errorText || ''}
-        selectedText=${text}
-        onCancel=${onCancel}
-      />`,
-      host,
-    );
-  };
+  if (ARTIFACT_INTENTS.has(action)) {
+    handleArtifactAction(action, text, sectionId, blockIndex);
+    return;
+  }
 
-  renderPopover('loading', '');
+  if (action === 'note') {
+    createEmptyNoteAndEdit(sectionId, text);
+    return;
+  }
+
+  // Capture rect BEFORE the click handler clears the selection.
+  const anchorRect = captureSelectionRect()
+    || { left: 24, top: 80, right: 200, bottom: 100, width: 176, height: 20 };
+
+  openExplainerPopoverAt(anchorRect, {
+    mode: 'agent', state: 'loading', action, selectedText: text,
+  });
+
   api('POST', '/api/explain', {
     selectedText: text,
     action,
-    sectionId: sectionId || undefined,
+    sectionId,
+    saveAsNote: true,
   }).then((res) => {
-    if (res && res.ok) {
-      renderPopover('ok', res.contentMd || '');
+    if (res && res.ok && res.contentMd) {
+      openExplainerPopoverAt(anchorRect, {
+        mode: 'agent', state: 'ok', action, selectedText: text, contentMd: res.contentMd,
+      });
+      if (res.savedNote) {
+        delete state.notesCache[sectionId];
+        renderNotesPanel(sectionId).then(() => {
+          if (state.currentSection && state.currentSection.id === sectionId) {
+            decorateExplainerMarkers(sectionId);
+          }
+        });
+      }
     } else {
       const err = (res && (res.errorText || res.error)) || 'agent failed';
-      renderPopover('error', (res && res.contentMd) || `_Couldn't generate an explanation right now._`, err);
+      openExplainerPopoverAt(anchorRect, {
+        mode: 'agent', state: 'error', action, selectedText: text, errorText: err,
+      });
     }
   }).catch((e) => {
     const msg = e && e.message ? e.message : String(e);
-    renderPopover('error', `_Couldn't reach explainer service: ${msg}_`, msg);
+    openExplainerPopoverAt(anchorRect, {
+      mode: 'agent', state: 'error', action, selectedText: text, errorText: msg,
+    });
   });
+}
+
+// Generate an artifact via Opus 4.7 max + verification pass and insert it at
+// the highlight position into the lesson overlay. blockIndex comes from the
+// Highlight component (computed from the selection's containing element);
+// when it's -1 (selection didn't resolve to a block) we let the backend
+// append at the end of the lesson rather than guess.
+async function handleArtifactAction(intent, selectedText, sectionId, blockIndex) {
+  const afterIndex = (typeof blockIndex === 'number' && blockIndex >= 0) ? blockIndex : -1;
+
+  // Insert the visual placeholder right where the artifact will land. Gives
+  // the learner a concrete anchor + elapsed time + cancel control while the
+  // 1-8 minute Opus pipeline runs.
+  const placeholder = mountArtifactPlaceholder({ intent, blockIndex });
+  const controller = new AbortController();
+  placeholder.onCancel(() => controller.abort());
+
+  try {
+    const r = await fetch(`/api/artifacts/sections/${sectionId}/at-highlight`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ intent, selectedText, afterIndex }),
+      signal: controller.signal,
+    });
+    let payload = null;
+    try { payload = await r.json(); } catch { /* non-JSON response */ }
+    placeholder.teardown();
+    if (!r.ok || !(payload && payload.ok)) {
+      const err = (payload && payload.errorText) || `request failed (${r.status})`;
+      toast(`Artifact generation failed: ${err}`, 6000);
+      return;
+    }
+    toast('Artifact added to the lesson ✓');
+    delete state.overlayCache[sectionId];
+    if (state.currentSection && state.currentSection.id === sectionId) {
+      mountLessonBody(state.currentSection);
+    }
+  } catch (e) {
+    placeholder.teardown();
+    if (e && e.name === 'AbortError') {
+      toast('Generation cancelled');
+      return;
+    }
+    const msg = e && e.message ? e.message : String(e);
+    toast(`Artifact generation failed: ${msg}`, 6000);
+  }
+}
+
+// Insert a transient generating-card into the lesson body, immediately after
+// the highlighted block (or at the end if blockIndex is -1). Returns a
+// handle with { teardown(), onCancel(fn) }. The handle keeps an interval
+// timer running for the elapsed-time readout + the soft phase progression
+// (we don't have real backend signals, so phases are timed approximations).
+function mountArtifactPlaceholder({ intent, blockIndex }) {
+  const labels = {
+    diagram:     { verb: 'Drawing diagram',      noun: 'diagram' },
+    animate:     { verb: 'Animating',            noun: 'animation' },
+    plot:        { verb: 'Plotting',             noun: 'plot' },
+    walkthrough: { verb: 'Building walk-through', noun: 'walk-through' },
+  };
+  const label = labels[intent] || { verb: 'Generating', noun: 'artifact' };
+
+  const root = document.createElement('div');
+  root.className = 'artifact-placeholder';
+  root.setAttribute('role', 'status');
+  root.setAttribute('aria-live', 'polite');
+  root.innerHTML = `
+    <div class="ph-shimmer"></div>
+    <div class="ph-header">
+      <div class="ph-title">
+        <span class="ph-pulse" aria-hidden="true"></span>
+        <span class="ph-verb">${escapeHtml(label.verb)}…</span>
+      </div>
+      <span class="ph-elapsed" aria-label="Elapsed time">00:00</span>
+      <button type="button" class="ph-cancel">Cancel</button>
+    </div>
+    <div class="ph-body">
+      <div class="ph-phase-row" data-phase="plan"><span class="ph-step-dot"></span><span>Planning the ${escapeHtml(label.noun)}</span></div>
+      <div class="ph-phase-row" data-phase="generate"><span class="ph-step-dot"></span><span>Generating HTML &amp; JS (Opus 4.7 · max effort)</span></div>
+      <div class="ph-phase-row" data-phase="verify"><span class="ph-step-dot"></span><span>Reviewing for bugs &amp; fixing if needed</span></div>
+      <div class="ph-phase-row" data-phase="finalise"><span class="ph-step-dot"></span><span>Final parse-check &amp; insert into the lesson</span></div>
+    </div>
+    <div class="ph-foot">Typically 1-3 min. Complex artifacts can take longer.</div>
+  `;
+
+  // Insert into the lesson renderer at the right position.
+  const renderer = document.querySelector('#lessonBody .lesson-renderer');
+  if (renderer) {
+    const children = renderer.children;
+    if (typeof blockIndex === 'number' && blockIndex >= 0 && blockIndex < children.length) {
+      const target = children[blockIndex];
+      if (target.nextSibling) renderer.insertBefore(root, target.nextSibling);
+      else renderer.appendChild(root);
+    } else {
+      renderer.appendChild(root);
+    }
+    // Bring it into view so the learner doesn't miss the spinner.
+    setTimeout(() => {
+      try { root.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* ignore */ }
+    }, 0);
+  } else {
+    document.body.appendChild(root);
+  }
+
+  // Phase progression — soft, timed. We don't have real backend phase
+  // signals yet, so these are approximate. Phases marked active stay
+  // active until the next phase becomes active; previous phases are
+  // marked done.
+  const phases = ['plan', 'generate', 'verify', 'finalise'];
+  // After this many seconds the corresponding phase becomes active.
+  // Tuned to the typical Opus 4.7 max + verify run (~90-180s total).
+  const phaseStartSec = { plan: 0, generate: 8, verify: 75, finalise: 180 };
+  const setActivePhase = (phaseKey) => {
+    const idx = phases.indexOf(phaseKey);
+    phases.forEach((p, i) => {
+      const row = root.querySelector(`.ph-phase-row[data-phase="${p}"]`);
+      if (!row) return;
+      row.classList.remove('active', 'done');
+      if (i < idx) row.classList.add('done');
+      else if (i === idx) row.classList.add('active');
+    });
+  };
+  setActivePhase('plan');
+
+  const start = Date.now();
+  const elapsedEl = root.querySelector('.ph-elapsed');
+  const fmt = (n) => String(n).padStart(2, '0');
+  const timer = setInterval(() => {
+    const e = Math.floor((Date.now() - start) / 1000);
+    elapsedEl.textContent = `${fmt(Math.floor(e / 60))}:${fmt(e % 60)}`;
+    let active = 'plan';
+    for (const p of phases) {
+      if (e >= phaseStartSec[p]) active = p;
+    }
+    setActivePhase(active);
+  }, 500);
+
+  let cancelHandler = null;
+  const cancelBtn = root.querySelector('.ph-cancel');
+  cancelBtn.addEventListener('click', () => {
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = 'Cancelling…';
+    if (cancelHandler) cancelHandler();
+  });
+
+  return {
+    teardown() {
+      clearInterval(timer);
+      if (root.parentNode) root.parentNode.removeChild(root);
+    },
+    onCancel(fn) { cancelHandler = fn; },
+  };
+}
+
+// (findHighlightBlockIndex removed — Highlight.js now passes the block
+// index directly via onAction's third argument, computed from the selection
+// range's containing element. More reliable than text-content matching.)
+
+// Manual-note action: write a placeholder Note for the highlight, then drop
+// the new note into the panel in edit mode. Avoids the popover textarea.
+async function createEmptyNoteAndEdit(sectionId, anchorText) {
+  try {
+    const created = await api('POST', '/api/notes', {
+      sectionId,
+      anchorText,
+      contentMd: '_(your note)_',
+    });
+    delete state.notesCache[sectionId];
+    await renderNotesPanel(sectionId);
+    if (created && created.id) startEditNote(created.id);
+    const panel = document.getElementById('notesPanel');
+    if (panel && typeof panel.scrollIntoView === 'function') {
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  } catch (e) {
+    const msg = e && e.message ? e.message : String(e);
+    toast(`Couldn't start note: ${msg}`);
+  }
 }
 
 // ── Notes panel (Phase 5.5) ────────────────────────────────────────────────
@@ -1537,6 +1963,7 @@ async function renderNotesPanel(sectionId) {
       <h2>Notes ${headCount}</h2>
       <div class="notes-empty">Highlight any lesson text and pick "Take a note" to start.</div>
     `;
+    decorateExplainerMarkers(sectionId);
     return;
   }
 
@@ -1545,6 +1972,8 @@ async function renderNotesPanel(sectionId) {
     <h2>Notes ${headCount}</h2>
     <div id="notesList">${itemsHtml}</div>
   `;
+  // Notes are now cached — re-mark explainer spans on the lesson body.
+  decorateExplainerMarkers(sectionId);
 }
 
 function noteRowHtml(n) {
@@ -1722,32 +2151,150 @@ async function confirmPromote(noteId) {
   }
 }
 
+// Per-section poller registry. Lets us avoid double-polling when the user
+// kicks off generation and then navigates away and back (openSection picks
+// up the in-flight status and would otherwise start a second poller).
+const _lessonPollers = new Map(); // sectionId -> { intervalId, tickId, abort }
+
+function _stopLessonPoll(sectionId) {
+  const p = _lessonPollers.get(sectionId);
+  if (!p) return;
+  if (p.intervalId) clearInterval(p.intervalId);
+  if (p.tickId) clearInterval(p.tickId);
+  if (p.deadlineId) clearTimeout(p.deadlineId);
+  _lessonPollers.delete(sectionId);
+}
+
+// Begin polling /lesson/status for a section. Re-renders the lesson area on
+// each tick (plus a 1-second elapsed-timer tick between polls so the clock
+// stays smooth). Resolves into the ready state by re-fetching the section
+// and re-mounting the lesson body, or into the error state.
+function startLessonPoll(sectionId, initialStatus) {
+  if (_lessonPollers.has(sectionId)) return; // already polling
+
+  const area = document.getElementById('lessonArea');
+  const renderFromStatus = (status) => {
+    const sec = state.currentSection && state.currentSection.id === sectionId ? state.currentSection : { id: sectionId };
+    if (status.status === 'building') {
+      // Only repaint the whole card if we're not already in building mode
+      // (avoids resetting the elapsed-timer DOM node mid-tick).
+      if (area && !area.querySelector('[data-lesson-state="building"]')) {
+        area.innerHTML = lessonProgressCardHtml(sec, status);
+      } else if (area) {
+        // Update the stage label in place so the spinner doesn't flash.
+        const labelHost = area.querySelector('.loading-row');
+        const stageLabel = LESSON_STAGE_LABELS[status.stage] || 'Working…';
+        if (labelHost) labelHost.innerHTML = `<div class="spinner"></div> ${escapeHtml(stageLabel)}`;
+      }
+    } else if (status.status === 'error') {
+      _stopLessonPoll(sectionId);
+      if (area) area.innerHTML = lessonErrorCardHtml(sec, status);
+    }
+  };
+
+  // Tick the elapsed-time DOM in place once a second so the user sees motion
+  // even though we only re-poll every 5s.
+  const tickId = setInterval(() => {
+    if (!area) return;
+    const span = area.querySelector('[data-lesson-elapsed]');
+    const cardStarted = (initialStatus && initialStatus.startedAt) || (state.currentSection && state.currentSection.lessonStartedAt);
+    if (!span || !cardStarted) return;
+    const elapsed = Math.max(0, Math.floor((Date.now() - new Date(cardStarted).getTime()) / 1000));
+    const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    const ss = String(elapsed % 60).padStart(2, '0');
+    span.textContent = `${mm}:${ss}`;
+  }, 1000);
+
+  const poll = async () => {
+    try {
+      const status = await api('GET', `/api/sections/${sectionId}/lesson/status`);
+      // The user may have navigated away — only update the DOM if we're
+      // still on this section. Polling continues regardless so when they
+      // return the card is correct.
+      if (state.currentSection && state.currentSection.id === sectionId) {
+        renderFromStatus(status);
+      }
+      if (status.status === 'ready') {
+        _stopLessonPoll(sectionId);
+        // Reload the full section so the lesson body + takeaways render.
+        const section = await api('GET', `/api/sections/${sectionId}`);
+        if (state.currentSection && state.currentSection.id === sectionId) {
+          state.currentSection = section;
+          unmountLessonBody();
+          if (area) area.innerHTML = renderLessonArea(section);
+          mountLessonBody(section);
+          toast('Lesson ready');
+        }
+      } else if (status.status === 'error') {
+        _stopLessonPoll(sectionId);
+        if (state.currentSection && state.currentSection.id === sectionId) {
+          state.currentSection = { ...state.currentSection, lessonStatus: 'error', lessonError: status.error };
+        }
+      } else if (status.status === 'idle' && !status.hasBody) {
+        // Server forgot about our generation (orphan sweep, manual reset).
+        // Stop polling and let the user kick a new one.
+        _stopLessonPoll(sectionId);
+      }
+    } catch (e) {
+      console.warn('lesson status poll failed:', e);
+    }
+  };
+
+  // Hard upper bound — if we somehow keep getting 'building' past 20 min
+  // (longer than the orphan-sweep threshold), give up rather than poll forever.
+  const deadlineId = setTimeout(() => {
+    _stopLessonPoll(sectionId);
+    if (area && state.currentSection && state.currentSection.id === sectionId) {
+      area.innerHTML = lessonErrorCardHtml({ id: sectionId }, { error: 'Polling timed out after 20 minutes. The backend may still be running — refresh to check.' });
+    }
+  }, 20 * 60 * 1000);
+
+  _lessonPollers.set(sectionId, { intervalId: setInterval(poll, 5000), tickId, deadlineId });
+  // Render initial state and run a poll immediately so the UI reflects
+  // server truth before the first 5s tick.
+  if (initialStatus) renderFromStatus(initialStatus);
+  void poll();
+}
+
 async function generateLesson(sectionId, regenerate) {
   const area = document.getElementById('lessonArea');
-  area.innerHTML = `
-    <div class="lesson-card lesson-empty">
-      <div class="loading-row" style="justify-content:center"><div class="spinner"></div> Generating lesson — this takes 30-90 seconds...</div>
-    </div>
-  `;
+  // Optimistic paint — show the building card immediately while the POST is
+  // in flight. The server may already be in 'building' (idempotent kick) or
+  // may transition to 'ready'/'error' very quickly for the cached path.
+  if (area) {
+    area.innerHTML = lessonProgressCardHtml({ id: sectionId, lessonStartedAt: new Date().toISOString() }, null);
+  }
   try {
     const url = regenerate
       ? `/api/sections/${sectionId}/lesson?regenerate=true`
       : `/api/sections/${sectionId}/lesson`;
-    const lesson = await api('POST', url);
-    // Reload the section to get the freshest values and re-render
-    const section = await api('GET', `/api/sections/${sectionId}`);
-    state.currentSection = section;
-    unmountLessonBody();
-    area.innerHTML = renderLessonArea(section);
-    mountLessonBody(section);
-    toast(regenerate ? 'Lesson regenerated' : 'Lesson generated');
+    const status = await api('POST', url);
+    if (status.status === 'ready') {
+      // Cached — load and render immediately, no polling.
+      const section = await api('GET', `/api/sections/${sectionId}`);
+      state.currentSection = section;
+      unmountLessonBody();
+      if (area) area.innerHTML = renderLessonArea(section);
+      mountLessonBody(section);
+      if (regenerate) toast('Already up to date');
+      return;
+    }
+    if (status.status === 'error') {
+      if (area) area.innerHTML = lessonErrorCardHtml({ id: sectionId }, status);
+      return;
+    }
+    // 'building' (or 'idle' that just transitioned) — stash the start time
+    // on the cached section so the elapsed timer is right, then poll.
+    if (state.currentSection && state.currentSection.id === sectionId) {
+      state.currentSection.lessonStatus = 'building';
+      state.currentSection.lessonStartedAt = status.startedAt;
+      state.currentSection.lessonStage = status.stage;
+    }
+    startLessonPoll(sectionId, status);
   } catch (e) {
-    area.innerHTML = `
-      <div class="lesson-card">
-        <div style="color:var(--red);margin-bottom:12px">Failed to generate lesson: ${escapeHtml(e.message)}</div>
-        <button class="btn btn-secondary" onclick="generateLesson('${sectionId}', ${regenerate})">Try again</button>
-      </div>
-    `;
+    if (area) {
+      area.innerHTML = lessonErrorCardHtml({ id: sectionId }, { error: `Failed to start generation: ${e.message}` });
+    }
   }
 }
 
@@ -1826,31 +2373,14 @@ async function submitInlineAnswer(questionId) {
   }
 }
 
-// ── Chat / Learn ──────────────────────────────────────────────────────────
-async function loadSessions() {
-  try {
-    const sessions = await api('GET', '/api/chat/sessions');
-    const el = document.getElementById('sessionsList');
-    el.innerHTML = sessions.map(s => `
-      <div class="session-item ${state.currentSession === s.id ? 'active' : ''}"
-           onclick="openSession('${s.id}')">
-        ${s.title ?? `Chat ${new Date(s.createdAt).toLocaleDateString()}`}
-      </div>
-    `).join('');
-    if (!state.currentSession && sessions.length > 0) {
-      openSession(sessions[0].id);
-    }
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-async function newChatSession() {
-  const s = await api('POST', '/api/chat/sessions', {});
-  state.currentSession = s.id;
-  await loadSessions();
-  document.getElementById('messagesList').innerHTML = '';
-}
+// ── Chat (section-scoped tutor) ───────────────────────────────────────────
+//
+// Chat is only mounted next to a lesson — there is no standalone chat tab.
+// One thread per (learner, section). The section-scoped session is fetched
+// (or created) by GET /api/chat/sections/:id/session and stored in
+// state.sectionChat. The render primitives below (parseChatBlocks,
+// pinChatBlock, decorateChatComponents, appendChatMessage) are shared with
+// any future surface that wants to render tutor messages.
 
 // Parse a chat message's stored response_blocks (JSON string from the DB) into a
 // LessonBlock[] suitable for LessonRenderer. Returns null when the message has
@@ -1870,9 +2400,8 @@ function parseChatBlocks(m) {
   return null;
 }
 
-// POST a pin-to-lesson request. The endpoint is a stub (returns 501 with
-// reason) until the lesson-overlay feature ships in v0.3 — we surface that
-// to the learner as a "Coming soon" toast.
+// POST a pin-to-lesson request. On success, refresh the section's overlay
+// cache and remount the lesson body if the pinned section is currently open.
 async function pinChatBlock(sessionId, messageId, blockIndex) {
   try {
     const r = await fetch('/api/lesson-pin', {
@@ -1882,12 +2411,16 @@ async function pinChatBlock(sessionId, messageId, blockIndex) {
     });
     let payload = null;
     try { payload = await r.json(); } catch { /* non-JSON response */ }
-    if (r.status === 501 || (payload && payload.ok === false)) {
-      toast('Coming soon — lesson overlays land in v0.3');
-    } else if (r.ok) {
-      toast('Pinned to lesson');
+    if (r.ok && payload && payload.ok === true) {
+      toast('Pinned to lesson ✓');
+      const pinnedSectionId = payload.overlay && payload.overlay.sectionId;
+      if (pinnedSectionId && state.currentSection && state.currentSection.id === pinnedSectionId) {
+        delete state.overlayCache[pinnedSectionId];
+        mountLessonBody(state.currentSection);
+      }
     } else {
-      toast(`Pin failed (${r.status})`);
+      const msg = (payload && payload.errorText) ? payload.errorText : `HTTP ${r.status}`;
+      toast(`Pin failed: ${msg}`);
     }
   } catch (e) {
     toast(`Pin failed: ${e.message}`);
@@ -1919,8 +2452,8 @@ function decorateChatComponents(bubbleEl, blocks, sessionId, messageId) {
     btn.type = 'button';
     btn.className = 'pin-btn';
     btn.textContent = '📌 Pin to lesson';
-    btn.title = 'Coming soon — lesson overlays land in v0.3';
-    btn.setAttribute('aria-label', 'Pin to lesson (coming soon)');
+    btn.title = 'Pin this block to the section lesson';
+    btn.setAttribute('aria-label', 'Pin to lesson');
     const idx = i;
     btn.addEventListener('click', (ev) => {
       ev.preventDefault();
@@ -1949,7 +2482,7 @@ function appendChatMessage(listEl, m) {
     window.render(window.h`<${lib.LessonRenderer} blocks=${blocks} />`, wrap);
     // After mount, overlay a small "Pin to lesson" affordance on each
     // component block. Chat-only — the lesson Section view does NOT call this.
-    decorateChatComponents(wrap, blocks, state.currentSession, m.id);
+    decorateChatComponents(wrap, blocks, state.sectionChat?.sessionId ?? null, m.id);
     return wrap;
   }
 
@@ -1960,276 +2493,148 @@ function appendChatMessage(listEl, m) {
   return wrap;
 }
 
-async function openSession(sessionId) {
-  state.currentSession = sessionId;
-  document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
-  event.target.classList.add('active');
+// Mount the section-scoped chat sidebar. Idempotent: if we're already on the
+// same section thread, just remount the messages without refetching the
+// session. Errors are non-fatal — the lesson view must work even if the
+// tutor backend is down.
+async function mountSectionChat(section) {
+  if (!section || !section.id) return;
+  const messagesEl = document.getElementById('sectionChatMessages');
+  const pane = document.getElementById('sectionChatPane');
+  const expand = document.getElementById('sectionChatExpand');
+  if (!messagesEl || !pane) return;
 
-  const messages = await api('GET', `/api/chat/sessions/${sessionId}/messages`);
-  const el = document.getElementById('messagesList');
-  el.innerHTML = '';
-  for (const m of messages) appendChatMessage(el, m);
-  el.scrollTop = el.scrollHeight;
+  // Honour the user's last collapse choice within the session.
+  if (state.sectionChat.collapsed) {
+    pane.classList.add('collapsed');
+    if (expand) expand.hidden = false;
+  } else {
+    pane.classList.remove('collapsed');
+    if (expand) expand.hidden = true;
+  }
+
+  messagesEl.innerHTML = '<div class="loading-row" style="padding:16px"><div class="spinner"></div> Loading chat…</div>';
+
+  try {
+    const s = await api('GET', `/api/chat/sections/${section.id}/session`);
+    state.sectionChat.sessionId = s.id;
+    state.sectionChat.sectionId = section.id;
+
+    const messages = await api('GET', `/api/chat/sessions/${s.id}/messages`);
+    messagesEl.innerHTML = '';
+    if (messages.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'chat-empty';
+      empty.textContent = `Ask me anything about "${section.title}". Highlight any text in the lesson for quick popovers; longer conversations live here.`;
+      messagesEl.appendChild(empty);
+    } else {
+      for (const m of messages) appendChatMessage(messagesEl, m);
+    }
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  } catch (e) {
+    messagesEl.innerHTML = `<div class="chat-empty" style="color:var(--red)">Chat unavailable: ${escapeHtml(e.message)}</div>`;
+  }
 }
 
-function handleChatKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+function unmountSectionChat() {
+  state.sectionChat.sessionId = null;
+  state.sectionChat.sectionId = null;
+  const el = document.getElementById('sectionChatMessages');
+  if (el) el.innerHTML = '';
 }
 
-async function sendMessage() {
-  const input = document.getElementById('chatInput');
+function toggleSectionChat() {
+  const pane = document.getElementById('sectionChatPane');
+  const expand = document.getElementById('sectionChatExpand');
+  if (!pane) return;
+  const willCollapse = !pane.classList.contains('collapsed');
+  pane.classList.toggle('collapsed', willCollapse);
+  state.sectionChat.collapsed = willCollapse;
+  if (expand) expand.hidden = !willCollapse;
+}
+
+function handleSectionChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendSectionMessage(); }
+}
+
+// Quick-prompt buttons in the chat composer. Each kind seeds the textarea
+// with a phrasing that nudges the structured tutor toward calling the
+// generate_component MCP tool. The user can edit before hitting Send.
+const QUICK_PROMPTS = {
+  diagram:     'Show me a diagram of this section\'s mechanism.',
+  walkthrough: 'Walk me through this step by step with a worked example.',
+  example:     'Give me a small runnable example I can experiment with.',
+  flashcards:  'Make me a flashcard deck of the key concepts in this section.',
+};
+function quickPromptSectionChat(kind) {
+  const text = QUICK_PROMPTS[kind];
+  if (!text) return;
+  const input = document.getElementById('sectionChatInput');
+  if (!input) return;
+  input.value = text;
+  input.focus();
+  // Move caret to end so the learner can append context if they want.
+  try { input.setSelectionRange(text.length, text.length); } catch { /* ignore */ }
+}
+
+async function sendSectionMessage() {
+  const input = document.getElementById('sectionChatInput');
+  if (!input) return;
   const content = input.value.trim();
   if (!content) return;
 
-  if (!state.currentSession) {
-    const s = await api('POST', '/api/chat/sessions', {});
-    state.currentSession = s.id;
-    await loadSessions();
+  // Lazy session creation if mountSectionChat hasn't completed yet (e.g. the
+  // user typed faster than the GET resolved).
+  if (!state.sectionChat.sessionId) {
+    if (!state.sectionChat.sectionId && state.currentSection) {
+      state.sectionChat.sectionId = state.currentSection.id;
+    }
+    const sectionId = state.sectionChat.sectionId;
+    if (!sectionId) { toast('Open a section first'); return; }
+    try {
+      const s = await api('GET', `/api/chat/sections/${sectionId}/session`);
+      state.sectionChat.sessionId = s.id;
+    } catch (e) {
+      toast(`Chat unavailable: ${e.message}`);
+      return;
+    }
   }
 
   input.value = '';
-  const el = document.getElementById('messagesList');
+  const messagesEl = document.getElementById('sectionChatMessages');
+  // Drop the empty-state placeholder on first send.
+  const empty = messagesEl.querySelector('.chat-empty');
+  if (empty) empty.remove();
 
-  // Optimistic user message
-  appendChatMessage(el, { role: 'user', content });
+  appendChatMessage(messagesEl, { role: 'user', content });
   const thinking = document.createElement('div');
   thinking.className = 'msg assistant loading-row';
-  thinking.id = 'thinkingMsg';
+  thinking.id = 'sectionChatThinking';
   thinking.innerHTML = '<div class="spinner"></div> Thinking...';
-  el.appendChild(thinking);
-  el.scrollTop = el.scrollHeight;
+  messagesEl.appendChild(thinking);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
 
-  const sendBtn = document.getElementById('sendBtn');
-  sendBtn.disabled = true;
+  const sendBtn = document.getElementById('sectionSendBtn');
+  if (sendBtn) sendBtn.disabled = true;
   input.disabled = true;
 
   try {
-    const r = await api('POST', `/api/chat/sessions/${state.currentSession}/messages`, { content });
-    document.getElementById('thinkingMsg')?.remove();
-    appendChatMessage(el, {
+    const r = await api('POST', `/api/chat/sessions/${state.sectionChat.sessionId}/messages`, { content });
+    document.getElementById('sectionChatThinking')?.remove();
+    appendChatMessage(messagesEl, {
       id: r.id,
       role: 'assistant',
       content: r.content,
       responseBlocks: r.responseBlocks ?? null,
     });
-    el.scrollTop = el.scrollHeight;
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   } catch (e) {
-    document.getElementById('thinkingMsg')?.remove();
+    document.getElementById('sectionChatThinking')?.remove();
     toast(`Error: ${e.message}`);
   } finally {
-    sendBtn.disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
     input.disabled = false;
     input.focus();
-  }
-}
-
-// ── Quiz ─────────────────────────────────────────────────────────────────
-async function loadQuizSections() {
-  if (state.courses.length === 0) await loadCourses();
-  const sel = document.getElementById('quizSectionSelect');
-  sel.innerHTML = '<option value="">Select a section...</option>';
-
-  for (const course of state.courses) {
-    if (course.status !== 'ready') continue;
-    try {
-      const full = await api('GET', `/api/courses/${course.id}`);
-      for (const sec of (full.sections ?? [])) {
-        const opt = document.createElement('option');
-        opt.value = sec.id;
-        opt.textContent = `${course.title} › ${sec.title}`;
-        sel.appendChild(opt);
-      }
-    } catch { /* ignore */ }
-  }
-}
-
-async function populateQuizSections(course) {
-  const sel = document.getElementById('quizSectionSelect');
-  sel.innerHTML = '<option value="">Select a section...</option>';
-  for (const sec of (course.sections ?? [])) {
-    const opt = document.createElement('option');
-    opt.value = sec.id;
-    opt.textContent = `${course.title} › ${sec.title}`;
-    sel.appendChild(opt);
-  }
-  if (course.sections?.length > 0) {
-    sel.value = course.sections[0].id;
-    await loadNextQuestion();
-  }
-}
-
-async function loadNextQuestion() {
-  const sectionId = document.getElementById('quizSectionSelect').value;
-  if (!sectionId) return;
-
-  document.getElementById('quizArea').innerHTML = '<div class="loading-row"><div class="spinner"></div> Loading question...</div>';
-
-  try {
-    const r = await api('GET', `/api/quiz/sections/${sectionId}/next-question`);
-    if (!r.question) {
-      document.getElementById('quizArea').innerHTML = '<div class="card" style="text-align:center;padding:40px;color:var(--muted)">No questions in this section yet.</div>';
-      return;
-    }
-    state.currentQuestion = r.question;
-    renderQuestion(r.question);
-  } catch (e) {
-    document.getElementById('quizArea').innerHTML = `<div style="color:var(--red)">${e.message}</div>`;
-  }
-}
-
-function renderQuestion(q) {
-  document.getElementById('quizArea').innerHTML = `
-    <div class="quiz-question">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <span style="color:var(--muted);font-size:12px">DIFFICULTY ${'★'.repeat(q.difficulty)}${'☆'.repeat(5 - q.difficulty)}</span>
-        <span class="score-pill ${q.bestScore >= 0.7 ? 'high' : q.bestScore >= 0.4 ? 'mid' : 'low'}">${q.attemptCount > 0 ? `Best: ${Math.round((q.bestScore ?? 0) * 100)}%` : 'Not attempted'}</span>
-      </div>
-      <div class="q-text">${q.questionText}</div>
-      <textarea id="answerInput" placeholder="Write your answer here..." style="min-height:100px;margin-bottom:12px"></textarea>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" id="submitAnswerBtn" onclick="submitAnswer('${q.id}')">Submit Answer</button>
-        <button class="btn btn-secondary" onclick="loadNextQuestion()">Skip →</button>
-      </div>
-    </div>
-  `;
-}
-
-async function submitAnswer(questionId) {
-  const answerText = document.getElementById('answerInput').value.trim();
-  if (!answerText) { toast('Write an answer first'); return; }
-
-  const btn = document.getElementById('submitAnswerBtn');
-  btn.disabled = true;
-  btn.textContent = 'Evaluating...';
-
-  try {
-    const r = await api('POST', `/api/quiz/questions/${questionId}/attempt`, { answerText });
-    const scoreClass = r.score >= 0.7 ? 'good' : r.score >= 0.4 ? 'partial' : 'poor';
-    const feedbackHtml = `
-      <div class="quiz-feedback ${scoreClass}">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          ${scorePill(r.score)}
-          <span style="font-weight:600">${r.scoreLabel}</span>
-        </div>
-        <div style="line-height:1.6;white-space:pre-wrap">${r.feedback}</div>
-        ${r.explanation ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);color:var(--muted);font-size:12px">${r.explanation}</div>` : ''}
-      </div>
-      <div style="display:flex;gap:8px;margin-top:16px">
-        <button class="btn btn-primary" onclick="loadNextQuestion()">Next Question →</button>
-      </div>
-    `;
-    document.querySelector('.quiz-question').innerHTML += feedbackHtml;
-    btn.style.display = 'none';
-    document.getElementById('answerInput').disabled = true;
-  } catch (e) {
-    toast(`Evaluation failed: ${e.message}`);
-    btn.disabled = false;
-    btn.textContent = 'Submit Answer';
-  }
-}
-
-// ── Gap Analysis ──────────────────────────────────────────────────────────
-async function runGapAnalysis() {
-  const btn = document.getElementById('analyzeGapsBtn');
-  btn.disabled = true;
-  btn.textContent = 'Analyzing...';
-  document.getElementById('gapContent').innerHTML = '<div class="loading-row" style="padding:20px"><div class="spinner"></div> Analyzing your knowledge gaps — this may take 20-30 seconds...</div>';
-
-  try {
-    const r = await api('POST', '/api/learner/gap-analysis', {});
-    document.getElementById('gapContent').innerHTML = `
-      <div class="gap-card">
-        <div class="concept-tag">Target: ${r.targetConcept}</div>
-        <div style="margin-bottom:16px">
-          <div style="font-weight:600;margin-bottom:6px">Why you're struggling</div>
-          <div style="color:var(--muted);line-height:1.6">${r.rootCause}</div>
-        </div>
-        <div style="margin-bottom:16px">
-          <div style="font-weight:600;margin-bottom:6px">Why it matters</div>
-          <div style="color:var(--muted);line-height:1.6">${r.whyItMatters}</div>
-        </div>
-        <div style="margin-bottom:16px">
-          <div style="font-weight:600;margin-bottom:12px">Targeted lesson</div>
-          <div class="lesson">${r.lesson}</div>
-        </div>
-        <div>
-          <div style="font-weight:600;margin-bottom:8px">Check your understanding</div>
-          <div class="follow-ups">
-            ${r.followUpQuestions.map(q => `
-              <div class="follow-up">
-                <div>${q.questionText}</div>
-                <div class="hint">Hint: ${q.hint}</div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:12px">
-          <strong>Next steps:</strong> ${r.nextSteps}
-        </div>
-      </div>
-    `;
-  } catch (e) {
-    document.getElementById('gapContent').innerHTML = `<div style="color:var(--red);padding:20px">${e.message}</div>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Analyze My Gaps';
-  }
-}
-
-// ── Progress ──────────────────────────────────────────────────────────────
-async function loadProgress() {
-  try {
-    const [stats, activity, knowledge] = await Promise.all([
-      api('GET', '/api/learner/stats'),
-      api('GET', '/api/learner/recent-activity?limit=8'),
-      api('GET', '/api/learner/knowledge'),
-    ]);
-
-    document.getElementById('stat-attempts').textContent = stats.quizAttempts;
-    document.getElementById('stat-concepts').textContent = stats.conceptsEncountered;
-    document.getElementById('stat-confidence').textContent = Math.round(stats.avgUnderstandingConfidence * 100) + '%';
-    document.getElementById('stat-confusions').textContent = stats.activeConfusions;
-    document.getElementById('stat-gaps').textContent = stats.knownGaps;
-    document.getElementById('stat-score').textContent = Math.round((stats.avgQuizScore ?? 0) * 100) + '%';
-
-    // Recent activity
-    document.getElementById('recentActivity').innerHTML = activity.length === 0
-      ? '<div style="color:var(--muted)">No activity yet</div>'
-      : activity.map(a => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
-          <div style="flex:1;min-width:0">
-            <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px">${a.questionText}</div>
-            <div style="color:var(--muted);font-size:11px">${new Date(a.createdAt).toLocaleString()}</div>
-          </div>
-          ${scorePill(a.score)}
-        </div>
-      `).join('');
-
-    // Knowledge state
-    const byPred = knowledge.byPredicate ?? {};
-    const understands = byPred['understands'] ?? [];
-    const confused = byPred['confused_by'] ?? [];
-    document.getElementById('knowledgeState').innerHTML = `
-      <div style="margin-bottom:12px">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">UNDERSTANDS (${understands.length})</div>
-        ${understands.slice(0, 8).map(f => `
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <div class="progress-bar" style="flex:1"><div class="fill" style="width:${Math.round((f.confidence ?? 0) * 100)}%"></div></div>
-            <div style="font-size:11px;color:var(--muted);width:60px;text-align:right">${Math.round((f.confidence ?? 0) * 100)}%</div>
-          </div>
-        `).join('')}
-      </div>
-      ${confused.length > 0 ? `
-        <div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">CONFUSIONS (${confused.length})</div>
-          ${confused.slice(0, 5).map(f => `
-            <div style="font-size:12px;color:var(--red);padding:4px 0">${f.objectValue ?? 'Unknown confusion'}</div>
-          `).join('')}
-        </div>
-      ` : ''}
-    `;
-  } catch (e) {
-    console.error(e);
   }
 }
 

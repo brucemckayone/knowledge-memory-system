@@ -183,12 +183,19 @@ const ALTER_STMTS: string[] = [
   `ALTER TABLE sections ADD COLUMN lesson_read_minutes INTEGER`,
   `ALTER TABLE sections ADD COLUMN lesson_key_takeaways TEXT`,
   `ALTER TABLE sections ADD COLUMN lesson_blocks TEXT`,
+  // Async lesson-generation status tracking.
+  `ALTER TABLE sections ADD COLUMN lesson_status TEXT`,
+  `ALTER TABLE sections ADD COLUMN lesson_stage TEXT`,
+  `ALTER TABLE sections ADD COLUMN lesson_started_at TEXT`,
+  `ALTER TABLE sections ADD COLUMN lesson_error TEXT`,
   `ALTER TABLE insights ADD COLUMN idempotency_key TEXT`,
   `ALTER TABLE chat_messages ADD COLUMN response_blocks TEXT`,
+  `ALTER TABLE chat_sessions ADD COLUMN section_id TEXT`,
 ];
 
 const POST_ALTER_STMTS: string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_insights_idempotency_key ON insights(idempotency_key)`,
+  `CREATE INDEX IF NOT EXISTS idx_chat_sessions_learner_section ON chat_sessions(learner_id, section_id)`,
 ];
 
 async function migrate() {

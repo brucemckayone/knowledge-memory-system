@@ -17,6 +17,10 @@ import { db, lessonOverlays, sections } from '../db/index.js';
 const ALLOWED_COMPONENT_KINDS = new Set([
   'Callout', 'Mermaid', 'SvgFigure', 'CodeRunner',
   'StepThrough', 'FlashcardDeck', 'ConceptMap', 'Highlight',
+  // Agent-generated sandboxed-iframe widget. Trust boundary is the iframe
+  // sandbox attribute, not server-side validation of html/js — props pass
+  // through unchecked here. See viz/components/Artifact.js.
+  'Artifact',
 ]);
 
 export type LessonBlock =

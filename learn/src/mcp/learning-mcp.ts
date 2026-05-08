@@ -261,6 +261,39 @@ const TOOLS = [
       required: ['kind', 'context'],
     },
   },
+  {
+    name: 'generate_artifact',
+    description: 'Generate a fully custom interactive widget (HTML+JS rendered in a sandboxed iframe with one of: d3, mermaid, mathjax, katex, plotly, p5, three). Use this when none of the fixed component kinds fits — algorithm animations, parameterised equation graphers, recursion trees, custom interactive teaching widgets. Slower and more expensive than generate_component (Opus 4.7), but produces bespoke artifacts tailored to the concept. Returns { ok, spec: { title, html, libraries, height } } on success, or { ok: false, errorText } on failure.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        intent: {
+          type: 'string',
+          enum: ['diagram', 'animate', 'plot', 'walkthrough', 'free'],
+          description: 'What kind of widget the learner asked for. Use "free" when the agent picks freely.',
+        },
+        context: {
+          type: 'string',
+          description: 'The concept or selected text the artifact should illustrate.',
+        },
+        lesson_context: {
+          type: 'string',
+          description: 'Optional surrounding lesson text for grounding (the agent will not paraphrase it; will design a complementary widget).',
+        },
+        learner_state: {
+          type: 'object',
+          properties: {
+            confidence: { type: 'number', description: '0..1' },
+            courseId: { type: 'string' },
+            sectionId: { type: 'string' },
+            conceptName: { type: 'string' },
+          },
+          description: 'Optional learner context to tailor the artifact complexity.',
+        },
+      },
+      required: ['intent', 'context'],
+    },
+  },
 ] as const;
 
 // ── Tool handlers ─────────────────────────────────────────────────────────
@@ -594,6 +627,21 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
           learnerState: args.learner_state as ComponentGenInput['learnerState'],
         });
         return JSON.stringify(result);
+      }
+
+      case 'generate_artifact': {
+        const { generateArtifact } = await import('../agents/artifact-generator.js');
+        const result = await generateArtifact({
+          intent: args.intent as 'diagram' | 'animate' | 'plot' | 'walkthrough' | 'free',
+          context: args.context as string,
+          lessonContext: typeof args.lesson_context === 'string' ? args.lesson_context : undefined,
+          learnerState: args.learner_state as { confidence?: number; courseId?: string; sectionId?: string; conceptName?: string } | undefined,
+        });
+        // Strip raw output from MCP response — it's only useful in server logs.
+        if (result.ok) {
+          return JSON.stringify({ ok: true, spec: result.spec });
+        }
+        return JSON.stringify({ ok: false, errorText: result.errorText });
       }
 
       default:

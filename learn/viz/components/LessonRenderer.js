@@ -13,6 +13,7 @@
   const KNOWN_KINDS = {
     Callout: true, Mermaid: true, SvgFigure: true, CodeRunner: true,
     StepThrough: true, FlashcardDeck: true, ConceptMap: true, Highlight: true,
+    Artifact: true,
   };
 
   function renderMd(src) {

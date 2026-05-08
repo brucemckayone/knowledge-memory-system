@@ -18,12 +18,15 @@ import { articleRoutes } from './routes/articles.js';
 import { lessonPinRoutes } from './routes/lesson-pin.js';
 import { explainRoutes } from './routes/explain.js';
 import { noteRoutes } from './routes/notes.js';
+import { artifactRoutes } from './routes/artifacts.js';
 import {
   startPatrolCron,
   startPatrolRun,
   isPatrolInFlight,
   getRecentPatrolRuns,
 } from './services/patrol-cron.js';
+import { db, courses, sections } from './db/index.js';
+import { and, eq, sql as dsql } from 'drizzle-orm';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -66,6 +69,7 @@ app.route('/api/articles', articleRoutes);
 app.route('/api/lesson-pin', lessonPinRoutes);
 app.route('/api/explain', explainRoutes);
 app.route('/api/notes', noteRoutes);
+app.route('/api/artifacts', artifactRoutes);
 
 // ── Patrol endpoints ───────────────────────────────────────────────────────
 // POST /api/patrol/run-now  → 202 + runId, or 409 if already in flight
@@ -111,10 +115,62 @@ app.get('/components/:file', (c) => {
   }
 });
 
+// ── Startup recovery ───────────────────────────────────────────────────────
+// Course generation and lesson generation are both fire-and-forget. If the
+// server dies mid-job, the row stays in its in-flight status forever because
+// the success/failure handler never runs. On boot, mark any rows that have
+// been "in flight" for >20 minutes as failed so the UI can recover.
+const ORPHAN_THRESHOLD = '-20 minutes';
+
+async function sweepOrphans(): Promise<void> {
+  try {
+    const courseRows = await db.update(courses)
+      .set({ status: 'error', updatedAt: new Date().toISOString() })
+      .where(and(
+        eq(courses.status, 'building'),
+        dsql`datetime(${courses.createdAt}) < datetime('now', ${ORPHAN_THRESHOLD})`,
+      ))
+      .returning({ id: courses.id });
+    if (courseRows.length > 0) {
+      console.log(`[startup] swept ${courseRows.length} orphan course(s) from 'building' → 'error': ${courseRows.map(r => r.id).join(', ')}`);
+    }
+  } catch (err) {
+    console.error('[startup] orphan course sweep failed:', err);
+  }
+
+  try {
+    const sectionRows = await db.update(sections)
+      .set({
+        lessonStatus: 'error',
+        lessonStage: null,
+        lessonError: 'Server restarted mid-generation',
+      })
+      .where(and(
+        eq(sections.lessonStatus, 'building'),
+        dsql`datetime(${sections.lessonStartedAt}) < datetime('now', ${ORPHAN_THRESHOLD})`,
+      ))
+      .returning({ id: sections.id });
+    if (sectionRows.length > 0) {
+      console.log(`[startup] swept ${sectionRows.length} orphan lesson(s) from 'building' → 'error': ${sectionRows.map(r => r.id).join(', ')}`);
+    }
+  } catch (err) {
+    console.error('[startup] orphan lesson sweep failed:', err);
+  }
+}
+
 // ── Server ─────────────────────────────────────────────────────────────────
 if (!process.env.VITEST) {
+  void sweepOrphans();
   startPatrolCron();
-  serve({ fetch: app.fetch, port: config.PORT }, (info) => {
+  serve({
+    fetch: app.fetch,
+    port: config.PORT,
+    // Node's http.Server defaults to a 5-minute requestTimeout, which kills
+    // long-running agent calls (artifact-generator with Opus 4.7 high can
+    // run >5min). Disable the per-request timeout entirely; individual
+    // agent calls enforce their own ceilings.
+    serverOptions: { requestTimeout: 0, headersTimeout: 0, keepAliveTimeout: 0 },
+  }, (info) => {
     console.log(`Learning platform listening on :${info.port}`);
     console.log(`Nmemo platform: ${config.NMEMO_URL}`);
   });

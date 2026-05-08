@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
-import { db, sections, courses } from '../db/index.js';
+import { randomUUID } from 'node:crypto';
+import { db, sections, courses, notes } from '../db/index.js';
 import { explain, type ExplainerAction } from '../agents/explainer.js';
 
 export const explainRoutes = new Hono();
@@ -9,6 +10,11 @@ interface ExplainBody {
   selectedText?: unknown;
   action?: unknown;
   sectionId?: unknown;
+  // When true and sectionId is present, the explainer's response is also
+  // persisted as a Note anchored to the selection. Frontend uses this to
+  // make every highlight-action click leave a permanent record on the
+  // notes panel — replaces the old transient popover UX.
+  saveAsNote?: unknown;
 }
 
 const VALID_ACTIONS: ReadonlySet<ExplainerAction> = new Set([
@@ -104,5 +110,38 @@ explainRoutes.post('/', async (c) => {
     courseContext,
   });
 
-  return c.json(result);
+  // Persist the explanation as a Note tied to the highlight, when requested.
+  // Note creation is best-effort: a save failure must not lose the
+  // explanation, so the route still returns the agent result either way.
+  let savedNote: { id: string; createdAt: string } | null = null;
+  const wantSave =
+    body.saveAsNote === true ||
+    body.saveAsNote === 'true' ||
+    body.saveAsNote === 1 ||
+    body.saveAsNote === '1';
+  if (wantSave && sectionId && result.ok && result.contentMd) {
+    try {
+      const noteId = randomUUID();
+      const createdAt = new Date().toISOString();
+      const headerLabel =
+        action === 'explain' ? 'Explain' : action === 'example' ? 'Example' : 'Why';
+      const contentMd = `**${headerLabel}** — _"${selectedText.slice(0, 200)}${selectedText.length > 200 ? '…' : ''}"_\n\n${result.contentMd}`;
+      await db.insert(notes).values({
+        id: noteId,
+        learnerId: 'default',
+        sectionId,
+        anchorText: selectedText,
+        contentMd,
+        promotedToGraph: 0,
+        factId: null,
+        createdAt,
+      });
+      savedNote = { id: noteId, createdAt };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[explain] note save failed: ${msg}`);
+    }
+  }
+
+  return c.json({ ...result, savedNote });
 });

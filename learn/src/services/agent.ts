@@ -37,7 +37,7 @@ function getClaudePath(): string {
 }
 
 export type AgentModel = 'haiku' | 'sonnet' | 'opus';
-export type AgentEffort = 'low' | 'medium' | 'high';
+export type AgentEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface AgentOptions {
   model?: AgentModel;

@@ -7,12 +7,15 @@
  *
  * The learner never sees the graph updates — they just get a good tutor response.
  *
- * v0.2 (env CHAT_STRUCTURED=1): tutor may emit a structured `{ blocks: [...] }`
- * response that mixes markdown with interactive components (Mermaid, Callout,
- * CodeRunner, StepThrough, etc.). The agent calls the `generate_component`
- * MCP tool to produce well-formed component props rather than hand-rolling
- * Mermaid syntax or SVG markup. Default (flag unset) preserves the v0.1
- * plain-string response shape — no behaviour change.
+ * Always structured: tutor emits a `{ blocks: [...] }` response that mixes
+ * markdown with interactive components (Mermaid, Callout, CodeRunner,
+ * StepThrough, etc.). The agent calls the `generate_component` MCP tool to
+ * produce well-formed component props rather than hand-rolling Mermaid syntax
+ * or SVG markup. On parse failure the raw text is wrapped in a single
+ * markdown block so the response still renders.
+ *
+ * The CHAT_STRUCTURED env flag is honoured for back-compat only: explicitly
+ * set CHAT_STRUCTURED=0 to fall back to the plain-string v0.1 path.
  */
 
 import path from 'path';
@@ -158,8 +161,10 @@ const ALLOWED_KINDS = new Set([
 ]);
 
 function isStructuredEnabled(): boolean {
+  // Default ON. Only the explicit opt-out values disable structured responses.
   const v = process.env.CHAT_STRUCTURED;
-  return v === '1' || v === 'true' || v === 'yes';
+  if (v === undefined) return true;
+  return !(v === '0' || v === 'false' || v === 'no' || v === '');
 }
 
 function tryParse(s: string): unknown {
@@ -258,6 +263,8 @@ export async function processChatMessage(params: {
   message: string;
   history: Array<{ role: string; content: string }>;
   courseTopic?: string;
+  sectionTitle?: string;
+  sectionExcerpt?: string;
 }): Promise<ChatTutorResult> {
   const mcpConfigPath = writeMcpConfig('learn', MCP_SCRIPT, {
     NMEMO_URL: config.NMEMO_URL,
@@ -269,8 +276,18 @@ export async function processChatMessage(params: {
     .map(m => `${m.role === 'user' ? 'Learner' : 'Tutor'}: ${m.content}`)
     .join('\n');
 
-  const contextNote = params.courseTopic
-    ? `The learner is studying: ${params.courseTopic}\n\n`
+  const contextParts: string[] = [];
+  if (params.courseTopic) contextParts.push(`Course: ${params.courseTopic}`);
+  if (params.sectionTitle) contextParts.push(`Current section: ${params.sectionTitle}`);
+  if (params.sectionExcerpt) {
+    // Cap excerpt to keep prompt small; tutor uses it for grounding, not full reading.
+    const excerpt = params.sectionExcerpt.length > 1200
+      ? params.sectionExcerpt.slice(0, 1200) + '…'
+      : params.sectionExcerpt;
+    contextParts.push(`Section content (excerpt):\n${excerpt}`);
+  }
+  const contextNote = contextParts.length > 0
+    ? contextParts.join('\n') + '\n\n'
     : '';
 
   const structured = isStructuredEnabled();

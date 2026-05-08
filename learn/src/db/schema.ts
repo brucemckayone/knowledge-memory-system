@@ -27,6 +27,11 @@ export const sections = sqliteTable('sections', {
   lessonGeneratedAt: text('lesson_generated_at'),                          // ISO timestamp when last generated
   lessonReadMinutes: integer('lesson_read_minutes'),                       // estimated read time in minutes
   lessonKeyTakeaways: text('lesson_key_takeaways'),                        // JSON array of key takeaways
+  // Async lesson-generation tracking. NULL on rows that have never been generated.
+  lessonStatus: text('lesson_status'),                                     // 'building' | 'ready' | 'error'
+  lessonStage: text('lesson_stage'),                                       // 'outlining' | 'writing_prose' | 'building_artifacts' | 'composing'
+  lessonStartedAt: text('lesson_started_at'),                              // ISO timestamp when current/last generation started
+  lessonError: text('lesson_error'),                                       // last failure message when status='error'
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
 
@@ -57,6 +62,10 @@ export const quizAttempts = sqliteTable('quiz_attempts', {
 export const chatSessions = sqliteTable('chat_sessions', {
   id: text('id').primaryKey(),
   courseId: text('course_id').references(() => courses.id),
+  // Section-scoped threads are the primary chat surface. One thread per
+  // (learner, section); other surfaces (e.g. dashboard) may still create
+  // section-less sessions where it makes sense.
+  sectionId: text('section_id'),
   learnerId: text('learner_id').notNull().default('default'),
   title: text('title'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
