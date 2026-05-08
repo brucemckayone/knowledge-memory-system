@@ -56,7 +56,56 @@ export interface AgentResult {
   numTurns?: number;
 }
 
-function buildArgs(prompt: string, opts: AgentOptions, systemPromptFile?: string): string[] {
+/**
+ * Tools that the helper recognises as web tools and forwards to the Claude
+ * CLI's `--tools` flag. Anything else passed via `tools` falls through as a
+ * bare string (forward-compat).
+ */
+const WEB_TOOLS = new Set(['WebSearch', 'WebFetch']);
+
+/**
+ * Parse a `tools` option into a CLI-friendly shape:
+ *   - `webTools`: comma-joined web tool names to pass to `--tools`, or null when empty.
+ *   - `wantsMcp`:  whether the option opts into MCP tools (separate `--mcp-config` plumbing).
+ *   - `passthrough`: when the option is none of the recognised forms, the raw string
+ *                    is passed through to `--tools` as-is.
+ *
+ * Recognised forms:
+ *   - 'none'                     → no web tools, no MCP
+ *   - 'mcp'                      → MCP only, no `--tools`
+ *   - 'WebSearch'                → web tool only
+ *   - 'WebSearch,WebFetch'       → both web tools
+ *   - 'WebSearch,WebFetch,mcp'   → both web tools + MCP
+ *   - other                      → passed through verbatim to `--tools`
+ */
+export function parseToolsOption(tools: string | undefined): {
+  webTools: string | null;
+  wantsMcp: boolean;
+  passthrough: string | null;
+} {
+  const raw = tools ?? 'none';
+  if (raw === 'none') return { webTools: null, wantsMcp: false, passthrough: null };
+  if (raw === 'mcp')  return { webTools: null, wantsMcp: true, passthrough: null };
+
+  if (raw.includes(',') || WEB_TOOLS.has(raw)) {
+    const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    const wantsMcp = parts.includes('mcp');
+    const webParts = parts.filter((p) => WEB_TOOLS.has(p));
+    const webTools = webParts.length > 0 ? webParts.join(',') : null;
+    // Reject if the only thing left after we extract web tools + 'mcp' is unknown.
+    const known = new Set([...WEB_TOOLS, 'mcp']);
+    const unknown = parts.filter((p) => !known.has(p));
+    if (unknown.length > 0) {
+      // Unknown tokens — fall through to passthrough so callers can use raw CLI shapes.
+      return { webTools: null, wantsMcp: false, passthrough: raw };
+    }
+    return { webTools, wantsMcp, passthrough: null };
+  }
+  // Bare unknown string: treat as raw `--tools` value.
+  return { webTools: null, wantsMcp: false, passthrough: raw };
+}
+
+export function buildArgs(prompt: string, opts: AgentOptions, systemPromptFile?: string): string[] {
   const model = opts.model ?? 'haiku';
   const effort = opts.effort ?? 'low';
 
@@ -72,14 +121,18 @@ function buildArgs(prompt: string, opts: AgentOptions, systemPromptFile?: string
     cmd.push('--system-prompt-file', systemPromptFile);
   }
 
-  const tools = opts.tools ?? 'none';
-  if (tools === 'mcp') {
-    // MCP tools come via --mcp-config; don't pass --tools
-  } else if (tools === 'none') {
+  const { webTools, wantsMcp, passthrough } = parseToolsOption(opts.tools);
+
+  // Tools handling: webTools and MCP are independent — both can coexist.
+  if (webTools) {
+    cmd.push('--tools', webTools);
+  } else if (passthrough !== null) {
+    cmd.push('--tools', passthrough);
+  } else if (!wantsMcp) {
+    // 'none' — explicitly empty.
     cmd.push('--tools', '');
-  } else {
-    cmd.push('--tools', tools);
   }
+  // else: 'mcp' alone — let `--mcp-config` handle it without `--tools`.
 
   if (opts.mcpConfigPath) {
     const serverName = opts.mcpServerName ?? 'learn';

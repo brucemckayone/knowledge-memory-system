@@ -56,6 +56,12 @@ export interface ArtifactGenInput {
   };
   /** Optional surrounding lesson text for grounding (passed verbatim to the prompt). */
   lessonContext?: string;
+  /** When true, the artifact generator runs with WebSearch + WebFetch enabled
+   *  so it can pull real syntax / current API examples. Only honoured when
+   *  the orchestrator opts in (per design: freeform + intent==='free' only).
+   *  Defaults to false — fixed components and other intents keep deterministic
+   *  parametric generation. */
+  enableWebSearch?: boolean;
 }
 
 export interface ArtifactSpec {
@@ -409,13 +415,19 @@ export async function verifyArtifact(
  */
 export async function generateArtifact(input: ArtifactGenInput): Promise<ArtifactGenResult | ArtifactGenFailure> {
   let raw = '';
+  // Per design: artifact generator only opts into WebSearch when (a) caller
+  // explicitly enables it AND (b) intent is 'free'. Fixed kinds and other
+  // freeform intents (diagram, plot, animate, walkthrough) stay deterministic.
+  const allowWebSearch = input.enableWebSearch === true && input.intent === 'free';
+  const tools = allowWebSearch ? 'WebSearch,WebFetch' : 'none';
+  const maxTurns = allowWebSearch ? 5 : 1;
   try {
     const result = await runAgent(buildUserPrompt(input), {
       model: 'opus',
       effort: 'max',
       systemPrompt: SYSTEM_PROMPT,
-      tools: 'none',
-      maxTurns: 1,
+      tools,
+      maxTurns,
       timeoutMs: 900_000, // 15 min — see file header for rationale
     });
     raw = result.result ?? '';

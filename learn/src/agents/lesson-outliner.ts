@@ -65,6 +65,10 @@ export interface OutlinerInput {
    *  weave personalisation into the outline. When undefined or `coldStart === true`,
    *  the user prompt is byte-identical to the canonical (cold-start) baseline. */
   learnerContext?: LearnerLessonContext;
+  /** When true, the outliner runs with WebSearch enabled so it can ground the
+   *  outline in current state for fast-moving topics. Disabled by default —
+   *  cold-start prompts and tool list stay byte-identical to the v0.3 baseline. */
+  enableWebSearch?: boolean;
 }
 
 const ALLOWED_FIXED_KINDS = new Set<OutlineFixedKind>([
@@ -208,6 +212,13 @@ function buildUserPrompt(input: OutlinerInput): string {
     const block = renderLearnerStateBlock(input.learnerContext);
     if (block.length > 0) parts.push('', '## Learner state', block);
   }
+  if (input.enableWebSearch) {
+    parts.push(
+      '',
+      '## Web research',
+      'You MAY call WebSearch (one or two queries max) to discover current state for this section: recent API changes, new releases, deprecations, framework versions. Use the results to ground individual outline items in concrete, dated specifics. Outline items themselves remain prose/artifact specs — do not include citation metadata in the outline JSON.',
+    );
+  }
   parts.push('', 'Output the JSON outline only.');
   return parts.join('\n');
 }
@@ -343,12 +354,14 @@ function validate(parsed: unknown): LessonOutline | null {
  * Throws on failure (no fallback — the orchestrator must decide).
  */
 export async function generateLessonOutline(input: OutlinerInput): Promise<LessonOutline> {
+  const tools = input.enableWebSearch ? 'WebSearch' : 'none';
+  const maxTurns = input.enableWebSearch ? 4 : 1;
   const result = await runAgent(buildUserPrompt(input), {
     model: 'sonnet',
     effort: 'max',
     systemPrompt: SYSTEM_PROMPT,
-    tools: 'none',
-    maxTurns: 1,
+    tools,
+    maxTurns,
     timeoutMs: 600_000,
   });
   const raw = result.result ?? '';

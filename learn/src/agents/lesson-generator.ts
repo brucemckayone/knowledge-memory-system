@@ -22,7 +22,9 @@
  */
 
 import { eq } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
 import { runAgent } from '../services/agent.js';
+import { ingestContent } from '../services/nmemo-client.js';
 import { db, courses, sections } from '../db/index.js';
 import {
   generateLessonOutline,
@@ -33,7 +35,7 @@ import {
   type OutlineFixedKind,
   type OutlineArtifactIntent,
 } from './lesson-outliner.js';
-import { writeProseBlock } from './lesson-prose.js';
+import { writeProseBlock, type ProseWriterResult } from './lesson-prose.js';
 import { generateArtifact, type ArtifactSpec } from './artifact-generator.js';
 import { generateComponent, type ComponentKindName } from './component-generator.js';
 import {
@@ -51,9 +53,12 @@ export interface GeneratedLesson {
   keyTakeaways: string[];
 }
 
+export type { LessonCitation } from './lesson-types.js';
+import type { LessonCitation } from './lesson-types.js';
+
 export type LessonBlock =
-  | { type: 'markdown'; content: string }
-  | { type: 'component'; kind: string; props: Record<string, unknown>; children?: string };
+  | { type: 'markdown'; content: string; citations?: LessonCitation[] }
+  | { type: 'component'; kind: string; props: Record<string, unknown>; children?: string; citations?: LessonCitation[] };
 
 export interface GeneratedLessonStructured {
   blocks: LessonBlock[];
@@ -77,6 +82,48 @@ const ALLOWED_KINDS = new Set([
   'Callout', 'Mermaid', 'SvgFigure', 'CodeRunner',
   'StepThrough', 'FlashcardDeck', 'ConceptMap', 'Highlight', 'Artifact',
 ]);
+
+// ---------------------------------------------------------------------------
+// Web-search configuration. Read once per lesson so a flipped env flag at
+// runtime takes effect on the next generation. All flags default ON; setting
+// any to '0' / 'false' / 'no' disables that surface.
+// ---------------------------------------------------------------------------
+
+function envFlag(name: string, defaultOn: boolean): boolean {
+  const v = process.env[name];
+  if (v === undefined || v === '') return defaultOn;
+  if (v === '0' || v.toLowerCase() === 'false' || v.toLowerCase() === 'no') return false;
+  if (v === '1' || v.toLowerCase() === 'true' || v.toLowerCase() === 'yes') return true;
+  return defaultOn;
+}
+
+function envInt(name: string, defaultValue: number): number {
+  const v = process.env[name];
+  if (!v) return defaultValue;
+  const n = Number.parseInt(v, 10);
+  return Number.isFinite(n) && n >= 0 ? n : defaultValue;
+}
+
+interface WebSearchPolicy {
+  /** Master switch — when false, no stage runs WebSearch. */
+  enabled: boolean;
+  outliner: boolean;
+  prose: boolean;
+  artifact: boolean;
+  /** Maximum unique citations the composer will ingest back into the graph. */
+  maxIngestUrls: number;
+}
+
+function loadWebSearchPolicy(): WebSearchPolicy {
+  const enabled = envFlag('LEARN_LESSON_WEBSEARCH', true);
+  return {
+    enabled,
+    outliner: enabled && envFlag('LEARN_OUTLINER_WEBSEARCH', true),
+    prose: enabled && envFlag('LEARN_PROSE_WEBSEARCH', true),
+    artifact: enabled && envFlag('LEARN_ARTIFACT_WEBSEARCH', true),
+    maxIngestUrls: envInt('LEARN_LESSON_WEBSEARCH_MAX_INGEST_URLS', 3),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Context loading — section + course + neighbour titles.
@@ -208,6 +255,7 @@ async function buildOneArtifact(
   item: ArtifactItem,
   ctx: LessonContext,
   learner: LearnerLessonContext | undefined,
+  policy: WebSearchPolicy,
 ): Promise<ArtifactSuccess | ArtifactFail> {
   if (item.type === 'fixed') {
     const kind = FIXED_TO_COMPONENT[item.fixedKind!];
@@ -230,11 +278,16 @@ async function buildOneArtifact(
   // freeform
   const intent: OutlineArtifactIntent = item.intent ?? 'free';
   const lessonContext = neighbourProseDigest(outline, item);
+  // Per design: artifact agent gets WebSearch only when intent === 'free'.
+  // generateArtifact double-checks this internally, but we gate at the
+  // orchestrator too so the policy switch is visible here.
+  const enableWebSearch = policy.artifact && intent === 'free';
   const result = await generateArtifact({
     intent,
     context: item.spec,
     lessonContext,
     learnerState: projectLearnerStateForArtifact(ctx, learner),
+    enableWebSearch,
   });
   if (!result.ok) {
     return { ok: false, reason: `artifact agent: ${result.errorText}` };
@@ -263,6 +316,7 @@ async function buildArtifactsBounded(
   artifacts: ArtifactItem[],
   ctx: LessonContext,
   learner: LearnerLessonContext | undefined,
+  policy: WebSearchPolicy,
   concurrency = 3,
 ): Promise<Map<string, ArtifactSuccess | ArtifactFail>> {
   const out = new Map<string, ArtifactSuccess | ArtifactFail>();
@@ -275,7 +329,7 @@ async function buildArtifactsBounded(
         if (idx >= artifacts.length) return;
         const item = artifacts[idx]!;
         try {
-          const r = await buildOneArtifact(outline, item, ctx, learner);
+          const r = await buildOneArtifact(outline, item, ctx, learner, policy);
           out.set(item.id, r);
           if (!r.ok) {
             console.warn(`[lesson-generator] artifact ${item.id} failed: ${r.reason}`);
@@ -314,6 +368,7 @@ function compose(
   outline: LessonOutline,
   proseById: Map<string, string>,
   artifactById: Map<string, ArtifactSuccess | ArtifactFail>,
+  citationsById: Map<string, LessonCitation[]>,
 ): LessonBlock[] {
   const blocks: LessonBlock[] = [];
   blocks.push({ type: 'markdown', content: outline.intro });
@@ -321,7 +376,10 @@ function compose(
     if (item.kind === 'prose') {
       const md = proseById.get(item.id);
       if (md && md.trim().length > 0) {
-        blocks.push({ type: 'markdown', content: md });
+        const cites = citationsById.get(item.id);
+        const block: LessonBlock = { type: 'markdown', content: md };
+        if (cites && cites.length > 0) block.citations = cites;
+        blocks.push(block);
       } else {
         blocks.push({
           type: 'markdown',
@@ -341,6 +399,96 @@ function compose(
   }
   blocks.push({ type: 'markdown', content: outline.outro });
   return blocks;
+}
+
+// ---------------------------------------------------------------------------
+// Citation collection + ingest-back. Runs at the composer stage: collect every
+// unique URL from `LessonBlock.citations[]` and POST each to /ingest exactly
+// once. Failures are logged + skipped — the lesson still ships with its
+// citations intact.
+// ---------------------------------------------------------------------------
+
+function shortUrlHash(url: string): string {
+  return createHash('sha1').update(url).digest('hex').slice(0, 12);
+}
+
+/**
+ * Collect unique URLs from all `citations[]` arrays across the supplied blocks.
+ * Returns URLs in first-seen order so logs / tests are deterministic.
+ */
+export function collectCitationUrls(blocks: LessonBlock[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const b of blocks) {
+    const cites = b.citations;
+    if (!cites || cites.length === 0) continue;
+    for (const c of cites) {
+      if (!c || typeof c.url !== 'string') continue;
+      const u = c.url.trim();
+      if (!u || seen.has(u)) continue;
+      seen.add(u);
+      out.push(u);
+    }
+  }
+  return out;
+}
+
+interface IngestSourcesDeps {
+  /** Override for the platform call — used in tests so unit tests don't hit the network. */
+  ingest?: (text: string, source: string) => Promise<{ memoryId: string; entities?: unknown[]; facts?: unknown[] }>;
+  /** Override for the URL fetcher — used in tests. The default uses fetch(). */
+  fetchUrl?: (url: string) => Promise<string>;
+}
+
+async function defaultFetchUrl(url: string): Promise<string> {
+  const r = await fetch(url, { redirect: 'follow' });
+  if (!r.ok) throw new Error(`fetch ${url} → ${r.status}`);
+  const ct = r.headers.get('content-type') || '';
+  if (ct.includes('application/json')) {
+    return JSON.stringify(await r.json());
+  }
+  return await r.text();
+}
+
+/**
+ * Collect unique citation URLs from `blocks`, fetch each, and POST to /ingest.
+ * Caps at `policy.maxIngestUrls`. Per-URL failures are logged and skipped —
+ * the lesson must still ship even when ingest fails.
+ */
+export async function ingestLessonSources(
+  sectionId: string,
+  blocks: LessonBlock[],
+  policy: WebSearchPolicy,
+  deps: IngestSourcesDeps = {},
+): Promise<{ ingested: string[]; failed: Array<{ url: string; reason: string }> }> {
+  const ingest = deps.ingest ?? ingestContent;
+  const fetcher = deps.fetchUrl ?? defaultFetchUrl;
+  const urls = collectCitationUrls(blocks);
+  if (urls.length === 0) return { ingested: [], failed: [] };
+  const limited = urls.slice(0, Math.max(0, policy.maxIngestUrls));
+  if (limited.length < urls.length) {
+    console.warn(`[lesson-ingest] capped ingest to first ${limited.length}/${urls.length} citation URLs (LEARN_LESSON_WEBSEARCH_MAX_INGEST_URLS=${policy.maxIngestUrls})`);
+  }
+  const ingested: string[] = [];
+  const failed: Array<{ url: string; reason: string }> = [];
+  for (const url of limited) {
+    try {
+      const text = await fetcher(url);
+      if (!text || !text.trim()) {
+        failed.push({ url, reason: 'empty content' });
+        continue;
+      }
+      const source = `learn:lesson:${sectionId}:websearch:${shortUrlHash(url)}`;
+      const result = await ingest(text, source);
+      console.log(`[lesson-ingest] ingested ${url} → memoryId ${result.memoryId}`);
+      ingested.push(url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[lesson-ingest] failed to ingest ${url}: ${msg}`);
+      failed.push({ url, reason: msg });
+    }
+  }
+  return { ingested, failed };
 }
 
 // ---------------------------------------------------------------------------
@@ -424,7 +572,13 @@ async function generateLessonStructuredV3(
   };
 
   const ctx = await buildContext(sectionId);
+  const policy = loadWebSearchPolicy();
   console.log(`[lesson-generator] starting pipeline for section ${sectionId} ("${ctx.sectionTitle}")`);
+  console.log(
+    `[lesson-generator] websearch policy: enabled=${policy.enabled} ` +
+    `outliner=${policy.outliner} prose=${policy.prose} artifact=${policy.artifact} ` +
+    `maxIngest=${policy.maxIngestUrls}`,
+  );
 
   // Single platform fetch for learner state. Degrades to cold-start on any
   // failure / timeout — pipeline must never abort because of a flaky platform
@@ -456,6 +610,7 @@ async function generateLessonStructuredV3(
     prevSectionTitle: ctx.prevSectionTitle,
     nextSectionTitle: ctx.nextSectionTitle,
     learnerContext: personalised,
+    enableWebSearch: policy.outliner,
   });
   const proseItems = outline.items.filter((it): it is ProseItem => it.kind === 'prose');
   const artifactItems = outline.items.filter((it): it is ArtifactItem => it.kind === 'artifact');
@@ -468,7 +623,7 @@ async function generateLessonStructuredV3(
   await emit('writing_prose');
   const proseProm = Promise.all(proseItems.map(async (item) => {
     try {
-      const md = await writeProseBlock({
+      const result = await writeProseBlock({
         outline,
         item,
         courseTitle: ctx.courseTitle,
@@ -476,17 +631,19 @@ async function generateLessonStructuredV3(
         sectionDescription: ctx.sectionDescription,
         learningObjectives: ctx.learningObjectives,
         learnerContext: personalised,
+        enableWebSearch: policy.prose,
       });
-      console.log(`[lesson-generator] prose ${item.id} written (${md.length} chars)`);
-      return [item.id, md] as const;
+      const citeCount = result.citations?.length ?? 0;
+      console.log(`[lesson-generator] prose ${item.id} written (${result.markdown.length} chars, ${citeCount} citations)`);
+      return [item.id, result] as const;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[lesson-generator] prose ${item.id} failed: ${msg}`);
-      return [item.id, ''] as const;
+      return [item.id, { markdown: '' } as ProseWriterResult] as const;
     }
   }));
 
-  const artifactProm = buildArtifactsBounded(outline, artifactItems, ctx, personalised, 3);
+  const artifactProm = buildArtifactsBounded(outline, artifactItems, ctx, personalised, policy, 3);
 
   // Track prose finishing independently so we can flip the stage label to
   // building_artifacts when only artifacts remain.
@@ -495,11 +652,18 @@ async function generateLessonStructuredV3(
     await emit('building_artifacts');
   }
   const artifactById = await artifactProm;
-  const proseById = new Map<string, string>(proseEntries);
+  const proseById = new Map<string, string>();
+  const citationsById = new Map<string, LessonCitation[]>();
+  for (const [id, result] of proseEntries) {
+    proseById.set(id, result.markdown);
+    if (result.citations && result.citations.length > 0) {
+      citationsById.set(id, result.citations);
+    }
+  }
 
   // Stage 4 — compose.
   await emit('composing');
-  const blocks = compose(outline, proseById, artifactById);
+  const blocks = compose(outline, proseById, artifactById, citationsById);
 
   // Validate every emitted block. Anything that fails the validator is
   // dropped and replaced with a placeholder to keep the lesson complete.
@@ -514,6 +678,24 @@ async function generateLessonStructuredV3(
       continue;
     }
     validated.push({ type: 'markdown', content: '_[Block dropped: failed validation]_' });
+  }
+
+  // Ingest-back: collect cited URLs from final blocks and feed them into
+  // /ingest. Failures are logged but do NOT block the lesson — the learner
+  // still receives every citation in the rendered lesson regardless of
+  // whether the URL made it into the graph.
+  if (policy.enabled && policy.maxIngestUrls > 0) {
+    try {
+      const { ingested, failed } = await ingestLessonSources(sectionId, validated, policy);
+      const total = ingested.length + failed.length;
+      if (total > 0) {
+        console.log(`[lesson-generator] ingest-back: ${ingested.length}/${total} URL(s) ingested into graph`);
+      }
+    } catch (err) {
+      // Belt-and-suspenders — ingestLessonSources already swallows per-URL
+      // errors, but if the whole call throws, swallow here too.
+      console.warn('[lesson-generator] ingest-back phase threw (lesson still ships):', err);
+    }
   }
 
   // Takeaways from a prose sample.
@@ -643,3 +825,12 @@ export async function generateLessonAuto(
 // today, but documented as public API in the original module).
 export const generateLesson = generateLessonLegacy;
 export const generateLessonStructured = generateLessonStructuredV3;
+
+// Test-only exports — env-gated configuration and pure helpers.
+export const __test = {
+  loadWebSearchPolicy,
+  envFlag,
+  envInt,
+  collectCitationUrls,
+  shortUrlHash,
+};
