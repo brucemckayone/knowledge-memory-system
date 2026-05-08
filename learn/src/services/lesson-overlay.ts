@@ -7,9 +7,27 @@
  * The UNIQUE(learner_id, section_id, version) constraint catches concurrent
  * writes — callers should treat that as a 409 race.
  */
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { db, lessonOverlays, sections } from '../db/index.js';
+
+/**
+ * Overlay retention policy (nmemo-15o).
+ *
+ * Without compaction `lesson_overlays` grows linearly with edits — every
+ * applyEditOp inserts a new row. The unbounded form is fine for a POC but
+ * scales poorly past launch. The policy below trims older history while
+ * preserving recent rolling versions and bounded weekly history.
+ *
+ * Implementation note: the table currently has no `is_weekly_snapshot`
+ * column — adding it would require an extra ALTER and back-fill. Instead
+ * we approximate "weekly snapshots" by keeping the newest row per ISO week
+ * older than the rolling-keep window. This needs no schema change and
+ * produces equivalent semantics: roughly one preserved version per week
+ * for older history, plus the rolling tail.
+ */
+export const OVERLAY_KEEP_RECENT = 5;        // newest rolling versions to keep (regardless of week).
+export const OVERLAY_KEEP_WEEKS = 4;         // older weekly snapshots to keep.
 
 // Whitelist mirrors LessonRenderer.js KNOWN_KINDS / lesson-generator.ts ALLOWED_KINDS.
 // Duplicated rather than imported because lesson-generator's set is not exported
@@ -364,4 +382,113 @@ export function buildEditOp(payload: {
         400,
       );
   }
+}
+
+// ── Compaction (nmemo-15o) ─────────────────────────────────────────────────
+
+export interface CompactionStats {
+  pairsScanned: number;
+  rowsKept: number;
+  rowsDeleted: number;
+}
+
+/**
+ * ISO week key for a date string (e.g. "2026-W19"). Used to bucket older
+ * versions and pick a single survivor per week.
+ */
+function isoWeekKey(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso; // fallback: treat as unique bucket
+  // ISO week algorithm: Thursday of the row's week determines the year/week.
+  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const dayNum = (target.getUTCDay() + 6) % 7;
+  target.setUTCDate(target.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(
+    ((target.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7,
+  );
+  return `${target.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * Decide which row IDs to delete for a single (learner, section) pair.
+ * Pure function so it can be unit-tested without a DB.
+ *
+ * Policy: keep the newest OVERLAY_KEEP_RECENT rows; from the remainder,
+ * bucket by ISO week and keep the newest row per week up to
+ * OVERLAY_KEEP_WEEKS distinct weeks; delete everything else.
+ */
+export function planOverlayCompactionForPair(
+  rows: Array<{ id: string; createdAt: string; version: number }>,
+  keepRecent: number = OVERLAY_KEEP_RECENT,
+  keepWeeks: number = OVERLAY_KEEP_WEEKS,
+): { keepIds: Set<string>; deleteIds: string[] } {
+  // Newest first by version (versions are monotonic for a pair).
+  const sorted = rows.slice().sort((a, b) => b.version - a.version);
+  const keepIds = new Set<string>();
+
+  const recent = sorted.slice(0, keepRecent);
+  for (const r of recent) keepIds.add(r.id);
+
+  // Seed the weekly bucket set with the weeks already covered by the rolling
+  // tail so older rows in those weeks aren't double-counted as snapshots.
+  const seenWeeks = new Set<string>();
+  for (const r of recent) seenWeeks.add(isoWeekKey(r.createdAt));
+
+  const older = sorted.slice(keepRecent);
+  let weeklySaved = 0;
+  for (const r of older) {
+    const wk = isoWeekKey(r.createdAt);
+    if (seenWeeks.has(wk)) continue;
+    if (weeklySaved >= keepWeeks) continue;
+    seenWeeks.add(wk);
+    weeklySaved++;
+    keepIds.add(r.id);
+  }
+
+  const deleteIds = sorted.filter(r => !keepIds.has(r.id)).map(r => r.id);
+  return { keepIds, deleteIds };
+}
+
+/**
+ * Run compaction across all (learner, section) pairs. Safe to call repeatedly;
+ * each invocation only deletes rows that exceed the policy.
+ */
+export async function compactAllOverlays(
+  keepRecent: number = OVERLAY_KEEP_RECENT,
+  keepWeeks: number = OVERLAY_KEEP_WEEKS,
+): Promise<CompactionStats> {
+  // Group rows by (learner, section). For POC scale this fits comfortably in memory.
+  const allRows = await db.select({
+    id: lessonOverlays.id,
+    learnerId: lessonOverlays.learnerId,
+    sectionId: lessonOverlays.sectionId,
+    version: lessonOverlays.version,
+    createdAt: lessonOverlays.createdAt,
+  }).from(lessonOverlays);
+
+  const groups = new Map<string, Array<{ id: string; createdAt: string; version: number }>>();
+  for (const r of allRows) {
+    const key = `${r.learnerId}::${r.sectionId}`;
+    let bucket = groups.get(key);
+    if (!bucket) { bucket = []; groups.set(key, bucket); }
+    bucket.push({ id: r.id, createdAt: r.createdAt, version: r.version });
+  }
+
+  let rowsDeleted = 0;
+  let rowsKept = 0;
+  for (const bucket of groups.values()) {
+    const { keepIds, deleteIds } = planOverlayCompactionForPair(bucket, keepRecent, keepWeeks);
+    rowsKept += keepIds.size;
+    if (deleteIds.length === 0) continue;
+    // libsql's IN binding has a parameter limit; chunk to be safe.
+    const CHUNK = 200;
+    for (let i = 0; i < deleteIds.length; i += CHUNK) {
+      const chunk = deleteIds.slice(i, i + CHUNK);
+      await db.delete(lessonOverlays).where(inArray(lessonOverlays.id, chunk));
+    }
+    rowsDeleted += deleteIds.length;
+  }
+
+  return { pairsScanned: groups.size, rowsKept, rowsDeleted };
 }

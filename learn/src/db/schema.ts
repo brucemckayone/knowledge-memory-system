@@ -65,6 +65,11 @@ export const chatSessions = sqliteTable('chat_sessions', {
   // Section-scoped threads are the primary chat surface. One thread per
   // (learner, section); other surfaces (e.g. dashboard) may still create
   // section-less sessions where it makes sense.
+  // NO FK on sectionId is intentional: sessions outlive sections (a learner's
+  // chat history must survive course/section edits or deletions per the v0.3
+  // lifecycle model). Do NOT add a FOREIGN KEY here without revisiting that
+  // invariant. courseId DOES have an FK because course removal does cascade
+  // to its sessions; sections are ephemeral during course redesign.
   sectionId: text('section_id'),
   learnerId: text('learner_id').notNull().default('default'),
   title: text('title'),
@@ -161,6 +166,9 @@ export const lessonOverlays = sqliteTable('lesson_overlays', {
 // v0.2 Lesson Evolution — learner notes anchored to lesson excerpts.
 // promotedToGraph = 1 once the note has been promoted into Nmemo as a fact;
 // factId then carries the Nmemo fact id for traceability.
+// archivedAt is an ISO timestamp set when a learner archives the note via
+// POST /api/notes/:id/archive. Default GET filters archived rows out;
+// ?include_archived=1 opts back in. Rows are never hard-deleted by archive.
 export const notes = sqliteTable('notes', {
   id: text('id').primaryKey(),
   learnerId: text('learner_id').notNull().default('default'),
@@ -169,5 +177,6 @@ export const notes = sqliteTable('notes', {
   contentMd: text('content_md').notNull(),                                   // learner's note (markdown)
   promotedToGraph: integer('promoted_to_graph').notNull().default(0),        // SQLite boolean (0/1)
   factId: text('fact_id'),                                                   // Nmemo fact id once promoted; NULL otherwise
+  archivedAt: text('archived_at'),                                           // ISO timestamp; null = active. Soft-delete only.
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });

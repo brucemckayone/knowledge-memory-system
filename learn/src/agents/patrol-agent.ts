@@ -130,7 +130,7 @@ export interface PatrolResult {
   errorText?: string;
 }
 
-interface ParsedReport {
+export interface ParsedReport {
   summary: string;
   wroteCount: number;
   types: string[];
@@ -215,3 +215,6 @@ Inspect the graph via your MCP tools, decide which signals are worth surfacing, 
     };
   }
 }
+
+// Internal helpers exposed for unit-style testing (nmemo-15o).
+export const __test = { parseReport };
