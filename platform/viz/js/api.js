@@ -62,6 +62,15 @@ export const getFactHistory = (id) =>
 export const getCausalEdgeHistory = (id) =>
   getJson(`/api/causal-edges/${encodeURIComponent(id)}/history`);
 
+// ---- Drift (Phase 3.2 — viz.7) ----
+export const getDriftEvents = (limit = 200) =>
+  getJson(`/api/drift/events?limit=${limit}`);
+export const getDriftEventsForEntity = (entityId, limit = 20) =>
+  getJson(`/api/drift/events?entity_id=${encodeURIComponent(entityId)}&limit=${limit}`);
+export const getDriftState = (entityId) =>
+  getJson(`/api/drift/state/${encodeURIComponent(entityId)}`);
+export const computeDrift = () => postJson('/api/drift/compute');
+
 // ---- Impact (Phase 4 blast radius) ----
 export const getImpact = (nodeType, nodeId, opts = {}) => {
   const qs = opts.hypothetical

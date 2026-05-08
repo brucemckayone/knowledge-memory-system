@@ -244,6 +244,19 @@ svg { flex: 1; }
 /* Detail panel ghosts (viz.5) */
 .ghosts-section { margin-top: 8px; }
 
+/* Drift timeline strip (viz.7) — bottom of canvas */
+.drift-strip { display: flex; align-items: center; gap: 10px; padding: 4px 16px; border-top: 1px solid #21262d; background: #161b22; flex-shrink: 0; transition: max-height 0.2s ease; overflow: hidden; }
+.drift-strip.collapsed { padding: 2px 16px; }
+.drift-strip.collapsed #driftStripCanvas { display: none; }
+.drift-strip-label { font-size: 11px; color: #8b949e; min-width: 60px; cursor: pointer; user-select: none; }
+.drift-strip-label:hover { color: #c9d1d9; }
+.drift-strip-meta { font-size: 10px; color: #6e7681; min-width: 100px; }
+#driftStripCanvas { flex: 1; }
+.drift-dot { cursor: pointer; }
+.drift-dot:hover { stroke-width: 2 !important; }
+.drift-compute-btn { font-size: 10px; padding: 2px 8px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; border-radius: 4px; }
+.drift-compute-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+
 /* History timeline (viz.6) — fact_history + causal_edge_history */
 .hist-mount { margin-top: 4px; }
 .hist-timeline { display: flex; flex-direction: column; gap: 6px; padding-left: 12px; border-left: 2px solid #21262d; }
@@ -390,6 +403,12 @@ svg { flex: 1; }
       <p class="empty">Click a node or edge</p>
     </div>
   </div>
+</div>
+<div class="drift-strip" id="driftStrip">
+  <span class="drift-strip-label" id="driftStripToggle" title="Toggle drift timeline">▾ drift</span>
+  <span class="drift-strip-meta" id="driftStripMeta">no events</span>
+  <div id="driftStripCanvas"></div>
+  <button class="drift-compute-btn" id="btnDriftCompute" title="Run ADWIN drift sweep">Compute</button>
 </div>
 <div class="scrubber">
   <span class="scrub-label">Time</span>

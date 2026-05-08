@@ -3,6 +3,47 @@ import { state } from '../state.js';
 import { fetchImpact } from './impact.js';
 import { loadGhostsForEntity } from '../overlays/ghosts.js';
 import { loadHistoryInto } from './history.js';
+import { getDriftEventsForEntity, getDriftState } from '../api.js';
+
+// viz.7 — Drift section. Lazy-loaded when an entity is selected. Renders
+// observation_count + recent drift events.
+async function loadDriftSection(entityId) {
+  const wrap = document.getElementById('drift-section');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="cc-signals-empty">Loading drift…</div>';
+  try {
+    const [stateBody, eventsBody] = await Promise.all([
+      getDriftState(entityId),
+      getDriftEventsForEntity(entityId, 20),
+    ]);
+    const s = stateBody.state;
+    const events = eventsBody.events || [];
+    if (!s && events.length === 0) {
+      wrap.innerHTML = '';
+      return;
+    }
+    let html = `<div class="section-label">Drift</div>`;
+    if (s) {
+      html += field('Observations', s.observationCount);
+      html += field('Last cluster', s.lastClusterId == null ? '—' : String(s.lastClusterId));
+      html += field('Updated', s.lastUpdatedAt ? new Date(s.lastUpdatedAt).toLocaleString() : '—');
+    }
+    if (events.length > 0) {
+      html += `<div class="field-label" style="margin-top:6px">Recent events (${events.length})</div>`;
+      html += events.map(ev => `
+        <div class="source-block" style="font-size:11px">
+          <strong>${esc(ev.triggered_action)}</strong>
+          mag ${(ev.drift_magnitude || 0).toFixed(3)}
+          · cluster ${ev.cluster_id_at_detection ?? '?'} → ${ev.target_cluster_id ?? '?'}
+          <br><span style="color:#8b949e">${new Date(ev.detected_at).toLocaleString()}</span>
+        </div>
+      `).join('');
+    }
+    wrap.innerHTML = html;
+  } catch (err) {
+    wrap.innerHTML = `<div class="cc-signals-empty">drift fetch failed: ${esc(err.message)}</div>`;
+  }
+}
 
 // viz.5 — Ghosts section (lazy-loaded). Returns a placeholder element id so
 // showNodeDetail can populate it asynchronously.
@@ -158,6 +199,9 @@ export function showNodeDetail(d) {
     // Ghosts placeholder (viz.5 — populated asynchronously below)
     html += ghostsSectionPlaceholder();
 
+    // Drift placeholder (viz.7 — populated asynchronously below)
+    html += `<div id="drift-section"></div>`;
+
     const merges = data.edges.filter(e => e._edgeType === 'mergeCandidate' && ((e.source.id || e.source) === d.id || (e.target.id || e.target) === d.id));
     if (merges.length > 0) {
       html += `<div class="section-label">Merge candidates (${merges.length})</div>`;
@@ -245,6 +289,8 @@ export function showNodeDetail(d) {
   // viz.5 — lazy-load ghosts for this entity and stream into the placeholder.
   if (d._nodeType === 'entity') {
     loadGhostsForEntity(d.id, renderGhostsSection);
+    // viz.7 — lazy-load drift state + recent events.
+    loadDriftSection(d.id);
   }
 }
 

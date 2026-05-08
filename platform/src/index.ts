@@ -1333,12 +1333,14 @@ app.post('/api/drift/compute', async (c) => {
 });
 
 app.get('/api/drift/events', async (c) => {
+  // viz.7 — entity_id is now optional. When absent, return the global feed
+  // newest-first (powers the bottom-of-canvas timeline strip). When present,
+  // scope to that entity (preserves the original behaviour for the entity-
+  // scoped detail panel).
   const entityId = c.req.query('entity_id');
-  if (!entityId) {
-    return c.json({ error: 'entity_id query parameter is required' }, 400);
-  }
   const limitRaw = c.req.query('limit');
-  const limit = limitRaw ? Math.max(1, Math.min(200, Number.parseInt(limitRaw, 10) || 10)) : 10;
+  const defaultLimit = entityId ? 10 : 200;
+  const limit = limitRaw ? Math.max(1, Math.min(500, Number.parseInt(limitRaw, 10) || defaultLimit)) : defaultLimit;
   const { db } = await import('./db/index.js');
   const { sql } = await import('drizzle-orm');
   const rows = (await db.execute(sql`
@@ -1354,7 +1356,7 @@ app.get('/api/drift/events', async (c) => {
       error_detail,
       computation_version
     FROM public.entity_drift_events
-    WHERE entity_id = ${entityId}::uuid
+    WHERE (${entityId ?? null}::text IS NULL OR entity_id = ${entityId ?? null}::uuid)
     ORDER BY detected_at DESC
     LIMIT ${limit}
   `)) as unknown as Array<{
@@ -1370,12 +1372,44 @@ app.get('/api/drift/events', async (c) => {
     computation_version: number;
   }>;
   return c.json({
-    entity_id: entityId,
+    entity_id: entityId ?? null,
     count: rows.length,
     events: rows.map((r) => ({
       ...r,
       detected_at: r.detected_at instanceof Date ? r.detected_at.toISOString() : String(r.detected_at),
     })),
+  });
+});
+
+// viz.7 — per-entity drift state (observation_count, last_cluster_id,
+// last_updated_at) for the Drift section in the entity detail panel.
+app.get('/api/drift/state/:entityId', async (c) => {
+  const entityId = c.req.param('entityId');
+  const { db } = await import('./db/index.js');
+  const { sql } = await import('drizzle-orm');
+  const rows = (await db.execute(sql`
+    SELECT
+      observation_count,
+      last_cluster_id,
+      river_version,
+      last_updated_at
+    FROM public.entity_drift_state
+    WHERE entity_id = ${entityId}::uuid
+  `)) as unknown as Array<{
+    observation_count: number;
+    last_cluster_id: number | null;
+    river_version: string;
+    last_updated_at: Date;
+  }>;
+  if (rows.length === 0) return c.json({ state: null });
+  const r = rows[0]!;
+  return c.json({
+    state: {
+      observationCount: r.observation_count,
+      lastClusterId: r.last_cluster_id,
+      riverVersion: r.river_version,
+      lastUpdatedAt: r.last_updated_at instanceof Date ? r.last_updated_at.toISOString() : String(r.last_updated_at),
+    },
   });
 });
 
