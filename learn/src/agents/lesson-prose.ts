@@ -168,6 +168,13 @@ function renderProseLearnerContextBlock(ctx: LearnerLessonContext, intent: strin
   const mentions = (concept: string): boolean =>
     concept.length > 0 && intentLc.includes(concept.toLowerCase());
 
+  // Prioritised gap is unconditional — surface it on every prose item so the
+  // remedial slant carries through the whole lesson when the gap-bias path
+  // is active.
+  if (ctx.prioritisedGap) {
+    lines.push(`- prioritised gap: "${ctx.prioritisedGap.rootCauseConceptName}" — ${clip(ctx.prioritisedGap.rootCauseReason)}`);
+  }
+
   for (const c of ctx.confusions) {
     if (!mentions(c.concept)) continue;
     lines.push(`- confused: "${c.concept}" — they wrote: "${clip(c.misconception)}"`);

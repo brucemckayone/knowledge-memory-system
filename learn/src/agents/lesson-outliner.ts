@@ -232,6 +232,13 @@ function clip(s: string, n = TRUNC_LEN): string {
 /** Render the human-readable Learner state block for the outliner user prompt. */
 function renderLearnerStateBlock(ctx: LearnerLessonContext): string {
   const lines: string[] = [];
+  if (ctx.prioritisedGap) {
+    lines.push('Prioritised gap (the lesson MUST target this — remedial slant):');
+    lines.push(`- Concept: ${ctx.prioritisedGap.rootCauseConceptName}`);
+    lines.push(`- Why the learner has this gap: ${ctx.prioritisedGap.rootCauseReason}`);
+    lines.push(`- What this blocks: ${ctx.prioritisedGap.whyItMatters}`);
+    lines.push('Bias the outline so at least one prose item directly addresses the gap. Use "Why this matters" to connect the gap to downstream understanding.');
+  }
   if (ctx.confusions.length > 0) {
     lines.push('Confusions:');
     for (const c of ctx.confusions) {

@@ -1,10 +1,51 @@
 import { Hono } from 'hono';
-import { db, quizAttempts, questions } from '../db/index.js';
+import { db, quizAttempts, questions, sections } from '../db/index.js';
 import { eq, desc, avg, count } from 'drizzle-orm';
-import { getLearnerFacts, getContradictions, getActivePatterns, queryReasoning } from '../services/nmemo-client.js';
-import { analyzeGapsAndGenerateContent } from '../agents/gap-analyzer.js';
+import { getLearnerFacts, getContradictions, getActivePatterns, queryReasoning, getEntityById } from '../services/nmemo-client.js';
+import { analyzeGapsAndGenerateContent, type GapAnalysisResult } from '../agents/gap-analyzer.js';
+import {
+  persistGap, getTopGap, isCachedGapFresh, isBelowGapColdStart,
+  GAP_COLD_START_FACT_THRESHOLD, type PersistedGap,
+} from '../services/gap-persistence.js';
+import { generateLessonAuto, type LessonStage } from '../agents/lesson-generator.js';
+import type { PrioritisedGap } from '../agents/learner-lesson-context.js';
 
 export const learnerRoutes = new Hono();
+
+// In-process guard — prevents two concurrent gap-analyzer runs kicked off by
+// a flurry of dashboard polls. Resolves on completion (success or failure).
+let inFlightGapRun: Promise<void> | null = null;
+
+async function tryResolveRootEntityId(targetConcept: string): Promise<string | null> {
+  // The gap-analyzer doesn't currently emit a structured root-cause entity
+  // id — it returns prose. Best-effort: look the target concept up by name.
+  // Failures fall back to null (idempotency keys then hash on the name).
+  try {
+    const ent = await getEntityById(targetConcept);
+    return ent?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function persistGapResult(result: GapAnalysisResult): Promise<void> {
+  const rootCauseEntityId = await tryResolveRootEntityId(result.targetConcept);
+  await persistGap({ result, rootCauseEntityId });
+}
+
+function kickGapAnalyzerAsync(courseTopic?: string): void {
+  if (inFlightGapRun) return; // already running
+  inFlightGapRun = (async () => {
+    try {
+      const result = await analyzeGapsAndGenerateContent({ courseTopic });
+      await persistGapResult(result);
+    } catch (err) {
+      console.warn('[learner] background gap-analyzer failed:', err instanceof Error ? err.message : String(err));
+    } finally {
+      inFlightGapRun = null;
+    }
+  })();
+}
 
 /** Overall learner stats */
 learnerRoutes.get('/stats', async (c) => {
@@ -60,16 +101,176 @@ learnerRoutes.get('/patterns', async (c) => {
   return c.json(patterns);
 });
 
-/** THE WOW MOMENT: analyze gaps and generate targeted content */
+/** THE WOW MOMENT: analyze gaps and generate targeted content (sync — for explicit user-initiated runs). */
 learnerRoutes.post('/gap-analysis', async (c) => {
   const body = await c.req.json<{ courseTopic?: string }>().catch(() => ({} as { courseTopic?: string }));
 
   const result = await analyzeGapsAndGenerateContent({
     courseTopic: body.courseTopic,
   });
-
+  // Best-effort persistence — surface failures in logs but never block the
+  // sync path on a DB hiccup.
+  try {
+    await persistGapResult(result);
+  } catch (err) {
+    console.warn('[learner] gap-analysis persistence failed:', err instanceof Error ? err.message : String(err));
+  }
   return c.json(result);
 });
+
+/**
+ * GET /gap-analysis/top
+ * Cache-aware top gap fetch (nmemo-7b3). Used by the dashboard composite
+ * endpoint and the section-page inline card.
+ *
+ * Behaviour:
+ *   - Fewer than 10 learner facts → return { coldStart: true, gap: null }.
+ *     Dashboard surfaces the "complete a quiz" affordance instead of a card.
+ *   - Cached gap row younger than GAP_CACHE_TTL_MS → return cached.
+ *   - Otherwise: kick a fresh analyzer run in the background and return the
+ *     stale cached gap (or null) so the UI never blocks.
+ */
+learnerRoutes.get('/gap-analysis/top', async (c) => {
+  let factCount = 0;
+  try {
+    const facts = await getLearnerFacts();
+    factCount = facts.facts.length;
+  } catch (err) {
+    console.warn('[learner] /gap-analysis/top fact-count fetch failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  if (isBelowGapColdStart(factCount)) {
+    return c.json({
+      coldStart: true,
+      threshold: GAP_COLD_START_FACT_THRESHOLD,
+      factCount,
+      gap: null as PersistedGap | null,
+    });
+  }
+
+  const gap = await getTopGap();
+  const fresh = await isCachedGapFresh();
+
+  if (!fresh) {
+    // Stale or missing — kick async, return whatever we have. Dashboard polls
+    // pick up the new gap on the next reload.
+    kickGapAnalyzerAsync();
+  }
+
+  return c.json({
+    coldStart: false,
+    factCount,
+    gap,
+    refreshing: !fresh,
+  });
+});
+
+/**
+ * POST /fix-gap
+ * Body: { gapEntityId, sectionId }
+ * Triggers a regeneration of the section's lesson with gap-bias context so
+ * the outline tilts toward the gap's root-cause concept. Returns 202 with
+ * the section id (caller polls /api/sections/:id/lesson/status to track).
+ */
+learnerRoutes.post('/fix-gap', async (c) => {
+  const body = await c.req.json<{ gapEntityId?: string; sectionId?: string }>()
+    .catch(() => ({} as { gapEntityId?: string; sectionId?: string }));
+  const sectionId = body.sectionId?.trim();
+  if (!sectionId) return c.json({ error: 'sectionId is required' }, 400);
+
+  const [section] = await db.select().from(sections).where(eq(sections.id, sectionId));
+  if (!section) return c.json({ error: 'Section not found' }, 404);
+
+  // Look up the cached gap so we can build the prioritisedGap hint. If the
+  // caller passed an explicit gapEntityId we prefer it; otherwise fall back
+  // to the top gap.
+  const top = await getTopGap();
+  if (!top) {
+    return c.json({ error: 'No gap to fix — run gap-analysis first' }, 409);
+  }
+  // Caller-supplied entity id wins for routing; the cached gap supplies the
+  // human-readable bias text.
+  const rootCauseEntityId = body.gapEntityId?.trim() || top.rootCauseEntityId || '';
+  const prioritisedGap: PrioritisedGap = {
+    rootCauseEntityId,
+    rootCauseConceptName: top.rootCauseConceptName,
+    rootCauseReason: top.rootCauseReason,
+    whyItMatters: top.whyItMatters,
+  };
+
+  const startedAt = new Date().toISOString();
+  await db.update(sections).set({
+    lessonStatus: 'building',
+    lessonStage: 'outlining',
+    lessonStartedAt: startedAt,
+    lessonError: null,
+  }).where(eq(sections.id, sectionId));
+
+  const onStage = async (stage: LessonStage): Promise<void> => {
+    try {
+      await db.update(sections).set({ lessonStage: stage }).where(eq(sections.id, sectionId));
+    } catch (err) {
+      console.warn(`[fix-gap] stage update for ${sectionId} (${stage}) failed:`, err);
+    }
+  };
+
+  // Fire-and-forget — same pattern as POST /api/sections/:id/lesson.
+  void (async () => {
+    try {
+      const lesson = await generateLessonAuto(sectionId, { onStage, prioritisedGap });
+      const generatedAt = new Date().toISOString();
+      if (lesson.format === 'structured') {
+        await db.update(sections).set({
+          lessonBlocks: JSON.stringify(lesson.blocks),
+          lessonGeneratedAt: generatedAt,
+          lessonReadMinutes: lesson.estimatedReadMinutes,
+          lessonKeyTakeaways: JSON.stringify(lesson.keyTakeaways),
+          lessonStatus: 'ready',
+          lessonStage: null,
+          lessonError: null,
+        }).where(eq(sections.id, sectionId));
+      } else {
+        await db.update(sections).set({
+          lessonContent: lesson.content,
+          lessonGeneratedAt: generatedAt,
+          lessonReadMinutes: lesson.estimatedReadMinutes,
+          lessonKeyTakeaways: JSON.stringify(lesson.keyTakeaways),
+          lessonStatus: 'ready',
+          lessonStage: null,
+          lessonError: null,
+        }).where(eq(sections.id, sectionId));
+      }
+      console.log(`[fix-gap] section ${sectionId} regenerated with gap-bias`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[fix-gap] section ${sectionId} failed:`, msg);
+      await db.update(sections).set({
+        lessonStatus: 'error',
+        lessonStage: null,
+        lessonError: msg.slice(0, 4000),
+      }).where(eq(sections.id, sectionId));
+    }
+  })();
+
+  return c.json({
+    accepted: true,
+    sectionId,
+    statusUrl: `/api/sections/${sectionId}/lesson/status`,
+    prioritisedGap,
+    startedAt,
+  }, 202);
+});
+
+// Test-only hooks — exported for unit tests that inject mocks for the
+// analyzer / lesson-generator. Production code never imports __test.
+export const __test = {
+  /** Reset the in-process inFlightGapRun guard. Tests rely on this to ensure
+   *  successive `kickGapAnalyzerAsync` calls in different test cases do not
+   *  collide via the singleton promise. */
+  resetInFlightGapRun(): void {
+    inFlightGapRun = null;
+  },
+};
 
 /** Ask a question about the learner's progress in natural language */
 learnerRoutes.post('/ask', async (c) => {

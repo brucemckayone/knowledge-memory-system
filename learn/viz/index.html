@@ -912,6 +912,7 @@ function mountDashboard() {
     // Quiz tab is gone in v0.3 — every section nav opens the section view, where
     // inline questions live alongside the lesson. `opts.quiz` is now ignored.
     onNavigateSection: (sectionId) => { if (sectionId) openSection(sectionId); },
+    onFixGap: (sectionId) => { if (sectionId) openSection(sectionId); },
   };
   window.render(window.h`<${lib.DashboardCards}
     data=${state.dashboard}
@@ -922,6 +923,7 @@ function mountDashboard() {
     onRegenerateFlashcards=${handlers.onRegenerateFlashcards}
     onNavigateSection=${handlers.onNavigateSection}
     onNavigateCourse=${handlers.onNavigateCourse}
+    onFixGap=${handlers.onFixGap}
   />`, target);
 }
 
@@ -1123,6 +1125,7 @@ function renderSection(section) {
       ${section.description ? `<div class="desc">${escapeHtml(section.description)}</div>` : ''}
     </div>
 
+    <div id="sectionGap"></div>
     <div id="sectionBridge"></div>
     <div id="sectionSynthesis"></div>
 
@@ -1157,6 +1160,9 @@ function renderSection(section) {
   loadCrossCourseBridge(section);
   // Fire-and-forget — synthesis card is silent if no matching articles.
   loadSynthesisAffordance(section);
+  // Fire-and-forget — gap card silent unless one of this section's concepts
+  // is the root cause of the learner's top gap (nmemo-7b3).
+  loadSectionGapCard(section);
   // Fire-and-forget — notes load lazily; cached per-section to make tab-bounce instant.
   renderNotesPanel(section.id);
 }
@@ -1398,6 +1404,75 @@ async function loadSynthesisAffordance(section) {
         alert('Synthesis generation failed: ' + ((e && e.message) || 'unknown error'));
       } finally {
         genBtn.disabled = false;
+      }
+    });
+  }
+}
+
+// Inline gap card on the section page (nmemo-7b3). Silent unless one of the
+// section's concepts is the root cause of the learner's top gap. The CTA
+// kicks /api/learner/fix-gap with this section id, then resumes lesson
+// polling so the user sees the regeneration progress in-place.
+async function loadSectionGapCard(section) {
+  if (!section || !section.id) return;
+  const slot = document.getElementById('sectionGap');
+  if (!slot) return;
+  const concepts = Array.isArray(section.conceptEntityIds) ? section.conceptEntityIds : [];
+  if (concepts.length === 0) return;
+
+  let payload;
+  try {
+    payload = await api('GET', '/api/learner/gap-analysis/top');
+  } catch (e) {
+    console.warn('section gap card fetch failed:', e);
+    return;
+  }
+  if (!state.currentSection || state.currentSection.id !== section.id) return;
+  if (!slot.isConnected) return;
+
+  if (!payload || payload.coldStart || !payload.gap) return;
+  const gap = payload.gap;
+  const rootId = gap.rootCauseEntityId;
+  if (!rootId || !concepts.includes(rootId)) return; // root cause not in this section
+
+  const headline = escapeHtml(gap.rootCauseConceptName || gap.title || 'Knowledge gap');
+  const reason = escapeHtml(gap.rootCauseReason || '');
+  const why = escapeHtml(gap.whyItMatters || '');
+
+  slot.innerHTML = `
+    <div class="gap-card" style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;background:var(--surface)">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Why this matters for you</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">Gap: ${headline}</div>
+      ${reason ? `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;line-height:1.4">${reason}</div>` : ''}
+      ${why ? `<div style="font-size:12px;margin-bottom:10px;line-height:1.4"><strong>Blocks:</strong> ${why}</div>` : ''}
+      <button type="button" class="btn btn-primary btn-fix-gap">Fix this gap</button>
+      <span class="gap-card-status" style="margin-left:10px;font-size:12px;color:var(--muted)"></span>
+    </div>
+  `;
+
+  const btn = slot.querySelector('.btn-fix-gap');
+  const status = slot.querySelector('.gap-card-status');
+  if (btn) {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      if (status) status.textContent = 'Regenerating lesson…';
+      try {
+        const res = await fetch('/api/learner/fix-gap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gapEntityId: rootId, sectionId: section.id }),
+        });
+        if (!res.ok && res.status !== 202) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || `HTTP ${res.status}`);
+        }
+        // Resume polling — the existing lesson-status polling path will pick
+        // up the new generation and re-render when ready.
+        if (typeof startLessonPoll === 'function') startLessonPoll(section.id, null);
+        if (status) status.textContent = 'Lesson regenerating with gap-bias…';
+      } catch (e) {
+        btn.disabled = false;
+        if (status) status.textContent = 'Failed: ' + ((e && e.message) || 'unknown error');
       }
     });
   }

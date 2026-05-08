@@ -498,9 +498,82 @@
     <//>`;
   }
 
+  // ── Card 7: Top gap (nmemo-7b3) ─────────────────────────────────────────
+  function TopGapCard(props) {
+    const { tg, onFixGap, onNavigateSection } = props;
+    const [fixing, setFixing] = useState(false);
+    const [fixError, setFixError] = useState(null);
+
+    if (!tg) return null;
+
+    if (tg.coldStart) {
+      return h`<${Card} title="Top gap" span=${2}>
+        <${Empty}>Complete a quiz to surface gaps. (${tg.factCount}/${tg.threshold} learner facts so far.)<//>
+      <//>`;
+    }
+
+    if (!tg.gap) {
+      return h`<${Card} title="Top gap" span=${2}>
+        <${Empty}>${tg.refreshing ? 'Analysing your knowledge for gaps…' : 'No active gaps. Keep going.'}<//>
+      <//>`;
+    }
+
+    const gap = tg.gap;
+    const handleFix = async () => {
+      if (!tg.candidateSectionId) {
+        setFixError('No section currently teaches this concept.');
+        return;
+      }
+      setFixing(true); setFixError(null);
+      try {
+        const res = await fetch('/api/learner/fix-gap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            gapEntityId: gap.rootCauseEntityId || '',
+            sectionId: tg.candidateSectionId,
+          }),
+        });
+        if (!res.ok && res.status !== 202) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || `HTTP ${res.status}`);
+        }
+        if (typeof onFixGap === 'function') onFixGap(tg.candidateSectionId);
+        else if (typeof onNavigateSection === 'function') onNavigateSection(tg.candidateSectionId);
+      } catch (err) {
+        setFixError(err && err.message ? err.message : String(err));
+      } finally {
+        setFixing(false);
+      }
+    };
+
+    const headlineStyle = { fontSize: '14px', fontWeight: '600', marginBottom: '6px' };
+    const reasonStyle = { fontSize: '13px', color: 'var(--muted)', marginBottom: '8px', lineHeight: '1.4' };
+    const whyStyle = { fontSize: '12px', color: 'var(--text)', marginBottom: '12px', lineHeight: '1.4' };
+    const ctaWrap = { display: 'flex', alignItems: 'center', gap: '8px', marginTop: 'auto' };
+
+    return h`<${Card} title="Top gap" span=${2}>
+      <div style=${headlineStyle}>${gap.rootCauseConceptName || gap.title}</div>
+      ${gap.rootCauseReason ? h`<div style=${reasonStyle}>${gap.rootCauseReason}</div>` : null}
+      ${gap.whyItMatters ? h`<div style=${whyStyle}><strong>Why it matters:</strong> ${gap.whyItMatters}</div>` : null}
+      ${tg.refreshing ? h`<div style=${{fontSize:'11px',color:'var(--muted)',marginBottom:'8px'}}>Refreshing analysis…</div>` : null}
+      <div style=${ctaWrap}>
+        ${tg.candidateSectionId
+          ? h`<button class="btn btn-primary" onClick=${handleFix} disabled=${fixing}>
+              ${fixing ? 'Regenerating lesson…' : 'Fix this gap'}
+            </button>`
+          : h`<span style=${{fontSize:'12px',color:'var(--muted)'}}>No section teaches this concept yet.</span>`}
+        ${tg.candidateSectionTitle
+          ? h`<span style=${{fontSize:'11px',color:'var(--muted)'}}>→ ${truncate(tg.candidateSectionTitle, 40)}</span>`
+          : null}
+      </div>
+      ${fixError ? h`<div style=${{color:'var(--red)',fontSize:'12px',marginTop:'8px'}}>${fixError}</div>` : null}
+    <//>`;
+  }
+
   // ── Top-level grid ───────────────────────────────────────────────────────
   function DashboardCards(props) {
-    const { data, loading, error, onReload, onRegenerateFlashcards, onNavigateSection, onNavigateCourse, regenerating } = props;
+    const { data, loading, error, onReload, onRegenerateFlashcards, onNavigateSection, onNavigateCourse, onFixGap, regenerating } = props;
     const headerStyle = {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       marginBottom: '4px',
@@ -544,6 +617,7 @@
           <button class="btn btn-secondary" onClick=${onReload} disabled=${loading}>${loading ? 'Reloading…' : 'Reload'}</button>
         </div>
         <div class="dashboard-grid" style=${gridStyle}>
+          <${TopGapCard} tg=${d.topGap} onFixGap=${onFixGap} onNavigateSection=${onNavigateSection} />
           <${JumpBackInCard} jbi=${d.jumpBackIn} onNavigateSection=${onNavigateSection} />
           <${DailyQuizCard} dq=${d.dailyQuiz} onNavigateSection=${onNavigateSection} />
           <${DailyFlashcardsCard} df=${d.dailyFlashcards} onRegenerate=${onRegenerateFlashcards} regenerating=${regenerating} />

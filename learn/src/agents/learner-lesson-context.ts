@@ -46,6 +46,26 @@ export interface EstablishedConcept {
   confidence: number;
 }
 
+/**
+ * Gap-bias hint (nmemo-7b3). Set by the "fix this gap" regenerate path so
+ * the lesson pipeline tilts the outline toward the gap's root-cause concept.
+ * The outliner / prose writers surface this as a "Prioritised gap" block
+ * that overrides the default outline shape with a remedial slant.
+ *
+ * `coldStart` is forced to false whenever this is set — the gap-bias path
+ * is by definition a personalised regeneration.
+ */
+export interface PrioritisedGap {
+  /** The Nmemo entity id of the root-cause concept the lesson should fix. */
+  rootCauseEntityId: string;
+  /** Human-readable name of the root-cause concept. */
+  rootCauseConceptName: string;
+  /** One-line plain-language summary of why this gap exists. */
+  rootCauseReason: string;
+  /** What this gap blocks downstream — surfaces in the outro / motivation. */
+  whyItMatters: string;
+}
+
 export interface LearnerLessonContext {
   /** True when no learner-facts touched any concept in section.conceptEntityIds. */
   coldStart: boolean;
@@ -63,6 +83,10 @@ export interface LearnerLessonContext {
   /** Strong understandings (confidence >= 0.7) — outliner can skip motivation
    *  prose for these. */
   established: EstablishedConcept[];
+  /** Optional gap-bias hint — only set when the lesson is being regenerated
+   *  via the "fix this gap" CTA. When present, agents must produce a
+   *  remedial outline targeting this concept. */
+  prioritisedGap?: PrioritisedGap;
   /** Snapshot timestamp (ISO) for staleness checks and logging. */
   fetchedAt: string;
 }
@@ -232,6 +256,22 @@ export function deriveLearnerLessonContext(
     missingPrereqs,
     established,
     fetchedAt,
+  };
+}
+
+/**
+ * Apply a `PrioritisedGap` to an existing context. Forces `coldStart=false`
+ * so the personalisation prompt blocks fire — even if the original snapshot
+ * was a cold-start (the gap-bias is itself the personalisation signal).
+ */
+export function withPrioritisedGap(
+  base: LearnerLessonContext,
+  gap: PrioritisedGap,
+): LearnerLessonContext {
+  return {
+    ...base,
+    coldStart: false,
+    prioritisedGap: gap,
   };
 }
 

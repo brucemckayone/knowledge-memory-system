@@ -40,7 +40,9 @@ import { generateArtifact, type ArtifactSpec } from './artifact-generator.js';
 import { generateComponent, type ComponentKindName } from './component-generator.js';
 import {
   loadLearnerLessonContext,
+  withPrioritisedGap,
   type LearnerLessonContext,
+  type PrioritisedGap,
 } from './learner-lesson-context.js';
 
 // ---------------------------------------------------------------------------
@@ -76,6 +78,11 @@ export interface GenerateLessonOpts {
   /** Called whenever the pipeline transitions to a new stage. Best-effort —
       callback failures must not abort generation. */
   onStage?: (stage: LessonStage) => void | Promise<void>;
+  /** Optional gap-bias hint (nmemo-7b3). When set, the loaded learner
+   *  context is augmented with this gap and `coldStart` is forced to false
+   *  so the outliner / prose writers emit a remedial slant targeting the
+   *  root-cause concept. Used by the "fix this gap" CTA. */
+  prioritisedGap?: PrioritisedGap;
 }
 
 const ALLOWED_KINDS = new Set([
@@ -583,7 +590,14 @@ async function generateLessonStructuredV3(
   // Single platform fetch for learner state. Degrades to cold-start on any
   // failure / timeout — pipeline must never abort because of a flaky platform
   // call. The same snapshot is threaded through every parallel stage.
-  const learnerContext = await loadLearnerLessonContext(ctx.conceptEntityIds);
+  const baseLearnerContext = await loadLearnerLessonContext(ctx.conceptEntityIds);
+  // Apply gap-bias if the caller passed a `prioritisedGap`. The helper
+  // forces coldStart=false because the gap is itself the personalisation
+  // signal — even a learner with no relevant facts on this section's
+  // concepts gets a remedial slant when explicitly steered here.
+  const learnerContext: LearnerLessonContext = opts.prioritisedGap
+    ? withPrioritisedGap(baseLearnerContext, opts.prioritisedGap)
+    : baseLearnerContext;
   // Pass the typed context downstream only when we're personalising. For
   // cold-start lessons we pass `undefined`, which makes outliner / prose /
   // artifact prompts byte-identical to the v0.3 baseline.
