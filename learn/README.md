@@ -70,6 +70,24 @@ Reads the learner's full Graph S + Graph C state, finds the highest-impact gap (
 | POST   | /api/learner/gap-analysis | Generate targeted content for highest-impact gap |
 | POST   | /api/learner/ask | Natural language question about your progress |
 
+## End-to-end smokes (opt-in)
+
+These scripts hit the live Nmemo platform + Claude CLI agents. They are
+gated on `LIVE=1` and skip cleanly otherwise — safe to invoke in CI as a
+no-op smoke. Without `LIVE=1`, each prints a one-line skip notice and
+exits 0.
+
+| Script | What it verifies | Run |
+|--------|------------------|-----|
+| `scripts/smoke-7si-e2e.ts` | nmemo-7si AC #14: `generateLessonAuto` produces a visibly different lesson when learner facts (`confused_by`, `lacks_prerequisite`) are seeded vs cold-start | `LIVE=1 pnpm tsx scripts/smoke-7si-e2e.ts` |
+
+The 7si smoke seeds an in-memory section (temp row in `learn.db`, dropped
+on exit) plus minimal concept entities in the Nmemo graph, runs
+`generateLessonAuto` twice, and asserts the personalised run mentions the
+seeded concept and contains a plausibly remedial block. Wall-clock per
+run is 4-12 min on Haiku defaults; two runs ≈ 8-24 min total. Requires
+`NMEMO_URL` reachable and Claude CLI on PATH.
+
 ## Files added to the Nmemo platform
 
 The learning platform needed three thin endpoints on Nmemo (in `platform/src/index.ts`):
