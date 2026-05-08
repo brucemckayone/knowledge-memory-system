@@ -2764,6 +2764,57 @@ function decorateChatComponents(bubbleEl, blocks, sessionId, messageId) {
   }
 }
 
+// Parse an assistant message's nmemoUpdates column (JSON string from the DB,
+// or already-parsed array on freshly-posted echoes). Returns [] when missing
+// or malformed — caller skips chip-strip rendering for empty arrays.
+function parseNmemoUpdates(m) {
+  const raw = m.nmemoUpdates ?? m.nmemo_updates;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }
+  return [];
+}
+
+// Map a write tool name to a short visual icon + label. Reads are excluded by
+// upstream filtering, but we double-check here to keep the surface clean.
+const NMEMO_TOOL_ICONS = {
+  record_understanding:    { icon: '📝', label: 'understands' },
+  record_confusion:        { icon: '❓', label: 'confused' },
+  record_quiz_result:      { icon: '🧪', label: 'quiz' },
+  flag_prerequisite_gap:   { icon: '🚩', label: 'gap' },
+  update_learning_trajectory: { icon: '🧭', label: 'next' },
+};
+
+// Render a chip strip under an assistant message that has nmemoUpdates.
+// Writes-only — read tool calls are NOT surfaced (filtered by the agent
+// parser). When the array is empty, nothing is rendered (no clutter).
+function renderNmemoUpdateChips(parentEl, updates) {
+  if (!Array.isArray(updates) || updates.length === 0) return;
+  const writes = updates.filter((u) => u && NMEMO_TOOL_ICONS[u.tool]);
+  if (writes.length === 0) return;
+
+  const strip = document.createElement('div');
+  strip.className = 'nmemo-chips';
+  strip.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:12px;';
+
+  for (const u of writes) {
+    const meta = NMEMO_TOOL_ICONS[u.tool];
+    const concept = (typeof u.concept === 'string' && u.concept) ? u.concept : '(unspecified)';
+    const conf = typeof u.confidence === 'number' ? ` (${u.confidence.toFixed(2)})` : '';
+    const chip = document.createElement('small');
+    chip.className = 'chip nmemo-chip';
+    chip.style.cssText = 'background:rgba(99,102,241,0.10);color:#4338ca;padding:2px 8px;border-radius:10px;border:1px solid rgba(99,102,241,0.25);cursor:default;';
+    chip.title = u.evidence || u.misconception || u.tool;
+    chip.textContent = `${meta.icon} ${meta.label}: ${concept}${conf}`;
+    strip.appendChild(chip);
+  }
+  parentEl.appendChild(strip);
+}
+
 // Renders a chat message into the messages list. Structured assistant
 // responses (responseBlocks present) mount LessonRenderer into a placeholder
 // div; everything else uses the legacy plain-text rendering.
@@ -2783,6 +2834,7 @@ function appendChatMessage(listEl, m) {
     // After mount, overlay a small "Pin to lesson" affordance on each
     // component block. Chat-only — the lesson Section view does NOT call this.
     decorateChatComponents(wrap, blocks, state.sectionChat?.sessionId ?? null, m.id);
+    if (m.role === 'assistant') renderNmemoUpdateChips(wrap, parseNmemoUpdates(m));
     return wrap;
   }
 
@@ -2790,6 +2842,7 @@ function appendChatMessage(listEl, m) {
   // preserve byte-identical behaviour for plain-string responses (which may
   // contain inline HTML or markdown the old chat used to display verbatim).
   wrap.innerHTML = m.content ?? '';
+  if (m.role === 'assistant') renderNmemoUpdateChips(wrap, parseNmemoUpdates(m));
   return wrap;
 }
 
