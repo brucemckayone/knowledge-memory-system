@@ -38,6 +38,9 @@ export const state = {
   showClusterHulls: false,
   // viz.4 — cross-cluster candidates (Phase 4)
   crossClusterCandidates: [],
+  // viz.5 — pattern lifecycle filter + per-entity ghosts
+  patternStatusFilter: ['staging', 'candidate', 'provisional', 'canonical'], // 'rejected' off by default
+  ghostsByEntity: {}, // entityId → Ghost[]   (lazy-loaded on detail open)
   refs: {
     svg: null,
     g: null,

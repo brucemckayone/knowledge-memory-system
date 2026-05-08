@@ -45,7 +45,16 @@ export const resolveContradiction = (id, body) =>
   postJson(`/api/contradictions/${encodeURIComponent(id)}/resolve`, body);
 
 // ---- Patterns ----
-export const getPatterns = (limit = 100) => getJson(`/api/patterns?limit=${limit}`);
+export const getPatterns = (limit = 100, statuses = null) => {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (statuses && statuses.length > 0) qs.set('status', statuses.join(','));
+  return getJson(`/api/patterns?${qs.toString()}`);
+};
+export const getPatternInstances = (id, limit = 20) =>
+  getJson(`/api/patterns/${encodeURIComponent(id)}/instances?limit=${limit}`);
+export const detectPatterns = () => postJson('/api/patterns/detect');
+export const promotePatterns = () => postJson('/api/patterns/promote');
+export const getGhosts = (entityId) => getJson(`/api/ghosts/${encodeURIComponent(entityId)}`);
 
 // ---- Impact (Phase 4 blast radius) ----
 export const getImpact = (nodeType, nodeId, opts = {}) => {

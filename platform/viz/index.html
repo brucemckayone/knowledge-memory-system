@@ -226,6 +226,23 @@ svg { flex: 1; }
 .cc-generate-btn { font-size: 11px; padding: 4px 12px; border: 1px solid #9b59b6; background: rgba(155,89,182,0.12); color: #d2a8ff; cursor: pointer; border-radius: 4px; font-weight: 600; }
 .cc-generate-btn:hover { background: rgba(155,89,182,0.2); }
 .cc-generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Patterns panel chips + drawer (viz.5) */
+.patterns-controls { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; border-bottom: 1px solid #21262d; margin-bottom: 8px; }
+.pf-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.pf-chip { font-size: 10px; padding: 2px 8px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+.pf-chip.active { border-color: #58a6ff; color: #58a6ff; background: rgba(88,166,255,0.08); }
+.pf-chip:hover { border-color: #484f58; }
+.pattern-row { cursor: pointer; }
+.pattern-row:hover { border-color: #58a6ff !important; }
+.pattern-instances { padding: 8px; background: #0d1117; border-radius: 3px; margin-top: 6px; }
+.pattern-instance-row { padding: 4px 0; border-bottom: 1px dotted #21262d; font-size: 11px; }
+.pattern-instance-row:last-child { border-bottom: none; }
+.pi-meta { color: #8b949e; font-size: 10px; }
+.pi-reasoning { color: #c9d1d9; }
+
+/* Detail panel ghosts (viz.5) */
+.ghosts-section { margin-top: 8px; }
 .answer-panel .answer-close:hover { color: #c9d1d9; }
 </style>
 </head>
@@ -332,10 +349,17 @@ svg { flex: 1; }
 </div>
 <div class="contradictions-panel" id="patternsPanel">
   <div class="ctrad-header">
-    <h3>Active Patterns</h3>
+    <h3>Patterns</h3>
     <div class="ctrad-meta">
       <span id="patternsMeta">Loading…</span>
       <button class="ctrad-close" id="patternsClose">&times;</button>
+    </div>
+  </div>
+  <div class="patterns-controls">
+    <div id="patternsFilter" class="pf-chips"></div>
+    <div class="cc-actions" style="padding:0">
+      <button class="cc-generate-btn" id="btnPatternsDetect" title="Run chain scan + template clustering (POST /api/patterns/detect)">Detect</button>
+      <button class="cc-generate-btn" id="btnPatternsPromote" title="Run lifecycle promotion sweep (POST /api/patterns/promote)">Promote</button>
     </div>
   </div>
   <div id="patternsList"></div>

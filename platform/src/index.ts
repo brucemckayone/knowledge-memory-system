@@ -15,7 +15,7 @@ import { isNull, sql, eq } from 'drizzle-orm';
 import { getMergeCandidates } from './services/graph-meta.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const vizHtml = readFileSync(join(__dirname, '../viz/index.html'), 'utf-8');
+const vizHtmlPath = join(__dirname, '../viz/index.html');
 
 export const app = new Hono();
 
@@ -77,7 +77,9 @@ app.get('/ingest/queue/status', (c) => {
 // Viz routes
 // ============================================
 
-app.get('/viz', (c) => c.html(vizHtml));
+// Read viz/index.html per request so edits land live without restarting the
+// dev server (matches the /viz/js/* per-request readFileSync pattern).
+app.get('/viz', (c) => c.html(readFileSync(vizHtmlPath, 'utf-8')));
 
 // Serve static JS files for the viz. Supports nested module paths
 // (canvas/, layers/, panels/, agents/, overlays/) introduced by the viz.1

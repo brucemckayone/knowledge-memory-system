@@ -1,6 +1,35 @@
 import { esc } from '../util.js';
 import { state } from '../state.js';
 import { fetchImpact } from './impact.js';
+import { loadGhostsForEntity } from '../overlays/ghosts.js';
+
+// viz.5 — Ghosts section (lazy-loaded). Returns a placeholder element id so
+// showNodeDetail can populate it asynchronously.
+function ghostsSectionPlaceholder() {
+  return `<div id="ghosts-section" class="ghosts-section"></div>`;
+}
+
+function renderGhostsSection(ghosts) {
+  const wrap = document.getElementById('ghosts-section');
+  if (!wrap) return;
+  if (!Array.isArray(ghosts) || ghosts.length === 0) {
+    wrap.innerHTML = '';
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="section-label">Ghost patterns (${ghosts.length})</div>
+    ${ghosts.map(gh => `
+      <div class="source-block">
+        <strong>${esc(gh.patternName || '(unnamed pattern)')}</strong>
+        · pos ${gh.positionInPattern} · conf ${(gh.confidence ?? 0).toFixed(2)}
+        <br>expects <code>${esc(gh.expectedCauseEntityType ?? '?')}</code>
+        --[${esc(gh.expectedPredicateCategory ?? '?')}]-->
+        <code>${esc(gh.expectedEffectEntityType ?? '?')}</code>
+        <br><span style="color:#8b949e">${esc((gh.reasoning || '').slice(0, 200))}</span>
+      </div>
+    `).join('')}
+  `;
+}
 
 // viz.3 — Cluster section renderer (HDBSCAN). Returns '' when the entity
 // did not participate in the most recent clustering run.
@@ -125,6 +154,9 @@ export function showNodeDetail(d) {
     // Cluster section (viz.3)
     html += clusterSection(d.id);
 
+    // Ghosts placeholder (viz.5 — populated asynchronously below)
+    html += ghostsSectionPlaceholder();
+
     const merges = data.edges.filter(e => e._edgeType === 'mergeCandidate' && ((e.source.id || e.source) === d.id || (e.target.id || e.target) === d.id));
     if (merges.length > 0) {
       html += `<div class="section-label">Merge candidates (${merges.length})</div>`;
@@ -207,6 +239,11 @@ export function showNodeDetail(d) {
 
   if (apiNodeType) {
     fetchImpact(apiNodeType, d.id, { hypothetical: null });
+  }
+
+  // viz.5 — lazy-load ghosts for this entity and stream into the placeholder.
+  if (d._nodeType === 'entity') {
+    loadGhostsForEntity(d.id, renderGhostsSection);
   }
 }
 

@@ -8,6 +8,7 @@ import { showNodeDetail, showEdgeDetail } from '../panels/detail.js';
 import { renderContradictionsOverlay } from '../overlays/contradictions.js';
 import { resolveEntityColor, resolveEntityStrokeOpacity, renderTopologyOverlay } from '../layers/topology.js';
 import { renderClusterHulls } from '../layers/clusters.js';
+import { renderGhostMarkers } from '../overlays/ghosts.js';
 
 export function renderAll() {
   const { nodes, edges } = state.data;
@@ -116,6 +117,9 @@ export function renderAll() {
 
   // Topology overlay (viz.2 — articulation rings + centrality halos + bridges)
   renderTopologyOverlay();
+
+  // Ghost markers (viz.5 — entities with unfilled pattern slots)
+  renderGhostMarkers();
 
   // Contradictions overlay (Phase 5 — viz.1)
   renderContradictionsOverlay();
