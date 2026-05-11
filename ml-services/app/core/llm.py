@@ -433,6 +433,178 @@ class ZAIProvider:
 
 
 # ---------------------------------------------------------------------------
+# Pi SDK Bridge Provider
+# ---------------------------------------------------------------------------
+class PiBridgeProvider:
+    """LLM provider that delegates to the Pi Agent Bridge service.
+
+    The bridge is a Node.js service (pi-agent-bridge.ts) that uses the Pi
+    SDK to run agentic tool-use loops in-process. It registers the graph
+    tools via defineTool() and runs createAgentSession() per request.
+
+    This replaces the Claude Code subprocess + MCP server pattern:
+    - No subprocess per invocation
+    - No MCP config files on disk
+    - No MCP server subprocess (tools are in-process)
+    - Direct function calls to handleToolCall() instead of JSON-RPC
+
+    Switch to this provider via: LLM_PROVIDER=pi
+    """
+
+    BRIDGE_URL = os.getenv("PI_BRIDGE_URL", "http://localhost:3001")
+
+    def __init__(self) -> None:
+        # Eagerly check bridge is reachable (health check)
+        try:
+            import httpx
+            resp = httpx.get(f"{self.BRIDGE_URL}/health", timeout=5.0)
+            if resp.status_code != 200:
+                raise RuntimeError(f"Pi bridge health check failed: {resp.status_code}")
+            info = resp.json()
+            logger.info(
+                "Pi Agent Bridge connected: service=%s tools=%s",
+                info.get("service"), info.get("tools"),
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Pi Agent Bridge not reachable at {self.BRIDGE_URL}: {e}. "
+                "Start it with: npx tsx src/services/pi-agent-bridge.ts"
+            )
+
+    # -- public interface (LLMProvider) -------------------------------------
+
+    def generate(
+        self,
+        prompt: str,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Generate a response via the Pi Agent Bridge."""
+        import httpx
+
+        opts = options or {}
+        timeout = opts.get("timeout", 300)
+
+        payload = {
+            "prompt": prompt,
+            "system_prompt": opts.get("system_prompt", ""),
+            "provider": opts.get("provider", os.getenv("PI_PROVIDER", "zai")),
+            "model": self._resolve("model", opts),
+            "thinking": self._map_effort(opts),
+            "actor": opts.get("mcp_actor", opts.get("actor", "graph_agent")),
+            "timeout": timeout,
+        }
+
+        try:
+            resp = httpx.post(
+                f"{self.BRIDGE_URL}/run",
+                json=payload,
+                timeout=timeout + 30,  # client timeout > agent timeout
+            )
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=504,
+                detail=f"Pi bridge timed out after {timeout}s",
+            )
+        except httpx.ConnectError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Pi bridge unreachable: {e}",
+            )
+
+        if resp.status_code != 200:
+            detail = resp.text[:500]
+            raise HTTPException(
+                status_code=resp.status_code,
+                detail=f"Pi bridge error: {detail}",
+            )
+
+        data = resp.json()
+
+        # Log cost for observability
+        cost = data.get("cost", {})
+        if cost:
+            logger.info(
+                "pi bridge: provider=%s model=%s task=%s cost=$%.4f in=%d out=%d tools=%d turns=%d",
+                payload["provider"],
+                payload["model"],
+                opts.get("task", "unknown"),
+                cost.get("estimated_usd", 0),
+                cost.get("input_tokens", 0),
+                cost.get("output_tokens", 0),
+                data.get("tool_calls", 0),
+                data.get("turns", 0),
+            )
+
+        error = data.get("error")
+        if error:
+            logger.error("Pi bridge agent error: %s", error[:200])
+
+        return data.get("result", "")
+
+    def extract_json(self, text: str) -> Dict[str, Any]:
+        """Extract and parse JSON from text (shared with ClaudeCodeProvider)."""
+        stripped = re.sub(r'^```(?:json)?\s*\n?', '', text.strip())
+        stripped = re.sub(r'\n?```\s*$', '', stripped).strip()
+
+        try:
+            return json.loads(stripped)
+        except json.JSONDecodeError:
+            pass
+
+        json_str = _find_json_structure(stripped)
+        if json_str:
+            return json.loads(json_str)
+
+        raise ValueError(f"Could not parse JSON from response: {text[:200]}...")
+
+    def generate_json(
+        self,
+        prompt: str,
+        response_model: Optional[Type[T]] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        """Generate and parse a JSON response via the Pi bridge."""
+        text = self.generate(prompt, options)
+        try:
+            parsed = self.extract_json(text)
+        except ValueError as e:
+            raise ValueError(f"JSON parsing failed: {e}")
+
+        if response_model:
+            try:
+                return response_model.model_validate(parsed)
+            except Exception as e:
+                raise ValueError(f"Schema validation failed: {e}")
+
+        return parsed
+
+    # -- internal helpers ---------------------------------------------------
+
+    def _resolve(self, key: str, options: Optional[Dict] = None) -> str:
+        """Resolve a setting: explicit option > task default > Pi default."""
+        if options and options.get(key):
+            return str(options[key])
+        task = (options or {}).get("task", "")
+        task_defaults = TASK_DEFAULTS.get(task, {})
+        if key in task_defaults:
+            return task_defaults[key]
+        # Pi defaults
+        pi_defaults = {"model": "glm-5.1", "provider": "zai"}
+        return pi_defaults.get(key, "")
+
+    def _map_effort(self, options: Optional[Dict] = None) -> str:
+        """Map Claude-style effort to Pi thinking level."""
+        effort = self._resolve("effort", options)
+        mapping = {
+            "low": "off",
+            "medium": "low",
+            "high": "medium",
+            "max": "high",
+        }
+        return mapping.get(effort, "off")
+
+
+# ---------------------------------------------------------------------------
 # Factory & singleton
 # ---------------------------------------------------------------------------
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "claude")
@@ -443,6 +615,9 @@ def create_llm_client() -> LLMProvider:
     if LLM_PROVIDER == "zai":
         logger.info("Using ZAI GLM-4.7 LLM provider")
         return ZAIProvider()
+    if LLM_PROVIDER == "pi":
+        logger.info("Using Pi Agent Bridge LLM provider")
+        return PiBridgeProvider()
     logger.info("Using Claude Code CLI LLM provider")
     return ClaudeCodeProvider()
 

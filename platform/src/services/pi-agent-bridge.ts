@@ -1,0 +1,386 @@
+#!/usr/bin/env node
+/**
+ * Pi Agent Bridge — SDK-based LLM agent service
+ *
+ * Replaces the Claude Code subprocess + MCP server pattern.
+ * Uses the Pi SDK (createAgentSession + defineTool) to run agentic
+ * tool-use loops entirely in-process — no MCP, no subprocess per invocation.
+ *
+ * The graph tools from causal-agent.ts (GRAPH_TOOLS + handleToolCall)
+ * are registered as Pi custom tools via defineTool(). The agent gets
+ * a per-invocation system prompt and runs until it stops or times out.
+ *
+ * Usage: npx tsx src/services/pi-agent-bridge.ts
+ *   Listens on port 3001 (configurable via PI_BRIDGE_PORT env var).
+ */
+
+import { createServer, IncomingMessage, ServerResponse } from 'http';
+import {
+  createAgentSession,
+  defineTool,
+  SessionManager,
+  SettingsManager,
+  AuthStorage,
+  ModelRegistry,
+  DefaultResourceLoader,
+  createExtensionRuntime,
+  type AgentSession,
+  type ResourceLoader,
+  type AgentSessionEvent,
+} from '@mariozechner/pi-coding-agent';
+import { Type } from '@sinclair/typebox';
+import { GRAPH_TOOLS, handleToolCall, type ToolCallContext } from './causal-agent.js';
+
+// ============================================
+// Config
+// ============================================
+
+const PORT = parseInt(process.env.PI_BRIDGE_PORT || '3001', 10);
+const REQUEST_TIMEOUT_MS = 10_000; // time to wait for bridge startup
+
+// ============================================
+// Tool Conversion: GRAPH_TOOLS → Pi defineTool
+// ============================================
+
+/**
+ * Convert a GRAPH_TOOLS JSON Schema inputSchema to a TypeBox schema.
+ *
+ * GRAPH_TOOLS schemas are standard JSON Schema objects:
+ *   { type: "object", properties: {...}, required: [...] }
+ *
+ * TypeBox's Type.Unsafe() accepts any raw JSON Schema and produces
+ * a valid TSchema that Pi's tool validation can use.
+ */
+function jsonSchemaToTypeBox(schema: Record<string, unknown>) {
+  return Type.Unsafe(schema);
+}
+
+/**
+ * Build Pi custom tools from GRAPH_TOOLS definitions.
+ * Each tool delegates to handleToolCall() from causal-agent.ts.
+ */
+function buildPiTools(actor: string) {
+  return GRAPH_TOOLS.map((toolDef) =>
+    defineTool({
+      name: toolDef.name,
+      label: toolDef.name,
+      description: toolDef.description,
+      parameters: jsonSchemaToTypeBox(toolDef.inputSchema as Record<string, unknown>),
+      // Tools that write to the DB should run sequentially to avoid races
+      executionMode: isWriteTool(toolDef.name) ? 'sequential' : 'parallel',
+      execute: async (_toolCallId, params, _signal, _onUpdate) => {
+        const context: ToolCallContext = {
+          agent: actor as ToolCallContext['agent'],
+        };
+        const result = await handleToolCall(toolDef.name, params as Record<string, unknown>, context);
+        return {
+          content: [{ type: 'text' as const, text: result }],
+          details: {},
+        };
+      },
+    }),
+  );
+}
+
+const WRITE_TOOLS = new Set([
+  'create_causal_edge', 'create_fact', 'resolve_entity', 'link_entity_to_memory',
+  'add_entity_alias', 'update_entity_summary', 'create_same_as_link', 'execute_merge',
+  'resolve_candidate', 'expire_fact', 'invalidate_fact', 'restore_fact',
+  'update_fact_confidence', 'expire_causal_edge', 'revise_causal_edge',
+  'resolve_contradiction', 'save_reasoning_report',
+]);
+
+function isWriteTool(name: string): boolean {
+  return WRITE_TOOLS.has(name);
+}
+
+// ============================================
+// Minimal ResourceLoader — no discovery
+// ============================================
+
+function makeResourceLoader(systemPrompt: string): ResourceLoader {
+  return {
+    getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }),
+    getSkills: () => ({ skills: [], diagnostics: [] }),
+    getPrompts: () => ({ prompts: [], diagnostics: [] }),
+    getThemes: () => ({ themes: [], diagnostics: [] }),
+    getAgentsFiles: () => ({ agentsFiles: [] }),
+    getSystemPrompt: () => systemPrompt,
+    getAppendSystemPrompt: () => [],
+    extendResources: () => {},
+    reload: async () => {},
+  };
+}
+
+// ============================================
+// Request / Response Types
+// ============================================
+
+interface BridgeRequest {
+  prompt: string;
+  system_prompt: string;
+  /** Pi provider name (e.g. "zai", "anthropic", "google") */
+  provider?: string;
+  /** Model ID (e.g. "glm-5.1", "claude-sonnet-4-20250514") */
+  model?: string;
+  /** Pi thinking level: "off" | "minimal" | "low" | "medium" | "high" */
+  thinking?: string;
+  /** Agent actor for audit trail: "graph_agent" | "reasoning_agent" | etc. */
+  actor?: string;
+  /** Request timeout in seconds (default 300) */
+  timeout?: number;
+}
+
+interface BridgeResponse {
+  result: string;
+  cost?: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read?: number;
+    cache_write?: number;
+    total_tokens?: number;
+    estimated_usd?: number;
+  };
+  error?: string;
+  tool_calls?: number;
+  turns?: number;
+}
+
+// ============================================
+// Run Agent
+// ============================================
+
+async function runAgent(req: BridgeRequest): Promise<BridgeResponse> {
+  const {
+    prompt,
+    system_prompt,
+    provider = 'zai',
+    model: modelId = 'glm-5.1',
+    thinking = 'off',
+    actor = 'graph_agent',
+    timeout = 300,
+  } = req;
+
+  const tools = buildPiTools(actor);
+  const resourceLoader = makeResourceLoader(system_prompt);
+  const authStorage = AuthStorage.create();
+  const modelRegistry = ModelRegistry.create(authStorage);
+
+  const settingsManager = SettingsManager.inMemory({
+    compaction: { enabled: false },
+    retry: { enabled: false },
+  });
+
+  let result = '';
+  let cost: BridgeResponse['cost'] = {};
+  let toolCallCount = 0;
+  let turnCount = 0;
+  let error: string | undefined;
+
+  // Resolve model — fall back to first available if specific model not found
+  let resolvedModel;
+  try {
+    const available = await modelRegistry.getAvailable();
+    resolvedModel = available.find(
+      (m) => m.provider === provider && m.id === modelId,
+    ) || available.find((m) => m.provider === provider) || available[0];
+
+    if (!resolvedModel) {
+      throw new Error(`No models available for provider=${provider} model=${modelId}`);
+    }
+  } catch (err) {
+    return {
+      result: '',
+      error: `Model resolution failed: ${err instanceof Error ? err.message : err}`,
+    };
+  }
+
+  // Timeout guard — reject the promise if the agent takes too long
+  const timeoutPromise = new Promise<BridgeResponse>((_resolve) => {
+    setTimeout(() => {
+      _resolve({
+        result: result || '',
+        cost,
+        error: `Agent timed out after ${timeout}s`,
+        tool_calls: toolCallCount,
+        turns: turnCount,
+      });
+    }, timeout * 1000);
+  });
+
+  const agentPromise = (async (): Promise<BridgeResponse> => {
+    const { session } = await createAgentSession({
+      model: resolvedModel,
+      thinkingLevel: thinking as any,
+      tools: [], // no built-in tools
+      customTools: tools,
+      sessionManager: SessionManager.inMemory(),
+      settingsManager,
+      resourceLoader,
+      authStorage,
+      modelRegistry,
+    });
+
+    try {
+      // Subscribe to events for result collection
+      session.subscribe((event: AgentSessionEvent) => {
+        switch (event.type) {
+          case 'tool_execution_end':
+            toolCallCount++;
+            break;
+          case 'turn_end':
+            turnCount++;
+            break;
+          case 'agent_end': {
+            const messages = event.messages || [];
+            // Get last assistant message text
+            for (let i = messages.length - 1; i >= 0; i--) {
+              const msg = messages[i]!;
+              if (msg.role === 'assistant') {
+                const textParts: string[] = [];
+                for (const block of (msg as any).content || []) {
+                  if (block.type === 'text') {
+                    textParts.push(block.text);
+                  }
+                }
+                result = textParts.join('\n');
+
+                // Extract usage
+                const usage = (msg as any).usage;
+                if (usage) {
+                  cost = {
+                    input_tokens: usage.input || 0,
+                    output_tokens: usage.output || 0,
+                    cache_read: usage.cacheRead || 0,
+                    cache_write: usage.cacheWrite || 0,
+                    total_tokens: usage.totalTokens || 0,
+                    estimated_usd: (msg as any).cost?.total || 0,
+                  };
+                }
+                break;
+              }
+            }
+            break;
+          }
+        }
+      });
+
+      // Run the prompt
+      await session.prompt(prompt);
+
+      return {
+        result,
+        cost,
+        tool_calls: toolCallCount,
+        turns: turnCount,
+      };
+    } catch (err) {
+      return {
+        result: result || '',
+        cost,
+        error: err instanceof Error ? err.message : String(err),
+        tool_calls: toolCallCount,
+        turns: turnCount,
+      };
+    } finally {
+      session.dispose();
+    }
+  })();
+
+  return Promise.race([agentPromise, timeoutPromise]);
+}
+
+// ============================================
+// HTTP Server
+// ============================================
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+function sendJson(res: ServerResponse, status: number, data: unknown) {
+  const body = JSON.stringify(data);
+  res.writeHead(status, {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(body),
+  });
+  res.end(body);
+}
+
+const server = createServer(async (req, res) => {
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  // Health check
+  if (req.method === 'GET' && req.url === '/health') {
+    sendJson(res, 200, {
+      status: 'ok',
+      service: 'pi-agent-bridge',
+      tools: GRAPH_TOOLS.length,
+      version: '1.0.0',
+    });
+    return;
+  }
+
+  // Tool listing (for debugging)
+  if (req.method === 'GET' && req.url === '/tools') {
+    sendJson(res, 200, {
+      tools: GRAPH_TOOLS.map((t) => ({ name: t.name, description: t.description.slice(0, 80) })),
+      count: GRAPH_TOOLS.length,
+    });
+    return;
+  }
+
+  // Run agent
+  if (req.method === 'POST' && req.url === '/run') {
+    try {
+      const body = await readBody(req);
+      const bridgeReq = JSON.parse(body) as BridgeRequest;
+
+      if (!bridgeReq.prompt) {
+        sendJson(res, 400, { error: 'Missing required field: prompt' });
+        return;
+      }
+
+      console.error(`[bridge] POST /run actor=${bridgeReq.actor || 'graph_agent'} model=${bridgeReq.model || 'default'} tools=${GRAPH_TOOLS.length}`);
+      const startTime = Date.now();
+
+      const result = await runAgent(bridgeReq);
+
+      const elapsed = Date.now() - startTime;
+      console.error(`[bridge] POST /run done ${elapsed}ms turns=${result.turns || 0} tools=${result.tool_calls || 0} ${result.error ? 'ERROR: ' + result.error.slice(0, 100) : 'OK'}`);
+
+      sendJson(res, result.error ? 500 : 200, result);
+    } catch (err) {
+      console.error('[bridge] POST /run error:', err);
+      sendJson(res, 500, {
+        result: '',
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return;
+  }
+
+  // 404
+  sendJson(res, 404, { error: 'Not found' });
+});
+
+server.listen(PORT, () => {
+  console.error(`Pi Agent Bridge running on http://localhost:${PORT}`);
+  console.error(`  GET  /health  — health check`);
+  console.error(`  GET  /tools   — list registered tools`);
+  console.error(`  POST /run     — run agent (prompt + system_prompt → result)`);
+});

@@ -36,12 +36,16 @@
     "snapshot:synthetic": "tsx scripts/generate-synthetic.ts",
     "snapshot:load": "tsx scripts/load-snapshot.ts",
     "snapshot:verify": "tsx scripts/snapshot-verify.ts",
+    "bridge": "tsx src/services/pi-agent-bridge.ts",
+    "bridge:test": "tsx src/services/pi-agent-bridge.ts --test",
     "test:snapshot": "vitest run --config vitest.snapshot.config.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.8.0",
+    "@mariozechner/pi-coding-agent": "^0.73.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@qdrant/js-client-rest": "^1.7.0",
+    "@sinclair/typebox": "^0.34.49",
     "chokidar": "^5.0.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.29.3",
