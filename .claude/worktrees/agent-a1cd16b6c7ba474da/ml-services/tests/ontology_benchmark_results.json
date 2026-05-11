@@ -1,0 +1,71 @@
+{
+  "elapsed": 24.56291675567627,
+  "results": {
+    "B1": {
+      "enriched_gap": 0.8124795345553063,
+      "enriched_gap_passed": "True"
+    },
+    "B2": {
+      "best_f1": 0.95,
+      "best_f1_passed": true
+    },
+    "B3": {
+      "merge_threshold": 0.9053394606128761,
+      "distinct_threshold": 0.8479001435106803,
+      "clean_separation": true,
+      "clean_separation_passed": true
+    },
+    "B4": {
+      "accuracy": 1.0,
+      "accuracy_passed": true
+    },
+    "B5": {
+      "gap": 0.07524928584617585
+    },
+    "B6": {
+      "mapping_rate": 1.0,
+      "mapping_rate_passed": true
+    },
+    "B7": {
+      "false_merges": 3,
+      "false_merges_passed": false,
+      "in_llm_zone": 4
+    },
+    "B8": {
+      "merge_leaks": 2,
+      "merge_leaks_passed": false,
+      "auto_reject_rate": 0.5555555555555556,
+      "auto_reject_rate_passed": false
+    },
+    "B9": {
+      "accuracy": 0.7777777777777778,
+      "accuracy_passed": false
+    },
+    "B10": {
+      "mean_f1": 0.9615083162451583,
+      "mean_f1_passed": "True",
+      "std_f1": 0.012981748362318354
+    },
+    "B11": {
+      "threshold_drift": 0.010356767256527122,
+      "threshold_drift_passed": true
+    },
+    "B12": {
+      "would_merge_without_registry": 6,
+      "registry_necessity": 0.6666666666666666,
+      "registry_necessity_passed": true
+    },
+    "B18": {
+      "emb_false_merges": 3,
+      "ms_false_merges": 0,
+      "ms_false_merges_passed": true,
+      "improvement": 3
+    },
+    "B19": {
+      "emb_accuracy": 0.7777777777777778,
+      "ms_accuracy": 0.8518518518518519,
+      "ms_accuracy_passed": true,
+      "improvement": 0.07407407407407407
+    }
+  }
+}

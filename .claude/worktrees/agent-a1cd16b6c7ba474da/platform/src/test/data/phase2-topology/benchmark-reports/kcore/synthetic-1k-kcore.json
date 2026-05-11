@@ -1,0 +1,23 @@
+{
+  "snapshot_name": "synthetic-1k",
+  "feature": "k_core",
+  "computation_version": 1,
+  "computed_at": "2026-05-07T08:34:07.338Z",
+  "elapsed_ms_compute_only": 0,
+  "total_entities": 1000,
+  "edge_count": 3200,
+  "max_k_core": 4,
+  "mean_k_core": 3.789,
+  "k_core_distribution": {
+    "0": 3,
+    "1": 6,
+    "2": 29,
+    "3": 123,
+    "4": 839
+  },
+  "thresholds": {
+    "target_ms": 30,
+    "hard_cap_ms": 100
+  },
+  "notes": "23.2 k-core via igraph.Graph.coreness(mode=\"all\"); shares export + write-back with 23.1 components. frankenstein-10chunks and mixed-narrative-technical-1k snapshots deferred (j77.5)."
+}

@@ -1,0 +1,26 @@
+{
+  "scenario": "near-contradiction-temporal",
+  "description": "Opposing facts with disjoint valid_at/invalid_at windows. Heuristic must NOT flag because invalid_at is set on one fact — temporally-windowed claims are not contradictions.",
+  "data_set_level": 1,
+  "fixture": "phase5-contradictions/fixtures/near-contradiction-temporal.sql",
+  "phases_exercised": ["detection"],
+
+  "stages": [
+    {
+      "stage": "detection",
+      "driver": "service_call",
+      "service_call": "detectOpposingObjects",
+      "assertions": [
+        {
+          "type": "row_count",
+          "table": "contradictions",
+          "filter": { "contradiction_type": "opposing_object" },
+          "expected": 0,
+          "because": "Facts with closed validity windows (invalid_at NOT NULL) must not be flagged as contradictions — they represent legitimate temporal succession"
+        }
+      ]
+    }
+  ],
+
+  "graduation_notes": "Add temporal-overlap-active.sql: both facts active (invalid_at NULL) but valid_at ranges overlap — should flag because the heuristic can't infer temporal disjointness without explicit boundaries."
+}

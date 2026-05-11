@@ -1,0 +1,110 @@
+direction: down
+
+classes: {
+  cluster: {
+    style: {
+      fill: "#E3F2FD"
+      stroke: "#1565C0"
+      stroke-width: 2
+    }
+  }
+  gpu: {
+    style: {
+      fill: "#E0F2F1"
+      stroke: "#00695C"
+      shadow: true
+    }
+  }
+  secure: {
+    style: {
+      stroke-dash: 3
+    }
+  }
+}
+
+# The Multi-Tenant Cloud (SaaS)
+PrivateCloud: Secured Private Cloud (Multi-Tenant) {
+  class: cluster
+
+  # 1. Application Layer (Stateless & Shared)
+  LoadBalancer: Load Balancer (Nginx) {
+    tooltip: Terminates TLS, Rate Limits by IP
+  }
+  
+  AppCluster: App Server Cluster {
+    Node1: App Node 1 (Stateless)
+    Node2: App Node 2 (Stateless)
+    
+    # Request Context Injection
+    Node1.auth: Auth Middleware {
+      shape: rectangle
+      label: "Inject UserID"
+    }
+  }
+  
+  LoadBalancer -> AppCluster: HTTPS Requests
+
+  # 2. Asynchronous Broker
+  Queue: Job Broker (Redis/PgBoss) {
+    style.fill: "#FFF3E0"
+  }
+  
+  AppCluster -> Queue: Enqueue Inference Tasks
+
+  # 3. The Inference Fleet (The Solution)
+  InferenceFleet: **Private Inference Fleet** {
+    class: cluster
+    style.fill: "#F3E5F5"
+    
+    Worker1: GPU Worker 1 {
+      class: gpu
+      vLLM: vLLM Engine
+      Model: Llama 3 (Quantized)
+    }
+    
+    Worker2: GPU Worker 2 {
+      class: gpu
+      vLLM: vLLM Engine
+      Model: Mistral (Quantized)
+    }
+    
+    Worker3: GPU Worker 3 {
+      class: gpu
+      vLLM: vLLM Engine
+      Model: Whisper (Large)
+    }
+  }
+  
+  Queue -> InferenceFleet: Pull Tasks
+  
+  # 4. Data Layer (Logically Isolated)
+  DataLayer: **Data Isolation Layer** {
+    style.fill: "#E1F5FE"
+    
+    ShardedDB: Postgres (RLS Enabled) {
+      tooltip: Row-Level Security ensures Tenant A cannot see Tenant B
+    }
+    
+    VectorDB: Qdrant (Payload Filtering) {
+      tooltip: Filters every query by 'user_id'
+    }
+    
+    GraphDB: Graph (Schema per Tenant) {
+      tooltip: Each user gets a dedicated schema namespace
+    }
+  }
+  
+  AppCluster -> DataLayer: Authenticated Queries (Scoped)
+}
+
+# Security Boundary
+Internet: Public Internet {
+  class: secure
+}
+
+
+
+# Explanation
+# The "Fleet" allows you to add GPU nodes endlessly.
+# The Apps are stateless.
+# The Data is isolated.

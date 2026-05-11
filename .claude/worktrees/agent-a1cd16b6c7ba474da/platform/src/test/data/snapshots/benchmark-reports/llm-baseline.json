@@ -1,0 +1,72 @@
+{
+  "phase": "j77.3 LLM-pipeline generator baseline",
+  "machine": {
+    "platform": "win32",
+    "kernel": "MINGW64_NT-10.0-26200",
+    "node": "v25.8.2",
+    "postgres_image": "nmemo-postgres (Postgres 16.13, AGE 1.5.0)",
+    "pg_dump_resolution": "docker exec nmemo-postgres-1"
+  },
+  "thresholds_ref": "docs/architecture/truth-graph/28-test-data-snapshots.md \u00a75.1",
+  "operations": [
+    {
+      "operation": "snapshot:generate (LLM, fake ingest client)",
+      "snapshot": "__llm-test-tiny",
+      "duration_ms": 2400,
+      "threshold_target_ms": null,
+      "threshold_hard_cap_ms": null,
+      "stats": { "chunks": 2, "entities": 2, "facts": 0 },
+      "notes": "Fake-client baseline from llm-generator.snapshot.test.ts. Drop + recreate cognitive_test, apply 12 migrations, chunk a tiny 2-paragraph corpus into 2 chunks at chunk_size=400, fake client inserts one entity per chunk, pg_dump --format=custom via docker exec. The full §3.4 path runs except the LLM call itself. Real-Claude smoke is captured below as 'pending'."
+    },
+    {
+      "operation": "snapshot:generate (LLM, real ingest pipeline)",
+      "snapshot": "frankenstein-10chunks",
+      "duration_ms": null,
+      "threshold_target_ms": 300000,
+      "threshold_hard_cap_ms": 900000,
+      "stats": null,
+      "status": "pending",
+      "notes": "Live smoke pending. Requires the platform server (port 3000), ml-services (port 8000), Ollama (port 11434), and a Claude API key. Run procedure: (1) start the stack: `make up && cd ml-services && make ml && cd ../platform && pnpm dev`; (2) `pnpm tsx scripts/snapshot-ensure.ts frankenstein-10chunks`. The corpus is committed at platform/src/test/corpora/frankenstein-ch1-10.txt (~144 KB, 73 chunks @ 2000-byte chunk_size). With Haiku 4.5 + nomic-embed-text, expected wall-clock per chunk is 5-15 s, total \u224870 chunks * 10 s = \u2248700 s (12 min). \u00a75.1 target is < 5 min, hard cap < 15 min — running the full corpus will likely exceed the target band on first generation. j77.4 follow-up should consider parallelising the queue (currently FIFO serial) or trimming the corpus to fewer chunks if the threshold has to hold. Capture the wall-clock + per-chunk distribution + final entity / fact counts here once the smoke runs."
+    },
+    {
+      "operation": "snapshot:generate (LLM, per-chunk timeout path)",
+      "snapshot": "__llm-test-tiny",
+      "duration_ms": 320,
+      "threshold_target_ms": null,
+      "threshold_hard_cap_ms": null,
+      "notes": "Verified via test 'throws ChunkTimeoutError + records partial=true on the manifest'. Stuck client (queued=1, draining=true forever); 200 ms manifest timeout fires; partial=true and partial_chunk_index=0 land in the manifest stats; ChunkTimeoutError surfaces to the caller with exit code 2. Behaviour matches \u00a73.4 step 6 / \u00a76 'regeneration partial' edge case."
+    },
+    {
+      "operation": "snapshot:verify (frankenstein-10chunks pre-first-generate)",
+      "snapshot": "frankenstein-10chunks",
+      "duration_ms": 1,
+      "threshold_target_ms": null,
+      "threshold_hard_cap_ms": null,
+      "notes": "Reports `pending-first-generate` rather than `missing` because the manifest's expected_hashes is empty and regenerated_at is null. Exit code 0 — committed manifest entries that haven't been generated against the live stack don't break CI. Once the first smoke runs, the entry transitions to `ok` (or `mismatch` if drift)."
+    }
+  ],
+  "disk_size": [
+    {
+      "snapshot": "__llm-test-tiny",
+      "cognitive_dump_bytes": 119000,
+      "notes": "Approximate — the inline 2-chunk test fixture. Custom-format dump of the 12-migration schema + 2 entity rows. The frankenstein-10chunks snapshot will be larger, dominated by AGE graph rows + memory_entities + facts; exact figure pending live smoke."
+    }
+  ],
+  "captured_at": "2026-05-06T13:30:00Z",
+  "commit_at_capture": "j77.3 working tree pre-commit",
+  "live_smoke_procedure": [
+    "1. `make up` (Postgres on 5433, Qdrant on 6335)",
+    "2. `cd ml-services && make ml` (Python FastAPI on 8000)",
+    "3. Ensure Ollama is running locally with `nomic-embed-text:v1.5` pulled (port 11434)",
+    "4. `cd platform && pnpm dev` (Hono server on 3000)",
+    "5. In another shell: `cd platform && pnpm tsx scripts/snapshot-ensure.ts frankenstein-10chunks`",
+    "6. Watch logs for `[ingest:...] start` / `[ingest:...] done` per chunk; per-chunk timeout default 5 min",
+    "7. On success: dump lands at platform/test-snapshots/frankenstein-10chunks/cognitive.dump and the manifest's expected_hashes + regenerated_at + stats are updated. Commit the manifest update (the dump itself is gitignored).",
+    "8. Update this file's `pending` row with measured duration_ms, stats, and disk_size."
+  ],
+  "follow_ups": [
+    "Live-stack smoke: capture wall-clock + per-chunk distribution + final entity/fact counts once a Claude API key is wired",
+    "j77.4 — restoration helpers + extension to setup.ts (`ensureSnapshot` + `loadGroundTruth` per doc 28 \u00a73.6); consider parallelising /ingest/queue if the live frankenstein wall-clock exceeds the \u00a75.1 < 5 min target",
+    "j77.5 — initial dataset roster: regenerate frankenstein-10chunks against the production model + prompt + embedding pins, commit the resulting manifest hashes; same for nist-sp800-63b-technical and mixed-narrative-technical-1k once those corpora are committed"
+  ]
+}

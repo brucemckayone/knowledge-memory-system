@@ -1,0 +1,74 @@
+{
+  "scenario": "three-identical-chains",
+  "description": "Three MISRA-rule chains with identical structural template. detectCausalPatterns should recognise and promote to staging.",
+  "data_set_level": 1,
+  "fixture": "phase6-patterns/fixtures/three-identical-chains.sql",
+
+  "driver": "service_call",
+  "service_call": "detectCausalPatterns",
+  "args": { "instanceThreshold": 3 },
+
+  "assertions": [
+    {
+      "type": "row_count",
+      "table": "causal_patterns",
+      "filter": { "status": "staging" },
+      "expected": 1,
+      "because": "Three identical template instances meet the staging threshold of 3"
+    },
+    {
+      "type": "pattern_template_structure",
+      "filter": { "status": "staging" },
+      "expected_length": 3,
+      "expected_shape": [
+        { "entity_type": "standard_rule", "predicate_category": "compliance" },
+        { "entity_type": "standard_rule", "predicate_category": "compliance" },
+        { "entity_type": "compliance_practice", "predicate_category": "effects" }
+      ],
+      "because": "Template normalisation should abstract specific rules to entity type and predicate category"
+    },
+    {
+      "type": "column_values",
+      "table": "causal_patterns",
+      "filter": { "status": "staging" },
+      "assertions": [
+        { "column": "instance_count", "expected": 3 },
+        { "column": "template_length", "expected": 3 }
+      ],
+      "because": "instance_count reflects the number of matching concrete chains"
+    },
+    {
+      "type": "column_range",
+      "table": "causal_patterns",
+      "filter": { "status": "staging" },
+      "column": "avg_strength",
+      "min": 0.75,
+      "max": 0.85,
+      "because": "avg_strength is mean of the 3 edges' strength (all 0.8)"
+    },
+    {
+      "type": "edge_pattern_linkage",
+      "edges_expected_linked": [
+        "30000000-0000-0000-0000-000000000100",
+        "30000000-0000-0000-0000-000000000110",
+        "30000000-0000-0000-0000-000000000120"
+      ],
+      "rule": "all_reference_same_pattern_id",
+      "because": "All three edges must be linked to the detected pattern"
+    },
+    {
+      "type": "promotion_rejected",
+      "filter": { "status": { "not_in": ["staging"] } },
+      "expected": 0,
+      "because": "At 3 instances, pattern cannot yet be promoted to candidate (threshold = 5)"
+    }
+  ],
+
+  "benchmark_targets": {
+    "detect_duration_ms": { "max": 2000, "because": "Detection on 3 chains must be near-instant" },
+    "chains_examined": { "expected": 3, "because": "Three chains of length 2 each" },
+    "new_staging_patterns": { "expected": 1 }
+  },
+
+  "graduation_notes": "When this scenario passes reliably, advance to: (a) seven-identical-chains (meets candidate threshold 5) — verify promotion + Haiku naming called, (b) noisy-similar-chains (2 identical + 1 near-miss) — verify normalisation does not over-merge, (c) partial-chain-for-ghost (2.5 of 3 steps) — precursor to ghost detection tests."
+}

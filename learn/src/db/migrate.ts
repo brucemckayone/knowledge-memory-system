@@ -197,6 +197,9 @@ const ALTER_STMTS: string[] = [
   `ALTER TABLE insights ADD COLUMN snoozed_until TEXT`,
   // nmemo-15o: notes soft-delete (archive). Default NULL = active row.
   `ALTER TABLE notes ADD COLUMN archived_at TEXT`,
+  // demo: presentation mode flag — when 1, agents bias prose to an explanatory,
+  // audience-aware register for a live presentation.
+  `ALTER TABLE courses ADD COLUMN presentation_mode INTEGER NOT NULL DEFAULT 0`,
 ];
 
 const POST_ALTER_STMTS: string[] = [

@@ -23,6 +23,7 @@ import { fileURLToPath } from 'url';
 import { config } from '../config.js';
 import { runAgent, writeMcpConfig } from '../services/agent.js';
 import type { LessonBlock } from './lesson-generator.js';
+import { withPresentationMode } from './presentation-mode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MCP_SCRIPT = path.resolve(__dirname, '..', 'mcp', 'learning-mcp.ts');
@@ -382,6 +383,7 @@ export async function processChatMessage(params: {
    * cold-start — the tutor handles that gracefully.
    */
   learnerContextBlock?: string;
+  presentationMode?: boolean;
 }): Promise<ChatTutorResult> {
   const mcpConfigPath = writeMcpConfig('learn', MCP_SCRIPT, {
     NMEMO_URL: config.NMEMO_URL,
@@ -421,7 +423,7 @@ export async function processChatMessage(params: {
   const result = await runAgent(prompt, {
     model: 'haiku',
     effort: 'low',
-    systemPrompt: structured ? SYSTEM_PROMPT_STRUCTURED : SYSTEM_PROMPT,
+    systemPrompt: withPresentationMode(structured ? SYSTEM_PROMPT_STRUCTURED : SYSTEM_PROMPT, params.presentationMode),
     mcpConfigPath,
     mcpServerName: 'learn',
     maxTurns: 10,

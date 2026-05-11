@@ -1,0 +1,52 @@
+{
+  "scenario": "invalid-actors",
+  "data_set_level": 1,
+  "adversarial": true,
+  "fixture": "phase1-audit/fixtures/invalid-actors.sql",
+  "variants": [
+    "phase1-audit/fixtures/invalid-actors-event-type.sql",
+    "phase1-audit/fixtures/invalid-actors-case-sensitivity.sql"
+  ],
+  "seed": {
+    "entities": ["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000099"],
+    "facts": ["10000000-0000-0000-0000-000000000099"]
+  },
+  "cases": [
+    { "id": 1,  "description": "unknown actor literal 'hacker_bot'",           "expected_rejection": "db_constraint:valid_fact_actor",      "sql_state": "23514" },
+    { "id": 2,  "description": "SQL-injection style actor",                    "expected_rejection": "db_constraint:valid_fact_actor",      "sql_state": "23514" },
+    { "id": 3,  "description": "actor > 32 chars",                             "expected_rejection": "db_length:actor_varchar32",           "sql_state": "22001" },
+    { "id": 4,  "description": "unknown event_type 'deleted'",                 "expected_rejection": "db_constraint:valid_fact_event_type", "sql_state": "23514" },
+    { "id": 5,  "description": "whitespace-only reasoning",                    "expected_rejection": "service_layer:empty_reasoning",       "sql_state": null   },
+    { "id": 6,  "description": "NULL reasoning",                               "expected_rejection": "db_notnull:reasoning",                "sql_state": "23502" },
+    { "id": 7,  "description": "empty-string actor",                           "expected_rejection": "db_constraint:valid_fact_actor",      "sql_state": "23514" },
+    { "id": 8,  "description": "actor with leading TAB",                       "expected_rejection": "db_constraint:valid_fact_actor",      "sql_state": "23514" },
+    { "id": 9,  "description": "NULL actor",                                   "expected_rejection": "db_notnull:actor",                    "sql_state": "23502" },
+    { "id": 10, "description": "case-variant actor 'Graph_Agent'",             "expected_rejection": "db_constraint:valid_fact_actor",      "sql_state": "23514" }
+  ],
+  "variant_cases": {
+    "invalid-actors-event-type.sql": [
+      { "id": 1, "description": "misspelled 'creted'",         "expected_rejection": "db_constraint:valid_fact_event_type", "sql_state": "23514" },
+      { "id": 2, "description": "capitalized 'CREATED'",       "expected_rejection": "db_constraint:valid_fact_event_type", "sql_state": "23514" },
+      { "id": 3, "description": "future-reserved 'archived'",  "expected_rejection": "db_constraint:valid_fact_event_type", "sql_state": "23514" },
+      { "id": 4, "description": "empty-string event_type",     "expected_rejection": "db_constraint:valid_fact_event_type", "sql_state": "23514" }
+    ],
+    "invalid-actors-case-sensitivity.sql": [
+      { "id": 1, "description": "'GRAPH_AGENT'",      "expected_rejection": "db_constraint:valid_fact_actor", "sql_state": "23514" },
+      { "id": 2, "description": "'Graph_Agent'",      "expected_rejection": "db_constraint:valid_fact_actor", "sql_state": "23514" },
+      { "id": 3, "description": "'graph-agent'",      "expected_rejection": "db_constraint:valid_fact_actor", "sql_state": "23514" },
+      { "id": 4, "description": "'graph_agent ' (trailing space)", "expected_rejection": "db_constraint:valid_fact_actor", "sql_state": "23514" }
+    ]
+  },
+  "assertions": [
+    { "type": "all_cases_rejected",  "expected": true, "because": "every adversarial case must raise at the specified surface" },
+    { "type": "no_rows_committed",   "table": "fact_history", "expected_delta": 0, "because": "all cases wrapped in ROLLBACK or rejected before COMMIT" },
+    { "type": "seed_preserved",      "table": "facts",        "expected_count": 1, "because": "adversarial rollbacks must not disturb the committed seed" },
+    { "type": "rejection_surface_matches", "expected": "per-case", "because": "a CHECK failure masquerading as a NOT NULL failure (or vice versa) is itself a bug" }
+  ],
+  "benchmark_targets": {
+    "per_case_latency_ms_max": 50,
+    "total_suite_runtime_ms_max": 2000,
+    "rejection_rate": 1.0
+  },
+  "graduation_notes": "If any case unexpectedly commits, Phase 1 cannot graduate. If CASE 5 (whitespace reasoning) is rejected at DB rather than service layer, service-layer validator is missing — treat as P0 gap. If CASE 3 (length overflow) silently truncates, the column type has drifted from VARCHAR(32) — schema regression."
+}

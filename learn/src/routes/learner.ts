@@ -110,10 +110,12 @@ learnerRoutes.get('/patterns', async (c) => {
 
 /** THE WOW MOMENT: analyze gaps and generate targeted content (sync — for explicit user-initiated runs). */
 learnerRoutes.post('/gap-analysis', async (c) => {
-  const body = await c.req.json<{ courseTopic?: string }>().catch(() => ({} as { courseTopic?: string }));
+  const body = await c.req.json<{ courseTopic?: string; presentationMode?: boolean }>()
+    .catch(() => ({} as { courseTopic?: string; presentationMode?: boolean }));
 
   const result = await analyzeGapsAndGenerateContent({
     courseTopic: body.courseTopic,
+    presentationMode: Boolean(body.presentationMode),
   });
   // Best-effort persistence — surface failures in logs but never block the
   // sync path on a DB hiccup.

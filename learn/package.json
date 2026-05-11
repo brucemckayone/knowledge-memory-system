@@ -9,7 +9,16 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx src/db/migrate.ts",
-    "test": "tsx scripts/run-tests.ts"
+    "test": "tsx scripts/run-tests.ts",
+    "demo:seed": "tsx scripts/seed-demo.ts",
+    "demo:seed:ingest": "tsx scripts/seed-demo.ts --stage=ingest",
+    "demo:seed:reasoning": "tsx scripts/seed-demo.ts --stage=reasoning",
+    "demo:seed:topology": "tsx scripts/seed-demo.ts --stage=topology",
+    "demo:seed:courses": "tsx scripts/seed-demo.ts --stage=courses",
+    "demo:seed:learner": "tsx scripts/seed-demo.ts --stage=learner",
+    "demo:seed:all": "tsx scripts/seed-demo.ts --stage=all",
+    "demo:snapshot": "tsx scripts/snapshot-demo.ts",
+    "demo:restore": "tsx scripts/restore-demo.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.8.0",

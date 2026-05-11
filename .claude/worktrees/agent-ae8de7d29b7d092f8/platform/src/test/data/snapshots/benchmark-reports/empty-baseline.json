@@ -1,0 +1,69 @@
+{
+  "snapshot": "empty",
+  "phase": "j77.1 skeleton baseline",
+  "machine": {
+    "platform": "win32",
+    "kernel": "MINGW64_NT-10.0-26200",
+    "node": "v25.8.2",
+    "postgres_image": "nmemo-postgres (Postgres 16.13, AGE 1.5.0)",
+    "pg_dump_resolution": "docker exec nmemo-postgres-1"
+  },
+  "thresholds_ref": "docs/architecture/truth-graph/28-test-data-snapshots.md §5.1",
+  "operations": [
+    {
+      "operation": "snapshot:ensure (cold, regenerate)",
+      "snapshot": "empty",
+      "duration_ms": 3042,
+      "threshold_target_ms": null,
+      "threshold_hard_cap_ms": null,
+      "notes": "First-ever generate path: drop+recreate cognitive_test, enable extensions (incl. AGE), apply 12 migration files, pg_dump --format=custom --no-sync --no-comments via docker exec. No threshold in §5.1 for cold-start of empty snapshot — this is the baseline we'll measure regressions against."
+    },
+    {
+      "operation": "snapshot:ensure (cache hit)",
+      "snapshot": "empty",
+      "duration_ms": 3,
+      "threshold_target_ms": 100,
+      "threshold_hard_cap_ms": 500,
+      "notes": "sha256 hash of the 106KB dump file. Comfortably under the §5.1 target of <100ms."
+    },
+    {
+      "operation": "snapshot:verify",
+      "snapshot": "empty",
+      "duration_ms": 1,
+      "threshold_target_ms": null,
+      "threshold_hard_cap_ms": null,
+      "notes": "Hash check on a single file. §5.1 has no explicit verify threshold; treated as cache-hit-equivalent."
+    },
+    {
+      "operation": "snapshot:load",
+      "snapshot": "empty",
+      "duration_ms": 1700,
+      "threshold_target_ms": 1000,
+      "threshold_hard_cap_ms": 3000,
+      "notes": "Drop+recreate target DB, preload extensions, pg_restore --clean --if-exists --no-owner --no-privileges, count entities/facts. Above the <1s target but well under the 3s hard cap. The cold-restart path on Windows + Docker pays a non-trivial container exec startup cost. Optimisation deferred to j77.4 if a Phase 1 benchmark consumer needs it."
+    },
+    {
+      "operation": "snapshot:generate (LLM, empty corpus)",
+      "snapshot": "empty",
+      "duration_ms": 1303,
+      "threshold_target_ms": null,
+      "threshold_hard_cap_ms": null,
+      "notes": "Second-run generate (warm container, warm migrations). The §5.1 generate thresholds (<5min target) are aimed at the Frankenstein-10chunks LLM ingest path; the empty baseline is too small to share a threshold band."
+    }
+  ],
+  "disk_size": {
+    "cognitive.dump_bytes": 106222,
+    "threshold_target_bytes": null,
+    "threshold_hard_cap_bytes": null,
+    "notes": "Schema-only dump of 12 migrations. §5.1 disk-size threshold (<50MB target / <200MB hard cap) is for synthetic-10k; empty is well below."
+  },
+  "captured_at": "2026-05-06T08:41:25Z",
+  "commit_at_capture": "0bf1cb8 + working tree j77.1",
+  "follow_ups": [
+    "j77.1.1 — automated tests covering all §4.2 cases (manifest schema-version mismatch, hash mismatch detection, cross-platform path handling, etc.)",
+    "j77.1.2 — full §5.1 benchmark sweep once synthetic-1k / synthetic-10k generators land",
+    "j77.2 — synthetic generator with bridge-pair injection (replaces the generate-synthetic stub)",
+    "j77.3 — LLM-pipeline generator wiring /ingest/queue with chunk timeouts",
+    "j77.4 — restoration helpers + serial vitest project (extends src/test/setup.ts with ensureSnapshot helper)"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mnemo": {
+      "command": "npx",
+      "args": ["tsx", "mcp-server/src/index.ts"],
+      "env": {
+        "MNEMO_URL": "http://localhost:3001",
+        "MNEMO_API_KEY": ""
+      }
+    }
+  }
+}

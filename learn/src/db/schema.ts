@@ -10,6 +10,9 @@ export const courses = sqliteTable('courses', {
   sourceText: text('source_text'),
   nmemoMemoryId: text('nmemo_memory_id'),
   status: text('status').notNull().default('building'), // 'building' | 'ready'
+  // 1 = course is part of a live demo; agents bias prose toward an explanatory,
+  // audience-aware register with light meta self-reference. 0 = production default.
+  presentationMode: integer('presentation_mode').notNull().default(0),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });

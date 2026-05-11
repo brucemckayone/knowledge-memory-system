@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { randomUUID } from 'node:crypto';
-import { db, questions, quizAttempts, sections } from '../db/index.js';
+import { db, questions, quizAttempts, sections, courses } from '../db/index.js';
 import { eq, desc } from 'drizzle-orm';
 import { evaluateAnswer } from '../agents/answer-evaluator.js';
 import { generateQuestion } from '../agents/quiz-generator.js';
@@ -68,6 +68,15 @@ quizRoutes.post('/questions/:questionId/attempt', async (c) => {
     ? (sec?.title ?? 'this concept')
     : (sec?.title ?? 'this concept');
 
+  // Resolve presentation_mode via the section → course chain so the evaluator
+  // adopts the demo register when the parent course is part of a live demo.
+  let presentationMode = false;
+  if (sec?.courseId) {
+    const [course] = await db.select({ presentationMode: courses.presentationMode })
+      .from(courses).where(eq(courses.id, sec.courseId));
+    presentationMode = Boolean(course?.presentationMode);
+  }
+
   // Run evaluator agent
   const evaluation = await evaluateAnswer({
     questionText: q.questionText,
@@ -75,6 +84,7 @@ quizRoutes.post('/questions/:questionId/attempt', async (c) => {
     explanation: q.explanation ?? '',
     conceptName,
     answerText: body.answerText,
+    presentationMode,
   });
 
   // Store attempt.

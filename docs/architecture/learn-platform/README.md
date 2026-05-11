@@ -6,14 +6,15 @@ A demo learning platform built on top of the Nmemo dual-graph system. Demonstrat
 
 | # | Document | What it covers |
 |---|----------|----------------|
-| 00 | [Vision](00-vision.md) | The "why" — what makes this platform different from a normal learning app, the role of the dual-graph |
-| 01 | [v0.1 — MVP Scaffold](01-mvp-scaffold.md) | What's built today: 5 agents, MCP tools, course generation, quiz, gap analysis |
-| 02 | [v0.2 — Adaptive Surfaces & Interactive Content](02-v0.2-design.md) | The next major leap: background patrol, dashboard, dynamic components, chat-driven content, cross-course intelligence |
+| 00 | [Vision](00-vision.md) | The "why" — what makes this platform different from a normal learning app, the role of the dual-graph, the UX principle that chat lives next to the lesson |
+| 01 | [v0.1 — MVP Scaffold](01-mvp-scaffold.md) | Historical: the 5-agent MVP that course generation / quiz / gap analysis was first built on |
+| 02 | [v0.2/v0.3 — Built then carved back](02-v0.2-design.md) | What v0.2 shipped (6 phases), what was wrong with the result, and the v0.3 cut: 2 tabs, chat sidebar on the section page |
 
 ## Status
 
 - **v0.1** — shipped. End-to-end course creation → quiz → gap analysis works.
-- **v0.2** — design phase. Beads epics created, implementation pending.
+- **v0.2** — built end-to-end (Phases 1–6). Code lives in the repo.
+- **v0.3** — current. Carved the surface area back to `Dashboard + Courses`, moved chat into a persistent sidebar on the section page. Several v0.2 features are kept; some are deferred for piecewise re-evaluation.
 
 ## Key principles (carry through every version)
 

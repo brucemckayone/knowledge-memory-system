@@ -69,8 +69,32 @@ export interface IngestResult {
   facts: NmemoFact[];
 }
 
-export async function ingestContent(text: string, source = 'learn'): Promise<IngestResult> {
-  return post<IngestResult>('/ingest', { text, source });
+export type IngestContentType = 'prose' | 'code-ts' | 'code-sql';
+
+export async function ingestContent(
+  text: string,
+  source = 'learn',
+  contentType?: IngestContentType,
+): Promise<IngestResult> {
+  return post<IngestResult>('/ingest', { text, source, contentType });
+}
+
+/**
+ * Enqueue a chunk for serial-FIFO ingestion. Returns immediately with the
+ * queue position. Use this when the caller wants to push many chunks back-to-
+ * back without serialising on every response (e.g. the demo seed script).
+ * Pair with `getIngestQueueStatus` to know when the queue has drained.
+ */
+export async function enqueueIngestContent(
+  text: string,
+  source = 'learn',
+  contentType?: IngestContentType,
+): Promise<{ queued: true; position: number }> {
+  return post<{ queued: true; position: number }>('/ingest/queue', { text, source, contentType });
+}
+
+export async function getIngestQueueStatus(): Promise<{ queued: number; draining: boolean }> {
+  return get<{ queued: number; draining: boolean }>('/ingest/queue/status');
 }
 
 // ── Learning-specific write operations (via /api/learn/ endpoints) ─────────

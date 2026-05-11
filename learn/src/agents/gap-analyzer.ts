@@ -14,6 +14,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from '../config.js';
 import { runAgent, writeMcpConfig } from '../services/agent.js';
+import { withPresentationMode } from './presentation-mode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MCP_SCRIPT = path.resolve(__dirname, '..', 'mcp', 'learning-mcp.ts');
@@ -117,6 +118,7 @@ export function parseRootCauseTrailer(raw: string): ParsedRootCause {
 
 export async function analyzeGapsAndGenerateContent(params: {
   courseTopic?: string;
+  presentationMode?: boolean;
 }): Promise<GapAnalysisResult> {
   const mcpConfigPath = writeMcpConfig('learn', MCP_SCRIPT, {
     NMEMO_URL: config.NMEMO_URL,
@@ -132,7 +134,7 @@ Use the MCP tools to understand their current state, then generate a focused min
   const result = await runAgent(prompt, {
     model: 'sonnet',
     effort: 'medium',
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: withPresentationMode(SYSTEM_PROMPT, params.presentationMode),
     mcpConfigPath,
     mcpServerName: 'learn',
     maxTurns: 12,

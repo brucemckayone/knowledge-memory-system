@@ -1,0 +1,37 @@
+{
+  "scenario": "corroboration-baseline",
+  "version": "1.0",
+  "data_set_level": 1,
+  "fixture": "phase2-lifecycle/fixtures/corroboration-baseline.sql",
+  "description": "Pre-seeded edge that becomes the corroboration target when createCausalEdge is called again with the same (cause_event_id, effect_event_id) pair.",
+  "preconditions": {
+    "edge_id": "30000000-0000-0000-0000-000000000200",
+    "cause_event_id": "20000000-0000-0000-0000-000000000201",
+    "effect_event_id": "20000000-0000-0000-0000-000000000202",
+    "initial_corroboration_count": 1,
+    "initial_strength": 0.5
+  },
+  "assertions": [
+    {
+      "type": "row_count",
+      "table": "causal_edges",
+      "filter": { "cause_event_id": "20000000-0000-0000-0000-000000000201",
+                  "effect_event_id": "20000000-0000-0000-0000-000000000202" },
+      "expected": 1,
+      "because": "Single base edge seeded; createCausalEdge corroborates rather than inserts a duplicate."
+    },
+    {
+      "type": "post_corroboration_state",
+      "trigger": "createCausalEdge with same cause+effect",
+      "expected_corroboration_count": 2,
+      "expected_strength_delta": 0.05,
+      "because": "Phase 2 contract: corroboration increments count and bumps strength by CORROBORATION_STRENGTH_DELTA (0.05)."
+    },
+    {
+      "type": "audit_row_emitted",
+      "trigger": "createCausalEdge with same cause+effect",
+      "expected_event_type": "corroborated",
+      "because": "Audit trail must record corroboration as a distinct event type."
+    }
+  ]
+}

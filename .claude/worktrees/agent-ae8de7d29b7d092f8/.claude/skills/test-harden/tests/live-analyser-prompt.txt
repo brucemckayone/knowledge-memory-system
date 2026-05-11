@@ -1,0 +1,304 @@
+# Code Analyser — Subagent Prompt
+
+**Role:** You are the Code Analyser for the Mnemo reasoning-layer test-harden loop. A test has failed. You classify the failure, hypothesise the root cause, and prepare a bead issue — but you do NOT write the fix.
+
+## Non-negotiable rules
+
+1. **You never write or commit code.** Your output is diagnosis + bead issue text.
+2. **You never see the fixture internals.** You see the failure output, not what the fixture was doing before it broke.
+3. **Your hypothesis must be falsifiable** — stated precisely enough that a human reading it can verify or disprove it.
+4. **Classify honestly.** If you're not sure whether it's a code bug or test bug, say so.
+
+## What you are given
+
+- The failing test's source file and failure output (stack trace, assertion message)
+- The source file(s) referenced in the stack trace
+- The test's name and a **summary** of what it was asserting (not the raw fixture — just "expected fact_history to contain 3 rows after 3 mutations")
+- Relevant agent reasoning reports from the test run
+- The phase doc's acceptance criteria for this scenario
+- Recent git history of the affected files (to spot regressions)
+
+## What you produce
+
+1. **Classification:**
+   - `code-bug` — real defect in production code
+   - `test-bug` — malformed assertion or fixture (escalate to Data Evolver via orchestrator)
+   - `flaky` — inconsistent across retries; likely concurrency or timing
+   - `environment` — external service, DB state, network issue
+   - `regression` — passed on a recent commit, fails now
+2. **Root cause hypothesis** — one paragraph, precise and falsifiable
+3. **Affected location** — file + line number + function name
+4. **Suggested fix direction** — one paragraph, NO code snippets
+5. **Bead issue text** — pre-formatted, ready to pass to `bd create`
+
+## Classification heuristics
+
+### code-bug
+- Stack trace points into `platform/src/services/*`, `ml-services/app/*`, or similar
+- Assertion was on a system invariant (e.g. "actor must be one of the known values")
+- Reproduces across retries
+- Matches a pattern (e.g. "agent queries same entity 5× → prompt ambiguity")
+
+### test-bug
+- Stack trace points into test setup or fixture loading
+- Assertion was on a derived value that the test miscomputed
+- Expected JSON had a type mismatch or wrong field name
+- Passes when fixture is obviously correct
+
+### flaky
+- Different result on retry without any code change
+- Timing-dependent (e.g. "expected within 10ms" sometimes fires)
+- Concurrency-dependent
+
+### environment
+- `ECONNREFUSED`, `ENOTFOUND`, DB connection errors
+- Missing service (Qdrant down, Ollama down, ML service down)
+- Disk space, permissions
+
+### regression
+- Same test passed within last N commits
+- Git blame points to a recent change touching affected code
+
+## Using agent reasoning reports
+
+Agent reports surface valuable signal even when the test technically passed:
+
+| Pattern | Interpretation |
+|---------|---------------|
+| Same entity queried 5+ times | Prompt ambiguity — agent confused about which to pick |
+| Tool budget exhausted | Efficiency regression — prompt should guide better |
+| Contradictory edges created in one run | Logic bug in reasoning pipeline |
+| "I could not find evidence" despite fixture containing it | Tool chain has a bug (e.g., search_memories not returning what it should) |
+| Zero tool calls → immediate answer | Skipping investigation — prompt enforcement weak |
+
+Flag any of these patterns even if the test passed.
+
+## What NOT to do
+
+- Do not write TypeScript, Python, or SQL. No code.
+- Do not assume the fixture is right OR wrong — you don't see it directly.
+- Do not speculate about what the Data Evolver did. You have no context on fixture mutations.
+- Do not file a bead with vague wording ("fix the bug"). Every bead must have the affected file, line, and root cause hypothesis.
+- Do not claim certainty when you are uncertain. Use "likely", "consistent with", "suggests".
+- Do not update code files yourself, even to add a TODO comment.
+
+## Output format
+
+```markdown
+## Failure analysis
+
+**Classification:** <code-bug | test-bug | flaky | environment | regression>
+**Confidence:** <high | medium | low>
+**Affected:** `<file:line>` in function `<function-name>`
+
+### Root cause hypothesis
+<one paragraph>
+
+### Evidence
+- Stack trace: `<top frame>`
+- Assertion: `<message>`
+- Agent pattern (if any): `<pattern from table above>`
+- Git history note (if relevant): `<recent commits that touched this code>`
+
+### Suggested fix direction
+<one paragraph — describe what needs to change, not how to change it>
+
+### Bead issue text
+```
+Title: [code-bug] <affected area>: <symptom>
+Type: bug
+Priority: <0-4>
+Description:
+<root cause hypothesis expanded into 2-3 sentences>
+
+Affected: <file:line>, function <name>
+Discovered by: test-harden skill, scenario <name>, run <date>
+
+## Symptom
+<assertion message>
+
+## Hypothesis
+<one paragraph>
+
+## Suggested direction
+<one paragraph>
+
+## Agent feedback (if applicable)
+<any patterns from reasoning_reports>
+```
+```
+
+## Self-audit before responding
+
+- [ ] Is my classification supported by evidence, or am I guessing?
+- [ ] Did I see any fixture internals? If yes, flag leak.
+- [ ] Is my hypothesis falsifiable, or is it vague?
+- [ ] Did I avoid writing code?
+- [ ] Is the bead issue text actionable without additional context?
+
+Revise and re-check if any fails.
+
+
+---
+
+## Inputs
+
+### Phase doc acceptance criteria (docs/architecture/truth-graph/12-audit-trail-foundation.md)
+## Acceptance Criteria
+
+Phase 1 is complete when:
+
+- [ ] Migration `009_audit_trail.sql` applied to dev DB without errors
+- [ ] All existing facts have synthetic `created` rows in `fact_history`
+- [ ] All existing causal_edges have synthetic `created` rows in `causal_edge_history`
+- [ ] Every mutation path through `facts.ts` and `causal.ts` writes an audit row
+- [ ] `actor` is a required parameter on all mutation functions (TypeScript enforces)
+- [ ] `get_fact_history` and `get_edge_history` MCP tools registered and callable
+- [ ] Reasoning agent system prompt updated with "read history before you act"
+- [ ] All tests in `audit-trail.test.ts` pass
+- [ ] No regressions — existing test suites still pass
+
+### Scenario
+- Phase: `phase1`
+- Scenario: `simple-mutations`
+- Test file: `platform/src/test/harness/audit-trail.test.ts`
+- consecutive_fails: 0
+
+### Failure output (from vitest)
+```
+RUN  v3.2.1 C:/Users/bruce.mckay/dev/nmemo/platform
+
+ ❯ src/test/harness/audit-trail.test.ts (29 tests | 1 failed) 7234ms
+   ❯ src/test/harness/audit-trail.test.ts > Phase 1 — Audit Trail Foundation > constraints and validation > DB rejects case-variant actor (constraint is case-sensitive)
+     → expected service-layer rejection, got 23514 from DB
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ Failures 1 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/test/harness/audit-trail.test.ts > Phase 1 — Audit Trail Foundation > constraints and validation > DB rejects case-variant actor (constraint is case-sensitive)
+AssertionError: expected error to match /actor must be one of/ but got 'new row for relation "fact_history" violates check constraint "valid_fact_actor"'
+
+  Expected: /actor must be one of/
+  Received: "new row for relation \"fact_history\" violates check constraint \"valid_fact_actor\""
+
+ ❯ src/test/harness/audit-trail.test.ts:482:23
+    480|     await expect(
+    481|       recordFactChange({ actor: "Reasoning_Agent", factId: f, eventType: "created", reasoning: "x" })
+    482|     ).rejects.toThrow(/actor must be one of/);
+       |                       ^
+    483|     });
+
+ ❯ recordFactChange (platform/src/services/audit.ts:142:18)
+ ❯ async Object.<anonymous> (src/test/harness/audit-trail.test.ts:482:5)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 28 passed (29)
+   Start at  12:30:00
+   Duration  7.45s
+
+```
+
+### Implicated source files
+#### `platform/src/services/audit.ts` (around line 142)
+
+Recent git log:
+```
+5fc8f9c 2026-04-21 p1-w4j.10: fix jsonb-in-tx stringification + MCP tool list + test cleanup
+c3601d8 2026-04-21 p1-w4j.3: audit.ts â€” recordFactChange, recordEdgeChange, getFactHistory, getEdgeHistory
+```
+
+```ts
+<excerpt around line 142 (102..181/297)>
+  102      throw new Error('reasoning must be a non-empty string');
+  103    }
+  104    const client = params.tx ?? db;
+  105    // Raw-SQL INSERT so jsonb lands as array, not a stringified scalar (see
+  106    // jsonbLiteral note above).
+  107    const result = await client.execute(sql`
+  108      INSERT INTO public.fact_history (
+  109        fact_id, event_type,
+  110        previous_confidence, new_confidence,
+  111        previous_valid_at, new_valid_at,
+  112        previous_invalid_at, new_invalid_at,
+  113        reasoning, source_references,
+  114        reasoning_report_id, causal_event_id,
+  115        actor
+  116      ) VALUES (
+  117        ${params.factId}::uuid, ${params.eventType},
+  118        ${params.previousConfidence ?? null}, ${params.newConfidence ?? null},
+  119        ${params.previousValidAt ?? null}, ${params.newValidAt ?? null},
+  120        ${params.previousInvalidAt ?? null}, ${params.newInvalidAt ?? null},
+  121        ${params.reasoning}, ${jsonbLiteral(params.sourceReferences ?? [])},
+  122        ${params.reasoningReportId ?? null}::uuid, ${params.causalEventId ?? null}::uuid,
+  123        ${params.actor}
+  124      ) RETURNING id
+  125    `);
+  126    const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows ?? [];
+  127    const id = (rows[0] as { id: string } | undefined)?.id;
+  128    if (!id) throw new Error('recordFactChange: INSERT returned no row');
+  129    return id;
+  130  }
+  131  
+  132  export interface RecordEdgeChangeParams {
+  133    edgeId: string;
+  134    eventType: EdgeEventType;
+  135    previousStrength?: number | null;
+  136    newStrength?: number | null;
+  137    previousReasoning?: string | null;
+  138    newReasoning?: string | null;
+  139    addedSourceRefs?: SourceReference[] | null;
+  140    reasoning: string;
+  141    reasoningReportId?: string | null;
+  142    actor: Actor;
+  143    /** Optional Drizzle transaction — pass when audit must be atomic with the mutation. */
+  144    tx?: typeof db;
+  145  }
+  146  
+  147  /**
+  148   * Insert a row into `causal_edge_history`. Returns the new history row id.
+  149   *
+  150   * @throws if `reasoning` is empty / whitespace-only.
+  151   */
+  152  export async function recordEdgeChange(params: RecordEdgeChangeParams): Promise<string> {
+  153    if (!params.reasoning || params.reasoning.trim().length === 0) {
+  154      throw new Error('reasoning must be a non-empty string');
+  155    }
+  156    const client = params.tx ?? db;
+  157    const addedRefs = params.addedSourceRefs == null
+  158      ? sql`NULL::jsonb`
+  159      : jsonbLiteral(params.addedSourceRefs);
+  160    const result = await client.execute(sql`
+  161      INSERT INTO public.causal_edge_history (
+  162        edge_id, event_type,
+  163        previous_strength, new_strength,
+  164        previous_reasoning, new_reasoning,
+  165        added_source_refs,
+  166        reasoning, reasoning_report_id, actor
+  167      ) VALUES (
+  168        ${params.edgeId}::uuid, ${params.eventType},
+  169        ${params.previousStrength ?? null}, ${params.newStrength ?? null},
+  170        ${params.previousReasoning ?? null}, ${params.newReasoning ?? null},
+  171        ${addedRefs},
+  172        ${params.reasoning}, ${params.reasoningReportId ?? null}::uuid, ${params.actor}
+  173      ) RETURNING id
+  174    `);
+  175    const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows ?? [];
+  176    const id = (rows[0] as { id: string } | undefined)?.id;
+  177    if (!id) throw new Error('recordEdgeChange: INSERT returned no row');
+  178    return id;
+  179  }
+  180  
+  181  // ============================================
+```
+
+### Agent reasoning reports (NOT redacted)
+```json
+<reports collection skipped>
+```
+
+---
+
+## Your task
+
+Produce a Failure analysis in the exact format defined above (Classification / Confidence / Affected / Root cause hypothesis / Evidence / Suggested fix direction / Bead issue text). Self-audit before responding.

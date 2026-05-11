@@ -1,0 +1,30 @@
+{
+  "phase": "phase1",
+  "scenario": "simple-mutations",
+  "fixture_path": "platform/src/test/data/phase1-audit/fixtures/simple-mutations.sql",
+  "expected_path": "platform/src/test/data/phase1-audit/expected/simple-mutations.expected.json",
+  "test_file": "platform/src/test/harness/audit-trail.test.ts",
+
+  "fixture_version": "v1.0",
+
+  "last_run": null,
+  "last_result": null,
+  "consecutive_fails": 0,
+  "consecutive_passes": 0,
+  "total_runs": 0,
+
+  "stressors_applied": [],
+  "complexity_score": 0,
+
+  "status": "active",
+
+  "filed_beads": [],
+
+  "benchmarks": {
+    "latest": null,
+    "baseline": null,
+    "history": []
+  },
+
+  "notes": "Initial scaffold — populate on first run. See .claude/skills/test-harden/SKILL.md for schema."
+}

@@ -5,7 +5,27 @@
       "Read(//c/Users/bruce.mckay/dev/nmemo/**)",
       "Bash(python -c ':*)",
       "Bash(bd create:*)",
-      "Bash(PLATFORM_URL=http://127.0.0.1:3002 python test-data/ingest-frankenstein.py)"
+      "Bash(PLATFORM_URL=http://127.0.0.1:3002 python test-data/ingest-frankenstein.py)",
+      "Bash(curl -s http://localhost:3002/api/viz/unified)",
+      "Read(//tmp/**)",
+      "Bash(npx tsx -e ' *)",
+      "Bash(npx tsx *)",
+      "Bash(docker exec nmemo-postgres-1 *)",
+      "Bash(\"C:/Users/bruce.mckay/AppData/Local/Programs/bd/bd.exe\" prime *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node C:/Users/bruce.mckay/dev/nmemo/platform/hooks/capture-turn.mjs",
+            "timeout": 10,
+            "statusMessage": "→ graph"
+          }
+        ]
+      }
     ]
   }
 }

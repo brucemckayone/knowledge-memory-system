@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docker
+.docker/
+
+# Database
+*.db
+*.sqlite
+
+# Qdrant data (if local)
+qdrant_storage/
+
+# Generated MCP configs
+.causal-mcp-config.json
+.graph-mcp-config.*.json
+
+# Claude Code transient state
+**/.claude/scheduled_tasks.lock
+
+# Drizzle
+drizzle/
+.beads/daemon.lock
+.beads/*.db
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+.beads-credential-key
+test-data/
+
+# Snapshot cache (per-machine; manifest is the source of truth)
+platform/test-snapshots/

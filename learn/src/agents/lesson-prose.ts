@@ -13,6 +13,7 @@ import { runAgent } from '../services/agent.js';
 import type { LessonOutline, OutlineItem, ProseItem } from './lesson-outliner.js';
 import type { LearnerLessonContext } from './learner-lesson-context.js';
 import type { LessonCitation } from './lesson-types.js';
+import { withPresentationMode } from './presentation-mode.js';
 
 export interface ProseWriterInput {
   outline: LessonOutline;
@@ -31,6 +32,9 @@ export interface ProseWriterInput {
    *  the user prompt does not mention web research (keeps cold-start prompts
    *  byte-identical to the v0.3 baseline). */
   enableWebSearch?: boolean;
+  /** When true, the parent course is flagged as part of a live demo. Appends
+   *  the presentation-mode addendum to the system prompt. Default false. */
+  presentationMode?: boolean;
 }
 
 export interface ProseWriterResult {
@@ -324,7 +328,7 @@ export async function writeProseBlock(input: ProseWriterInput): Promise<ProseWri
   const result = await runAgent(buildUserPrompt(input), {
     model: 'sonnet',
     effort: 'high',
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: withPresentationMode(SYSTEM_PROMPT, input.presentationMode),
     tools,
     maxTurns,
     timeoutMs: 600_000,

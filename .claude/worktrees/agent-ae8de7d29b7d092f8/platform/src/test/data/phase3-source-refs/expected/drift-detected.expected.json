@@ -1,0 +1,26 @@
+{
+  "scenario": "drift-detected",
+  "version": "1.0",
+  "data_set_level": 1,
+  "fixture": "phase3-source-refs/fixtures/drift-detected.sql",
+  "description": "Adversarial: deliberate drift between causal_edges.source_references and edge_source_refs to verify the drift detector reports >0.",
+  "preconditions": {
+    "clean_edge_id":  "30000000-0000-0000-0002-000000000001",
+    "drift_edge_id":  "30000000-0000-0000-0002-000000000002",
+    "comment": "Clean edge has 1 JSONB ref + 1 index row. Drift edge has 1 JSONB ref + 0 index rows."
+  },
+  "assertions": [
+    {
+      "type": "drift_query_result",
+      "expected": 1,
+      "because": "Exactly one JSONB ref has no corresponding edge_source_refs row — the deliberately-omitted drift edge ref."
+    },
+    {
+      "type": "findEdgesCitingReference_silent_failure",
+      "comment": "findEdgesCitingReference reads through edge_source_refs only; querying for the drifted ref returns [] even though the JSONB cites it. This is the failure mode the drift detector exists to surface.",
+      "ref_type": "memory",
+      "ref_id":   "aaaaaaaa-cccc-cccc-cccc-000000000001",
+      "expected_results": 0
+    }
+  ]
+}

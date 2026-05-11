@@ -1,0 +1,43 @@
+{
+  "scenario": "large-source-refs",
+  "version": "1.0",
+  "data_set_level": 3,
+  "fixture": "phase3-source-refs/fixtures/large-source-refs.sql",
+  "description": "1000-edge stress fixture covering hot/cold/mid-cardinality reference lookups.",
+  "preconditions": {
+    "edge_count": 1000,
+    "edge_source_refs_row_count": 2050,
+    "comment": "1000 hot + 1000 unique + 50 fact = 2050 index rows"
+  },
+  "lookup_targets": [
+    { "ref_type": "memory", "ref_id": "aaaaaaaa-0000-0000-0000-000000000001", "expected_results": 1000, "category": "hot — worst-case fan-out" },
+    { "ref_type": "memory", "ref_id": "aaaaaaaa-0001-0000-0000-0000000000c8", "expected_results":    1, "category": "unique — fast path (n=200)" },
+    { "ref_type": "fact",   "ref_id": "bbbbbbbb-0000-0000-0000-000000000001", "expected_results":   50, "category": "mid — selective ref" }
+  ],
+  "assertions": [
+    {
+      "type": "row_count",
+      "table": "causal_edges",
+      "filter": { "id_prefix": "30000000-0000-0000-0001-" },
+      "expected": 1000,
+      "because": "Stress fixture sized to AC scale target."
+    },
+    {
+      "type": "row_count",
+      "table": "edge_source_refs",
+      "filter": { "by_join_to_stress_edges": true },
+      "expected": 2050,
+      "because": "1000 hot + 1000 unique + 50 fact = 2050 distinct (edge_id, ref_type, ref_id) rows."
+    },
+    {
+      "type": "drift_query_result",
+      "expected": 0,
+      "because": "Fixture backfills edge_source_refs from JSONB at load time; index is in sync."
+    }
+  ],
+  "benchmark_targets": {
+    "findEdgesCitingReference_hot_p95_ms": 50,
+    "findEdgesCitingReference_unique_p95_ms": 50,
+    "findEdgesCitingReference_fact_p95_ms": 50
+  }
+}

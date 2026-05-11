@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Read(//c/Users/bruce.mckay/dev/nmemo/**)",
+      "Bash(python -c ':*)",
+      "Bash(bd create:*)",
+      "Bash(PLATFORM_URL=http://127.0.0.1:3002 python test-data/ingest-frankenstein.py)"
+    ]
+  }
+}

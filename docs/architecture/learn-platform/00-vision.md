@@ -46,3 +46,12 @@ When we add a feature, we ask: **does this lean on the graph, or does this go ar
 A feature that goes around the graph is a feature this platform doesn't deserve to ship. It would work just as well on top of any LMS. It wouldn't justify the architecture.
 
 A feature that leans on the graph — that uses entities, facts, causal edges, contradictions, patterns, blast radius, decay, same-as links — is the kind of feature that genuinely couldn't exist anywhere else.
+
+## UX principle: chat lives next to the lesson, never as its own destination
+
+The chat tutor is not a feature you visit. It is a sidekick that sits next to whatever the learner is reading and is always aware of the section, the highlighted text, the lesson overlay, and the learner's cross-course state via MCP. There is no standalone "chat" tab; there is a section page where the chat lives in a persistent sidebar and acts on what the learner is touching right now.
+
+This decides a lot:
+- Surfaces are judged by whether they bring the learner closer to the lesson, or pull them away from it.
+- A tab that exists to expose a feature *we built* but that the learner never naturally walks toward is the wrong shape. The right shape is to surface that feature on the dashboard or inline on the section page.
+- Chat threads are scoped to the lesson the conversation is about. A new section means a new thread; the tutor's MCP memory of the learner persists across them.

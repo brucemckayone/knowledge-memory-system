@@ -345,9 +345,11 @@ app.get('/api/viz/unified', async (c) => {
   }
 
   // Source memory edges (memory → entity)
+  // Guard: drop links to entities that no longer exist (orphaned by reconcile/merge).
   for (const memId of allMemoryIds) {
     const linkedEntities = memoryToEntities[memId] ?? [];
     for (const entityId of [...new Set(linkedEntities)]) {
+      if (!entityIds.has(entityId)) continue;
       edges.push({
         id: `_src_${memId}_${entityId}`,
         _edgeType: 'sourceLink',

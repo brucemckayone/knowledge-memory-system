@@ -1,0 +1,2758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adaptive Learning</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<!-- Preact + signals + htm CDN scripts. Order matters:
+     preact → preact/hooks + @preact/signals-core → @preact/signals → htm.
+     Mermaid is loaded lazily via window.loadMermaid() (~1MB gzipped, only fetched
+     on first diagram render — keeps initial page weight tiny). -->
+<script src="https://cdn.jsdelivr.net/npm/preact@10/dist/preact.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/preact@10/hooks/dist/hooks.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@preact/signals-core@1/dist/signals-core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@preact/signals@1/dist/signals.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3/dist/htm.min.js"></script>
+<!-- DOMPurify — required by SvgFigure to sanitise agent-supplied SVG before injecting. -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<script>
+// Bootstrap globals for the component library.
+// h is htm bound to preact.h, so app code can write: h`<App foo=${x} />`.
+// render(vnode, target) wraps preact.render so callers don't need to pick a symbol.
+//
+// Smoke-usage (do NOT mount here — components live in their own module):
+//   const App = () => h`<div>hello ${signal('world').value}</div>`;
+//   render(h`<${App} />`, document.getElementById('app-root'));
+(function bootstrapPhase3() {
+  if (typeof preact === 'undefined' || typeof htm === 'undefined') {
+    console.warn('[phase3] preact/htm not loaded — framework primitives unavailable');
+    return;
+  }
+  window.h = htm.bind(preact.h);
+  window.render = (vnode, target) => preact.render(vnode, target);
+  // Signals: expose the common ergonomics directly. preactSignalsCore has signal/computed/effect/batch.
+  if (typeof preactSignalsCore !== 'undefined') {
+    window.signal = preactSignalsCore.signal;
+    window.computed = preactSignalsCore.computed;
+    window.effect = preactSignalsCore.effect;
+    window.batch = preactSignalsCore.batch;
+  }
+  // Lazy mermaid loader — keeps the ~1MB mermaid bundle off initial page load.
+  // Returns a Promise<typeof mermaid>. Idempotent.
+  window.loadMermaid = (() => {
+    let pending = null;
+    return () => {
+      if (typeof mermaid !== 'undefined') return Promise.resolve(mermaid);
+      if (pending) return pending;
+      pending = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+        s.onload = () => {
+          if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+            resolve(mermaid);
+          } else {
+            reject(new Error('mermaid script loaded but global is undefined'));
+          }
+        };
+        s.onerror = () => reject(new Error('mermaid script failed to load'));
+        document.head.appendChild(s);
+      });
+      return pending;
+    };
+  })();
+})();
+</script>
+
+<!-- Component library — each registers on window.LearnComponents.
+     Loaded after framework primitives + DOMPurify, before the main app script. -->
+<script src="components/Callout.js"></script>
+<script src="components/Mermaid.js"></script>
+<script src="components/SvgFigure.js"></script>
+<script src="components/CodeRunner.js"></script>
+<!-- v2 components: StepThrough, FlashcardDeck, ConceptMap (lazy-loads d3), Highlight. -->
+<script src="components/StepThrough.js"></script>
+<script src="components/FlashcardDeck.js"></script>
+<script src="components/ConceptMap.js"></script>
+<script src="components/Highlight.js"></script>
+<!-- Agent-generated interactive widgets — sandboxed iframe with library allowlist. -->
+<script src="components/Artifact.js"></script>
+<!-- ExplainerPopover (re-added v0.3 task #12): popover for Explain/Example/Why
+     actions, also reopened on click of saved explainer markers in the lesson body. -->
+<script src="components/ExplainerPopover.js"></script>
+<!-- v0.2 lesson document renderer: walks LessonBlock[] and dispatches to the registry above. -->
+<script src="components/LessonRenderer.js"></script>
+<!-- v0.2 dashboard cards: home tab. -->
+<script src="components/Dashboard.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242736;
+    --border: #2e3248;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --accent: #6366f1;
+    --accent-dim: #4f52c4;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef4444;
+    --radius: 8px;
+    --gap: 16px;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Nav */
+  nav { display: flex; align-items: center; gap: var(--gap); padding: 0 20px; height: 48px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  nav .logo { font-weight: 700; font-size: 16px; color: var(--accent); letter-spacing: -0.5px; }
+  nav .tabs { display: flex; gap: 4px; }
+  nav .tab { padding: 6px 14px; border-radius: var(--radius); cursor: pointer; color: var(--muted); transition: all 0.15s; border: none; background: none; font-size: 13px; }
+  nav .tab:hover { color: var(--text); background: var(--surface2); }
+  nav .tab.active { color: var(--text); background: var(--surface2); font-weight: 500; }
+  nav .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-left: auto; }
+  nav .status-dot.ok { background: var(--green); }
+
+  /* Views */
+  .views { flex: 1; overflow: hidden; }
+  .view { display: none; height: 100%; overflow-y: auto; padding: 24px; }
+  .view.active { display: flex; flex-direction: column; gap: 20px; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); }
+
+  /* Stat cards */
+  .stat-card { background: var(--surface2); border-radius: var(--radius); padding: 16px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .stat-card .label { color: var(--muted); font-size: 12px; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--radius); cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; border: 1px solid transparent; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-dim); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border-color: var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Input */
+  input, textarea, select { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 8px 12px; font-size: 13px; width: 100%; outline: none; font-family: inherit; }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* Chat (shared message bubble + composer styles) */
+  .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 72%; padding: 10px 14px; border-radius: 10px; line-height: 1.5; }
+  .msg.user { background: var(--accent); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+  .msg.assistant { background: var(--surface2); color: var(--text); align-self: flex-start; border-bottom-left-radius: 2px; }
+  .msg-input { display: flex; gap: 8px; padding: 16px; border-top: 1px solid var(--border); }
+  .msg-input textarea { min-height: 44px; max-height: 120px; }
+  .chat-empty { color: var(--muted); text-align: center; margin-top: 40px; font-size: 13px; line-height: 1.6; padding: 0 12px; }
+
+  /* Section view — lesson on the left, persistent chat sidebar on the right */
+  .section-view.active { flex-direction: row !important; gap: 0 !important; padding: 0 !important; align-items: stretch; }
+  .section-pane { height: 100%; overflow-y: auto; display: flex; flex-direction: column; }
+  .lesson-pane { flex: 1; min-width: 0; padding: 24px; gap: 20px; }
+  .chat-pane { width: 380px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--surface); overflow: hidden; }
+  .chat-pane.collapsed { display: none; }
+  .chat-pane-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .chat-pane-title { font-weight: 600; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .chat-pane-collapse { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 8px; border-radius: 4px; }
+  .chat-pane-collapse:hover { background: var(--surface); color: var(--text); }
+  .chat-pane-expand { position: absolute; top: 60px; right: 12px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; z-index: 5; }
+  .chat-pane-expand:hover { color: var(--text); border-color: var(--accent); }
+  .chat-quick-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px 0 14px; border-top: 1px solid var(--border); background: var(--surface); }
+  .chat-quick-btn { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); border-radius: 16px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .chat-quick-btn:hover { color: var(--text); border-color: var(--accent); background: var(--surface); }
+
+  /* Artifact-generating placeholder. Lives inside the lesson body, right
+     where the new artifact is going to land. Replaced by the real Artifact
+     component when the response arrives. */
+  .artifact-placeholder {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 12px 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .artifact-placeholder .ph-shimmer {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(110deg, transparent 0%, transparent 40%, rgba(99,102,241,0.10) 50%, transparent 60%, transparent 100%);
+    background-size: 200% 100%;
+    animation: ph-shimmer-anim 2.4s linear infinite;
+  }
+  @keyframes ph-shimmer-anim {
+    0%   { background-position: 200% 0%; }
+    100% { background-position: -200% 0%; }
+  }
+  .artifact-placeholder .ph-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: relative; z-index: 1;
+  }
+  .artifact-placeholder .ph-title {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; font-weight: 600; color: var(--text);
+  }
+  .artifact-placeholder .ph-pulse {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    animation: ph-pulse-anim 1.4s ease-in-out infinite;
+  }
+  @keyframes ph-pulse-anim {
+    0%, 100% { transform: scale(1);   opacity: 0.95; box-shadow: 0 0 0 0 rgba(99,102,241,0.6); }
+    50%      { transform: scale(1.25); opacity: 0.6;  box-shadow: 0 0 0 6px rgba(99,102,241,0); }
+  }
+  .artifact-placeholder .ph-elapsed {
+    font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted);
+    background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 8px;
+    min-width: 56px; text-align: center;
+  }
+  .artifact-placeholder .ph-cancel {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .artifact-placeholder .ph-cancel:hover { color: var(--red); border-color: var(--red); }
+  .artifact-placeholder .ph-body {
+    padding: 18px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    position: relative; z-index: 1;
+  }
+  .artifact-placeholder .ph-phase-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 4px;
+    color: var(--muted); font-size: 13px; line-height: 1.4;
+    transition: color 0.2s;
+  }
+  .artifact-placeholder .ph-phase-row.active { color: var(--text); font-weight: 500; }
+  .artifact-placeholder .ph-phase-row.done   { color: var(--green); }
+  .artifact-placeholder .ph-step-dot {
+    flex-shrink: 0;
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--border);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 9px; line-height: 1; color: transparent;
+  }
+  .artifact-placeholder .ph-phase-row.active .ph-step-dot {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0 rgba(99,102,241,0.5);
+    animation: ph-pulse-anim 1.4s ease-in-out infinite;
+  }
+  .artifact-placeholder .ph-phase-row.done .ph-step-dot {
+    background: var(--green); border-color: var(--green); color: white;
+  }
+  .artifact-placeholder .ph-phase-row.done .ph-step-dot::after { content: '✓'; }
+  .artifact-placeholder .ph-foot {
+    padding: 8px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 11px;
+    background: var(--surface);
+    position: relative; z-index: 1;
+  }
+
+  /* Pin-to-lesson affordance on chat-rendered components (yjp.4 stub) */
+  .pin-wrap { position: relative; }
+  .pin-wrap > .pin-btn {
+    position: absolute; top: 4px; right: 4px; z-index: 2;
+    background: var(--surface); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 6px; font-size: 11px; line-height: 1.2; cursor: pointer;
+    opacity: 0; transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .pin-wrap:hover > .pin-btn { opacity: 0.85; }
+  .pin-wrap > .pin-btn:hover { opacity: 1; color: var(--accent); border-color: var(--accent); }
+  .pin-wrap > .pin-btn[disabled] { cursor: default; opacity: 0.6; }
+
+  /* Quiz */
+  .quiz-question { background: var(--surface2); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .quiz-question .q-text { font-size: 15px; font-weight: 500; margin-bottom: 16px; line-height: 1.6; }
+  .quiz-feedback { margin-top: 16px; padding: 16px; border-radius: var(--radius); border: 1px solid var(--border); }
+  .quiz-feedback.good { border-color: var(--green); background: rgba(34, 197, 94, 0.05); }
+  .quiz-feedback.partial { border-color: var(--yellow); background: rgba(234, 179, 8, 0.05); }
+  .quiz-feedback.poor { border-color: var(--red); background: rgba(239, 68, 68, 0.05); }
+
+  /* Score pill */
+  .score-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .score-pill.high { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+  .score-pill.mid { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
+  .score-pill.low { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+
+  /* Course list */
+  .course-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: border-color 0.15s; }
+  .course-card:hover { border-color: var(--accent); }
+  .course-card .title { font-weight: 600; margin-bottom: 4px; }
+  .course-card .meta { color: var(--muted); font-size: 12px; }
+  .course-card .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgba(99, 102, 241, 0.15); color: var(--accent); }
+  .course-card .status-badge.building { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
+
+  /* Gap analysis */
+  .gap-card { background: var(--surface2); border-radius: var(--radius); padding: 20px; }
+  .gap-card .concept-tag { display: inline-block; padding: 4px 10px; border-radius: 20px; background: rgba(99, 102, 241, 0.15); color: var(--accent); font-size: 12px; font-weight: 600; margin-bottom: 12px; }
+  .gap-card .lesson { line-height: 1.7; white-space: pre-wrap; }
+  .gap-card .follow-ups { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .gap-card .follow-up { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .gap-card .follow-up .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  /* Sessions list */
+  .session-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 12px; transition: all 0.1s; }
+  .session-item:hover { background: var(--surface2); color: var(--text); }
+  .session-item.active { background: var(--surface2); color: var(--text); }
+
+  /* Progress bar */
+  .progress-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .progress-bar .fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+
+  /* Loading */
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-row { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+
+  /* Section list */
+  .section-item { padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: border-color 0.15s; }
+  .section-item:hover { border-color: var(--accent); }
+  .section-item .s-title { font-weight: 500; margin-bottom: 4px; }
+  .section-item .s-meta { color: var(--muted); font-size: 12px; }
+
+  /* Toast */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 18px; font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100; }
+  #toast.show { opacity: 1; }
+
+  /* Explainer markers — saved Explain/Example/Why annotations on lesson text. */
+  .explainer-mark { border-bottom: 1px dotted var(--accent); cursor: pointer; }
+  .explainer-mark:hover { background: rgba(99,102,241,0.10); }
+  .explainer-mark::after { content: '°'; font-size: 0.7em; vertical-align: super; color: var(--accent); margin-left: 1px; }
+
+  /* Notes panel — per-section notes shipped in v0.2. */
+  .notes-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin: 20px 0; }
+  .notes-panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+  .notes-panel h2 .count { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .notes-empty { color: var(--muted); font-size: 12px; padding: 4px 0; }
+  .note-item { padding: 10px 0; border-top: 1px solid var(--border); }
+  .note-item:first-child { border-top: none; padding-top: 0; }
+  .note-anchor { font-style: italic; color: var(--muted); font-size: 11px; margin-bottom: 4px; line-height: 1.4; }
+  .note-content { font-size: 13px; line-height: 1.5; margin-bottom: 6px; word-break: break-word; }
+  .note-content textarea { width: 100%; min-height: 70px; font-size: 13px; padding: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: inherit; resize: vertical; }
+  .note-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .note-actions button { font-size: 11px; padding: 3px 8px; border-radius: 4px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); cursor: pointer; }
+  .note-actions button:hover { color: var(--text); border-color: var(--accent); }
+  .note-actions button.danger:hover { color: var(--red); border-color: var(--red); }
+  .note-actions button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .note-actions .promoted-badge { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: rgba(34, 197, 94, 0.15); color: var(--green); }
+  .note-actions .fact-link { font-size: 10px; color: var(--muted); }
+
+  /* Promote dialog — small in-page modal */
+  .promote-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: center; justify-content: center; }
+  .promote-modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; min-width: 360px; max-width: 480px; }
+  .promote-modal h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .promote-modal label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .promote-modal select, .promote-modal input { padding: 6px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 13px; }
+  .promote-modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+
+  /* Back / breadcrumb */
+  .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: 4px; user-select: none; }
+  .back-link:hover { color: var(--text); background: var(--surface2); }
+
+  /* Course detail */
+  .course-header { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 12px; }
+  .course-header h1 { font-size: 22px; font-weight: 700; line-height: 1.3; }
+  .course-header .desc { color: var(--muted); line-height: 1.6; max-width: 800px; }
+
+  .section-row { display: flex; gap: 16px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); cursor: pointer; transition: border-color 0.15s; align-items: flex-start; }
+  .section-row:hover { border-color: var(--accent); }
+  .section-row .num { flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--surface2); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; }
+  .section-row .body { flex: 1; min-width: 0; }
+  .section-row .body .s-title { font-weight: 600; margin-bottom: 4px; }
+  .section-row .body .s-desc { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+  .section-row .body .s-meta { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 12px; }
+  .section-row .progress-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .section-row .progress-badge.none { background: var(--surface2); color: var(--muted); }
+  .section-row .progress-badge.partial { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
+  .section-row .progress-badge.done { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+
+  /* Section view */
+  .section-header h1 { font-size: 22px; font-weight: 700; line-height: 1.3; margin-bottom: 8px; }
+  .section-header .desc { color: var(--muted); line-height: 1.6; }
+
+  /* Cross-course bridge banner — surfaces "you've seen this before in [Course X]" */
+  .bridge-banners { display: flex; flex-direction: column; gap: 8px; }
+  .bridge-banner {
+    background: rgba(99, 102, 241, 0.07);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    display: block;
+    text-decoration: none;
+    color: inherit;
+  }
+  .bridge-banner:hover { background: rgba(99, 102, 241, 0.13); border-color: var(--accent); }
+  .bridge-banner .bridge-head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; }
+  .bridge-banner .bridge-head .arrow { font-size: 14px; line-height: 1; }
+  .bridge-banner .bridge-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; line-height: 1.4; }
+  .bridge-banner .bridge-cta { font-size: 12px; color: var(--accent); }
+
+  .objectives-box { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; }
+  .objectives-box h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .objectives-box ul { padding-left: 20px; }
+  .objectives-box li { margin-bottom: 4px; line-height: 1.5; }
+
+  /* Lesson */
+  .lesson-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+  .lesson-empty { text-align: center; padding: 40px 24px; }
+  .lesson-empty .hint { color: var(--muted); margin-bottom: 16px; }
+  .lesson-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .lesson-meta .read-time { color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+  .lesson-meta-actions { display: inline-flex; align-items: center; gap: 12px; }
+  .lesson-meta .regen-link { color: var(--accent); cursor: pointer; font-size: 12px; user-select: none; }
+  .lesson-meta .regen-link:hover { text-decoration: underline; }
+
+  /* Lesson overlay: edited badge + version history dropdown */
+  .overlay-badge-host { display: inline-flex; align-items: center; }
+  .overlay-badge { background: rgba(99, 102, 241, 0.15); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 600; cursor: pointer; user-select: none; line-height: 1.6; transition: background 0.15s, border-color 0.15s; }
+  .overlay-badge:hover { background: rgba(99, 102, 241, 0.25); border-color: var(--accent); }
+  .overlay-history-dropdown { position: absolute; min-width: 240px; max-width: 320px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); z-index: 1000; overflow: hidden; animation: overlayDropdownIn 0.12s ease-out; }
+  @keyframes overlayDropdownIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .overlay-history-header { padding: 10px 14px; font-size: 11px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  .overlay-history-body { max-height: 280px; overflow-y: auto; }
+  .overlay-history-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .overlay-history-row:last-child { border-bottom: none; }
+  .overlay-history-row.current { background: rgba(99, 102, 241, 0.07); }
+  .overlay-history-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .overlay-history-row-version { font-size: 13px; font-weight: 600; color: var(--text); }
+  .overlay-history-row-time { font-size: 11px; color: var(--muted); }
+  .overlay-history-revert { background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+  .overlay-history-revert:hover { color: var(--text); border-color: var(--accent); }
+  .overlay-history-loading, .overlay-history-empty { padding: 14px; font-size: 12px; color: var(--muted); text-align: center; }
+
+  /* Markdown body */
+  .md { line-height: 1.7; color: var(--text); }
+  .md h1, .md h2, .md h3, .md h4 { line-height: 1.3; margin-top: 1.4em; margin-bottom: 0.6em; font-weight: 700; }
+  .md h1:first-child, .md h2:first-child, .md h3:first-child { margin-top: 0; }
+  .md h1 { font-size: 20px; }
+  .md h2 { font-size: 17px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .md h3 { font-size: 15px; color: var(--text); }
+  .md p { margin-bottom: 0.9em; }
+  .md ul, .md ol { padding-left: 24px; margin-bottom: 0.9em; }
+  .md li { margin-bottom: 4px; }
+  .md strong { color: var(--text); font-weight: 700; }
+  .md em { color: var(--text); }
+  .md code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 13px; color: #f0bd8e; }
+  .md pre { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 1em; overflow-x: auto; }
+  .md pre code { background: none; padding: 0; color: var(--text); font-size: 12.5px; line-height: 1.55; display: block; }
+  .md blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--muted); margin-bottom: 0.9em; }
+  .md a { color: var(--accent); }
+
+  /* Key takeaways */
+  .takeaways-box { background: rgba(99, 102, 241, 0.07); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: var(--radius); padding: 16px 20px; margin-top: 20px; }
+  .takeaways-box h3 { font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .takeaways-box ul { padding-left: 20px; }
+  .takeaways-box li { margin-bottom: 6px; line-height: 1.5; }
+
+  /* Inline questions */
+  .question-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+  .question-row .q-head { display: flex; align-items: center; padding: 12px 16px; cursor: pointer; gap: 12px; user-select: none; }
+  .question-row .q-head:hover { background: var(--surface2); }
+  .question-row .q-head .q-text-preview { flex: 1; font-size: 13px; line-height: 1.5; }
+  .question-row .q-head .q-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; font-size: 11px; color: var(--muted); }
+  .question-row .q-head .chevron { color: var(--muted); font-size: 12px; transition: transform 0.15s; }
+  .question-row.open .q-head .chevron { transform: rotate(90deg); }
+  .question-row .q-body { display: none; padding: 0 16px 16px; border-top: 1px solid var(--border); }
+  .question-row.open .q-body { display: block; }
+  .question-row .q-body .q-full { font-size: 14px; line-height: 1.6; padding: 14px 0 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">◈ Adaptive Learn</span>
+  <div class="tabs">
+    <button class="tab active" onclick="showView('dashboard')">Dashboard</button>
+    <button class="tab" onclick="showView('courses')">Courses</button>
+  </div>
+  <div class="status-dot" id="statusDot"></div>
+</nav>
+
+<div class="views">
+
+  <!-- DASHBOARD VIEW -->
+  <div class="view active" id="view-dashboard">
+    <div id="dashboard-root"></div>
+  </div>
+
+  <!-- COURSES VIEW -->
+  <div class="view" id="view-courses">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h1 style="font-size:20px;font-weight:700">Courses</h1>
+      <button class="btn btn-primary" onclick="showNewCourse()">+ New Course</button>
+    </div>
+
+    <div id="newCourseForm" style="display:none" class="card">
+      <h2>Create a Course</h2>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="display:block;margin-bottom:6px;color:var(--muted);font-size:12px">TOPIC</label>
+          <input type="text" id="courseTopicInput" placeholder="e.g. React hooks, Linear algebra, Stoic philosophy..." />
+        </div>
+        <div>
+          <label style="display:block;margin-bottom:6px;color:var(--muted);font-size:12px">PASTE CONTENT (optional — leave blank to generate from AI knowledge)</label>
+          <textarea id="courseContentInput" placeholder="Paste a book chapter, article, or notes here..." style="min-height:120px"></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" id="createCourseBtn" onclick="createCourse()">Create Course</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('newCourseForm').style.display='none'">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="coursesList" style="display:flex;flex-direction:column;gap:10px">
+      <div class="loading-row"><div class="spinner"></div> Loading courses...</div>
+    </div>
+  </div>
+
+  <!-- COURSE DETAIL VIEW -->
+  <div class="view" id="view-course-detail">
+    <div class="back-link" onclick="navigateTo('courses')">← All courses</div>
+    <div id="courseDetailContent">
+      <div class="loading-row"><div class="spinner"></div> Loading course...</div>
+    </div>
+  </div>
+
+  <!-- SECTION VIEW (lesson + persistent chat sidebar) -->
+  <div class="view section-view" id="view-section">
+    <div class="section-pane lesson-pane">
+      <div class="back-link" id="sectionBackLink">← Back to course</div>
+      <div id="sectionContent">
+        <div class="loading-row"><div class="spinner"></div> Loading section...</div>
+      </div>
+    </div>
+    <aside class="section-pane chat-pane" id="sectionChatPane" aria-label="Tutor chat">
+      <div class="chat-pane-head">
+        <span class="chat-pane-title">Tutor</span>
+        <button class="chat-pane-collapse" type="button" onclick="toggleSectionChat()" aria-label="Collapse chat">×</button>
+      </div>
+      <div class="messages" id="sectionChatMessages">
+        <div class="chat-empty">Ask about this section. Highlight any lesson text and pick Explain / Example / Why — the answer goes straight into your notes. Use the chat for longer conversations, diagrams, walk-throughs.</div>
+      </div>
+      <div class="chat-quick-actions" role="group" aria-label="Quick prompts">
+        <button class="chat-quick-btn" type="button" onclick="quickPromptSectionChat('diagram')" title="Ask the tutor for a diagram">▦ Diagram</button>
+        <button class="chat-quick-btn" type="button" onclick="quickPromptSectionChat('walkthrough')" title="Walk through this step by step">↦ Walk-through</button>
+        <button class="chat-quick-btn" type="button" onclick="quickPromptSectionChat('example')" title="Get a runnable example">{} Example</button>
+        <button class="chat-quick-btn" type="button" onclick="quickPromptSectionChat('flashcards')" title="Generate review flashcards">⊟ Flashcards</button>
+      </div>
+      <div class="msg-input">
+        <textarea id="sectionChatInput" placeholder="Ask about this section…" rows="2" onkeydown="handleSectionChatKey(event)"></textarea>
+        <button class="btn btn-primary" id="sectionSendBtn" onclick="sendSectionMessage()">Send</button>
+      </div>
+    </aside>
+    <button class="chat-pane-expand" id="sectionChatExpand" type="button" onclick="toggleSectionChat()" aria-label="Open chat" hidden>«</button>
+  </div>
+
+  <!-- (Learn / Quiz / My Gaps / Progress views removed in the v0.3 cut.
+       Chat lives next to the lesson on the section view. Gap analyzer
+       and progress stats are surfaced via the dashboard. Inline questions
+       live on each section page; there is no standalone quiz tab.) -->
+
+</div>
+
+<div id="toast"></div>
+
+<!-- Render root for the Preact component library. Empty until something mounts here. -->
+<div id="app-root"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  currentView: 'dashboard',
+  // Section-scoped tutor chat. Populated when entering a section via
+  // mountSectionChat; cleared on leave. Only one section chat is active at a
+  // time. Other surfaces (dashboard etc.) may create their own un-scoped
+  // sessions in the future — we don't track them in state until they exist.
+  sectionChat: { sessionId: null, sectionId: null, collapsed: false },
+  courses: [],
+  sections: [],
+  currentCourse: null,   // full course (with sections) when viewing detail
+  currentSection: null,  // full section (with questions, lesson) when viewing
+  dashboard: null,       // cached DashboardResponse — null until first fetch
+  dashboardLoading: false,
+  dashboardError: null,
+  dashboardRegenerating: false,
+  bridgeCache: {},       // { [sectionId]: Insight[] } — cached cross-course bridge insights
+  notesCache: {},        // { [sectionId]: Note[] } — cached per-section notes for tab-bounce performance
+  currentOverlay: null,  // OverlayRow | null — latest overlay for the section currently mounted in #lessonBody
+  overlayCache: {},      // { [sectionId]: { overlay: OverlayRow|null, history?: OverlayRow[] } } — keyed by section so tab-bounce skips refetch
+};
+
+// Configure marked once it's available — falls back to a tiny inline renderer if CDN failed.
+function renderMarkdown(md) {
+  if (!md) return '';
+  if (typeof marked !== 'undefined' && marked.parse) {
+    try {
+      return marked.parse(md, { breaks: false, gfm: true });
+    } catch (e) {
+      console.warn('marked failed:', e);
+    }
+  }
+  return tinyMarkdown(md);
+}
+
+// Minimal markdown fallback covering headings, bold, italic, code, code fences, lists, paragraphs.
+function tinyMarkdown(src) {
+  const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = src.split(/\r?\n/);
+  const out = [];
+  let inCode = false, codeLang = '', codeBuf = [];
+  let inList = false, listType = '';
+  let paraBuf = [];
+
+  const flushPara = () => {
+    if (paraBuf.length === 0) return;
+    let p = paraBuf.join(' ').trim();
+    if (!p) { paraBuf = []; return; }
+    p = escape(p);
+    p = p.replace(/`([^`]+)`/g, '<code>$1</code>');
+    p = p.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    p = p.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    p = p.replace(/_([^_]+)_/g, '<em>$1</em>');
+    out.push('<p>' + p + '</p>');
+    paraBuf = [];
+  };
+  const flushList = () => {
+    if (inList) { out.push(`</${listType}>`); inList = false; }
+  };
+
+  for (const raw of lines) {
+    if (inCode) {
+      if (raw.trim().startsWith('```')) {
+        out.push(`<pre><code class="lang-${codeLang}">${escape(codeBuf.join('\n'))}</code></pre>`);
+        inCode = false; codeBuf = []; codeLang = '';
+      } else {
+        codeBuf.push(raw);
+      }
+      continue;
+    }
+    if (raw.trim().startsWith('```')) {
+      flushPara(); flushList();
+      inCode = true;
+      codeLang = raw.trim().slice(3).trim();
+      continue;
+    }
+    if (/^#{1,6}\s/.test(raw)) {
+      flushPara(); flushList();
+      const m = raw.match(/^(#{1,6})\s+(.*)$/);
+      if (m) {
+        let inner = escape(m[2]);
+        inner = inner.replace(/`([^`]+)`/g, '<code>$1</code>');
+        inner = inner.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        out.push(`<h${m[1].length}>${inner}</h${m[1].length}>`);
+      }
+      continue;
+    }
+    const ulMatch = raw.match(/^\s*[-*]\s+(.*)$/);
+    const olMatch = raw.match(/^\s*\d+\.\s+(.*)$/);
+    if (ulMatch || olMatch) {
+      flushPara();
+      const wantType = ulMatch ? 'ul' : 'ol';
+      if (!inList || listType !== wantType) {
+        flushList();
+        out.push(`<${wantType}>`);
+        inList = true; listType = wantType;
+      }
+      let inner = escape((ulMatch || olMatch)[1]);
+      inner = inner.replace(/`([^`]+)`/g, '<code>$1</code>');
+      inner = inner.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      inner = inner.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      out.push(`<li>${inner}</li>`);
+      continue;
+    }
+    if (raw.trim() === '') {
+      flushPara(); flushList();
+      continue;
+    }
+    paraBuf.push(raw);
+  }
+  if (inCode) out.push(`<pre><code>${escape(codeBuf.join('\n'))}</code></pre>`);
+  flushPara(); flushList();
+  return out.join('\n');
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(`${method} ${path} → ${r.status}`);
+  return r.json();
+}
+
+function toast(msg, duration = 3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function scorePill(score) {
+  if (score === null || score === undefined) return '';
+  const pct = Math.round(score * 100);
+  const cls = score >= 0.7 ? 'high' : score >= 0.4 ? 'mid' : 'low';
+  const label = score >= 0.7 ? 'Good' : score >= 0.4 ? 'Partial' : 'Needs Work';
+  return `<span class="score-pill ${cls}">${label} ${pct}%</span>`;
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+// Top-level tabs only. Section/course-detail views chain off Courses; the chat
+// lives inside the section view as a sidebar, not as its own destination.
+const TAB_VIEWS = ['dashboard', 'courses'];
+
+// Used by nav tab onclick — uses event.target so the visual active state follows the click.
+function showView(name) {
+  navigateTo(name);
+}
+
+// Programmatic navigation. Hides every view, shows the one named, sets the matching nav tab active.
+function navigateTo(name) {
+  // Tear down the Preact lesson tree when leaving the section view so it doesn't leak.
+  if (state.currentView === 'section' && name !== 'section') {
+    unmountLessonBody();
+    unmountSectionChat();
+  }
+  // Tear down the dashboard tree when leaving so it doesn't keep mounted state.
+  if (state.currentView === 'dashboard' && name !== 'dashboard') unmountDashboard();
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const target = document.getElementById(`view-${name}`);
+  if (!target) { console.warn(`view-${name} not found`); return; }
+  target.classList.add('active');
+
+  // Tab highlight: course-detail and section views highlight Courses tab
+  let tabName = name;
+  if (name === 'course-detail' || name === 'section') tabName = 'courses';
+  if (TAB_VIEWS.includes(tabName)) {
+    const tabIdx = TAB_VIEWS.indexOf(tabName);
+    document.querySelectorAll('nav .tab')[tabIdx]?.classList.add('active');
+  }
+
+  state.currentView = name;
+
+  if (name === 'dashboard') loadDashboard();
+  else if (name === 'courses') loadCourses();
+}
+
+// ── Health check ──────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    // Renamed from `h` to avoid visual collision with the global Preact-htm `h` (window.h).
+    const health = await api('GET', '/health');
+    document.getElementById('statusDot').className = `status-dot ${health.nmemo ? 'ok' : ''}`;
+  } catch { document.getElementById('statusDot').className = 'status-dot'; }
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+async function loadDashboard(opts) {
+  const force = opts && opts.force;
+  const regenerate = opts && opts.regenerate;
+  // Tab-bounce shortcut: if we have cached data and aren't forcing, just remount.
+  if (state.dashboard && !force && !regenerate) {
+    mountDashboard();
+    return;
+  }
+  state.dashboardLoading = true;
+  state.dashboardError = null;
+  if (regenerate) state.dashboardRegenerating = true;
+  mountDashboard();
+  try {
+    const path = regenerate ? '/api/dashboard?regenerate=true' : '/api/dashboard';
+    const data = await api('GET', path);
+    state.dashboard = data;
+    state.dashboardError = null;
+  } catch (e) {
+    state.dashboardError = e.message || String(e);
+  } finally {
+    state.dashboardLoading = false;
+    state.dashboardRegenerating = false;
+    mountDashboard();
+  }
+}
+
+function mountDashboard() {
+  const target = document.getElementById('dashboard-root');
+  if (!target) return;
+  const lib = window.LearnComponents;
+  if (!lib || typeof lib.DashboardCards !== 'function' || !window.h || !window.render) {
+    target.innerHTML = '<div style="color:var(--muted);padding:40px;text-align:center">Dashboard component not loaded.</div>';
+    return;
+  }
+  const handlers = {
+    onReload: () => loadDashboard({ force: true }),
+    onRegenerateFlashcards: () => loadDashboard({ regenerate: true }),
+    onNavigateCourse: (courseId) => { if (courseId) openCourse(courseId); },
+    // Quiz tab is gone in v0.3 — every section nav opens the section view, where
+    // inline questions live alongside the lesson. `opts.quiz` is now ignored.
+    onNavigateSection: (sectionId) => { if (sectionId) openSection(sectionId); },
+  };
+  window.render(window.h`<${lib.DashboardCards}
+    data=${state.dashboard}
+    loading=${state.dashboardLoading}
+    error=${state.dashboardError}
+    regenerating=${state.dashboardRegenerating}
+    onReload=${handlers.onReload}
+    onRegenerateFlashcards=${handlers.onRegenerateFlashcards}
+    onNavigateSection=${handlers.onNavigateSection}
+    onNavigateCourse=${handlers.onNavigateCourse}
+  />`, target);
+}
+
+function unmountDashboard() {
+  const target = document.getElementById('dashboard-root');
+  if (target && window.render) window.render(null, target);
+}
+
+// ── Courses ────────────────────────────────────────────────────────────────
+function showNewCourse() {
+  document.getElementById('newCourseForm').style.display = 'block';
+  document.getElementById('courseTopicInput').focus();
+}
+
+async function loadCourses() {
+  try {
+    state.courses = await api('GET', '/api/courses');
+    renderCourses();
+  } catch (e) {
+    document.getElementById('coursesList').innerHTML = `<div style="color:var(--red)">Failed to load courses: ${e.message}</div>`;
+  }
+}
+
+function renderCourses() {
+  const el = document.getElementById('coursesList');
+  if (state.courses.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px">No courses yet. Create one to get started.</div>';
+    return;
+  }
+  el.innerHTML = state.courses.map(c => `
+    <div class="course-card" onclick="openCourse('${c.id}')">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="title">${c.title}</div>
+        <span class="status-badge ${c.status === 'building' ? 'building' : ''}">${c.status}</span>
+      </div>
+      <div class="meta">${c.description ?? c.topic ?? ''}</div>
+    </div>
+  `).join('');
+}
+
+async function createCourse() {
+  const topic = document.getElementById('courseTopicInput').value.trim();
+  const sourceText = document.getElementById('courseContentInput').value.trim();
+  if (!topic) { toast('Enter a topic'); return; }
+
+  const btn = document.getElementById('createCourseBtn');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+
+  try {
+    const r = await api('POST', '/api/courses', {
+      topic,
+      sourceType: sourceText ? 'paste' : 'generated',
+      sourceText: sourceText || undefined,
+    });
+    document.getElementById('newCourseForm').style.display = 'none';
+    document.getElementById('courseTopicInput').value = '';
+    document.getElementById('courseContentInput').value = '';
+    toast('Course is being generated — this takes ~30 seconds');
+    await loadCourses();
+    // Poll until ready
+    pollCourse(r.courseId);
+  } catch (e) {
+    toast(`Error: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Course';
+  }
+}
+
+async function pollCourse(courseId) {
+  let attempts = 0;
+  const interval = setInterval(async () => {
+    attempts++;
+    if (attempts > 60) { clearInterval(interval); return; }
+    try {
+      const course = await api('GET', `/api/courses/${courseId}`);
+      if (course.status === 'ready') {
+        clearInterval(interval);
+        await loadCourses();
+        toast(`"${course.title}" is ready!`);
+      } else if (course.status === 'error') {
+        clearInterval(interval);
+        toast('Course generation failed');
+      }
+    } catch { /* ignore */ }
+  }, 5000);
+}
+
+async function openCourse(courseId) {
+  navigateTo('course-detail');
+  const el = document.getElementById('courseDetailContent');
+  el.innerHTML = '<div class="loading-row"><div class="spinner"></div> Loading course...</div>';
+  try {
+    const course = await api('GET', `/api/courses/${courseId}`);
+    if (course.status === 'building') {
+      el.innerHTML = '<div class="card" style="text-align:center;padding:40px;color:var(--muted)">Course is still being built. Refresh in a moment.</div>';
+      return;
+    }
+    state.currentCourse = course;
+    renderCourseDetail(course);
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--red);padding:20px">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderCourseDetail(course) {
+  const sections = course.sections ?? [];
+  const html = `
+    <div class="course-header">
+      <h1>${escapeHtml(course.title)}</h1>
+      ${course.description ? `<div class="desc">${escapeHtml(course.description)}</div>` : ''}
+      <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+        <span class="status-badge ${course.status === 'building' ? 'building' : ''}">${escapeHtml(course.status)}</span>
+        <span style="color:var(--muted);font-size:12px">${sections.length} section${sections.length === 1 ? '' : 's'}</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${sections.length === 0
+        ? '<div style="color:var(--muted);text-align:center;padding:40px">No sections in this course.</div>'
+        : sections.map(sec => sectionRowHtml(sec)).join('')}
+    </div>
+  `;
+  document.getElementById('courseDetailContent').innerHTML = html;
+}
+
+function sectionRowHtml(sec) {
+  const conceptCount = (sec.conceptEntityIds ?? []).length;
+  const qs = sec.questions ?? [];
+  const qCount = qs.length;
+  // Four-state badge driven by lessonStatus (server-side) with a fallback to
+  // body presence for older rows that predate the status column.
+  let badgeClass, badgeText;
+  if (sec.lessonStatus === 'building') {
+    badgeClass = 'partial'; badgeText = 'Generating…';
+  } else if (sec.lessonStatus === 'error') {
+    badgeClass = 'none'; badgeText = 'Failed';
+  } else if (sec.lessonStatus === 'ready' || sec.lessonContent || sec.lessonBlocks) {
+    badgeClass = 'partial'; badgeText = 'Lesson ready';
+  } else {
+    badgeClass = 'none'; badgeText = 'Not started';
+  }
+  return `
+    <div class="section-row" onclick="openSection('${sec.id}')">
+      <div class="num">${sec.orderIndex + 1}</div>
+      <div class="body">
+        <div class="s-title">${escapeHtml(sec.title)}</div>
+        ${sec.description ? `<div class="s-desc">${escapeHtml(sec.description)}</div>` : ''}
+        <div class="s-meta">
+          <span>${conceptCount} concept${conceptCount === 1 ? '' : 's'} · ${qCount} question${qCount === 1 ? '' : 's'}</span>
+          <span class="progress-badge ${badgeClass}">${badgeText}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Section view ──────────────────────────────────────────────────────────
+async function openSection(sectionId) {
+  // If we're re-entering from another section, unmount the prior Preact tree
+  // before nuking #sectionContent so Preact's vnode bookkeeping stays consistent.
+  unmountLessonBody();
+  navigateTo('section');
+  const el = document.getElementById('sectionContent');
+  el.innerHTML = '<div class="loading-row"><div class="spinner"></div> Loading section...</div>';
+  // Wire back link to current course
+  const back = document.getElementById('sectionBackLink');
+  back.onclick = () => {
+    if (state.currentCourse) openCourse(state.currentCourse.id);
+    else navigateTo('courses');
+  };
+
+  try {
+    const section = await api('GET', `/api/sections/${sectionId}`);
+    state.currentSection = section;
+    renderSection(section);
+    // Fire-and-forget — chat is non-critical to the lesson surface.
+    mountSectionChat(section);
+    // Persistence-between-changes: if a generation is already in flight on
+    // the server, resume polling so the user sees live progress without
+    // re-kicking the pipeline. Same path as a fresh generateLesson() — but
+    // with no POST.
+    if (section.lessonStatus === 'building') {
+      startLessonPoll(sectionId, null);
+    }
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--red);padding:20px">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderSection(section) {
+  const objectives = section.learningObjectives ?? [];
+  const questions = section.questions ?? [];
+  const totalAttempts = questions.reduce((s, q) => s + (q.attemptCount ?? 0), 0);
+  const html = `
+    <div class="section-header">
+      ${section.courseTitle ? `<div style="color:var(--muted);font-size:12px;margin-bottom:4px">${escapeHtml(section.courseTitle)}</div>` : ''}
+      <h1>${escapeHtml(section.title)}</h1>
+      ${section.description ? `<div class="desc">${escapeHtml(section.description)}</div>` : ''}
+    </div>
+
+    <div id="sectionBridge"></div>
+
+    ${objectives.length > 0 ? `
+      <div class="objectives-box">
+        <h3>Learning objectives</h3>
+        <ul>${objectives.map(o => `<li>${escapeHtml(o)}</li>`).join('')}</ul>
+      </div>
+    ` : ''}
+
+    <div id="lessonArea">
+      ${renderLessonArea(section)}
+    </div>
+
+    <div id="notesPanel" class="notes-panel">
+      <h2>Notes <span class="count">loading…</span></h2>
+      <div class="notes-empty">Highlight any lesson text and pick "Take a note" to start.</div>
+    </div>
+
+    <div>
+      <h2 style="font-size:16px;font-weight:600;margin-bottom:12px">Questions <span style="color:var(--muted);font-weight:400;font-size:13px">${questions.length} total · ${totalAttempts} attempt${totalAttempts === 1 ? '' : 's'}</span></h2>
+      <div id="questionsList">
+        ${questions.length === 0
+          ? '<div style="color:var(--muted);padding:20px;text-align:center">No questions in this section.</div>'
+          : questions.map(q => questionRowHtml(q)).join('')}
+      </div>
+    </div>
+  `;
+  document.getElementById('sectionContent').innerHTML = html;
+  mountLessonBody(section);
+  // Fire-and-forget — bridge is silent if no matches; section UX never blocks on it.
+  loadCrossCourseBridge(section);
+  // Fire-and-forget — notes load lazily; cached per-section to make tab-bounce instant.
+  renderNotesPanel(section.id);
+}
+
+// Fetches cross_course_link insights and renders banners for any whose entities overlap
+// the current section's concepts AND whose related courses include another course.
+// Silent (no banner) when there are no matches. Cached per section so back-nav is instant.
+async function loadCrossCourseBridge(section) {
+  if (!section || !section.id) return;
+  const slotId = 'sectionBridge';
+  const sectionId = section.id;
+  const concepts = Array.isArray(section.conceptEntityIds) ? section.conceptEntityIds : [];
+  if (concepts.length === 0) return; // nothing to bridge from
+  const currentCourseId = section.courseId;
+
+  let matches;
+  if (state.bridgeCache[sectionId]) {
+    matches = state.bridgeCache[sectionId];
+  } else {
+    let resp;
+    try {
+      resp = await api('GET', `/api/insights?type=cross_course_link&include_dismissed=false&limit=10`);
+    } catch (e) {
+      // Bridge is non-critical; never fail the section view.
+      console.warn('cross-course bridge fetch failed:', e);
+      return;
+    }
+    // Re-check we're still on the same section (user may have navigated away).
+    if (!state.currentSection || state.currentSection.id !== sectionId) return;
+
+    const conceptSet = new Set(concepts);
+    const all = Array.isArray(resp && resp.insights) ? resp.insights : [];
+    matches = all.filter(it => {
+      const eIds = Array.isArray(it.relatedEntityIds) ? it.relatedEntityIds : [];
+      const cIds = Array.isArray(it.relatedCourseIds) ? it.relatedCourseIds : [];
+      if (!eIds.some(id => conceptSet.has(id))) return false;
+      // Must touch at least one course OTHER than the current one.
+      return cIds.some(cid => cid && cid !== currentCourseId);
+    }).slice(0, 3); // cap to avoid clutter
+    state.bridgeCache[sectionId] = matches;
+  }
+
+  // Re-check container still belongs to the active section (defensive against fast nav).
+  const slot = document.getElementById(slotId);
+  if (!slot) return;
+  if (!state.currentSection || state.currentSection.id !== sectionId) return;
+  if (matches.length === 0) return; // silent
+
+  // Build a course id → title map. Prefer state.courses (loaded on app boot or course nav).
+  const idToTitle = new Map();
+  try {
+    const cached = Array.isArray(state.courses) ? state.courses : [];
+    for (const c of cached) {
+      if (c && c.id && c.title) idToTitle.set(c.id, c.title);
+    }
+  } catch { /* noop */ }
+  const titleFor = (cid) => idToTitle.get(cid) || (typeof cid === 'string' ? cid.slice(0, 8) : '');
+
+  const bannersHtml = matches.map(it => {
+    const cIds = Array.isArray(it.relatedCourseIds) ? it.relatedCourseIds : [];
+    const targetCourseId = cIds.find(cid => cid && cid !== currentCourseId);
+    if (!targetCourseId) return '';
+    const targetTitle = titleFor(targetCourseId);
+    return `
+      <div class="bridge-banner" data-course-id="${escapeHtml(targetCourseId)}" role="link" tabindex="0">
+        <div class="bridge-head"><span class="arrow">↗</span> You've seen this before in ${escapeHtml(targetTitle)}</div>
+        <div class="bridge-title">${escapeHtml(it.title || '')}</div>
+        <div class="bridge-cta">Open course →</div>
+      </div>
+    `;
+  }).filter(Boolean).join('');
+
+  if (!bannersHtml) return;
+  slot.innerHTML = `<div class="bridge-banners" style="margin-bottom:16px">${bannersHtml}</div>`;
+  // Wire click + keyboard activation. Reuse existing openCourse() for navigation.
+  slot.querySelectorAll('.bridge-banner').forEach(el => {
+    const courseId = el.getAttribute('data-course-id');
+    if (!courseId) return;
+    el.addEventListener('click', () => openCourse(courseId));
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCourse(courseId); }
+    });
+  });
+}
+
+function hasLessonBody(section) {
+  if (!section) return false;
+  if (typeof section.lessonContent === 'string' && section.lessonContent.trim()) return true;
+  const raw = section.lessonBlocks;
+  if (typeof raw === 'string' && raw.trim()) return true;
+  if (Array.isArray(raw) && raw.length > 0) return true;
+  return false;
+}
+
+// Human-readable label for each backend stage. Drives the loading card.
+const LESSON_STAGE_LABELS = {
+  outlining: 'Designing the lesson outline…',
+  writing_prose: 'Writing prose blocks in parallel…',
+  building_artifacts: 'Building interactive artifacts…',
+  composing: 'Composing final lesson — almost done…',
+};
+
+function lessonProgressCardHtml(section, status) {
+  // status is the polled payload; first paint may use the section row directly.
+  const stage = (status && status.stage) || section.lessonStage || 'outlining';
+  const startedIso = (status && status.startedAt) || section.lessonStartedAt;
+  const startedAt = startedIso ? new Date(startedIso).getTime() : Date.now();
+  const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(elapsed % 60).padStart(2, '0');
+  const label = LESSON_STAGE_LABELS[stage] || 'Working…';
+  return `
+    <div class="lesson-card lesson-empty" data-lesson-state="building">
+      <div class="loading-row" style="justify-content:center"><div class="spinner"></div> ${escapeHtml(label)}</div>
+      <div style="margin-top:10px;color:var(--muted);font-size:12px">
+        Elapsed <span data-lesson-elapsed>${mm}:${ss}</span> · typically 4–12 min · safe to leave or come back later
+      </div>
+    </div>
+  `;
+}
+
+function lessonErrorCardHtml(section, status) {
+  const msg = (status && status.error) || section.lessonError || 'Lesson generation failed.';
+  return `
+    <div class="lesson-card" data-lesson-state="error">
+      <div style="color:var(--red);margin-bottom:12px">${escapeHtml(msg)}</div>
+      <button class="btn btn-secondary" onclick="generateLesson('${section.id}', true)">Try again</button>
+    </div>
+  `;
+}
+
+function renderLessonArea(section) {
+  // Building: in-flight generation kicked off here or elsewhere. Persistence
+  // works because this branch is taken whenever the section row carries
+  // lessonStatus='building', regardless of which client started the job.
+  if (section.lessonStatus === 'building') {
+    return lessonProgressCardHtml(section, null);
+  }
+  if (section.lessonStatus === 'error' && !hasLessonBody(section)) {
+    return lessonErrorCardHtml(section, null);
+  }
+  if (hasLessonBody(section)) {
+    const takeaways = Array.isArray(section.lessonKeyTakeaways) ? section.lessonKeyTakeaways : [];
+    return `
+      <div class="lesson-card">
+        <div class="lesson-meta">
+          <span class="read-time">${section.lessonReadMinutes ? `~${section.lessonReadMinutes} min read` : 'Lesson'}</span>
+          <div class="lesson-meta-actions">
+            <!-- Edited badge slot — populated by mountLessonBody when an overlay exists. -->
+            <span class="overlay-badge-host" id="overlayBadgeHost"></span>
+            <span class="regen-link" onclick="generateLesson('${section.id}', true)">Regenerate</span>
+          </div>
+        </div>
+        <div class="md" id="lessonBody"></div>
+        ${takeaways.length > 0 ? `
+          <div class="takeaways-box">
+            <h3>Key takeaways</h3>
+            <ul>${takeaways.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+  return `
+    <div class="lesson-card lesson-empty">
+      <div class="hint">No lesson generated yet.</div>
+      <button class="btn btn-primary" onclick="generateLesson('${section.id}', false)">
+        Generate Lesson
+      </button>
+      <div style="margin-top:10px;color:var(--muted);font-size:11px">Typically 4–12 minutes. Safe to leave the tab.</div>
+    </div>
+  `;
+}
+
+// Mounts the Preact LessonRenderer into #lessonBody for the given section. No-op if the
+// container or LessonRenderer is missing (e.g. lesson-empty state, or library not yet loaded).
+// Wraps the renderer in <Highlight> so text-selection actions (Explain / Example / Why /
+// Note) bubble up to handleHighlightAction, which fires the explainer agent or opens the
+// note-editor stub.
+//
+// Lesson-overlay flow (Phase 5):
+// 1. Pre-render canonical blocks immediately so the page paints fast — the overlay fetch is
+//    non-blocking. v0.2 known UX nit: a brief flash of canonical content if an overlay is
+//    later applied.
+// 2. Fire `GET /api/sections/:id/overlay` (skipped if `state.overlayCache[sectionId]` is
+//    populated). On success, if `overlay !== null`, swap to `overlay.blocks` and surface the
+//    edited badge. On failure, log and silently keep the canonical view — overlay UX should
+//    never block the lesson.
+function mountLessonBody(section) {
+  const target = document.getElementById('lessonBody');
+  if (!target) return;
+  const lib = window.LearnComponents;
+  if (!lib || typeof lib.LessonRenderer !== 'function' || typeof lib.lessonToBlocks !== 'function') {
+    // Graceful degrade: fall back to the old markdown path if the renderer isn't available.
+    target.innerHTML = renderMarkdown(section.lessonContent ?? '');
+    return;
+  }
+  const sectionId = section && section.id ? section.id : null;
+
+  // Register a section-scoped repair handler the Artifact component can find
+  // via window.LearnArtifactRepair. We use a window registry rather than
+  // threading onFix through LessonRenderer/ComponentBlock so the renderer's
+  // generic block-dispatch contract stays untouched.
+  if (sectionId) {
+    window.LearnArtifactRepair = {
+      sectionId,
+      onFix: (payload) => repairArtifactBlock(sectionId, payload),
+    };
+  } else {
+    window.LearnArtifactRepair = null;
+  }
+
+  // Render once with canonical blocks so the user sees the lesson immediately.
+  renderLessonInto(target, lib, lib.lessonToBlocks(section), sectionId);
+
+  // Reset prior overlay state and clear any open dropdown left over from a previous section.
+  state.currentOverlay = null;
+  closeOverlayHistoryDropdown();
+  renderOverlayBadge(null);
+
+  if (!sectionId) return;
+
+  // Use cached overlay if available, otherwise fetch.
+  const cached = state.overlayCache[sectionId];
+  if (cached) {
+    applyOverlayToMount(section, cached.overlay, target, lib);
+    return;
+  }
+
+  api('GET', `/api/sections/${sectionId}/overlay`)
+    .then((res) => {
+      const overlay = (res && res.overlay) || null;
+      // Cache (even null) so tab-bounce doesn't re-fetch.
+      state.overlayCache[sectionId] = { overlay };
+      // Bail if the user navigated to a different section while the request was in flight.
+      if (!state.currentSection || state.currentSection.id !== sectionId) return;
+      applyOverlayToMount(section, overlay, target, lib);
+    })
+    .catch((e) => {
+      // Overlay fetch is best-effort — never surface failures, just keep canonical content.
+      console.warn('[overlay] fetch failed:', e);
+    });
+}
+
+// Render `blocks` into `target`, wrapping in Highlight so popover actions still work.
+// The Highlight component fires onAction(key, text, blockIndex) — we pass
+// blockIndex through so handlers (artifact insertion, etc.) can place new
+// content adjacent to the highlight without fragile DOM text matching.
+function renderLessonInto(target, lib, blocks, sectionId) {
+  const onAction = (action, text, blockIndex) => handleHighlightAction(action, text, sectionId, blockIndex);
+  if (typeof lib.Highlight === 'function') {
+    window.render(
+      window.h`<${lib.Highlight} onAction=${onAction}><${lib.LessonRenderer} blocks=${blocks} /><//>`,
+      target,
+    );
+  } else {
+    window.render(window.h`<${lib.LessonRenderer} blocks=${blocks} />`, target);
+  }
+  // Re-mark explainer-saved spans. If notesCache isn't populated yet, the
+  // notes-panel render will re-decorate once notes arrive.
+  if (sectionId) {
+    setTimeout(() => decorateExplainerMarkers(sectionId), 0);
+  }
+}
+
+// Apply a fetched/cached overlay: if non-null, re-render with overlay.blocks and show the badge.
+function applyOverlayToMount(section, overlay, target, lib) {
+  state.currentOverlay = overlay;
+  if (!overlay || !Array.isArray(overlay.blocks) || overlay.blocks.length === 0) {
+    renderOverlayBadge(null);
+    return;
+  }
+  const sectionId = section && section.id ? section.id : null;
+  renderLessonInto(target, lib, overlay.blocks, sectionId);
+  renderOverlayBadge(overlay);
+}
+
+function unmountLessonBody() {
+  const target = document.getElementById('lessonBody');
+  if (target && window.render) window.render(null, target);
+  // Clear overlay state on view-leave (cache survives so tab-bounce stays cheap).
+  state.currentOverlay = null;
+  closeOverlayHistoryDropdown();
+  window.LearnArtifactRepair = null;
+}
+
+// Walk up from the artifact's wrapper element to the direct child of
+// .lesson-renderer; that child's index in renderer.children is the block
+// index. Returns -1 if the artifact isn't inside a rendered lesson (e.g.
+// chat-bubble preview, smoke-test page).
+function findArtifactBlockIndex(element) {
+  if (!element || !element.closest) return -1;
+  const renderer = element.closest('.lesson-renderer');
+  if (!renderer) return -1;
+  let node = element;
+  while (node && node.parentElement !== renderer) node = node.parentElement;
+  if (!node) return -1;
+  return Array.prototype.indexOf.call(renderer.children, node);
+}
+
+// POSTs to /api/artifacts/sections/:id/repair-block. On success: invalidate
+// overlay cache, remount lesson body so the new artifact replaces the broken
+// one in place. On failure: toast + return { errorText } so the Artifact
+// component can also surface the message inline.
+async function repairArtifactBlock(sectionId, payload) {
+  const blockIndex = findArtifactBlockIndex(payload && payload.element);
+  if (blockIndex < 0) {
+    const msg = "couldn't locate this artifact in the lesson";
+    toast(`Repair failed: ${msg}`);
+    return { errorText: msg };
+  }
+  const errors = Array.isArray(payload.errors) ? payload.errors : [];
+  try {
+    const r = await fetch(`/api/artifacts/sections/${sectionId}/repair-block`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blockIndex, errors }),
+    });
+    let body = null;
+    try { body = await r.json(); } catch { /* non-JSON */ }
+    if (!r.ok || !(body && body.ok)) {
+      const err = (body && body.errorText) || `request failed (${r.status})`;
+      toast(`Repair failed: ${err}`, 6000);
+      return { errorText: err };
+    }
+    toast('Artifact repaired ✓');
+    delete state.overlayCache[sectionId];
+    if (state.currentSection && state.currentSection.id === sectionId) {
+      mountLessonBody(state.currentSection);
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e && e.message ? e.message : String(e);
+    toast(`Repair failed: ${msg}`, 6000);
+    return { errorText: msg };
+  }
+}
+
+// ── Lesson overlay: edited-badge + version history ────────────────────────
+// Renders the small "✎ Edited · vN" badge inside the lesson-card meta row.
+// Pass null to clear it.
+function renderOverlayBadge(overlay) {
+  const host = document.getElementById('overlayBadgeHost');
+  if (!host) return;
+  if (!overlay) {
+    host.innerHTML = '';
+    return;
+  }
+  const v = Number(overlay.version) || 1;
+  host.innerHTML = `<button type="button" class="overlay-badge" id="overlayBadgeBtn" title="Lesson edited — click to see version history">✎ Edited · v${v}</button>`;
+  const btn = document.getElementById('overlayBadgeBtn');
+  if (btn) btn.addEventListener('click', toggleOverlayHistoryDropdown);
+}
+
+let overlayHistoryDocClickHandler = null;
+
+function closeOverlayHistoryDropdown() {
+  const dd = document.getElementById('overlayHistoryDropdown');
+  if (dd) dd.remove();
+  if (overlayHistoryDocClickHandler) {
+    document.removeEventListener('click', overlayHistoryDocClickHandler, true);
+    overlayHistoryDocClickHandler = null;
+  }
+}
+
+async function toggleOverlayHistoryDropdown(ev) {
+  if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+  if (document.getElementById('overlayHistoryDropdown')) {
+    closeOverlayHistoryDropdown();
+    return;
+  }
+  const sectionId = state.currentSection ? state.currentSection.id : null;
+  if (!sectionId) return;
+
+  const anchor = document.getElementById('overlayBadgeBtn');
+  if (!anchor) return;
+
+  // Build skeleton with loading state, anchored under the badge.
+  const dd = document.createElement('div');
+  dd.id = 'overlayHistoryDropdown';
+  dd.className = 'overlay-history-dropdown';
+  dd.innerHTML = '<div class="overlay-history-loading">Loading versions…</div>';
+  document.body.appendChild(dd);
+  positionOverlayHistoryDropdown(dd, anchor);
+
+  // Click-outside closes the dropdown. Capture phase so the badge's own click
+  // doesn't accidentally re-open it via the toggle path.
+  overlayHistoryDocClickHandler = (e) => {
+    if (!dd.contains(e.target) && e.target !== anchor) {
+      closeOverlayHistoryDropdown();
+    }
+  };
+  document.addEventListener('click', overlayHistoryDocClickHandler, true);
+
+  let history;
+  const cached = state.overlayCache[sectionId];
+  if (cached && Array.isArray(cached.history)) {
+    history = cached.history;
+  } else {
+    try {
+      const res = await api('GET', `/api/sections/${sectionId}/overlay/history`);
+      history = (res && Array.isArray(res.versions)) ? res.versions : [];
+      state.overlayCache[sectionId] = {
+        overlay: cached ? cached.overlay : (history[0] || null),
+        history,
+      };
+    } catch (e) {
+      // If the dropdown was closed in the meantime, drop silently.
+      if (!document.getElementById('overlayHistoryDropdown')) return;
+      dd.innerHTML = `<div class="overlay-history-loading" style="color:var(--red)">Failed to load history</div>`;
+      return;
+    }
+  }
+
+  // Bail if the user closed the dropdown while history was loading.
+  if (!document.getElementById('overlayHistoryDropdown')) return;
+  renderOverlayHistoryDropdown(dd, sectionId, history);
+}
+
+function positionOverlayHistoryDropdown(dd, anchor) {
+  const r = anchor.getBoundingClientRect();
+  // Anchor the dropdown's right edge to the badge's right edge so it doesn't run off-screen.
+  const top = r.bottom + window.scrollY + 4;
+  const right = Math.max(8, window.innerWidth - r.right);
+  dd.style.top = `${top}px`;
+  dd.style.right = `${right}px`;
+}
+
+function renderOverlayHistoryDropdown(dd, sectionId, versions) {
+  if (!Array.isArray(versions) || versions.length === 0) {
+    dd.innerHTML = '<div class="overlay-history-empty">No versions yet.</div>';
+    return;
+  }
+  const currentVersion = state.currentOverlay ? state.currentOverlay.version : null;
+  const rows = versions.map((v) => {
+    const ver = Number(v.version) || 0;
+    const ts = formatRelativeTime(v.createdAt);
+    const isCurrent = ver === currentVersion;
+    const cls = isCurrent ? 'overlay-history-row current' : 'overlay-history-row';
+    return `
+      <div class="${cls}" data-version="${ver}">
+        <div class="overlay-history-row-main">
+          <span class="overlay-history-row-version">v${ver}${isCurrent ? ' · current' : ''}</span>
+          <span class="overlay-history-row-time">${escapeHtml(ts)}</span>
+        </div>
+        <button type="button" class="overlay-history-revert" data-version="${ver}">Revert</button>
+      </div>
+    `;
+  }).join('');
+  dd.innerHTML = `
+    <div class="overlay-history-header">Version history</div>
+    <div class="overlay-history-body">${rows}</div>
+  `;
+  // Wire revert buttons.
+  dd.querySelectorAll('.overlay-history-revert').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const v = parseInt(btn.getAttribute('data-version') || '0', 10);
+      if (Number.isInteger(v) && v > 0) revertToOverlayVersion(sectionId, v);
+    });
+  });
+}
+
+async function revertToOverlayVersion(sectionId, version) {
+  if (!confirm(`Revert to v${version}? This creates a new version mirroring it.`)) return;
+  closeOverlayHistoryDropdown();
+  try {
+    const res = await fetch(`/api/sections/${sectionId}/overlay/revert?to_version=${version}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status}: ${text || res.statusText}`);
+    }
+    toast(`Reverted to v${version}`);
+    // Invalidate cache so mountLessonBody refetches the new latest + history.
+    delete state.overlayCache[sectionId];
+    // Bail if user navigated away during the round trip.
+    if (!state.currentSection || state.currentSection.id !== sectionId) return;
+    mountLessonBody(state.currentSection);
+  } catch (e) {
+    const msg = (e && e.message) ? e.message : String(e);
+    toast(`Revert failed: ${msg}`);
+  }
+}
+
+// "2 hours ago" / "just now" / "3 days ago". Falls back to the raw string for unparseable inputs.
+function formatRelativeTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return 'just now';
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 45) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} minute${min === 1 ? '' : 's'} ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day} day${day === 1 ? '' : 's'} ago`;
+  const mo = Math.floor(day / 30);
+  if (mo < 12) return `${mo} month${mo === 1 ? '' : 's'} ago`;
+  const yr = Math.floor(mo / 12);
+  return `${yr} year${yr === 1 ? '' : 's'} ago`;
+}
+
+// ── Highlight actions: explainer popover + notes persistence ───────────────
+// Text actions (explain | example | why) open ExplainerPopover anchored to the
+// selection rect, run /api/explain (saveAsNote=true), and swap the popover to
+// the rendered response. Each saved note also marks its anchorText in the
+// lesson body — clicking the marker reopens the popover from the cached note.
+// 'note' action stays on the manual-empty-note path. Artifact actions are
+// handled separately by handleArtifactAction.
+const ARTIFACT_INTENTS = new Set(['diagram', 'animate', 'plot', 'walkthrough']);
+
+// Singleton DOM host for the popover Preact tree. Re-used across opens so we
+// can unmount cleanly when one popover replaces another.
+function getExplainerHost() {
+  let host = document.getElementById('explainerHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'explainerHost';
+    document.body.appendChild(host);
+  }
+  return host;
+}
+function closeExplainerPopover() {
+  const host = document.getElementById('explainerHost');
+  if (host && window.render) window.render(null, host);
+}
+
+// Capture the current selection's bounding rect before the menu's button-click
+// destroys it (Highlight.js calls removeAllRanges on action). Returns null if
+// no usable selection — caller should fall back to the menu position.
+function captureSelectionRect() {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+  const r = sel.getRangeAt(0).getBoundingClientRect();
+  if (!r || (r.width === 0 && r.height === 0)) return null;
+  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+}
+
+// Treat any note whose contentMd starts with the explainer header as
+// agent-derived — these get rendered as inline markers in the lesson body
+// (and still appear in the notes panel).
+function isExplainerNote(n) {
+  if (!n || typeof n.contentMd !== 'string') return false;
+  return /^\*\*(?:Explain|Example|Why)\*\*/.test(n.contentMd);
+}
+
+function openExplainerPopoverAt(anchorRect, props) {
+  const host = getExplainerHost();
+  const lib = window.LearnComponents;
+  if (!lib || typeof lib.ExplainerPopover !== 'function') return;
+  const onCancel = () => closeExplainerPopover();
+  window.render(
+    window.h`<${lib.ExplainerPopover} ...${{ ...props, anchorRect, onCancel }} />`,
+    host,
+  );
+}
+
+// Walk #lessonBody .lesson-renderer text nodes and wrap the first verbatim
+// occurrence of each explainer note's anchorText in a clickable marker span.
+// Notes whose anchorText no longer matches (lesson edited, etc.) are silently
+// skipped. Idempotent: clears existing .explainer-mark wraps before re-marking.
+function decorateExplainerMarkers(sectionId) {
+  if (!sectionId) return;
+  const renderer = document.querySelector('#lessonBody .lesson-renderer');
+  if (!renderer) return;
+  // Strip existing markers first (lesson re-mounts may keep them; safer to redo).
+  renderer.querySelectorAll('.explainer-mark').forEach((el) => {
+    const parent = el.parentNode;
+    if (!parent) return;
+    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+    parent.removeChild(el);
+    parent.normalize();
+  });
+  const cached = state.notesCache[sectionId];
+  if (!Array.isArray(cached)) return;
+  const explainerNotes = cached.filter(isExplainerNote);
+  if (explainerNotes.length === 0) return;
+
+  for (const note of explainerNotes) {
+    const anchor = (note.anchorText || '').trim();
+    if (!anchor) continue;
+    wrapFirstOccurrence(renderer, anchor, note.id);
+  }
+}
+
+// Find the first text node descendant of `root` containing `needle` (with no
+// parent already a .explainer-mark) and wrap that text inside a marker span.
+function wrapFirstOccurrence(root, needle, noteId) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(n) {
+      if (!n.nodeValue || n.nodeValue.indexOf(needle) < 0) return NodeFilter.FILTER_REJECT;
+      // Skip if we're inside an existing marker or inside an artifact iframe stand-in.
+      let p = n.parentNode;
+      while (p && p !== root) {
+        if (p.classList && p.classList.contains('explainer-mark')) return NodeFilter.FILTER_REJECT;
+        p = p.parentNode;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const node = walker.nextNode();
+  if (!node) return;
+  const idx = node.nodeValue.indexOf(needle);
+  if (idx < 0) return;
+  const after = node.splitText(idx);
+  after.splitText(needle.length);
+  const span = document.createElement('span');
+  span.className = 'explainer-mark';
+  span.setAttribute('data-note-id', noteId);
+  span.textContent = needle;
+  after.parentNode.replaceChild(span, after);
+  // Prevent selection on click so Highlight.js doesn't pop its menu over us.
+  span.addEventListener('mousedown', (e) => { e.preventDefault(); });
+  span.addEventListener('click', (e) => {
+    e.stopPropagation();
+    onExplainerMarkClick(span);
+  });
+}
+
+function onExplainerMarkClick(span) {
+  const noteId = span.getAttribute('data-note-id');
+  const sectionId = state.currentSection && state.currentSection.id;
+  const cached = sectionId ? state.notesCache[sectionId] : null;
+  const note = Array.isArray(cached) ? cached.find((n) => n.id === noteId) : null;
+  if (!note) return;
+  // Strip the explainer header prefix so the popover body shows just the agent text.
+  const body = (note.contentMd || '').replace(/^\*\*(?:Explain|Example|Why)\*\*[^\n]*\n+/, '');
+  const action = /^\*\*Explain\*\*/.test(note.contentMd) ? 'explain'
+    : /^\*\*Example\*\*/.test(note.contentMd) ? 'example' : 'why';
+  const r = span.getBoundingClientRect();
+  openExplainerPopoverAt(
+    { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height },
+    { mode: 'agent', state: 'ok', action, contentMd: body, selectedText: note.anchorText || '' },
+  );
+}
+
+function handleHighlightAction(action, selectedText, sectionId, blockIndex) {
+  const text = (selectedText || '').trim();
+  if (!text) return;
+  if (!sectionId) {
+    toast('No section context — open a lesson first');
+    return;
+  }
+
+  if (ARTIFACT_INTENTS.has(action)) {
+    handleArtifactAction(action, text, sectionId, blockIndex);
+    return;
+  }
+
+  if (action === 'note') {
+    createEmptyNoteAndEdit(sectionId, text);
+    return;
+  }
+
+  // Capture rect BEFORE the click handler clears the selection.
+  const anchorRect = captureSelectionRect()
+    || { left: 24, top: 80, right: 200, bottom: 100, width: 176, height: 20 };
+
+  openExplainerPopoverAt(anchorRect, {
+    mode: 'agent', state: 'loading', action, selectedText: text,
+  });
+
+  api('POST', '/api/explain', {
+    selectedText: text,
+    action,
+    sectionId,
+    saveAsNote: true,
+  }).then((res) => {
+    if (res && res.ok && res.contentMd) {
+      openExplainerPopoverAt(anchorRect, {
+        mode: 'agent', state: 'ok', action, selectedText: text, contentMd: res.contentMd,
+      });
+      if (res.savedNote) {
+        delete state.notesCache[sectionId];
+        renderNotesPanel(sectionId).then(() => {
+          if (state.currentSection && state.currentSection.id === sectionId) {
+            decorateExplainerMarkers(sectionId);
+          }
+        });
+      }
+    } else {
+      const err = (res && (res.errorText || res.error)) || 'agent failed';
+      openExplainerPopoverAt(anchorRect, {
+        mode: 'agent', state: 'error', action, selectedText: text, errorText: err,
+      });
+    }
+  }).catch((e) => {
+    const msg = e && e.message ? e.message : String(e);
+    openExplainerPopoverAt(anchorRect, {
+      mode: 'agent', state: 'error', action, selectedText: text, errorText: msg,
+    });
+  });
+}
+
+// Generate an artifact via Opus 4.7 max + verification pass and insert it at
+// the highlight position into the lesson overlay. blockIndex comes from the
+// Highlight component (computed from the selection's containing element);
+// when it's -1 (selection didn't resolve to a block) we let the backend
+// append at the end of the lesson rather than guess.
+async function handleArtifactAction(intent, selectedText, sectionId, blockIndex) {
+  const afterIndex = (typeof blockIndex === 'number' && blockIndex >= 0) ? blockIndex : -1;
+
+  // Insert the visual placeholder right where the artifact will land. Gives
+  // the learner a concrete anchor + elapsed time + cancel control while the
+  // 1-8 minute Opus pipeline runs.
+  const placeholder = mountArtifactPlaceholder({ intent, blockIndex });
+  const controller = new AbortController();
+  placeholder.onCancel(() => controller.abort());
+
+  try {
+    const r = await fetch(`/api/artifacts/sections/${sectionId}/at-highlight`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ intent, selectedText, afterIndex }),
+      signal: controller.signal,
+    });
+    let payload = null;
+    try { payload = await r.json(); } catch { /* non-JSON response */ }
+    placeholder.teardown();
+    if (!r.ok || !(payload && payload.ok)) {
+      const err = (payload && payload.errorText) || `request failed (${r.status})`;
+      toast(`Artifact generation failed: ${err}`, 6000);
+      return;
+    }
+    toast('Artifact added to the lesson ✓');
+    delete state.overlayCache[sectionId];
+    if (state.currentSection && state.currentSection.id === sectionId) {
+      mountLessonBody(state.currentSection);
+    }
+  } catch (e) {
+    placeholder.teardown();
+    if (e && e.name === 'AbortError') {
+      toast('Generation cancelled');
+      return;
+    }
+    const msg = e && e.message ? e.message : String(e);
+    toast(`Artifact generation failed: ${msg}`, 6000);
+  }
+}
+
+// Insert a transient generating-card into the lesson body, immediately after
+// the highlighted block (or at the end if blockIndex is -1). Returns a
+// handle with { teardown(), onCancel(fn) }. The handle keeps an interval
+// timer running for the elapsed-time readout + the soft phase progression
+// (we don't have real backend signals, so phases are timed approximations).
+function mountArtifactPlaceholder({ intent, blockIndex }) {
+  const labels = {
+    diagram:     { verb: 'Drawing diagram',      noun: 'diagram' },
+    animate:     { verb: 'Animating',            noun: 'animation' },
+    plot:        { verb: 'Plotting',             noun: 'plot' },
+    walkthrough: { verb: 'Building walk-through', noun: 'walk-through' },
+  };
+  const label = labels[intent] || { verb: 'Generating', noun: 'artifact' };
+
+  const root = document.createElement('div');
+  root.className = 'artifact-placeholder';
+  root.setAttribute('role', 'status');
+  root.setAttribute('aria-live', 'polite');
+  root.innerHTML = `
+    <div class="ph-shimmer"></div>
+    <div class="ph-header">
+      <div class="ph-title">
+        <span class="ph-pulse" aria-hidden="true"></span>
+        <span class="ph-verb">${escapeHtml(label.verb)}…</span>
+      </div>
+      <span class="ph-elapsed" aria-label="Elapsed time">00:00</span>
+      <button type="button" class="ph-cancel">Cancel</button>
+    </div>
+    <div class="ph-body">
+      <div class="ph-phase-row" data-phase="plan"><span class="ph-step-dot"></span><span>Planning the ${escapeHtml(label.noun)}</span></div>
+      <div class="ph-phase-row" data-phase="generate"><span class="ph-step-dot"></span><span>Generating HTML &amp; JS (Opus 4.7 · max effort)</span></div>
+      <div class="ph-phase-row" data-phase="verify"><span class="ph-step-dot"></span><span>Reviewing for bugs &amp; fixing if needed</span></div>
+      <div class="ph-phase-row" data-phase="finalise"><span class="ph-step-dot"></span><span>Final parse-check &amp; insert into the lesson</span></div>
+    </div>
+    <div class="ph-foot">Typically 1-3 min. Complex artifacts can take longer.</div>
+  `;
+
+  // Insert into the lesson renderer at the right position.
+  const renderer = document.querySelector('#lessonBody .lesson-renderer');
+  if (renderer) {
+    const children = renderer.children;
+    if (typeof blockIndex === 'number' && blockIndex >= 0 && blockIndex < children.length) {
+      const target = children[blockIndex];
+      if (target.nextSibling) renderer.insertBefore(root, target.nextSibling);
+      else renderer.appendChild(root);
+    } else {
+      renderer.appendChild(root);
+    }
+    // Bring it into view so the learner doesn't miss the spinner.
+    setTimeout(() => {
+      try { root.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* ignore */ }
+    }, 0);
+  } else {
+    document.body.appendChild(root);
+  }
+
+  // Phase progression — soft, timed. We don't have real backend phase
+  // signals yet, so these are approximate. Phases marked active stay
+  // active until the next phase becomes active; previous phases are
+  // marked done.
+  const phases = ['plan', 'generate', 'verify', 'finalise'];
+  // After this many seconds the corresponding phase becomes active.
+  // Tuned to the typical Opus 4.7 max + verify run (~90-180s total).
+  const phaseStartSec = { plan: 0, generate: 8, verify: 75, finalise: 180 };
+  const setActivePhase = (phaseKey) => {
+    const idx = phases.indexOf(phaseKey);
+    phases.forEach((p, i) => {
+      const row = root.querySelector(`.ph-phase-row[data-phase="${p}"]`);
+      if (!row) return;
+      row.classList.remove('active', 'done');
+      if (i < idx) row.classList.add('done');
+      else if (i === idx) row.classList.add('active');
+    });
+  };
+  setActivePhase('plan');
+
+  const start = Date.now();
+  const elapsedEl = root.querySelector('.ph-elapsed');
+  const fmt = (n) => String(n).padStart(2, '0');
+  const timer = setInterval(() => {
+    const e = Math.floor((Date.now() - start) / 1000);
+    elapsedEl.textContent = `${fmt(Math.floor(e / 60))}:${fmt(e % 60)}`;
+    let active = 'plan';
+    for (const p of phases) {
+      if (e >= phaseStartSec[p]) active = p;
+    }
+    setActivePhase(active);
+  }, 500);
+
+  let cancelHandler = null;
+  const cancelBtn = root.querySelector('.ph-cancel');
+  cancelBtn.addEventListener('click', () => {
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = 'Cancelling…';
+    if (cancelHandler) cancelHandler();
+  });
+
+  return {
+    teardown() {
+      clearInterval(timer);
+      if (root.parentNode) root.parentNode.removeChild(root);
+    },
+    onCancel(fn) { cancelHandler = fn; },
+  };
+}
+
+// (findHighlightBlockIndex removed — Highlight.js now passes the block
+// index directly via onAction's third argument, computed from the selection
+// range's containing element. More reliable than text-content matching.)
+
+// Manual-note action: write a placeholder Note for the highlight, then drop
+// the new note into the panel in edit mode. Avoids the popover textarea.
+async function createEmptyNoteAndEdit(sectionId, anchorText) {
+  try {
+    const created = await api('POST', '/api/notes', {
+      sectionId,
+      anchorText,
+      contentMd: '_(your note)_',
+    });
+    delete state.notesCache[sectionId];
+    await renderNotesPanel(sectionId);
+    if (created && created.id) startEditNote(created.id);
+    const panel = document.getElementById('notesPanel');
+    if (panel && typeof panel.scrollIntoView === 'function') {
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  } catch (e) {
+    const msg = e && e.message ? e.message : String(e);
+    toast(`Couldn't start note: ${msg}`);
+  }
+}
+
+// ── Notes panel (Phase 5.5) ────────────────────────────────────────────────
+// Per-section notes list. Lifecycle: rendered when the section view mounts;
+// re-rendered after save/edit/delete/promote. Uses state.notesCache for
+// instant re-renders when the learner tab-bounces back into the same section.
+async function renderNotesPanel(sectionId) {
+  if (!sectionId) return;
+  const panel = document.getElementById('notesPanel');
+  if (!panel) return;
+  // Guard against stale renders when the user has already navigated away.
+  if (!state.currentSection || state.currentSection.id !== sectionId) return;
+
+  let notes = state.notesCache[sectionId];
+  if (!Array.isArray(notes)) {
+    try {
+      const resp = await api('GET', `/api/notes?section_id=${encodeURIComponent(sectionId)}`);
+      notes = Array.isArray(resp && resp.notes) ? resp.notes : [];
+      state.notesCache[sectionId] = notes;
+    } catch (e) {
+      panel.innerHTML = `<h2>Notes</h2><div class="notes-empty" style="color:var(--red)">Failed to load notes: ${escapeHtml(e.message)}</div>`;
+      return;
+    }
+    // Re-check section is still active after the await.
+    if (!state.currentSection || state.currentSection.id !== sectionId) return;
+  }
+
+  const headCount = `<span class="count">${notes.length} note${notes.length === 1 ? '' : 's'}</span>`;
+  if (notes.length === 0) {
+    panel.innerHTML = `
+      <h2>Notes ${headCount}</h2>
+      <div class="notes-empty">Highlight any lesson text and pick "Take a note" to start.</div>
+    `;
+    decorateExplainerMarkers(sectionId);
+    return;
+  }
+
+  const itemsHtml = notes.map(noteRowHtml).join('');
+  panel.innerHTML = `
+    <h2>Notes ${headCount}</h2>
+    <div id="notesList">${itemsHtml}</div>
+  `;
+  // Notes are now cached — re-mark explainer spans on the lesson body.
+  decorateExplainerMarkers(sectionId);
+}
+
+function noteRowHtml(n) {
+  const id = n.id;
+  const anchorPreviewMax = 120;
+  let anchor = n.anchorText || '';
+  if (anchor.length > anchorPreviewMax) anchor = anchor.slice(0, anchorPreviewMax) + '…';
+  const promoted = !!n.promotedToGraph;
+  const factShort = (n.factId || '').slice(0, 8);
+
+  const promotedActions = promoted
+    ? `<span class="promoted-badge">📊 Promoted</span>
+       <span class="fact-link" title="Nmemo fact ID">fact: ${escapeHtml(factShort)}…</span>`
+    : `<button class="primary" onclick="openPromoteDialog('${id}')">Promote to graph</button>`;
+
+  return `
+    <div class="note-item" id="note-${id}">
+      <div class="note-anchor">"${escapeHtml(anchor)}"</div>
+      <div class="note-content" id="note-content-${id}">${renderMarkdown(n.contentMd || '')}</div>
+      <div class="note-actions">
+        ${promotedActions}
+        <button onclick="startEditNote('${id}')">Edit</button>
+        <button class="danger" onclick="deleteNote('${id}')">Delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function findCachedNote(noteId) {
+  const sid = state.currentSection ? state.currentSection.id : null;
+  if (!sid) return null;
+  const list = state.notesCache[sid];
+  if (!Array.isArray(list)) return null;
+  return list.find(n => n.id === noteId) || null;
+}
+
+function startEditNote(noteId) {
+  const n = findCachedNote(noteId);
+  if (!n) return;
+  const contentEl = document.getElementById(`note-content-${noteId}`);
+  const itemEl = document.getElementById(`note-${noteId}`);
+  if (!contentEl || !itemEl) return;
+  const safe = escapeHtml(n.contentMd || '');
+  contentEl.innerHTML = `<textarea id="note-edit-${noteId}">${safe}</textarea>`;
+  // Replace the actions row in-place so we don't lose other items.
+  const actions = itemEl.querySelector('.note-actions');
+  if (actions) {
+    actions.innerHTML = `
+      <button class="primary" onclick="saveEditNote('${noteId}')">Save</button>
+      <button onclick="cancelEditNote()">Cancel</button>
+    `;
+  }
+  const ta = document.getElementById(`note-edit-${noteId}`);
+  if (ta) ta.focus();
+}
+
+function cancelEditNote() {
+  const sid = state.currentSection ? state.currentSection.id : null;
+  if (!sid) return;
+  renderNotesPanel(sid);
+}
+
+async function saveEditNote(noteId) {
+  const ta = document.getElementById(`note-edit-${noteId}`);
+  if (!ta) return;
+  const contentMd = ta.value.trim();
+  if (!contentMd) { toast('Note cannot be empty'); return; }
+  try {
+    await api('PATCH', `/api/notes/${noteId}`, { contentMd });
+    toast('Note updated');
+    const sid = state.currentSection ? state.currentSection.id : null;
+    if (sid) {
+      delete state.notesCache[sid];
+      renderNotesPanel(sid);
+    }
+  } catch (e) {
+    toast(`Update failed: ${e.message}`);
+  }
+}
+
+async function deleteNote(noteId) {
+  if (!confirm('Delete this note?')) return;
+  try {
+    await api('DELETE', `/api/notes/${noteId}`);
+    toast('Note deleted');
+    const sid = state.currentSection ? state.currentSection.id : null;
+    if (sid) {
+      delete state.notesCache[sid];
+      renderNotesPanel(sid);
+    }
+  } catch (e) {
+    toast(`Delete failed: ${e.message}`);
+  }
+}
+
+// ── Promote-to-graph dialog ────────────────────────────────────────────────
+function getPromoteHost() {
+  let host = document.getElementById('promoteDialogHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'promoteDialogHost';
+    document.body.appendChild(host);
+  }
+  return host;
+}
+
+function closePromoteDialog() {
+  const host = document.getElementById('promoteDialogHost');
+  if (host) host.innerHTML = '';
+}
+
+function openPromoteDialog(noteId) {
+  const host = getPromoteHost();
+  host.innerHTML = `
+    <div class="promote-modal-backdrop" onclick="if(event.target===this)closePromoteDialog()">
+      <div class="promote-modal">
+        <h3>Promote note to graph</h3>
+        <label>
+          What kind of signal is this?
+          <select id="promote-kind">
+            <option value="understanding">Understanding (I get this)</option>
+            <option value="confusion">Confusion (I'm stuck)</option>
+          </select>
+        </label>
+        <label>
+          Concept name (optional — leave empty to use this section's first concept)
+          <input id="promote-concept" type="text" placeholder="e.g. Linked List Data Structure" />
+        </label>
+        <div class="actions">
+          <button onclick="closePromoteDialog()">Cancel</button>
+          <button class="btn btn-primary" onclick="confirmPromote('${noteId}')">Confirm</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function confirmPromote(noteId) {
+  const kindEl = document.getElementById('promote-kind');
+  const conceptEl = document.getElementById('promote-concept');
+  const kind = kindEl ? kindEl.value : 'understanding';
+  const conceptName = conceptEl ? conceptEl.value.trim() : '';
+  const body = { kind };
+  if (conceptName) body.conceptName = conceptName;
+
+  // We can't use api() because we need to read the JSON on non-2xx (e.g. 409).
+  let r;
+  try {
+    r = await fetch(`/api/notes/${noteId}/promote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    toast(`Promote failed: ${e.message}`);
+    return;
+  }
+  let payload = null;
+  try { payload = await r.json(); } catch { /* ignore */ }
+  if (r.ok) {
+    closePromoteDialog();
+    toast('Note promoted to graph');
+  } else if (r.status === 409) {
+    closePromoteDialog();
+    toast('Already promoted');
+  } else {
+    const msg = (payload && (payload.detail || payload.error)) || `${r.status}`;
+    toast(`Promote failed: ${msg}`);
+    return;
+  }
+  const sid = state.currentSection ? state.currentSection.id : null;
+  if (sid) {
+    delete state.notesCache[sid];
+    renderNotesPanel(sid);
+  }
+}
+
+// Per-section poller registry. Lets us avoid double-polling when the user
+// kicks off generation and then navigates away and back (openSection picks
+// up the in-flight status and would otherwise start a second poller).
+const _lessonPollers = new Map(); // sectionId -> { intervalId, tickId, abort }
+
+function _stopLessonPoll(sectionId) {
+  const p = _lessonPollers.get(sectionId);
+  if (!p) return;
+  if (p.intervalId) clearInterval(p.intervalId);
+  if (p.tickId) clearInterval(p.tickId);
+  if (p.deadlineId) clearTimeout(p.deadlineId);
+  _lessonPollers.delete(sectionId);
+}
+
+// Begin polling /lesson/status for a section. Re-renders the lesson area on
+// each tick (plus a 1-second elapsed-timer tick between polls so the clock
+// stays smooth). Resolves into the ready state by re-fetching the section
+// and re-mounting the lesson body, or into the error state.
+function startLessonPoll(sectionId, initialStatus) {
+  if (_lessonPollers.has(sectionId)) return; // already polling
+
+  const area = document.getElementById('lessonArea');
+  const renderFromStatus = (status) => {
+    const sec = state.currentSection && state.currentSection.id === sectionId ? state.currentSection : { id: sectionId };
+    if (status.status === 'building') {
+      // Only repaint the whole card if we're not already in building mode
+      // (avoids resetting the elapsed-timer DOM node mid-tick).
+      if (area && !area.querySelector('[data-lesson-state="building"]')) {
+        area.innerHTML = lessonProgressCardHtml(sec, status);
+      } else if (area) {
+        // Update the stage label in place so the spinner doesn't flash.
+        const labelHost = area.querySelector('.loading-row');
+        const stageLabel = LESSON_STAGE_LABELS[status.stage] || 'Working…';
+        if (labelHost) labelHost.innerHTML = `<div class="spinner"></div> ${escapeHtml(stageLabel)}`;
+      }
+    } else if (status.status === 'error') {
+      _stopLessonPoll(sectionId);
+      if (area) area.innerHTML = lessonErrorCardHtml(sec, status);
+    }
+  };
+
+  // Tick the elapsed-time DOM in place once a second so the user sees motion
+  // even though we only re-poll every 5s.
+  const tickId = setInterval(() => {
+    if (!area) return;
+    const span = area.querySelector('[data-lesson-elapsed]');
+    const cardStarted = (initialStatus && initialStatus.startedAt) || (state.currentSection && state.currentSection.lessonStartedAt);
+    if (!span || !cardStarted) return;
+    const elapsed = Math.max(0, Math.floor((Date.now() - new Date(cardStarted).getTime()) / 1000));
+    const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    const ss = String(elapsed % 60).padStart(2, '0');
+    span.textContent = `${mm}:${ss}`;
+  }, 1000);
+
+  const poll = async () => {
+    try {
+      const status = await api('GET', `/api/sections/${sectionId}/lesson/status`);
+      // The user may have navigated away — only update the DOM if we're
+      // still on this section. Polling continues regardless so when they
+      // return the card is correct.
+      if (state.currentSection && state.currentSection.id === sectionId) {
+        renderFromStatus(status);
+      }
+      if (status.status === 'ready') {
+        _stopLessonPoll(sectionId);
+        // Reload the full section so the lesson body + takeaways render.
+        const section = await api('GET', `/api/sections/${sectionId}`);
+        if (state.currentSection && state.currentSection.id === sectionId) {
+          state.currentSection = section;
+          unmountLessonBody();
+          if (area) area.innerHTML = renderLessonArea(section);
+          mountLessonBody(section);
+          toast('Lesson ready');
+        }
+      } else if (status.status === 'error') {
+        _stopLessonPoll(sectionId);
+        if (state.currentSection && state.currentSection.id === sectionId) {
+          state.currentSection = { ...state.currentSection, lessonStatus: 'error', lessonError: status.error };
+        }
+      } else if (status.status === 'idle' && !status.hasBody) {
+        // Server forgot about our generation (orphan sweep, manual reset).
+        // Stop polling and let the user kick a new one.
+        _stopLessonPoll(sectionId);
+      }
+    } catch (e) {
+      console.warn('lesson status poll failed:', e);
+    }
+  };
+
+  // Hard upper bound — if we somehow keep getting 'building' past 20 min
+  // (longer than the orphan-sweep threshold), give up rather than poll forever.
+  const deadlineId = setTimeout(() => {
+    _stopLessonPoll(sectionId);
+    if (area && state.currentSection && state.currentSection.id === sectionId) {
+      area.innerHTML = lessonErrorCardHtml({ id: sectionId }, { error: 'Polling timed out after 20 minutes. The backend may still be running — refresh to check.' });
+    }
+  }, 20 * 60 * 1000);
+
+  _lessonPollers.set(sectionId, { intervalId: setInterval(poll, 5000), tickId, deadlineId });
+  // Render initial state and run a poll immediately so the UI reflects
+  // server truth before the first 5s tick.
+  if (initialStatus) renderFromStatus(initialStatus);
+  void poll();
+}
+
+async function generateLesson(sectionId, regenerate) {
+  const area = document.getElementById('lessonArea');
+  // Optimistic paint — show the building card immediately while the POST is
+  // in flight. The server may already be in 'building' (idempotent kick) or
+  // may transition to 'ready'/'error' very quickly for the cached path.
+  if (area) {
+    area.innerHTML = lessonProgressCardHtml({ id: sectionId, lessonStartedAt: new Date().toISOString() }, null);
+  }
+  try {
+    const url = regenerate
+      ? `/api/sections/${sectionId}/lesson?regenerate=true`
+      : `/api/sections/${sectionId}/lesson`;
+    const status = await api('POST', url);
+    if (status.status === 'ready') {
+      // Cached — load and render immediately, no polling.
+      const section = await api('GET', `/api/sections/${sectionId}`);
+      state.currentSection = section;
+      unmountLessonBody();
+      if (area) area.innerHTML = renderLessonArea(section);
+      mountLessonBody(section);
+      if (regenerate) toast('Already up to date');
+      return;
+    }
+    if (status.status === 'error') {
+      if (area) area.innerHTML = lessonErrorCardHtml({ id: sectionId }, status);
+      return;
+    }
+    // 'building' (or 'idle' that just transitioned) — stash the start time
+    // on the cached section so the elapsed timer is right, then poll.
+    if (state.currentSection && state.currentSection.id === sectionId) {
+      state.currentSection.lessonStatus = 'building';
+      state.currentSection.lessonStartedAt = status.startedAt;
+      state.currentSection.lessonStage = status.stage;
+    }
+    startLessonPoll(sectionId, status);
+  } catch (e) {
+    if (area) {
+      area.innerHTML = lessonErrorCardHtml({ id: sectionId }, { error: `Failed to start generation: ${e.message}` });
+    }
+  }
+}
+
+// ── Inline questions ──────────────────────────────────────────────────────
+function questionRowHtml(q) {
+  const score = q.bestScore;
+  const attempted = (q.attemptCount ?? 0) > 0;
+  let scoreEl = '';
+  if (attempted && score != null) {
+    const cls = score >= 0.7 ? 'high' : score >= 0.4 ? 'mid' : 'low';
+    scoreEl = `<span class="score-pill ${cls}">${Math.round(score * 100)}%</span>`;
+  } else {
+    scoreEl = '<span class="score-pill" style="background:var(--surface2);color:var(--muted)">Not attempted</span>';
+  }
+  // Show first ~120 chars in the head; full text inside the body
+  const previewMax = 140;
+  const text = q.questionText ?? '';
+  const preview = text.length > previewMax ? text.slice(0, previewMax) + '…' : text;
+  return `
+    <div class="question-row" id="q-${q.id}">
+      <div class="q-head" onclick="toggleQuestion('${q.id}')">
+        <span class="chevron">▶</span>
+        <span class="q-text-preview">${escapeHtml(preview)}</span>
+        <span class="q-meta">
+          ${'★'.repeat(q.difficulty)}${'☆'.repeat(5 - q.difficulty)}
+          ${scoreEl}
+        </span>
+      </div>
+      <div class="q-body">
+        <div class="q-full">${escapeHtml(text)}</div>
+        <textarea id="qa-${q.id}" placeholder="Write your answer here..." style="min-height:100px;margin-bottom:12px"></textarea>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" id="qb-${q.id}" onclick="submitInlineAnswer('${q.id}')">Submit Answer</button>
+        </div>
+        <div id="qf-${q.id}"></div>
+      </div>
+    </div>
+  `;
+}
+
+function toggleQuestion(qid) {
+  const row = document.getElementById(`q-${qid}`);
+  if (row) row.classList.toggle('open');
+}
+
+async function submitInlineAnswer(questionId) {
+  const ta = document.getElementById(`qa-${questionId}`);
+  const btn = document.getElementById(`qb-${questionId}`);
+  const fb = document.getElementById(`qf-${questionId}`);
+  const answerText = ta.value.trim();
+  if (!answerText) { toast('Write an answer first'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Evaluating...';
+  fb.innerHTML = '';
+
+  try {
+    const r = await api('POST', `/api/quiz/questions/${questionId}/attempt`, { answerText });
+    const scoreClass = r.score >= 0.7 ? 'good' : r.score >= 0.4 ? 'partial' : 'poor';
+    fb.innerHTML = `
+      <div class="quiz-feedback ${scoreClass}" style="margin-top:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          ${scorePill(r.score)}
+          <span style="font-weight:600">${escapeHtml(r.scoreLabel ?? '')}</span>
+        </div>
+        <div style="line-height:1.6;white-space:pre-wrap">${escapeHtml(r.feedback ?? '')}</div>
+        ${r.explanation ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);color:var(--muted);font-size:12px">${escapeHtml(r.explanation)}</div>` : ''}
+      </div>
+    `;
+    btn.textContent = 'Submit Answer';
+    btn.disabled = false;
+  } catch (e) {
+    toast(`Evaluation failed: ${e.message}`);
+    btn.disabled = false;
+    btn.textContent = 'Submit Answer';
+  }
+}
+
+// ── Chat (section-scoped tutor) ───────────────────────────────────────────
+//
+// Chat is only mounted next to a lesson — there is no standalone chat tab.
+// One thread per (learner, section). The section-scoped session is fetched
+// (or created) by GET /api/chat/sections/:id/session and stored in
+// state.sectionChat. The render primitives below (parseChatBlocks,
+// pinChatBlock, decorateChatComponents, appendChatMessage) are shared with
+// any future surface that wants to render tutor messages.
+
+// Parse a chat message's stored response_blocks (JSON string from the DB) into a
+// LessonBlock[] suitable for LessonRenderer. Returns null when the message has
+// no structured payload — caller falls back to plain content rendering.
+function parseChatBlocks(m) {
+  // The GET /messages endpoint returns the raw row, so blocks may live under
+  // either responseBlocks (drizzle camelCase) or response_blocks (raw column).
+  const raw = m.responseBlocks ?? m.response_blocks;
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch { /* fall through */ }
+  } else if (Array.isArray(raw) && raw.length > 0) {
+    return raw;
+  }
+  return null;
+}
+
+// POST a pin-to-lesson request. On success, refresh the section's overlay
+// cache and remount the lesson body if the pinned section is currently open.
+async function pinChatBlock(sessionId, messageId, blockIndex) {
+  try {
+    const r = await fetch('/api/lesson-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, messageId, blockIndex }),
+    });
+    let payload = null;
+    try { payload = await r.json(); } catch { /* non-JSON response */ }
+    if (r.ok && payload && payload.ok === true) {
+      toast('Pinned to lesson ✓');
+      const pinnedSectionId = payload.overlay && payload.overlay.sectionId;
+      if (pinnedSectionId && state.currentSection && state.currentSection.id === pinnedSectionId) {
+        delete state.overlayCache[pinnedSectionId];
+        mountLessonBody(state.currentSection);
+      }
+    } else {
+      const msg = (payload && payload.errorText) ? payload.errorText : `HTTP ${r.status}`;
+      toast(`Pin failed: ${msg}`);
+    }
+  } catch (e) {
+    toast(`Pin failed: ${e.message}`);
+  }
+}
+
+// Decorate a freshly-rendered chat assistant bubble with "Pin to lesson"
+// buttons over each component block. Markdown blocks are skipped. Walks
+// `.lesson-renderer`'s top-level children, which line up 1:1 with `blocks`
+// (LessonRenderer renders one element per block in document order).
+function decorateChatComponents(bubbleEl, blocks, sessionId, messageId) {
+  if (!sessionId || !messageId) return;
+  const renderer = bubbleEl.querySelector('.lesson-renderer');
+  if (!renderer) return;
+  const children = Array.from(renderer.children);
+  const n = Math.min(children.length, blocks.length);
+  for (let i = 0; i < n; i++) {
+    const block = blocks[i];
+    if (!block || block.type !== 'component') continue;
+    const child = children[i];
+    if (!child || child.classList.contains('pin-wrap')) continue;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pin-wrap';
+    renderer.insertBefore(wrapper, child);
+    wrapper.appendChild(child);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pin-btn';
+    btn.textContent = '📌 Pin to lesson';
+    btn.title = 'Pin this block to the section lesson';
+    btn.setAttribute('aria-label', 'Pin to lesson');
+    const idx = i;
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      pinChatBlock(sessionId, messageId, idx);
+    });
+    wrapper.appendChild(btn);
+  }
+}
+
+// Renders a chat message into the messages list. Structured assistant
+// responses (responseBlocks present) mount LessonRenderer into a placeholder
+// div; everything else uses the legacy plain-text rendering.
+function appendChatMessage(listEl, m) {
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${m.role}`;
+  listEl.appendChild(wrap);
+
+  const blocks = m.role === 'assistant' ? parseChatBlocks(m) : null;
+  const lib = window.LearnComponents;
+  if (blocks && lib && typeof lib.LessonRenderer === 'function' && window.h && window.render) {
+    // Loosen the bubble so embedded components (Mermaid, ConceptMap, etc.) get
+    // proper width. The .msg styles were sized for short text; structured
+    // responses can be wider.
+    wrap.style.maxWidth = '90%';
+    window.render(window.h`<${lib.LessonRenderer} blocks=${blocks} />`, wrap);
+    // After mount, overlay a small "Pin to lesson" affordance on each
+    // component block. Chat-only — the lesson Section view does NOT call this.
+    decorateChatComponents(wrap, blocks, state.sectionChat?.sessionId ?? null, m.id);
+    return wrap;
+  }
+
+  // Fallback: legacy rendering — content is interpolated into innerHTML to
+  // preserve byte-identical behaviour for plain-string responses (which may
+  // contain inline HTML or markdown the old chat used to display verbatim).
+  wrap.innerHTML = m.content ?? '';
+  return wrap;
+}
+
+// Mount the section-scoped chat sidebar. Idempotent: if we're already on the
+// same section thread, just remount the messages without refetching the
+// session. Errors are non-fatal — the lesson view must work even if the
+// tutor backend is down.
+async function mountSectionChat(section) {
+  if (!section || !section.id) return;
+  const messagesEl = document.getElementById('sectionChatMessages');
+  const pane = document.getElementById('sectionChatPane');
+  const expand = document.getElementById('sectionChatExpand');
+  if (!messagesEl || !pane) return;
+
+  // Honour the user's last collapse choice within the session.
+  if (state.sectionChat.collapsed) {
+    pane.classList.add('collapsed');
+    if (expand) expand.hidden = false;
+  } else {
+    pane.classList.remove('collapsed');
+    if (expand) expand.hidden = true;
+  }
+
+  messagesEl.innerHTML = '<div class="loading-row" style="padding:16px"><div class="spinner"></div> Loading chat…</div>';
+
+  try {
+    const s = await api('GET', `/api/chat/sections/${section.id}/session`);
+    state.sectionChat.sessionId = s.id;
+    state.sectionChat.sectionId = section.id;
+
+    const messages = await api('GET', `/api/chat/sessions/${s.id}/messages`);
+    messagesEl.innerHTML = '';
+    if (messages.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'chat-empty';
+      empty.textContent = `Ask me anything about "${section.title}". Highlight any text in the lesson for quick popovers; longer conversations live here.`;
+      messagesEl.appendChild(empty);
+    } else {
+      for (const m of messages) appendChatMessage(messagesEl, m);
+    }
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  } catch (e) {
+    messagesEl.innerHTML = `<div class="chat-empty" style="color:var(--red)">Chat unavailable: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function unmountSectionChat() {
+  state.sectionChat.sessionId = null;
+  state.sectionChat.sectionId = null;
+  const el = document.getElementById('sectionChatMessages');
+  if (el) el.innerHTML = '';
+}
+
+function toggleSectionChat() {
+  const pane = document.getElementById('sectionChatPane');
+  const expand = document.getElementById('sectionChatExpand');
+  if (!pane) return;
+  const willCollapse = !pane.classList.contains('collapsed');
+  pane.classList.toggle('collapsed', willCollapse);
+  state.sectionChat.collapsed = willCollapse;
+  if (expand) expand.hidden = !willCollapse;
+}
+
+function handleSectionChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendSectionMessage(); }
+}
+
+// Quick-prompt buttons in the chat composer. Each kind seeds the textarea
+// with a phrasing that nudges the structured tutor toward calling the
+// generate_component MCP tool. The user can edit before hitting Send.
+const QUICK_PROMPTS = {
+  diagram:     'Show me a diagram of this section\'s mechanism.',
+  walkthrough: 'Walk me through this step by step with a worked example.',
+  example:     'Give me a small runnable example I can experiment with.',
+  flashcards:  'Make me a flashcard deck of the key concepts in this section.',
+};
+function quickPromptSectionChat(kind) {
+  const text = QUICK_PROMPTS[kind];
+  if (!text) return;
+  const input = document.getElementById('sectionChatInput');
+  if (!input) return;
+  input.value = text;
+  input.focus();
+  // Move caret to end so the learner can append context if they want.
+  try { input.setSelectionRange(text.length, text.length); } catch { /* ignore */ }
+}
+
+async function sendSectionMessage() {
+  const input = document.getElementById('sectionChatInput');
+  if (!input) return;
+  const content = input.value.trim();
+  if (!content) return;
+
+  // Lazy session creation if mountSectionChat hasn't completed yet (e.g. the
+  // user typed faster than the GET resolved).
+  if (!state.sectionChat.sessionId) {
+    if (!state.sectionChat.sectionId && state.currentSection) {
+      state.sectionChat.sectionId = state.currentSection.id;
+    }
+    const sectionId = state.sectionChat.sectionId;
+    if (!sectionId) { toast('Open a section first'); return; }
+    try {
+      const s = await api('GET', `/api/chat/sections/${sectionId}/session`);
+      state.sectionChat.sessionId = s.id;
+    } catch (e) {
+      toast(`Chat unavailable: ${e.message}`);
+      return;
+    }
+  }
+
+  input.value = '';
+  const messagesEl = document.getElementById('sectionChatMessages');
+  // Drop the empty-state placeholder on first send.
+  const empty = messagesEl.querySelector('.chat-empty');
+  if (empty) empty.remove();
+
+  appendChatMessage(messagesEl, { role: 'user', content });
+  const thinking = document.createElement('div');
+  thinking.className = 'msg assistant loading-row';
+  thinking.id = 'sectionChatThinking';
+  thinking.innerHTML = '<div class="spinner"></div> Thinking...';
+  messagesEl.appendChild(thinking);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  const sendBtn = document.getElementById('sectionSendBtn');
+  if (sendBtn) sendBtn.disabled = true;
+  input.disabled = true;
+
+  try {
+    const r = await api('POST', `/api/chat/sessions/${state.sectionChat.sessionId}/messages`, { content });
+    document.getElementById('sectionChatThinking')?.remove();
+    appendChatMessage(messagesEl, {
+      id: r.id,
+      role: 'assistant',
+      content: r.content,
+      responseBlocks: r.responseBlocks ?? null,
+    });
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  } catch (e) {
+    document.getElementById('sectionChatThinking')?.remove();
+    toast(`Error: ${e.message}`);
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+    input.disabled = false;
+    input.focus();
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+checkHealth();
+setInterval(checkHealth, 30000);
+loadDashboard();
+
+// ── Component-library smoke test ─────────────────────────────────────────
+// Append `?debug=components` to render one of each component into #app-root.
+// Inert when the flag is absent — does not interfere with the existing app.
+(function smokeTestComponents() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('debug') !== 'components') return;
+  if (!window.h || !window.render || !window.LearnComponents) {
+    console.warn('[smoke] framework or component library missing');
+    return;
+  }
+  const { Callout, Mermaid, SvgFigure, CodeRunner, StepThrough, FlashcardDeck, ConceptMap, Highlight, LessonRenderer } = window.LearnComponents;
+  const root = document.getElementById('app-root');
+  if (!root) return;
+  // Cover the whole viewport so the smoke harness is the only thing visible.
+  root.style.cssText = 'position:fixed;inset:0;background:var(--bg);overflow:auto;padding:24px;z-index:1000';
+  const Demo = () => window.h`
+    <div style=${{maxWidth:'880px',margin:'0 auto',display:'flex',flexDirection:'column',gap:'16px'}}>
+      <h1 style=${{fontSize:'20px',fontWeight:'700'}}>Components smoke test</h1>
+      <p style=${{color:'var(--muted)',fontSize:'13px'}}>One of each v1 component below.</p>
+
+      <${Callout} variant="info" title="Callout · info">An informational note rendered by the Callout component.<//>
+      <${Callout} variant="warning" title="Callout · warning">A warning callout — yellow accent.<//>
+      <${Callout} variant="insight" title="Callout · insight">An insight callout — purple accent.<//>
+      <${Callout} variant="takeaway" title="Callout · takeaway">A takeaway callout — green accent.<//>
+
+      <${Mermaid} src=${'graph LR; A[Start] --> B[Process]; B --> C[End]'} />
+
+      <${SvgFigure}
+        src=${'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80" viewBox="0 0 200 80"><rect x="10" y="10" width="180" height="60" rx="6" fill="#6366f1"/><text x="100" y="48" font-family="sans-serif" font-size="16" fill="white" text-anchor="middle">Safe SVG</text></svg>'}
+        caption="A simple SVG figure (sanitised via DOMPurify)."
+      />
+
+      <${SvgFigure}
+        src=${'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40"><script>window.__pwned = true;<\/script><text x="10" y="25" fill="#ef4444">Malicious SVG (script should be stripped)</text></svg>'}
+        caption="Malicious-input test — the script tag should be stripped before injection."
+      />
+
+      <${CodeRunner} lang="js" code=${"console.log('hello from sandbox');\nconsole.log('1 + 2 =', 1 + 2);"} />
+
+      <hr style=${{border:'none',borderTop:'1px solid var(--border)',margin:'8px 0'}} />
+      <p style=${{color:'var(--muted)',fontSize:'13px'}}>v2 components below.</p>
+
+      <${StepThrough} steps=${[
+        { title: 'Step 1 · Premise', content: 'Start by stating the premise of the lesson clearly.' },
+        { title: 'Step 2 · Mechanism', content: 'Walk through the mechanism with the simplest possible example.' },
+        { title: 'Step 3 · Edge cases', content: 'Now consider when the mechanism breaks down.' },
+        { title: 'Step 4 · Synthesis', content: 'Tie it back to a real-world consequence the learner cares about.' },
+      ]} onStepChange=${(i) => console.log('[smoke] StepThrough step:', i)} />
+
+      <${FlashcardDeck} cards=${[
+        { front: 'What is a hash collision?', back: 'When two distinct inputs produce the same hash output.', hint: 'Pigeonhole principle.' },
+        { front: 'Define O(log n)', back: 'Runtime grows logarithmically with input size — e.g. binary search.' },
+        { front: 'Why is HTTPS preferable to HTTP?', back: 'Encrypts traffic + authenticates the server, defeating MITM attackers.' },
+      ]} onComplete=${(r) => console.log('[smoke] FlashcardDeck complete:', r)} />
+
+      <${ConceptMap}
+        nodes=${[
+          { id: 'a', label: 'Hash function', type: 'concept' },
+          { id: 'b', label: 'Collision', type: 'concept' },
+          { id: 'c', label: 'Pigeonhole', type: 'fact' },
+          { id: 'd', label: 'Birthday attack', type: 'concept' },
+          { id: 'e', label: 'SHA-256', type: 'fact' },
+        ]}
+        edges=${[
+          { source: 'a', target: 'b', label: 'can produce' },
+          { source: 'c', target: 'b', label: 'guarantees' },
+          { source: 'b', target: 'd', label: 'enables' },
+          { source: 'a', target: 'e', label: 'example' },
+        ]}
+        width=${600} height=${300}
+        onNodeClick=${(n) => console.log('[smoke] ConceptMap node click:', n.id, n.label)}
+      />
+
+      <${Highlight} onAction=${(action, text) => console.log('[smoke] Highlight action:', action, '·', text)}>
+        <div style=${{padding:'16px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'var(--radius)',lineHeight:'1.7'}}>
+          Try selecting any text in this paragraph. A floating action menu should appear with
+          Explain / Example / Why / Note buttons. Clicking an action logs to the console (Phase 5
+          will wire these to actual agent calls).
+        </div>
+      <//>
+
+      <hr style=${{border:'none',borderTop:'1px solid var(--border)',margin:'8px 0'}} />
+      <p style=${{color:'var(--muted)',fontSize:'13px'}}>LessonRenderer below — walks a LessonBlock[] and dispatches each block.</p>
+
+      <${LessonRenderer} blocks=${[
+        { type: 'markdown', content: '## Lesson document demo\n\nThis whole block is rendered as **markdown** by `LessonRenderer`. Underneath, a Callout follows, then more markdown.' },
+        { type: 'component', kind: 'Callout', props: { variant: 'insight', title: 'Why mix prose and components' },
+          children: 'Markdown carries the explanation; components carry the *interactivity*. The renderer just walks the array and dispatches each block to a known component (or shows an error for an unknown kind — try changing `Callout` to `NotARealKind`).' },
+        { type: 'markdown', content: '### Things to watch out for\n\n- Unknown component kinds render an inline error block, never crash.\n- Backwards-compat: a section with only `lessonContent` (no `lessonBlocks`) is treated as a single markdown block by `lessonToBlocks`.' },
+        { type: 'component', kind: 'NotARealKind', props: {} },
+      ]} />
+    </div>
+  `;
+  window.render(window.h`<${Demo} />`, root);
+  console.log('[smoke] components mounted:', Object.keys(window.LearnComponents));
+
+  // Optional: ?debug=components&run=1 auto-clicks the CodeRunner Run button
+  // so headless harnesses can assert that the output appears in the DOM.
+  if (params.get('run') === '1') {
+    setTimeout(() => {
+      const runBtn = root.querySelector('.code-runner button.btn-primary');
+      if (runBtn) {
+        runBtn.click();
+        console.log('[smoke] CodeRunner Run clicked');
+      } else {
+        console.warn('[smoke] CodeRunner Run button not found');
+      }
+    }, 500);
+  }
+})();
+</script>
+</body>
+</html>

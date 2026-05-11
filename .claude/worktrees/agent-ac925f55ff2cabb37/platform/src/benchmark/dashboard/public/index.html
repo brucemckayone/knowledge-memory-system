@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Continuous Benchmark Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+    }
+
+    .header {
+      margin-bottom: 30px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .run-id {
+      color: #94a3b8;
+      font-size: 14px;
+      font-family: 'Monaco', 'Menlo', monospace;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+
+    .status.running {
+      background: #22c55e;
+      color: #ffffff;
+    }
+
+    .status.completed {
+      background: #3b82f6;
+      color: #ffffff;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .metric-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .metric-label {
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .metric-delta {
+      font-size: 14px;
+      color: #22c55e;
+      margin-top: 4px;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .chart-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .chart-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 300px;
+    }
+
+    .progress-bar {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .progress-track {
+      background: #334155;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+
+    .checkpoints-table {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+      overflow: hidden;
+    }
+
+    .table-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #334155;
+    }
+
+    th {
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    td {
+      font-size: 14px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .connection-status {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 1000;
+    }
+
+    .connection-status.connected {
+      background: #22c55e;
+      color: #ffffff;
+    }
+
+    .connection-status.disconnected {
+      background: #ef4444;
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <div class="connection-status" id="connectionStatus">Connecting...</div>
+
+  <div class="header">
+    <h1>
+      Continuous Benchmark Dashboard
+      <span class="status running" id="status">Running</span>
+    </h1>
+    <div class="run-id" id="runId">Loading...</div>
+  </div>
+
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label">Elapsed Time</div>
+      <div class="metric-value" id="elapsedTime">0:00</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Messages Injected</div>
+      <div class="metric-value" id="messagesInjected">0</div>
+      <div class="metric-delta" id="injectionRate">0 msg/min</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Entities</div>
+      <div class="metric-value" id="entityCount">0</div>
+      <div class="metric-delta" id="entityDelta">+0</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Facts</div>
+      <div class="metric-value" id="factCount">0</div>
+      <div class="metric-delta" id="factDelta">+0</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Tasks</div>
+      <div class="metric-value" id="taskCount">0</div>
+      <div class="metric-delta" id="taskDelta">+0</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Queue Depth</div>
+      <div class="metric-value" id="queueDepth">0</div>
+    </div>
+  </div>
+
+  <div class="progress-bar">
+    <div class="progress-label">
+      <span>Progress</span>
+      <span id="progressPercent">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Knowledge Growth Over Time</div>
+      <div class="chart-container">
+        <canvas id="growthChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">System Performance</div>
+      <div class="chart-container">
+        <canvas id="performanceChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="checkpoints-table">
+    <div class="table-title">Checkpoint History</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Elapsed</th>
+          <th>Entities</th>
+          <th>Facts</th>
+          <th>Tasks</th>
+          <th>Queue</th>
+        </tr>
+      </thead>
+      <tbody id="checkpointsBody">
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    let ws;
+    let checkpoints = [];
+    let growthChart;
+    let performanceChart;
+
+    // Initialize charts
+    function initCharts() {
+      const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: '#94a3b8'
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#94a3b8' },
+            grid: { color: '#334155' }
+          },
+          y: {
+            ticks: { color: '#94a3b8' },
+            grid: { color: '#334155' }
+          }
+        }
+      };
+
+      // Growth chart
+      growthChart = new Chart(document.getElementById('growthChart'), {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Entities',
+              data: [],
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              fill: true
+            },
+            {
+              label: 'Facts',
+              data: [],
+              borderColor: '#22c55e',
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              fill: true
+            },
+            {
+              label: 'Tasks',
+              data: [],
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              fill: true
+            }
+          ]
+        },
+        options: chartOptions
+      });
+
+      // Performance chart
+      performanceChart = new Chart(document.getElementById('performanceChart'), {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Throughput (msg/sec)',
+              data: [],
+              borderColor: '#8b5cf6',
+              yAxisID: 'y'
+            },
+            {
+              label: 'Queue Depth',
+              data: [],
+              borderColor: '#ef4444',
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          ...chartOptions,
+          scales: {
+            ...chartOptions.scales,
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              ticks: { color: '#94a3b8' },
+              grid: { drawOnChartArea: false }
+            }
+          }
+        }
+      });
+    }
+
+    // Connect WebSocket
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        document.getElementById('connectionStatus').textContent = 'Connected';
+        document.getElementById('connectionStatus').className = 'connection-status connected';
+      };
+
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+
+        if (message.type === 'state') {
+          updateState(message.data);
+        } else if (message.type === 'checkpoint') {
+          addCheckpoint(message.data);
+        }
+      };
+
+      ws.onclose = () => {
+        document.getElementById('connectionStatus').textContent = 'Disconnected';
+        document.getElementById('connectionStatus').className = 'connection-status disconnected';
+        // Reconnect after 3 seconds
+        setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    }
+
+    // Update state
+    function updateState(state) {
+      document.getElementById('runId').textContent = state.runId;
+      document.getElementById('messagesInjected').textContent = state.messagesInjected.toLocaleString();
+
+      if (state.currentCheckpoint) {
+        updateMetrics(state.currentCheckpoint);
+      }
+    }
+
+    // Add checkpoint
+    function addCheckpoint(checkpoint) {
+      checkpoints.push(checkpoint);
+      updateMetrics(checkpoint);
+      updateCharts(checkpoint);
+      updateTable(checkpoint);
+    }
+
+    // Update metrics display
+    function updateMetrics(checkpoint) {
+      const elapsed = Math.floor(checkpoint.elapsedMs / 1000);
+      const minutes = Math.floor(elapsed / 60);
+      const seconds = elapsed % 60;
+      document.getElementById('elapsedTime').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+      document.getElementById('entityCount').textContent = checkpoint.metrics.entityCount.toLocaleString();
+      document.getElementById('factCount').textContent = checkpoint.metrics.factCount.toLocaleString();
+      document.getElementById('taskCount').textContent = checkpoint.metrics.taskCount.toLocaleString();
+      document.getElementById('queueDepth').textContent = checkpoint.metrics.pendingJobs.toLocaleString();
+
+      // Calculate deltas
+      if (checkpoints.length > 0) {
+        const prev = checkpoints[checkpoints.length - 1];
+        const entityDelta = checkpoint.metrics.entityCount - prev.metrics.entityCount;
+        const factDelta = checkpoint.metrics.factCount - prev.metrics.factCount;
+        const taskDelta = checkpoint.metrics.taskCount - prev.metrics.taskCount;
+
+        document.getElementById('entityDelta').textContent = `+${entityDelta}`;
+        document.getElementById('factDelta').textContent = `+${factDelta}`;
+        document.getElementById('taskDelta').textContent = `+${taskDelta}`;
+      }
+
+      // Update injection rate
+      document.getElementById('injectionRate').textContent = `${checkpoint.performance.throughput.toFixed(1)} msg/sec`;
+    }
+
+    // Update charts
+    function updateCharts(checkpoint) {
+      const elapsed = Math.floor(checkpoint.elapsedMs / 1000 / 60);
+      const label = `${elapsed}m`;
+
+      // Add data point
+      growthChart.data.labels.push(label);
+      growthChart.data.datasets[0].data.push(checkpoint.metrics.entityCount);
+      growthChart.data.datasets[1].data.push(checkpoint.metrics.factCount);
+      growthChart.data.datasets[2].data.push(checkpoint.metrics.taskCount);
+      growthChart.update('none');
+
+      performanceChart.data.labels.push(label);
+      performanceChart.data.datasets[0].data.push(checkpoint.performance.throughput);
+      performanceChart.data.datasets[1].data.push(checkpoint.performance.queueDepth);
+      performanceChart.update('none');
+    }
+
+    // Update table
+    function updateTable(checkpoint) {
+      const tbody = document.getElementById('checkpointsBody');
+      const elapsed = Math.floor(checkpoint.elapsedMs / 1000 / 60);
+      const row = tbody.insertRow(0);
+
+      row.innerHTML = `
+        <td>${new Date(checkpoint.timestamp).toLocaleTimeString()}</td>
+        <td>${elapsed}m</td>
+        <td>${checkpoint.metrics.entityCount}</td>
+        <td>${checkpoint.metrics.factCount}</td>
+        <td>${checkpoint.metrics.taskCount}</td>
+        <td>${checkpoint.metrics.pendingJobs}</td>
+      `;
+
+      // Keep only last 10 checkpoints
+      while (tbody.rows.length > 10) {
+        tbody.deleteRow(tbody.rows.length - 1);
+      }
+    }
+
+    // Initialize
+    initCharts();
+    connectWebSocket();
+
+    // Load initial checkpoints
+    fetch('/api/checkpoints')
+      .then(res => res.json())
+      .then(data => {
+        data.forEach(checkpoint => addCheckpoint(checkpoint));
+      })
+      .catch(err => console.error('Failed to load checkpoints:', err));
+  </script>
+</body>
+</html>

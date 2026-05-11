@@ -1,0 +1,375 @@
+"""
+Core LLM Service
+Provides LLM backends: Claude Code CLI (default) and Z.AI GLM-4.7 (legacy).
+Switch via LLM_PROVIDER env var: "claude" (default) or "zai".
+"""
+
+import json
+import logging
+import os
+import re
+import shutil
+import subprocess
+from typing import Optional, Dict, Any, Protocol, Type, TypeVar, runtime_checkable
+
+from pydantic import BaseModel
+from fastapi import HTTPException
+
+T = TypeVar("T", bound=BaseModel)
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Task defaults for Claude Code provider
+# Callers can pass options={"task": "classify"} to use these, or override
+# any value directly via options={"model": "opus", "effort": "high"}.
+# ---------------------------------------------------------------------------
+TASK_DEFAULTS: Dict[str, Dict[str, str]] = {
+    "classify":              {"model": "haiku",  "effort": "low"},
+    "extract_task":          {"model": "haiku",  "effort": "low"},
+    "extract_entities":      {"model": "sonnet", "effort": "medium"},
+    "extract_task_enhanced": {"model": "sonnet", "effort": "medium"},
+    "summarize":             {"model": "sonnet", "effort": "medium"},
+    "extract_relationships": {"model": "sonnet", "effort": "medium"},
+    "reader":                {"model": "sonnet", "effort": "medium"},
+    "parse_transcript":      {"model": "sonnet", "effort": "medium"},
+    "resolve_entity":        {"model": "sonnet", "effort": "medium"},
+    "ontology":              {"model": "sonnet", "effort": "medium"},
+    "chat":                  {"model": "sonnet", "effort": "medium"},
+    "check_contradiction":   {"model": "opus",   "effort": "high"},
+    "judge":                 {"model": "opus",   "effort": "high"},
+}
+DEFAULT_MODEL = "sonnet"
+DEFAULT_EFFORT = "medium"
+
+# Fallback always escalates to the most capable model.
+FALLBACK_MAP: Dict[str, str] = {
+    "haiku":  "sonnet",
+    "sonnet": "opus",
+}
+
+
+# ---------------------------------------------------------------------------
+# Provider Protocol — the adapter contract
+# ---------------------------------------------------------------------------
+@runtime_checkable
+class LLMProvider(Protocol):
+    """Interface that all LLM adapters must satisfy.
+
+    Endpoints import `llm_client` and call these methods.
+    Each adapter translates `options` into provider-specific flags.
+    """
+
+    def generate(
+        self, prompt: str, options: Optional[Dict[str, Any]] = None,
+    ) -> str: ...
+
+    def generate_json(
+        self,
+        prompt: str,
+        response_model: Optional[Type[T]] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Any: ...
+
+    def extract_json(self, text: str) -> Dict[str, Any]: ...
+
+
+# ---------------------------------------------------------------------------
+# Claude Code CLI Provider
+# ---------------------------------------------------------------------------
+class ClaudeCodeProvider:
+    """LLM provider that shells out to Claude Code CLI.
+
+    Supports per-call configuration via the options dict:
+        model          - "haiku", "sonnet", "opus", or a full model ID
+        effort         - "low", "medium", "high", "max" (opus only)
+        task           - key into TASK_DEFAULTS for automatic model/effort
+        tools          - "" to disable, "default" for all, or "Bash,Read,..."
+        max_turns      - int, how many agentic turns (default 1)
+        system_prompt  - replaces the default system prompt entirely
+        fallback_model - override automatic upward fallback
+        timeout        - subprocess timeout in seconds (default 300)
+    """
+
+    def __init__(self) -> None:
+        if not shutil.which("claude"):
+            raise RuntimeError(
+                "Claude Code CLI not found on PATH. "
+                "Install from https://claude.ai/code or ensure 'claude' is accessible."
+            )
+
+    # -- internal helpers --------------------------------------------------
+
+    def _resolve(self, key: str, options: Optional[Dict] = None) -> str:
+        """Resolve a setting: explicit option > task default > global default."""
+        if options and options.get(key):
+            return str(options[key])
+        task = (options or {}).get("task", "")
+        task_defaults = TASK_DEFAULTS.get(task, {})
+        if key in task_defaults:
+            return task_defaults[key]
+        if key == "model":
+            return DEFAULT_MODEL
+        if key == "effort":
+            return DEFAULT_EFFORT
+        return ""
+
+    def _build_cmd(
+        self,
+        prompt: str,
+        options: Optional[Dict] = None,
+        json_schema: Optional[Dict] = None,
+    ) -> list:
+        """Build the claude CLI command list."""
+        opts = options or {}
+        model = self._resolve("model", opts)
+        effort = self._resolve("effort", opts)
+
+        cmd = [
+            "claude", "-p", prompt,
+            "--output-format", "json",
+            "--model", model,
+            "--effort", effort,
+            "--no-session-persistence",
+        ]
+
+        # Fallback: explicit override or automatic upward escalation
+        fallback = opts.get("fallback_model") or FALLBACK_MAP.get(model)
+        if fallback:
+            cmd.extend(["--fallback-model", fallback])
+
+        # System prompt (replaces default Claude Code prompt entirely)
+        system_prompt = opts.get("system_prompt")
+        if system_prompt:
+            cmd.extend(["--system-prompt", system_prompt])
+
+        # Tools: None → disabled (""), explicit value passed through
+        tools = opts.get("tools")
+        if tools is None:
+            cmd.extend(["--tools", ""])
+        elif isinstance(tools, list):
+            cmd.extend(["--tools", ",".join(tools)])
+        else:
+            cmd.extend(["--tools", str(tools)])
+
+        # Structured output via JSON schema
+        if json_schema:
+            cmd.extend(["--json-schema", json.dumps(json_schema)])
+
+        # Max turns: default 1 (pure LLM), but --json-schema uses a tool
+        # call internally which consumes an extra turn, so minimum 2.
+        default_turns = 2 if json_schema else 1
+        max_turns = str(opts.get("max_turns", default_turns))
+        cmd.extend(["--max-turns", max_turns])
+
+        return cmd
+
+    def _run(self, cmd: list, options: Optional[Dict] = None) -> Dict[str, Any]:
+        """Execute CLI command and return the parsed JSON envelope."""
+        timeout = (options or {}).get("timeout", 300)
+
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(
+                status_code=504,
+                detail=f"Claude CLI timed out after {timeout}s",
+            )
+
+        if result.returncode != 0:
+            logger.error(
+                "Claude CLI failed (rc=%d): %s", result.returncode, result.stderr[:500],
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Claude CLI failed (rc={result.returncode}): {result.stderr[:200]}",
+            )
+
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            # Shouldn't happen with --output-format json, but degrade gracefully
+            logger.warning("Claude CLI returned non-JSON output, wrapping as raw text")
+            return {"result": result.stdout.strip()}
+
+        # Log cost/usage for observability
+        cost = data.get("cost", {})
+        if cost:
+            logger.info(
+                "llm call: model=%s task=%s cost=$%.4f in=%d out=%d",
+                self._resolve("model", options),
+                (options or {}).get("task", "unknown"),
+                cost.get("estimated_usd", 0),
+                cost.get("input_tokens", 0),
+                cost.get("output_tokens", 0),
+            )
+
+        return data
+
+    # -- public interface (LLMProvider) -------------------------------------
+
+    def generate(
+        self,
+        prompt: str,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Generate a text response."""
+        cmd = self._build_cmd(prompt, options)
+        data = self._run(cmd, options)
+        return data.get("result", "")
+
+    def extract_json(self, text: str) -> Dict[str, Any]:
+        """Extract and parse JSON from text.
+
+        Handles markdown code fences that LLMs sometimes wrap around JSON.
+        Kept for interface compatibility — Claude is less prone to this than ZAI,
+        but callers like summarize.py and relationships.py parse text manually.
+        """
+        stripped = re.sub(r'^```(?:json)?\s*\n?', '', text.strip())
+        stripped = re.sub(r'\n?```\s*$', '', stripped).strip()
+
+        match = re.search(r'\{[\s\S]*\}|\[[\s\S]*\]', stripped)
+        json_str = match.group() if match else stripped
+
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            raise ValueError(f"Could not parse JSON from response: {text[:200]}...")
+
+    def generate_json(
+        self,
+        prompt: str,
+        response_model: Optional[Type[T]] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        """Generate and parse a JSON response.
+
+        If response_model is provided, its JSON schema is sent to Claude via
+        --json-schema for server-side validation. The validated object comes
+        back in the 'structured_output' field. Otherwise, the text result is
+        parsed with extract_json().
+        """
+        json_schema = None
+        if response_model:
+            json_schema = response_model.model_json_schema()
+
+        cmd = self._build_cmd(prompt, options, json_schema=json_schema)
+        data = self._run(cmd, options)
+
+        # When --json-schema was used, prefer structured_output
+        if json_schema and "structured_output" in data:
+            parsed = data["structured_output"]
+            if response_model:
+                return response_model.model_validate(parsed)
+            return parsed
+
+        # Fallback: parse the text result
+        text = data.get("result", "")
+        try:
+            parsed = self.extract_json(text)
+        except ValueError as e:
+            raise ValueError(f"JSON parsing failed: {e}")
+
+        if response_model:
+            try:
+                return response_model.model_validate(parsed)
+            except Exception as e:
+                raise ValueError(f"Schema validation failed: {e}")
+
+        return parsed
+
+
+# ---------------------------------------------------------------------------
+# Z.AI GLM-4.7 Provider (legacy)
+# ---------------------------------------------------------------------------
+class ZAIProvider:
+    """LLM provider using Z.AI GLM-4.7 via OpenAI-compatible API."""
+
+    def __init__(self, model: str = "glm-4.7") -> None:
+        self.model = model
+        api_key = os.getenv("ZAI_API_KEY")
+        if not api_key:
+            raise ValueError("ZAI_API_KEY environment variable is required")
+
+        from openai import OpenAI
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.z.ai/api/coding/paas/v4",
+            timeout=120.0,
+        )
+
+    def generate(
+        self,
+        prompt: str,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a helpful AI assistant. When asked to return JSON, "
+                            "return ONLY the raw JSON object or array. Never wrap it in "
+                            "markdown code fences or any other formatting."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=options.get("temperature", 0.1) if options else 0.1,
+                max_tokens=options.get("num_predict", 16384) if options else 16384,
+            )
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"LLM generation failed: {str(e)}",
+            )
+
+    def extract_json(self, text: str) -> Dict[str, Any]:
+        stripped = re.sub(r'^```(?:json)?\s*\n?', '', text.strip())
+        stripped = re.sub(r'\n?```\s*$', '', stripped).strip()
+        match = re.search(r'\{[\s\S]*\}|\[[\s\S]*\]', stripped)
+        json_str = match.group() if match else stripped
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            raise ValueError(f"Could not parse JSON from response: {text[:200]}...")
+
+    def generate_json(
+        self,
+        prompt: str,
+        response_model: Optional[Type[T]] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        text = self.generate(prompt, options)
+        try:
+            data = self.extract_json(text)
+            if response_model:
+                try:
+                    return response_model.model_validate(data)
+                except Exception as e:
+                    raise ValueError(f"Schema validation failed: {str(e)}")
+            return data
+        except ValueError as e:
+            raise ValueError(f"JSON parsing failed: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Factory & singleton
+# ---------------------------------------------------------------------------
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "claude")
+
+
+def create_llm_client() -> LLMProvider:
+    """Create the LLM client based on LLM_PROVIDER env var."""
+    if LLM_PROVIDER == "zai":
+        logger.info("Using ZAI GLM-4.7 LLM provider")
+        return ZAIProvider()
+    logger.info("Using Claude Code CLI LLM provider")
+    return ClaudeCodeProvider()
+
+
+llm_client: LLMProvider = create_llm_client()

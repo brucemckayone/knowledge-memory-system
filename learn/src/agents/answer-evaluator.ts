@@ -13,6 +13,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from '../config.js';
 import { runAgent, writeMcpConfig } from '../services/agent.js';
+import { withPresentationMode } from './presentation-mode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MCP_SCRIPT = path.resolve(__dirname, '..', 'mcp', 'learning-mcp.ts');
@@ -62,6 +63,7 @@ export async function evaluateAnswer(params: {
   explanation: string;
   conceptName: string;
   answerText: string;
+  presentationMode?: boolean;
 }): Promise<EvaluationResult> {
   const mcpConfigPath = writeMcpConfig('learn', MCP_SCRIPT, {
     NMEMO_URL: config.NMEMO_URL,
@@ -85,7 +87,7 @@ Check the learner's prior history on this concept, evaluate the answer, update t
   const result = await runAgent(prompt, {
     model: 'haiku',
     effort: 'low',
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: withPresentationMode(SYSTEM_PROMPT, params.presentationMode),
     mcpConfigPath,
     mcpServerName: 'learn',
     maxTurns: 12,

@@ -1,0 +1,253 @@
+direction: down
+
+classes: {
+  service: {
+    style: {
+      border-radius: 5
+      fill: "#E1F5FE"
+      stroke: "#01579B"
+    }
+  }
+  db: {
+    shape: cylinder
+    style: {
+      fill: "#F3E5F5"
+      stroke: "#4A148C"
+    }
+  }
+  queue: {
+    shape: queue
+    style: {
+      fill: "#FFF3E0"
+      stroke: "#E65100"
+    }
+  }
+  external: {
+    style: {
+      stroke-dash: 3
+    }
+  }
+  ml: {
+    style: {
+      fill: "#E8F5E9"
+      stroke: "#1B5E20"
+    }
+  }
+}
+
+User: User {
+  shape: person
+  style.fill: "#FFCDD2"
+}
+
+Clients: Clients {
+  class: external
+  Telegram: Telegram App
+  Browser: Web Dashboard
+  Voice: Mobile Voice
+}
+
+# Network Ingress
+Ingress: Ingress / Gateway {
+  Tailscale: Tailscale Funnel {
+    tooltip: Secure local access
+  }
+  Webhook: Webhook Receiver
+  Socket: WebSocket Server
+}
+
+# The Core Platform (TypeScript)
+Platform: Cognitive Platform Core {
+  class: service
+
+  API: API Layer {
+    Hono: Hono Server
+    Endpoints: REST Endpoints {
+      Health: /health
+      Memories: /memories
+      Tasks: /tasks
+      Graph: /graph
+    }
+  }
+
+  Router: Intent Router {
+    Classifier: Intent Classifier
+    RoutingLogic: Routing Logic
+  }
+
+  Queue: Queue System {
+    class: queue
+    PgBoss: pg-boss
+    JobQueue: job_queue table
+  }
+
+  Orchestrator: Workflow Orchestrator {
+    SkillReg: Skill Registry
+    WorkflowEng: Workflow Engine
+  }
+
+  Skills: Skills Library {
+    Transcribe: Transcribe
+    Summarize: Summarize
+    Extract: Info Extraction
+    Store: Store Memory
+  }
+}
+
+# The Intelligence Layer (Gardener / KARMA)
+Gardener: Gardener System (KARMA) {
+  style.fill: "#FFF8E1"
+  style.stroke: "#FF6F00"
+
+  Controller: 1. Central Controller {
+    Scheduler: Priority Scheduler
+    MAB: MAB Strategy
+  }
+
+  Agents: Active Agents {
+    Ingestion: 2. Ingestion
+    Reader: 3. Reader
+    Summarizer: 4. Summarizer
+    EntityExt: 5. Entity Extractor
+    RelExt: 6. Relationship Extractor
+    SchemaAlign: 7. Schema Alignment
+    ConflictRes: 8. Conflict Resolution
+    Evaluator: 9. Evaluator
+  }
+}
+
+# Machine Learning Services (Python)
+ML: Python ML Services {
+  class: ml
+  
+  FastAPI: FastAPI Gateway
+  
+  Models: Models {
+    Whisper: Whisper (Small)
+    Embed: Nomic Embed Text
+    LLM: Llama/Mistral (Ollama)
+  }
+  
+  Scraper: Web Scraper (Playwright)
+}
+
+# Storage Layer
+Storage: Storage Layer {
+  Postgres: PostgreSQL {
+    class: db
+    
+    Tables: Structured Data {
+      Tasks: tasks
+      Epics: epics
+      Entities: entities (Graph)
+      Facts: facts (Bi-Temporal)
+      Processing: processing_state
+    }
+  }
+
+  Qdrant: Qdrant Vector DB {
+    class: db
+    
+    Collections: Collections {
+      Memories: memories (Vectors)
+      Contexts: contexts (Summaries)
+    }
+  }
+}
+
+# Connections
+
+# Ingress Flow
+User -> Clients.Telegram: Messages
+User -> Clients.Voice: Voice Notes
+User -> Clients.Browser: Queries/View
+
+Clients.Telegram -> Ingress.Tailscale: Webhook
+Clients.Voice -> Ingress.Tailscale: Upload
+Clients.Browser -> Ingress.Socket: Realtime Updates
+Clients.Browser -> Ingress.Webhook: API Calls
+
+Ingress.Tailscale -> Platform.API.Webhook: Forward
+Platform.API.Webhook -> Platform.Queue.PgBoss: Enqueue Job
+Platform.Queue.PgBoss -> Platform.Router: Process Job
+
+# Core Processing Flow
+Platform.Router -> Platform.Orchestrator: Dispatch Workflow
+Platform.Orchestrator -> Platform.Skills: Execute Skills
+
+# Skill Integrations
+Platform.Skills.Transcribe -> ML.Models.Whisper: Audio File
+Platform.Skills.Summarize -> ML.Models.LLM: Content
+Platform.Skills.Extract -> ML.Models.LLM: Content
+Platform.Skills.Extract -> ML.Scraper: Fetch URL
+Platform.Skills.Store -> Storage.Qdrant.Collections.Memories: Vector Upsert
+Platform.Skills.Store -> Storage.Postgres.Tables.Tasks: Task Insert
+
+# Backend Logic
+Platform.API.Endpoints -> Storage.Postgres: Query Data
+Platform.API.Endpoints -> Storage.Qdrant: Search Vectors
+
+# Gardener / KARMA Flow
+Gardener.Controller -> Platform.Queue.PgBoss: Schedule Maintenance
+Platform.Queue.PgBoss -> Gardener.Agents: Trigger Agent
+
+Gardener.Agents.Ingestion -> Storage.Qdrant.Collections.Memories: Read/Chunk
+Gardener.Agents.Reader -> ML.Models.LLM: Classify
+Gardener.Agents.EntityExt -> ML.Models.LLM: Extract Entities
+Gardener.Agents.EntityExt -> Storage.Postgres.Tables.Entities: Upsert Node
+Gardener.Agents.RelExt -> Storage.Postgres.Tables.Facts: Create Edge
+Gardener.Agents.ConflictRes -> Storage.Postgres.Tables.Facts: Resolve Conflicts
+
+# Intelligence Feedback
+Gardener.Agents.Evaluator -> Gardener.Controller.MAB: Update Weights
+# Future / Plugins (Conceptual)
+Future: Future Concepts & Plugins {
+  style.stroke-dash: 3
+  style.fill: "#F3E5F5"
+  style.stroke: "#8E24AA"
+
+  DeepDiver: Deep Diver (Research Agent) {
+    tooltip: Proactive recursive research
+  }
+  
+  SocialWhisper: Social Whisperer {
+    tooltip: Context injection before chat
+  }
+  
+  Curriculum: Living Curriculum {
+    tooltip: Auto-syllabus generation
+  }
+  
+  PreFetch: Predictive Pre-Fetch {
+    tooltip: Calendar-based context push
+  }
+  
+  SleepCycle: Sleep Cycle {
+    tooltip: Nightly graph compression
+  }
+  
+  AntiEcho: Anti-Echo Chamber {
+    tooltip: Contradiction surfacing
+  }
+  
+  Collider: Idea Collider {
+    tooltip: Serendipity engine
+  }
+
+  Future.DeepDiver -> Gardener.Agents.Ingestion: Triggers Research
+  Future.SocialWhisper -> Platform.API.Endpoints.Memories: Context Lookup
+  Future.Curriculum -> Gardener.Agents.Ingestion: Structure Knowledge
+  Future.PreFetch -> Platform.API.Webhook: Push Context
+  Future.SleepCycle -> Gardener.Agents.Summarizer: Compress Daily
+  Future.AntiEcho -> Gardener.Agents.ConflictRes: Challenge User
+  Future.Collider -> Storage.Postgres.Tables.Entities: Find Connections
+}
+
+# Future Connections
+# ----------------------------
+# Layout Constraints (Hidden)
+# ----------------------------
+# Force primary blocks to stack vertically
+Platform -> Gardener: {style.opacity: 0}
+Gardener -> ML: {style.opacity: 0}
+ML -> Storage: {style.opacity: 0}

@@ -1,0 +1,3045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LearnGraph — Interactive Graph Theory Course</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    (async () => {
+      try {
+        await mermaid.initialize({
+          startOnLoad: false,
+          theme: 'dark',
+          themeVariables: {
+            primaryColor: '#7c6cf0',
+            primaryTextColor: '#e8e8ed',
+            primaryBorderColor: '#323650',
+            lineColor: '#5e6478',
+            secondaryColor: '#1c1f2e',
+            tertiaryColor: '#141620',
+            background: '#1a1d2b',
+            mainBkg: '#1c1f2e',
+            nodeBorder: '#7c6cf0',
+            clusterBkg: '#1c1f2e',
+            titleColor: '#e8e8ed',
+            edgeLabelBackground: '#1a1d2b',
+            nodeTextColor: '#e8e8ed',
+          },
+          flowchart: { htmlLabels: true, curve: 'basis' },
+        });
+        window.mermaidReady = true;
+      } catch (e) {
+        console.warn('Mermaid failed:', e);
+        window.mermaidReady = false;
+      }
+    })();
+  </script>
+  <style>
+    /* ===== RESET & VARIABLES ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #0c0e14;
+      --bg-secondary: #141620;
+      --bg-tertiary: #1c1f2e;
+      --bg-card: #1a1d2b;
+      --bg-hover: #242738;
+      --text-primary: #e8e8ed;
+      --text-secondary: #9da3b4;
+      --text-muted: #5e6478;
+      --accent: #7c6cf0;
+      --accent-light: #9d91f5;
+      --accent-dim: rgba(124,108,240,0.15);
+      --accent-glow: rgba(124,108,240,0.4);
+      --green: #34d399;
+      --green-dim: rgba(52,211,153,0.15);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251,191,36,0.15);
+      --red: #f87171;
+      --red-dim: rgba(248,113,113,0.15);
+      --blue: #60a5fa;
+      --blue-dim: rgba(96,165,250,0.15);
+      --border: #262940;
+      --border-light: #323650;
+      --sidebar-w: 290px;
+      --chat-w: 400px;
+      --radius: 10px;
+      --radius-lg: 16px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --shadow: 0 4px 24px rgba(0,0,0,0.3);
+      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      overflow: hidden;
+      height: 100vh;
+    }
+    a { color: var(--accent-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ::selection { background: var(--accent-dim); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* ===== APP LAYOUT ===== */
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar-w) 1fr;
+      height: 100vh;
+      transition: grid-template-columns var(--transition);
+    }
+    .app.chat-open { grid-template-columns: var(--sidebar-w) 1fr var(--chat-w); }
+
+    /* ===== TOP BAR ===== */
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 52px;
+      background: rgba(12,14,20,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 20px; gap: 12px;
+    }
+    .topbar-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 700; font-size: 15px; color: var(--text-primary);
+    }
+    .topbar-logo svg { width: 28px; height: 28px; }
+    .topbar-logo span { background: linear-gradient(135deg, var(--accent), var(--accent-light)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .topbar-actions { display: flex; gap: 6px; margin-left: auto; }
+    .topbar-btn {
+      background: var(--bg-tertiary); border: 1px solid var(--border);
+      color: var(--text-secondary); border-radius: 8px; padding: 6px 12px;
+      font-size: 13px; cursor: pointer; transition: all var(--transition);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .topbar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .topbar-btn.active { background: var(--accent-dim); color: var(--accent-light); border-color: var(--accent); }
+    .progress-bar-top {
+      position: absolute; bottom: 0; left: 0; height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-light));
+      transition: width 0.5s ease;
+    }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding-top: 52px;
+      display: flex; flex-direction: column;
+    }
+    .sidebar-header {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-header h2 {
+      font-size: 13px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 4px;
+    }
+    .sidebar-course-title {
+      font-size: 18px; font-weight: 700; color: var(--text-primary);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .sidebar-progress { margin-top: 12px; }
+    .sidebar-progress-bar {
+      height: 4px; background: var(--bg-tertiary); border-radius: 2px; overflow: hidden;
+    }
+    .sidebar-progress-fill {
+      height: 100%; background: linear-gradient(90deg, var(--accent), var(--green));
+      border-radius: 2px; transition: width 0.5s ease;
+    }
+    .sidebar-progress-text {
+      font-size: 11px; color: var(--text-muted); margin-top: 4px;
+    }
+    .sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+    .chapter-group { margin-bottom: 4px; }
+    .chapter-header {
+      display: flex; align-items: center; padding: 10px 20px;
+      cursor: pointer; transition: background var(--transition);
+      font-size: 13px; font-weight: 600; color: var(--text-secondary);
+      gap: 8px; user-select: none;
+    }
+    .chapter-header:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .chapter-header .arrow {
+      transition: transform var(--transition);
+      font-size: 10px; color: var(--text-muted);
+    }
+    .chapter-header.open .arrow { transform: rotate(90deg); }
+    .chapter-header.completed .chapter-title { color: var(--green); }
+    .chapter-header.active { color: var(--accent-light); background: var(--accent-dim); }
+    .chapter-check {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid var(--border-light); display: flex;
+      align-items: center; justify-content: center; font-size: 10px;
+      flex-shrink: 0; transition: all var(--transition);
+    }
+    .chapter-check.done { background: var(--green); border-color: var(--green); color: #fff; }
+    .chapter-check.current { border-color: var(--accent); background: var(--accent-dim); }
+    .chapter-sections { display: none; }
+    .chapter-sections.open { display: block; }
+    .section-link {
+      display: flex; align-items: center; padding: 8px 20px 8px 48px;
+      font-size: 13px; color: var(--text-muted); cursor: pointer;
+      transition: all var(--transition); gap: 8px; position: relative;
+    }
+    .section-link:hover { color: var(--text-primary); background: var(--bg-hover); }
+    .section-link.active {
+      color: var(--accent-light); background: var(--accent-dim);
+    }
+    .section-link.active::before {
+      content: ''; position: absolute; left: 20px; top: 50%; transform: translateY(-50%);
+      width: 16px; height: 2px; background: var(--accent); border-radius: 1px;
+    }
+    .section-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--border-light); flex-shrink: 0;
+    }
+    .section-link.active .section-dot { background: var(--accent); }
+    .section-link.done .section-dot { background: var(--green); }
+
+    /* ===== MAIN CONTENT ===== */
+    .main-content {
+      overflow-y: auto; padding-top: 52px;
+      scroll-behavior: smooth;
+    }
+    .content-wrapper {
+      max-width: 820px; margin: 0 auto;
+      padding: 40px 48px 80px;
+    }
+
+    /* ===== CONTENT TYPOGRAPHY ===== */
+    .content-section { display: none; }
+    .content-section.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .section-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--accent-dim); color: var(--accent-light);
+      padding: 4px 12px; border-radius: 20px; font-size: 12px;
+      font-weight: 600; margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: 32px; font-weight: 800; line-height: 1.2;
+      margin-bottom: 8px; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .section-subtitle {
+      font-size: 16px; color: var(--text-muted); margin-bottom: 32px;
+      line-height: 1.6;
+    }
+    .content-block { margin-bottom: 28px; }
+    .content-block h3 {
+      font-size: 20px; font-weight: 700; margin-bottom: 12px;
+      color: var(--text-primary); display: flex; align-items: center; gap: 8px;
+    }
+    .content-block h3 .icon {
+      width: 28px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0;
+    }
+    .content-block p { margin-bottom: 16px; color: var(--text-secondary); }
+    .content-block strong { color: var(--text-primary); font-weight: 600; }
+    .content-block em { color: var(--accent-light); font-style: italic; }
+    .content-block ul, .content-block ol {
+      margin: 12px 0; padding-left: 24px;
+    }
+    .content-block li {
+      margin-bottom: 8px; color: var(--text-secondary);
+    }
+    .content-block li::marker { color: var(--accent); }
+
+    /* Callout boxes */
+    .callout {
+      border-radius: var(--radius); padding: 16px 20px;
+      margin: 20px 0; display: flex; gap: 12px;
+      font-size: 14px; line-height: 1.6;
+    }
+    .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+    .callout.info { background: var(--blue-dim); border: 1px solid rgba(96,165,250,0.2); }
+    .callout.info .callout-icon { color: var(--blue); }
+    .callout.tip { background: var(--green-dim); border: 1px solid rgba(52,211,153,0.2); }
+    .callout.tip .callout-icon { color: var(--green); }
+    .callout.warning { background: var(--amber-dim); border: 1px solid rgba(251,191,36,0.2); }
+    .callout.warning .callout-icon { color: var(--amber); }
+    .callout.definition { background: var(--accent-dim); border: 1px solid rgba(124,108,240,0.2); }
+    .callout.definition .callout-icon { color: var(--accent-light); }
+    .callout-content strong { color: var(--text-primary); }
+    .callout-content { color: var(--text-secondary); }
+
+    /* Code blocks */
+    .code-block {
+      background: #0d1017; border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; margin: 16px 0;
+    }
+    .code-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 16px; background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border); font-size: 12px;
+      color: var(--text-muted);
+    }
+    .code-header .lang { font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .code-copy {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 12px; padding: 2px 8px; border-radius: 4px;
+    }
+    .code-copy:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .code-body {
+      padding: 16px 20px; overflow-x: auto; font-family: var(--mono);
+      font-size: 13px; line-height: 1.7; color: #c9d1d9;
+    }
+    .code-body .kw { color: #ff7b72; }
+    .code-body .fn { color: #d2a8ff; }
+    .code-body .str { color: #a5d6ff; }
+    .code-body .cm { color: #8b949e; }
+    .code-body .num { color: #79c0ff; }
+    .code-body .type { color: #ffa657; }
+    .code-body .var { color: #ffa657; }
+
+    /* Inline annotation (AI-injected) */
+    .inline-annotation {
+      border-radius: var(--radius); padding: 14px 18px; margin: 16px 0;
+      display: flex; gap: 10px; font-size: 13.5px; line-height: 1.6;
+      animation: slideIn 0.4s ease; position: relative;
+    }
+    @keyframes slideIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+    .inline-annotation.note { background: var(--accent-dim); border-left: 3px solid var(--accent); }
+    .inline-annotation.tip { background: var(--green-dim); border-left: 3px solid var(--green); }
+    .inline-annotation.warning { background: var(--amber-dim); border-left: 3px solid var(--amber); }
+    .inline-annotation.question { background: var(--blue-dim); border-left: 3px solid var(--blue); }
+    .inline-annotation .ann-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; margin-bottom: 2px;
+    }
+    .inline-annotation.note .ann-label { color: var(--accent-light); }
+    .inline-annotation.tip .ann-label { color: var(--green); }
+    .inline-annotation.warning .ann-label { color: var(--amber); }
+    .inline-annotation.question .ann-label { color: var(--blue); }
+    .inline-annotation .ann-content { color: var(--text-secondary); }
+    .inline-annotation .ann-dismiss {
+      position: absolute; top: 8px; right: 8px; background: none; border: none;
+      color: var(--text-muted); cursor: pointer; font-size: 14px; line-height: 1;
+    }
+    .inline-annotation .ann-dismiss:hover { color: var(--text-primary); }
+
+    /* ===== INTERACTIVE GRAPH VIZ ===== */
+    .graph-container {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); overflow: hidden; margin: 20px 0;
+    }
+    .graph-toolbar {
+      display: flex; align-items: center; gap: 6px; padding: 10px 16px;
+      background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .graph-toolbar-title {
+      font-size: 12px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-right: 8px;
+    }
+    .graph-btn {
+      background: var(--bg-tertiary); border: 1px solid var(--border);
+      color: var(--text-secondary); border-radius: 6px; padding: 5px 12px;
+      font-size: 12px; cursor: pointer; transition: all var(--transition);
+      font-family: var(--font);
+    }
+    .graph-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .graph-btn.active { background: var(--accent-dim); color: var(--accent-light); border-color: var(--accent); }
+    .graph-btn.run { background: rgba(52,211,153,0.15); color: var(--green); border-color: rgba(52,211,153,0.3); }
+    .graph-btn.run:hover { background: rgba(52,211,153,0.25); }
+    .graph-btn.danger { background: var(--red-dim); color: var(--red); border-color: rgba(248,113,113,0.3); }
+    .graph-svg-wrap { position: relative; }
+    .graph-svg-wrap svg { display: block; width: 100%; cursor: crosshair; }
+    .graph-info {
+      padding: 10px 16px; border-top: 1px solid var(--border);
+      font-size: 12px; color: var(--text-muted); display: flex;
+      align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    .graph-info .info-item { display: flex; align-items: center; gap: 4px; }
+    .graph-info .info-label { color: var(--text-muted); }
+    .graph-info .info-value { color: var(--text-primary); font-weight: 600; font-family: var(--mono); font-size: 12px; }
+
+    /* SVG graph styling */
+    .gv-edge { stroke: var(--border-light); stroke-width: 2; transition: all 0.3s ease; }
+    .gv-edge.highlighted { stroke: var(--accent-light); stroke-width: 3; }
+    .gv-edge.visited { stroke: var(--green); stroke-width: 2.5; }
+    .gv-edge.current { stroke: var(--amber); stroke-width: 3; }
+    .gv-edge.path { stroke: var(--green); stroke-width: 3.5; stroke-dasharray: 8 4; }
+    .gv-weight {
+      font-family: var(--mono); font-size: 11px; fill: var(--amber);
+      text-anchor: middle; dominant-baseline: central;
+      paint-order: stroke; stroke: var(--bg-card); stroke-width: 4px;
+    }
+    .gv-node-circle {
+      fill: var(--bg-tertiary); stroke: var(--border-light); stroke-width: 2;
+      transition: all 0.3s ease; cursor: pointer;
+    }
+    .gv-node-circle:hover { stroke: var(--accent-light); }
+    .gv-node-circle.highlighted { fill: var(--accent-dim); stroke: var(--accent-light); stroke-width: 2.5; }
+    .gv-node-circle.visited { fill: var(--green-dim); stroke: var(--green); stroke-width: 2.5; }
+    .gv-node-circle.current { fill: var(--amber-dim); stroke: var(--amber); stroke-width: 3; }
+    .gv-node-circle.start { fill: rgba(52,211,153,0.25); stroke: var(--green); stroke-width: 2.5; }
+    .gv-node-circle.path { fill: rgba(52,211,153,0.3); stroke: var(--green); stroke-width: 3; }
+    .gv-node-label {
+      font-family: var(--font); font-size: 13px; font-weight: 600;
+      fill: var(--text-primary); text-anchor: middle; dominant-baseline: central;
+      pointer-events: none;
+    }
+    .gv-dist-label {
+      font-family: var(--mono); font-size: 10px; fill: var(--green);
+      text-anchor: middle; dominant-baseline: central;
+    }
+
+    /* Algorithm log */
+    .algo-log {
+      padding: 10px 16px; border-top: 1px solid var(--border);
+      font-family: var(--mono); font-size: 12px; color: var(--text-muted);
+      max-height: 120px; overflow-y: auto; line-height: 1.8;
+    }
+    .algo-log .log-entry { display: flex; gap: 8px; }
+    .algo-log .log-step { color: var(--accent-light); min-width: 48px; }
+    .algo-log .log-msg { color: var(--text-secondary); }
+
+    /* ===== QUIZ ===== */
+    .quiz-container {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); overflow: hidden; margin: 24px 0;
+    }
+    .quiz-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .quiz-header h4 {
+      font-size: 14px; font-weight: 600; color: var(--text-primary);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .quiz-score {
+      margin-left: auto; font-size: 12px; color: var(--text-muted);
+      font-family: var(--mono);
+    }
+    .quiz-body { padding: 20px; }
+    .quiz-question {
+      font-size: 15px; color: var(--text-primary); margin-bottom: 16px;
+      font-weight: 500; line-height: 1.6;
+    }
+    .quiz-options { display: flex; flex-direction: column; gap: 8px; }
+    .quiz-option {
+      display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+      background: var(--bg-tertiary); border: 1px solid var(--border);
+      border-radius: var(--radius); cursor: pointer; transition: all var(--transition);
+      font-size: 14px; color: var(--text-secondary);
+    }
+    .quiz-option:hover { border-color: var(--accent); background: var(--accent-dim); color: var(--text-primary); }
+    .quiz-option.selected { border-color: var(--accent); background: var(--accent-dim); color: var(--text-primary); }
+    .quiz-option.correct { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+    .quiz-option.wrong { border-color: var(--red); background: var(--red-dim); color: var(--red); }
+    .quiz-option-letter {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--bg-hover); display: flex; align-items: center;
+      justify-content: center; font-size: 12px; font-weight: 700;
+      flex-shrink: 0; transition: all var(--transition);
+    }
+    .quiz-option.selected .quiz-option-letter { background: var(--accent); color: #fff; }
+    .quiz-option.correct .quiz-option-letter { background: var(--green); color: #fff; }
+    .quiz-option.wrong .quiz-option-letter { background: var(--red); color: #fff; }
+    .quiz-explanation {
+      margin-top: 12px; padding: 12px 16px; border-radius: var(--radius);
+      background: var(--blue-dim); border: 1px solid rgba(96,165,250,0.2);
+      font-size: 13px; color: var(--text-secondary); display: none;
+    }
+    .quiz-explanation.show { display: block; animation: fadeIn 0.3s ease; }
+    .quiz-actions { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+    .quiz-btn {
+      padding: 8px 20px; border-radius: 8px; font-size: 13px;
+      font-weight: 600; cursor: pointer; transition: all var(--transition);
+      font-family: var(--font); border: 1px solid;
+    }
+    .quiz-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .quiz-btn.primary:hover { background: var(--accent-light); }
+    .quiz-btn.secondary { background: var(--bg-tertiary); color: var(--text-secondary); border-color: var(--border); }
+    .quiz-btn.secondary:hover { color: var(--text-primary); }
+    .quiz-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ===== HIGHLIGHT TOOLBAR ===== */
+    .hl-toolbar {
+      position: fixed; z-index: 1000; display: none;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 4px; box-shadow: var(--shadow);
+      transform: translateX(-50%);
+    }
+    .hl-toolbar.visible { display: flex; gap: 2px; animation: popIn 0.2s ease; }
+    @keyframes popIn { from { opacity:0; transform: translateX(-50%) scale(0.9); } to { opacity:1; transform: translateX(-50%) scale(1); } }
+    .hl-btn {
+      display: flex; align-items: center; gap: 6px; padding: 8px 14px;
+      background: none; border: none; border-radius: 7px;
+      color: var(--text-secondary); cursor: pointer; font-size: 12.5px;
+      font-family: var(--font); font-weight: 500; transition: all var(--transition);
+      white-space: nowrap;
+    }
+    .hl-btn:hover { background: var(--accent-dim); color: var(--accent-light); }
+    .hl-btn svg { width: 16px; height: 16px; }
+    .hl-divider { width: 1px; background: var(--border); margin: 4px 2px; }
+
+    /* Persistent highlights */
+    .user-highlight {
+      background: rgba(124,108,240,0.2); border-radius: 2px;
+      padding: 1px 0; cursor: pointer;
+    }
+    .user-highlight:hover { background: rgba(124,108,240,0.35); }
+
+    /* ===== CHAT PANEL ===== */
+    .chat-panel {
+      background: var(--bg-secondary); border-left: 1px solid var(--border);
+      display: flex; flex-direction: column; height: 100vh; padding-top: 52px;
+    }
+    .chat-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .chat-header h3 { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .chat-header .chat-close {
+      margin-left: auto; background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 18px; line-height: 1;
+    }
+    .chat-header .chat-close:hover { color: var(--text-primary); }
+    .chat-context {
+      padding: 8px 20px; background: var(--accent-dim);
+      border-bottom: 1px solid rgba(124,108,240,0.15);
+      font-size: 12px; color: var(--accent-light); display: none;
+    }
+    .chat-context.visible { display: flex; align-items: center; gap: 8px; }
+    .chat-context-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-context-dismiss { background: none; border: none; color: var(--accent-light); cursor: pointer; font-size: 14px; }
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 16px 20px; display: flex;
+      flex-direction: column; gap: 16px;
+    }
+    .chat-msg {
+      display: flex; gap: 10px; font-size: 14px; line-height: 1.6;
+      animation: fadeIn 0.3s ease;
+    }
+    .chat-msg.user { flex-direction: row-reverse; }
+    .chat-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; flex-shrink: 0; font-weight: 700;
+    }
+    .chat-msg.assistant .chat-avatar { background: var(--accent-dim); color: var(--accent-light); }
+    .chat-msg.user .chat-avatar { background: var(--green-dim); color: var(--green); }
+    .chat-bubble {
+      max-width: 85%; padding: 12px 16px; border-radius: 14px;
+    }
+    .chat-msg.assistant .chat-bubble {
+      background: var(--bg-tertiary); color: var(--text-secondary);
+      border-bottom-left-radius: 4px;
+    }
+    .chat-msg.user .chat-bubble {
+      background: var(--accent-dim); color: var(--accent-light);
+      border-bottom-right-radius: 4px;
+    }
+    .chat-bubble p { margin-bottom: 8px; }
+    .chat-bubble p:last-child { margin-bottom: 0; }
+    .chat-bubble code {
+      background: rgba(255,255,255,0.06); padding: 2px 6px;
+      border-radius: 4px; font-family: var(--mono); font-size: 12.5px;
+    }
+    .chat-bubble pre {
+      background: #0d1017; padding: 12px; border-radius: 8px;
+      overflow-x: auto; margin: 8px 0; font-family: var(--mono);
+      font-size: 12px; line-height: 1.6;
+    }
+    .chat-typing {
+      display: flex; gap: 4px; padding: 8px 0;
+    }
+    .chat-typing span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--text-muted); animation: typing 1.2s infinite;
+    }
+    .chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+    .chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing { 0%,60%,100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
+
+    .chat-input-area {
+      padding: 16px 20px; border-top: 1px solid var(--border);
+    }
+    .chat-input-wrap {
+      display: flex; align-items: flex-end; gap: 8px;
+      background: var(--bg-tertiary); border: 1px solid var(--border);
+      border-radius: 12px; padding: 8px 12px;
+      transition: border-color var(--transition);
+    }
+    .chat-input-wrap:focus-within { border-color: var(--accent); }
+    .chat-input {
+      flex: 1; background: none; border: none; color: var(--text-primary);
+      font-family: var(--font); font-size: 14px; resize: none;
+      max-height: 120px; min-height: 24px; line-height: 1.5;
+      outline: none;
+    }
+    .chat-input::placeholder { color: var(--text-muted); }
+    .chat-send {
+      width: 34px; height: 34px; border-radius: 8px;
+      background: var(--accent); border: none; color: #fff;
+      cursor: pointer; display: flex; align-items: center;
+      justify-content: center; transition: all var(--transition);
+      flex-shrink: 0;
+    }
+    .chat-send:hover { background: var(--accent-light); }
+    .chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ===== SETTINGS MODAL ===== */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 2000;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); width: 480px; max-width: 90vw;
+      box-shadow: var(--shadow);
+    }
+    .modal-header {
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-header h3 { font-size: 16px; font-weight: 700; }
+    .modal-close {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 20px;
+    }
+    .modal-close:hover { color: var(--text-primary); }
+    .modal-body { padding: 24px; }
+    .form-group { margin-bottom: 20px; }
+    .form-group:last-child { margin-bottom: 0; }
+    .form-label {
+      display: block; font-size: 13px; font-weight: 600;
+      color: var(--text-secondary); margin-bottom: 6px;
+    }
+    .form-input, .form-select {
+      width: 100%; padding: 10px 14px; background: var(--bg-tertiary);
+      border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-primary); font-family: var(--font); font-size: 14px;
+      outline: none; transition: border-color var(--transition);
+    }
+    .form-input:focus, .form-select:focus { border-color: var(--accent); }
+    .form-select { cursor: pointer; }
+    .form-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .modal-footer {
+      padding: 16px 24px; border-top: 1px solid var(--border);
+      display: flex; justify-content: flex-end; gap: 8px;
+    }
+
+    /* ===== WELCOME STATE ===== */
+    .welcome-notice {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; background: var(--amber-dim);
+      border: 1px solid rgba(251,191,36,0.2); border-radius: var(--radius);
+      font-size: 13px; color: var(--amber); margin-bottom: 24px;
+    }
+    .welcome-notice a { color: var(--amber); font-weight: 600; cursor: pointer; }
+    .welcome-notice a:hover { text-decoration: underline; }
+
+    /* ===== EMPTY CHAT STATE ===== */
+    .chat-empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 32px;
+    }
+    .chat-empty-icon { font-size: 40px; margin-bottom: 16px; opacity: 0.5; }
+    .chat-empty h4 { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+    .chat-empty p { font-size: 13px; color: var(--text-muted); max-width: 280px; line-height: 1.6; }
+
+    /* ===== NAVIGATION FOOTER ===== */
+    .section-nav {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border);
+    }
+    .section-nav-btn {
+      display: flex; align-items: center; gap: 8px; padding: 10px 18px;
+      background: var(--bg-tertiary); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text-secondary);
+      cursor: pointer; font-size: 13px; font-weight: 500;
+      font-family: var(--font); transition: all var(--transition);
+    }
+    .section-nav-btn:hover { border-color: var(--accent); color: var(--accent-light); background: var(--accent-dim); }
+    .section-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .section-nav-btn:disabled:hover { border-color: var(--border); color: var(--text-secondary); background: var(--bg-tertiary); }
+
+    /* ===== TABLE ===== */
+    .data-table {
+      width: 100%; border-collapse: collapse; margin: 16px 0;
+      font-size: 13px;
+    }
+    .data-table th {
+      text-align: left; padding: 10px 14px; background: var(--bg-tertiary);
+      border: 1px solid var(--border); color: var(--text-primary);
+      font-weight: 600; font-size: 12px;
+    }
+    .data-table td {
+      padding: 10px 14px; border: 1px solid var(--border);
+      color: var(--text-secondary); font-family: var(--mono);
+    }
+    .data-table tr:hover td { background: var(--bg-hover); }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .app.chat-open { grid-template-columns: 1fr var(--chat-w); }
+    }
+    @media (max-width: 768px) {
+      .app.chat-open { grid-template-columns: 1fr; }
+      .chat-panel { position: fixed; right: 0; top: 0; bottom: 0; width: 100%; z-index: 1500; }
+      .content-wrapper { padding: 24px 20px 60px; }
+      .section-title { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-logo">
+      <svg viewBox="0 0 28 28" fill="none">
+        <circle cx="7" cy="7" r="3.5" fill="#7c6cf0"/>
+        <circle cx="21" cy="7" r="3.5" fill="#9d91f5"/>
+        <circle cx="14" cy="21" r="3.5" fill="#34d399"/>
+        <line x1="7" y1="7" x2="21" y2="7" stroke="#7c6cf0" stroke-width="2" stroke-linecap="round"/>
+        <line x1="7" y1="7" x2="14" y2="21" stroke="#7c6cf0" stroke-width="2" stroke-linecap="round"/>
+        <line x1="21" y1="7" x2="14" y2="21" stroke="#9d91f5" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>LearnGraph</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="topbar-btn" id="toggleSidebar" title="Toggle sidebar">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><line x1="5.5" y1="2" x2="5.5" y2="14" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="topbar-btn" id="toggleChat" title="Toggle chat">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4a2 2 0 012-2h8a2 2 0 012 2v5a2 2 0 01-2 2H6l-3 3V4z" stroke="currentColor" stroke-width="1.5"/></svg>
+        Chat
+      </button>
+      <button class="topbar-btn" id="openSettings" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="progress-bar-top" id="topProgress" style="width: 0%"></div>
+  </div>
+
+  <!-- HIGHLIGHT TOOLBAR -->
+  <div class="hl-toolbar" id="hlToolbar">
+    <button class="hl-btn" id="hlAsk">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5a5 5 0 014.33 7.5L8 14.5 3.67 9A5 5 0 018 1.5z" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="6.5" r="1.5" fill="currentColor"/></svg>
+      Ask AI
+    </button>
+    <div class="hl-divider"></div>
+    <button class="hl-btn" id="hlNote">
+      <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><line x1="5" y1="5" x2="11" y2="5" stroke="currentColor" stroke-width="1.5"/><line x1="5" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1.5"/><line x1="5" y1="11" x2="8" y2="11" stroke="currentColor" stroke-width="1.5"/></svg>
+      Note
+    </button>
+    <div class="hl-divider"></div>
+    <button class="hl-btn" id="hlHighlight">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M3.5 12.5L2 14l.5-3.5L11.5 2l2 2L3.5 12.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      Highlight
+    </button>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>⚙️ Settings</h3>
+        <button class="modal-close" id="closeSettings">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">OpenAI API Key</label>
+          <input type="password" class="form-input" id="apiKeyInput" placeholder="sk-...">
+          <div class="form-hint">Your key is stored locally and sent directly to OpenAI. Never stored on any server.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Model</label>
+          <select class="form-select" id="modelSelect">
+            <option value="gpt-4o">GPT-4o (Recommended)</option>
+            <option value="gpt-4o-mini">GPT-4o Mini (Faster)</option>
+            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="quiz-btn secondary" id="resetProgress">Reset Progress</button>
+        <button class="quiz-btn primary" id="saveSettings">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP SHELL -->
+  <div class="app" id="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h2>Course</h2>
+        <div class="sidebar-course-title">
+          <span>📐</span> Graph Theory
+        </div>
+        <div class="sidebar-progress">
+          <div class="sidebar-progress-bar">
+            <div class="sidebar-progress-fill" id="sidebarProgressFill" style="width:0%"></div>
+          </div>
+          <div class="sidebar-progress-text" id="sidebarProgressText">0% complete</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav" id="sidebarNav">
+        <!-- Generated by JS -->
+      </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content" id="mainContent">
+      <div class="content-wrapper" id="contentWrapper">
+        <!-- Sections generated by JS -->
+      </div>
+    </main>
+
+    <!-- CHAT PANEL -->
+    <aside class="chat-panel" id="chatPanel">
+      <div class="chat-header">
+        <span style="font-size:18px">🤖</span>
+        <h3>AI Tutor</h3>
+        <button class="chat-close" id="chatClose">&times;</button>
+      </div>
+      <div class="chat-context" id="chatContext">
+        <span>📌</span>
+        <span class="chat-context-text" id="chatContextText"></span>
+        <button class="chat-context-dismiss" id="chatContextDismiss">&times;</button>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-empty" id="chatEmpty">
+          <div class="chat-empty-icon">💬</div>
+          <h4>Ask me anything</h4>
+          <p>Highlight text in the lesson and click "Ask AI", or type a question below.</p>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <div class="chat-input-wrap">
+          <textarea class="chat-input" id="chatInput" rows="1" placeholder="Ask about graph theory..."></textarea>
+          <button class="chat-send" id="chatSend">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-5-5 12-2-5-5-2z" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+<script>
+// ============================================================
+//  COURSE DATA — Graph Theory
+// ============================================================
+const COURSE = {
+  id: 'graph-theory',
+  title: 'Graph Theory',
+  icon: '📐',
+  chapters: [
+    {
+      id: 'ch1',
+      title: 'Foundations',
+      sections: [
+        {
+          id: 's1-1',
+          title: 'What is a Graph?',
+          badge: 'Chapter 1',
+          content: `
+            <p>A <strong>graph</strong> <em>G = (V, E)</em> is a mathematical structure consisting of a set of <strong>vertices</strong> (also called nodes) <em>V</em>, and a set of <strong>edges</strong> <em>E</em>, where each edge connects a pair of vertices.</p>
+            <p>Graphs are everywhere. They model social networks (people and friendships), road maps (intersections and roads), the internet (routers and cables), molecule structures, and much more.</p>
+
+            <div class="callout definition">
+              <span class="callout-icon">📖</span>
+              <div class="callout-content">
+                <strong>Formal Definition:</strong> A graph <em>G = (V, E)</em> where <em>V</em> is a finite set of vertices and <em>E ⊆ V × V</em> is a set of edges. Each edge <em>e = (u, v)</em> connects vertices <em>u</em> and <em>v</em>.
+              </div>
+            </div>
+
+            <h3><span class="icon" style="background:var(--accent-dim);color:var(--accent-light)">✏️</span> Try it: Create a Graph</h3>
+            <p>Click on the canvas below to add nodes. Drag between nodes to create edges. Right-click a node to remove it.</p>
+            <div id="graph-playground-1" class="graph-container" data-graph='{"interactive":true}'></div>
+
+            <h3><span class="icon" style="background:var(--green-dim);color:var(--green)">🔑</span> Key Terminology</h3>
+            <ul>
+              <li><strong>Vertex (Node):</strong> A fundamental unit of a graph. Represents an entity.</li>
+              <li><strong>Edge (Link):</strong> A connection between two vertices.</li>
+              <li><strong>Adjacent vertices:</strong> Two vertices connected by an edge.</li>
+              <li><strong>Degree of a vertex:</strong> The number of edges incident to it.</li>
+              <li><strong>Loop:</strong> An edge that connects a vertex to itself.</li>
+              <li><strong>Multiple edges:</strong> More than one edge between the same pair of vertices.</li>
+            </ul>
+
+            <div class="callout tip">
+              <span class="callout-icon">💡</span>
+              <div class="callout-content">
+                <strong>Handshaking Lemma:</strong> The sum of all vertex degrees in a graph equals <em>2|E|</em> (twice the number of edges). This is because each edge contributes to the degree of two vertices.
+              </div>
+            </div>
+          `,
+          quiz: {
+            questions: [
+              {
+                q: 'In a graph G = (V, E), what does E represent?',
+                opts: ['The set of vertices', 'The set of edges', 'The number of vertices', 'The degree of vertices'],
+                correct: 1,
+                explanation: 'E represents the set of edges. Each edge is a pair of vertices that are connected.'
+              },
+              {
+                q: 'If a graph has 5 vertices with degrees 2, 3, 3, 4, 2, how many edges does it have?',
+                opts: ['5', '6', '7', '14'],
+                correct: 2,
+                explanation: 'By the Handshaking Lemma: sum of degrees = 2 + 3 + 3 + 4 + 2 = 14, so |E| = 14 / 2 = 7 edges.'
+              }
+            ]
+          }
+        },
+        {
+          id: 's1-2',
+          title: 'Types of Graphs',
+          badge: 'Chapter 1',
+          content: `
+            <p>Not all graphs are created equal. Different properties give rise to different <strong>types of graphs</strong>, each suited for modeling different real-world scenarios.</p>
+
+            <h3><span class="icon" style="background:var(--accent-dim);color:var(--accent-light)">↔️</span> Directed vs Undirected</h3>
+            <p>In an <strong>undirected graph</strong>, edges have no direction — the edge (u, v) is the same as (v, u). In a <strong>directed graph</strong> (digraph), edges have direction — (u, v) means "from u to v".</p>
+
+            <div id="graph-directed-vs-undirected" class="graph-container" data-graph='{"preset":"directed-demo"}'></div>
+
+            <h3><span class="icon" style="background:var(--amber-dim);color:var(--amber)">⚖️</span> Weighted vs Unweighted</h3>
+            <p>A <strong>weighted graph</strong> assigns a numerical value (weight) to each edge, representing distance, cost, capacity, etc. <strong>Unweighted graphs</strong> treat all edges equally.</p>
+
+            <div id="graph-weighted" class="graph-container" data-graph='{"preset":"weighted-demo"}'></div>
+
+            <h3><span class="icon" style="background:var(--green-dim);color:var(--green)">🔗</span> Special Graph Types</h3>
+            <ul>
+              <li><strong>Complete graph (K<sub>n</sub>):</strong> Every vertex is connected to every other. Has n(n−1)/2 edges.</li>
+              <li><strong>Bipartite graph:</strong> Vertices can be split into two groups where edges only go between groups.</li>
+              <li><strong>Tree:</strong> A connected graph with no cycles. Has exactly n−1 edges.</li>
+              <li><strong>Planar graph:</strong> Can be drawn on a plane with no crossing edges.</li>
+              <li><strong>Multigraph:</strong> May have multiple edges between the same pair of vertices.</li>
+            </ul>
+
+            <div class="callout info">
+              <span class="callout-icon">ℹ️</span>
+              <div class="callout-content">
+                <strong>Did you know?</strong> A complete graph K<sub>5</sub> (5 vertices, all connected) is NOT planar. This was proven by Kuratowski's theorem — a graph is planar if and only if it does not contain a subdivision of K<sub>5</sub> or K<sub>3,3</sub>.
+              </div>
+            </div>
+          `,
+          quiz: {
+            questions: [
+              {
+                q: 'How many edges does a complete graph K₄ have?',
+                opts: ['4', '6', '8', '12'],
+                correct: 1,
+                explanation: 'K₄ has 4 vertices, each connected to all others: n(n−1)/2 = 4×3/2 = 6 edges.'
+              },
+              {
+                q: 'Which type of graph can represent one-way streets?',
+                opts: ['Undirected graph', 'Weighted graph', 'Directed graph', 'Complete graph'],
+                correct: 2,
+                explanation: 'Directed graphs (digraphs) have edges with direction, perfect for modeling one-way streets.'
+              }
+            ]
+          }
+        },
+        {
+          id: 's1-3',
+          title: 'Graph Representation',
+          badge: 'Chapter 1',
+          content: `
+            <p>To work with graphs in code, we need efficient ways to <strong>represent</strong> them. The three most common representations are:</p>
+
+            <h3><span class="icon" style="background:var(--accent-dim);color:var(--accent-light)">📋</span> Adjacency Matrix</h3>
+            <p>A 2D array where <em>A[i][j] = 1</em> if there is an edge from vertex <em>i</em> to vertex <em>j</em>, and <em>0</em> otherwise. For weighted graphs, store the weight instead of 1.</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="lang">Python</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body"><span class="cm"># Adjacency matrix for a graph with 4 vertices</span>
+<span class="cm">#   A — B</span>
+<span class="cm">#   |   |</span>
+<span class="cm">#   C — D</span>
+
+matrix = [
+    [<span class="num">0</span>, <span class="num">1</span>, <span class="num">1</span>, <span class="num">0</span>],  <span class="cm"># A connects to B, C</span>
+    [<span class="num">1</span>, <span class="num">0</span>, <span class="num">0</span>, <span class="num">1</span>],  <span class="cm"># B connects to A, D</span>
+    [<span class="num">1</span>, <span class="num">0</span>, <span class="num">0</span>, <span class="num">1</span>],  <span class="cm"># C connects to A, D</span>
+    [<span class="num">0</span>, <span class="num">1</span>, <span class="num">1</span>, <span class="num">0</span>],  <span class="cm"># D connects to B, C</span>
+]</div>
+            </div>
+
+            <div class="callout tip">
+              <span class="callout-icon">⏱️</span>
+              <div class="callout-content">
+                <strong>Complexity:</strong> Space O(V²). Check if edge exists: O(1). Find all neighbors: O(V). Best for <em>dense graphs</em>.
+              </div>
+            </div>
+
+            <h3><span class="icon" style="background:var(--green-dim);color:var(--green)">📝</span> Adjacency List</h3>
+            <p>An array (or dictionary) of lists, where each entry stores the neighbors of a vertex. This is the most commonly used representation.</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="lang">Python</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body"><span class="cm"># Adjacency list</span>
+graph = {
+    <span class="str">'A'</span>: [<span class="str">'B'</span>, <span class="str">'C'</span>],
+    <span class="str">'B'</span>: [<span class="str">'A'</span>, <span class="str">'D'</span>],
+    <span class="str">'C'</span>: [<span class="str">'A'</span>, <span class="str">'D'</span>],
+    <span class="str">'D'</span>: [<span class="str">'B'</span>, <span class="str">'C'</span>],
+}</div>
+            </div>
+
+            <div class="callout tip">
+              <span class="callout-icon">⏱️</span>
+              <div class="callout-content">
+                <strong>Complexity:</strong> Space O(V + E). Check if edge exists: O(degree). Find all neighbors: O(degree). Best for <em>sparse graphs</em>.
+              </div>
+            </div>
+
+            <h3><span class="icon" style="background:var(--amber-dim);color:var(--amber)">📊</span> Comparison</h3>
+            <table class="data-table">
+              <thead><tr><th>Operation</th><th>Adj. Matrix</th><th>Adj. List</th></tr></thead>
+              <tbody>
+                <tr><td>Space</td><td>O(V²)</td><td>O(V + E)</td></tr>
+                <tr><td>Check edge (u,v)</td><td>O(1)</td><td>O(deg(u))</td></tr>
+                <tr><td>Add vertex</td><td>O(V²)</td><td>O(1)</td></tr>
+                <tr><td>Add edge</td><td>O(1)</td><td>O(1)</td></tr>
+                <tr><td>List neighbors</td><td>O(V)</td><td>O(deg(v))</td></tr>
+              </tbody>
+            </table>
+
+            <div class="callout info">
+              <span class="callout-icon">💡</span>
+              <div class="callout-content">
+                <strong>Rule of thumb:</strong> Use adjacency list for most algorithms (BFS, DFS, Dijkstra's). Use adjacency matrix when you need fast edge lookups or the graph is very dense (close to V² edges).
+              </div>
+            </div>
+          `,
+          quiz: {
+            questions: [
+              {
+                q: 'What is the space complexity of an adjacency list?',
+                opts: ['O(V)', 'O(V²)', 'O(V + E)', 'O(E²)'],
+                correct: 2,
+                explanation: 'An adjacency list stores each vertex once (O(V)) and each edge once in its endpoint lists (O(E)), giving O(V + E) total.'
+              },
+              {
+                q: 'Which representation checks if edge (u,v) exists in O(1) time?',
+                opts: ['Adjacency list', 'Adjacency matrix', 'Edge list', 'Both list and matrix'],
+                correct: 1,
+                explanation: 'The adjacency matrix allows direct lookup: just check A[u][v] in constant time.'
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      id: 'ch2',
+      title: 'Traversal',
+      sections: [
+        {
+          id: 's2-1',
+          title: 'Breadth-First Search (BFS)',
+          badge: 'Chapter 2',
+          content: `
+            <p><strong>Breadth-First Search</strong> explores a graph level by level. Starting from a source vertex, it visits all neighbors first, then their neighbors, and so on. Think of it as a ripple expanding outward in a pond.</p>
+
+            <div class="callout definition">
+              <span class="callout-icon">📖</span>
+              <div class="callout-content">
+                <strong>BFS Algorithm:</strong> Uses a <strong>queue</strong> (FIFO). Mark the start node as visited and enqueue it. While the queue is not empty: dequeue a node, visit it, and enqueue all unvisited neighbors.
+              </div>
+            </div>
+
+            <h3><span class="icon" style="background:var(--accent-dim);color:var(--accent-light)">▶️</span> Interactive BFS Visualization</h3>
+            <p>Click a node to set the start, then click "Run BFS" to watch the traversal unfold step by step.</p>
+            <div id="graph-bfs" class="graph-container" data-graph='{"preset":"bfs-demo"}'></div>
+
+            <h3><span class="icon" style="background:var(--green-dim);color:var(--green)">💻</span> Implementation</h3>
+            <div class="code-block">
+              <div class="code-header"><span class="lang">Python</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body"><span class="kw">from</span> collections <span class="kw">import</span> deque
+
+<span class="kw">def</span> <span class="fn">bfs</span>(graph, start):
+    <span class="str">"""Breadth-First Search returning visit order."""</span>
+    visited = {start}
+    queue = deque([start])
+    order = []
+
+    <span class="kw">while</span> queue:
+        node = queue.popleft()
+        order.append(node)
+
+        <span class="kw">for</span> neighbor <span class="kw">in</span> graph[node]:
+            <span class="kw">if</span> neighbor <span class="kw">not in</span> visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+
+    <span class="kw">return</span> order</div>
+            </div>
+
+            <div class="callout tip">
+              <span class="callout-icon">⏱️</span>
+              <div class="callout-content">
+                <strong>Complexity:</strong> Time O(V + E) — each vertex and edge is processed once. Space O(V) for the visited set and queue.
+              </div>
+            </div>
+
+            <h3><span class="icon" style="background:var(--amber-dim);color:var(--amber)">🎯</span> When to Use BFS</h3>
+            <ul>
+              <li><strong>Shortest path in unweighted graphs</strong> — BFS finds the path with the fewest edges.</li>
+              <li><strong>Level-order traversal</strong> — Process nodes by distance from source.</li>
+              <li><strong>Connected components</strong> — Run BFS from each unvisited node.</li>
+              <li><strong>Bipartiteness checking</strong> — Color nodes as you BFS; if a conflict arises, it's not bipartite.</li>
+            </ul>
+          `,
+          quiz: {
+            questions: [
+              {
+                q: 'What data structure does BFS use internally?',
+                opts: ['Stack', 'Queue', 'Priority Queue', 'Hash Map'],
+                correct: 1,
+                explanation: 'BFS uses a queue (FIFO — first in, first out) to ensure nodes are visited in order of their distance from the start.'
+              },
+              {
+                q: 'What is the time complexity of BFS?',
+                opts: ['O(V)', 'O(E)', 'O(V + E)', 'O(V × E)'],
+                correct: 2,
+                explanation: 'BFS visits every vertex once (O(V)) and examines every edge once (O(E)), giving O(V + E) total.'
+              }
+            ]
+          }
+        },
+        {
+          id: 's2-2',
+          title: 'Depth-First Search (DFS)',
+          badge: 'Chapter 2',
+          content: `
+            <p><strong>Depth-First Search</strong> plunges as deep as possible along each branch before backtracking. Imagine exploring a maze by always taking the leftmost path until you hit a dead end, then going back to the last junction.</p>
+
+            <div class="callout definition">
+              <span class="callout-icon">📖</span>
+              <div class="callout-content">
+                <strong>DFS Algorithm:</strong> Uses a <strong>stack</strong> (LIFO) — or recursion (which uses the call stack). Start at a node, mark it visited, then recursively visit each unvisited neighbor.
+              </div>
+            </div>
+
+            <h3><span class="icon" style="background:var(--accent-dim);color:var(--accent-light)">▶️</span> Interactive DFS Visualization</h3>
+            <p>Click a node to set the start, then click "Run DFS" to watch the depth-first traversal.</p>
+            <div id="graph-dfs" class="graph-container" data-graph='{"preset":"dfs-demo"}'></div>
+
+            <h3><span class="icon" style="background:var(--green-dim);color:var(--green)">💻</span> Implementation</h3>
+            <div class="code-block">
+              <div class="code-header"><span class="lang">Python</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body"><span class="kw">def</span> <span class="fn">dfs</span>(graph, start, visited=<span class="kw">None</span>):
+    <span class="str">"""Depth-First Search returning visit order."""</span>
+    <span class="kw">if</span> visited <span class="kw">is None</span>:
+        visited = <span class="fn">set</span>()
+    
+    visited.add(start)
+    order = [start]
+
+    <span class="kw">for</span> neighbor <span class="kw">in</span> graph[start]:
+        <span class="kw">if</span> neighbor <span class="kw">not in</span> visited:
+            order.extend(<span class="fn">dfs</span>(graph, neighbor, visited))
+
+    <span class="kw">return</span> order</div>
+            </div>
+
+            <div class="callout info">
+              <span class="callout-icon">🔄</span>
+              <div class="callout-content">
+                <strong>BFS vs DFS:</strong> BFS explores broadly (level by level), while DFS explores deeply (branch by branch). BFS finds shortest paths in unweighted graphs. DFS is better for topological sorting, cycle detection, and finding connected components.
+              </div>
+            </div>
+
+            <h3><span class="icon" style="background:var(--amber-dim);color:var(--amber)">🎯</span> When to Use DFS</h3>
+            <ul>
+              <li><strong>Cycle detection</strong> — If you revisit a node on the current path, there's a cycle.</li>
+              <li><strong>Topological sorting</strong> — Order tasks by dependencies (DAGs only).</li>
+              <li><strong>Finding connected components</strong> — Run DFS from each unvisited node.</li>
+              <li><strong>Maze solving</strong> — Naturally follows paths to dead ends and backtracks.</li>
+              <li><strong>Path finding</strong> — Find ANY path (not necessarily shortest) between two nodes.</li>
+            </ul>
+          `,
+          quiz: {
+            questions: [
+              {
+                q: 'DFS naturally uses which data structure (or its recursive equivalent)?',
+                opts: ['Queue', 'Stack', 'Heap', 'Array'],
+                correct: 1,
+                explanation: 'DFS uses a stack (LIFO — last in, first out). Recursive DFS uses the call stack automatically.'
+              },
+              {
+                q: 'Which algorithm is better for finding the shortest path in an unweighted graph?',
+                opts: ['DFS', 'BFS', 'Both are equal', 'Neither'],
+                correct: 1,
+                explanation: 'BFS guarantees the shortest path (fewest edges) in unweighted graphs because it explores level by level.'
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      id: 'ch3',
+      title: 'Shortest Paths',
+      sections: [
+        {
+          id: 's3-1',
+          title: "Dijkstra's Algorithm",
+          badge: 'Chapter 3',
+          content: `
+            <p><strong>Dijkstra's algorithm</strong> finds the shortest path from a source vertex to all other vertices in a graph with <strong>non-negative edge weights</strong>. It's the foundation of GPS navigation systems.</p>
+
+            <div class="callout definition">
+              <span class="callout-icon">📖</span>
+              <div class="callout-content">
+                <strong>Algorithm:</strong> Initialize distances to all vertices as ∞, except source = 0. Use a priority queue. Repeatedly extract the vertex with minimum distance, then "relax" all its edges — update neighbor distances if a shorter path is found.
+              </div>
+            </div>
+
+            <h3><span class="icon" style="background:var(--accent-dim);color:var(--accent-light)">▶️</span> Interactive Dijkstra's</h3>
+            <p>Click a node to set the start, then click "Run Dijkstra's" to watch the algorithm find shortest paths.</p>
+            <div id="graph-dijkstra" class="graph-container" data-graph='{"preset":"dijkstra-demo"}'></div>
+
+            <h3><span class="icon" style="background:var(--green-dim);color:var(--green)">💻</span> Implementation</h3>
+            <div class="code-block">
+              <div class="code-header"><span class="lang">Python</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body"><span class="kw">import</span> heapq
+
+<span class="kw">def</span> <span class="fn">dijkstra</span>(graph, start):
+    <span class="str">"""Dijkstra's shortest path algorithm."""</span>
+    dist = {node: <span class="kw">float</span>(<span class="str">'inf'</span>) <span class="kw">for</span> node <span class="kw">in</span> graph}
+    dist[start] = <span class="num">0</span>
+    prev = {node: <span class="kw">None</span> <span class="kw">for</span> node <span class="kw">in</span> graph}
+    pq = [(<span class="num">0</span>, start)]  <span class="cm"># (distance, node)</span>
+
+    <span class="kw">while</span> pq:
+        d, node = heapq.heappop(pq)
+
+        <span class="kw">if</span> d > dist[node]:
+            <span class="kw">continue</span>  <span class="cm"># Skip outdated entries</span>
+
+        <span class="kw">for</span> neighbor, weight <span class="kw">in</span> graph[node]:
+            new_dist = d + weight
+            <span class="kw">if</span> new_dist < dist[neighbor]:
+                dist[neighbor] = new_dist
+                prev[neighbor] = node
+                heapq.heappush(pq, (new_dist, neighbor))
+
+    <span class="kw">return</span> dist, prev</div>
+            </div>
+
+            <div class="callout warning">
+              <span class="callout-icon">⚠️</span>
+              <div class="callout-content">
+                <strong>Important:</strong> Dijkstra's only works with <strong>non-negative</strong> edge weights. For graphs with negative weights, use the Bellman-Ford algorithm instead.
+              </div>
+            </div>
+
+            <div class="callout tip">
+              <span class="callout-icon">⏱️</span>
+              <div class="callout-content">
+                <strong>Complexity:</strong> With a binary heap: O((V + E) log V). With a Fibonacci heap: O(V log V + E). The priority queue is key to efficiency.
+              </div>
+            </div>
+          `,
+          quiz: {
+            questions: [
+              {
+                q: "What happens if Dijkstra's is used on a graph with negative edge weights?",
+                opts: ['It still works correctly', 'It may give incorrect results', 'It crashes', 'It ignores negative edges'],
+                correct: 1,
+                explanation: "Dijkstra's greedy approach assumes that once a node is visited with the shortest distance, it won't be updated. Negative weights break this assumption."
+              },
+              {
+                q: "What data structure gives Dijkstra's its efficiency?",
+                opts: ['Stack', 'Queue', 'Priority Queue (Min-Heap)', 'Hash Map'],
+                correct: 2,
+                explanation: 'The priority queue (min-heap) always extracts the vertex with the smallest tentative distance, ensuring nodes are processed in optimal order.'
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      id: 'ch4',
+      title: 'Trees & Spanning Trees',
+      sections: [
+        {
+          id: 's4-1',
+          title: 'Trees and Minimum Spanning Trees',
+          badge: 'Chapter 4',
+          content: `
+            <p>A <strong>tree</strong> is a connected graph with no cycles. A <strong>spanning tree</strong> of a connected graph G is a subgraph that includes all vertices of G and is a tree. The <strong>minimum spanning tree (MST)</strong> is the spanning tree with the smallest total edge weight.</p>
+
+            <h3><span class="icon" style="background:var(--accent-dim);color:var(--accent-light)">🌳</span> Properties of Trees</h3>
+            <ul>
+              <li>A tree with <em>n</em> vertices has exactly <em>n − 1</em> edges.</li>
+              <li>There is exactly <strong>one path</strong> between any two vertices.</li>
+              <li>Removing any edge disconnects the tree.</li>
+              <li>Adding any edge creates exactly one cycle.</li>
+            </ul>
+
+            <h3><span class="icon" style="background:var(--green-dim);color:var(--green)">🔗</span> Kruskal's Algorithm</h3>
+            <p>Sort all edges by weight. Go through edges from smallest to largest. Add an edge if it doesn't create a cycle (use Union-Find to check efficiently).</p>
+
+            <h3><span class="icon" style="background:var(--amber-dim);color:var(--amber)">▶️</span> Interactive MST</h3>
+            <p>Click "Run Kruskal's" to watch the MST being built edge by edge.</p>
+            <div id="graph-mst" class="graph-container" data-graph='{"preset":"mst-demo"}'></div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="lang">Python</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body"><span class="kw">def</span> <span class="fn">kruskal</span>(edges, n):
+    <span class="str">"""Kruskal's MST. edges = [(w, u, v), ...], n = |V|"""</span>
+    parent = <span class="fn">list</span>(<span class="fn">range</span>(n))
+    
+    <span class="kw">def</span> <span class="fn">find</span>(x):
+        <span class="kw">if</span> parent[x] != x:
+            parent[x] = <span class="fn">find</span>(parent[x])
+        <span class="kw">return</span> parent[x]
+    
+    <span class="kw">def</span> <span class="fn">union</span>(a, b):
+        parent[<span class="fn">find</span>(a)] = <span class="fn">find</span>(b)
+
+    edges.sort()  <span class="cm"># Sort by weight</span>
+    mst = []
+
+    <span class="kw">for</span> w, u, v <span class="kw">in</span> edges:
+        <span class="kw">if</span> <span class="fn">find</span>(u) != <span class="fn">find</span>(v):
+            <span class="fn">union</span>(u, v)
+            mst.append((w, u, v))
+
+    <span class="kw">return</span> mst</div>
+            </div>
+
+            <div class="callout info">
+              <span class="callout-icon">🌐</span>
+              <div class="callout-content">
+                <strong>Real-world MST:</strong> Network design (laying cable to connect offices with minimum cost), clustering algorithms, circuit design, and approximation algorithms for NP-hard problems like the Traveling Salesman.
+              </div>
+            </div>
+          `,
+          quiz: {
+            questions: [
+              {
+                q: 'How many edges does a tree with n vertices have?',
+                opts: ['n', 'n + 1', 'n − 1', '2n'],
+                correct: 2,
+                explanation: 'A tree with n vertices always has exactly n − 1 edges. This is one of the fundamental properties of trees.'
+              },
+              {
+                q: "Kruskal's algorithm sorts edges by weight and adds them if they don't create a cycle. What data structure efficiently checks for cycles?",
+                opts: ['Stack', 'Queue', 'Union-Find (Disjoint Set)', 'Binary Search Tree'],
+                correct: 2,
+                explanation: 'Union-Find (also called Disjoint Set Union) efficiently tracks which vertices are in the same component, allowing cycle detection in near-constant time.'
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      id: 'ch5',
+      title: 'Applications',
+      sections: [
+        {
+          id: 's5-1',
+          title: 'Real-World Applications',
+          badge: 'Chapter 5',
+          content: `
+            <p>Graph theory isn't just abstract math — it powers many technologies we use daily. Let's explore some real-world applications.</p>
+
+            <h3><span class="icon" style="background:var(--accent-dim);color:var(--accent-light)">🌐</span> Social Networks</h3>
+            <p>Platforms like Facebook, LinkedIn, and Twitter model users as vertices and connections (friendships, follows) as edges. Graph algorithms power:</p>
+            <ul>
+              <li><strong>Friend suggestions:</strong> "People you may know" uses common neighbors and graph embedding.</li>
+              <li><strong>Community detection:</strong> Finding tightly-knit groups within the network.</li>
+              <li><strong>Influence propagation:</strong> Modeling how information (or misinformation) spreads.</li>
+              <li><strong>Six degrees of separation:</strong> The average shortest path between any two people is surprisingly small.</li>
+            </ul>
+
+            <h3><span class="icon" style="background:var(--green-dim);color:var(--green)">🗺️</span> GPS & Navigation</h3>
+            <p>Google Maps, Waze, and similar apps use graph algorithms extensively:</p>
+            <ul>
+              <li><strong>Shortest path:</strong> Dijkstra's or A* to find optimal routes.</li>
+              <li><strong>Traffic modeling:</strong> Edge weights update in real-time based on traffic data.</li>
+              <li><strong>Road networks:</strong> Intersections are vertices, roads are edges.</li>
+            </ul>
+
+            <h3><span class="icon" style="background:var(--amber-dim);color:var(--amber)">🔗</span> Internet & Web</h3>
+            <ul>
+              <li><strong>PageRank:</strong> Google's original algorithm treats the web as a directed graph, ranking pages by link structure.</li>
+              <li><strong>Network routing:</strong> BGP, OSPF use graph algorithms to route packets.</li>
+              <li><strong>Recommendation systems:</strong> Bipartite graphs of users and items.</li>
+            </ul>
+
+            <h3><span class="icon" style="background:var(--blue-dim);color:var(--blue)">🧬</span> Science & Engineering</h3>
+            <ul>
+              <li><strong>Bioinformatics:</strong> Protein interaction networks, phylogenetic trees.</li>
+              <li><strong>Chemistry:</strong> Molecular structures as graphs (atoms = vertices, bonds = edges).</li>
+              <li><strong>Circuit design:</strong> VLSI chip layout uses graph planarity and coloring.</li>
+              <li><strong>Compiler design:</strong> Control flow graphs, dependency graphs.</li>
+            </ul>
+
+            <div class="callout tip">
+              <span class="callout-icon">🚀</span>
+              <div class="callout-content">
+                <strong>Going further:</strong> Graph theory extends into <strong>graph neural networks</strong> (GNNs) in machine learning, which apply neural network architectures directly to graph-structured data — one of the hottest research areas in AI.
+              </div>
+            </div>
+
+            <h3><span class="icon" style="background:var(--green-dim);color:var(--green)">🏆</span> Final Challenge</h3>
+            <p>Below is a social network graph. Can you find the shortest path of introduction between two people?</p>
+            <div id="graph-social" class="graph-container" data-graph='{"preset":"social-demo"}'></div>
+          `,
+          quiz: {
+            questions: [
+              {
+                q: "Which Google algorithm treats web pages as a directed graph?",
+                opts: ['MapReduce', 'PageRank', 'BigTable', 'Spanner'],
+                correct: 1,
+                explanation: "PageRank models the web as a directed graph where pages are vertices and hyperlinks are directed edges. A page's rank increases based on the rank of pages linking to it."
+              },
+              {
+                q: 'What graph concept explains "six degrees of separation"?',
+                opts: ['Graph coloring', 'Small world property', 'Bipartiteness', 'Planarity'],
+                correct: 1,
+                explanation: 'The "small world" property of social networks means the average shortest path between any two people is small — famously hypothesized to be about 6.'
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+};
+
+// ============================================================
+//  GRAPH PRESETS — Pre-built graphs for each section
+// ============================================================
+const GRAPH_PRESETS = {
+  'directed-demo': {
+    directed: false,
+    nodes: [
+      { id: 0, x: 120, y: 120, label: 'A' },
+      { id: 1, x: 380, y: 120, label: 'B' },
+      { id: 2, x: 120, y: 280, label: 'C' },
+      { id: 3, x: 380, y: 280, label: 'D' },
+    ],
+    edges: [
+      { from: 0, to: 1 }, { from: 0, to: 2 },
+      { from: 1, to: 3 }, { from: 2, to: 3 },
+    ]
+  },
+  'weighted-demo': {
+    weighted: true,
+    nodes: [
+      { id: 0, x: 100, y: 200, label: 'S' },
+      { id: 1, x: 250, y: 80, label: 'A' },
+      { id: 2, x: 250, y: 320, label: 'B' },
+      { id: 3, x: 450, y: 150, label: 'C' },
+      { id: 4, x: 450, y: 280, label: 'D' },
+      { id: 5, x: 600, y: 200, label: 'T' },
+    ],
+    edges: [
+      { from: 0, to: 1, weight: 4 }, { from: 0, to: 2, weight: 2 },
+      { from: 1, to: 3, weight: 5 }, { from: 2, to: 4, weight: 3 },
+      { from: 3, to: 5, weight: 6 }, { from: 4, to: 5, weight: 1 },
+      { from: 1, to: 2, weight: 1 }, { from: 3, to: 4, weight: 2 },
+    ]
+  },
+  'bfs-demo': {
+    nodes: [
+      { id: 0, x: 400, y: 60, label: '0' },
+      { id: 1, x: 240, y: 160, label: '1' },
+      { id: 2, x: 560, y: 160, label: '2' },
+      { id: 3, x: 140, y: 280, label: '3' },
+      { id: 4, x: 340, y: 280, label: '4' },
+      { id: 5, x: 460, y: 280, label: '5' },
+      { id: 6, x: 660, y: 280, label: '6' },
+      { id: 7, x: 240, y: 380, label: '7' },
+      { id: 8, x: 440, y: 380, label: '8' },
+    ],
+    edges: [
+      { from: 0, to: 1 }, { from: 0, to: 2 },
+      { from: 1, to: 3 }, { from: 1, to: 4 },
+      { from: 2, to: 5 }, { from: 2, to: 6 },
+      { from: 3, to: 7 }, { from: 4, to: 7 },
+      { from: 5, to: 8 }, { from: 6, to: 8 },
+    ]
+  },
+  'dfs-demo': {
+    nodes: [
+      { id: 0, x: 400, y: 50, label: 'A' },
+      { id: 1, x: 240, y: 150, label: 'B' },
+      { id: 2, x: 560, y: 150, label: 'C' },
+      { id: 3, x: 120, y: 270, label: 'D' },
+      { id: 4, x: 320, y: 270, label: 'E' },
+      { id: 5, x: 480, y: 270, label: 'F' },
+      { id: 6, x: 660, y: 270, label: 'G' },
+      { id: 7, x: 180, y: 380, label: 'H' },
+      { id: 8, x: 580, y: 380, label: 'I' },
+    ],
+    edges: [
+      { from: 0, to: 1 }, { from: 0, to: 2 },
+      { from: 1, to: 3 }, { from: 1, to: 4 },
+      { from: 2, to: 5 }, { from: 2, to: 6 },
+      { from: 3, to: 7 }, { from: 6, to: 8 },
+    ]
+  },
+  'dijkstra-demo': {
+    weighted: true,
+    nodes: [
+      { id: 0, x: 80, y: 200, label: 'S' },
+      { id: 1, x: 220, y: 80, label: 'A' },
+      { id: 2, x: 220, y: 320, label: 'B' },
+      { id: 3, x: 400, y: 140, label: 'C' },
+      { id: 4, x: 400, y: 300, label: 'D' },
+      { id: 5, x: 580, y: 80, label: 'E' },
+      { id: 6, x: 580, y: 280, label: 'F' },
+      { id: 7, x: 700, y: 200, label: 'T' },
+    ],
+    edges: [
+      { from: 0, to: 1, weight: 4 }, { from: 0, to: 2, weight: 2 },
+      { from: 1, to: 3, weight: 5 }, { from: 2, to: 3, weight: 1 },
+      { from: 2, to: 4, weight: 8 }, { from: 3, to: 5, weight: 6 },
+      { from: 3, to: 4, weight: 3 }, { from: 4, to: 6, weight: 3 },
+      { from: 5, to: 7, weight: 3 }, { from: 6, to: 7, weight: 1 },
+    ]
+  },
+  'mst-demo': {
+    weighted: true,
+    nodes: [
+      { id: 0, x: 120, y: 80, label: 'A' },
+      { id: 1, x: 400, y: 60, label: 'B' },
+      { id: 2, x: 660, y: 100, label: 'C' },
+      { id: 3, x: 100, y: 260, label: 'D' },
+      { id: 4, x: 350, y: 300, label: 'E' },
+      { id: 5, x: 600, y: 280, label: 'F' },
+      { id: 6, x: 250, y: 400, label: 'G' },
+      { id: 7, x: 520, y: 400, label: 'H' },
+    ],
+    edges: [
+      { from: 0, to: 1, weight: 4 }, { from: 0, to: 3, weight: 3 },
+      { from: 1, to: 2, weight: 5 }, { from: 1, to: 4, weight: 2 },
+      { from: 2, to: 5, weight: 6 }, { from: 3, to: 4, weight: 7 },
+      { from: 3, to: 6, weight: 4 }, { from: 4, to: 5, weight: 3 },
+      { from: 4, to: 7, weight: 5 }, { from: 5, to: 7, weight: 2 },
+      { from: 6, to: 7, weight: 6 },
+    ]
+  },
+  'social-demo': {
+    nodes: [
+      { id: 0, x: 250, y: 60, label: 'Alice' },
+      { id: 1, x: 100, y: 180, label: 'Bob' },
+      { id: 2, x: 400, y: 180, label: 'Carol' },
+      { id: 3, x: 550, y: 60, label: 'Dave' },
+      { id: 4, x: 150, y: 330, label: 'Eve' },
+      { id: 5, x: 350, y: 330, label: 'Frank' },
+      { id: 6, x: 530, y: 300, label: 'Grace' },
+      { id: 7, x: 680, y: 180, label: 'Hank' },
+    ],
+    edges: [
+      { from: 0, to: 1 }, { from: 0, to: 2 }, { from: 0, to: 3 },
+      { from: 1, to: 4 }, { from: 1, to: 2 },
+      { from: 2, to: 5 }, { from: 2, to: 3 },
+      { from: 3, to: 6 }, { from: 3, to: 7 },
+      { from: 4, to: 5 }, { from: 5, to: 6 },
+      { from: 6, to: 7 },
+    ]
+  }
+};
+
+// ============================================================
+//  STATE
+// ============================================================
+const state = {
+  currentSection: null,
+  currentChapter: null,
+  completedSections: new Set(JSON.parse(localStorage.getItem('lg_completed') || '[]')),
+  highlights: JSON.parse(localStorage.getItem('lg_highlights') || '{}'),
+  annotations: JSON.parse(localStorage.getItem('lg_annotations') || '[]'),
+  chatMessages: [],
+  chatContext: '',
+  apiKey: localStorage.getItem('lg_apikey') || '',
+  model: localStorage.getItem('lg_model') || 'gpt-4o',
+  piReady: false,
+  chatOpen: false,
+  sidebarVisible: true,
+  animating: false,
+};
+
+// ============================================================
+//  DOM REFERENCES
+// ============================================================
+const $ = (s, p = document) => p.querySelector(s);
+const $$ = (s, p = document) => [...p.querySelectorAll(s)];
+
+// ============================================================
+//  NAVIGATION
+// ============================================================
+function buildSidebar() {
+  const nav = $('#sidebarNav');
+  nav.innerHTML = '';
+  let sectionCount = 0;
+  let totalSections = 0;
+  COURSE.chapters.forEach(ch => totalSections += ch.sections.length);
+
+  COURSE.chapters.forEach((ch, ci) => {
+    const group = document.createElement('div');
+    group.className = 'chapter-group';
+
+    const allDone = ch.sections.every(s => state.completedSections.has(s.id));
+    const anyActive = ch.sections.some(s => s.id === state.currentSection);
+
+    const header = document.createElement('div');
+    header.className = `chapter-header ${allDone ? 'completed' : ''} ${anyActive ? 'active open' : ci === 0 && !state.currentSection ? 'open' : ''}`;
+    header.innerHTML = `
+      <span class="chapter-check ${allDone ? 'done' : anyActive ? 'current' : ''}">${allDone ? '✓' : ''}</span>
+      <span class="chapter-title">${ch.title}</span>
+      <span class="arrow">▶</span>
+    `;
+    header.onclick = () => {
+      header.classList.toggle('open');
+      sectionsEl.classList.toggle('open');
+    };
+
+    const sectionsEl = document.createElement('div');
+    sectionsEl.className = `chapter-sections ${anyActive || (ci === 0 && !state.currentSection) ? 'open' : ''}`;
+
+    ch.sections.forEach(sec => {
+      sectionCount++;
+      const link = document.createElement('div');
+      link.className = `section-link ${sec.id === state.currentSection ? 'active' : ''} ${state.completedSections.has(sec.id) ? 'done' : ''}`;
+      link.innerHTML = `<span class="section-dot"></span>${sec.title}`;
+      link.onclick = () => navigateTo(sec.id);
+      sectionsEl.appendChild(link);
+    });
+
+    group.appendChild(header);
+    group.appendChild(sectionsEl);
+    nav.appendChild(group);
+  });
+
+  updateProgress();
+}
+
+function updateProgress() {
+  let total = 0;
+  COURSE.chapters.forEach(ch => total += ch.sections.length);
+  const done = state.completedSections.size;
+  const pct = Math.round((done / total) * 100);
+  $('#sidebarProgressFill').style.width = pct + '%';
+  $('#sidebarProgressText').textContent = `${pct}% complete — ${done}/${total} sections`;
+  $('#topProgress').style.width = pct + '%';
+}
+
+function getAllSectionsFlat() {
+  const result = [];
+  COURSE.chapters.forEach(ch => ch.sections.forEach(s => result.push({ ...s, chapterId: ch.id })));
+  return result;
+}
+
+function navigateTo(sectionId) {
+  state.currentSection = sectionId;
+  const all = getAllSectionsFlat();
+  const idx = all.findIndex(s => s.id === sectionId);
+  if (idx >= 0) state.currentChapter = all[idx].chapterId;
+
+  renderContent(sectionId);
+  buildSidebar();
+  localStorage.setItem('lg_current', sectionId);
+  $('#mainContent').scrollTop = 0;
+}
+
+// ============================================================
+//  CONTENT RENDERER
+// ============================================================
+function renderContent(sectionId) {
+  const wrapper = $('#contentWrapper');
+  const all = getAllSectionsFlat();
+  const sec = all.find(s => s.id === sectionId);
+  if (!sec) return;
+
+  const secIdx = all.findIndex(s => s.id === sectionId);
+  const prev = secIdx > 0 ? all[secIdx - 1] : null;
+  const next = secIdx < all.length - 1 ? all[secIdx + 1] : null;
+
+  wrapper.innerHTML = `
+    <div class="content-section active">
+      ${!state.piReady ? '<div class="welcome-notice">⚠️ <span>AI tutor is connecting... If chat doesn\'t work, make sure Pi is configured with a provider.</span></div>' : ''}
+      <div class="section-badge">${sec.badge || ''}</div>
+      <h1 class="section-title">${sec.title}</h1>
+      <div class="section-subtitle">Section ${secIdx + 1} of ${all.length}</div>
+      <div class="section-body" id="sectionBody-${sec.id}">
+        ${sec.content}
+      </div>
+      ${sec.quiz ? renderQuiz(sec.id, sec.quiz) : ''}
+      <div class="section-nav">
+        <button class="section-nav-btn" ${!prev ? 'disabled' : ''} onclick="navigateTo('${prev ? prev.id : ''}')">
+          ← ${prev ? prev.title : 'Start'}
+        </button>
+        <button class="section-nav-btn" onclick="markComplete('${sec.id}')" style="color:var(--green);border-color:var(--green)">
+          ${state.completedSections.has(sec.id) ? '✓ Completed' : 'Mark Complete'}
+        </button>
+        <button class="section-nav-btn" ${!next ? 'disabled' : ''} onclick="navigateTo('${next ? next.id : ''}')">
+          ${next ? next.title : 'End'} →
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Initialize graph visualizers in this section
+  setTimeout(() => initGraphsInSection(sec.id), 50);
+
+  // Restore highlights
+  restoreHighlights(sec.id);
+
+  // Restore annotations
+  restoreAnnotations(sec.id);
+}
+
+function markComplete(sectionId) {
+  if (state.completedSections.has(sectionId)) {
+    state.completedSections.delete(sectionId);
+  } else {
+    state.completedSections.add(sectionId);
+  }
+  localStorage.setItem('lg_completed', JSON.stringify([...state.completedSections]));
+  buildSidebar();
+  renderContent(sectionId);
+}
+
+// ============================================================
+//  QUIZ ENGINE
+// ============================================================
+function renderQuiz(sectionId, quiz) {
+  const q = quiz.questions[0];
+  const qid = `quiz-${sectionId}-0`;
+  return `
+    <div class="quiz-container" id="${qid}-container">
+      <div class="quiz-header">
+        <h4>🧠 Check Your Understanding</h4>
+        <span class="quiz-score" id="${qid}-score"></span>
+      </div>
+      <div class="quiz-body">
+        <div class="quiz-question" id="${qid}-q">${q.q}</div>
+        <div class="quiz-options" id="${qid}-opts">
+          ${q.opts.map((opt, i) => `
+            <div class="quiz-option" data-idx="${i}" onclick="selectQuizOption('${qid}', ${i})">
+              <span class="quiz-option-letter">${String.fromCharCode(65 + i)}</span>
+              <span>${opt}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="quiz-explanation" id="${qid}-exp">${q.explanation}</div>
+      </div>
+      <div class="quiz-actions">
+        <button class="quiz-btn primary" id="${qid}-check" onclick="checkQuiz('${sectionId}', 0)" disabled>Check Answer</button>
+        ${quiz.questions.length > 1 ? `<button class="quiz-btn secondary" onclick="nextQuizQ('${sectionId}', 1)">Next Question →</button>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+const quizState = {};
+
+function selectQuizOption(qid, idx) {
+  if (quizState[qid]?.answered) return;
+  quizState[qid] = { selected: idx, answered: false };
+  const opts = $$(`#${qid}-opts .quiz-option`);
+  opts.forEach((o, i) => o.classList.toggle('selected', i === idx));
+  $(`#${qid}-check`).disabled = false;
+}
+
+function checkQuiz(sectionId, qIdx) {
+  const qid = `quiz-${sectionId}-${qIdx}`;
+  if (!quizState[qid] || quizState[qid].answered) return;
+  const sec = getAllSectionsFlat().find(s => s.id === sectionId);
+  const q = sec.quiz.questions[qIdx];
+  const selected = quizState[qid].selected;
+  quizState[qid].answered = true;
+
+  const opts = $$(`#${qid}-opts .quiz-option`);
+  opts.forEach((o, i) => {
+    o.classList.remove('selected');
+    if (i === q.correct) o.classList.add('correct');
+    else if (i === selected) o.classList.add('wrong');
+    o.style.pointerEvents = 'none';
+  });
+
+  $(`#${qid}-exp`).classList.add('show');
+  $(`#${qid}-check`).disabled = true;
+  $(`#${qid}-check`).textContent = selected === q.correct ? '✓ Correct!' : '✗ Incorrect';
+}
+
+function nextQuizQ(sectionId, qIdx) {
+  // Simplified — in production, render next question
+}
+
+// ============================================================
+//  GRAPH VISUALIZER
+// ============================================================
+class GraphViz {
+  constructor(container, preset) {
+    this.container = container;
+    this.preset = preset ? JSON.parse(JSON.stringify(GRAPH_PRESETS[preset])) : { nodes: [], edges: [], nextId: 0 };
+    this.nodes = this.preset.nodes || [];
+    this.edges = this.preset.edges || [];
+    this.weighted = this.preset.weighted || false;
+    this.interactive = this.preset.interactive || false;
+    this.selectedNode = null;
+    this.startNode = null;
+    this.dragNode = null;
+    this.dragEdge = null;
+    this.svgW = 800;
+    this.svgH = 420;
+    this.animating = false;
+    this.log = [];
+    this.init();
+  }
+
+  init() {
+    this.buildUI();
+    this.renderGraph();
+  }
+
+  buildUI() {
+    const containerId = this.container.id;
+    const toolbar = document.createElement('div');
+    toolbar.className = 'graph-toolbar';
+
+    const isInteractive = this.interactive;
+    const presetName = this.container.dataset.graph ? JSON.parse(this.container.dataset.graph).preset : '';
+
+    let btns = `<span class="graph-toolbar-title">Graph</span>`;
+    if (isInteractive) {
+      btns += `<button class="graph-btn" onclick="graphInstances['${containerId}'].resetGraph()">Reset</button>`;
+    }
+    if (['bfs-demo', 'dfs-demo'].includes(presetName)) {
+      btns += `<button class="graph-btn run" onclick="graphInstances['${containerId}'].runTraversal('${presetName.includes('bfs') ? 'bfs' : 'dfs'}')">Run ${presetName.includes('bfs') ? 'BFS' : 'DFS'}</button>`;
+    }
+    if (presetName === 'dijkstra-demo') {
+      btns += `<button class="graph-btn run" onclick="graphInstances['${containerId}'].runDijkstra()">Run Dijkstra's</button>`;
+    }
+    if (presetName === 'mst-demo') {
+      btns += `<button class="graph-btn run" onclick="graphInstances['${containerId}'].runKruskal()">Run Kruskal's</button>`;
+    }
+    btns += `<button class="graph-btn" onclick="graphInstances['${containerId}'].resetHighlights()">Clear</button>`;
+    toolbar.innerHTML = btns;
+
+    const svgWrap = document.createElement('div');
+    svgWrap.className = 'graph-svg-wrap';
+    this.svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    this.svgEl.setAttribute('viewBox', `0 0 ${this.svgW} ${this.svgH}`);
+    this.svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svgWrap.appendChild(this.svgEl);
+
+    const info = document.createElement('div');
+    info.className = 'graph-info';
+    info.id = containerId + '-info';
+    info.innerHTML = `
+      <div class="info-item"><span class="info-label">Nodes:</span><span class="info-value" id="${containerId}-nnodes">${this.nodes.length}</span></div>
+      <div class="info-item"><span class="info-label">Edges:</span><span class="info-value" id="${containerId}-nedges">${this.edges.length}</span></div>
+      <div class="info-item" id="${containerId}-clickinfo" style="color:var(--text-muted)">Click a node to select start</div>
+    `;
+
+    this.logEl = document.createElement('div');
+    this.logEl.className = 'algo-log';
+    this.logEl.id = containerId + '-log';
+    this.logEl.style.display = 'none';
+
+    this.container.appendChild(toolbar);
+    this.container.appendChild(svgWrap);
+    this.container.appendChild(info);
+    this.container.appendChild(this.logEl);
+
+    // SVG event handlers
+    this.svgEl.addEventListener('click', (e) => this.onSvgClick(e));
+    this.svgEl.addEventListener('contextmenu', (e) => this.onRightClick(e));
+  }
+
+  renderGraph() {
+    this.svgEl.innerHTML = '';
+
+    // Defs
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    defs.innerHTML = `
+      <marker id="arrow-${this.container.id}" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="var(--border-light)" />
+      </marker>
+      <marker id="arrow-hl-${this.container.id}" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="var(--accent-light)" />
+      </marker>
+    `;
+    this.svgEl.appendChild(defs);
+
+    // Background grid
+    const grid = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    grid.setAttribute('width', this.svgW);
+    grid.setAttribute('height', this.svgH);
+    grid.setAttribute('fill', 'var(--bg-card)');
+    this.svgEl.appendChild(grid);
+
+    // Edges group
+    this.edgesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    this.svgEl.appendChild(this.edgesGroup);
+
+    // Nodes group
+    this.nodesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    this.svgEl.appendChild(this.nodesGroup);
+
+    this.drawEdges();
+    this.drawNodes();
+
+    $(`#${this.container.id}-nnodes`).textContent = this.nodes.length;
+    $(`#${this.container.id}-nedges`).textContent = this.edges.length;
+  }
+
+  drawEdges() {
+    this.edgesGroup.innerHTML = '';
+    this.edges.forEach((e, i) => {
+      const from = this.nodes.find(n => n.id === e.from);
+      const to = this.nodes.find(n => n.id === e.to);
+      if (!from || !to) return;
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', from.x);
+      line.setAttribute('y1', from.y);
+      line.setAttribute('x2', to.x);
+      line.setAttribute('y2', to.y);
+      line.setAttribute('class', 'gv-edge');
+      line.dataset.idx = i;
+      this.edgesGroup.appendChild(line);
+
+      if (e.weight !== undefined) {
+        const mx = (from.x + to.x) / 2;
+        const my = (from.y + to.y) / 2;
+        const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        txt.setAttribute('x', mx);
+        txt.setAttribute('y', my - 8);
+        txt.setAttribute('class', 'gv-weight');
+        txt.textContent = e.weight;
+        this.edgesGroup.appendChild(txt);
+      }
+    });
+  }
+
+  drawNodes() {
+    this.nodesGroup.innerHTML = '';
+    this.nodes.forEach(n => {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.dataset.id = n.id;
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', n.x);
+      circle.setAttribute('cy', n.y);
+      circle.setAttribute('r', 22);
+      circle.setAttribute('class', 'gv-node-circle');
+      if (this.startNode === n.id) circle.classList.add('start');
+      g.appendChild(circle);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', n.x);
+      label.setAttribute('y', n.y);
+      label.setAttribute('class', 'gv-node-label');
+      label.textContent = n.label;
+      g.appendChild(label);
+
+      this.nodesGroup.appendChild(g);
+    });
+  }
+
+  onSvgClick(e) {
+    if (this.animating) return;
+    const rect = this.svgEl.getBoundingClientRect();
+    const scale = this.svgW / rect.width;
+    const x = (e.clientX - rect.left) * scale;
+    const y = (e.clientY - rect.top) * scale;
+
+    // Check if clicked a node
+    const clickedNode = this.nodes.find(n => Math.hypot(n.x - x, n.y - y) < 26);
+    if (clickedNode) {
+      this.startNode = clickedNode.id;
+      this.renderGraph();
+      const info = $(`#${this.container.id}-clickinfo`);
+      info.textContent = `Start: ${clickedNode.label}`;
+      info.style.color = 'var(--green)';
+      return;
+    }
+
+    // Interactive mode: add node
+    if (this.interactive) {
+      const newId = this.nodes.length > 0 ? Math.max(...this.nodes.map(n => n.id)) + 1 : 0;
+      this.nodes.push({ id: newId, x: Math.round(x), y: Math.round(y), label: String.fromCharCode(65 + (newId % 26)) });
+      this.renderGraph();
+    }
+  }
+
+  onRightClick(e) {
+    e.preventDefault();
+    if (this.animating || !this.interactive) return;
+    const rect = this.svgEl.getBoundingClientRect();
+    const scale = this.svgW / rect.width;
+    const x = (e.clientX - rect.left) * scale;
+    const y = (e.clientY - rect.top) * scale;
+
+    const clickedNode = this.nodes.find(n => Math.hypot(n.x - x, n.y - y) < 26);
+    if (clickedNode) {
+      this.edges = this.edges.filter(e => e.from !== clickedNode.id && e.to !== clickedNode.id);
+      this.nodes = this.nodes.filter(n => n.id !== clickedNode.id);
+      this.renderGraph();
+    }
+  }
+
+  resetGraph() {
+    this.nodes = [];
+    this.edges = [];
+    this.startNode = null;
+    this.resetHighlights();
+    this.renderGraph();
+    const info = $(`#${this.container.id}-clickinfo`);
+    info.textContent = 'Click to add nodes';
+    info.style.color = 'var(--text-muted)';
+  }
+
+  resetHighlights() {
+    this.animating = false;
+    this.log = [];
+    this.logEl.style.display = 'none';
+    this.logEl.innerHTML = '';
+    this.startNode = null;
+    this.renderGraph();
+    const info = $(`#${this.container.id}-clickinfo`);
+    info.textContent = 'Click a node to select start';
+    info.style.color = 'var(--text-muted)';
+  }
+
+  setNodeState(id, cls) {
+    const circle = this.nodesGroup.querySelector(`g[data-id="${id}"] circle`);
+    if (circle) circle.className.baseVal = `gv-node-circle ${cls}`;
+  }
+
+  setEdgeState(fromId, toId, cls) {
+    const eIdx = this.edges.findIndex(e =>
+      (e.from === fromId && e.to === toId) || (e.from === toId && e.to === fromId)
+    );
+    if (eIdx >= 0) {
+      const line = this.edgesGroup.querySelector(`line[data-idx="${eIdx}"]`);
+      if (line) line.className.baseVal = `gv-edge ${cls}`;
+    }
+  }
+
+  addLog(step, msg) {
+    this.log.push({ step, msg });
+    this.logEl.style.display = 'block';
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="log-step">[${step}]</span><span class="log-msg">${msg}</span>`;
+    this.logEl.appendChild(entry);
+    this.logEl.scrollTop = this.logEl.scrollHeight;
+  }
+
+  sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  getAdjList() {
+    const adj = {};
+    this.nodes.forEach(n => adj[n.id] = []);
+    this.edges.forEach(e => {
+      adj[e.from].push({ to: e.to, weight: e.weight || 1 });
+      adj[e.to].push({ to: e.from, weight: e.weight || 1 });
+    });
+    return adj;
+  }
+
+  async runTraversal(type) {
+    if (this.animating) return;
+    if (this.startNode === null) { alert('Click a node first to set the start!'); return; }
+
+    this.animating = true;
+    this.logEl.style.display = 'block';
+    this.logEl.innerHTML = '';
+    this.renderGraph();
+    await this.sleep(300);
+
+    const adj = this.getAdjList();
+    const visited = new Set();
+    const order = [];
+    let step = 0;
+
+    if (type === 'bfs') {
+      const queue = [this.startNode];
+      visited.add(this.startNode);
+      this.setNodeState(this.startNode, 'current');
+      this.addLog(++step, `Start BFS from ${this.getNodeLabel(this.startNode)}`);
+      await this.sleep(600);
+
+      while (queue.length > 0 && this.animating) {
+        const node = queue.shift();
+        this.setNodeState(node, 'visited');
+        order.push(node);
+        this.addLog(++step, `Visit ${this.getNodeLabel(node)}`);
+        await this.sleep(400);
+
+        for (const { to } of adj[node]) {
+          if (!visited.has(to) && this.animating) {
+            visited.add(to);
+            queue.push(to);
+            this.setEdgeState(node, to, 'highlighted');
+            this.setNodeState(to, 'current');
+            this.addLog(++step, `  Discover ${this.getNodeLabel(to)} via ${this.getNodeLabel(node)}`);
+            await this.sleep(300);
+          }
+        }
+      }
+    } else {
+      // DFS
+      const stack = [this.startNode];
+      const inStack = new Set([this.startNode]);
+      this.setNodeState(this.startNode, 'current');
+      this.addLog(++step, `Start DFS from ${this.getNodeLabel(this.startNode)}`);
+      await this.sleep(600);
+
+      while (stack.length > 0 && this.animating) {
+        const node = stack.pop();
+        if (visited.has(node)) continue;
+        visited.add(node);
+        this.setNodeState(node, 'visited');
+        order.push(node);
+        this.addLog(++step, `Visit ${this.getNodeLabel(node)}`);
+        await this.sleep(400);
+
+        for (const { to } of [...adj[node]].reverse()) {
+          if (!visited.has(to) && this.animating) {
+            this.setEdgeState(node, to, 'highlighted');
+            this.setNodeState(to, 'current');
+            this.addLog(++step, `  Explore ${this.getNodeLabel(to)}`);
+            if (!inStack.has(to)) {
+              stack.push(to);
+              inStack.add(to);
+            }
+            await this.sleep(300);
+          }
+        }
+      }
+    }
+
+    this.addLog('✓', `Order: ${order.map(id => this.getNodeLabel(id)).join(' → ')}`);
+    this.animating = false;
+  }
+
+  async runDijkstra() {
+    if (this.animating) return;
+    if (this.startNode === null) { alert('Click a node first to set the start!'); return; }
+
+    this.animating = true;
+    this.logEl.style.display = 'block';
+    this.logEl.innerHTML = '';
+    this.renderGraph();
+    await this.sleep(300);
+
+    const adj = this.getAdjList();
+    const dist = {};
+    const prev = {};
+    const visited = new Set();
+    let step = 0;
+
+    this.nodes.forEach(n => dist[n.id] = Infinity);
+    dist[this.startNode] = 0;
+
+    this.setNodeState(this.startNode, 'start');
+    this.addLog(++step, `Initialize: dist[${this.getNodeLabel(this.startNode)}] = 0, all others = ∞`);
+    await this.sleep(600);
+
+    // Simple priority queue simulation
+    while (visited.size < this.nodes.length && this.animating) {
+      // Find minimum unvisited
+      let minNode = null, minDist = Infinity;
+      for (const n of this.nodes) {
+        if (!visited.has(n.id) && dist[n.id] < minDist) {
+          minDist = dist[n.id];
+          minNode = n.id;
+        }
+      }
+      if (minNode === null) break;
+
+      visited.add(minNode);
+      this.setNodeState(minNode, 'current');
+      this.addLog(++step, `Extract ${this.getNodeLabel(minNode)} (dist = ${dist[minNode]})`);
+      await this.sleep(500);
+
+      for (const { to, weight } of adj[minNode]) {
+        if (visited.has(to)) continue;
+        const newDist = dist[minNode] + weight;
+        if (newDist < dist[to]) {
+          dist[to] = newDist;
+          prev[to] = minNode;
+          this.setEdgeState(minNode, to, 'highlighted');
+          this.setNodeState(to, 'highlighted');
+          this.addLog(++step, `  Relax ${this.getNodeLabel(minNode)}→${this.getNodeLabel(to)}: ${dist[minNode]}+${weight} = ${newDist}`);
+          await this.sleep(400);
+        }
+      }
+
+      this.setNodeState(minNode, 'visited');
+    }
+
+    // Show shortest paths
+    this.addLog('✓', 'Shortest distances:');
+    this.nodes.forEach(n => {
+      const d = dist[n.id] === Infinity ? '∞' : dist[n.id];
+      this.addLog(' ', `  ${this.getNodeLabel(n.id)}: ${d}`);
+    });
+
+    this.animating = false;
+  }
+
+  async runKruskal() {
+    if (this.animating) return;
+    this.animating = true;
+    this.logEl.style.display = 'block';
+    this.logEl.innerHTML = '';
+    this.renderGraph();
+    await this.sleep(300);
+
+    const sortedEdges = [...this.edges]
+      .map((e, i) => ({ ...e, idx: i }))
+      .sort((a, b) => (a.weight || 1) - (b.weight || 1));
+
+    const parent = {};
+    this.nodes.forEach(n => parent[n.id] = n.id);
+    const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
+    const union = (a, b) => { parent[find(a)] = find(b); };
+
+    let mstWeight = 0;
+    let mstEdges = 0;
+    let step = 0;
+
+    this.addLog(++step, `Sort ${sortedEdges.length} edges by weight`);
+    await this.sleep(600);
+
+    for (const e of sortedEdges) {
+      if (!this.animating) break;
+      if (mstEdges === this.nodes.length - 1) break;
+
+      const fromLabel = this.getNodeLabel(e.from);
+      const toLabel = this.getNodeLabel(e.to);
+
+      this.setEdgeState(e.from, e.to, 'current');
+      this.addLog(++step, `Consider edge ${fromLabel}—${toLabel} (weight ${e.weight})`);
+      await this.sleep(600);
+
+      if (find(e.from) !== find(e.to)) {
+        union(e.from, e.to);
+        this.setEdgeState(e.from, e.to, 'path');
+        this.setNodeState(e.from, 'visited');
+        this.setNodeState(e.to, 'visited');
+        mstWeight += e.weight || 1;
+        mstEdges++;
+        this.addLog(++step, `  ✓ Add to MST (total: ${mstWeight})`);
+        await this.sleep(400);
+      } else {
+        this.setEdgeState(e.from, e.to, '');
+        this.addLog(++step, `  ✗ Would create cycle, skip`);
+        await this.sleep(300);
+      }
+    }
+
+    this.addLog('✓', `MST complete: ${mstEdges} edges, total weight = ${mstWeight}`);
+    this.animating = false;
+  }
+
+  getNodeLabel(id) {
+    const n = this.nodes.find(n => n.id === id);
+    return n ? n.label : '?';
+  }
+}
+
+const graphInstances = {};
+
+function initGraphsInSection(sectionId) {
+  const body = $(`#sectionBody-${sectionId}`);
+  if (!body) return;
+
+  const containers = $$('.graph-container', body);
+  containers.forEach(container => {
+    const config = container.dataset.graph ? JSON.parse(container.dataset.graph) : {};
+    const preset = config.preset || null;
+    if (preset && GRAPH_PRESETS[preset]) {
+      graphInstances[container.id] = new GraphViz(container, preset);
+    } else if (config.interactive) {
+      graphInstances[container.id] = new GraphViz(container, null);
+    }
+  });
+}
+
+// ============================================================
+//  HIGHLIGHT MANAGER
+// ============================================================
+const hlToolbar = $('#hlToolbar');
+let currentSelection = null;
+
+document.addEventListener('mouseup', (e) => {
+  const sel = window.getSelection();
+  const text = sel.toString().trim();
+
+  if (text.length > 2 && isInsideContent(e)) {
+    currentSelection = { text, range: sel.getRangeAt(0).cloneRange() };
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    hlToolbar.style.top = (rect.top - 48 + window.scrollY) + 'px';
+    hlToolbar.style.left = (rect.left + rect.width / 2) + 'px';
+    hlToolbar.classList.add('visible');
+  } else if (!hlToolbar.contains(e.target)) {
+    hlToolbar.classList.remove('visible');
+    currentSelection = null;
+  }
+});
+
+function isInsideContent(e) {
+  const body = $('.section-body');
+  return body && body.contains(e.target);
+}
+
+$('#hlAsk').onclick = () => {
+  if (!currentSelection) return;
+  openChat(currentSelection.text);
+  hlToolbar.classList.remove('visible');
+};
+
+$('#hlNote').onclick = () => {
+  if (!currentSelection) return;
+  const note = prompt('Enter your note:');
+  if (!note) return;
+  addAnnotation(state.currentSection, 'note', note);
+  hlToolbar.classList.remove('visible');
+};
+
+$('#hlHighlight').onclick = () => {
+  if (!currentSelection) return;
+  highlightSelection();
+  hlToolbar.classList.remove('visible');
+};
+
+function highlightSelection() {
+  if (!currentSelection || !state.currentSection) return;
+  const text = currentSelection.text;
+  const highlights = state.highlights[state.currentSection] || [];
+  highlights.push(text);
+  state.highlights[state.currentSection] = highlights;
+  localStorage.setItem('lg_highlights', JSON.stringify(state.highlights));
+
+  // Apply visual highlight
+  const body = $(`#sectionBody-${state.currentSection}`);
+  if (body) applyHighlight(body, text);
+}
+
+function applyHighlight(container, text) {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach(node => {
+    const idx = node.textContent.indexOf(text);
+    if (idx === -1) return;
+    const before = node.textContent.substring(0, idx);
+    const match = node.textContent.substring(idx, idx + text.length);
+    const after = node.textContent.substring(idx + text.length);
+
+    const parent = node.parentNode;
+    if (parent.classList && parent.classList.contains('user-highlight')) return;
+
+    const frag = document.createDocumentFragment();
+    if (before) frag.appendChild(document.createTextNode(before));
+    const mark = document.createElement('span');
+    mark.className = 'user-highlight';
+    mark.textContent = match;
+    frag.appendChild(mark);
+    if (after) frag.appendChild(document.createTextNode(after));
+    parent.replaceChild(frag, node);
+  });
+}
+
+function restoreHighlights(sectionId) {
+  const highlights = state.highlights[sectionId] || [];
+  if (highlights.length === 0) return;
+  const body = $(`#sectionBody-${sectionId}`);
+  if (!body) return;
+  highlights.forEach(text => applyHighlight(body, text));
+}
+
+// ============================================================
+//  COMPONENT MANAGER — composable blocks
+// ============================================================
+
+// Each "section" type renders a content block. Components compose these freely.
+const SECTION_RENDERERS = {
+  // Free-form markdown text
+  text(data) {
+    const el = document.createElement('div');
+    el.style.cssText = 'color:var(--text-secondary);font-size:14px;line-height:1.7;padding:4px 0';
+    el.innerHTML = renderMarkdown(data.content || '');
+    return el;
+  },
+
+  // Callout / annotation box
+  callout(data) {
+    const icons = { info:'ℹ️', success:'💡', warning:'⚠️', accent:'📌', error:'❌' };
+    const colors = {
+      info:    { bg:'var(--blue-dim)',   border:'var(--blue)',   text:'var(--blue)' },
+      success: { bg:'var(--green-dim)',  border:'var(--green)',  text:'var(--green)' },
+      warning: { bg:'var(--amber-dim)',  border:'var(--amber)',  text:'var(--amber)' },
+      accent:  { bg:'var(--accent-dim)', border:'var(--accent)', text:'var(--accent-light)' },
+      error:   { bg:'var(--red-dim)',    border:'var(--red)',    text:'var(--red)' },
+    };
+    const variant = data.variant || 'info';
+    const c = colors[variant] || colors.info;
+    const el = document.createElement('div');
+    el.style.cssText = `background:${c.bg};border-left:3px solid ${c.border};border-radius:var(--radius);padding:14px 18px;margin:12px 0`;
+    el.innerHTML = `
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${c.text};margin-bottom:4px">${data.icon || icons[variant] || '📌'} ${data.label || variant}</div>
+      <div style="color:var(--text-secondary);font-size:13.5px;line-height:1.6">${renderMarkdown(data.content || '')}</div>
+    `;
+    return el;
+  },
+
+  // Mermaid diagram
+  diagram(data) {
+    const uid = 'md-' + Date.now() + Math.random().toString(36).slice(2,6);
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:12px 0';
+    wrap.innerHTML = `
+      <div style="padding:8px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px">
+        <span style="color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">📊 ${data.title || 'Diagram'}</span>
+        <button style="margin-left:auto;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-secondary);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer" onclick="const s=this.closest('div[style]').querySelector('.diag-src');s.style.display=s.style.display==='none'?'block':'none'">Source</button>
+      </div>
+      <div id="${uid}" style="padding:20px;display:flex;justify-content:center;min-height:60px"></div>
+      <div class="diag-src code-body" style="display:none;border-top:1px solid var(--border)">${escapeHtml(data.code || '')}</div>
+    `;
+    requestAnimationFrame(async () => {
+      const container = document.getElementById(uid);
+      if (!container) return;
+      try {
+        if (window.mermaidReady) {
+          const { svg } = await window.mermaid.render(uid + '-svg', data.code || 'graph LR; A-->B');
+          container.innerHTML = svg;
+        } else {
+          container.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Loading Mermaid…</div>';
+        }
+      } catch (err) {
+        container.innerHTML = `<div style="color:var(--red);font-size:13px;padding:12px">Diagram error: ${escapeHtml(err.message)}</div>`;
+      }
+    });
+    return wrap;
+  },
+
+  // Code block
+  code(data) {
+    const el = document.createElement('div');
+    el.className = 'code-block';
+    el.innerHTML = `
+      <div class="code-header">
+        <span class="lang">${data.language || 'code'}</span>
+        ${data.title ? `<span style="color:var(--text-primary);font-weight:500;margin-left:8px">${data.title}</span>` : ''}
+        <button class="code-copy" onclick="copyCode(this)">Copy</button>
+      </div>
+      <div class="code-body">${escapeHtml(data.code || '')}</div>
+    `;
+    return el;
+  },
+
+  // Interactive quiz
+  quiz(data) {
+    const uid = 'qz-' + Date.now() + Math.random().toString(36).slice(2,6);
+    const el = document.createElement('div');
+    el.className = 'quiz-container';
+    const opts = data.options || [];
+    const correct = data.correct ?? 0;
+    el.innerHTML = `
+      <div class="quiz-header"><h4>🧠 ${data.title || 'Check Your Understanding'}</h4></div>
+      <div class="quiz-body">
+        <div class="quiz-question">${data.question || ''}</div>
+        <div class="quiz-options" id="${uid}-opts">
+          ${opts.map((opt, i) => `
+            <div class="quiz-option" data-idx="${i}">
+              <span class="quiz-option-letter">${String.fromCharCode(65 + i)}</span>
+              <span>${opt}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="quiz-explanation" id="${uid}-exp">${data.explanation || ''}</div>
+      </div>
+    `;
+    el.querySelectorAll(`#${uid}-opts .quiz-option`).forEach((o, i) => {
+      o.addEventListener('click', () => {
+        el.querySelectorAll(`#${uid}-opts .quiz-option`).forEach((opt, j) => {
+          opt.style.pointerEvents = 'none';
+          if (j === correct) opt.classList.add('correct');
+          else if (j === i) opt.classList.add('wrong');
+        });
+        document.getElementById(`${uid}-exp`).classList.add('show');
+      });
+    });
+    return el;
+  },
+
+  // Numbered steps
+  steps(data) {
+    const steps = data.items || data.steps || [];
+    const el = document.createElement('div');
+    el.style.cssText = 'padding:8px 0';
+    el.innerHTML = steps.map((step, i) => `
+      <div style="display:flex;gap:14px;margin-bottom:${i < steps.length - 1 ? '16px' : '0'}">
+        <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-dim);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--accent-light)">${i + 1}</div>
+          ${i < steps.length - 1 ? '<div style="width:2px;flex:1;background:var(--border-light);margin-top:6px;min-height:20px"></div>' : ''}
+        </div>
+        <div style="padding-top:5px;font-size:14px;color:var(--text-secondary);line-height:1.6;flex:1">${renderMarkdown(step)}</div>
+      </div>
+    `).join('');
+    return el;
+  },
+
+  // Data table
+  table(data) {
+    const el = document.createElement('div');
+    el.style.cssText = 'overflow-x:auto;margin:12px 0';
+    el.innerHTML = `<table class="data-table">
+      <thead><tr>${(data.headers || []).map(h => `<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${(data.rows || []).map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>`;
+    return el;
+  },
+
+  // Expandable / collapsible
+  expandable(data) {
+    const uid = 'ex-' + Date.now() + Math.random().toString(36).slice(2,6);
+    const el = document.createElement('div');
+    el.style.cssText = 'background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius);margin:12px 0;cursor:pointer;overflow:hidden';
+    el.innerHTML = `
+      <div id="${uid}-header" style="padding:12px 18px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--text-primary)">
+        <span id="${uid}-arrow" style="transition:transform 0.2s;font-size:10px;color:var(--text-muted)">▶</span>
+        ${data.icon || '🔍'} ${data.title || 'Click to expand'}
+      </div>
+      <div id="${uid}-body" style="display:none;padding:0 18px 14px;font-size:13.5px;color:var(--text-secondary);line-height:1.6;border-top:1px solid var(--border)">
+        <div style="padding-top:12px">${renderMarkdown(data.content || '')}</div>
+      </div>
+    `;
+    el.addEventListener('click', () => {
+      const body = document.getElementById(`${uid}-body`);
+      const arrow = document.getElementById(`${uid}-arrow`);
+      const open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      arrow.style.transform = open ? '' : 'rotate(90deg)';
+    });
+    return el;
+  },
+
+  // Column layout
+  columns(data) {
+    const cols = data.items || [];
+    const el = document.createElement('div');
+    el.style.cssText = `display:grid;grid-template-columns:repeat(${cols.length}, 1fr);gap:16px;margin:12px 0`;
+    cols.forEach(col => {
+      const cell = document.createElement('div');
+      cell.style.cssText = 'background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius);padding:16px';
+      if (col.title) cell.innerHTML += `<div style="font-weight:700;font-size:13px;color:var(--text-primary);margin-bottom:8px">${col.title}</div>`;
+      if (col.content) cell.innerHTML += `<div style="font-size:13px;color:var(--text-secondary);line-height:1.6">${renderMarkdown(col.content)}</div>`;
+      el.appendChild(cell);
+    });
+    return el;
+  },
+
+  // Separator / divider
+  divider(data) {
+    const el = document.createElement('hr');
+    el.style.cssText = 'border:none;border-top:1px solid var(--border);margin:16px 0';
+    return el;
+  },
+
+  // Heading
+  heading(data) {
+    const el = document.createElement('h3');
+    el.style.cssText = 'font-size:18px;font-weight:700;color:var(--text-primary);margin:16px 0 8px;display:flex;align-items:center;gap:8px';
+    el.innerHTML = `${data.icon || ''} ${data.text || ''}`;
+    return el;
+  },
+
+  // Tab group
+  tabs(data) {
+    const tabs = data.items || [];
+    const uid = 'tabs-' + Date.now();
+    const el = document.createElement('div');
+    el.style.cssText = 'border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:12px 0';
+
+    const tabHeaders = tabs.map((t, i) => `
+      <button class="graph-btn ${i === 0 ? 'active' : ''}" data-tab="${uid}-${i}"
+        onclick="document.querySelectorAll('[id^=${uid}-panel-]').forEach(p=>p.style.display='none');document.querySelectorAll('[data-tab^=${uid}-]').forEach(b=>b.classList.remove('active'));document.getElementById('${uid}-panel-${i}').style.display='block';this.classList.add('active')"
+        style="border-radius:0;border-bottom:none">${t.icon || ''} ${t.title || 'Tab ' + (i+1)}</button>
+    `).join('');
+
+    const tabPanels = tabs.map((t, i) => `
+      <div id="${uid}-panel-${i}" style="padding:16px;display:${i === 0 ? 'block' : 'none'}">
+        <div style="font-size:13.5px;color:var(--text-secondary);line-height:1.6">${renderMarkdown(t.content || '')}</div>
+      </div>
+    `).join('');
+
+    el.innerHTML = `<div style="display:flex;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02)">${tabHeaders}</div>${tabPanels}`;
+    return el;
+  },
+
+  // Math / formula
+  math(data) {
+    const el = document.createElement('div');
+    el.style.cssText = 'background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin:12px 0;text-align:center;font-family:var(--mono);font-size:16px;color:var(--accent-light)';
+    if (data.title) el.innerHTML = `<div style="font-family:var(--font);font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">${data.title}</div>`;
+    el.innerHTML += `<div>${data.expression || ''}</div>`;
+    if (data.description) el.innerHTML += `<div style="font-family:var(--font);font-size:13px;color:var(--text-secondary);margin-top:8px">${data.description}</div>`;
+    return el;
+  },
+};
+
+// The main component renderer — takes the AI's component definition and renders it
+function renderComponent(data) {
+  const el = document.createElement('div');
+  el.className = 'ai-component';
+  el.style.cssText = 'background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin:20px 0;animation:slideIn 0.4s ease';
+
+  // Header bar
+  const title = data.title || '';
+  const icon = data.icon || '';
+  const accent = data.accent || 'var(--accent)';
+  if (title || icon) {
+    const header = document.createElement('div');
+    header.style.cssText = `padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.02)`;
+    header.innerHTML = `
+      <span style="font-size:16px">${icon}</span>
+      <span style="font-size:14px;font-weight:700;color:var(--text-primary)">${title}</span>
+      <span style="margin-left:auto;font-size:10px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">✨ AI</span>
+      <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;line-height:1" onclick="this.closest('.ai-component').remove()">&times;</button>
+    `;
+    el.appendChild(header);
+  }
+
+  // Body — render each section block
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:16px 20px';
+
+  const sections = data.sections || [];
+  if (sections.length === 0 && data.content) {
+    // Fallback: no sections array, just render as a callout
+    sections.push({ type: 'callout', content: data.content, variant: data.variant || 'accent' });
+  }
+
+  sections.forEach(sec => {
+    const renderer = SECTION_RENDERERS[sec.type];
+    if (renderer) {
+      try {
+        body.appendChild(renderer(sec));
+      } catch (e) {
+        console.error('Section render error:', sec.type, e);
+      }
+    } else {
+      // Unknown type — render as plain text fallback
+      const fallback = document.createElement('div');
+      fallback.style.cssText = 'padding:8px;color:var(--text-secondary)';
+      fallback.innerHTML = renderMarkdown(sec.content || JSON.stringify(sec));
+      body.appendChild(fallback);
+    }
+  });
+
+  el.appendChild(body);
+
+  // If no title/header, add a minimal dismiss
+  if (!title && !icon) {
+    const dismiss = document.createElement('button');
+    dismiss.style.cssText = 'position:absolute;top:8px;right:8px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px';
+    dismiss.innerHTML = '&times;';
+    dismiss.onclick = () => el.remove();
+    el.style.position = 'relative';
+    el.appendChild(dismiss);
+  }
+
+  return el;
+}
+
+function removeAnnotation(id) {
+  state.annotations = state.annotations.filter(a => a.id !== id);
+  localStorage.setItem('lg_annotations', JSON.stringify(state.annotations));
+}
+
+function restoreAnnotations(sectionId) {
+  const body = $(`#sectionBody-${sectionId}`);
+  if (!body) return;
+  state.annotations
+    .filter(a => a.sectionId === sectionId)
+    .forEach(ann => {
+      try { body.appendChild(renderComponent(ann)); } catch(e) {}
+    });
+}
+
+// ============================================================
+//  CHAT MANAGER
+// ============================================================
+function openChat(contextText = '') {
+  state.chatOpen = true;
+  $('#app').classList.add('chat-open');
+  $('#toggleChat').classList.add('active');
+
+  if (contextText) {
+    state.chatContext = contextText;
+    $('#chatContext').classList.add('visible');
+    $('#chatContextText').textContent = `"${contextText.substring(0, 100)}${contextText.length > 100 ? '...' : ''}"`;
+  }
+
+  $('#chatInput').focus();
+}
+
+function closeChat() {
+  state.chatOpen = false;
+  $('#app').classList.remove('chat-open');
+  $('#toggleChat').classList.remove('active');
+  state.chatContext = '';
+  $('#chatContext').classList.remove('visible');
+}
+
+$('#toggleChat').onclick = () => {
+  if (state.chatOpen) closeChat();
+  else openChat();
+};
+
+$('#chatClose').onclick = closeChat;
+$('#chatContextDismiss').onclick = () => {
+  state.chatContext = '';
+  $('#chatContext').classList.remove('visible');
+};
+
+$('#chatSend').onclick = sendChat;
+$('#chatInput').onkeydown = (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+};
+
+// Auto-resize textarea
+$('#chatInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+async function sendChat() {
+  const input = $('#chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  // Remove empty state
+  const empty = $('#chatEmpty');
+  if (empty) empty.remove();
+
+  // Add user message
+  addChatMessage('user', text);
+  input.value = '';
+  input.style.height = 'auto';
+
+  // Build context
+  const currentSec = getAllSectionsFlat().find(s => s.id === state.currentSection);
+  let contextMsg = '';
+  if (currentSec) {
+    contextMsg += `\n\n[Context] The user is currently reading: "${currentSec.title}" (${currentSec.badge || 'Course section'}). Section ID: ${currentSec.id}`;
+  }
+  if (state.chatContext) {
+    contextMsg += `\n\n[Context] The user highlighted this text from the lesson: "${state.chatContext}"`;
+  }
+
+  const messages = [
+    ...state.chatMessages.slice(-10),
+    { role: 'user', content: text }
+  ];
+
+  // Show typing indicator
+  const typingEl = addTypingIndicator();
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages, context: contextMsg })
+    });
+
+    typingEl.remove();
+
+    if (!response.ok) {
+      const err = await response.json();
+      addChatMessage('assistant', `❌ Error: ${err.error || 'Unknown error occurred.'}`);
+      return;
+    }
+
+    // Stream response (SSE format)
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let msgEl = null;
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            fullContent += delta;
+            // Strip component markers from chat display
+            const displayContent = stripInlineComponents(fullContent);
+            if (!msgEl) {
+              msgEl = addChatMessage('assistant', displayContent, true);
+            } else {
+              const bubble = $('.chat-bubble', msgEl);
+              bubble.innerHTML = renderMarkdown(displayContent);
+            }
+          }
+        } catch (parseErr) {
+          // Skip malformed chunks
+        }
+      }
+    }
+
+    // Process any annotations in the response
+    processAnnotations(fullContent);
+
+    state.chatMessages.push({ role: 'user', content: text });
+    state.chatMessages.push({ role: 'assistant', content: fullContent });
+
+  } catch (error) {
+    typingEl.remove();
+    addChatMessage('assistant', `❌ Failed to connect: ${error.message}. Make sure the server is running.`);
+  }
+}
+
+function addChatMessage(role, content, isStreaming = false) {
+  const container = $('#chatMessages');
+  const msg = document.createElement('div');
+  msg.className = `chat-msg ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'chat-avatar';
+  avatar.textContent = role === 'user' ? 'U' : 'AI';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble';
+  bubble.innerHTML = role === 'assistant' ? renderMarkdown(content) : escapeHtml(content);
+
+  msg.appendChild(avatar);
+  msg.appendChild(bubble);
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+  return msg;
+}
+
+function addTypingIndicator() {
+  const container = $('#chatMessages');
+  const msg = document.createElement('div');
+  msg.className = 'chat-msg assistant';
+  msg.innerHTML = `
+    <div class="chat-avatar">AI</div>
+    <div class="chat-bubble">
+      <div class="chat-typing"><span></span><span></span><span></span></div>
+    </div>
+  `;
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+  return msg;
+}
+
+function renderMarkdown(text) {
+  return text
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br>');
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function processAnnotations(content) {
+  // Unified protocol: <<<COMPONENT:section_id>>>json<<<END>>>
+  // Also supports legacy type-specific tags for backward compat
+  const regex = /<<<(COMPONENT|ANNOTATION|QUIZ|DIAGRAM|CODE|STEPS|TABLE|EXPANDABLE):([\w-]+)>>>\s*(\{[\s\S]*?\})\s*<<<END>>>/g;
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    const tag = match[1];
+    const sectionId = match[2];
+    try {
+      const raw = JSON.parse(match[3]);
+      // Normalize legacy types into the unified format
+      let normalized;
+      if (tag === 'COMPONENT') {
+        normalized = raw;
+      } else if (tag === 'ANNOTATION') {
+        normalized = {
+          icon: { note:'📝', tip:'💡', warning:'⚠️', question:'❓', definition:'📖', example:'🔹' }[raw.type] || '📌',
+          sections: [{ type: 'callout', content: raw.content, variant: raw.style || 'info', label: raw.type || 'note' }]
+        };
+      } else if (tag === 'QUIZ') {
+        normalized = { sections: [{ type: 'quiz', question: raw.question, options: raw.options, correct: raw.correct, explanation: raw.explanation }] };
+      } else if (tag === 'DIAGRAM') {
+        normalized = { icon: '📊', title: raw.title || 'Diagram', sections: [{ type: 'diagram', code: raw.code, title: raw.title }] };
+      } else if (tag === 'CODE') {
+        normalized = { sections: [{ type: 'code', language: raw.language, title: raw.title, code: raw.code }] };
+      } else if (tag === 'STEPS') {
+        normalized = { icon: '🔢', title: raw.title, sections: [{ type: 'steps', steps: raw.steps, items: raw.items }] };
+      } else if (tag === 'TABLE') {
+        normalized = { icon: '📊', title: raw.title, sections: [{ type: 'table', headers: raw.headers, rows: raw.rows }] };
+      } else if (tag === 'EXPANDABLE') {
+        normalized = { sections: [{ type: 'expandable', title: raw.title, content: raw.content }] };
+      } else {
+        normalized = raw;
+      }
+      injectComponent(sectionId, normalized);
+    } catch (e) {
+      console.error(`Failed to parse ${tag} component:`, e);
+    }
+  }
+}
+
+function injectComponent(sectionId, data) {
+  const body = $(`#sectionBody-${sectionId}`);
+  if (!body) return;
+  try {
+    const el = renderComponent(data);
+    if (el) {
+      body.appendChild(el);
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+    }
+  } catch (e) {
+    console.error('Failed to render component:', e);
+  }
+}
+
+function stripInlineComponents(text) {
+  return text
+    .replace(/<<<(COMPONENT|ANNOTATION|QUIZ|DIAGRAM|CODE|STEPS|TABLE|EXPANDABLE):[\w-]+>>>\s*\{[\s\S]*?\}\s*<<<END>>>/g,
+      ' ✨ *component injected into lesson*')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// ============================================================
+//  SETTINGS
+// ============================================================
+function openSettingsModal() {
+  $('#settingsModal').classList.add('open');
+  $('#apiKeyInput').value = state.apiKey;
+  $('#modelSelect').value = state.model;
+}
+
+$('#openSettings').onclick = openSettingsModal;
+$('#closeSettings').onclick = () => $('#settingsModal').classList.remove('open');
+$('#settingsModal').onclick = (e) => {
+  if (e.target === $('#settingsModal')) $('#settingsModal').classList.remove('open');
+};
+
+$('#saveSettings').onclick = () => {
+  state.apiKey = $('#apiKeyInput').value.trim();
+  state.model = $('#modelSelect').value;
+  localStorage.setItem('lg_apikey', state.apiKey);
+  localStorage.setItem('lg_model', state.model);
+  $('#settingsModal').classList.remove('open');
+
+  // Re-render to remove the API key notice
+  if (state.currentSection) renderContent(state.currentSection);
+};
+
+$('#resetProgress').onclick = () => {
+  if (confirm('Reset all progress? This cannot be undone.')) {
+    state.completedSections.clear();
+    localStorage.removeItem('lg_completed');
+    localStorage.removeItem('lg_highlights');
+    localStorage.removeItem('lg_annotations');
+    state.highlights = {};
+    state.annotations = [];
+    buildSidebar();
+    if (state.currentSection) renderContent(state.currentSection);
+  }
+};
+
+// ============================================================
+//  COPY CODE
+// ============================================================
+function copyCode(btn) {
+  const code = btn.closest('.code-block').querySelector('.code-body').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 2000);
+  });
+}
+
+// ============================================================
+//  SIDEBAR TOGGLE
+// ============================================================
+$('#toggleSidebar').onclick = () => {
+  state.sidebarVisible = !state.sidebarVisible;
+  const sidebar = $('#sidebar');
+  sidebar.style.display = state.sidebarVisible ? '' : 'none';
+  if (!state.sidebarVisible) {
+    $('#app').style.gridTemplateColumns = state.chatOpen ? `1fr var(--chat-w)` : '1fr';
+  } else {
+    $('#app').style.gridTemplateColumns = state.chatOpen ? `var(--sidebar-w) 1fr var(--chat-w)` : `var(--sidebar-w) 1fr`;
+  }
+};
+
+// ============================================================
+//  INITIALIZATION
+// ============================================================
+async function checkPiStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    state.piReady = data.ready;
+    if (state.currentSection) renderContent(state.currentSection);
+  } catch (e) {
+    state.piReady = false;
+  }
+}
+
+function init() {
+  buildSidebar();
+  const saved = localStorage.getItem('lg_current');
+  const firstSection = COURSE.chapters[0].sections[0].id;
+  navigateTo(saved || firstSection);
+  checkPiStatus();
+}
+
+init();
+</script>
+
+</body>
+</html>

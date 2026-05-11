@@ -30,11 +30,17 @@ export function renderAll() {
   const el = document.querySelector('.empty-state');
   if (el) el.remove();
 
-  const visibleEdges = edges.filter(e => isEdgeVisible(e));
+  const nodeIdSet = new Set(nodes.map(n => n.id));
+  const edgeEndpoint = (v) => typeof v === 'object' ? v.id : v;
+  const visibleEdges = edges.filter(e =>
+    isEdgeVisible(e) &&
+    nodeIdSet.has(edgeEndpoint(e.source)) &&
+    nodeIdSet.has(edgeEndpoint(e.target))
+  );
   const visibleNodeIds = new Set(nodes.filter(n => isNodeVisible(n)).map(n => n.id));
   for (const e of visibleEdges) {
-    visibleNodeIds.add(typeof e.source === 'object' ? e.source.id : e.source);
-    visibleNodeIds.add(typeof e.target === 'object' ? e.target.id : e.target);
+    visibleNodeIds.add(edgeEndpoint(e.source));
+    visibleNodeIds.add(edgeEndpoint(e.target));
   }
   const visibleNodes = nodes.filter(n => visibleNodeIds.has(n.id));
 

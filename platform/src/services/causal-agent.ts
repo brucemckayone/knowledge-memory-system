@@ -2064,10 +2064,22 @@ export async function invokeCausalAgent(delta: CausalDelta): Promise<CausalAgent
 // Extraction Agent Invocation
 // ============================================
 
+/**
+ * Content-type hint passed through to the graph agent. Branches the agent's
+ * system prompt and predicate vocabulary:
+ *  - 'prose' (default): free-predicate extraction over natural-language text.
+ *  - 'code-ts': constrained predicate set for TypeScript source — defines,
+ *    imports, calls, references, implements, depends_on.
+ *  - 'code-sql': constrained predicate set for SQL migrations — defines_table,
+ *    defines_column, references_table, creates_index.
+ */
+export type ContentType = 'prose' | 'code-ts' | 'code-sql';
+
 export interface ExtractionAgentParams {
   sourceText: string;
   memoryId: string;
   source?: string;
+  contentType?: ContentType;
 }
 
 export interface ExtractionAgentResult {
@@ -2198,6 +2210,7 @@ export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<G
       memory_id: params.memoryId,
       mcp_config_path: mcpConfigPath,
       source_name: params.source,
+      content_type: params.contentType ?? 'prose',
     }),
   });
 

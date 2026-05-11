@@ -12,6 +12,7 @@
  */
 import { runAgent } from '../services/agent.js';
 import type { LearnerLessonContext } from './learner-lesson-context.js';
+import { withPresentationMode } from './presentation-mode.js';
 
 export type OutlineFixedKind =
   | 'Mermaid'
@@ -69,6 +70,10 @@ export interface OutlinerInput {
    *  outline in current state for fast-moving topics. Disabled by default —
    *  cold-start prompts and tool list stay byte-identical to the v0.3 baseline. */
   enableWebSearch?: boolean;
+  /** When true, the parent course is flagged as part of a live demo. Appends
+   *  the presentation-mode addendum to the system prompt to bias register
+   *  toward audience-aware explanation. Default false. */
+  presentationMode?: boolean;
 }
 
 const ALLOWED_FIXED_KINDS = new Set<OutlineFixedKind>([
@@ -366,7 +371,7 @@ export async function generateLessonOutline(input: OutlinerInput): Promise<Lesso
   const result = await runAgent(buildUserPrompt(input), {
     model: 'sonnet',
     effort: 'max',
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: withPresentationMode(SYSTEM_PROMPT, input.presentationMode),
     tools,
     maxTurns,
     timeoutMs: 600_000,

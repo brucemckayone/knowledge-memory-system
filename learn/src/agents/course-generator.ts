@@ -14,6 +14,7 @@ import { config } from '../config.js';
 import { runAgent, writeMcpConfig } from '../services/agent.js';
 import { ingestContent, getGraphS } from '../services/nmemo-client.js';
 import { db, courses, sections, questions } from '../db/index.js';
+import { withPresentationMode } from './presentation-mode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MCP_SCRIPT = path.resolve(__dirname, '..', 'mcp', 'learning-mcp.ts');
@@ -89,6 +90,7 @@ export async function generateCourse(params: {
   sourceType: 'generated' | 'paste';
   sourceText?: string;
   nmemoMemoryId?: string;
+  presentationMode?: boolean;
 }): Promise<string> {
   const { courseId } = params;
 
@@ -112,7 +114,7 @@ export async function generateCourse(params: {
   const result = await runAgent(prompt, {
     model: 'sonnet',
     effort: 'medium',
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: withPresentationMode(SYSTEM_PROMPT, params.presentationMode),
     mcpConfigPath,
     mcpServerName: 'learn',
     maxTurns: 30,
@@ -129,24 +131,48 @@ export async function generateCourse(params: {
     throw new Error(`Course generator produced invalid JSON: ${err instanceof Error ? err.message : err}`);
   }
 
-  // Update the placeholder row with the generated course details
+  // Validate up front so a malformed / empty agent output fails the whole run
+  // instead of producing a `status='ready'` course with zero sections. Without
+  // this guard the placeholder is updated to ready first, then the section
+  // loop iterates 0 times — leaving an empty course in the UI with no errors.
+  if (!Array.isArray(courseData.sections) || courseData.sections.length === 0) {
+    const preview = result.result.slice(0, 400).replace(/\s+/g, ' ');
+    throw new Error(
+      `Course generator returned no sections (sections=${JSON.stringify(courseData.sections)}). ` +
+      `Agent output preview: ${preview}`,
+    );
+  }
+  if (!courseData.title || typeof courseData.title !== 'string') {
+    throw new Error('Course generator returned no title');
+  }
+
+  // Update placeholder with title/description, but keep status='building' until
+  // sections are actually inserted. Otherwise a mid-loop failure leaves a "ready"
+  // course with zero sections in the UI.
   await db.update(courses).set({
     title: courseData.title,
     description: courseData.description,
     nmemoMemoryId: memoryId,
-    status: 'ready',
     updatedAt: new Date().toISOString(),
   }).where(eq(courses.id, courseId));
+
+  // Concept entity IDs are an Nmemo enrichment — if Nmemo is degraded, sections
+  // and questions should still be created with empty/null concept refs.
+  let graphNodes: Array<{ id: string; label: string }> = [];
+  try {
+    const graphS = await getGraphS();
+    graphNodes = graphS.nodes;
+  } catch (err) {
+    console.warn(`[course-gen] getGraphS failed, proceeding without concept entity IDs: ${err instanceof Error ? err.message : err}`);
+  }
 
   for (let si = 0; si < courseData.sections.length; si++) {
     const sec = courseData.sections[si]!;
     const sectionId = randomUUID();
 
     const conceptEntityIds: string[] = [];
-    // We stored concepts in Nmemo graph via MCP — collect their IDs from a quick graph query
-    const graphS = await getGraphS();
     for (const c of sec.concepts) {
-      const node = graphS.nodes.find(n => n.label.toLowerCase() === c.name.toLowerCase());
+      const node = graphNodes.find(n => n.label.toLowerCase() === c.name.toLowerCase());
       if (node) conceptEntityIds.push(node.id);
     }
 
@@ -161,7 +187,7 @@ export async function generateCourse(params: {
     });
 
     for (const q of sec.questions) {
-      const conceptNode = graphS.nodes.find(n =>
+      const conceptNode = graphNodes.find(n =>
         n.label.toLowerCase() === q.conceptName.toLowerCase()
       );
       await db.insert(questions).values({
@@ -176,6 +202,11 @@ export async function generateCourse(params: {
       });
     }
   }
+
+  await db.update(courses).set({
+    status: 'ready',
+    updatedAt: new Date().toISOString(),
+  }).where(eq(courses.id, courseId));
 
   return courseId;
 }

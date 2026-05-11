@@ -255,10 +255,12 @@ chatRoutes.post('/sessions/:id/messages', async (c) => {
   if (!session) return c.json({ error: 'Session not found' }, 404);
 
   let courseTopic: string | undefined;
+  let presentationMode = false;
   if (session.courseId) {
-    const [course] = await db.select({ topic: courses.topic })
+    const [course] = await db.select({ topic: courses.topic, presentationMode: courses.presentationMode })
       .from(courses).where(eq(courses.id, session.courseId));
     courseTopic = course?.topic ?? undefined;
+    presentationMode = Boolean(course?.presentationMode);
   }
 
   let sectionTitle: string | undefined;
@@ -331,6 +333,7 @@ chatRoutes.post('/sessions/:id/messages', async (c) => {
     sectionTitle,
     sectionExcerpt,
     learnerContextBlock,
+    presentationMode,
   });
 
   // Store assistant response. When the tutor returned structured blocks, the

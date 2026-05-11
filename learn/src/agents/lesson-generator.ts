@@ -44,6 +44,7 @@ import {
   type LearnerLessonContext,
   type PrioritisedGap,
 } from './learner-lesson-context.js';
+import { withPresentationMode } from './presentation-mode.js';
 
 // ---------------------------------------------------------------------------
 // Public types — preserved from v0.2 so route layer doesn't change.
@@ -223,6 +224,10 @@ interface LessonContext {
   orderIndex: number;
   nextSectionTitle: string | null;
   prevSectionTitle: string | null;
+  /** True when the parent course is flagged as part of a live demo —
+   *  outliner / prose writer / artifact builders bias their register
+   *  toward audience-aware explanation with light meta self-reference. */
+  presentationMode: boolean;
 }
 
 async function buildContext(sectionId: string): Promise<LessonContext> {
@@ -260,6 +265,7 @@ async function buildContext(sectionId: string): Promise<LessonContext> {
     orderIndex: section.orderIndex,
     nextSectionTitle: next?.title ?? null,
     prevSectionTitle: prev?.title ?? null,
+    presentationMode: Boolean(course.presentationMode),
   };
 }
 
@@ -714,6 +720,7 @@ async function generateLessonStructuredV3(
     nextSectionTitle: ctx.nextSectionTitle,
     learnerContext: personalised,
     enableWebSearch: outlinerGotWeb,
+    presentationMode: ctx.presentationMode,
   });
   const proseItems = outline.items.filter((it): it is ProseItem => it.kind === 'prose');
   const artifactItems = outline.items.filter((it): it is ArtifactItem => it.kind === 'artifact');
@@ -755,6 +762,7 @@ async function generateLessonStructuredV3(
         learningObjectives: ctx.learningObjectives,
         learnerContext: personalised,
         enableWebSearch: policy.prose && downstreamAlloc.granted.has(item.id),
+        presentationMode: ctx.presentationMode,
       });
       const citeCount = result.citations?.length ?? 0;
       console.log(`[lesson-generator] prose ${item.id} written (${result.markdown.length} chars, ${citeCount} citations)`);
@@ -893,7 +901,7 @@ async function generateLessonLegacy(sectionId: string): Promise<GeneratedLesson>
   const result = await runAgent(buildLegacyPrompt(ctx), {
     model: 'haiku',
     effort: 'low',
-    systemPrompt: LEGACY_SYSTEM_PROMPT,
+    systemPrompt: withPresentationMode(LEGACY_SYSTEM_PROMPT, ctx.presentationMode),
     maxTurns: 3,
     timeoutMs: 300_000,
   });

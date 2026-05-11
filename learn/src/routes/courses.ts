@@ -39,11 +39,13 @@ courseRoutes.post('/', async (c) => {
     topic: string;
     sourceType?: 'generated' | 'paste';
     sourceText?: string;
+    presentationMode?: boolean;
   }>();
 
   if (!body.topic) return c.json({ error: 'topic is required' }, 400);
 
   const sourceType = body.sourceType ?? 'generated';
+  const presentationMode = Boolean(body.presentationMode);
 
   // Create a placeholder row immediately so the UI can poll for status
   const courseId = randomUUID();
@@ -55,6 +57,7 @@ courseRoutes.post('/', async (c) => {
     sourceType,
     sourceText: body.sourceText ?? null,
     status: 'building',
+    presentationMode: presentationMode ? 1 : 0,
   });
 
   // Run generation asynchronously — client polls /api/courses/:id
@@ -63,6 +66,7 @@ courseRoutes.post('/', async (c) => {
     topic: body.topic,
     sourceType,
     sourceText: body.sourceText,
+    presentationMode,
   }).then(() => {
     console.log(`[course-gen] course ${courseId} ready`);
   }).catch(err => {

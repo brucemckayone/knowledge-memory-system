@@ -9,7 +9,7 @@
 import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
-import { invokeGraphAgent, invokeGardenerAgent } from './services/causal-agent.js';
+import { invokeGraphAgent, invokeGardenerAgent, type ContentType } from './services/causal-agent.js';
 import { applyConfidenceDecay } from './services/causal.js';
 import { detectContradictions } from './services/contradictions.js';
 import { updateEntityMeta, detectMergeCandidates } from './services/graph-meta.js';
@@ -137,7 +137,7 @@ export interface SkippedRelationship {
  */
 export async function store(
   text: string,
-  metadata?: { source?: string; timestamp?: Date }
+  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType }
 ): Promise<string> {
   const memoryId = randomUUID();
   const { vector } = await ml.embed(text);
@@ -149,6 +149,7 @@ export async function store(
       source: metadata?.source ?? 'cli',
       created_at: (metadata?.timestamp ?? new Date()).toISOString(),
       status: 'stored',
+      content_type: metadata?.contentType ?? 'prose',
     },
   });
   return memoryId;
@@ -164,13 +165,16 @@ export async function store(
  * directly via MCP tool calls. After the agent finishes, we query
  * the DB for what was created and update graph meta statistics.
  */
-export async function extract(memoryId: string): Promise<ExtractResult> {
+export async function extract(memoryId: string, opts?: { contentType?: ContentType }): Promise<ExtractResult> {
   const timing: Record<string, number> = {};
 
   // 1. Fetch memory from Qdrant
   const memory = await getMemory(memoryId);
   if (!memory?.payload) throw new Error(`Memory ${memoryId} not found in Qdrant`);
   const content = memory.payload.content as string;
+  // contentType resolution order: explicit opts > stored Qdrant payload > 'prose'
+  const contentType: ContentType =
+    opts?.contentType ?? (memory.payload.content_type as ContentType | undefined) ?? 'prose';
 
   // 2. Invoke the unified graph agent
   const t0 = Date.now();
@@ -178,6 +182,7 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
     sourceText: content,
     memoryId,
     source: memory.payload.source as string | undefined,
+    contentType,
   });
   timing.graphAgent = Date.now() - t0;
   if (agentResult.result) {
@@ -329,17 +334,17 @@ export async function extract(memoryId: string): Promise<ExtractResult> {
  */
 export async function ingest(
   text: string,
-  metadata?: { source?: string; timestamp?: Date }
+  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType }
 ): Promise<IngestResult> {
   const rid = randomUUID().slice(0, 8);
   const tag = `[ingest:${rid}]`;
   const totalStart = Date.now();
-  console.log(`${tag} start source=${metadata?.source ?? 'unknown'} len=${text.length}`);
+  console.log(`${tag} start source=${metadata?.source ?? 'unknown'} contentType=${metadata?.contentType ?? 'prose'} len=${text.length}`);
 
   const memoryId = await store(text, metadata);
   console.log(`${tag} stored memoryId=${memoryId} +${Date.now() - totalStart}ms`);
 
-  const extractResult = await extract(memoryId);
+  const extractResult = await extract(memoryId, { contentType: metadata?.contentType });
   console.log(`${tag} extracted entities=${extractResult.entities.length} facts=${extractResult.facts.length} +${Date.now() - totalStart}ms`);
 
   extractResult.timing.total = Date.now() - totalStart;
@@ -354,6 +359,7 @@ export async function ingest(
 interface QueueItem {
   text: string;
   source?: string;
+  contentType?: ContentType;
 }
 
 const ingestQueue: QueueItem[] = [];
@@ -364,10 +370,14 @@ let draining = false;
  * Items are processed one at a time in FIFO order —
  * no concurrent graph agent processes, no race conditions.
  */
-export function enqueueIngest(text: string, source?: string): { queued: true; position: number } {
-  ingestQueue.push({ text, source });
+export function enqueueIngest(
+  text: string,
+  source?: string,
+  contentType?: ContentType,
+): { queued: true; position: number } {
+  ingestQueue.push({ text, source, contentType });
   const position = ingestQueue.length;
-  console.log(`[queue] enqueued position=${position} source=${source ?? 'unknown'} len=${text.length}`);
+  console.log(`[queue] enqueued position=${position} source=${source ?? 'unknown'} contentType=${contentType ?? 'prose'} len=${text.length}`);
   drainQueue(); // kick the worker (no-op if already running)
   return { queued: true, position };
 }
@@ -378,7 +388,7 @@ async function drainQueue(): Promise<void> {
   while (ingestQueue.length > 0) {
     const item = ingestQueue.shift()!;
     try {
-      await ingest(item.text, { source: item.source });
+      await ingest(item.text, { source: item.source, contentType: item.contentType });
     } catch (err) {
       console.error(`[queue] ingest failed:`, err instanceof Error ? err.message : err);
     }

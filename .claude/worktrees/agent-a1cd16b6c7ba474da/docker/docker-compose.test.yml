@@ -1,0 +1,83 @@
+version: '3.8'
+
+# Test environment docker-compose
+# Provides isolated PostgreSQL and Qdrant for integration tests
+# Usage: docker compose -f docker/docker-compose.test.yml up -d
+
+services:
+  postgres-test:
+    image: pgvector/pgvector:pg16
+    container_name: cognitive-test-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cognitive_test
+    ports:
+      - "5433:5432"  # Different port to avoid conflict with dev
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cognitive_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  qdrant-test:
+    image: qdrant/qdrant:v1.7.4
+    container_name: cognitive-test-qdrant
+    ports:
+      - "6334:6333"  # Different port to avoid conflict with dev
+      - "6335:6334"  # gRPC port
+    volumes:
+      - qdrant_test_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # Optional: Ollama for ML service tests
+  # Note: Requires GPU or will be slow
+  ollama-test:
+    image: ollama/ollama:latest
+    container_name: cognitive-test-ollama
+    ports:
+      - "11435:11434"  # Different port to avoid conflict
+    volumes:
+      - ollama_test_data:/root/.ollama
+    profiles:
+      - ml  # Only start with --profile ml
+    networks:
+      - test-network
+
+  # ML Services (Python FastAPI)
+  ml-services-test:
+    build:
+      context: ../ml-services
+      dockerfile: Dockerfile
+    container_name: cognitive-test-ml-services
+    environment:
+      OLLAMA_HOST: http://ollama-test:11434
+      PORT: 8100
+    ports:
+      - "8101:8100"  # Different port to avoid conflict
+    depends_on:
+      ollama-test:
+        condition: service_started
+    profiles:
+      - ml  # Only start with --profile ml
+    networks:
+      - test-network
+
+volumes:
+  postgres_test_data:
+  qdrant_test_data:
+  ollama_test_data:
+
+networks:
+  test-network:
+    driver: bridge

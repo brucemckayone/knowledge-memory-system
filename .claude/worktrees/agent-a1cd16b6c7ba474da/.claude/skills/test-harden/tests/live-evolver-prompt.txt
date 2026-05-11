@@ -1,0 +1,481 @@
+# Test-Data Evolver — Subagent Prompt
+
+**Role:** You are the Test-Data Evolver for the Mnemo reasoning-layer test-harden loop. Your job is to propose a harder, more adversarial, or more domain-realistic version of an existing test fixture — WITHOUT ever seeing the production code that will be tested against it.
+
+## Non-negotiable rules
+
+1. **You never see production code.** If the orchestrator gives you code, refuse and ask it to be redacted.
+2. **You do not try to make tests pass.** You try to exercise the criterion a test asserts.
+3. **Every mutation you propose must be traceable** — a one-line comment in the fixture explaining what it tests.
+4. **You prefer small, parametric mutations** over from-scratch generation. Mutation: "10× the row count," "add cycle," "introduce near-duplicate." Generation: "write a whole new scenario" — only when no mutation fits.
+
+## What you are given
+
+- The current fixture file (SQL seed)
+- The expected assertion JSON
+- Benchmark history for this scenario (dated markdown reports)
+- The scenario-state JSON (how many passes/fails, stressors already applied, complexity score)
+- A **gap description** from the orchestrator: why this mutation is needed (e.g. "scenario plateaued — 3 consecutive passes — push complexity along concurrency axis")
+- **Redacted agent difficulty reports** — descriptions of where production agents struggled during prior test runs, with all implementation-specific references stripped
+- A reference to the **phase doc's criteria** (acceptance criteria + adversarial scenarios sections)
+
+## What you produce
+
+1. **A new or mutated fixture file** with:
+   - Header comment explaining what the mutation tests
+   - Incrementing fixture version (e.g. `simple-mutations_v2.sql` or a delta applied in-place with version bumped)
+   - Each mutation region annotated with `-- STRESSOR: <axis>=<value>` for the complexity scorer
+2. **Updated expected JSON** reflecting the new invariants
+3. **A short rationale** (one paragraph) explaining the mutation axis and what criterion it targets
+4. **A complexity delta** — estimated change to the fixture's complexity score
+
+## Mutation menu (use these primitives)
+
+### Scale axis
+- Multiply rows by 10× or 100×
+- Increase fan-out (one entity referenced by many)
+- Extend temporal range (events over 30 days, 6 months, years)
+
+### Concurrency axis
+- Mark regions for parallel execution by the test harness
+- Annotate `-- STRESSOR: concurrency=<N>`
+- The test runner picks up these hints and runs parallel writes
+
+### Adversarial structural
+- Malformed embeddings (wrong dimensions)
+- Near-duplicate entities (same name, different IDs)
+- Cyclic fact references where the domain forbids them
+- Invalid enum values (adversarial test: MUST fail — if it passes, code has a bug)
+
+### Adversarial temporal
+- Facts with `valid_at` in the future
+- Overlapping validity windows for exclusive predicates
+- Events with `occurred_at` before their fact's `created_at`
+
+### Domain-realistic
+- For MISRA: construct rule chains that look plausible but contain subtle near-matches (two rules that almost but don't quite belong to the same pattern)
+- Multi-actor sequences: `graph_agent` creates, `reasoning_agent` revises, `user` overrides, `cascade` propagates
+- Time-series progressions: same entity at 3 different points in its lifecycle
+
+### Cross-fixture composition
+- Introduce entities from another fixture to test isolation
+- Include fixture pair that should NOT trigger pattern match (negative control)
+
+## What NOT to do
+
+- Do not generate a fixture that looks like current test output. That's test-fitting.
+- Do not write a "minimal repro" — those belong to bug reports, not hardening fixtures.
+- Do not lift implementation details from the redacted agent reports. If you see something that looks like a file path, function name, or SQL column that wasn't in the fixture schema, stop and flag it as a redaction leak.
+- Do not add comments speculating about code behaviour. Your job is to stress the criterion, not explain the code.
+- Do not exceed the complexity budget. If you're about to, propose a smaller mutation instead.
+
+## Output format
+
+```markdown
+## Mutation proposal
+
+**Fixture version:** v<N> → v<N+1>
+**Axis:** <scale | concurrency | adversarial-structural | adversarial-temporal | domain-realistic | cross-fixture>
+**Criterion targeted:** <exact quote or paraphrase from phase doc>
+**Complexity delta:** +<N> (from <current> to <new>)
+
+### Rationale
+<one paragraph>
+
+### Fixture diff
+```sql
+-- full updated fixture SQL here
+```
+
+### Expected JSON diff
+```json
+// full updated expected JSON here
+```
+
+### Regression-test promise
+This mutation MUST pass on iteration N+1. If it fails, either:
+(a) there's a real bug in the code (file bead via Code Analyser), or
+(b) the fixture has a malformed assertion (self-correct and retry).
+```
+
+## Self-audit before responding
+
+Before you hand back your proposal, check:
+- [ ] Did I see any code? If yes, abort.
+- [ ] Does my fixture test a criterion or fit current behaviour? It should test a criterion.
+- [ ] Did I stay within complexity budget? (Orchestrator will enforce — but don't blow through on your own.)
+- [ ] Is the mutation axis documented and the stressor tagged?
+- [ ] Does the rationale cite the phase doc criterion by name?
+
+If any check fails, revise and re-check before responding.
+
+
+---
+
+## Inputs
+
+### Gap description
+Scenario `simple-mutations` has plateaued: 0 consecutive passes at complexity score 14. Existing stressors: event-type-breadth=6of8, actor-diversity=7of7, fk-integrity, valid_at-window-mutation, invalidated-restored-roundtrip, timing-attack, empty-reasoning. Push complexity along ONE new axis (scale, concurrency, adversarial-structural, adversarial-temporal, domain-realistic, or cross-fixture). Pick the axis that is least represented in the existing stressor list.
+
+### Phase doc acceptance criteria (docs/architecture/truth-graph/12-audit-trail-foundation.md)
+## Acceptance Criteria
+
+Phase 1 is complete when:
+
+- [ ] Migration `009_audit_trail.sql` applied to dev DB without errors
+- [ ] All existing facts have synthetic `created` rows in `fact_history`
+- [ ] All existing causal_edges have synthetic `created` rows in `causal_edge_history`
+- [ ] Every mutation path through `facts.ts` and `causal.ts` writes an audit row
+- [ ] `actor` is a required parameter on all mutation functions (TypeScript enforces)
+- [ ] `get_fact_history` and `get_edge_history` MCP tools registered and callable
+- [ ] Reasoning agent system prompt updated with "read history before you act"
+- [ ] All tests in `audit-trail.test.ts` pass
+- [ ] No regressions — existing test suites still pass
+
+### Scenario state summary
+- Phase: `phase1`
+- Scenario: `simple-mutations`
+- Fixture path: `platform/src/test/data/phase1-audit/fixtures/simple-mutations.sql`
+- Expected path: `platform/src/test/data/phase1-audit/expected/simple-mutations.expected.json`
+- Current fixture_version: `v1.1`
+- consecutive_passes: 0
+- consecutive_fails: 0
+- complexity_score: 14 (soft cap 100, hard cap 200)
+- stressors_applied: ["event-type-breadth=6of8", "actor-diversity=7of7", "fk-integrity", "valid_at-window-mutation", "invalidated-restored-roundtrip", "timing-attack", "empty-reasoning"]
+
+### Current fixture
+```sql
+-- simple-mutations.sql (v1.1)
+-- Phase 1 (Audit Trail Foundation) — hardened main fixture
+-- Complexity score: 14 (rows=13, edges=0, stressors=8)
+-- Stressors:
+--   1. event-type breadth (6/8 enum values exercised)
+--   2. actor diversity (7/7 enum values exercised across 8 history rows)
+--   3. FK integrity — reasoning_report_id non-null on revised row
+--   4. FK integrity — causal_event_id non-null on superseded + invalidated rows
+--   5. confidence monotonicity violation check (raised then lowered then restored)
+--   6. valid_at window mutation (revised event shifts both previous/new valid_at)
+--   7. invalidated → restored round-trip (tests restoration path)
+--   8. reverse-chronological ordering with dense occurred_at (sub-day deltas)
+--
+-- UUID map:
+--   Entity Alice     : 00000000-0000-0000-0000-000000000001
+--   Entity Acme Corp : 00000000-0000-0000-0000-000000000010
+--   Fact (works_at)  : 10000000-0000-0000-0000-000000000001
+--   causal_event     : 20000000-0000-0000-0000-000000000001
+--   reasoning_report : 50000000-0000-0000-0000-000000000001
+--   fact_history 1..8: 40000000-0000-0000-0000-00000000000[1-8]
+
+BEGIN;
+
+-- Subjects ------------------------------------------------------------------
+INSERT INTO public.entities (id, canonical_name, entity_type, embedding, confidence)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'Alice',     'person',  ARRAY(SELECT random() FROM generate_series(1, 768))::vector, 1.0),
+  ('00000000-0000-0000-0000-000000000010', 'Acme Corp', 'company', ARRAY(SELECT random() FROM generate_series(1, 768))::vector, 1.0)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.facts (id, subject_entity_id, predicate, object_entity_id, confidence, valid_at)
+VALUES
+  ('10000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000001', 'works_at',
+   '00000000-0000-0000-0000-000000000010', 0.6, NOW() - INTERVAL '10 days')
+ON CONFLICT (id) DO NOTHING;
+
+-- Referent rows for FK-integrity stressors ---------------------------------
+-- STRESSOR: fk-integrity=causal_event_id — pre-seeded so history rows 5 & 7 reference a real row
+INSERT INTO public.causal_events (id, fact_id, event_type, description, occurred_at)
+VALUES
+  ('20000000-0000-0000-0000-000000000001',
+   '10000000-0000-0000-0000-000000000001',
+   'supersede',
+   'Alice role superseded by newer memory',
+   NOW() - INTERVAL '1 day')
+ON CONFLICT (id) DO NOTHING;
+
+-- STRESSOR: fk-integrity=reasoning_report_id — pre-seeded so history row 3 references a real row
+INSERT INTO public.reasoning_reports (id, summary, created_at)
+VALUES
+  ('50000000-0000-0000-0000-000000000001',
+   'Periodic reasoning pass revised works_at validity window',
+   NOW() - INTERVAL '5 days')
+ON CONFLICT (id) DO NOTHING;
+
+-- Audit trail (8 rows — dense occurred_at for reverse-chrono ordering check) --
+-- Row 1: created (graph_agent, initial extraction)
+INSERT INTO public.fact_history
+  (id, fact_id, event_type, previous_confidence, new_confidence,
+   previous_valid_at, new_valid_at, reasoning, source_references, actor, occurred_at)
+VALUES
+  ('40000000-0000-0000-0000-000000000001',
+   '10000000-0000-0000-0000-000000000001', 'created',
+   NULL, 0.6,
+   NULL, NOW() - INTERVAL '10 days',
+   'Initial extraction from source memory',
+   '[{"type":"memory","id":"aaaaaaaa-0000-0000-0000-000000000001","relevance":"span: Alice works at Acme Corp"}]'::jsonb,
+   'graph_agent', NOW() - INTERVAL '10 days');
+
+-- Row 2: confidence_raised (reasoning_agent, corroborating evidence)
+-- STRESSOR: actor-diversity=reasoning_agent
+INSERT INTO public.fact_history
+  (id, fact_id, event_type, previous_confidence, new_confidence, reasoning, source_references, actor, occurred_at)
+VALUES
+  ('40000000-0000-0000-0000-000000000002',
+   '10000000-0000-0000-0000-000000000001', 'confidence_raised',
+   0.6, 0.9,
+   'Corroborating evidence found in second source memory',
+   '[{"type":"memory","id":"aaaaaaaa-0000-0000-0000-000000000002","relevance":"Alice @ Acme"}]'::jsonb,
+   'reasoning_agent', NOW() - INTERVAL '8 days');
+
+-- Row 3: revised (reasoning_agent, shifts valid_at window — non-null reasoning_report_id)
+-- STRESSOR: valid_at-window-mutation + fk-integrity=reasoning_report_id
+INSERT INTO public.fact_history
+  (id, fact_id, event_type, previous_valid_at, new_valid_at, reasoning, source_references, reasoning_report_id, actor, occurred_at)
+VALUES
+  ('40000000-0000-0000-0000-000000000003',
+   '10000000-0000-0000-0000-000000000001', 'revised',
+   NOW() - INTERVAL '10 days', NOW() - INTERVAL '12 days',
+   'Revised valid_at backward — evidence shows employment began 2 days earlier',
+   '[{"type":"memory","id":"aaaaaaaa-0000-0000-0000-000000000003","relevance":"Alice joined Acme"}]'::jsonb,
+   '50000000-0000-0000-0000-000000000001',
+   'reasoning_agent', NOW() - INTERVAL '5 days');
+
+-- Row 4: confidence_lowered (gardener_agent, contradictory signal)
+-- STRESSOR: event-type=confidence_lowered + actor-diversity=gardener_agent
+INSERT INTO public.fact_history
+  (id, fact_id, event_type, previous_confidence, new_confidence, reasoning, source_references, actor, occurred_at)
+VALUES
+  ('40000000-0000-0000-0000-000000000004',
+   '10000000-0000-0000-0000-000000000001', 'confidence_lowered',
+   0.9, 0.55,
+   'Gardener detected contradictory signal — lowering confidence pending reconciliation',
+   '[{"type":"memory","id":"aaaaaaaa-0000-0000-0000-000000000004","relevance":"Alice at different company"}]'::jsonb,
+   'gardener_agent', NOW() - INTERVAL '3 days');
+
+-- Row 5: invalidated (reconciliation_agent, causal_event_id non-null)
+-- STRESSOR: event-type=invalidated + actor-diversity=reconciliation_agent + fk-integrity=causal_event_id
+INSERT INTO public.fact_history
+  (id, fact_id, event_type, previous_confidence, new_confidence,
+   previous_invalid_at, new_invalid_at, reasoning, source_references, causal_event_id, actor, occurred_at)
+VALUES
+  ('40000000-0000-0000-0000-000000000005',
+   '10000000-0000-0000-0000-000000000001', 'invalidated',
+   0.55, 0.55,
+   NULL, NOW() - INTERVAL '2 days',
+   'Reconciliation agent invalidated fact after conflict resolution',
+   '[{"type":"memory","id":"aaaaaaaa-0000-0000-0000-000000000005","relevance":"conflict resolved"}]'::jsonb,
+   '20000000-0000-0000-0000-000000000001',
+   'reconciliation_agent', NOW() - INTERVAL '2 days');
+
+-- Row 6: restored (user override — explicit user actor)
+-- STRESSOR: event-type=restored + actor-diversity=user
+INSERT INTO public.fact_history
+  (id, fact_id, event_type, previous_confidence, new_confidence,
+   previous_invalid_at, new_invalid_at, reasoning, source_references, actor, occurred_at)
+VALUES
+  ('40000000-0000-0000-0000-000000000006',
+   '10000000-0000-0000-0000-000000000001', 'restored',
+   0.55, 0.7,
+   NOW() - INTERVAL '2 days', NULL,
+   'User override — invalidation was premature, fact restored with adjusted confidence',
+   '[{"type":"memory","id":"aaaaaaaa-0000-0000-0000-000000000006","relevance":"user confirms employment"}]'::jsonb,
+   'user', NOW() - INTERVAL '36 hours');
+
+-- Row 7: superseded (system_trigger, causal_event_id non-null)
+-- STRESSOR: actor-diversity=system_trigger + fk-integrity=causal_event_id
+INSERT INTO public.fact_history
+  (id, fact_id, event_type, previous_confidence, new_confidence, reasoning, source_references, causal_event_id, actor, occurred_at)
+VALUES
+  ('40000000-0000-0000-0000-000000000007',
+   '10000000-0000-0000-0000-000000000001', 'superseded',
+   0.7, 0.7,
+   'Superseded by newer extraction — system trigger fired on fact ingestion',
+   '[{"type":"memory","id":"aaaaaaaa-0000-0000-0000-000000000007","relevance":"Alice now at NewCo"}]'::jsonb,
+   '20000000-0000-0000-0000-000000000001',
+   'system_trigger', NOW() - INTERVAL '1 day');
+
+-- Row 8: expired (cascade, terminal state — superseded chain reached TTL)
+-- STRESSOR: actor-diversity=cascade + reverse-chrono-density (most recent row)
+INSERT INTO public.fact_history
+  (id, fact_id, event_type, previous_confidence, new_confidence,
+   previous_invalid_at, new_invalid_at, reasoning, source_references, actor, occurred_at)
+VALUES
+  ('40000000-0000-0000-0000-000000000008',
+   '10000000-0000-0000-0000-000000000001', 'expired',
+   0.7, 0.0,
+   NULL, NOW(),
+   'Fact expired via cascade — prior fact was superseded and cascade invalidated descendants',
+   '[{"type":"memory","id":"aaaaaaaa-0000-0000-0000-000000000007","relevance":"cascade expiry"}]'::jsonb,
+   'cascade', NOW() - INTERVAL '30 minutes');
+
+COMMIT;
+
+```
+
+### Current expected JSON
+```json
+{
+  "scenario": "simple-mutations",
+  "version": "1.1",
+  "data_set_level": 1,
+  "fixture": "phase1-audit/fixtures/simple-mutations.sql",
+  "description": "Single-fact lifecycle exercising 6/8 event_type values and all 7 actor values across 8 fact_history rows, with non-null FK links to causal_events and reasoning_reports.",
+  "mutation_sequence_as_seeded": [
+    { "step": 1, "event_type": "created",              "actor": "graph_agent",          "fact_history_id": "40000000-0000-0000-0000-000000000001", "new_confidence": 0.6 },
+    { "step": 2, "event_type": "confidence_raised",    "actor": "reasoning_agent",      "fact_history_id": "40000000-0000-0000-0000-000000000002", "previous_confidence": 0.6, "new_confidence": 0.9 },
+    { "step": 3, "event_type": "revised",              "actor": "reasoning_agent",      "fact_history_id": "40000000-0000-0000-0000-000000000003", "reasoning_report_id": "50000000-0000-0000-0000-000000000001" },
+    { "step": 4, "event_type": "confidence_lowered",   "actor": "gardener_agent",       "fact_history_id": "40000000-0000-0000-0000-000000000004", "previous_confidence": 0.9, "new_confidence": 0.55 },
+    { "step": 5, "event_type": "invalidated",          "actor": "reconciliation_agent", "fact_history_id": "40000000-0000-0000-0000-000000000005", "causal_event_id": "20000000-0000-0000-0000-000000000001" },
+    { "step": 6, "event_type": "restored",             "actor": "user",                 "fact_history_id": "40000000-0000-0000-0000-000000000006", "new_confidence": 0.7 },
+    { "step": 7, "event_type": "superseded",           "actor": "system_trigger",       "fact_history_id": "40000000-0000-0000-0000-000000000007", "causal_event_id": "20000000-0000-0000-0000-000000000001" },
+    { "step": 8, "event_type": "expired",              "actor": "cascade",              "fact_history_id": "40000000-0000-0000-0000-000000000008", "new_confidence": 0.0 }
+  ],
+  "assertions": [
+    {
+      "type": "row_count",
+      "table": "fact_history",
+      "filter": { "fact_id": "10000000-0000-0000-0000-000000000001" },
+      "expected": 8,
+      "because": "Eight mutation events seeded; no loss after load"
+    },
+    {
+      "type": "column_sequence",
+      "table": "fact_history",
+      "filter": { "fact_id": "10000000-0000-0000-0000-000000000001" },
+      "order_by": "occurred_at ASC",
+      "column": "event_type",
+      "expected": ["created","confidence_raised","revised","confidence_lowered","invalidated","restored","superseded","expired"],
+      "because": "Forward-chronological order of the seeded lifecycle"
+    },
+    {
+      "type": "column_sequence",
+      "table": "fact_history",
+      "filter": { "fact_id": "10000000-0000-0000-0000-000000000001" },
+      "order_by": "occurred_at DESC",
+      "column": "event_type",
+      "expected": ["expired","superseded","restored","invalidated","confidence_lowered","revised","confidence_raised","created"],
+      "because": "Reverse-chronological ordering criterion"
+    },
+    {
+      "type": "actor_distribution",
+      "table": "fact_history",
+      "filter": { "fact_id": "10000000-0000-0000-0000-000000000001" },
+      "expected": { "graph_agent": 1, "reasoning_agent": 2, "gardener_agent": 1, "reconciliation_agent": 1, "user": 1, "system_trigger": 1, "cascade": 1 },
+      "because": "All 7 actors exercised at least once"
+    },
+    {
+      "type": "column_values",
+      "table": "fact_history",
+      "filter": { "id": "40000000-0000-0000-0000-000000000002" },
+      "assertions": [
+        { "column": "previous_confidence", "expected": 0.6 },
+        { "column": "new_confidence", "expected": 0.9 },
+        { "column": "actor", "expected": "reasoning_agent" }
+      ],
+      "because": "confidence_raised captures both values + acting agent"
+    },
+    {
+      "type": "column_values",
+      "table": "fact_history",
+      "filter": { "id": "40000000-0000-0000-0000-000000000003" },
+      "assertions": [
+        { "column": "event_type", "expected": "revised" },
+        { "column": "reasoning_report_id", "expected": "50000000-0000-0000-0000-000000000001" }
+      ],
+      "because": "Revised event links to a real reasoning_report"
+    },
+    {
+      "type": "foreign_key_integrity",
+      "table": "fact_history",
+      "columns": ["reasoning_report_id", "causal_event_id", "fact_id"],
+      "rule": "non_null_values_reference_existing_rows",
+      "because": "FK integrity is a Phase 1 acceptance criterion"
+    },
+    {
+      "type": "orphan_retention",
+      "description": "Deleting public.facts row 10000000-...-001 leaves the 8 fact_history rows intact",
+      "expected": true,
+      "because": "Audit rows must not cascade-delete with parent fact"
+    },
+    {
+      "type": "limit_param",
+      "description": "getFactHistory with limit=3 returns only 3 most recent rows",
+      "expected_event_types": ["expired","superseded","restored"],
+      "because": "Limit param respected"
+    }
+  ],
+  "benchmark_targets": {
+    "insert_single_history_row_p95_ms": 5,
+    "history_query_8_rows_p95_ms": 10,
+    "history_query_with_limit_p95_ms": 8,
+    "audit_row_written_atomically": true
+  },
+  "adversarial_variants": [
+    { "fixture": "simple-mutations-timing-attack.sql", "expected_failure_mode": "ordering_invariant_violation_or_check_rejection" },
+    { "fixture": "simple-mutations-empty-reasoning.sql", "expected_failure_mode": "service_layer_rejection" }
+  ],
+  "graduation_notes": "Ready for L2 when: all 8 rows load cleanly; actor_distribution passes; ordering invariant holds; both adversarial variants fail at expected layer; orphan retention verified by manual delete."
+}
+
+```
+
+### Recent benchmark reports (most recent first, up to 3)
+#### platform\src\test\data\phase1-audit\benchmark-reports\2026-04-20-simple-mutations.md
+
+```markdown
+# phase1 simple-mutations (2026-04-20)
+
+## Setup
+
+- **Data set version:** v1.0
+- **Fixture:** `platform/src/test/data/phase1-audit/fixtures/simple-mutations.sql`
+- **Expected:** `platform/src/test/data/phase1-audit/expected/simple-mutations.expected.json`
+- **Test file:** `platform/src/test/harness/audit-trail.test.ts`
+- **Code commit:** `604a985`
+- **Generated by:** `test-harden` skill
+
+## Results
+
+- **Status:** All pass.
+- **Tests:** 6/6 passed
+- **Duration:** 287ms
+- **Stressors applied:** none (baseline)
+- **Complexity:** 0
+
+## Metrics
+
+| Metric | Value | Target | Pass |
+|--------|-------|--------|------|
+| Tests passed | 6/6 | pass all | ✓ |
+| Duration | 287ms | scenario-specific | — |
+| Complexity score | 0 | < 200 hard cap | ✓ |
+
+## Findings
+
+All assertions pass. Baseline established.
+
+## Next Iteration
+
+- See scenario-state.json for consecutive-pass/fail counts
+- Data Evolver proposals (if any) logged in `.claude/skills/test-harden/proposed-updates/`
+- Code Analyser bead issues (if any) filed under the phase's beads tree
+
+## Session
+
+- Total runs for this scenario: 1
+- Consecutive passes: 1
+- Consecutive fails: 0
+- Status: active
+
+```
+
+### Redacted agent reasoning reports (recent runs)
+```json
+<reports collection skipped>
+```
+
+---
+
+## Your task
+
+Produce a mutation proposal in the exact format defined above (## Mutation proposal block with the five required sections). Self-audit before responding.

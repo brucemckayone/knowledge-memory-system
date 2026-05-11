@@ -1,0 +1,40 @@
+{
+  "comment": "Phase to parent-bead-id map. Used by file-bead-from-analyser.py and assemble-analyser-prompt.py. Update when new phases are added under nmemo-8vq epic.",
+  "phases": {
+    "phase0": {
+      "parent_bead": "nmemo-dey",
+      "phase_doc": "docs/architecture/truth-graph/11-smoke-test-reasoning-agent.md",
+      "name": "Smoke-Test Reasoning Agent"
+    },
+    "phase1": {
+      "parent_bead": "nmemo-w4j",
+      "phase_doc": "docs/architecture/truth-graph/12-audit-trail-foundation.md",
+      "name": "Audit Trail Foundation"
+    },
+    "phase2": {
+      "parent_bead": "nmemo-e2i",
+      "phase_doc": "docs/architecture/truth-graph/13-edge-lifecycle.md",
+      "name": "Edge Lifecycle (Corroboration + Decay + Cascade)"
+    },
+    "phase3": {
+      "parent_bead": "nmemo-d1r",
+      "phase_doc": "docs/architecture/truth-graph/14-source-reference-indexing.md",
+      "name": "Source Reference Indexing"
+    },
+    "phase4": {
+      "parent_bead": "nmemo-437",
+      "phase_doc": "docs/architecture/truth-graph/15-blast-radius-analysis.md",
+      "name": "Blast Radius Analysis"
+    },
+    "phase5": {
+      "parent_bead": "nmemo-cae",
+      "phase_doc": "docs/architecture/truth-graph/16-contradiction-detection.md",
+      "name": "Contradiction Detection"
+    },
+    "phase6": {
+      "parent_bead": "nmemo-d9v",
+      "phase_doc": "docs/architecture/truth-graph/17-pattern-lifecycle.md",
+      "name": "Pattern Lifecycle"
+    }
+  }
+}

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mnemo Graph Viz</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Header */
+.header { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid #21262d; background: #161b22; flex-shrink: 0; flex-wrap: wrap; }
+.header h1 { font-size: 14px; font-weight: 600; color: #58a6ff; margin-right: 4px; }
+.layers { display: flex; gap: 6px; }
+.layer-toggle { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #8b949e; cursor: pointer; user-select: none; padding: 3px 8px; border-radius: 4px; border: 1px solid #30363d; }
+.layer-toggle:hover { border-color: #484f58; }
+.layer-toggle.active { border-color: #1f6feb; color: #c9d1d9; }
+.layer-toggle .dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot-fact { background: #30363d; }
+.dot-causal { background: #e5534b; }
+.dot-source { background: #484f58; }
+.dot-merge { background: #d29922; }
+.dot-sameAs { background: #2ecc71; }
+.stats { font-size: 11px; color: #8b949e; display: flex; gap: 10px; }
+.header-spacer { flex: 1; }
+.stats b { color: #c9d1d9; }
+.auto-toggle { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8b949e; cursor: pointer; user-select: none; }
+.auto-toggle input { accent-color: #1f6feb; }
+
+/* Main layout */
+.main { display: flex; flex: 1; overflow: hidden; }
+svg { flex: 1; }
+
+/* Detail panel — collapsible drawer */
+.detail { width: 360px; border-left: 1px solid #21262d; background: #161b22; padding: 16px; overflow-y: auto; flex-shrink: 0; font-size: 13px; transition: margin-right 0.2s ease, opacity 0.2s ease; position: relative; }
+.detail.collapsed { margin-right: -360px; opacity: 0; pointer-events: none; }
+.detail-close { position: absolute; top: 8px; right: 8px; background: none; border: none; color: #484f58; cursor: pointer; font-size: 18px; line-height: 1; padding: 4px; }
+.detail-close:hover { color: #c9d1d9; }
+.detail h2 { font-size: 14px; color: #58a6ff; margin-bottom: 10px; }
+.detail .field { margin-bottom: 8px; }
+.detail .field-label { color: #8b949e; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+.detail .field-value { color: #c9d1d9; word-break: break-word; }
+.detail .empty { color: #484f58; font-style: italic; }
+.detail .section-label { color: #58a6ff; font-size: 12px; font-weight: 600; margin-top: 12px; margin-bottom: 6px; border-top: 1px solid #21262d; padding-top: 8px; }
+.detail .source-block { background: #0d1117; border: 1px solid #21262d; border-radius: 4px; padding: 8px; margin-top: 4px; font-size: 12px; line-height: 1.4; color: #8b949e; max-height: 120px; overflow-y: auto; }
+.detail .source-block + .source-block { margin-top: 4px; }
+.detail .source-block .mention { color: #f0883e; font-weight: 600; }
+.detail .source-block strong { color: #c9d1d9; }
+.detail .meta-row { display: flex; gap: 12px; margin-bottom: 6px; }
+.detail .meta-item { font-size: 11px; }
+.detail .meta-item b { color: #c9d1d9; font-size: 14px; }
+.detail .meta-item span { color: #8b949e; }
+.detail .signal-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 12px; }
+.detail .signal-bar .bar-bg { flex: 1; height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; }
+.detail .signal-bar .bar-fill { height: 100%; border-radius: 3px; }
+.detail .signal-bar .bar-label { width: 70px; color: #8b949e; }
+.detail .signal-bar .bar-value { width: 35px; text-align: right; color: #c9d1d9; }
+.detail .clickable { cursor: pointer; color: #58a6ff; }
+.detail .clickable:hover { text-decoration: underline; }
+
+/* Timeline scrubber */
+.scrubber { display: flex; align-items: center; gap: 10px; padding: 6px 16px; border-top: 1px solid #21262d; background: #161b22; flex-shrink: 0; }
+.scrubber input[type="range"] { flex: 1; accent-color: #1f6feb; cursor: pointer; height: 4px; }
+.scrubber .scrub-label { font-size: 11px; color: #8b949e; min-width: 50px; }
+.scrubber .scrub-value { font-size: 11px; color: #c9d1d9; min-width: 80px; text-align: right; }
+.scrubber .scrub-reset { font-size: 11px; color: #58a6ff; cursor: pointer; border: none; background: none; padding: 2px 6px; }
+.scrubber .scrub-reset:hover { text-decoration: underline; }
+
+/* Layout toggle */
+.layout-toggle { display: flex; gap: 2px; margin-left: 8px; }
+.layout-btn { font-size: 11px; padding: 3px 8px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; border-radius: 4px; }
+.layout-btn.active { border-color: #1f6feb; color: #c9d1d9; }
+.layout-btn:hover { border-color: #484f58; }
+
+/* Tooltip */
+.tooltip { position: absolute; background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; font-size: 12px; color: #c9d1d9; pointer-events: none; max-width: 350px; white-space: pre-wrap; z-index: 10; }
+
+/* Empty state */
+.empty-state { display: flex; align-items: center; justify-content: center; flex: 1; color: #484f58; font-size: 16px; flex-direction: column; gap: 8px; }
+.empty-state small { font-size: 12px; }
+
+/* Focus mode (double-click expansion) */
+.focused .faded { opacity: 0.15 !important; }
+.focused .faded text { opacity: 0.1 !important; }
+
+/* Temporal fade for scrubber */
+.temporal-future { opacity: 0.12 !important; }
+.temporal-future text { opacity: 0.08 !important; }
+
+/* Ingest panel */
+.ingest-panel { display: none; padding: 12px 16px; border-bottom: 1px solid #21262d; background: #161b22; flex-shrink: 0; }
+.ingest-panel.open { display: flex; gap: 12px; align-items: flex-start; }
+.ingest-panel textarea { flex: 1; min-height: 120px; max-height: 400px; resize: vertical; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: 12px; padding: 10px; line-height: 1.5; }
+.ingest-panel textarea:focus { outline: none; border-color: #1f6feb; }
+.ingest-panel textarea::placeholder { color: #484f58; }
+.ingest-side { display: flex; flex-direction: column; gap: 8px; min-width: 140px; }
+.ingest-side input { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 12px; padding: 6px 8px; }
+.ingest-side input:focus { outline: none; border-color: #1f6feb; }
+.ingest-side input::placeholder { color: #484f58; }
+.ingest-submit { font-size: 12px; padding: 6px 16px; border: 1px solid #1f6feb; background: rgba(31,111,235,0.15); color: #58a6ff; cursor: pointer; border-radius: 4px; font-weight: 600; }
+.ingest-submit:hover { background: rgba(88,166,255,0.2); }
+.ingest-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.ingest-status { font-size: 11px; color: #8b949e; min-height: 16px; }
+.ingest-status.success { color: #3fb950; }
+.ingest-status.error { color: #f85149; }
+
+/* Action buttons */
+.action-group { display: flex; gap: 6px; margin-left: 4px; }
+.action-btn { font-size: 11px; padding: 3px 10px; border: 1px solid #1f6feb; background: rgba(31,111,235,0.1); color: #58a6ff; cursor: pointer; border-radius: 4px; }
+.action-btn:hover { border-color: #58a6ff; background: rgba(88,166,255,0.15); }
+.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Reset buttons */
+.reset-actions { display: flex; gap: 6px; margin-left: 4px; }
+.reset-btn { font-size: 11px; padding: 3px 10px; border: 1px solid #484f58; background: transparent; color: #8b949e; cursor: pointer; border-radius: 4px; }
+.reset-btn:hover { border-color: #768390; color: #c9d1d9; }
+.reset-btn-danger { border-color: #6e2d2d; color: #f85149; }
+.reset-btn-danger:hover { border-color: #f85149; background: rgba(248,81,73,0.08); }
+
+/* Reasoning agent UI */
+.reason-group { display: flex; gap: 6px; margin-left: 8px; }
+.reason-btn { font-size: 11px; padding: 3px 10px; border: 1px solid #1f6feb; background: rgba(31,111,235,0.1); color: #58a6ff; cursor: pointer; border-radius: 4px; }
+.reason-btn:hover { border-color: #58a6ff; background: rgba(88,166,255,0.15); }
+.reason-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.query-panel { display: none; padding: 10px 16px; border-bottom: 1px solid #21262d; background: #161b22; flex-shrink: 0; gap: 10px; align-items: center; }
+.query-panel.open { display: flex; }
+.query-panel input { flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 13px; padding: 6px 10px; }
+.query-panel input:focus { outline: none; border-color: #1f6feb; }
+.query-panel input::placeholder { color: #484f58; }
+.query-submit { font-size: 12px; padding: 6px 14px; border: 1px solid #1f6feb; background: rgba(31,111,235,0.15); color: #58a6ff; cursor: pointer; border-radius: 4px; font-weight: 600; }
+.query-submit:hover { background: rgba(88,166,255,0.2); }
+.query-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.query-status { font-size: 11px; color: #8b949e; min-width: 60px; }
+.query-status.error { color: #f85149; }
+.answer-panel { display: none; max-height: 300px; overflow-y: auto; padding: 12px 16px; border-bottom: 1px solid #21262d; background: #0d1117; flex-shrink: 0; font-size: 13px; color: #c9d1d9; line-height: 1.5; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+.answer-panel.open { display: block; }
+.answer-panel .answer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.answer-panel .answer-header h3 { font-size: 13px; color: #58a6ff; margin: 0; }
+.answer-panel .answer-close { background: none; border: none; color: #484f58; cursor: pointer; font-size: 16px; padding: 2px 6px; }
+
+/* Impact subpanel (Phase 4 — blast radius, doc 15) */
+.impact-section { margin-top: 14px; padding: 10px 12px; border: 1px solid #21262d; border-radius: 4px; background: #0d1117; font-size: 12px; }
+.impact-section .impact-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 10px; }
+.impact-section .impact-header h3 { font-size: 13px; color: #58a6ff; margin: 0; }
+.impact-section .impact-tally { display: flex; gap: 6px; font-size: 10px; }
+.impact-section .impact-tally .impact-tag { padding: 1px 6px; border-radius: 8px; font-weight: 700; text-transform: uppercase; }
+.impact-section .impact-tally .impact-tag-critical { background: #6e2d2d; color: #f85149; }
+.impact-section .impact-tally .impact-tag-high { background: #6e4d2d; color: #f0883e; }
+.impact-section .impact-tally .impact-tag-medium { background: #4d3a1f; color: #d29922; }
+.impact-section .impact-tally .impact-tag-low { background: #21262d; color: #8b949e; }
+.impact-section .impact-bucket { margin-bottom: 6px; }
+.impact-section .impact-bucket-label { font-size: 10px; color: #8b949e; text-transform: uppercase; margin-bottom: 4px; }
+.impact-section .impact-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-radius: 3px; background: #161b22; margin-bottom: 3px; font-size: 11px; gap: 8px; }
+.impact-section .impact-row .impact-summary { color: #c9d1d9; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.impact-section .impact-row .impact-meta { color: #8b949e; font-size: 10px; flex-shrink: 0; }
+.impact-section .impact-row.sev-critical { border-left: 3px solid #f85149; }
+.impact-section .impact-row.sev-high { border-left: 3px solid #f0883e; }
+.impact-section .impact-row.sev-medium { border-left: 3px solid #d29922; }
+.impact-section .impact-row.sev-low { border-left: 3px solid #484f58; }
+.impact-section .impact-actions { margin-top: 8px; display: flex; gap: 6px; }
+.impact-section .impact-actions button { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.impact-section .impact-actions button:hover { background: #30363d; border-color: #58a6ff; }
+.impact-section .impact-actions button.preview-active { background: #4d3a1f; border-color: #d29922; color: #f0883e; }
+.impact-section .impact-loading { color: #8b949e; font-style: italic; padding: 6px; }
+
+/* Contradictions panel */
+.action-btn .badge { display: inline-block; min-width: 16px; padding: 0 5px; margin-left: 6px; background: #f85149; color: #0d1117; border-radius: 8px; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; vertical-align: middle; }
+.action-btn .badge:empty, .action-btn .badge.zero { display: none; }
+.contradictions-panel { display: none; max-height: 360px; overflow-y: auto; padding: 12px 16px; border-bottom: 1px solid #21262d; background: #0d1117; flex-shrink: 0; font-size: 12px; color: #c9d1d9; }
+.contradictions-panel.open { display: block; }
+.contradictions-panel .ctrad-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.contradictions-panel .ctrad-header h3 { font-size: 13px; color: #f85149; margin: 0; }
+.contradictions-panel .ctrad-header .ctrad-meta { font-size: 11px; color: #8b949e; }
+.contradictions-panel .ctrad-close { background: none; border: none; color: #484f58; cursor: pointer; font-size: 16px; padding: 2px 6px; }
+.contradictions-panel .ctrad-close:hover { color: #c9d1d9; }
+.contradictions-panel .ctrad-row { padding: 8px 10px; border: 1px solid #21262d; border-radius: 4px; margin-bottom: 6px; background: #161b22; }
+.contradictions-panel .ctrad-row .ctrad-row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.contradictions-panel .ctrad-row .ctrad-type { font-weight: 600; color: #c9d1d9; font-size: 12px; }
+.contradictions-panel .ctrad-row .ctrad-severity { font-size: 10px; padding: 1px 6px; border-radius: 8px; text-transform: uppercase; font-weight: 700; }
+.contradictions-panel .ctrad-row .sev-critical { background: #6e2d2d; color: #f85149; }
+.contradictions-panel .ctrad-row .sev-high { background: #6e2d2d; color: #f85149; }
+.contradictions-panel .ctrad-row .sev-medium { background: #4d3a1f; color: #f0883e; }
+.contradictions-panel .ctrad-row .sev-low { background: #21262d; color: #8b949e; }
+.contradictions-panel .ctrad-row .ctrad-reasoning { color: #8b949e; font-size: 11px; margin-bottom: 6px; line-height: 1.4; }
+.contradictions-panel .ctrad-row .ctrad-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.contradictions-panel .ctrad-row .ctrad-resolve-btn { font-size: 10px; padding: 3px 8px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; border-radius: 3px; }
+.contradictions-panel .ctrad-row .ctrad-resolve-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+.contradictions-panel .ctrad-empty { text-align: center; color: #484f58; font-style: italic; padding: 20px; font-size: 12px; }
+.answer-panel .answer-close:hover { color: #c9d1d9; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Mnemo</h1>
+  <div class="layers">
+    <label class="layer-toggle active" data-layer="fact"><span class="dot dot-fact"></span> Facts</label>
+    <label class="layer-toggle active" data-layer="causal"><span class="dot dot-causal"></span> Causal</label>
+    <label class="layer-toggle" data-layer="source"><span class="dot dot-source"></span> Sources</label>
+    <label class="layer-toggle" data-layer="merge"><span class="dot dot-merge"></span> Merge</label>
+    <label class="layer-toggle active" data-layer="sameAs"><span class="dot dot-sameAs"></span> Same-As</label>
+  </div>
+  <div class="layout-toggle">
+    <button class="layout-btn active" data-layout="force">Force</button>
+    <button class="layout-btn" data-layout="dag">DAG</button>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="stats" id="stats"></div>
+  <label class="auto-toggle">
+    <input type="checkbox" id="autoRefresh" checked> Auto 5s
+  </label>
+  <div class="action-group">
+    <button class="action-btn" id="btnIngestToggle" title="Paste text to ingest into the graph">Ingest</button>
+    <button class="action-btn" id="btnGarden" title="Trigger the graph gardener to explore topology, find islands, and consolidate entities">Garden</button>
+    <button class="action-btn" id="btnReconcile" title="Trigger reconciliation agent to resolve entity identity questions">Reconcile</button>
+    <button class="action-btn" id="btnContradictions" title="View flagged contradictions in the graph">Contradictions<span class="badge zero" id="contradictionsBadge">0</span></button>
+    <button class="action-btn" id="btnPatterns" title="View active causal patterns (provisional + canonical)">Patterns<span class="badge zero" id="patternsBadge">0</span></button>
+  </div>
+  <div class="reset-actions">
+    <button class="reset-btn" id="btnClearGraph" title="Delete all graph data (keeps Qdrant)">Clear Graph</button>
+    <button class="reset-btn reset-btn-danger" id="btnResetAll" title="Delete all graph data + Qdrant vectors">Reset All</button>
+  </div>
+  <div class="reason-group">
+    <button class="reason-btn" id="btnReason" title="Run the reasoning agent to review and enrich the graph">Reason</button>
+    <button class="reason-btn" id="btnQueryToggle" title="Ask a question about the graph">Query</button>
+  </div>
+</div>
+<div class="query-panel" id="queryPanel">
+  <input type="text" id="queryInput" placeholder="Ask a question (e.g., 'How does X relate to Y?')">
+  <button class="query-submit" id="btnQuery">Ask</button>
+  <span class="query-status" id="queryStatus"></span>
+</div>
+<div class="answer-panel" id="answerPanel">
+  <div class="answer-header">
+    <h3>Answer</h3>
+    <button class="answer-close" id="answerClose">&times;</button>
+  </div>
+  <div id="answerContent"></div>
+</div>
+<div class="ingest-panel" id="ingestPanel">
+  <textarea id="ingestText" placeholder="Paste text here (meeting notes, PDF content, articles, etc.)"></textarea>
+  <div class="ingest-side">
+    <input type="text" id="ingestSource" placeholder="Source label (optional)">
+    <button class="ingest-submit" id="btnIngest">Ingest</button>
+    <div class="ingest-status" id="ingestStatus"></div>
+  </div>
+</div>
+<div class="contradictions-panel" id="contradictionsPanel">
+  <div class="ctrad-header">
+    <h3>Contradictions</h3>
+    <div class="ctrad-meta">
+      <span id="ctradMeta">Loading…</span>
+      <button class="ctrad-close" id="ctradClose">&times;</button>
+    </div>
+  </div>
+  <div id="ctradList"></div>
+</div>
+<div class="contradictions-panel" id="patternsPanel">
+  <div class="ctrad-header">
+    <h3>Active Patterns</h3>
+    <div class="ctrad-meta">
+      <span id="patternsMeta">Loading…</span>
+      <button class="ctrad-close" id="patternsClose">&times;</button>
+    </div>
+  </div>
+  <div id="patternsList"></div>
+</div>
+<div class="main">
+  <svg id="graph"></svg>
+  <div class="detail collapsed" id="detail">
+    <button class="detail-close" id="detailClose">&times;</button>
+    <div id="detailContent">
+      <h2>Detail</h2>
+      <p class="empty">Click a node or edge</p>
+    </div>
+  </div>
+</div>
+<div class="scrubber">
+  <span class="scrub-label">Time</span>
+  <input type="range" id="timeScrubber" min="0" max="100" value="100" step="1">
+  <span class="scrub-value" id="scrubValue">Now</span>
+  <button class="scrub-reset" id="scrubReset">Reset</button>
+</div>
+<div class="tooltip" id="tooltip" style="display:none"></div>
+
+<script src="/viz/js/app.js"></script>
+</body>
+</html>

@@ -21,6 +21,9 @@ class GraphAgentRequest(BaseModel):
     memory_id: str
     mcp_config_path: str
     source_name: Optional[str] = None
+    # 'prose' | 'code-ts' | 'code-sql'. Branches the agent's predicate vocabulary.
+    # Unknown / missing values are treated as 'prose'.
+    content_type: Optional[str] = "prose"
 
 
 class GraphAgentResponse(BaseModel):
@@ -477,6 +480,82 @@ Searching before creating: Before calling resolve_entity, call search_similar_en
 Output: All graph modifications happen via tool calls (resolve_entity, create_fact, link_entity_to_memory, create_causal_edge). Your text response in PHASE 6 is a report for debugging — it does not modify the graph."""
 
 
+# ============================================
+# Content-type addenda — appended to GRAPH_AGENT_SYSTEM_PROMPT when the
+# caller hints that the source is code rather than prose. The base prompt
+# is untouched; we just extend it with vocabulary constraints + extraction
+# guidance specific to the language. Unknown content_type values fall back
+# to plain prose extraction (no addendum applied).
+# ============================================
+
+CODE_TS_ADDENDUM = """
+
+=== CONTENT TYPE: TYPESCRIPT SOURCE ===
+
+The source text above is TypeScript source code, not natural-language prose. Adapt your extraction:
+
+ENTITY TYPES (use these, not generic 'thing' / 'concept'):
+- 'file' — the source file itself, identified by its path
+- 'symbol' — exported or top-level functions, classes, interfaces, types, constants
+- 'module' — imported npm packages or path aliases
+- 'service' — files under services/ are services; treat each as a single coherent entity
+
+ALLOWED PREDICATES (USE ONLY THESE — do not invent prose-style predicates):
+- defines        (file → symbol)            — file declares this top-level symbol
+- imports        (file → module|file)       — file imports from this module/path
+- calls          (function → function)      — function body invokes another function
+- references    (symbol → symbol)          — symbol mentions another symbol non-call (type, prop access)
+- implements     (class → interface)        — class implements an interface
+- depends_on     (service → service)        — service module imports from another service module
+
+EXTRACTION GUIDANCE:
+- Resolve the file itself as an entity (entity_type='file', canonical name = relative path).
+- Resolve every exported function/class/interface/type/const as a symbol entity.
+- For each import statement, create an `imports` fact from the file to the module or imported file.
+- For top-level function calls visible in the source, create `calls` facts. Do NOT enumerate every micro-call inside helper expressions — focus on cross-file/cross-service calls and externally interesting flow.
+- For files under services/, additionally emit `depends_on` facts service-to-service when one service imports from another.
+- Do NOT create prose-style predicates like 'works_with', 'is_about', 'related_to'. If a relationship doesn't fit the allowed list above, omit it.
+
+CAUSE phase for code: causal edges between code entities are usually NOT meaningful — skip CAUSE for plain implementation files unless the code is clearly handling an event/cause relationship semantically (rare). Spend the budget on RELATE."""
+
+
+CODE_SQL_ADDENDUM = """
+
+=== CONTENT TYPE: SQL MIGRATION ===
+
+The source text above is a SQL migration file, not natural-language prose. Adapt your extraction:
+
+ENTITY TYPES:
+- 'migration' — the migration file itself, identified by its path/name
+- 'table'     — a database table created or altered in this migration
+- 'column'    — a column on a table
+- 'index'     — a database index
+
+ALLOWED PREDICATES (USE ONLY THESE):
+- defines_table     (migration → table)
+- defines_column    (table → column)
+- references_table  (column → table)        — a foreign-key column referencing another table
+- creates_index     (migration → index)
+
+EXTRACTION GUIDANCE:
+- The migration file itself is one entity. Each CREATE TABLE inside emits a `defines_table` fact.
+- For each column in a CREATE TABLE, emit `defines_column`.
+- For each REFERENCES clause / foreign key, emit `references_table` from the column to the referenced table.
+- For each CREATE INDEX, emit `creates_index`.
+- Do NOT extract data rows, comments, or unrelated DDL details as facts.
+- CAUSE phase: skip — schema migrations are not causal events in the Graph C sense."""
+
+
+def _system_prompt_for(content_type: Optional[str]) -> str:
+    """Pick the base prompt + optional content-type addendum."""
+    ct = (content_type or "prose").lower()
+    if ct == "code-ts":
+        return GRAPH_AGENT_SYSTEM_PROMPT + CODE_TS_ADDENDUM
+    if ct == "code-sql":
+        return GRAPH_AGENT_SYSTEM_PROMPT + CODE_SQL_ADDENDUM
+    return GRAPH_AGENT_SYSTEM_PROMPT
+
+
 @router.post("/graph-agent", response_model=GraphAgentResponse)
 async def graph_agent(request: GraphAgentRequest):
     """Invoke the unified graph agent on source text."""
@@ -498,7 +577,7 @@ async def graph_agent(request: GraphAgentRequest):
     try:
         result = await llm_pool.submit(llm_client.generate, prompt, options={
             "task": "graph_agent",
-            "system_prompt": GRAPH_AGENT_SYSTEM_PROMPT,
+            "system_prompt": _system_prompt_for(request.content_type),
             "mcp_config": request.mcp_config_path,
             "tools": "mcp",
             "max_turns": 100,

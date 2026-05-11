@@ -1,0 +1,47 @@
+{
+  "scenario": "cascade-writes",
+  "data_set_level": 2,
+  "phase": "phase1-audit",
+  "fixture": "phase1-audit/fixtures/cascade-writes.sql",
+  "description": "Expiring an upstream fact cascades weakenings to edges that cited it via source_references JSONB; edges not citing it are untouched. Cascade audit rows must carry actor=cascade and link to the parent mutation's reasoning_report_id.",
+  "stressors": [
+    { "axis": "cascade-fanout", "value": 3 },
+    { "axis": "cascade-selectivity", "value": "2-of-3" }
+  ],
+  "mutation_sequence_harness_driven": [
+    {
+      "step": 1,
+      "service_call": "expireFact",
+      "params": {
+        "fact_id": "10000000-0000-0000-0000-000000000001",
+        "actor": "reasoning_agent",
+        "reasoning": "Source contradicted by newer evidence — expire upstream fact",
+        "new_report_id_placeholder": "$NEW_REPORT_ID"
+      }
+    }
+  ],
+  "assertions": [
+    { "type": "row_count_delta", "table": "fact_history", "filter": { "fact_id": "10000000-0000-0000-0000-000000000001" }, "expected_delta": 1, "because": "one expired row for F_upstream" },
+    { "type": "column_values", "table": "fact_history", "filter": { "fact_id": "10000000-0000-0000-0000-000000000001", "event_type": "expired" }, "assertions": [ { "column": "actor", "expected": "reasoning_agent" }, { "column": "reasoning_report_id", "not_null": true } ] },
+    { "type": "row_count", "table": "causal_edge_history", "filter": { "edge_id": "30000000-0000-0000-0000-000000000001", "event_type": "weakened" }, "expected": 1, "because": "E1 cites only F_upstream — cascade-weakens" },
+    { "type": "row_count", "table": "causal_edge_history", "filter": { "edge_id": "30000000-0000-0000-0000-000000000002", "event_type": "weakened" }, "expected": 1, "because": "E2 cites F_upstream + F_independent — weakens (surviving ref)" },
+    { "type": "row_count", "table": "causal_edge_history", "filter": { "edge_id": "30000000-0000-0000-0000-000000000003" }, "expected_new_rows": 0, "because": "E3 does not cite F_upstream — no cascade row" },
+    { "type": "column_values", "table": "causal_edge_history", "filter": { "edge_id": "30000000-0000-0000-0000-000000000001", "event_type": "weakened" }, "assertions": [ { "column": "actor", "expected": "cascade" }, { "column": "reasoning_report_id", "not_null": true } ] },
+    { "type": "report_id_match", "description": "The reasoning_report_id on the fact_history/expired row equals the reasoning_report_id on both cascade edge_history rows (atomicity + parent-link)", "expected": true, "because": "cascade rows must trace to the upstream mutation" },
+    { "type": "cross_actor_chain", "edge_id": "30000000-0000-0000-0000-000000000001", "ordered_actors": ["graph_agent", "cascade"] },
+    { "type": "cross_actor_chain", "edge_id": "30000000-0000-0000-0000-000000000002", "ordered_actors": ["graph_agent", "cascade"] },
+    { "type": "cross_actor_chain", "edge_id": "30000000-0000-0000-0000-000000000003", "ordered_actors": ["graph_agent"] },
+    { "type": "foreign_key_integrity", "table": "causal_edge_history", "columns": ["reasoning_report_id","edge_id"], "rule": "non_null_values_reference_existing_rows", "expected_violations": 0 }
+  ],
+  "benchmark_targets": {
+    "fixture_load_ms_max": 500,
+    "expire_cascade_wall_ms_max": 1500,
+    "cascade_rows_written": 2,
+    "audit_rows_total_after": 6
+  },
+  "adversarial_variants": [
+    { "fixture": "cascade-writes-orphan-cascade.sql", "expected_failure_mode": "fk_violation", "expected_sqlstate_prefix": "23", "because": "reasoning_report_id 50000000-...-deadbeef does not exist" },
+    { "fixture": "cascade-writes-cascade-without-parent.sql", "expected_failure_mode": "business_rule_assertion_failure", "because": "cascade row must trace to an upstream mutation; NULL reasoning_report_id is insufficient" }
+  ],
+  "graduation_notes": "Promote to L3 when cascade fan-out scales to ≥50 edges without N+1 query behaviour; JSONB role filters supported; concurrent expireFact on overlapping upstreams preserves ordering."
+}

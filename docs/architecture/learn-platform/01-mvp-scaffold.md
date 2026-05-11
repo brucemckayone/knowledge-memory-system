@@ -1,8 +1,6 @@
-# v0.1 — MVP Scaffold (shipped)
+# v0.1 — MVP Scaffold (historical)
 
-**Status:** Working end-to-end as of 2026-05-06.
-
-This documents what's already built. v0.2 builds on top of this — read it for context if planning new features.
+**Status:** Historical. The MVP scaffold described here was the basis for v0.2 (which shipped) and was then carved back in v0.3. This document is preserved for the agent/MCP-tool inventory and for the original "five agents and a graph" mental model. For the current shape of the app see [02-v0.2-design.md](02-v0.2-design.md).
 
 ---
 
