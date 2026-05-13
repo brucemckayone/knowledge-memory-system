@@ -117,6 +117,24 @@ app.get('/components/:file', (c) => {
   }
 });
 
+// Serve viz/presentation/*.{png,svg,jpg,webp} for the slide deck.
+const presentationDir = join(__dirname, '../viz/presentation');
+const presentationFileRe = /^[A-Za-z0-9][A-Za-z0-9_.-]*\.(png|jpg|jpeg|svg|webp)$/i;
+const presentationMime: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml', webp: 'image/webp',
+};
+app.get('/presentation/:file', (c) => {
+  const file = c.req.param('file');
+  if (!presentationFileRe.test(file)) return c.text('Not found', 404);
+  try {
+    const ext = file.split('.').pop()!.toLowerCase();
+    const body = readFileSync(join(presentationDir, file));
+    return c.body(body, 200, { 'Content-Type': presentationMime[ext] ?? 'application/octet-stream' });
+  } catch {
+    return c.text('Not found', 404);
+  }
+});
+
 // ── Startup recovery ───────────────────────────────────────────────────────
 // Course generation and lesson generation are both fire-and-forget. If the
 // server dies mid-job, the row stays in its in-flight status forever because

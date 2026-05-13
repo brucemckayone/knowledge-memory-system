@@ -74,10 +74,18 @@ interface DashboardInsight {
   viewedAt: string | null;
 }
 
+interface CrossCourseConnectionCourse {
+  courseId: string;
+  courseTitle: string;
+  sectionId?: string;
+  sectionTitle?: string;
+  snippet?: string;
+}
+
 interface CrossCourseConnection {
   conceptEntityId: string;
   conceptName: string;
-  courses: Array<{ courseId: string; courseTitle: string }>;
+  courses: CrossCourseConnectionCourse[];
   kind: 'direct' | 'same_as';
 }
 
@@ -207,10 +215,55 @@ async function buildDailyQuiz(): Promise<NextQuestionResult> {
   }
 }
 
+// Concepts the learner has scored poorly on recently — fallback candidates
+// when nothing has decayed yet. Caps at FLASHCARD_DECAY_TOP_N, lowest avg
+// score first. Names are looked up via Nmemo entity-by-id; on lookup failure
+// we still surface the candidate with a truncated id so the row isn't lost.
+async function getStruggleConcepts(): Promise<Array<{ entity_id: string; canonical_name: string; avgScore: number }>> {
+  const rows = await db
+    .select({
+      conceptEntityId: questions.conceptEntityId,
+      score: quizAttempts.score,
+    })
+    .from(quizAttempts)
+    .innerJoin(questions, eq(questions.id, quizAttempts.questionId))
+    .where(eq(quizAttempts.learnerId, LEARNER_ID));
+
+  const agg = new Map<string, { sum: number; n: number }>();
+  for (const r of rows) {
+    if (!r.conceptEntityId || r.score == null) continue;
+    const v = agg.get(r.conceptEntityId) ?? { sum: 0, n: 0 };
+    v.sum += r.score;
+    v.n += 1;
+    agg.set(r.conceptEntityId, v);
+  }
+
+  const struggling = [...agg.entries()]
+    .map(([eid, v]) => ({ entity_id: eid, avgScore: v.sum / v.n, n: v.n }))
+    .filter(c => c.avgScore < 0.6 && c.n >= 1)
+    .sort((a, b) => a.avgScore - b.avgScore)
+    .slice(0, FLASHCARD_DECAY_TOP_N);
+
+  return Promise.all(struggling.map(async (c) => {
+    let canonical_name = c.entity_id.slice(0, 8);
+    try {
+      const ent = await getEntityById(c.entity_id);
+      if (ent?.canonicalName) canonical_name = ent.canonicalName;
+    } catch { /* best effort */ }
+    return { entity_id: c.entity_id, canonical_name, avgScore: c.avgScore };
+  }));
+}
+
 async function buildDailyFlashcards(regenerate: boolean): Promise<{ cards: DashboardFlashcard[]; generatedNew: number }> {
   try {
-    const decay = await getDecayCandidates(DECAY_THRESHOLD_DAYS);
-    const topConcepts = decay.candidates.slice(0, FLASHCARD_DECAY_TOP_N);
+    const decay = await getDecayCandidates(DECAY_THRESHOLD_DAYS).catch(() => ({ candidates: [] as Array<{ entity_id: string; canonical_name: string }> }));
+    let topConcepts: Array<{ entity_id: string; canonical_name: string }> = decay.candidates.slice(0, FLASHCARD_DECAY_TOP_N);
+    // Fallback: if nothing has decayed, surface concepts the learner is
+    // currently struggling with. Keeps the card useful for fresh learners.
+    if (topConcepts.length === 0) {
+      const struggle = await getStruggleConcepts();
+      topConcepts = struggle.map(s => ({ entity_id: s.entity_id, canonical_name: s.canonical_name }));
+    }
     if (topConcepts.length === 0) return { cards: [], generatedNew: 0 };
 
     const conceptIds = topConcepts.map(c => c.entity_id);
@@ -344,7 +397,12 @@ async function buildCrossCourseConnections(): Promise<{
     );
     const [secs, sameAsRes, courseRows, linkInsightRows] = await Promise.all([
       db.select({
+        id: sections.id,
+        title: sections.title,
+        description: sections.description,
+        lessonKeyTakeaways: sections.lessonKeyTakeaways,
         courseId: sections.courseId,
+        orderIndex: sections.orderIndex,
         conceptEntityIds: sections.conceptEntityIds,
       }).from(sections),
       getSameAsConcepts().catch(() => ({ links: [] as SameAsConceptLink[] })),
@@ -374,18 +432,44 @@ async function buildCrossCourseConnections(): Promise<{
     }));
 
     const courseTitles = new Map(courseRows.map(c => [c.id, c.title]));
-    const entityToCourses = new Map<string, Set<string>>();
-    for (const s of secs) {
+
+    // For each entity, the courses it appears in and — per course — the first
+    // section (by orderIndex) that mentions it plus a short snippet. The
+    // snippet is the first key-takeaway when one exists, falling back to the
+    // first sentence of the section description. Empty when neither is set.
+    const entityToCourseContext = new Map<string, Map<string, CrossCourseConnectionCourse>>();
+    const orderedSecs = [...secs].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+    for (const s of orderedSecs) {
       const ids = parseJsonArray(s.conceptEntityIds);
+      if (ids.length === 0) continue;
+      let snippet = '';
+      try {
+        const k = parseJsonArray(s.lessonKeyTakeaways ?? '[]');
+        if (k.length > 0 && typeof k[0] === 'string') snippet = k[0];
+      } catch { /* ignore */ }
+      if (!snippet && s.description) {
+        const m = s.description.match(/[^.!?]+[.!?]/);
+        snippet = (m ? m[0] : s.description).trim();
+      }
+      if (snippet.length > 220) snippet = snippet.slice(0, 217).trimEnd() + '…';
+
       for (const eid of ids) {
-        let set = entityToCourses.get(eid);
-        if (!set) { set = new Set(); entityToCourses.set(eid, set); }
-        set.add(s.courseId);
+        let perCourse = entityToCourseContext.get(eid);
+        if (!perCourse) { perCourse = new Map(); entityToCourseContext.set(eid, perCourse); }
+        if (!perCourse.has(s.courseId)) {
+          perCourse.set(s.courseId, {
+            courseId: s.courseId,
+            courseTitle: courseTitles.get(s.courseId) ?? s.courseId,
+            sectionId: s.id,
+            sectionTitle: s.title,
+            snippet,
+          });
+        }
       }
     }
 
-    const directIds = [...entityToCourses.entries()]
-      .filter(([, courseSet]) => courseSet.size >= 2)
+    const directIds = [...entityToCourseContext.entries()]
+      .filter(([, m]) => m.size >= 2)
       .map(([eid]) => eid);
 
     // Names: same_as links already carry a_name/b_name. For direct overlaps
@@ -407,22 +491,25 @@ async function buildCrossCourseConnections(): Promise<{
     }));
 
     const directConnections: CrossCourseConnection[] = directIds.map(eid => {
-      const ids = [...(entityToCourses.get(eid) ?? [])];
+      const perCourse = entityToCourseContext.get(eid)!;
       return {
         conceptEntityId: eid,
         conceptName: idToName.get(eid) ?? eid.slice(0, 8),
-        courses: ids.map(cid => ({ courseId: cid, courseTitle: courseTitles.get(cid) ?? cid })),
+        courses: [...perCourse.values()],
         kind: 'direct' as const,
       };
     }).sort((a, b) => b.courses.length - a.courses.length);
 
     const sameAsConnections: CrossCourseConnection[] = [];
     for (const link of sameAsRes.links) {
-      const aCourses = [...(entityToCourses.get(link.entity_a_id) ?? [])];
-      const bCourses = [...(entityToCourses.get(link.entity_b_id) ?? [])];
-      const merged = new Map<string, { courseId: string; courseTitle: string }>();
-      for (const cid of [...aCourses, ...bCourses]) {
-        if (!merged.has(cid)) merged.set(cid, { courseId: cid, courseTitle: courseTitles.get(cid) ?? cid });
+      const aMap = entityToCourseContext.get(link.entity_a_id);
+      const bMap = entityToCourseContext.get(link.entity_b_id);
+      const merged = new Map<string, CrossCourseConnectionCourse>();
+      for (const m of [aMap, bMap]) {
+        if (!m) continue;
+        for (const [cid, ctx] of m.entries()) {
+          if (!merged.has(cid)) merged.set(cid, ctx);
+        }
       }
       if (merged.size === 0) continue;
       sameAsConnections.push({

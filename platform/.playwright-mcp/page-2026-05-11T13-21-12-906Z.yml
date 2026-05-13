@@ -1,0 +1,26 @@
+- generic [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [active] [ref=e6] [cursor=pointer]
+  - generic [ref=e63]:
+    - generic [ref=e64]:
+      - heading "Courses" [level=1] [ref=e65]
+      - button "+ New Course" [ref=e66] [cursor=pointer]
+    - generic [ref=e67]:
+      - generic [ref=e68] [cursor=pointer]:
+        - generic [ref=e69]:
+          - generic [ref=e70]: "Graph C: The Causal Reasoning Layer in Nmemo"
+          - generic [ref=e71]: ready
+        - generic [ref=e72]: A deep-dive into Graph C, the perpendicular causal layer of Nmemo's dual-graph architecture. Learners will understand how causal events are recorded with full traceability, how edges evolve through a defined lifecycle, and how the causal MCP server exposes the entire layer to reasoning agents. By the end, learners can design, implement, and query causal reasoning pipelines on top of a hardened Graph S foundation.
+      - generic [ref=e73] [cursor=pointer]:
+        - generic [ref=e74]:
+          - generic [ref=e75]: "How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging"
+          - generic [ref=e76]: ready
+        - generic [ref=e77]: A deep dive into the Nmemo sparse-truth-graph self-hardening architecture. You will understand every technique the system uses to detect, prevent, and repair graph quality problems — from duplicate entity resolution through HDBSCAN clustering to cross-cluster bridging — and how the test-harden recursive loop proves each improvement is real. By the end you will be able to reason confidently about why the system is structured the way it is and how the five hardening techniques compose into a self-improving whole.
+      - generic [ref=e78] [cursor=pointer]:
+        - generic [ref=e79]:
+          - generic [ref=e80]: "What This Graph Could Power: A Strategic Analysis of Primitives and Use Cases"
+          - generic [ref=e81]: ready
+        - generic [ref=e82]: A strategy and R&D course that maps the system's exact capabilities — Graph S bi-temporal facts, Graph C causal edges, topology analytics, entity resolution, confidence decay, and MCP-first agent writes — and then reasons through six domains where composing those primitives produces outcomes that no conventional system architecture can match. Every claim is grounded in a specific service, schema, or design document. The audience is expected to read critically and push back.

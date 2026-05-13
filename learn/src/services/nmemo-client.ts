@@ -47,6 +47,19 @@ export async function getGraphS(): Promise<GraphSData> {
   return get<GraphSData>('/api/viz/graph-s');
 }
 
+export interface NmemoEntityLite {
+  id: string;
+  canonicalName: string;
+  entityType: string;
+  confidence: number;
+}
+
+export async function listEntities(type?: string): Promise<NmemoEntityLite[]> {
+  const path = type ? `/api/learn/entities?type=${encodeURIComponent(type)}` : '/api/learn/entities';
+  const r = await get<{ entities: NmemoEntityLite[] }>(path);
+  return r.entities;
+}
+
 export async function getContradictions() {
   return get<{ contradictions: unknown[] }>('/api/contradictions?unresolved=true&limit=20');
 }

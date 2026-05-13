@@ -1,0 +1,68 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - heading "Dashboard" [level=1] [ref=e13]
+      - generic [ref=e14]:
+        - generic [ref=e15]: updated 11s ago
+        - button "Reload" [ref=e16] [cursor=pointer]
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e20]: Top gap
+        - generic [ref=e22]: Analysing your knowledge for gaps…
+      - generic [ref=e23]:
+        - generic [ref=e25]: Jump back in
+        - generic [ref=e26]:
+          - 'button "Continue quiz How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging · Section 1 — Graph Quality Problems: What We Are Hardening Against 40% 1h ago" [ref=e68] [cursor=pointer]':
+            - generic [ref=e28]: Continue quiz
+            - generic [ref=e29]:
+              - generic [ref=e30]: "How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging · Section 1 — Graph Quality Problems: What We Are Hardening Against"
+              - generic [ref=e31]: 40%
+            - generic [ref=e32]: 1h ago
+          - 'button "Resume chat Graph C: The Causal Reasoning Layer in Nmemo Excellent question — you''ve found the key tension that actually *makes* Graph C''s design work. Here''s the critical distinction you need: -… 1h ago" [disabled] [ref=e33] [cursor=pointer]':
+            - generic [ref=e34]: Resume chat
+            - generic [ref=e35]: "Graph C: The Causal Reasoning Layer in Nmemo"
+            - generic [ref=e36]: "Excellent question — you've found the key tension that actually *makes* Graph C's design work. Here's the critical distinction you need: -…"
+            - generic [ref=e37]: 1h ago
+      - generic [ref=e38]:
+        - generic [ref=e40]: Daily quiz
+        - generic [ref=e42]: Touched courses have no concept entities yet
+      - generic [ref=e43]:
+        - generic [ref=e44]:
+          - generic [ref=e45]: Daily flashcards
+          - button "Refresh" [ref=e46] [cursor=pointer]
+        - generic [ref=e48]: No flashcards to review. Concepts will appear here as they fade.
+      - generic [ref=e49]:
+        - generic [ref=e51]:
+          - text: Insights
+          - generic [ref=e69]: "2"
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - generic "importance 1.00" [ref=e72]
+            - generic [ref=e73]:
+              - generic [ref=e74]: "Sparse-Truth-Graph Architecture: Consolidate dual-graph foundation concepts"
+              - generic "A dense cluster of 48 interconnected entities spanning Graph S (temporal facts, entities, bi-temporal state), Graph C (causal reasoning, events, edges with source traceability), and the extraction/reasoning pipeline has emerged from recent study. This cluster ties together dual-graph architecture, fact lifecycle management, causal inference, the MCP-based causal agent, source provenance, and entity linking. **Synthesis opportunity:** Create a comprehensive narrative pulling these pieces together — from the schema and ingest pipeline, through fact extraction and causal trigger logic, to causal edge assertion with reasoning + source references. This would unify the foundational concepts the learner is building toward." [ref=e75]: A dense cluster of 48 interconnected entities spanning Graph S (temporal facts, entities, bi-temporal state), Graph C (causal reasoning, eve…
+              - generic [ref=e76]: 1h ago
+            - button "Dismiss insight" [ref=e77] [cursor=pointer]: ×
+          - generic [ref=e78]:
+            - generic "importance 0.90" [ref=e79]
+            - generic [ref=e80]:
+              - generic [ref=e81]: "Entity Resolution and Deduplication: Multi-signal reconciliation strategy"
+              - generic "A second dense cluster of 23 entities has formed around entity deduplication, clustering algorithms (HDBSCAN, ADWIN), embedding-based similarity, and the three-signal reconciliation service. This cluster includes entity_drift tracking, clustering_compute_runs, cross-cluster bridging, and merge candidate scoring. **Synthesis opportunity:** Consolidate the entity resolution pipeline into a dedicated synthesis article—covering when and why entities merge, how clustering and embeddings drive similarity signals, snapshot/replay cycle strategies, and blast-radius analysis for entity consolidation decisions. This is a distinct subsystem worth unified treatment." [ref=e82]: A second dense cluster of 23 entities has formed around entity deduplication, clustering algorithms (HDBSCAN, ADWIN), embedding-based simila…
+              - generic [ref=e83]: 1h ago
+            - button "Dismiss insight" [ref=e84] [cursor=pointer]: ×
+      - generic [ref=e54]:
+        - generic [ref=e56]: Cross-course connections
+        - generic [ref=e58]: No cross-course connections yet. They'll appear as your learning expands.
+      - generic [ref=e59]:
+        - generic [ref=e61]: Graph snapshot
+        - generic [ref=e63]:
+          - generic [ref=e64]: "317"
+          - generic [ref=e65]: concepts
+          - generic [ref=e66]: +317 this week
+          - generic [ref=e67]: 818 facts
+  - generic: Open a section first

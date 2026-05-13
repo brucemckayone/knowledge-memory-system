@@ -1540,6 +1540,24 @@ app.get('/api/learn/learner-facts', async (c) => {
   return c.json({ facts, learnerId: learnerEntity.id });
 });
 
+// Flat list of all entities for client-side concept linking (e.g. the
+// learn course-relink-concepts pass). Returns id + canonicalName + type;
+// no embeddings, no facts. Use `?type=concept` to narrow when the caller
+// only wants conceptual nodes.
+app.get('/api/learn/entities', async (c) => {
+  const typeParam = c.req.query('type');
+  const base = db.select({
+    id: entities.id,
+    canonicalName: entities.canonicalName,
+    entityType: entities.entityType,
+    confidence: entities.confidence,
+  }).from(entities);
+  const rows = typeParam
+    ? await base.where(sql`${entities.entityType} = ${typeParam}`)
+    : await base;
+  return c.json({ entities: rows, count: rows.length });
+});
+
 app.get('/api/learn/entity/:id', async (c) => {
   const id = c.req.param('id');
   const { getEntityById } = await import('./services/entities.js');

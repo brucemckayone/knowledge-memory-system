@@ -11,7 +11,8 @@
       "Bash(npx tsx -e ' *)",
       "Bash(npx tsx *)",
       "Bash(docker exec nmemo-postgres-1 *)",
-      "Bash(\"C:/Users/bruce.mckay/AppData/Local/Programs/bd/bd.exe\" prime *)"
+      "Bash(\"C:/Users/bruce.mckay/AppData/Local/Programs/bd/bd.exe\" prime *)",
+      "mcp__playwright__browser_navigate"
     ]
   },
   "hooks": {

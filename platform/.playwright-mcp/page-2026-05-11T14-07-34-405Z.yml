@@ -1,0 +1,576 @@
+- generic [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+  - generic [ref=e173]:
+    - generic [ref=e174]:
+      - generic [ref=e175] [cursor=pointer]: ← Back to course
+      - generic [ref=e176]:
+        - generic [ref=e177]:
+          - generic [ref=e178]: "What This Graph Could Power: A Strategic Analysis of Primitives and Use Cases"
+          - 'heading "Section 1: The Primitive Map — What the Graph Stores, Computes, and Surfaces" [level=1] [ref=e179]'
+          - generic [ref=e180]: Before reasoning about use cases, you need a precise model of the system's actual capabilities. This section names every load-bearing primitive, explains the mechanism that makes it useful, and identifies which document or service file establishes it. Vague claims are not made here.
+        - generic [ref=e182]:
+          - status [ref=e183]:
+            - generic [ref=e184]:
+              - text: You've seen these ideas before in
+              - strong [ref=e185]: "Graph C: The Causal Reasoning Layer in Nmemo and How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging"
+              - text: .
+            - button "Dismiss" [ref=e186] [cursor=pointer]: ×
+          - generic [ref=e187]:
+            - generic [ref=e188]:
+              - generic [ref=e189]: "Prior: Graph C: The Causal Reasoning Layer in Nmemo"
+              - generic [ref=e190]: Same concept across courses
+            - generic [ref=e192]: Graph S
+            - generic [ref=e193]:
+              - button "Show me the bridge" [ref=e194] [cursor=pointer]
+              - 'button "Open Graph C: The Causal Reasoning Layer in Nmemo" [ref=e195] [cursor=pointer]'
+          - generic [ref=e196]:
+            - generic [ref=e197]:
+              - generic [ref=e198]: "Prior: How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging"
+              - generic [ref=e199]: Same concept across courses
+            - generic [ref=e201]: Entity Resolution
+            - generic [ref=e202]:
+              - button "Show me the bridge" [ref=e203] [cursor=pointer]
+              - 'button "Open How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging" [ref=e204] [cursor=pointer]'
+          - generic [ref=e205]:
+            - generic [ref=e206]:
+              - generic [ref=e207]: "Prior: Graph C: The Causal Reasoning Layer in Nmemo"
+              - generic [ref=e208]: Same concept across courses
+            - generic [ref=e210]: Graph C
+            - generic [ref=e211]:
+              - button "Show me the bridge" [ref=e212] [cursor=pointer]
+              - 'button "Open Graph C: The Causal Reasoning Layer in Nmemo" [ref=e213] [cursor=pointer]'
+          - generic [ref=e214]:
+            - generic [ref=e215]:
+              - generic [ref=e216]: "Prior: Graph C: The Causal Reasoning Layer in Nmemo"
+              - generic [ref=e217]: Same concept across courses
+            - generic [ref=e219]: facts
+            - generic [ref=e220]:
+              - button "Show me the bridge" [ref=e221] [cursor=pointer]
+              - 'button "Open Graph C: The Causal Reasoning Layer in Nmemo" [ref=e222] [cursor=pointer]'
+          - generic [ref=e223]:
+            - generic [ref=e224]:
+              - generic [ref=e225]: "Prior: Graph C: The Causal Reasoning Layer in Nmemo"
+              - generic [ref=e226]: Same concept across courses
+            - generic [ref=e228]: "Causal edge traceability and source_references: why Graph C edges must point to stable Graph S records"
+            - generic [ref=e229]:
+              - button "Show me the bridge" [ref=e230] [cursor=pointer]
+              - 'button "Open Graph C: The Causal Reasoning Layer in Nmemo" [ref=e231] [cursor=pointer]'
+        - generic [ref=e233]:
+          - generic [ref=e234]: Synthesis opportunity
+          - generic [ref=e235]:
+            - generic [ref=e236]: These concepts may connect to others across your courses. Generate a synthesis article to find out.
+            - button "Generate synthesis" [ref=e237] [cursor=pointer]
+        - generic [ref=e238]:
+          - heading "Learning objectives" [level=3] [ref=e239]
+          - list [ref=e240]:
+            - listitem [ref=e241]: "State precisely what Graph S stores: entity types, bi-temporal fact structure (valid_from, valid_to, recorded_at), and the role of source provenance fields on every fact row"
+            - listitem [ref=e242]: "Explain how Graph C extends Graph S: causal_events → causal_edges, the mandatory reasoning TEXT and source_references JSONB fields, and why that non-negotiability matters"
+            - listitem [ref=e243]: "Describe what the reasoning agent patrol does and what triggers it: blast radius traversal, contradiction detection, pattern lifecycle, and the conditional logic that decides whether to invoke the Haiku causal agent"
+            - listitem [ref=e244]: Identify the four graph topology metrics (k-core, articulation points, community detection, bridge detection) and name one concrete inference each metric enables
+            - listitem [ref=e245]: "Explain entity resolution and the gardener's role in keeping Graph S clean: embedding similarity, deterministic blocking, and the reconcile operation"
+            - listitem [ref=e246]: "Describe confidence decay: what decays, at what rate, and what surface the decay produces (the decay_candidates signal)"
+        - generic [ref=e248]:
+          - generic [ref=e249]:
+            - generic [ref=e250]: ~15 min read
+            - generic [ref=e252] [cursor=pointer]: Regenerate
+          - generic [ref=e255]:
+            - generic [ref=e256]:
+              - paragraph [ref=e257]: "Every capability claim in this course traces back to a specific primitive: a schema field, a service function, a trigger condition. This section builds that map precisely. You will encounter six load-bearing mechanisms — bi-temporal facts, causal edges, the reasoning patrol, topology metrics, entity resolution, and confidence decay — each defined at the level of the schema or service file that implements it."
+              - paragraph [ref=e258]: The goal is a working vocabulary, not a tour. When Section 2 argues that this system can reconstruct the causal chain behind any project decision, you will already know which tables, agent operations, and decay signals carry that claim — and which don't.
+            - generic [ref=e259]:
+              - paragraph [ref=e260]: "The six primitives covered in this section aren't aspirational descriptions — each corresponds to a specific schema field or named service operation. Before any mechanism is claimed, it exists in the implementation: a column in a PostgreSQL table, a function in a service file, a trigger condition in code. That's the contract this section holds."
+              - paragraph [ref=e261]:
+                - text: The system separates into two graphs for a precise reason.
+                - strong [ref=e262]: Graph S
+                - text: "is the temporal state layer: bi-temporal facts stored in PostgreSQL, with Apache AGE serving as a traversal index over those entities. It records"
+                - emphasis [ref=e263]: what was true in the world
+                - text: and
+                - emphasis [ref=e264]: when the system learned it
+                - text: as two independently queryable time dimensions.
+                - strong [ref=e265]: Graph C
+                - text: "is the perpendicular causal layer: typed events and directed causal edges that capture"
+                - emphasis [ref=e266]: why
+                - text: state changes, each edge carrying a mandatory reasoning trace and source references.
+              - paragraph [ref=e267]: "Treating these as a single \"knowledge graph\" collapses a load-bearing distinction. Graph S answers state questions: what was Alice's role in March 2024? Graph C answers causal questions: why did that role change? The storage schemas differ, the query interfaces differ, and the agent operations that write to each graph differ — because the epistemological questions they answer differ."
+              - paragraph [ref=e268]: Confusing the two layers causes real errors in use-case reasoning. Topology metrics (k-core, articulation points) operate over Graph S entity structure; causal path queries operate over Graph C edge chains. Asking Graph S for a causal explanation, or Graph C for a point-in-time state, returns the wrong answer from the wrong layer. The separation isn't architectural preference — it's the mechanism that makes each layer's claims precise.
+            - generic [ref=e269]:
+              - paragraph [ref=e270]:
+                - text: "Graph S stores five entity types:"
+                - strong [ref=e271]: person
+                - text: ","
+                - strong [ref=e272]: organization
+                - text: ","
+                - strong [ref=e273]: project
+                - text: ","
+                - strong [ref=e274]: concept
+                - text: ", and"
+                - strong [ref=e275]: document
+                - text: . Each entity carries a 768-dimensional embedding for similarity operations, but entities themselves are lightweight identity anchors — the meaning lives in the fact rows attached to them.
+              - paragraph [ref=e276]: "Every fact row holds nine fields:"
+              - list [ref=e277]:
+                - listitem [ref=e278]:
+                  - code [ref=e279]: entity_id
+                  - text: — foreign key to the entity being described
+                - listitem [ref=e280]:
+                  - code [ref=e281]: attribute
+                  - text: — the property name (e.g.
+                  - code [ref=e282]: "\"role\""
+                  - text: ","
+                  - code [ref=e283]: "\"status\""
+                  - text: ","
+                  - code [ref=e284]: "\"title\""
+                  - text: )
+                - listitem [ref=e285]:
+                  - code [ref=e286]: value
+                  - text: — the property value as text
+                - listitem [ref=e287]:
+                  - code [ref=e288]: valid_from
+                  - text: /
+                  - code [ref=e289]: valid_to
+                  - text: — the window during which this fact was true
+                  - strong [ref=e290]: in the world
+                - listitem [ref=e291]:
+                  - code [ref=e292]: recorded_at
+                  - text: — the moment the system ingested and stored this fact
+                - listitem [ref=e293]:
+                  - code [ref=e294]: confidence
+                  - text: — a 0–1 score, subject to exponential decay
+                - listitem [ref=e295]:
+                  - code [ref=e296]: memory_id
+                  - text: — foreign key to the raw source memory that produced this fact
+                - listitem [ref=e297]:
+                  - code [ref=e298]: source_text
+                  - text: — the verbatim text snippet from which the fact was extracted
+              - paragraph [ref=e299]:
+                - text: The
+                - code [ref=e300]: memory_id
+                - text: and
+                - code [ref=e301]: source_text
+                - text: fields are the provenance anchors.
+                - code [ref=e302]: source_text
+                - text: holds the exact passage the extraction model saw — not a summary, not a paraphrase.
+                - code [ref=e303]: memory_id
+                - text: links back to the full source document stored in Qdrant, so any downstream consumer can trace a fact to its origin in one join.
+              - paragraph [ref=e304]:
+                - text: The two time fields encode fundamentally different things.
+                - code [ref=e305]: valid_from
+                - text: and
+                - code [ref=e306]: valid_to
+                - text: describe
+                - strong [ref=e307]: valid time
+                - text: — when the fact held in the world, independent of when the system knew about it.
+                - code [ref=e308]: recorded_at
+                - text: describes
+                - strong [ref=e309]: recorded time
+                - text: "— when the system learned and stored the fact. These two dimensions diverge whenever reality is updated retroactively: a correction ingested in August might assert that a role changed back in January. The original fact row stays in the table; a new row is written with the corrected valid-time window. Both rows coexist."
+              - paragraph [ref=e310]:
+                - text: That coexistence is what makes point-in-time historical queries precise. To ask "what did the system believe about a person's status in March 2024?" you filter by
+                - code [ref=e311]: recorded_at
+                - text: ; to ask "what was actually true in March 2024?" you filter by the valid-time window. The two questions have different answers, and the schema preserves both independently.
+              - paragraph [ref=e312]:
+                - text: Apache AGE sits alongside this as a
+                - strong [ref=e313]: traversal index
+                - text: . It mirrors entity nodes and relationship edges into a property graph so that path and neighbor queries run without full-table scans. The canonical source of truth, however, is always the PostgreSQL
+                - code [ref=e314]: facts
+                - text: table — AGE is kept consistent via triggers, not promoted to primary storage. When the two diverge (a bug, a failed trigger), the PostgreSQL row wins.
+            - generic [ref=e315]:
+              - generic [ref=e316]:
+                - generic [ref=e317]: "Bi-temporal facts: valid time vs recorded time · d3"
+                - generic [ref=e319]: ready
+              - iframe [ref=e320]:
+                - img [ref=f9e4]:
+                  - generic [ref=f9e6]: Valid Time
+                  - generic [ref=f9e7]: — when the fact was true in the world
+                  - generic [ref=f9e8]: "valid_from: 2024-01-01"
+                  - generic [ref=f9e9]: "valid_to: NULL (open)"
+                  - generic [ref=f9e11]: "Fact B: Alice = project lead (correction)"
+                  - generic [ref=f9e12]: "valid_from: 2024-01-01"
+                  - generic [ref=f9e13]: "valid_to: 2024-06-01"
+                  - generic [ref=f9e15]: Fact A
+                  - generic [ref=f9e16]: Alice = project lead (original)
+                  - generic [ref=f9e17]: Jan '24
+                  - generic [ref=f9e18]: Apr '24
+                  - generic [ref=f9e19]: Jul '24
+                  - generic [ref=f9e20]: Oct '24
+                  - generic [ref=f9e21]: Jan '25
+                  - generic [ref=f9e22]: Apr '25
+                  - generic [ref=f9e23]: Jul '25
+                  - generic [ref=f9e24]: Oct '25
+                  - generic [ref=f9e25]: Jan '26
+                  - generic [ref=f9e26]: Apr '26
+                  - generic [ref=f9e27]: Recorded Time
+                  - generic [ref=f9e28]: — when the system learned it
+                  - generic [ref=f9e31]: Jan '24
+                  - generic [ref=f9e32]: Apr '24
+                  - generic [ref=f9e33]: Jul '24
+                  - generic [ref=f9e34]: Oct '24
+                  - generic [ref=f9e35]: Jan '25
+                  - generic [ref=f9e36]: Apr '25
+                  - generic [ref=f9e37]: Jul '25
+                  - generic [ref=f9e38]: Oct '25
+                  - generic [ref=f9e39]: Jan '26
+                  - generic [ref=f9e40]: Apr '26
+                  - generic [ref=f9e41]: recorded_at
+                  - generic [ref=f9e42]: 2024-02-15
+                  - generic [ref=f9e44]: recorded_at
+                  - generic [ref=f9e45]: 2024-08-10
+                  - generic [ref=f9e47]: ▼ now
+                  - generic [ref=f9e48]: ▼ now
+                  - generic [ref=f9e51]:
+                    - generic [ref=f9e52]:
+                      - text: Both rows coexist in the
+                      - code [ref=f9e53]: facts
+                      - text: table.
+                    - generic [ref=f9e54]:
+                      - generic [ref=f9e55]: QUERY valid_time
+                      - emphasis [ref=f9e56]: "\"What was true in March 2024?\""
+                      - generic [ref=f9e57]:
+                        - text: "→ Latest belief wins:"
+                        - strong [ref=f9e58]: Fact B
+                        - text: (the corrected version).
+                    - generic [ref=f9e59]:
+                      - generic [ref=f9e60]: QUERY recorded_at
+                      - emphasis [ref=f9e61]: "\"What did the system believe in March 2024?\""
+                      - generic [ref=f9e62]:
+                        - text: → Only
+                        - strong [ref=f9e63]: Fact A
+                        - text: existed then. B was not yet recorded.
+                    - generic [ref=f9e64]:
+                      - text: Same calendar moment, different system-knowledge.
+                      - strong [ref=f9e65]: The two time axes are independently queryable.
+            - generic [ref=e321]:
+              - 'heading "Graph C: The Causal Layer" [level=3] [ref=e322]'
+              - paragraph [ref=e323]:
+                - text: Graph S records what was true and when. Graph C records
+                - emphasis [ref=e324]: why things changed
+                - text: "— and crucially, on what evidence. The two graphs are perpendicular: Graph C references Graph S entities without duplicating them, adding a causal dimension that Graph S's bi-temporal structure cannot express on its own."
+              - paragraph [ref=e325]: The layer has two schema objects.
+              - paragraph [ref=e326]:
+                - strong [ref=e327]:
+                  - code [ref=e328]: causal_events
+                - text: "are typed records anchoring a real-world occurrence to the graph. Each row carries:"
+              - list [ref=e329]:
+                - listitem [ref=e330]:
+                  - code [ref=e331]: event_type
+                  - text: — a controlled vocabulary term (e.g.,
+                  - code [ref=e332]: decision
+                  - text: ","
+                  - code [ref=e333]: observation
+                  - text: ","
+                  - code [ref=e334]: external_signal
+                  - text: )
+                - listitem [ref=e335]:
+                  - code [ref=e336]: entity_refs
+                  - text: — foreign keys into Graph S entities, linking the event to the actors and objects involved
+                - listitem [ref=e337]:
+                  - code [ref=e338]: event_text
+                  - text: — the source passage that evidences the event
+                - listitem [ref=e339]:
+                  - code [ref=e340]: timestamp
+                  - text: — when the event occurred in the world (valid time, not ingest time)
+              - paragraph [ref=e341]: Think of causal_events as the named nodes in the causal graph. They don't replace fact rows; they sit above them.
+              - paragraph [ref=e342]:
+                - strong [ref=e343]:
+                  - code [ref=e344]: causal_edges
+                - text: are directed typed edges between causal_events. A single row asserts that one event caused, enabled, or contradicted another. The schema for each edge includes
+                - code [ref=e345]: edge_type
+                - text: ","
+                - code [ref=e346]: confidence
+                - text: ", and two fields that are non-negotiable:"
+              - code [ref=e348]: reasoning TEXT NOT NULL source_references JSONB NOT NULL
+              - paragraph [ref=e349]:
+                - text: Both fields are
+                - code [ref=e350]: NOT NULL
+                - text: at the schema level — no edge can be written without them. This is a design decision worth understanding, not just accepting.
+              - paragraph [ref=e351]:
+                - text: "A causal edge without an explicit reasoning trace is an assertion. It might be correct, but it's opaque: any downstream consumer — a query, a human reviewer, a contradiction-detection pass — has no basis for trusting or refuting it. The"
+                - code [ref=e352]: reasoning
+                - text: field forces the agent that asserts the edge to commit to a written argument. The
+                - code [ref=e353]: source_references
+                - text: field anchors that argument to the specific memory rows and source passages that support it.
+              - paragraph [ref=e354]: This means every causal inference in Graph C carries a complete evidence chain from conclusion back to raw source text. When the system later needs to audit why a belief formed, or detect a contradiction between two edges, that chain is already encoded in the row — not reconstructed from logs after the fact.
+            - paragraph [ref=e356]:
+              - emphasis [ref=e357]: "[Artifact generation failed for Mermaid: fixed-kind Mermaid fell back to markdown]"
+            - generic [ref=e358]:
+              - heading "The Reasoning Agent Patrol" [level=3] [ref=e359]
+              - paragraph [ref=e360]: "The causal agent doesn't run on every ingest. It runs when the graph state warrants it — specifically, when any one of three conditions is true:"
+              - list [ref=e361]:
+                - listitem [ref=e362]:
+                  - strong [ref=e363]: At least one entity referenced by the new memory already has causal history.
+                  - text: If the entity appears in existing
+                  - code [ref=e364]: causal_events
+                  - text: rows, the incoming text may extend, contradict, or reinforce chains already in Graph C. The agent checks.
+                - listitem [ref=e365]:
+                  - strong [ref=e366]: The ingest created more than N new facts.
+                  - text: A large fact batch changes graph state significantly enough that new causal relationships become plausible. The threshold N is configurable; crossing it fires the agent regardless of entity history.
+                - listitem [ref=e367]:
+                  - strong [ref=e368]: The source text contains explicit causal language.
+                  - text: Terms like "caused", "resulted in", "because of", and similar constructions are detected in the raw
+                  - code [ref=e369]: source_text
+                  - text: before extraction. If causal language is present, the agent runs even if the entity is new and the fact count is low.
+              - paragraph [ref=e370]: When triggered, the agent executes four operations in sequence.
+              - paragraph [ref=e371]:
+                - strong [ref=e372]: Blast radius traversal.
+                - text: Starting from the new fact's entity, the agent walks outward through Graph C to identify downstream beliefs that depend on that entity's state. If the incoming fact changes what's true about the entity — even subtly — beliefs built on earlier assumptions about that entity may now be miscalibrated. The traversal surfaces them before the edge is written.
+              - paragraph [ref=e373]:
+                - strong [ref=e374]: Contradiction detection.
+                - text: For each candidate edge the agent wants to assert, it checks whether an existing causal edge already makes a conflicting claim. A candidate asserting "A caused B" conflicts with an existing edge asserting "A prevented B". The agent surfaces the conflict rather than silently overwriting it — both edges remain visible, with their respective reasoning traces, until a human or later inference resolves them.
+              - paragraph [ref=e375]:
+                - strong [ref=e376]: Pattern lifecycle update.
+                - text: The agent compares the new event against known causal patterns stored in Graph C. If the event matches an existing pattern, it extends the pattern's lifecycle. If it partially matches, it flags a candidate pattern for review. This is how recurring causal structures — "funding cut → scope reduction → delivery delay" — accumulate evidence over time rather than being re-asserted from scratch each cycle.
+              - paragraph [ref=e377]:
+                - strong [ref=e378]: Edge assertion.
+                - text: If the agent proceeds to write an edge, it must populate
+                - code [ref=e379]: reasoning TEXT NOT NULL
+                - text: and
+                - code [ref=e380]: source_references JSONB NOT NULL
+                - text: on that row — the same non-negotiable fields the schema enforces on every causal edge. The graph never receives an assertion without a traceable justification; the schema constraint makes that physically impossible, not just a convention.
+            - generic [ref=e381]:
+              - paragraph [ref=e382]:
+                - text: The analytics service exposes four graph topology metrics computed over the AGE traversal index. Each metric is structural — it answers a question about the graph's
+                - emphasis [ref=e383]: shape
+                - text: ", not its content — and each produces a different class of inference about your knowledge domain."
+              - paragraph [ref=e384]:
+                - strong [ref=e385]: k-core decomposition
+                - text: "assigns every node a coreness score: the largest value"
+                - emphasis [ref=e386]: k
+                - text: such that the node belongs to a subgraph where every member has at least
+                - emphasis [ref=e387]: k
+                - text: "neighbours. A node with coreness 5 sits inside a tightly interconnected cluster of at least five mutual connections; a node with coreness 1 hangs off the periphery. The concrete inference: high-coreness entities are the structural influence hubs — the people, projects, or concepts most deeply embedded in the graph's dense core, not just the ones with the most raw connections."
+              - paragraph [ref=e388]:
+                - strong [ref=e389]: Articulation points
+                - text: "are nodes whose removal splits the graph into two or more disconnected components. The algorithm identifies them by traversal: a node qualifies if cutting it isolates at least one other node from the rest of the graph. The concrete inference: an articulation point is a single point of failure for information flow — if that entity record is deleted, corrupted, or drops below a confidence threshold, it severs the graph's connectivity entirely."
+              - paragraph [ref=e390]:
+                - strong [ref=e391]: Community detection
+                - text: "partitions the graph into dense clusters using modularity optimisation. The algorithm maximises edge density within clusters relative to edges between them, producing groups of entities that share more connections with each other than with the rest of the graph. The concrete inference: communities surface knowledge silos or tight collaboration clusters — groups that share facts and causal history but interact sparsely with other groups."
+              - paragraph [ref=e392]:
+                - strong [ref=e393]: Bridge detection
+                - text: "is the edge analogue of articulation points. A bridge is an edge whose removal disconnects graph components; it is the sole path between two otherwise isolated subgraphs. The concrete inference: a bridge edge identifies a critical inter-domain dependency — that single relationship is what connects two knowledge domains, and its absence or degradation fractures them."
+              - paragraph [ref=e394]: "These four metrics are not post-hoc analytics bolted on separately. They run over the same AGE traversal index that causal edge queries use, so topology results and causal chains share a consistent structural snapshot. That coupling matters: when the gardener resolves a duplicate entity pair — covered next — every coreness score, articulation point list, and community partition the service has cached becomes stale and must be recomputed. Graph S cleanliness is a direct precondition for topology accuracy."
+            - generic [ref=e395]:
+              - generic [ref=e396]:
+                - generic [ref=e397]: Card 1 of 4
+                - generic [ref=e398]: Front
+              - generic "Click to flip" [ref=e399] [cursor=pointer]:
+                - generic [ref=e400]: FRONT
+                - generic [ref=e401]: k-core decomposition
+              - generic [ref=e402]:
+                - button "Flip" [ref=e403] [cursor=pointer]
+                - button "Reset" [ref=e404] [cursor=pointer]
+            - generic [ref=e405]:
+              - heading "Entity Resolution and the Gardener" [level=3] [ref=e406]
+              - paragraph [ref=e407]: Topology metrics are only as meaningful as the entity graph they operate on. If "Alice Chen" and "A. Chen" exist as separate nodes, every k-core and community score is subtly wrong — the graph has split one hub into two half-populated stubs. Entity resolution is the mechanism that prevents this.
+              - paragraph [ref=e408]: Resolution runs in two stages.
+              - paragraph [ref=e409]:
+                - strong [ref=e410]: Stage 1 — Deterministic blocking.
+                - text: "Before any vector math, the system generates candidate pairs using cheap deterministic signals: shared tokens in entity names, matching external identifiers (email addresses, project IDs, canonical slugs), and overlapping metadata attributes. Blocking limits the comparison space — you don't score every entity pair against every other, only pairs that already share at least one hard signal. This keeps the pipeline tractable as the graph grows."
+              - paragraph [ref=e411]:
+                - strong [ref=e412]: Stage 2 — Embedding similarity ranking.
+                - text: Each entity carries a 768-dimensional vector produced by the
+                - code [ref=e413]: nomic-embed-text
+                - text: "model. For every candidate pair from Stage 1, the system computes cosine distance between the two vectors. Pairs that score above a configurable threshold are flagged as likely duplicates. The threshold is the key tunable: too low and distinct entities merge; too high and genuine duplicates survive."
+              - heading "The Reconcile Operation" [level=3] [ref=e414]
+              - paragraph [ref=e415]:
+                - text: When a merge is confirmed,
+                - code [ref=e416]: reconcile
+                - text: "does three things in order:"
+              - list [ref=e417]:
+                - listitem [ref=e418]:
+                  - text: Selects one
+                  - code [ref=e419]: entity_id
+                  - text: as canonical and marks the other as superseded
+                - listitem [ref=e420]:
+                  - text: Re-points every
+                  - code [ref=e421]: facts
+                  - text: row referencing the duplicate
+                  - code [ref=e422]: entity_id
+                  - text: to the canonical one — the fact history is preserved, just re-attributed
+                - listitem [ref=e423]: Updates the Apache AGE traversal index so graph edges follow the same consolidation
+              - paragraph [ref=e424]: All three steps must succeed together. A partial reconcile — fact rows updated but the AGE index stale — would produce query results that contradict each other depending on whether you query PostgreSQL or traverse the graph.
+              - heading "The Gardener's Ongoing Role" [level=3] [ref=e425]
+              - paragraph [ref=e426]: Entity resolution isn't a one-time pass. New ingests continuously introduce text that may reference existing entities under new names or formats. The gardener surfaces fresh resolution candidates, validates proposed merges (accepting or rejecting each pair), and monitors for silent entity drift — the gradual accumulation of near-duplicate nodes that erodes topology accuracy without triggering any explicit error.
+              - paragraph [ref=e427]: This is why the gardener is described as a continuous role, not a setup step. The graph's structural health depends on it staying current.
+            - generic [ref=e428]:
+              - heading "Confidence Decay and the decay_candidates Signal" [level=3] [ref=e429]:
+                - text: Confidence Decay and the
+                - code [ref=e430]: decay_candidates
+                - text: Signal
+              - paragraph [ref=e431]:
+                - text: Every fact row in Graph S carries a
+                - code [ref=e432]: confidence
+                - text: score — a float between 0 and 1 assigned at ingest time. That score is not static. The system applies exponential decay at a configurable rate, so a fact's effective confidence at any moment is a function of both its starting value and how long ago it was recorded.
+              - paragraph [ref=e433]:
+                - text: The mechanism is
+                - code [ref=e434]: confidence(t) = initial_confidence × exp(−λ × t)
+                - text: ", where"
+                - code [ref=e435]: t
+                - text: is elapsed time since
+                - code [ref=e436]: recorded_at
+                - text: and
+                - code [ref=e437]: λ
+                - text: is a decay constant configurable per fact type or globally. As
+                - code [ref=e438]: t
+                - text: grows, confidence falls. When it drops below a configurable review threshold, the fact row enters the
+                - strong [ref=e439]:
+                  - code [ref=e440]: decay_candidates
+                - text: signal — a query surface, not a deletion queue.
+              - paragraph [ref=e441]: "Three capabilities hang directly off that signal:"
+              - list [ref=e442]:
+                - listitem [ref=e443]:
+                  - strong [ref=e444]: Staleness detection.
+                  - text: Any consumer queries
+                  - code [ref=e445]: decay_candidates
+                  - text: to surface facts that are probably no longer reliable, without scanning the full facts table.
+                - listitem [ref=e446]:
+                  - strong [ref=e447]: Prioritized re-ingestion.
+                  - text: A background process ranks decayed facts by how far below threshold they sit and schedules the highest-priority ones for re-verification or fresh ingest.
+                - listitem [ref=e448]:
+                  - strong [ref=e449]: Trust budgets for causal reasoning.
+                  - text: When the reasoning agent traces a causal chain, it can weight or reject edges whose source facts have confidence below a floor — preventing stale beliefs from propagating through Graph C as if they were still solid.
+              - paragraph [ref=e450]:
+                - text: "The interaction with bi-temporal storage is worth being precise about: a decayed fact is"
+                - strong [ref=e451]: flagged, not deleted
+                - text: . The
+                - code [ref=e452]: recorded_at
+                - text: timestamp and the original confidence value remain in the row. The system retains a complete record of what it believed, when it believed it, and at what confidence — the same audit trail that makes point-in-time historical queries meaningful. You can ask not just "what was true in March 2024" but "what did the system confidently believe in March 2024", and get a different, equally precise answer.
+            - generic [ref=e453]:
+              - generic [ref=e454]:
+                - generic [ref=e455]: Confidence decay curves — half-life, threshold, decay_candidates · plotly
+                - generic [ref=e457]: ready
+              - iframe [ref=e458]:
+                - generic [active] [ref=f10e1]:
+                  - generic [ref=f10e2]:
+                    - generic [ref=f10e3]:
+                      - generic:
+                        - generic:
+                          - img:
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - generic:
+                                    - generic:
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic: day 313
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic: day 156
+                                      - generic:
+                                        - generic:
+                                          - generic:
+                                            - generic: day 52
+                                - generic:
+                                  - generic:
+                                    - generic: "0"
+                                  - generic:
+                                    - generic: "50"
+                                  - generic:
+                                    - generic: "100"
+                                  - generic:
+                                    - generic: "150"
+                                  - generic:
+                                    - generic: "200"
+                                  - generic:
+                                    - generic: "250"
+                                  - generic:
+                                    - generic: "300"
+                                  - generic:
+                                    - generic: "350"
+                                - generic:
+                                  - generic:
+                                    - generic: "0"
+                                  - generic:
+                                    - generic: "0.2"
+                                  - generic:
+                                    - generic: "0.4"
+                                  - generic:
+                                    - generic: "0.6"
+                                  - generic:
+                                    - generic: "0.8"
+                                  - generic:
+                                    - generic: "1"
+                          - img:
+                            - generic:
+                              - generic [ref=f10e20]:
+                                - generic [ref=f10e22]: Slow decay (half-life 180d)
+                                - generic [ref=f10e25]: Medium decay (half-life 90d)
+                                - generic [ref=f10e28]: Fast decay (half-life 30d)
+                                - generic [ref=f10e31]: decay_candidates threshold
+                              - generic:
+                                - generic: Days since recorded_at
+                              - generic:
+                                - generic: Confidence
+                          - img
+                    - generic [ref=f10e33]:
+                      - generic [ref=f10e34]:
+                        - text: "Initial confidence: 1.00"
+                        - 'slider "Initial confidence: 1.00" [ref=f10e35]': "1"
+                      - generic [ref=f10e36]:
+                        - text: "Threshold: 0.30"
+                        - 'slider "Threshold: 0.30" [ref=f10e37]': "0.3"
+                    - generic [ref=f10e38]:
+                      - text: Each curve crosses the threshold at a different day — that crossing day is when the gardener flags the fact as a
+                      - code [ref=f10e39]: decay_candidate
+                      - text: . Slow facts (half-life 180d) survive a year; fast facts (half-life 30d) go stale in weeks.
+                  - img [ref=f10e40]
+            - paragraph [ref=e460]: "You now have an exact vocabulary for all six primitives. Bi-temporal facts let you query both what was true in the world and what the system believed, independently. Causal edges carry mandatory reasoning traces that make every inference auditable. The reasoning patrol fires conditionally — blast radius, contradiction, pattern — only when graph state warrants it. Four topology metrics each unlock a different structural inference about the knowledge graph's shape. Entity resolution keeps the graph clean enough for those metrics to be meaningful. And confidence decay surfaces stale beliefs before they corrupt downstream causal reasoning. Section 2 applies this vocabulary directly: when it claims the system can trace every project decision to its causal antecedents, you will know which tables, fields, and agent operations carry that claim."
+          - generic [ref=e461]:
+            - heading "Key takeaways" [level=3] [ref=e462]
+            - list [ref=e463]:
+              - listitem [ref=e464]: Bi-temporal facts separate valid_time (world truth) from recorded_time (system knowledge), enabling retroactive corrections.
+              - listitem [ref=e465]: Graph S queries state (what was true); Graph C queries causality (why changed)—different schemas, different agents.
+              - listitem [ref=e466]: Every causal edge requires mandatory reasoning trace and source_references field—zero inferred causality without documented reasoning.
+              - listitem [ref=e467]: Entity resolution maintains graph cleanliness, making topology metrics (k-core, articulation points) yield valid structural inferences.
+              - listitem [ref=e468]: Apache AGE is a traversal index only; PostgreSQL tables remain canonical source of truth.
+              - listitem [ref=e469]: Confidence scores decay exponentially on facts, surfacing stale beliefs before they corrupt causal reasoning downstream.
+        - generic [ref=e470]:
+          - heading "Notes 0 notes" [level=2] [ref=e471]:
+            - text: Notes
+            - generic [ref=e472]: 0 notes
+          - generic [ref=e473]: Highlight any lesson text and pick "Take a note" to start.
+        - generic [ref=e474]:
+          - heading "Questions 4 total · 0 attempts" [level=2] [ref=e475]
+          - generic [ref=e476]:
+            - generic [ref=e478] [cursor=pointer]:
+              - generic [ref=e479]: ▶
+              - generic [ref=e480]: "A fact in Graph S has four time-related fields: valid_from, valid_to, recorded_at, and superseded_at. Explain what each field represents and…"
+              - generic [ref=e481]:
+                - text: ★★★☆☆
+                - generic [ref=e482]: Not attempted
+            - generic [ref=e484] [cursor=pointer]:
+              - generic [ref=e485]: ▶
+              - generic [ref=e486]: Graph C requires every causal edge to carry both a reasoning TEXT field and a source_references JSONB field, and both are NOT NULL. Why are …
+              - generic [ref=e487]:
+                - text: ★★★☆☆
+                - generic [ref=e488]: Not attempted
+            - generic [ref=e490] [cursor=pointer]:
+              - generic [ref=e491]: ▶
+              - generic [ref=e492]: "The reasoning agent patrol has a conditional trigger: it only invokes the Haiku causal agent when at least one of three conditions is met. N…"
+              - generic [ref=e493]:
+                - text: ★★★★☆
+                - generic [ref=e494]: Not attempted
+            - generic [ref=e496] [cursor=pointer]:
+              - generic [ref=e497]: ▶
+              - generic [ref=e498]: "Graph topology exposes four metrics: k-core decomposition, articulation point detection, community detection, and bridge detection. For each…"
+              - generic [ref=e499]:
+                - text: ★★★★☆
+                - generic [ref=e500]: Not attempted
+    - complementary "Tutor chat" [ref=e501]:
+      - generic [ref=e502]:
+        - generic [ref=e503]: Tutor
+        - button "Collapse chat" [ref=e504] [cursor=pointer]: ×
+      - generic [ref=e506]: "Ask me anything about \"Section 1: The Primitive Map — What the Graph Stores, Computes, and Surfaces\". Highlight any text in the lesson for quick popovers; longer conversations live here."
+      - group "Quick prompts" [ref=e507]:
+        - button "▦ Diagram" [ref=e508] [cursor=pointer]
+        - button "↦ Walk-through" [ref=e509] [cursor=pointer]
+        - 'button "{} Example" [ref=e510] [cursor=pointer]'
+        - button "⊟ Flashcards" [ref=e511] [cursor=pointer]
+      - generic [ref=e512]:
+        - textbox "Ask about this section…" [active] [ref=e513]: "The concept \"Causal edge traceability and source_references: why Graph C edges must point to stable Graph S records\" shows up in \"What This Graph Could Power: A Strategic Analysis of Primitives and Use Cases\", \"Graph C: The Causal Reasoning Layer in Nmemo\", \"How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging\". How is it framed differently across these courses, and what's the unifying mental model that ties them together?"
+        - button "Send" [ref=e514] [cursor=pointer]

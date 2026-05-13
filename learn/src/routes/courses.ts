@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { db, courses, sections, questions } from '../db/index.js';
 import { eq, desc } from 'drizzle-orm';
 import { generateCourse } from '../agents/course-generator.js';
+import { relinkCourseConcepts } from '../services/relink-concepts.js';
 
 export const courseRoutes = new Hono();
 
@@ -75,6 +76,19 @@ courseRoutes.post('/', async (c) => {
   });
 
   return c.json({ courseId, status: 'building' }, 202);
+});
+
+courseRoutes.post('/:id/relink-concepts', async (c) => {
+  const id = c.req.param('id');
+  const [course] = await db.select().from(courses).where(eq(courses.id, id));
+  if (!course) return c.json({ error: 'Not found' }, 404);
+  try {
+    const result = await relinkCourseConcepts(id);
+    return c.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ error: msg }, 502);
+  }
 });
 
 courseRoutes.delete('/:id', async (c) => {

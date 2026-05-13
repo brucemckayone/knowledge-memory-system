@@ -1,0 +1,52 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - heading "Dashboard" [level=1] [ref=e13]
+      - generic [ref=e14]:
+        - generic [ref=e15]: updated 0s ago
+        - button "Reload" [ref=e16] [cursor=pointer]
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e20]: Top gap
+        - generic [ref=e22]: Analysing your knowledge for gaps…
+      - generic [ref=e23]:
+        - generic [ref=e25]: Jump back in
+        - generic [ref=e26]:
+          - 'button "Continue quiz Graph C: The Causal Reasoning Layer in Nmemo · Section 3 — Causal Edges: Assertion, Schema, and Lifecycle 78% 1h ago" [ref=e27] [cursor=pointer]':
+            - generic [ref=e28]: Continue quiz
+            - generic [ref=e29]:
+              - generic [ref=e30]: "Graph C: The Causal Reasoning Layer in Nmemo · Section 3 — Causal Edges: Assertion, Schema, and Lifecycle"
+              - generic [ref=e31]: 78%
+            - generic [ref=e32]: 1h ago
+          - 'button "Resume chat Graph C: The Causal Reasoning Layer in Nmemo Excellent question — you''ve found the key tension that actually *makes* Graph C''s design work. Here''s the critical distinction you need: -… 1h ago" [disabled] [ref=e33] [cursor=pointer]':
+            - generic [ref=e34]: Resume chat
+            - generic [ref=e35]: "Graph C: The Causal Reasoning Layer in Nmemo"
+            - generic [ref=e36]: "Excellent question — you've found the key tension that actually *makes* Graph C's design work. Here's the critical distinction you need: -…"
+            - generic [ref=e37]: 1h ago
+      - generic [ref=e38]:
+        - generic [ref=e40]: Daily quiz
+        - generic [ref=e42]: Touched courses have no concept entities yet
+      - generic [ref=e43]:
+        - generic [ref=e44]:
+          - generic [ref=e45]: Daily flashcards
+          - button "Refresh" [ref=e46] [cursor=pointer]
+        - generic [ref=e48]: No flashcards to review. Concepts will appear here as they fade.
+      - generic [ref=e49]:
+        - generic [ref=e51]: Insights
+        - generic [ref=e53]: Nothing to surface yet.
+      - generic [ref=e54]:
+        - generic [ref=e56]: Cross-course connections
+        - generic [ref=e58]: No cross-course connections yet. They'll appear as your learning expands.
+      - generic [ref=e59]:
+        - generic [ref=e61]: Graph snapshot
+        - generic [ref=e63]:
+          - generic [ref=e64]: "313"
+          - generic [ref=e65]: concepts
+          - generic [ref=e66]: +313 this week
+          - generic [ref=e67]: 806 facts
+  - generic: Open a section first

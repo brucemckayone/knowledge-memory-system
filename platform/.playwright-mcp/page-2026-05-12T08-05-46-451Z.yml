@@ -1,0 +1,81 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+      - button "Presentation" [ref=e7] [cursor=pointer]
+  - generic [ref=e267]:
+    - generic [ref=e268] [cursor=pointer]: ← All courses
+    - generic [ref=e269]:
+      - generic [ref=e270]:
+        - 'heading "What This Graph Could Power: A Strategic Analysis of Primitives and Use Cases" [level=1] [ref=e271]'
+        - generic [ref=e272]: A strategy and R&D course that maps the system's exact capabilities — Graph S bi-temporal facts, Graph C causal edges, topology analytics, entity resolution, confidence decay, and MCP-first agent writes — and then reasons through six domains where composing those primitives produces outcomes that no conventional system architecture can match. Every claim is grounded in a specific service, schema, or design document. The audience is expected to read critically and push back.
+        - generic [ref=e273]:
+          - generic [ref=e274]: ready
+          - generic [ref=e275]: 8 sections
+      - generic [ref=e276]:
+        - generic [ref=e277] [cursor=pointer]:
+          - generic [ref=e278]: "1"
+          - generic [ref=e279]:
+            - generic [ref=e280]: "Section 1: The Primitive Map — What the Graph Stores, Computes, and Surfaces"
+            - generic [ref=e281]: Before reasoning about use cases, you need a precise model of the system's actual capabilities. This section names every load-bearing primitive, explains the mechanism that makes it useful, and identifies which document or service file establishes it. Vague claims are not made here.
+            - generic [ref=e282]:
+              - generic [ref=e283]: 12 concepts · 4 questions
+              - generic [ref=e284]: Lesson ready
+        - generic [ref=e285] [cursor=pointer]:
+          - generic [ref=e286]: "2"
+          - generic [ref=e287]:
+            - generic [ref=e288]: "Section 2: The Project Brain — Every Communication Stream, Every Causal Thread"
+            - generic [ref=e289]: A project management 'brain' ingests Slack threads, git commits, PR reviews, Jira updates, and meeting transcripts into a unified graph that maintains causal links from 'a decision was made' all the way to 'an incident occurred.' This section reasons about which primitives compose to deliver that, what is already wired, and what the breakthrough variant looks like at 12 months.
+            - generic [ref=e290]:
+              - generic [ref=e291]: 12 concepts · 4 questions
+              - generic [ref=e292]: Lesson ready
+        - generic [ref=e293] [cursor=pointer]:
+          - generic [ref=e294]: "3"
+          - generic [ref=e295]:
+            - generic [ref=e296]: "Section 3: Living Personal Knowledge Graph — Beliefs, Threads, and Forgetting"
+            - generic [ref=e297]: A personal knowledge graph ingests email, chat, notes, and reading material. Unlike a search index, this system tracks beliefs as bi-temporal facts, detects when beliefs evolve or contradict, and uses confidence decay to surface threads the person has forgotten. This section reasons through the specific primitives that make this different from existing PKM tools.
+            - generic [ref=e298]:
+              - generic [ref=e299]: 12 concepts · 3 questions
+              - generic [ref=e300]: Lesson ready
+        - generic [ref=e301] [cursor=pointer]:
+          - generic [ref=e302]: "4"
+          - generic [ref=e303]:
+            - generic [ref=e304]: "Section 4: Engineering / Codebase Intelligence — WHY a Service Is the Way It Is"
+            - generic [ref=e305]: A codebase intelligence layer ingests source code, design documents, git commits, PR comments, and incident postmortems. The graph reasons about why architectural decisions were made, maps causal threads from incidents to the decisions that caused them, and detects drift between what the docs say and what the code does. This is about institutional memory that survives developer turnover.
+            - generic [ref=e306]:
+              - generic [ref=e307]: 12 concepts · 3 questions
+              - generic [ref=e308]: Lesson ready
+        - generic [ref=e309] [cursor=pointer]:
+          - generic [ref=e310]: "5"
+          - generic [ref=e311]:
+            - generic [ref=e312]: "Section 5: Research / Literature Synthesis — Contradictions, Gaps, and Evidence Chains"
+            - generic [ref=e313]: A research synthesis layer ingests papers, lab notebooks, experiment logs, and preprints. The graph maintains a live contradiction map across the literature, surfaces gaps the field hasn't filled by analyzing topology voids, and traces causal claims all the way back to their raw experimental evidence. This section reasons about how the primitives compose and what the deployment gaps are.
+            - generic [ref=e314]:
+              - generic [ref=e315]: 12 concepts · 3 questions
+              - generic [ref=e316]: Lesson ready
+        - generic [ref=e317] [cursor=pointer]:
+          - generic [ref=e318]: "6"
+          - generic [ref=e319]:
+            - generic [ref=e320]: "Section 6: Compliance, Audit, and Regulated Industries — The Graph IS the Audit Trail"
+            - generic [ref=e321]: "In regulated industries, audit requirements are usually met by bolting a logging layer onto an existing system. This graph inverts that: every fact has bi-temporal validity and source provenance by construction. Contradiction detection is compliance checking. Blast radius is impact analysis. This section reasons about why the architecture is natively audit-ready and what the remaining deployment gaps are."
+            - generic [ref=e322]:
+              - generic [ref=e323]: 12 concepts · 3 questions
+              - generic [ref=e324]: Lesson ready
+        - generic [ref=e325] [cursor=pointer]:
+          - generic [ref=e326]: "7"
+          - generic [ref=e327]:
+            - generic [ref=e328]: "Section 7: Adaptive Learning — The Inversion (This Very Platform)"
+            - generic [ref=e329]: "The adaptive learning platform is the inversion of every other use case: instead of the graph reasoning about a domain, the graph reasons about the learner. The learner's understanding is a set of bi-temporal facts. Confidence decay models forgetting. Root-cause tracing produces remediation paths. MCP-first agent writes ensure every quiz response updates the graph in a structured, auditable way. This section analyzes how the system eats its own primitives."
+            - generic [ref=e330]:
+              - generic [ref=e331]: 12 concepts · 3 questions
+              - generic [ref=e332]: Lesson ready
+        - generic [ref=e333] [cursor=pointer]:
+          - generic [ref=e334]: "8"
+          - generic [ref=e335]:
+            - generic [ref=e336]: "Section 8: Primitive Leverage — The Unfair Advantage of Building Once"
+            - generic [ref=e337]: The closing section reasons about which use cases share the most primitives, where a single investment in a missing piece unlocks multiple domains simultaneously, and how to prioritize a 12-month R&D roadmap. This is not a feature catalog — it is a strategic analysis of compounding returns from primitive composition.
+            - generic [ref=e338]:
+              - generic [ref=e339]: 12 concepts · 4 questions
+              - generic [ref=e340]: Lesson ready

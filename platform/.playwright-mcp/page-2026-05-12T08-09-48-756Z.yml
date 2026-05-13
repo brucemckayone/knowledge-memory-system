@@ -1,0 +1,18 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+      - button "Presentation" [ref=e7] [cursor=pointer]
+  - generic [ref=e9]:
+    - generic [ref=e12]:
+      - banner [ref=e13]:
+        - generic [ref=e14]:
+          - text: Today's
+          - emphasis [ref=e15]: brief
+        - generic [ref=e16]:
+          - generic [ref=e19]: concepts
+          - generic [ref=e22]: facts
+      - generic [ref=e24]: Today's focus
+    - text: → → →

@@ -1,0 +1,81 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+  - generic [ref=e83]:
+    - generic [ref=e84] [cursor=pointer]: ← All courses
+    - generic [ref=e85]:
+      - generic [ref=e1463]:
+        - 'heading "How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging" [level=1] [ref=e1464]'
+        - generic [ref=e1465]: A deep dive into the Nmemo sparse-truth-graph self-hardening architecture. You will understand every technique the system uses to detect, prevent, and repair graph quality problems — from duplicate entity resolution through HDBSCAN clustering to cross-cluster bridging — and how the test-harden recursive loop proves each improvement is real. By the end you will be able to reason confidently about why the system is structured the way it is and how the five hardening techniques compose into a self-improving whole.
+        - generic [ref=e1466]:
+          - generic [ref=e1467]: ready
+          - generic [ref=e1468]: 8 sections
+      - generic [ref=e1469]:
+        - generic [ref=e1470] [cursor=pointer]:
+          - generic [ref=e1471]: "1"
+          - generic [ref=e1472]:
+            - generic [ref=e1473]: "Section 1 — Graph Quality Problems: What We Are Hardening Against"
+            - generic [ref=e1474]: Before touching any solution, understand the failure modes. This section catalogues the concrete graph quality problems the system must defeat, introduces the metrics used to measure them, and explains why naïve approaches leave quality debt.
+            - generic [ref=e1475]:
+              - generic [ref=e1476]: 0 concepts · 3 questions
+              - generic [ref=e1477]: Lesson ready
+        - generic [ref=e1478] [cursor=pointer]:
+          - generic [ref=e1479]: "2"
+          - generic [ref=e1480]:
+            - generic [ref=e1481]: "Section 2 — Structural Embeddings: The Quantitative Foundation"
+            - generic [ref=e1482]: Every similarity decision in the system is grounded in 768-dimensional centroid vectors. This section explains how those vectors are constructed, stored, and indexed — and why the choice of a mean-of-sources centroid is the right representation for entity identity.
+            - generic [ref=e1483]:
+              - generic [ref=e1484]: 0 concepts · 3 questions
+              - generic [ref=e1485]: Not started
+        - generic [ref=e1486] [cursor=pointer]:
+          - generic [ref=e1487]: "3"
+          - generic [ref=e1488]:
+            - generic [ref=e1489]: "Section 3 — Deep Entity Resolution: Three Stages and Three Signals"
+            - generic [ref=e1490]: Entity resolution is the most complex quality gate in the pipeline. This section walks through the three-stage confidence threshold system and the three complementary signals that feed it, and explains the merge_candidates lifecycle from staging through resolution.
+            - generic [ref=e1491]:
+              - generic [ref=e1492]: 0 concepts · 3 questions
+              - generic [ref=e1493]: Not started
+        - generic [ref=e1494] [cursor=pointer]:
+          - generic [ref=e1495]: "4"
+          - generic [ref=e1496]:
+            - generic [ref=e1497]: Section 4 — The Test-Harden Recursive Loop
+            - generic [ref=e1498]: The test-harden loop is how the system proves its own improvements are real. This section explains the iterative cycle, the role of the Frankenstein regression corpus, how acceptance criteria are encoded as executable tests, and how fixture evolution keeps tests honest as the system changes.
+            - generic [ref=e1499]:
+              - generic [ref=e1500]: 0 concepts · 3 questions
+              - generic [ref=e1501]: Lesson ready
+        - generic [ref=e1502] [cursor=pointer]:
+          - generic [ref=e1503]: "5"
+          - generic [ref=e1504]:
+            - generic [ref=e1505]: Section 5 — Snapshot/Replay and Graph State Verification
+            - generic [ref=e1506]: Snapshot/replay is the mechanism that proves graph state is stable and consistent across pipeline runs. This section covers how snapshots are taken, what replay verifies, and how the centroid_snapshot and Lock B pattern extend the same idea into the clustering layer.
+            - generic [ref=e1507]:
+              - generic [ref=e1508]: 0 concepts · 2 questions
+              - generic [ref=e1509]: Not started
+        - generic [ref=e1510] [cursor=pointer]:
+          - generic [ref=e1511]: "6"
+          - generic [ref=e1512]:
+            - generic [ref=e1513]: Section 6 — HDBSCAN Clustering and Drift Detection
+            - generic [ref=e1514]: When the graph grows large, simple pairwise similarity is no longer sufficient — you need semantic clusters. This section covers how HDBSCAN partitions entities into clusters, how ADWIN detects when an entity has drifted toward a different cluster, and what the target_cluster_id signal means for downstream reconciliation.
+            - generic [ref=e1515]:
+              - generic [ref=e1516]: 0 concepts · 3 questions
+              - generic [ref=e1517]: Lesson ready
+        - generic [ref=e1518] [cursor=pointer]:
+          - generic [ref=e1519]: "7"
+          - generic [ref=e1520]:
+            - generic [ref=e1521]: Section 7 — Cross-Cluster Bridging
+            - generic [ref=e1522]: "Embedding similarity works within clusters but fails across them. This section covers the cross-cluster generator: how it identifies entities that should be merged despite being in different clusters, how it uses drift signals as proxies for similarity, and what the graph_stats service tells it about when bridging is needed."
+            - generic [ref=e1523]:
+              - generic [ref=e1524]: 0 concepts · 3 questions
+              - generic [ref=e1525]: Lesson ready
+        - generic [ref=e1526] [cursor=pointer]:
+          - generic [ref=e1527]: "8"
+          - generic [ref=e1528]:
+            - generic [ref=e1529]: "Section 8 — The Complete Hardening Loop: How All Five Techniques Compose"
+            - generic [ref=e1530]: This capstone section puts all five techniques together. You will trace the full quality-self-hardening orchestration from a raw text ingest through entity resolution, clustering, drift detection, and cross-cluster bridging — and understand how the causal agent, graph_stats, and the test-harden loop maintain quality as the system evolves.
+            - generic [ref=e1531]:
+              - generic [ref=e1532]: 0 concepts · 3 questions
+              - generic [ref=e1533]: Lesson ready
+  - generic: Pinned to lesson ✓

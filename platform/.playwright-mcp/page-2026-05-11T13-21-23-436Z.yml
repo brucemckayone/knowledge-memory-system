@@ -1,0 +1,56 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+  - generic [ref=e83]:
+    - generic [ref=e84] [cursor=pointer]: ← All courses
+    - generic [ref=e85]:
+      - generic [ref=e86]:
+        - 'heading "Graph C: The Causal Reasoning Layer in Nmemo" [level=1] [ref=e87]'
+        - generic [ref=e88]: A deep-dive into Graph C, the perpendicular causal layer of Nmemo's dual-graph architecture. Learners will understand how causal events are recorded with full traceability, how edges evolve through a defined lifecycle, and how the causal MCP server exposes the entire layer to reasoning agents. By the end, learners can design, implement, and query causal reasoning pipelines on top of a hardened Graph S foundation.
+        - generic [ref=e89]:
+          - generic [ref=e90]: ready
+          - generic [ref=e91]: 5 sections
+      - generic [ref=e92]:
+        - generic [ref=e93] [cursor=pointer]:
+          - generic [ref=e94]: "1"
+          - generic [ref=e95]:
+            - generic [ref=e96]: Section 1 — The Dual-Graph Mental Model
+            - generic [ref=e97]: Establishes the foundational distinction between Graph S and Graph C. Graph S is a temporal state graph answering 'what is true and when'; Graph C is a perpendicular causal graph answering 'why did this become true'. Understanding this split is the prerequisite for everything else in the course.
+            - generic [ref=e98]:
+              - generic [ref=e99]: 0 concepts · 3 questions
+              - generic [ref=e100]: Lesson ready
+        - generic [ref=e101] [cursor=pointer]:
+          - generic [ref=e102]: "2"
+          - generic [ref=e103]:
+            - generic [ref=e104]: Section 2 — Causal Events and the Append-Only Audit Trail
+            - generic [ref=e105]: Covers how causal events are recorded as immutable log entries, what fields the causal_events table requires, and why append-only semantics are the foundation of mutation inspectability. Every state change that the causal agent reasons about originates from a causal event record.
+            - generic [ref=e106]:
+              - generic [ref=e107]: 0 concepts · 4 questions
+              - generic [ref=e108]: Lesson ready
+        - generic [ref=e109] [cursor=pointer]:
+          - generic [ref=e110]: "3"
+          - generic [ref=e111]:
+            - generic [ref=e112]: "Section 3 — Causal Edges: Assertion, Schema, and Lifecycle"
+            - generic [ref=e113]: "Examines the anatomy of a causal edge in detail: the mandatory reasoning and source_references fields, the confidence scoring model, and how edges move through a defined status lifecycle from proposed to confirmed to superseded. This section also covers the 002_causal_graph.sql migration and its use of explicit public. schema qualifiers."
+            - generic [ref=e114]:
+              - generic [ref=e115]: 0 concepts · 4 questions
+              - generic [ref=e116]: Lesson ready
+        - generic [ref=e117] [cursor=pointer]:
+          - generic [ref=e118]: "4"
+          - generic [ref=e119]:
+            - generic [ref=e120]: Section 4 — The Causal MCP Server and the Haiku Agent
+            - generic [ref=e121]: "Explores the runtime architecture: how the causal-mcp.ts server exposes Graph C operations as MCP tools, how Claude Code connects to it via the -p flag, what each of the 7 tools does, and how the conditional trigger logic determines whether the causal agent runs at all for a given ingest event."
+            - generic [ref=e122]:
+              - generic [ref=e123]: 0 concepts · 4 questions
+              - generic [ref=e124]: Lesson ready
+        - generic [ref=e125] [cursor=pointer]:
+          - generic [ref=e126]: "5"
+          - generic [ref=e127]:
+            - generic [ref=e128]: Section 5 — Querying the Causal Graph and Meta-Causal Patterns
+            - generic [ref=e129]: Covers how to traverse causal chains, use get_causal_history and find_causal_patterns to surface recurring cause-effect structures, and how meta-causal patterns emerge from accumulated edges. This section ties together all prior sections into end-to-end reasoning workflows.
+            - generic [ref=e130]:
+              - generic [ref=e131]: 0 concepts · 4 questions
+              - generic [ref=e132]: Lesson ready

@@ -1,0 +1,124 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+  - generic [ref=e101]:
+    - generic [ref=e102]:
+      - heading "Dashboard" [level=1] [ref=e103]
+      - generic [ref=e104]:
+        - generic [ref=e105]: updated 6s ago
+        - button "Reload" [ref=e106] [cursor=pointer]
+    - generic [ref=e107]:
+      - generic [ref=e108]:
+        - generic [ref=e110]: Top gap
+        - generic [ref=e111]:
+          - generic [ref=e112]: Bi-Temporal Facts
+          - generic [ref=e113]: "The learner has encountered bi-temporal facts as a label but has zero demonstrated understanding of the semantics (confidence: 0.0). The gap is foundational — the dual-graph architecture is being treated as arbitrary complexity rather than as the natural consequence of two real-world temporal constraints: when something was true in the world vs. when the system learned about it. Without this anchor, Graph S feels like over-engineering."
+          - generic [ref=e114]:
+            - strong [ref=e115]: "Why it matters:"
+            - text: "Bi-temporal semantics are the load-bearing floor of the whole architecture. Every downstream concept depends on them: Entity resolution needs point-in-time deduplication to answer 'which Bob existed at time T?'. The causal graph (Graph C) traces *when* a cause was known, not just when it happened — otherwise reasoning about past states is incoherent. The audit trail requirement (reasoning TEXT + source_references) only makes sense if you understand that the system must reconstruct what it *knew* at any past moment. Without this, capability composition is impossible because the learner can't reason about temporal slices of the graph."
+          - generic [ref=e116]: Refreshing analysis…
+          - generic [ref=e118]: No section teaches this concept yet.
+          - button "See other gaps" [ref=e120] [cursor=pointer]
+      - generic [ref=e121]:
+        - generic [ref=e123]: Jump back in
+        - generic [ref=e124]:
+          - 'button "Continue quiz How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging · Section 1 — Graph Quality Problems: What We Are Hardening Against 40% 1h ago" [ref=e125] [cursor=pointer]':
+            - generic [ref=e126]: Continue quiz
+            - generic [ref=e127]:
+              - generic [ref=e128]: "How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging · Section 1 — Graph Quality Problems: What We Are Hardening Against"
+              - generic [ref=e129]: 40%
+            - generic [ref=e130]: 1h ago
+          - 'button "Resume chat Graph C: The Causal Reasoning Layer in Nmemo Excellent question — you''ve found the key tension that actually *makes* Graph C''s design work. Here''s the critical distinction you need: -… 1h ago" [disabled] [ref=e131] [cursor=pointer]':
+            - generic [ref=e132]: Resume chat
+            - generic [ref=e133]: "Graph C: The Causal Reasoning Layer in Nmemo"
+            - generic [ref=e134]: "Excellent question — you've found the key tension that actually *makes* Graph C's design work. Here's the critical distinction you need: -…"
+            - generic [ref=e135]: 1h ago
+      - generic [ref=e136]:
+        - generic [ref=e138]: Daily quiz
+        - 'button "How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging · Section 7 — Cross-Cluster Bridging Explain the core problem that makes centroid cosine similarity unreliable as a merge signal for entities in different HDBSCAN clusters. Use the concept of inter-cluster versus intra-cluster distance to structure your ans… Struggle area — current confidence 0.00, blocks 1 downstream concept · confidence 0.00 · blocks 1 downstream concept · 0d since touch" [ref=e187] [cursor=pointer]':
+          - generic [ref=e188]: "How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging · Section 7 — Cross-Cluster Bridging"
+          - generic [ref=e189]: Explain the core problem that makes centroid cosine similarity unreliable as a merge signal for entities in different HDBSCAN clusters. Use the concept of inter-cluster versus intra-cluster distance to structure your ans…
+          - generic [ref=e190]: Struggle area — current confidence 0.00, blocks 1 downstream concept · confidence 0.00 · blocks 1 downstream concept · 0d since touch
+      - generic [ref=e141]:
+        - generic [ref=e142]:
+          - generic [ref=e143]: Daily flashcards
+          - button "Refresh" [ref=e144] [cursor=pointer]
+        - generic [ref=e146]: No flashcards to review. Concepts will appear here as they fade.
+      - generic [ref=e147]:
+        - generic [ref=e149]: Insights
+        - generic [ref=e151]:
+          - generic [ref=e152]:
+            - generic "importance 1.00" [ref=e153]
+            - generic [ref=e154]:
+              - generic [ref=e155]: "Sparse-Truth-Graph Architecture: Consolidate dual-graph foundation concepts"
+              - generic "A dense cluster of 48 interconnected entities spanning Graph S (temporal facts, entities, bi-temporal state), Graph C (causal reasoning, events, edges with source traceability), and the extraction/reasoning pipeline has emerged from recent study. This cluster ties together dual-graph architecture, fact lifecycle management, causal inference, the MCP-based causal agent, source provenance, and entity linking. **Synthesis opportunity:** Create a comprehensive narrative pulling these pieces together — from the schema and ingest pipeline, through fact extraction and causal trigger logic, to causal edge assertion with reasoning + source references. This would unify the foundational concepts the learner is building toward." [ref=e156]: A dense cluster of 48 interconnected entities spanning Graph S (temporal facts, entities, bi-temporal state), Graph C (causal reasoning, eve…
+              - generic [ref=e157]: 1h ago
+            - button "Dismiss insight" [ref=e158] [cursor=pointer]: ×
+          - generic [ref=e159]:
+            - generic "importance 0.90" [ref=e160]
+            - generic [ref=e161]:
+              - generic [ref=e162]: "Entity Resolution and Deduplication: Multi-signal reconciliation strategy"
+              - generic "A second dense cluster of 23 entities has formed around entity deduplication, clustering algorithms (HDBSCAN, ADWIN), embedding-based similarity, and the three-signal reconciliation service. This cluster includes entity_drift tracking, clustering_compute_runs, cross-cluster bridging, and merge candidate scoring. **Synthesis opportunity:** Consolidate the entity resolution pipeline into a dedicated synthesis article—covering when and why entities merge, how clustering and embeddings drive similarity signals, snapshot/replay cycle strategies, and blast-radius analysis for entity consolidation decisions. This is a distinct subsystem worth unified treatment." [ref=e163]: A second dense cluster of 23 entities has formed around entity deduplication, clustering algorithms (HDBSCAN, ADWIN), embedding-based simila…
+              - generic [ref=e164]: 1h ago
+            - button "Dismiss insight" [ref=e165] [cursor=pointer]: ×
+          - generic [ref=e166]:
+            - generic "importance 0.70" [ref=e167]
+            - generic [ref=e168]:
+              - generic [ref=e169]: "Gap: Bi-Temporal Facts"
+              - generic [ref=e170]: "**Root cause:** The learner has encountered bi-temporal facts as a label but has zero demonstrated understanding of the semantics (confidenc…"
+              - generic [ref=e171]: 1h ago
+            - button "Dismiss insight" [ref=e172] [cursor=pointer]: ×
+      - generic [ref=e173]:
+        - generic [ref=e175]: Cross-course connections
+        - generic [ref=e191]:
+          - generic [ref=e193]:
+            - generic [ref=e194]:
+              - generic [ref=e195]: "Causal edge traceability and source_references: why Graph C edges must point to stable Graph S records"
+              - generic [ref=e196]: direct
+            - generic [ref=e197]:
+              - generic [ref=e198]: "What This Graph Could Power: A S…"
+              - generic [ref=e199]: "Graph C: The Causal Reasoning La…"
+              - generic [ref=e200]: How This System Hardens Itself:…
+          - generic [ref=e202]:
+            - generic [ref=e203]:
+              - generic [ref=e204]: "Graph Quality Problems: Entity Deduplication and Subject Mismatch Causality"
+              - generic [ref=e205]: direct
+            - generic [ref=e206]:
+              - generic [ref=e207]: "What This Graph Could Power: A S…"
+              - generic [ref=e208]: "Graph C: The Causal Reasoning La…"
+              - generic [ref=e209]: How This System Hardens Itself:…
+          - generic [ref=e211]:
+            - generic [ref=e212]:
+              - generic [ref=e213]: Probabilistic reasoning about multiple targets in graph extraction
+              - generic [ref=e214]: direct
+            - generic [ref=e215]:
+              - generic [ref=e216]: "What This Graph Could Power: A S…"
+              - generic [ref=e217]: "Graph C: The Causal Reasoning La…"
+              - generic [ref=e218]: How This System Hardens Itself:…
+          - generic [ref=e220]:
+            - generic [ref=e221]:
+              - generic [ref=e222]: Graph S/Graph C dual-graph architecture — data canonicity principle
+              - generic [ref=e223]: direct
+            - generic [ref=e224]:
+              - generic [ref=e225]: "What This Graph Could Power: A S…"
+              - generic [ref=e226]: "Graph C: The Causal Reasoning La…"
+              - generic [ref=e227]: How This System Hardens Itself:…
+          - generic [ref=e229]:
+            - generic [ref=e230]:
+              - generic [ref=e231]: distinguishing mutable causal edges from immutable causal events
+              - generic [ref=e232]: direct
+            - generic [ref=e233]:
+              - generic [ref=e234]: "What This Graph Could Power: A S…"
+              - generic [ref=e235]: "Graph C: The Causal Reasoning La…"
+              - generic [ref=e236]: How This System Hardens Itself:…
+      - generic [ref=e178]:
+        - generic [ref=e180]: Graph snapshot
+        - generic [ref=e182]:
+          - generic [ref=e183]: "320"
+          - generic [ref=e184]: concepts
+          - generic [ref=e185]: +320 this week
+          - generic [ref=e186]: 829 facts
+  - generic: Open a section first

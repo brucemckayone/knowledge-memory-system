@@ -1,0 +1,614 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "Mnemo" [level=1] [ref=e3]
+    - generic [ref=e4]:
+      - generic [ref=e5] [cursor=pointer]: Facts
+      - generic [ref=e7] [cursor=pointer]: Causal
+      - generic [ref=e9] [cursor=pointer]: Sources
+      - generic [ref=e11] [cursor=pointer]: Merge
+      - generic [ref=e13] [cursor=pointer]: Same-As
+      - generic [ref=e15] [cursor=pointer]: Contradictions
+    - generic [ref=e17]:
+      - button "Force" [ref=e18] [cursor=pointer]
+      - button "DAG" [ref=e19] [cursor=pointer]
+    - generic [ref=e20]: color
+    - combobox "Entity color encoding" [ref=e21] [cursor=pointer]:
+      - option "by Type" [selected]
+      - option "by Component"
+      - option "by Community"
+      - option "by Cluster"
+    - generic "Show convex hulls per cluster (slow at scale)" [ref=e22] [cursor=pointer]:
+      - checkbox "Hulls" [ref=e23]
+      - text: Hulls
+    - generic [ref=e24]: halo
+    - combobox "Centrality halo metric (size scales with the chosen score)" [ref=e25] [cursor=pointer]:
+      - option "PageRank" [selected]
+      - option "Betweenness"
+    - generic [ref=e54]:
+      - generic [ref=e8937]: 461 entities
+      - generic [ref=e8938]: 1009 facts
+      - generic [ref=e8939]: 1051 events
+      - generic [ref=e8940]: 151 causal
+      - generic "Show graph_stats singleton" [ref=e8941] [cursor=pointer]: ▸
+    - generic [ref=e26] [cursor=pointer]:
+      - checkbox "Auto 5s" [checked] [ref=e27]
+      - text: Auto 5s
+    - generic [ref=e28]:
+      - button "Ingest" [ref=e29] [cursor=pointer]
+      - button "Garden" [ref=e30] [cursor=pointer]
+      - button "Reconcile" [ref=e31] [cursor=pointer]
+      - button "Topology" [ref=e32] [cursor=pointer]
+      - button "Cluster" [ref=e33] [cursor=pointer]
+      - button "Cross-cluster 14" [ref=e60] [cursor=pointer]:
+        - text: Cross-cluster
+        - generic [ref=e61]: "14"
+      - button "Contradictions 200" [ref=e62] [cursor=pointer]:
+        - text: Contradictions
+        - generic [ref=e63]: "200"
+      - button "Patterns" [ref=e36] [cursor=pointer]
+    - generic [ref=e37]:
+      - button "Clear Graph" [ref=e38] [cursor=pointer]
+      - button "Reset All" [ref=e39] [cursor=pointer]
+    - generic [ref=e40]:
+      - button "Reason" [ref=e41] [cursor=pointer]
+      - button "Query" [ref=e42] [cursor=pointer]
+  - generic [ref=e43]:
+    - img [ref=e44]:
+      - generic [ref=e6513]:
+        - generic [ref=e6514]:
+          - generic: ≡ 0.95
+          - generic: ≡ 0.95
+        - generic [ref=e6856]:
+          - generic: member_of
+          - generic: has_extension
+          - generic: runs_on_port
+          - generic: runs_on_port
+          - generic: has_model
+          - generic: used_for
+          - generic: used_for
+          - generic: used_for
+          - generic: column_of
+          - generic: current_state
+          - generic: tool_defined_in
+          - generic: tool_handler_in
+          - generic: missing_parameter
+          - generic: accepts_parameter
+          - generic: returns_data
+          - generic: missing_parameter_support
+          - generic: needs_instruction_update
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: provides
+          - generic: implements
+          - generic: implements
+          - generic: exemplifies_narrative_perspective_of
+          - generic: member_of
+          - generic: member_of
+          - generic: addresses_issue
+          - generic: wraps_implementation_of
+          - generic: depends_on
+          - generic: depends_on
+          - generic: includes
+          - generic: depends_on
+          - generic: should_merge_with
+          - generic: uses_for_regression_testing
+          - generic: includes_branch
+          - generic: considered_for
+          - generic: should_merge_with
+          - generic: has_criterion
+          - generic: exemplifies_narrative_perspective_of
+          - generic: uses
+          - generic: tracks_mutations_of
+          - generic: uses
+          - generic: uses
+          - generic: uses
+          - generic: uses
+          - generic: provides
+          - generic: ceo_of
+          - generic: uses
+          - generic: tests
+          - generic: has_operating_mode
+          - generic: has_operating_mode
+          - generic: produces
+          - generic: can_perform
+          - generic: stores
+          - generic: uses
+          - generic: uses
+          - generic: uses
+          - generic: uses
+          - generic: created_by
+          - generic: created_by
+          - generic: created_from
+          - generic: member_of
+          - generic: member_of
+          - generic: leverages_capability
+          - generic: stored_in
+          - generic: has_property
+          - generic: member_of
+          - generic: member_of
+          - generic: defines
+          - generic: has_status
+          - generic: member_of
+          - generic: status
+          - generic: closed_beads
+          - generic: status
+          - generic: modification
+          - generic: caused_by
+          - generic: is_not_code_bug
+          - generic: timeout_duration
+          - generic: experiences
+          - generic: affects
+          - generic: test_results
+          - generic: committed_at
+          - generic: caused_by
+          - generic: includes_branch
+          - generic: uses
+          - generic: relates_to
+          - generic: uses
+          - generic: member_of
+          - generic: operational_status
+          - generic: member_of
+          - generic: member_of
+          - generic: implements
+          - generic: has_property
+          - generic: uses
+          - generic: imports
+          - generic: has_property
+          - generic: has_property
+          - generic: used_by
+          - generic: has_property
+          - generic: has_property
+          - generic: has_property
+          - generic: operational_status
+          - generic: has_property
+          - generic: has_property
+          - generic: runs_service
+          - generic: runs_service
+          - generic: operational_status
+          - generic: runs_on_port
+          - generic: loads_model
+          - generic: has_property
+          - generic: depends_on
+          - generic: has_property
+          - generic: depends_on
+          - generic: exposes
+          - generic: created_by
+          - generic: provides
+          - generic: controls
+          - generic: uses
+          - generic: has_value
+          - generic: implements
+          - generic: used_for
+          - generic: used_for
+          - generic: writes_to
+          - generic: member_of
+          - generic: approach
+          - generic: performs
+          - generic: uses_algorithm
+          - generic: leverages_capability
+          - generic: has_property
+          - generic: defines
+          - generic: documented_in
+          - generic: specified_by
+          - generic: populated_by
+          - generic: has_property
+          - generic: tracks_metric
+          - generic: tracks_metric
+          - generic: has_property
+          - generic: member_of
+          - generic: references
+          - generic: has_attribute
+          - generic: enables_downstream
+          - generic: depends_on
+          - generic: references
+          - generic: member_of
+          - generic: member_of
+          - generic: implements
+          - generic: tracks
+          - generic: has_attribute
+          - generic: implements
+          - generic: imports
+          - generic: uses
+          - generic: member_of
+          - generic: uses
+          - generic: provides
+          - generic: implements
+          - generic: status
+          - generic: tests
+          - generic: has_capability
+          - generic: has_capability
+          - generic: has_capability
+          - generic: has_capability
+          - generic: has_capability
+          - generic: throws_error
+          - generic: implements
+          - generic: implements
+          - generic: has_property
+          - generic: has_property
+          - generic: has_property
+          - generic: member_of
+          - generic: member_of
+          - generic: provides_service_to
+          - generic: member_of
+          - generic: modifies
+          - generic: uses
+          - generic: member_of
+          - generic: constrains
+          - generic: member_of
+          - generic: has_collection
+          - generic: defined_in
+          - generic: uses_distance_metric
+          - generic: needs_health_monitoring
+          - generic: supports_operation
+          - generic: has_allowed_status_values
+          - generic: supports_operation
+          - generic: supports_operation
+          - generic: adds_constraint_value
+          - generic: supports_operation
+          - generic: used_by
+          - generic: affects_search_path_for
+          - generic: used_by
+          - generic: implements_behavior
+          - generic: implements
+          - generic: defines
+          - generic: stored_in
+          - generic: member_of
+          - generic: has_attribute
+          - generic: leverages_capability
+          - generic: has_attribute
+          - generic: has_attribute
+          - generic: describes
+          - generic: describes
+          - generic: needs_health_monitoring
+          - generic: orchestrates
+          - generic: orchestrates
+          - generic: describes_use_cases_for
+          - generic: grounds_analysis_in
+          - generic: includes_section_on
+          - generic: includes_section_on
+          - generic: includes_section_on
+          - generic: leverages_capability
+          - generic: member_of
+          - generic: member_of
+          - generic: improves
+          - generic: member_of
+          - generic: member_of
+          - generic: depends_on
+          - generic: member_of
+          - generic: member_of
+          - generic: monitors
+          - generic: monitors
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: described_in
+          - generic: described_in
+          - generic: is_primitive_for
+          - generic: used_by
+          - generic: implements
+          - generic: monitors
+          - generic: needs_health_monitoring
+          - generic: triggers
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: provides_api_for
+          - generic: member_of
+          - generic: has_column
+          - generic: distinguishes
+          - generic: distinguishes
+          - generic: has_default_value
+          - generic: implements
+          - generic: member_of
+          - generic: has_data_type
+          - generic: has_constraint
+          - generic: has_table
+          - generic: generates
+          - generic: generates
+          - generic: generates
+          - generic: generates
+          - generic: requires_migration
+          - generic: has_status
+          - generic: has_status
+          - generic: has_status
+          - generic: has_status
+          - generic: has_temporal_dimension
+          - generic: stores
+          - generic: provides_audit_trail_for
+          - generic: leverages_capability
+          - generic: health_status
+          - generic: needs_health_monitoring
+          - generic: is_primitive_for
+          - generic: is_primitive_for
+          - generic: provides_service_for
+          - generic: used_by
+          - generic: composes
+          - generic: bridges_gap_for
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: current_status
+          - generic: improves
+          - generic: improves
+          - generic: improves
+          - generic: solves
+          - generic: enables_verification_of
+          - generic: validates
+          - generic: implements
+          - generic: enables
+          - generic: demonstrates_concept
+          - generic: member_of
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: accepts_topic_mode
+          - generic: stores_relationship_with
+          - generic: includes_section_on
+          - generic: includes_section_on
+          - generic: leverages_capability
+          - generic: leverages_capability
+          - generic: contains
+          - generic: leverages_capability
+          - generic: enables_mechanism_for
+          - generic: caused_issue
+          - generic: has_status
+          - generic: has_fix
+          - generic: captures_state_for
+          - generic: employs
+          - generic: addresses
+          - generic: parent_branch_of
+          - generic: leverages_capability
+          - generic: has_quality
+          - generic: leverages_capability
+          - generic: part_of_system
+          - generic: member_of
+          - generic: member_of
+          - generic: component_in
+          - generic: component_in
+          - generic: component_in
+          - generic: uses_framework
+          - generic: has_status
+          - generic: has_feature
+          - generic: has_feature
+          - generic: has_status
+          - generic: determines
+          - generic: has_component
+          - generic: depends_on
+          - generic: implements
+          - generic: encompasses
+          - generic: denormalizes
+          - generic: regulates
+          - generic: enables
+          - generic: has_quality
+          - generic: leverages_capability
+          - generic: leverages_capability
+          - generic: supports_detection_of
+          - generic: aggregates_metrics_for
+          - generic: separates_concerns_between
+          - generic: has_capability
+          - generic: has_capability
+          - generic: has_capability
+        - generic [ref=e8336]:
+          - generic [ref=e8944]: PostgreSQL
+          - generic [ref=e8947]: Qdrant
+          - generic [ref=e8950]: Apache AGE
+          - generic [ref=e8953]: blast radius
+          - generic [ref=e8956]: Frankenstein
+          - generic [ref=e8959]: Anthropic
+          - generic [ref=e8962]: Phase B
+          - generic [ref=e8965]: causal-mcp.test.ts
+          - generic [ref=e8968]: Causal Patterns
+          - generic [ref=e8971]: D3
+          - generic [ref=e8974]: memory_entities
+          - generic [ref=e8977]: mention_context
+          - generic [ref=e8980]: source_references JSONB
+          - generic [ref=e8983]: link_entity_to_memory
+          - generic [ref=e8986]: Hono
+          - generic [ref=e8989]: get_entity_sources
+          - generic [ref=e8992]: linkMemoryToEntity
+          - generic [ref=e8995]: ml-services/app/graph_agent.py
+          - generic [ref=e8998]: linkEntitiesToMemory
+          - generic [ref=e9001]: Entity Similarity Search
+          - generic [ref=e9004]: Claude Code
+          - generic [ref=e9007]: valid_at and invalid_at
+          - generic [ref=e9010]: Sparse Truth Graph
+          - generic [ref=e9013]: Mnemo
+          - generic [ref=e9016]: facts.ts
+          - generic [ref=e9019]: src/services/causal-agent.ts
+          - generic [ref=e9022]: Dashboard.js
+          - generic [ref=e9025]: TopGapCard
+          - generic [ref=e9028]: expireFact
+          - generic [ref=e9031]: expire_fact
+          - generic [ref=e9034]: feat/sparse-truth-graph
+          - generic [ref=e9037]: Ollama
+          - generic [ref=e9040]: feat/gardener-merge-quality
+          - generic [ref=e9043]: Victor Frankenstein
+          - generic [ref=e9046]: Walton
+          - generic [ref=e9049]: same_as link
+          - generic [ref=e9052]: SQLite
+          - generic [ref=e9055]: feat/cognitive-platform-v1
+          - generic [ref=e9058]: Anthropic SDK
+          - generic [ref=e9061]: feat/reasoning-agent
+          - generic [ref=e9064]: causal-integration.test.ts
+          - generic [ref=e9067]: causal-pipeline.test.ts
+          - generic [ref=e9070]: frankenstein.test.ts
+          - generic [ref=e9073]: Frankenstein regression timeout
+          - generic [ref=e9076]: ML service saturation
+          - generic [ref=e9079]: pg-boss
+          - generic [ref=e9082]: "Graph Quality Problems: What We Are Hardening Against"
+          - generic [ref=e9085]: Fact Triple
+          - generic [ref=e9088]: FastAPI
+          - generic [ref=e9091]: Docker
+          - generic [ref=e9094]: Confidence Score
+          - generic [ref=e9097]: nomic-embed-text
+          - generic [ref=e9100]: viz/index.html
+          - generic [ref=e9103]: B07
+          - generic [ref=e9106]: Source Memory (Qdrant)
+          - generic [ref=e9109]: Append-only Audit Trail
+          - generic [ref=e9112]: FACT_COUNT_THRESHOLD
+          - generic [ref=e9115]: search_path and ag_catalog
+          - generic [ref=e9118]: Entity Reclassification Service
+          - generic [ref=e9121]: entity_type_history
+          - generic [ref=e9124]: Exclusive Predicate
+          - generic [ref=e9127]: Fact Deduplication
+          - generic [ref=e9130]: ml-client
+          - generic [ref=e9133]: entity_clusters table
+          - generic [ref=e9136]: MlClientError
+          - generic [ref=e9139]: causal_patterns
+          - generic [ref=e9142]: valid_pattern_status
+          - generic [ref=e9145]: CTA component
+          - generic [ref=e9148]: promotePatterns()
+          - generic [ref=e9151]: Relationship Matching
+          - generic [ref=e9154]: services/causal-patterns.ts
+          - generic [ref=e9157]: three_signal_scoring
+          - generic [ref=e9160]: 001_consolidated.sql
+          - generic [ref=e9163]: 012_pattern_rejected.sql
+          - generic [ref=e9166]: merge_candidates
+          - generic [ref=e9169]: 014_entity_topology.sql
+          - generic [ref=e9172]: Canonical Entity Name
+          - generic [ref=e9175]: topology_primitives
+          - generic [ref=e9178]: entity_topology
+          - generic [ref=e9181]: 024.1-hdbscan-clustering.md
+          - generic [ref=e9184]: cross_cluster_generator
+          - generic [ref=e9187]: 21-cluster-bridging-master.md
+          - generic [ref=e9190]: Serial FIFO Queue
+          - generic [ref=e9193]: Conditional Causal Trigger
+          - generic [ref=e9196]: clustering_compute_runs table
+          - generic [ref=e9199]: causal agent
+          - generic [ref=e9202]: extract() phase
+          - generic [ref=e9205]: candidate_source
+          - generic [ref=e9208]: Unified Graph Agent
+          - generic [ref=e9211]: causal trigger
+          - generic [ref=e9214]: 017_candidate_source.sql
+          - generic [ref=e9217]: mnemo-causal
+          - generic [ref=e9220]: Parallel processing race conditions in graph ingestion
+          - generic [ref=e9223]: learn
+          - generic [ref=e9226]: Entity Resolution
+          - generic [ref=e9229]: Telegram
+          - generic [ref=e9232]: Supersession Logic
+          - generic [ref=e9235]: graph-mcp
+          - generic [ref=e9238]: StdioServerTransport
+          - generic [ref=e9241]: Frankenstein Regression Test
+          - generic [ref=e9244]: extraction agent
+          - generic [ref=e9247]: Model Context Protocol
+          - generic [ref=e9250]: host
+          - generic [ref=e9253]: Reasoning Layer Hardening
+          - generic [ref=e9256]: facts
+          - generic [ref=e9259]: Cypher Traversal (AGE)
+          - generic [ref=e9262]: Point-in-time State Reconstruction
+          - generic [ref=e9265]: entity_drift_state table
+          - generic [ref=e9268]: ingest() pipeline function
+          - generic [ref=e9271]: ML Service (Python FastAPI)
+          - generic [ref=e9274]: Dual-Graph Architecture
+          - generic [ref=e9277]: fact_history
+          - generic [ref=e9280]: 013_graph_stats.sql
+          - generic [ref=e9283]: 06-graph-meta-layer.md
+          - generic [ref=e9286]: store() phase
+          - generic [ref=e9289]: 22-graph-stats-foundation.md
+          - generic [ref=e9292]: Temporal Ordering of Facts
+          - generic [ref=e9295]: Hono
+          - generic [ref=e9298]: 009_audit_trail.sql
+          - generic [ref=e9301]: ADWIN
+          - generic [ref=e9304]: Graph C (Causal Layer)
+          - generic [ref=e9307]: river
+          - generic [ref=e9310]: Phase Gate (S before C)
+          - generic [ref=e9313]: 3-Stage Entity Resolution
+          - generic [ref=e9316]: courses
+          - generic [ref=e9319]: graph_stats
+          - generic [ref=e9322]: HDBSCAN
+          - generic [ref=e9325]: graph-s
+          - generic [ref=e9328]: graph-c
+          - generic [ref=e9331]: reconciliation_agent
+          - generic [ref=e9334]: reasoning-layer
+          - generic [ref=e9337]: pattern lifecycle
+          - generic [ref=e9340]: quality-self-hardening
+          - generic [ref=e9343]: sync_entity_to_graph trigger
+          - generic [ref=e9346]: seed-demo.ts
+          - generic [ref=e9349]: Causal Edges
+          - generic [ref=e9352]: Reasoning Agent — Query Mode
+          - generic [ref=e9355]: MCP config
+          - generic [ref=e9358]: design doc 15 blast-radius
+          - generic [ref=e9361]: Unified graph agent MCP interface
+          - generic [ref=e9364]: design doc 16 contradictions
+          - generic [ref=e9367]: reasoning agent patrol loop
+          - generic [ref=e9370]: design doc 17 patterns
+          - generic [ref=e9373]: Edge confidence scoring
+          - generic [ref=e9376]: reasoning_reports
+          - generic [ref=e9379]: Causal reasoning separation principle
+          - generic [ref=e9382]: Reasoning Layer
+          - generic [ref=e9385]: causal_events table
+          - generic [ref=e9388]: Causal language detection
+          - generic [ref=e9391]: Quality & Self-Hardening
+          - generic [ref=e9394]: edge_source_refs reverse-lookup index
+          - generic [ref=e9397]: Non-negotiable traceability principle
+          - generic [ref=e9400]: Create Course
+          - generic [ref=e9403]: Append-only audit pattern
+          - generic [ref=e9406]: Preact
+          - generic [ref=e9409]: Use-cases course prompt
+          - generic [ref=e9412]: Claude Code -p flag integration
+          - generic [ref=e9415]: Multi-input causality verification
+          - generic [ref=e9418]: Project Management Brain
+          - generic [ref=e9421]: Model-agnostic MCP interface
+          - generic [ref=e9424]: Edge mutation types
+          - generic [ref=e9427]: Living Personal Knowledge Graph
+          - generic [ref=e9430]: Dual-graph architecture (Graph S + Graph C)
+          - generic [ref=e9433]: Insights
+          - generic [ref=e9436]: card shadow
+          - generic [ref=e9439]: Causal edge lifecycle states
+          - generic [ref=e9442]: Dashboard.js
+          - generic [ref=e9445]: Corroboration vs decay
+          - generic [ref=e9448]: Causal mode
+          - generic [ref=e9451]: Diff mode
+          - generic [ref=e9454]: Source excerpt on edge click
+          - generic [ref=e9457]: Query history
+          - generic [ref=e9460]: Service health pill
+          - generic [ref=e9463]: Saved views
+          - generic [ref=e9466]: Onboarding overlay
+          - generic [ref=e9469]: Batch ingest with progress
+          - generic [ref=e9472]: Insight feed
+          - generic [ref=e9475]: presentation-mode.ts
+          - generic [ref=e9478]: Graph S course
+          - generic [ref=e9481]: learn viz
+          - generic [ref=e9484]: index.html
+          - generic [ref=e9487]: TopGap
+          - generic [ref=e9490]: JumpBackIn
+          - generic [ref=e9493]: Engineering Codebase Intelligence
+          - generic [ref=e9496]: find_causal_patterns Tool
+          - generic [ref=e9499]: Research Literature Synthesis
+          - generic [ref=e9502]: Frankenstein regression test corpus
+          - generic [ref=e9505]: Compliance and Audit
+          - generic [ref=e9508]: docker
+          - generic [ref=e9511]: Graph S
+          - generic [ref=e9514]: Memory (source text unit in Qdrant)
+          - generic [ref=e9517]: Graph C (Causal Reasoning Layer)
+          - generic [ref=e9520]: Serial FIFO queue (temporal ordering fix)
+          - generic [ref=e9523]: Reasoning Agent — Patrol Mode
+          - generic [ref=e9526]: Conditional Causal Agent Trigger
+          - generic [ref=e9529]: Understanding of the merge_candidates lifecycle and throughput as a metric
+          - generic [ref=e9532]: Graph C Causal Layer
+          - generic [ref=e9535]: reasoning agent
+          - generic [ref=e9538]: Primitive Composition Strategy
+          - generic [ref=e9541]: Apache AGE graph traversal for candidate matching
+    - generic:
+      - button "×"
+      - generic:
+        - heading "Detail" [level=2]
+        - paragraph: Click a node or edge
+  - generic [ref=e45]:
+    - generic "Toggle drift timeline" [ref=e46] [cursor=pointer]: ▾ drift
+    - generic [ref=e47]: no drift events yet
+    - button "Compute" [ref=e48] [cursor=pointer]
+  - generic [ref=e49]:
+    - generic [ref=e50]: Time
+    - slider [ref=e51] [cursor=pointer]: "100"
+    - generic [ref=e52]: Now
+    - button "Reset" [ref=e53] [cursor=pointer]

@@ -1,0 +1,1821 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "Mnemo" [level=1] [ref=e3]
+    - generic [ref=e4]:
+      - generic [ref=e5] [cursor=pointer]: Facts
+      - generic [ref=e7] [cursor=pointer]: Causal
+      - generic [ref=e9] [cursor=pointer]: Sources
+      - generic [ref=e11] [cursor=pointer]: Merge
+      - generic [ref=e13] [cursor=pointer]: Same-As
+      - generic [ref=e15] [cursor=pointer]: Contradictions
+    - generic [ref=e17]:
+      - button "Force" [ref=e18] [cursor=pointer]
+      - button "DAG" [ref=e19] [cursor=pointer]
+    - generic [ref=e20]: color
+    - combobox "Entity color encoding" [ref=e21] [cursor=pointer]:
+      - option "by Type" [selected]
+      - option "by Component"
+      - option "by Community"
+      - option "by Cluster"
+    - generic "Show convex hulls per cluster (slow at scale)" [ref=e22] [cursor=pointer]:
+      - checkbox "Hulls" [ref=e23]
+      - text: Hulls
+    - generic [ref=e24]: halo
+    - combobox "Centrality halo metric (size scales with the chosen score)" [ref=e25] [cursor=pointer]:
+      - option "PageRank" [selected]
+      - option "Betweenness"
+    - generic [ref=e54]:
+      - generic [ref=e12158]: 461 entities
+      - generic [ref=e12159]: 1009 facts
+      - generic [ref=e12160]: 1051 events
+      - generic [ref=e12161]: 151 causal
+      - generic "Show graph_stats singleton" [ref=e12162] [cursor=pointer]: ▸
+    - generic [ref=e26] [cursor=pointer]:
+      - checkbox "Auto 5s" [checked] [ref=e27]
+      - text: Auto 5s
+    - generic [ref=e28]:
+      - button "Ingest" [ref=e29] [cursor=pointer]
+      - button "Garden" [ref=e30] [cursor=pointer]
+      - button "Reconcile" [ref=e31] [cursor=pointer]
+      - button "Topology" [ref=e32] [cursor=pointer]
+      - button "Cluster" [ref=e33] [cursor=pointer]
+      - button "Cross-cluster 14" [ref=e60] [cursor=pointer]:
+        - text: Cross-cluster
+        - generic [ref=e61]: "14"
+      - button "Contradictions 200" [ref=e62] [cursor=pointer]:
+        - text: Contradictions
+        - generic [ref=e63]: "200"
+      - button "Patterns" [ref=e36] [cursor=pointer]
+    - generic [ref=e37]:
+      - button "Clear Graph" [ref=e38] [cursor=pointer]
+      - button "Reset All" [ref=e39] [cursor=pointer]
+    - generic [ref=e40]:
+      - button "Reason" [ref=e41] [cursor=pointer]
+      - button "Query" [ref=e42] [cursor=pointer]
+  - generic [ref=e10152]:
+    - generic [ref=e10153]:
+      - heading "Contradictions" [level=3] [ref=e10154]
+      - generic [ref=e10155]:
+        - text: 200 unresolved
+        - button "×" [ref=e10156] [cursor=pointer]
+    - generic [ref=e10157]:
+      - generic [ref=e12163]:
+        - generic [ref=e12164]:
+          - generic [ref=e12165]: Opposing object
+          - generic [ref=e12166]: high
+        - generic [ref=e12167]: "Same subject 00e9f242-e006-4453-895c-920b108c5648 and predicate has_attribute with different objects: cluster_id (INTEGER: HDBSCAN canonicalised cluster ID; -1 = noise label) vs cluster_probability (FLOAT, soft membership confidence; NULL for noise per §2.2)"
+        - button "Resolve…" [ref=e12169] [cursor=pointer]
+      - generic [ref=e12170]:
+        - generic [ref=e12171]:
+          - generic [ref=e12172]: Opposing object
+          - generic [ref=e12173]: high
+        - generic [ref=e12174]: "Same subject 00e9f242-e006-4453-895c-920b108c5648 and predicate has_attribute with different objects: centroid_snapshot (768-dim VECTOR, frozen at clustering time for drift detection) vs cluster_probability (FLOAT, soft membership confidence; NULL for noise per §2.2)"
+        - button "Resolve…" [ref=e12176] [cursor=pointer]
+      - generic [ref=e12177]:
+        - generic [ref=e12178]:
+          - generic [ref=e12179]: Opposing object
+          - generic [ref=e12180]: high
+        - generic [ref=e12181]: "Same subject 00e9f242-e006-4453-895c-920b108c5648 and predicate has_attribute with different objects: centroid_snapshot (768-dim VECTOR, frozen at clustering time for drift detection) vs cluster_id (INTEGER: HDBSCAN canonicalised cluster ID; -1 = noise label)"
+        - button "Resolve…" [ref=e12183] [cursor=pointer]
+      - generic [ref=e12184]:
+        - generic [ref=e12185]:
+          - generic [ref=e12186]: Opposing object
+          - generic [ref=e12187]: high
+        - generic [ref=e12188]: "Same subject 07c790f7-48d9-4dab-86a1-bc1af790b09a and predicate implements with different objects: 516b2412-76a9-4caa-ba99-82890c080a0f vs cb392fd3-7ec6-4a37-a074-394c66596556"
+        - button "Resolve…" [ref=e12190] [cursor=pointer]
+      - generic [ref=e12191]:
+        - generic [ref=e12192]:
+          - generic [ref=e12193]: Opposing object
+          - generic [ref=e12194]: high
+        - generic [ref=e12195]: "Same subject 101a602f-b4b2-4f43-af7b-a88092cd5e2b and predicate leverages_capability with different objects: bi-temporal facts with decay — tracking evolving beliefs over time vs reasoning layer — surfaces forgotten threads and connections across fragmented sources"
+        - button "Resolve…" [ref=e12197] [cursor=pointer]
+      - generic [ref=e12198]:
+        - generic [ref=e12199]:
+          - generic [ref=e12200]: Opposing object
+          - generic [ref=e12201]: high
+        - generic [ref=e12202]: "Same subject 17e73681-71e7-43f2-8487-6dfaefb81a0e and predicate has_quality with different objects: maintains causal links from Slack decision to Jira creation to PR landing to incident vs autonomously plans Jira tickets, surfaces tasks falling through cracks, drafts implementation outlines before humans get to them"
+        - button "Resolve…" [ref=e12204] [cursor=pointer]
+      - generic [ref=e12205]:
+        - generic [ref=e12206]:
+          - generic [ref=e12207]: Opposing object
+          - generic [ref=e12208]: high
+        - generic [ref=e12209]: "Same subject 17e73681-71e7-43f2-8487-6dfaefb81a0e and predicate leverages_capability with different objects: pattern lifecycle — catching recurring planning failures vs contradiction detection — flagging conflicting commitments across communication channels"
+        - button "Resolve…" [ref=e12211] [cursor=pointer]
+      - generic [ref=e12212]:
+        - generic [ref=e12213]:
+          - generic [ref=e12214]: Opposing object
+          - generic [ref=e12215]: high
+        - generic [ref=e12216]: "Same subject 17e73681-71e7-43f2-8487-6dfaefb81a0e and predicate leverages_capability with different objects: pattern lifecycle — catching recurring planning failures vs blast radius analysis — tracing causal impact from a comment to downstream tickets"
+        - button "Resolve…" [ref=e12218] [cursor=pointer]
+      - generic [ref=e12219]:
+        - generic [ref=e12220]:
+          - generic [ref=e12221]: Opposing object
+          - generic [ref=e12222]: high
+        - generic [ref=e12223]: "Same subject 17e73681-71e7-43f2-8487-6dfaefb81a0e and predicate leverages_capability with different objects: blast radius analysis — tracing causal impact from a comment to downstream tickets vs contradiction detection — flagging conflicting commitments across communication channels"
+        - button "Resolve…" [ref=e12225] [cursor=pointer]
+      - generic [ref=e12226]:
+        - generic [ref=e12227]:
+          - generic [ref=e12228]: Opposing object
+          - generic [ref=e12229]: high
+        - generic [ref=e12230]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 8206576f-51f7-4221-8976-230d0147d89f vs 5802233f-cc44-40b5-8938-698844aaa310"
+        - button "Resolve…" [ref=e12232] [cursor=pointer]
+      - generic [ref=e12233]:
+        - generic [ref=e12234]:
+          - generic [ref=e12235]: Opposing object
+          - generic [ref=e12236]: high
+        - generic [ref=e12237]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 8206576f-51f7-4221-8976-230d0147d89f vs 90a8c88f-e480-4147-9baf-5c33bd25fbfc"
+        - button "Resolve…" [ref=e12239] [cursor=pointer]
+      - generic [ref=e12240]:
+        - generic [ref=e12241]:
+          - generic [ref=e12242]: Opposing object
+          - generic [ref=e12243]: high
+        - generic [ref=e12244]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 8206576f-51f7-4221-8976-230d0147d89f vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e12246] [cursor=pointer]
+      - generic [ref=e12247]:
+        - generic [ref=e12248]:
+          - generic [ref=e12249]: Opposing object
+          - generic [ref=e12250]: high
+        - generic [ref=e12251]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 8206576f-51f7-4221-8976-230d0147d89f vs 3ad5852c-b241-4099-9ea3-675b0dc5abbd"
+        - button "Resolve…" [ref=e12253] [cursor=pointer]
+      - generic [ref=e12254]:
+        - generic [ref=e12255]:
+          - generic [ref=e12256]: Opposing object
+          - generic [ref=e12257]: high
+        - generic [ref=e12258]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5802233f-cc44-40b5-8938-698844aaa310 vs 90a8c88f-e480-4147-9baf-5c33bd25fbfc"
+        - button "Resolve…" [ref=e12260] [cursor=pointer]
+      - generic [ref=e12261]:
+        - generic [ref=e12262]:
+          - generic [ref=e12263]: Opposing object
+          - generic [ref=e12264]: high
+        - generic [ref=e12265]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5802233f-cc44-40b5-8938-698844aaa310 vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e12267] [cursor=pointer]
+      - generic [ref=e12268]:
+        - generic [ref=e12269]:
+          - generic [ref=e12270]: Opposing object
+          - generic [ref=e12271]: high
+        - generic [ref=e12272]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5802233f-cc44-40b5-8938-698844aaa310 vs 3ad5852c-b241-4099-9ea3-675b0dc5abbd"
+        - button "Resolve…" [ref=e12274] [cursor=pointer]
+      - generic [ref=e12275]:
+        - generic [ref=e12276]:
+          - generic [ref=e12277]: Opposing object
+          - generic [ref=e12278]: high
+        - generic [ref=e12279]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 56a500bd-7e9f-4830-859e-c94ac2fd86a3 vs 5802233f-cc44-40b5-8938-698844aaa310"
+        - button "Resolve…" [ref=e12281] [cursor=pointer]
+      - generic [ref=e12282]:
+        - generic [ref=e12283]:
+          - generic [ref=e12284]: Opposing object
+          - generic [ref=e12285]: high
+        - generic [ref=e12286]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 56a500bd-7e9f-4830-859e-c94ac2fd86a3 vs 90a8c88f-e480-4147-9baf-5c33bd25fbfc"
+        - button "Resolve…" [ref=e12288] [cursor=pointer]
+      - generic [ref=e12289]:
+        - generic [ref=e12290]:
+          - generic [ref=e12291]: Opposing object
+          - generic [ref=e12292]: high
+        - generic [ref=e12293]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 56a500bd-7e9f-4830-859e-c94ac2fd86a3 vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e12295] [cursor=pointer]
+      - generic [ref=e12296]:
+        - generic [ref=e12297]:
+          - generic [ref=e12298]: Opposing object
+          - generic [ref=e12299]: high
+        - generic [ref=e12300]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 56a500bd-7e9f-4830-859e-c94ac2fd86a3 vs 3ad5852c-b241-4099-9ea3-675b0dc5abbd"
+        - button "Resolve…" [ref=e12302] [cursor=pointer]
+      - generic [ref=e12303]:
+        - generic [ref=e12304]:
+          - generic [ref=e12305]: Opposing object
+          - generic [ref=e12306]: high
+        - generic [ref=e12307]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 56a500bd-7e9f-4830-859e-c94ac2fd86a3 vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e12309] [cursor=pointer]
+      - generic [ref=e12310]:
+        - generic [ref=e12311]:
+          - generic [ref=e12312]: Opposing object
+          - generic [ref=e12313]: high
+        - generic [ref=e12314]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 3ad5852c-b241-4099-9ea3-675b0dc5abbd vs 90a8c88f-e480-4147-9baf-5c33bd25fbfc"
+        - button "Resolve…" [ref=e12316] [cursor=pointer]
+      - generic [ref=e12317]:
+        - generic [ref=e12318]:
+          - generic [ref=e12319]: Opposing object
+          - generic [ref=e12320]: high
+        - generic [ref=e12321]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: aa92d561-d305-43f5-a3fb-1b3b23c57a0d vs 90a8c88f-e480-4147-9baf-5c33bd25fbfc"
+        - button "Resolve…" [ref=e12323] [cursor=pointer]
+      - generic [ref=e12324]:
+        - generic [ref=e12325]:
+          - generic [ref=e12326]: Opposing object
+          - generic [ref=e12327]: high
+        - generic [ref=e12328]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: aa92d561-d305-43f5-a3fb-1b3b23c57a0d vs 3ad5852c-b241-4099-9ea3-675b0dc5abbd"
+        - button "Resolve…" [ref=e12330] [cursor=pointer]
+      - generic [ref=e12331]:
+        - generic [ref=e12332]:
+          - generic [ref=e12333]: Opposing object
+          - generic [ref=e12334]: high
+        - generic [ref=e12335]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs 5802233f-cc44-40b5-8938-698844aaa310"
+        - button "Resolve…" [ref=e12337] [cursor=pointer]
+      - generic [ref=e12338]:
+        - generic [ref=e12339]:
+          - generic [ref=e12340]: Opposing object
+          - generic [ref=e12341]: high
+        - generic [ref=e12342]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12344] [cursor=pointer]
+      - generic [ref=e12345]:
+        - generic [ref=e12346]:
+          - generic [ref=e12347]: Opposing object
+          - generic [ref=e12348]: high
+        - generic [ref=e12349]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs 90a8c88f-e480-4147-9baf-5c33bd25fbfc"
+        - button "Resolve…" [ref=e12351] [cursor=pointer]
+      - generic [ref=e12352]:
+        - generic [ref=e12353]:
+          - generic [ref=e12354]: Opposing object
+          - generic [ref=e12355]: high
+        - generic [ref=e12356]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e12358] [cursor=pointer]
+      - generic [ref=e12359]:
+        - generic [ref=e12360]:
+          - generic [ref=e12361]: Opposing object
+          - generic [ref=e12362]: high
+        - generic [ref=e12363]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs 3ad5852c-b241-4099-9ea3-675b0dc5abbd"
+        - button "Resolve…" [ref=e12365] [cursor=pointer]
+      - generic [ref=e12366]:
+        - generic [ref=e12367]:
+          - generic [ref=e12368]: Opposing object
+          - generic [ref=e12369]: high
+        - generic [ref=e12370]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e12372] [cursor=pointer]
+      - generic [ref=e12373]:
+        - generic [ref=e12374]:
+          - generic [ref=e12375]: Opposing object
+          - generic [ref=e12376]: high
+        - generic [ref=e12377]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs aad917c8-07d9-40c2-a508-64715fc1b6eb"
+        - button "Resolve…" [ref=e12379] [cursor=pointer]
+      - generic [ref=e12380]:
+        - generic [ref=e12381]:
+          - generic [ref=e12382]: Opposing object
+          - generic [ref=e12383]: high
+        - generic [ref=e12384]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5ce6272b-f045-4451-890c-5855d4f9cbb4 vs 5802233f-cc44-40b5-8938-698844aaa310"
+        - button "Resolve…" [ref=e12386] [cursor=pointer]
+      - generic [ref=e12387]:
+        - generic [ref=e12388]:
+          - generic [ref=e12389]: Opposing object
+          - generic [ref=e12390]: high
+        - generic [ref=e12391]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5ce6272b-f045-4451-890c-5855d4f9cbb4 vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12393] [cursor=pointer]
+      - generic [ref=e12394]:
+        - generic [ref=e12395]:
+          - generic [ref=e12396]: Opposing object
+          - generic [ref=e12397]: high
+        - generic [ref=e12398]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5ce6272b-f045-4451-890c-5855d4f9cbb4 vs 7ef19b63-0bea-474c-a459-ec646df302e7"
+        - button "Resolve…" [ref=e12400] [cursor=pointer]
+      - generic [ref=e12401]:
+        - generic [ref=e12402]:
+          - generic [ref=e12403]: Opposing object
+          - generic [ref=e12404]: high
+        - generic [ref=e12405]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5ce6272b-f045-4451-890c-5855d4f9cbb4 vs 90a8c88f-e480-4147-9baf-5c33bd25fbfc"
+        - button "Resolve…" [ref=e12407] [cursor=pointer]
+      - generic [ref=e12408]:
+        - generic [ref=e12409]:
+          - generic [ref=e12410]: Opposing object
+          - generic [ref=e12411]: high
+        - generic [ref=e12412]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5ce6272b-f045-4451-890c-5855d4f9cbb4 vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e12414] [cursor=pointer]
+      - generic [ref=e12415]:
+        - generic [ref=e12416]:
+          - generic [ref=e12417]: Opposing object
+          - generic [ref=e12418]: high
+        - generic [ref=e12419]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5ce6272b-f045-4451-890c-5855d4f9cbb4 vs 3ad5852c-b241-4099-9ea3-675b0dc5abbd"
+        - button "Resolve…" [ref=e12421] [cursor=pointer]
+      - generic [ref=e12422]:
+        - generic [ref=e12423]:
+          - generic [ref=e12424]: Opposing object
+          - generic [ref=e12425]: high
+        - generic [ref=e12426]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5ce6272b-f045-4451-890c-5855d4f9cbb4 vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e12428] [cursor=pointer]
+      - generic [ref=e12429]:
+        - generic [ref=e12430]:
+          - generic [ref=e12431]: Opposing object
+          - generic [ref=e12432]: high
+        - generic [ref=e12433]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: 5ce6272b-f045-4451-890c-5855d4f9cbb4 vs aad917c8-07d9-40c2-a508-64715fc1b6eb"
+        - button "Resolve…" [ref=e12435] [cursor=pointer]
+      - generic [ref=e12436]:
+        - generic [ref=e12437]:
+          - generic [ref=e12438]: Opposing object
+          - generic [ref=e12439]: high
+        - generic [ref=e12440]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: aad917c8-07d9-40c2-a508-64715fc1b6eb vs 5802233f-cc44-40b5-8938-698844aaa310"
+        - button "Resolve…" [ref=e12442] [cursor=pointer]
+      - generic [ref=e12443]:
+        - generic [ref=e12444]:
+          - generic [ref=e12445]: Opposing object
+          - generic [ref=e12446]: high
+        - generic [ref=e12447]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: aad917c8-07d9-40c2-a508-64715fc1b6eb vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12449] [cursor=pointer]
+      - generic [ref=e12450]:
+        - generic [ref=e12451]:
+          - generic [ref=e12452]: Opposing object
+          - generic [ref=e12453]: high
+        - generic [ref=e12454]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: aad917c8-07d9-40c2-a508-64715fc1b6eb vs 90a8c88f-e480-4147-9baf-5c33bd25fbfc"
+        - button "Resolve…" [ref=e12456] [cursor=pointer]
+      - generic [ref=e12457]:
+        - generic [ref=e12458]:
+          - generic [ref=e12459]: Opposing object
+          - generic [ref=e12460]: high
+        - generic [ref=e12461]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: aad917c8-07d9-40c2-a508-64715fc1b6eb vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e12463] [cursor=pointer]
+      - generic [ref=e12464]:
+        - generic [ref=e12465]:
+          - generic [ref=e12466]: Opposing object
+          - generic [ref=e12467]: high
+        - generic [ref=e12468]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: aad917c8-07d9-40c2-a508-64715fc1b6eb vs 3ad5852c-b241-4099-9ea3-675b0dc5abbd"
+        - button "Resolve…" [ref=e12470] [cursor=pointer]
+      - generic [ref=e12471]:
+        - generic [ref=e12472]:
+          - generic [ref=e12473]: Opposing object
+          - generic [ref=e12474]: high
+        - generic [ref=e12475]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate confused_by with different objects: aad917c8-07d9-40c2-a508-64715fc1b6eb vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e12477] [cursor=pointer]
+      - generic [ref=e12478]:
+        - generic [ref=e12479]:
+          - generic [ref=e12480]: Opposing object
+          - generic [ref=e12481]: high
+        - generic [ref=e12482]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_critical_gap_in with different objects: Fact supersession logic. Learner doesn't understand why exclusive-predicate conflicts trigger fact expiry. Connected to Q1 35% quiz failure. Contradiction detection system depends on this; learner cannot yet access contradiction resolution. vs Bi-temporal fact representation (valid_at/invalid_at). Prerequisite for understanding Graph S/C separation, point-in-time queries, temporal state reconstruction. Q1 score 35% indicates foundational temporal concepts not internalized. Impact: all downstream temporal reasoning fails."
+        - button "Resolve…" [ref=e12484] [cursor=pointer]
+      - generic [ref=e12485]:
+        - generic [ref=e12486]:
+          - generic [ref=e12487]: Opposing object
+          - generic [ref=e12488]: high
+        - generic [ref=e12489]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_critical_gap_in with different objects: Fact supersession logic. Learner doesn't understand why exclusive-predicate conflicts trigger fact expiry. Connected to Q1 35% quiz failure. Contradiction detection system depends on this; learner cannot yet access contradiction resolution. vs Capability composition — understands Graph S, Graph C, and reasoning layer primitives in isolation but cannot compose them to solve domain-specific use cases (project brain, personal KG, codebase intelligence, research synthesis, compliance auditing, adaptive learning). All deployment scenarios remain conceptual."
+        - button "Resolve…" [ref=e12491] [cursor=pointer]
+      - generic [ref=e12492]:
+        - generic [ref=e12493]:
+          - generic [ref=e12494]: Opposing object
+          - generic [ref=e12495]: high
+        - generic [ref=e12496]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_critical_gap_in with different objects: Bi-temporal fact representation (valid_at/invalid_at). Prerequisite for understanding Graph S/C separation, point-in-time queries, temporal state reconstruction. Q1 score 35% indicates foundational temporal concepts not internalized. Impact: all downstream temporal reasoning fails. vs Capability composition — understands Graph S, Graph C, and reasoning layer primitives in isolation but cannot compose them to solve domain-specific use cases (project brain, personal KG, codebase intelligence, research synthesis, compliance auditing, adaptive learning). All deployment scenarios remain conceptual."
+        - button "Resolve…" [ref=e12498] [cursor=pointer]
+      - generic [ref=e12499]:
+        - generic [ref=e12500]:
+          - generic [ref=e12501]: Opposing object
+          - generic [ref=e12502]: high
+        - generic [ref=e12503]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_critical_gap_in with different objects: Entity resolution & deduplication. 3-stage pipeline (auto-merge, flag, create) not deeply understood. Graph C depends on stable canonical entities. Evidence: no demonstrated understanding of merge_candidates lifecycle or operational throughput metrics. vs Bi-temporal fact representation (valid_at/invalid_at). Prerequisite for understanding Graph S/C separation, point-in-time queries, temporal state reconstruction. Q1 score 35% indicates foundational temporal concepts not internalized. Impact: all downstream temporal reasoning fails."
+        - button "Resolve…" [ref=e12505] [cursor=pointer]
+      - generic [ref=e12506]:
+        - generic [ref=e12507]:
+          - generic [ref=e12508]: Opposing object
+          - generic [ref=e12509]: high
+        - generic [ref=e12510]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_critical_gap_in with different objects: Entity resolution & deduplication. 3-stage pipeline (auto-merge, flag, create) not deeply understood. Graph C depends on stable canonical entities. Evidence: no demonstrated understanding of merge_candidates lifecycle or operational throughput metrics. vs Capability composition — understands Graph S, Graph C, and reasoning layer primitives in isolation but cannot compose them to solve domain-specific use cases (project brain, personal KG, codebase intelligence, research synthesis, compliance auditing, adaptive learning). All deployment scenarios remain conceptual."
+        - button "Resolve…" [ref=e12512] [cursor=pointer]
+      - generic [ref=e12513]:
+        - generic [ref=e12514]:
+          - generic [ref=e12515]: Opposing object
+          - generic [ref=e12516]: high
+        - generic [ref=e12517]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_critical_gap_in with different objects: Entity resolution & deduplication. 3-stage pipeline (auto-merge, flag, create) not deeply understood. Graph C depends on stable canonical entities. Evidence: no demonstrated understanding of merge_candidates lifecycle or operational throughput metrics. vs Fact supersession logic. Learner doesn't understand why exclusive-predicate conflicts trigger fact expiry. Connected to Q1 35% quiz failure. Contradiction detection system depends on this; learner cannot yet access contradiction resolution."
+        - button "Resolve…" [ref=e12519] [cursor=pointer]
+      - generic [ref=e12520]:
+        - generic [ref=e12521]:
+          - generic [ref=e12522]: Opposing object
+          - generic [ref=e12523]: high
+        - generic [ref=e12524]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_high_priority_gap_in with different objects: Predicate classification (exclusive vs multi-valued). Doesn't distinguish predicates like works_at (exclusive) vs knows (multi-valued). Drives contradiction detection heuristics. Evidence: quiz struggle on predicate semantics, daily quiz confusion. vs Cross-cluster bridging (explicit struggle area). Topology primitives (k-core, articulation points, communities, bridges) not yet mastered. Foundational for graph structure reasoning and self-hardening. EXPLICIT FLAG: daily quiz surface this as Hardens §7 struggle area."
+        - button "Resolve…" [ref=e12526] [cursor=pointer]
+      - generic [ref=e12527]:
+        - generic [ref=e12528]:
+          - generic [ref=e12529]: Opposing object
+          - generic [ref=e12530]: high
+        - generic [ref=e12531]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_low_confidence_in with different objects: 7dd6d4a2-5a31-4fbd-92e6-de25803752ac vs Contradiction detection heuristics — the learner understands the concept but misapplies the rules, confusing multi-valued predicates (knows, works_on) with functional predicates (works_at, located_in) in real scenarios."
+        - button "Resolve…" [ref=e12533] [cursor=pointer]
+      - generic [ref=e12534]:
+        - generic [ref=e12535]:
+          - generic [ref=e12536]: Opposing object
+          - generic [ref=e12537]: high
+        - generic [ref=e12538]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_medium_priority_gap_in with different objects: Cross-cluster entity bridging — struggles with identifying and linking entities that span multiple logical clusters (e.g., matching \\\"Robert Walton\\\" across email vs chat vs file metadata vs code comments). Low-confidence across exact-match and semantic bridge construction. vs Capability composition. Understands each primitive (Graph S, Graph C, reasoning layer) in isolation but cannot compose to solve specific use cases. All six use-case domains (project brain, personal KG, codebase intel, research, compliance, learning) remain conceptual/not deployed. Evidence: 10+ unresolved contradictions about primitive application order."
+        - button "Resolve…" [ref=e12540] [cursor=pointer]
+      - generic [ref=e12541]:
+        - generic [ref=e12542]:
+          - generic [ref=e12543]: Opposing object
+          - generic [ref=e12544]: high
+        - generic [ref=e12545]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 89262c63-e516-4f09-9f97-fd4210d163f9 vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e12547] [cursor=pointer]
+      - generic [ref=e12548]:
+        - generic [ref=e12549]:
+          - generic [ref=e12550]: Opposing object
+          - generic [ref=e12551]: high
+        - generic [ref=e12552]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_medium_priority_gap_in with different objects: Cross-cluster entity bridging — struggles with identifying and linking entities that span multiple logical clusters (e.g., matching \\\"Robert Walton\\\" across email vs chat vs file metadata vs code comments). Low-confidence across exact-match and semantic bridge construction. vs Query mode validation. Reasoning agent query mode built but untested end-to-end. No evidence it works for realistic multi-step reasoning. Risk: if fragile, operationalization story breaks. Evidence: 2026-05-11 reports show reasoning agent fails to query graph; course generation instability blocks testing."
+        - button "Resolve…" [ref=e12554] [cursor=pointer]
+      - generic [ref=e12555]:
+        - generic [ref=e12556]:
+          - generic [ref=e12557]: Opposing object
+          - generic [ref=e12558]: high
+        - generic [ref=e12559]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate has_medium_priority_gap_in with different objects: Query mode validation. Reasoning agent query mode built but untested end-to-end. No evidence it works for realistic multi-step reasoning. Risk: if fragile, operationalization story breaks. Evidence: 2026-05-11 reports show reasoning agent fails to query graph; course generation instability blocks testing. vs Capability composition. Understands each primitive (Graph S, Graph C, reasoning layer) in isolation but cannot compose to solve specific use cases. All six use-case domains (project brain, personal KG, codebase intel, research, compliance, learning) remain conceptual/not deployed. Evidence: 10+ unresolved contradictions about primitive application order."
+        - button "Resolve…" [ref=e12561] [cursor=pointer]
+      - generic [ref=e12562]:
+        - generic [ref=e12563]:
+          - generic [ref=e12564]: Opposing object
+          - generic [ref=e12565]: high
+        - generic [ref=e12566]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: b75f1330-cd7b-4804-9e5c-bae1fd21b54e vs 89262c63-e516-4f09-9f97-fd4210d163f9"
+        - button "Resolve…" [ref=e12568] [cursor=pointer]
+      - generic [ref=e12569]:
+        - generic [ref=e12570]:
+          - generic [ref=e12571]: Opposing object
+          - generic [ref=e12572]: high
+        - generic [ref=e12573]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: b75f1330-cd7b-4804-9e5c-bae1fd21b54e vs e92ea9bd-8898-4551-b125-d62a4c86bee9"
+        - button "Resolve…" [ref=e12575] [cursor=pointer]
+      - generic [ref=e12576]:
+        - generic [ref=e12577]:
+          - generic [ref=e12578]: Opposing object
+          - generic [ref=e12579]: high
+        - generic [ref=e12580]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: b75f1330-cd7b-4804-9e5c-bae1fd21b54e vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12582] [cursor=pointer]
+      - generic [ref=e12583]:
+        - generic [ref=e12584]:
+          - generic [ref=e12585]: Opposing object
+          - generic [ref=e12586]: high
+        - generic [ref=e12587]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: b75f1330-cd7b-4804-9e5c-bae1fd21b54e vs 70545729-8075-4340-a87f-2674a255a82a"
+        - button "Resolve…" [ref=e12589] [cursor=pointer]
+      - generic [ref=e12590]:
+        - generic [ref=e12591]:
+          - generic [ref=e12592]: Opposing object
+          - generic [ref=e12593]: high
+        - generic [ref=e12594]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: b75f1330-cd7b-4804-9e5c-bae1fd21b54e vs 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee"
+        - button "Resolve…" [ref=e12596] [cursor=pointer]
+      - generic [ref=e12597]:
+        - generic [ref=e12598]:
+          - generic [ref=e12599]: Opposing object
+          - generic [ref=e12600]: high
+        - generic [ref=e12601]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: b75f1330-cd7b-4804-9e5c-bae1fd21b54e vs f3b8d084-f93b-4804-a206-dc73e6216998"
+        - button "Resolve…" [ref=e12603] [cursor=pointer]
+      - generic [ref=e12604]:
+        - generic [ref=e12605]:
+          - generic [ref=e12606]: Opposing object
+          - generic [ref=e12607]: high
+        - generic [ref=e12608]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: b75f1330-cd7b-4804-9e5c-bae1fd21b54e vs d4e43730-a457-41a5-a796-da659040c032"
+        - button "Resolve…" [ref=e12610] [cursor=pointer]
+      - generic [ref=e12611]:
+        - generic [ref=e12612]:
+          - generic [ref=e12613]: Opposing object
+          - generic [ref=e12614]: high
+        - generic [ref=e12615]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: b75f1330-cd7b-4804-9e5c-bae1fd21b54e vs 0c0f24c8-db75-4f99-a8c7-cb8335582afb"
+        - button "Resolve…" [ref=e12617] [cursor=pointer]
+      - generic [ref=e12618]:
+        - generic [ref=e12619]:
+          - generic [ref=e12620]: Opposing object
+          - generic [ref=e12621]: high
+        - generic [ref=e12622]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: b75f1330-cd7b-4804-9e5c-bae1fd21b54e vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e12624] [cursor=pointer]
+      - generic [ref=e12625]:
+        - generic [ref=e12626]:
+          - generic [ref=e12627]: Opposing object
+          - generic [ref=e12628]: high
+        - generic [ref=e12629]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: b75f1330-cd7b-4804-9e5c-bae1fd21b54e vs 145b7efb-80f2-4118-b210-ef26edb1f2e9"
+        - button "Resolve…" [ref=e12631] [cursor=pointer]
+      - generic [ref=e12632]:
+        - generic [ref=e12633]:
+          - generic [ref=e12634]: Opposing object
+          - generic [ref=e12635]: high
+        - generic [ref=e12636]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 56a500bd-7e9f-4830-859e-c94ac2fd86a3 vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e12638] [cursor=pointer]
+      - generic [ref=e12639]:
+        - generic [ref=e12640]:
+          - generic [ref=e12641]: Opposing object
+          - generic [ref=e12642]: high
+        - generic [ref=e12643]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0c0f24c8-db75-4f99-a8c7-cb8335582afb vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12645] [cursor=pointer]
+      - generic [ref=e12646]:
+        - generic [ref=e12647]:
+          - generic [ref=e12648]: Opposing object
+          - generic [ref=e12649]: high
+        - generic [ref=e12650]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0c0f24c8-db75-4f99-a8c7-cb8335582afb vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e12652] [cursor=pointer]
+      - generic [ref=e12653]:
+        - generic [ref=e12654]:
+          - generic [ref=e12655]: Opposing object
+          - generic [ref=e12656]: high
+        - generic [ref=e12657]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 89262c63-e516-4f09-9f97-fd4210d163f9 vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12659] [cursor=pointer]
+      - generic [ref=e12660]:
+        - generic [ref=e12661]:
+          - generic [ref=e12662]: Opposing object
+          - generic [ref=e12663]: high
+        - generic [ref=e12664]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 89262c63-e516-4f09-9f97-fd4210d163f9 vs 0c0f24c8-db75-4f99-a8c7-cb8335582afb"
+        - button "Resolve…" [ref=e12666] [cursor=pointer]
+      - generic [ref=e12667]:
+        - generic [ref=e12668]:
+          - generic [ref=e12669]: Opposing object
+          - generic [ref=e12670]: high
+        - generic [ref=e12671]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs 89262c63-e516-4f09-9f97-fd4210d163f9"
+        - button "Resolve…" [ref=e12673] [cursor=pointer]
+      - generic [ref=e12674]:
+        - generic [ref=e12675]:
+          - generic [ref=e12676]: Opposing object
+          - generic [ref=e12677]: high
+        - generic [ref=e12678]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs e92ea9bd-8898-4551-b125-d62a4c86bee9"
+        - button "Resolve…" [ref=e12680] [cursor=pointer]
+      - generic [ref=e12681]:
+        - generic [ref=e12682]:
+          - generic [ref=e12683]: Opposing object
+          - generic [ref=e12684]: high
+        - generic [ref=e12685]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12687] [cursor=pointer]
+      - generic [ref=e12688]:
+        - generic [ref=e12689]:
+          - generic [ref=e12690]: Opposing object
+          - generic [ref=e12691]: high
+        - generic [ref=e12692]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs 70545729-8075-4340-a87f-2674a255a82a"
+        - button "Resolve…" [ref=e12694] [cursor=pointer]
+      - generic [ref=e12695]:
+        - generic [ref=e12696]:
+          - generic [ref=e12697]: Opposing object
+          - generic [ref=e12698]: high
+        - generic [ref=e12699]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee"
+        - button "Resolve…" [ref=e12701] [cursor=pointer]
+      - generic [ref=e12702]:
+        - generic [ref=e12703]:
+          - generic [ref=e12704]: Opposing object
+          - generic [ref=e12705]: high
+        - generic [ref=e12706]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs f3b8d084-f93b-4804-a206-dc73e6216998"
+        - button "Resolve…" [ref=e12708] [cursor=pointer]
+      - generic [ref=e12709]:
+        - generic [ref=e12710]:
+          - generic [ref=e12711]: Opposing object
+          - generic [ref=e12712]: high
+        - generic [ref=e12713]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs d4e43730-a457-41a5-a796-da659040c032"
+        - button "Resolve…" [ref=e12715] [cursor=pointer]
+      - generic [ref=e12716]:
+        - generic [ref=e12717]:
+          - generic [ref=e12718]: Opposing object
+          - generic [ref=e12719]: high
+        - generic [ref=e12720]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs 0c0f24c8-db75-4f99-a8c7-cb8335582afb"
+        - button "Resolve…" [ref=e12722] [cursor=pointer]
+      - generic [ref=e12723]:
+        - generic [ref=e12724]:
+          - generic [ref=e12725]: Opposing object
+          - generic [ref=e12726]: high
+        - generic [ref=e12727]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e12729] [cursor=pointer]
+      - generic [ref=e12730]:
+        - generic [ref=e12731]:
+          - generic [ref=e12732]: Opposing object
+          - generic [ref=e12733]: high
+        - generic [ref=e12734]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs b75f1330-cd7b-4804-9e5c-bae1fd21b54e"
+        - button "Resolve…" [ref=e12736] [cursor=pointer]
+      - generic [ref=e12737]:
+        - generic [ref=e12738]:
+          - generic [ref=e12739]: Opposing object
+          - generic [ref=e12740]: high
+        - generic [ref=e12741]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs 145b7efb-80f2-4118-b210-ef26edb1f2e9"
+        - button "Resolve…" [ref=e12743] [cursor=pointer]
+      - generic [ref=e12744]:
+        - generic [ref=e12745]:
+          - generic [ref=e12746]: Opposing object
+          - generic [ref=e12747]: high
+        - generic [ref=e12748]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 145b7efb-80f2-4118-b210-ef26edb1f2e9 vs 89262c63-e516-4f09-9f97-fd4210d163f9"
+        - button "Resolve…" [ref=e12750] [cursor=pointer]
+      - generic [ref=e12751]:
+        - generic [ref=e12752]:
+          - generic [ref=e12753]: Opposing object
+          - generic [ref=e12754]: high
+        - generic [ref=e12755]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 145b7efb-80f2-4118-b210-ef26edb1f2e9 vs e92ea9bd-8898-4551-b125-d62a4c86bee9"
+        - button "Resolve…" [ref=e12757] [cursor=pointer]
+      - generic [ref=e12758]:
+        - generic [ref=e12759]:
+          - generic [ref=e12760]: Opposing object
+          - generic [ref=e12761]: high
+        - generic [ref=e12762]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 145b7efb-80f2-4118-b210-ef26edb1f2e9 vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12764] [cursor=pointer]
+      - generic [ref=e12765]:
+        - generic [ref=e12766]:
+          - generic [ref=e12767]: Opposing object
+          - generic [ref=e12768]: high
+        - generic [ref=e12769]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 145b7efb-80f2-4118-b210-ef26edb1f2e9 vs 70545729-8075-4340-a87f-2674a255a82a"
+        - button "Resolve…" [ref=e12771] [cursor=pointer]
+      - generic [ref=e12772]:
+        - generic [ref=e12773]:
+          - generic [ref=e12774]: Opposing object
+          - generic [ref=e12775]: high
+        - generic [ref=e12776]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 145b7efb-80f2-4118-b210-ef26edb1f2e9 vs 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee"
+        - button "Resolve…" [ref=e12778] [cursor=pointer]
+      - generic [ref=e12779]:
+        - generic [ref=e12780]:
+          - generic [ref=e12781]: Opposing object
+          - generic [ref=e12782]: high
+        - generic [ref=e12783]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 145b7efb-80f2-4118-b210-ef26edb1f2e9 vs f3b8d084-f93b-4804-a206-dc73e6216998"
+        - button "Resolve…" [ref=e12785] [cursor=pointer]
+      - generic [ref=e12786]:
+        - generic [ref=e12787]:
+          - generic [ref=e12788]: Opposing object
+          - generic [ref=e12789]: high
+        - generic [ref=e12790]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 145b7efb-80f2-4118-b210-ef26edb1f2e9 vs d4e43730-a457-41a5-a796-da659040c032"
+        - button "Resolve…" [ref=e12792] [cursor=pointer]
+      - generic [ref=e12793]:
+        - generic [ref=e12794]:
+          - generic [ref=e12795]: Opposing object
+          - generic [ref=e12796]: high
+        - generic [ref=e12797]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 145b7efb-80f2-4118-b210-ef26edb1f2e9 vs 0c0f24c8-db75-4f99-a8c7-cb8335582afb"
+        - button "Resolve…" [ref=e12799] [cursor=pointer]
+      - generic [ref=e12800]:
+        - generic [ref=e12801]:
+          - generic [ref=e12802]: Opposing object
+          - generic [ref=e12803]: high
+        - generic [ref=e12804]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 145b7efb-80f2-4118-b210-ef26edb1f2e9 vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e12806] [cursor=pointer]
+      - generic [ref=e12807]:
+        - generic [ref=e12808]:
+          - generic [ref=e12809]: Opposing object
+          - generic [ref=e12810]: high
+        - generic [ref=e12811]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: e92ea9bd-8898-4551-b125-d62a4c86bee9 vs 89262c63-e516-4f09-9f97-fd4210d163f9"
+        - button "Resolve…" [ref=e12813] [cursor=pointer]
+      - generic [ref=e12814]:
+        - generic [ref=e12815]:
+          - generic [ref=e12816]: Opposing object
+          - generic [ref=e12817]: high
+        - generic [ref=e12818]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: e92ea9bd-8898-4551-b125-d62a4c86bee9 vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12820] [cursor=pointer]
+      - generic [ref=e12821]:
+        - generic [ref=e12822]:
+          - generic [ref=e12823]: Opposing object
+          - generic [ref=e12824]: high
+        - generic [ref=e12825]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: e92ea9bd-8898-4551-b125-d62a4c86bee9 vs 70545729-8075-4340-a87f-2674a255a82a"
+        - button "Resolve…" [ref=e12827] [cursor=pointer]
+      - generic [ref=e12828]:
+        - generic [ref=e12829]:
+          - generic [ref=e12830]: Opposing object
+          - generic [ref=e12831]: high
+        - generic [ref=e12832]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: e92ea9bd-8898-4551-b125-d62a4c86bee9 vs 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee"
+        - button "Resolve…" [ref=e12834] [cursor=pointer]
+      - generic [ref=e12835]:
+        - generic [ref=e12836]:
+          - generic [ref=e12837]: Opposing object
+          - generic [ref=e12838]: high
+        - generic [ref=e12839]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: e92ea9bd-8898-4551-b125-d62a4c86bee9 vs d4e43730-a457-41a5-a796-da659040c032"
+        - button "Resolve…" [ref=e12841] [cursor=pointer]
+      - generic [ref=e12842]:
+        - generic [ref=e12843]:
+          - generic [ref=e12844]: Opposing object
+          - generic [ref=e12845]: high
+        - generic [ref=e12846]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: e92ea9bd-8898-4551-b125-d62a4c86bee9 vs 0c0f24c8-db75-4f99-a8c7-cb8335582afb"
+        - button "Resolve…" [ref=e12848] [cursor=pointer]
+      - generic [ref=e12849]:
+        - generic [ref=e12850]:
+          - generic [ref=e12851]: Opposing object
+          - generic [ref=e12852]: high
+        - generic [ref=e12853]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: e92ea9bd-8898-4551-b125-d62a4c86bee9 vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e12855] [cursor=pointer]
+      - generic [ref=e12856]:
+        - generic [ref=e12857]:
+          - generic [ref=e12858]: Opposing object
+          - generic [ref=e12859]: high
+        - generic [ref=e12860]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 70545729-8075-4340-a87f-2674a255a82a vs 89262c63-e516-4f09-9f97-fd4210d163f9"
+        - button "Resolve…" [ref=e12862] [cursor=pointer]
+      - generic [ref=e12863]:
+        - generic [ref=e12864]:
+          - generic [ref=e12865]: Opposing object
+          - generic [ref=e12866]: high
+        - generic [ref=e12867]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 70545729-8075-4340-a87f-2674a255a82a vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12869] [cursor=pointer]
+      - generic [ref=e12870]:
+        - generic [ref=e12871]:
+          - generic [ref=e12872]: Opposing object
+          - generic [ref=e12873]: high
+        - generic [ref=e12874]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 70545729-8075-4340-a87f-2674a255a82a vs 0c0f24c8-db75-4f99-a8c7-cb8335582afb"
+        - button "Resolve…" [ref=e12876] [cursor=pointer]
+      - generic [ref=e12877]:
+        - generic [ref=e12878]:
+          - generic [ref=e12879]: Opposing object
+          - generic [ref=e12880]: high
+        - generic [ref=e12881]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 70545729-8075-4340-a87f-2674a255a82a vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e12883] [cursor=pointer]
+      - generic [ref=e12884]:
+        - generic [ref=e12885]:
+          - generic [ref=e12886]: Opposing object
+          - generic [ref=e12887]: high
+        - generic [ref=e12888]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs 89262c63-e516-4f09-9f97-fd4210d163f9"
+        - button "Resolve…" [ref=e12890] [cursor=pointer]
+      - generic [ref=e12891]:
+        - generic [ref=e12892]:
+          - generic [ref=e12893]: Opposing object
+          - generic [ref=e12894]: high
+        - generic [ref=e12895]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12897] [cursor=pointer]
+      - generic [ref=e12898]:
+        - generic [ref=e12899]:
+          - generic [ref=e12900]: Opposing object
+          - generic [ref=e12901]: high
+        - generic [ref=e12902]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs 70545729-8075-4340-a87f-2674a255a82a"
+        - button "Resolve…" [ref=e12904] [cursor=pointer]
+      - generic [ref=e12905]:
+        - generic [ref=e12906]:
+          - generic [ref=e12907]: Opposing object
+          - generic [ref=e12908]: high
+        - generic [ref=e12909]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs 0c0f24c8-db75-4f99-a8c7-cb8335582afb"
+        - button "Resolve…" [ref=e12911] [cursor=pointer]
+      - generic [ref=e12912]:
+        - generic [ref=e12913]:
+          - generic [ref=e12914]: Opposing object
+          - generic [ref=e12915]: high
+        - generic [ref=e12916]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e12918] [cursor=pointer]
+      - generic [ref=e12919]:
+        - generic [ref=e12920]:
+          - generic [ref=e12921]: Opposing object
+          - generic [ref=e12922]: high
+        - generic [ref=e12923]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: f3b8d084-f93b-4804-a206-dc73e6216998 vs 89262c63-e516-4f09-9f97-fd4210d163f9"
+        - button "Resolve…" [ref=e12925] [cursor=pointer]
+      - generic [ref=e12926]:
+        - generic [ref=e12927]:
+          - generic [ref=e12928]: Opposing object
+          - generic [ref=e12929]: high
+        - generic [ref=e12930]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: f3b8d084-f93b-4804-a206-dc73e6216998 vs e92ea9bd-8898-4551-b125-d62a4c86bee9"
+        - button "Resolve…" [ref=e12932] [cursor=pointer]
+      - generic [ref=e12933]:
+        - generic [ref=e12934]:
+          - generic [ref=e12935]: Opposing object
+          - generic [ref=e12936]: high
+        - generic [ref=e12937]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: f3b8d084-f93b-4804-a206-dc73e6216998 vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12939] [cursor=pointer]
+      - generic [ref=e12940]:
+        - generic [ref=e12941]:
+          - generic [ref=e12942]: Opposing object
+          - generic [ref=e12943]: high
+        - generic [ref=e12944]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: f3b8d084-f93b-4804-a206-dc73e6216998 vs 70545729-8075-4340-a87f-2674a255a82a"
+        - button "Resolve…" [ref=e12946] [cursor=pointer]
+      - generic [ref=e12947]:
+        - generic [ref=e12948]:
+          - generic [ref=e12949]: Opposing object
+          - generic [ref=e12950]: high
+        - generic [ref=e12951]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: f3b8d084-f93b-4804-a206-dc73e6216998 vs 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee"
+        - button "Resolve…" [ref=e12953] [cursor=pointer]
+      - generic [ref=e12954]:
+        - generic [ref=e12955]:
+          - generic [ref=e12956]: Opposing object
+          - generic [ref=e12957]: high
+        - generic [ref=e12958]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: f3b8d084-f93b-4804-a206-dc73e6216998 vs d4e43730-a457-41a5-a796-da659040c032"
+        - button "Resolve…" [ref=e12960] [cursor=pointer]
+      - generic [ref=e12961]:
+        - generic [ref=e12962]:
+          - generic [ref=e12963]: Opposing object
+          - generic [ref=e12964]: high
+        - generic [ref=e12965]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: f3b8d084-f93b-4804-a206-dc73e6216998 vs 0c0f24c8-db75-4f99-a8c7-cb8335582afb"
+        - button "Resolve…" [ref=e12967] [cursor=pointer]
+      - generic [ref=e12968]:
+        - generic [ref=e12969]:
+          - generic [ref=e12970]: Opposing object
+          - generic [ref=e12971]: high
+        - generic [ref=e12972]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: f3b8d084-f93b-4804-a206-dc73e6216998 vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e12974] [cursor=pointer]
+      - generic [ref=e12975]:
+        - generic [ref=e12976]:
+          - generic [ref=e12977]: Opposing object
+          - generic [ref=e12978]: high
+        - generic [ref=e12979]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: d4e43730-a457-41a5-a796-da659040c032 vs 89262c63-e516-4f09-9f97-fd4210d163f9"
+        - button "Resolve…" [ref=e12981] [cursor=pointer]
+      - generic [ref=e12982]:
+        - generic [ref=e12983]:
+          - generic [ref=e12984]: Opposing object
+          - generic [ref=e12985]: high
+        - generic [ref=e12986]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: d4e43730-a457-41a5-a796-da659040c032 vs 56a500bd-7e9f-4830-859e-c94ac2fd86a3"
+        - button "Resolve…" [ref=e12988] [cursor=pointer]
+      - generic [ref=e12989]:
+        - generic [ref=e12990]:
+          - generic [ref=e12991]: Opposing object
+          - generic [ref=e12992]: high
+        - generic [ref=e12993]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: d4e43730-a457-41a5-a796-da659040c032 vs 70545729-8075-4340-a87f-2674a255a82a"
+        - button "Resolve…" [ref=e12995] [cursor=pointer]
+      - generic [ref=e12996]:
+        - generic [ref=e12997]:
+          - generic [ref=e12998]: Opposing object
+          - generic [ref=e12999]: high
+        - generic [ref=e13000]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: d4e43730-a457-41a5-a796-da659040c032 vs 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee"
+        - button "Resolve…" [ref=e13002] [cursor=pointer]
+      - generic [ref=e13003]:
+        - generic [ref=e13004]:
+          - generic [ref=e13005]: Opposing object
+          - generic [ref=e13006]: high
+        - generic [ref=e13007]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: d4e43730-a457-41a5-a796-da659040c032 vs 0c0f24c8-db75-4f99-a8c7-cb8335582afb"
+        - button "Resolve…" [ref=e13009] [cursor=pointer]
+      - generic [ref=e13010]:
+        - generic [ref=e13011]:
+          - generic [ref=e13012]: Opposing object
+          - generic [ref=e13013]: high
+        - generic [ref=e13014]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_prerequisite with different objects: d4e43730-a457-41a5-a796-da659040c032 vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e13016] [cursor=pointer]
+      - generic [ref=e13017]:
+        - generic [ref=e13018]:
+          - generic [ref=e13019]: Opposing object
+          - generic [ref=e13020]: high
+        - generic [ref=e13021]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate lacks_understanding_of with different objects: f3bf5c27-be30-429e-99e8-6d57e192d9d0 vs d8e65ddf-f357-4c48-b3e6-66e7f8d6db85"
+        - button "Resolve…" [ref=e13023] [cursor=pointer]
+      - generic [ref=e13024]:
+        - generic [ref=e13025]:
+          - generic [ref=e13026]: Opposing object
+          - generic [ref=e13027]: high
+        - generic [ref=e13028]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate missing_prerequisite with different objects: f3bf5c27-be30-429e-99e8-6d57e192d9d0 vs 8a801378-f134-4a9c-aae5-a168f1387ef6"
+        - button "Resolve…" [ref=e13030] [cursor=pointer]
+      - generic [ref=e13031]:
+        - generic [ref=e13032]:
+          - generic [ref=e13033]: Opposing object
+          - generic [ref=e13034]: high
+        - generic [ref=e13035]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate should_study_next with different objects: 2e905ac4-4a61-47e0-8738-8069b8fbf434 vs 8b6fb7da-02b9-419f-ace0-9c08308f70de"
+        - button "Resolve…" [ref=e13037] [cursor=pointer]
+      - generic [ref=e13038]:
+        - generic [ref=e13039]:
+          - generic [ref=e13040]: Opposing object
+          - generic [ref=e13041]: high
+        - generic [ref=e13042]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate should_study_next with different objects: 2e905ac4-4a61-47e0-8738-8069b8fbf434 vs 0f98d238-dcbe-4e64-b984-f7351570ff1a"
+        - button "Resolve…" [ref=e13044] [cursor=pointer]
+      - generic [ref=e13045]:
+        - generic [ref=e13046]:
+          - generic [ref=e13047]: Opposing object
+          - generic [ref=e13048]: high
+        - generic [ref=e13049]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate should_study_next with different objects: 2e905ac4-4a61-47e0-8738-8069b8fbf434 vs b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2"
+        - button "Resolve…" [ref=e13051] [cursor=pointer]
+      - generic [ref=e13052]:
+        - generic [ref=e13053]:
+          - generic [ref=e13054]: Opposing object
+          - generic [ref=e13055]: high
+        - generic [ref=e13056]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate should_study_next with different objects: 2e905ac4-4a61-47e0-8738-8069b8fbf434 vs 93089cc6-fd3f-4d3c-9a26-08c8136d4b36"
+        - button "Resolve…" [ref=e13058] [cursor=pointer]
+      - generic [ref=e13059]:
+        - generic [ref=e13060]:
+          - generic [ref=e13061]: Opposing object
+          - generic [ref=e13062]: high
+        - generic [ref=e13063]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate should_study_next with different objects: 8b6fb7da-02b9-419f-ace0-9c08308f70de vs 0f98d238-dcbe-4e64-b984-f7351570ff1a"
+        - button "Resolve…" [ref=e13065] [cursor=pointer]
+      - generic [ref=e13066]:
+        - generic [ref=e13067]:
+          - generic [ref=e13068]: Opposing object
+          - generic [ref=e13069]: high
+        - generic [ref=e13070]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate should_study_next with different objects: 8b6fb7da-02b9-419f-ace0-9c08308f70de vs b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2"
+        - button "Resolve…" [ref=e13072] [cursor=pointer]
+      - generic [ref=e13073]:
+        - generic [ref=e13074]:
+          - generic [ref=e13075]: Opposing object
+          - generic [ref=e13076]: high
+        - generic [ref=e13077]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate should_study_next with different objects: 8b6fb7da-02b9-419f-ace0-9c08308f70de vs 93089cc6-fd3f-4d3c-9a26-08c8136d4b36"
+        - button "Resolve…" [ref=e13079] [cursor=pointer]
+      - generic [ref=e13080]:
+        - generic [ref=e13081]:
+          - generic [ref=e13082]: Opposing object
+          - generic [ref=e13083]: high
+        - generic [ref=e13084]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate should_study_next with different objects: 93089cc6-fd3f-4d3c-9a26-08c8136d4b36 vs b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2"
+        - button "Resolve…" [ref=e13086] [cursor=pointer]
+      - generic [ref=e13087]:
+        - generic [ref=e13088]:
+          - generic [ref=e13089]: Opposing object
+          - generic [ref=e13090]: high
+        - generic [ref=e13091]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate should_study_next with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2"
+        - button "Resolve…" [ref=e13093] [cursor=pointer]
+      - generic [ref=e13094]:
+        - generic [ref=e13095]:
+          - generic [ref=e13096]: Opposing object
+          - generic [ref=e13097]: high
+        - generic [ref=e13098]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate should_study_next with different objects: 0f98d238-dcbe-4e64-b984-f7351570ff1a vs 93089cc6-fd3f-4d3c-9a26-08c8136d4b36"
+        - button "Resolve…" [ref=e13100] [cursor=pointer]
+      - generic [ref=e13101]:
+        - generic [ref=e13102]:
+          - generic [ref=e13103]: Opposing object
+          - generic [ref=e13104]: high
+        - generic [ref=e13105]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs 711b97b8-6042-4431-9c23-568884bc76df"
+        - button "Resolve…" [ref=e13107] [cursor=pointer]
+      - generic [ref=e13108]:
+        - generic [ref=e13109]:
+          - generic [ref=e13110]: Opposing object
+          - generic [ref=e13111]: high
+        - generic [ref=e13112]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers"
+        - button "Resolve…" [ref=e13114] [cursor=pointer]
+      - generic [ref=e13115]:
+        - generic [ref=e13116]:
+          - generic [ref=e13117]: Opposing object
+          - generic [ref=e13118]: high
+        - generic [ref=e13119]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs ca23a2df-b2a2-49a6-8968-14fd3933bf57"
+        - button "Resolve…" [ref=e13121] [cursor=pointer]
+      - generic [ref=e13122]:
+        - generic [ref=e13123]:
+          - generic [ref=e13124]: Opposing object
+          - generic [ref=e13125]: high
+        - generic [ref=e13126]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13128] [cursor=pointer]
+      - generic [ref=e13129]:
+        - generic [ref=e13130]:
+          - generic [ref=e13131]: Opposing object
+          - generic [ref=e13132]: high
+        - generic [ref=e13133]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e13135] [cursor=pointer]
+      - generic [ref=e13136]:
+        - generic [ref=e13137]:
+          - generic [ref=e13138]: Opposing object
+          - generic [ref=e13139]: high
+        - generic [ref=e13140]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs 60c759ed-98f5-40a8-bb7d-624b19e91246"
+        - button "Resolve…" [ref=e13142] [cursor=pointer]
+      - generic [ref=e13143]:
+        - generic [ref=e13144]:
+          - generic [ref=e13145]: Opposing object
+          - generic [ref=e13146]: high
+        - generic [ref=e13147]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee vs 0691d87c-da16-4fbb-af7a-8d84cf1ccc78"
+        - button "Resolve…" [ref=e13149] [cursor=pointer]
+      - generic [ref=e13150]:
+        - generic [ref=e13151]:
+          - generic [ref=e13152]: Opposing object
+          - generic [ref=e13153]: high
+        - generic [ref=e13154]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: ca23a2df-b2a2-49a6-8968-14fd3933bf57 vs 711b97b8-6042-4431-9c23-568884bc76df"
+        - button "Resolve…" [ref=e13156] [cursor=pointer]
+      - generic [ref=e13157]:
+        - generic [ref=e13158]:
+          - generic [ref=e13159]: Opposing object
+          - generic [ref=e13160]: high
+        - generic [ref=e13161]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: ca23a2df-b2a2-49a6-8968-14fd3933bf57 vs Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers"
+        - button "Resolve…" [ref=e13163] [cursor=pointer]
+      - generic [ref=e13164]:
+        - generic [ref=e13165]:
+          - generic [ref=e13166]: Opposing object
+          - generic [ref=e13167]: high
+        - generic [ref=e13168]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: ca23a2df-b2a2-49a6-8968-14fd3933bf57 vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13170] [cursor=pointer]
+      - generic [ref=e13171]:
+        - generic [ref=e13172]:
+          - generic [ref=e13173]: Opposing object
+          - generic [ref=e13174]: high
+        - generic [ref=e13175]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: ca23a2df-b2a2-49a6-8968-14fd3933bf57 vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e13177] [cursor=pointer]
+      - generic [ref=e13178]:
+        - generic [ref=e13179]:
+          - generic [ref=e13180]: Opposing object
+          - generic [ref=e13181]: high
+        - generic [ref=e13182]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: ca23a2df-b2a2-49a6-8968-14fd3933bf57 vs 60c759ed-98f5-40a8-bb7d-624b19e91246"
+        - button "Resolve…" [ref=e13184] [cursor=pointer]
+      - generic [ref=e13185]:
+        - generic [ref=e13186]:
+          - generic [ref=e13187]: Opposing object
+          - generic [ref=e13188]: high
+        - generic [ref=e13189]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: ca23a2df-b2a2-49a6-8968-14fd3933bf57 vs 0691d87c-da16-4fbb-af7a-8d84cf1ccc78"
+        - button "Resolve…" [ref=e13191] [cursor=pointer]
+      - generic [ref=e13192]:
+        - generic [ref=e13193]:
+          - generic [ref=e13194]: Opposing object
+          - generic [ref=e13195]: high
+        - generic [ref=e13196]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2 vs 711b97b8-6042-4431-9c23-568884bc76df"
+        - button "Resolve…" [ref=e13198] [cursor=pointer]
+      - generic [ref=e13199]:
+        - generic [ref=e13200]:
+          - generic [ref=e13201]: Opposing object
+          - generic [ref=e13202]: high
+        - generic [ref=e13203]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2 vs 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee"
+        - button "Resolve…" [ref=e13205] [cursor=pointer]
+      - generic [ref=e13206]:
+        - generic [ref=e13207]:
+          - generic [ref=e13208]: Opposing object
+          - generic [ref=e13209]: high
+        - generic [ref=e13210]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2 vs Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers"
+        - button "Resolve…" [ref=e13212] [cursor=pointer]
+      - generic [ref=e13213]:
+        - generic [ref=e13214]:
+          - generic [ref=e13215]: Opposing object
+          - generic [ref=e13216]: high
+        - generic [ref=e13217]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2 vs ca23a2df-b2a2-49a6-8968-14fd3933bf57"
+        - button "Resolve…" [ref=e13219] [cursor=pointer]
+      - generic [ref=e13220]:
+        - generic [ref=e13221]:
+          - generic [ref=e13222]: Opposing object
+          - generic [ref=e13223]: high
+        - generic [ref=e13224]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2 vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13226] [cursor=pointer]
+      - generic [ref=e13227]:
+        - generic [ref=e13228]:
+          - generic [ref=e13229]: Opposing object
+          - generic [ref=e13230]: high
+        - generic [ref=e13231]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2 vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e13233] [cursor=pointer]
+      - generic [ref=e13234]:
+        - generic [ref=e13235]:
+          - generic [ref=e13236]: Opposing object
+          - generic [ref=e13237]: high
+        - generic [ref=e13238]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2 vs 60c759ed-98f5-40a8-bb7d-624b19e91246"
+        - button "Resolve…" [ref=e13240] [cursor=pointer]
+      - generic [ref=e13241]:
+        - generic [ref=e13242]:
+          - generic [ref=e13243]: Opposing object
+          - generic [ref=e13244]: high
+        - generic [ref=e13245]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2 vs 0691d87c-da16-4fbb-af7a-8d84cf1ccc78"
+        - button "Resolve…" [ref=e13247] [cursor=pointer]
+      - generic [ref=e13248]:
+        - generic [ref=e13249]:
+          - generic [ref=e13250]: Opposing object
+          - generic [ref=e13251]: high
+        - generic [ref=e13252]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 60c759ed-98f5-40a8-bb7d-624b19e91246 vs 711b97b8-6042-4431-9c23-568884bc76df"
+        - button "Resolve…" [ref=e13254] [cursor=pointer]
+      - generic [ref=e13255]:
+        - generic [ref=e13256]:
+          - generic [ref=e13257]: Opposing object
+          - generic [ref=e13258]: high
+        - generic [ref=e13259]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 60c759ed-98f5-40a8-bb7d-624b19e91246 vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13261] [cursor=pointer]
+      - generic [ref=e13262]:
+        - generic [ref=e13263]:
+          - generic [ref=e13264]: Opposing object
+          - generic [ref=e13265]: high
+        - generic [ref=e13266]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 6ec2d0e0-db0a-425f-96b3-fe3588104b45 vs b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2"
+        - button "Resolve…" [ref=e13268] [cursor=pointer]
+      - generic [ref=e13269]:
+        - generic [ref=e13270]:
+          - generic [ref=e13271]: Opposing object
+          - generic [ref=e13272]: high
+        - generic [ref=e13273]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 6ec2d0e0-db0a-425f-96b3-fe3588104b45 vs 711b97b8-6042-4431-9c23-568884bc76df"
+        - button "Resolve…" [ref=e13275] [cursor=pointer]
+      - generic [ref=e13276]:
+        - generic [ref=e13277]:
+          - generic [ref=e13278]: Opposing object
+          - generic [ref=e13279]: high
+        - generic [ref=e13280]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 6ec2d0e0-db0a-425f-96b3-fe3588104b45 vs 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee"
+        - button "Resolve…" [ref=e13282] [cursor=pointer]
+      - generic [ref=e13283]:
+        - generic [ref=e13284]:
+          - generic [ref=e13285]: Opposing object
+          - generic [ref=e13286]: high
+        - generic [ref=e13287]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 6ec2d0e0-db0a-425f-96b3-fe3588104b45 vs Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers"
+        - button "Resolve…" [ref=e13289] [cursor=pointer]
+      - generic [ref=e13290]:
+        - generic [ref=e13291]:
+          - generic [ref=e13292]: Opposing object
+          - generic [ref=e13293]: high
+        - generic [ref=e13294]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 6ec2d0e0-db0a-425f-96b3-fe3588104b45 vs ca23a2df-b2a2-49a6-8968-14fd3933bf57"
+        - button "Resolve…" [ref=e13296] [cursor=pointer]
+      - generic [ref=e13297]:
+        - generic [ref=e13298]:
+          - generic [ref=e13299]: Opposing object
+          - generic [ref=e13300]: high
+        - generic [ref=e13301]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 6ec2d0e0-db0a-425f-96b3-fe3588104b45 vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13303] [cursor=pointer]
+      - generic [ref=e13304]:
+        - generic [ref=e13305]:
+          - generic [ref=e13306]: Opposing object
+          - generic [ref=e13307]: high
+        - generic [ref=e13308]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 6ec2d0e0-db0a-425f-96b3-fe3588104b45 vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e13310] [cursor=pointer]
+      - generic [ref=e13311]:
+        - generic [ref=e13312]:
+          - generic [ref=e13313]: Opposing object
+          - generic [ref=e13314]: high
+        - generic [ref=e13315]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 6ec2d0e0-db0a-425f-96b3-fe3588104b45 vs 7ef19b63-0bea-474c-a459-ec646df302e7"
+        - button "Resolve…" [ref=e13317] [cursor=pointer]
+      - generic [ref=e13318]:
+        - generic [ref=e13319]:
+          - generic [ref=e13320]: Opposing object
+          - generic [ref=e13321]: high
+        - generic [ref=e13322]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 6ec2d0e0-db0a-425f-96b3-fe3588104b45 vs 60c759ed-98f5-40a8-bb7d-624b19e91246"
+        - button "Resolve…" [ref=e13324] [cursor=pointer]
+      - generic [ref=e13325]:
+        - generic [ref=e13326]:
+          - generic [ref=e13327]: Opposing object
+          - generic [ref=e13328]: high
+        - generic [ref=e13329]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 6ec2d0e0-db0a-425f-96b3-fe3588104b45 vs 0691d87c-da16-4fbb-af7a-8d84cf1ccc78"
+        - button "Resolve…" [ref=e13331] [cursor=pointer]
+      - generic [ref=e13332]:
+        - generic [ref=e13333]:
+          - generic [ref=e13334]: Opposing object
+          - generic [ref=e13335]: high
+        - generic [ref=e13336]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 0691d87c-da16-4fbb-af7a-8d84cf1ccc78 vs 711b97b8-6042-4431-9c23-568884bc76df"
+        - button "Resolve…" [ref=e13338] [cursor=pointer]
+      - generic [ref=e13339]:
+        - generic [ref=e13340]:
+          - generic [ref=e13341]: Opposing object
+          - generic [ref=e13342]: high
+        - generic [ref=e13343]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 0691d87c-da16-4fbb-af7a-8d84cf1ccc78 vs Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers"
+        - button "Resolve…" [ref=e13345] [cursor=pointer]
+      - generic [ref=e13346]:
+        - generic [ref=e13347]:
+          - generic [ref=e13348]: Opposing object
+          - generic [ref=e13349]: high
+        - generic [ref=e13350]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 0691d87c-da16-4fbb-af7a-8d84cf1ccc78 vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13352] [cursor=pointer]
+      - generic [ref=e13353]:
+        - generic [ref=e13354]:
+          - generic [ref=e13355]: Opposing object
+          - generic [ref=e13356]: high
+        - generic [ref=e13357]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 0691d87c-da16-4fbb-af7a-8d84cf1ccc78 vs 60c759ed-98f5-40a8-bb7d-624b19e91246"
+        - button "Resolve…" [ref=e13359] [cursor=pointer]
+      - generic [ref=e13360]:
+        - generic [ref=e13361]:
+          - generic [ref=e13362]: Opposing object
+          - generic [ref=e13363]: high
+        - generic [ref=e13364]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2"
+        - button "Resolve…" [ref=e13366] [cursor=pointer]
+      - generic [ref=e13367]:
+        - generic [ref=e13368]:
+          - generic [ref=e13369]: Opposing object
+          - generic [ref=e13370]: high
+        - generic [ref=e13371]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs 711b97b8-6042-4431-9c23-568884bc76df"
+        - button "Resolve…" [ref=e13373] [cursor=pointer]
+      - generic [ref=e13374]:
+        - generic [ref=e13375]:
+          - generic [ref=e13376]: Opposing object
+          - generic [ref=e13377]: high
+        - generic [ref=e13378]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee"
+        - button "Resolve…" [ref=e13380] [cursor=pointer]
+      - generic [ref=e13381]:
+        - generic [ref=e13382]:
+          - generic [ref=e13383]: Opposing object
+          - generic [ref=e13384]: high
+        - generic [ref=e13385]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers"
+        - button "Resolve…" [ref=e13387] [cursor=pointer]
+      - generic [ref=e13388]:
+        - generic [ref=e13389]:
+          - generic [ref=e13390]: Opposing object
+          - generic [ref=e13391]: high
+        - generic [ref=e13392]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs ca23a2df-b2a2-49a6-8968-14fd3933bf57"
+        - button "Resolve…" [ref=e13394] [cursor=pointer]
+      - generic [ref=e13395]:
+        - generic [ref=e13396]:
+          - generic [ref=e13397]: Opposing object
+          - generic [ref=e13398]: high
+        - generic [ref=e13399]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13401] [cursor=pointer]
+      - generic [ref=e13402]:
+        - generic [ref=e13403]:
+          - generic [ref=e13404]: Opposing object
+          - generic [ref=e13405]: high
+        - generic [ref=e13406]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs 6ec2d0e0-db0a-425f-96b3-fe3588104b45"
+        - button "Resolve…" [ref=e13408] [cursor=pointer]
+      - generic [ref=e13409]:
+        - generic [ref=e13410]:
+          - generic [ref=e13411]: Opposing object
+          - generic [ref=e13412]: high
+        - generic [ref=e13413]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e13415] [cursor=pointer]
+      - generic [ref=e13416]:
+        - generic [ref=e13417]:
+          - generic [ref=e13418]: Opposing object
+          - generic [ref=e13419]: high
+        - generic [ref=e13420]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs 7ef19b63-0bea-474c-a459-ec646df302e7"
+        - button "Resolve…" [ref=e13422] [cursor=pointer]
+      - generic [ref=e13423]:
+        - generic [ref=e13424]:
+          - generic [ref=e13425]: Opposing object
+          - generic [ref=e13426]: high
+        - generic [ref=e13427]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs 60c759ed-98f5-40a8-bb7d-624b19e91246"
+        - button "Resolve…" [ref=e13429] [cursor=pointer]
+      - generic [ref=e13430]:
+        - generic [ref=e13431]:
+          - generic [ref=e13432]: Opposing object
+          - generic [ref=e13433]: high
+        - generic [ref=e13434]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 8f60c0fb-5354-4e51-aaa3-e99fb20bac3b vs 0691d87c-da16-4fbb-af7a-8d84cf1ccc78"
+        - button "Resolve…" [ref=e13436] [cursor=pointer]
+      - generic [ref=e13437]:
+        - generic [ref=e13438]:
+          - generic [ref=e13439]: Opposing object
+          - generic [ref=e13440]: high
+        - generic [ref=e13441]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers vs 711b97b8-6042-4431-9c23-568884bc76df"
+        - button "Resolve…" [ref=e13443] [cursor=pointer]
+      - generic [ref=e13444]:
+        - generic [ref=e13445]:
+          - generic [ref=e13446]: Opposing object
+          - generic [ref=e13447]: high
+        - generic [ref=e13448]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13450] [cursor=pointer]
+      - generic [ref=e13451]:
+        - generic [ref=e13452]:
+          - generic [ref=e13453]: Opposing object
+          - generic [ref=e13454]: high
+        - generic [ref=e13455]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers vs 60c759ed-98f5-40a8-bb7d-624b19e91246"
+        - button "Resolve…" [ref=e13457] [cursor=pointer]
+      - generic [ref=e13458]:
+        - generic [ref=e13459]:
+          - generic [ref=e13460]: Opposing object
+          - generic [ref=e13461]: high
+        - generic [ref=e13462]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 711b97b8-6042-4431-9c23-568884bc76df vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13464] [cursor=pointer]
+      - generic [ref=e13465]:
+        - generic [ref=e13466]:
+          - generic [ref=e13467]: Opposing object
+          - generic [ref=e13468]: high
+        - generic [ref=e13469]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: aa92d561-d305-43f5-a3fb-1b3b23c57a0d vs 711b97b8-6042-4431-9c23-568884bc76df"
+        - button "Resolve…" [ref=e13471] [cursor=pointer]
+      - generic [ref=e13472]:
+        - generic [ref=e13473]:
+          - generic [ref=e13474]: Opposing object
+          - generic [ref=e13475]: high
+        - generic [ref=e13476]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: aa92d561-d305-43f5-a3fb-1b3b23c57a0d vs Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers"
+        - button "Resolve…" [ref=e13478] [cursor=pointer]
+      - generic [ref=e13479]:
+        - generic [ref=e13480]:
+          - generic [ref=e13481]: Opposing object
+          - generic [ref=e13482]: high
+        - generic [ref=e13483]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: aa92d561-d305-43f5-a3fb-1b3b23c57a0d vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13485] [cursor=pointer]
+      - generic [ref=e13486]:
+        - generic [ref=e13487]:
+          - generic [ref=e13488]: Opposing object
+          - generic [ref=e13489]: high
+        - generic [ref=e13490]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: aa92d561-d305-43f5-a3fb-1b3b23c57a0d vs 60c759ed-98f5-40a8-bb7d-624b19e91246"
+        - button "Resolve…" [ref=e13492] [cursor=pointer]
+      - generic [ref=e13493]:
+        - generic [ref=e13494]:
+          - generic [ref=e13495]: Opposing object
+          - generic [ref=e13496]: high
+        - generic [ref=e13497]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: aa92d561-d305-43f5-a3fb-1b3b23c57a0d vs 0691d87c-da16-4fbb-af7a-8d84cf1ccc78"
+        - button "Resolve…" [ref=e13499] [cursor=pointer]
+      - generic [ref=e13500]:
+        - generic [ref=e13501]:
+          - generic [ref=e13502]: Opposing object
+          - generic [ref=e13503]: high
+        - generic [ref=e13504]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs b2c0d39a-d8f9-4c19-b2d1-529aeb15f4f2"
+        - button "Resolve…" [ref=e13506] [cursor=pointer]
+      - generic [ref=e13507]:
+        - generic [ref=e13508]:
+          - generic [ref=e13509]: Opposing object
+          - generic [ref=e13510]: high
+        - generic [ref=e13511]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs 711b97b8-6042-4431-9c23-568884bc76df"
+        - button "Resolve…" [ref=e13513] [cursor=pointer]
+      - generic [ref=e13514]:
+        - generic [ref=e13515]:
+          - generic [ref=e13516]: Opposing object
+          - generic [ref=e13517]: high
+        - generic [ref=e13518]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs 9b3e0f76-c090-4bef-b4dd-7a79a03f9aee"
+        - button "Resolve…" [ref=e13520] [cursor=pointer]
+      - generic [ref=e13521]:
+        - generic [ref=e13522]:
+          - generic [ref=e13523]: Opposing object
+          - generic [ref=e13524]: high
+        - generic [ref=e13525]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs Understanding the conceptual orthogonality of Graph S (temporal state) and Graph C (causal reasoning) — learner can recite the components but cannot articulate WHY they are separate layers"
+        - button "Resolve…" [ref=e13527] [cursor=pointer]
+      - generic [ref=e13528]:
+        - generic [ref=e13529]:
+          - generic [ref=e13530]: Opposing object
+          - generic [ref=e13531]: high
+        - generic [ref=e13532]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs ca23a2df-b2a2-49a6-8968-14fd3933bf57"
+        - button "Resolve…" [ref=e13534] [cursor=pointer]
+      - generic [ref=e13535]:
+        - generic [ref=e13536]:
+          - generic [ref=e13537]: Opposing object
+          - generic [ref=e13538]: high
+        - generic [ref=e13539]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs 8206576f-51f7-4221-8976-230d0147d89f"
+        - button "Resolve…" [ref=e13541] [cursor=pointer]
+      - generic [ref=e13542]:
+        - generic [ref=e13543]:
+          - generic [ref=e13544]: Opposing object
+          - generic [ref=e13545]: high
+        - generic [ref=e13546]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs aa92d561-d305-43f5-a3fb-1b3b23c57a0d"
+        - button "Resolve…" [ref=e13548] [cursor=pointer]
+      - generic [ref=e13549]:
+        - generic [ref=e13550]:
+          - generic [ref=e13551]: Opposing object
+          - generic [ref=e13552]: high
+        - generic [ref=e13553]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs 60c759ed-98f5-40a8-bb7d-624b19e91246"
+        - button "Resolve…" [ref=e13555] [cursor=pointer]
+      - generic [ref=e13556]:
+        - generic [ref=e13557]:
+          - generic [ref=e13558]: Opposing object
+          - generic [ref=e13559]: high
+        - generic [ref=e13560]: "Same subject 1c1f8529-1dab-491a-86f0-e63de855f969 and predicate struggles_with with different objects: 7ef19b63-0bea-474c-a459-ec646df302e7 vs 0691d87c-da16-4fbb-af7a-8d84cf1ccc78"
+        - button "Resolve…" [ref=e13562] [cursor=pointer]
+  - generic [ref=e43]:
+    - img [ref=e44]:
+      - generic [ref=e6513]:
+        - generic [ref=e6514]:
+          - generic: ≡ 0.95
+          - generic: ≡ 0.95
+        - generic [ref=e6856]:
+          - generic: member_of
+          - generic: has_extension
+          - generic: runs_on_port
+          - generic: runs_on_port
+          - generic: has_model
+          - generic: used_for
+          - generic: used_for
+          - generic: used_for
+          - generic: column_of
+          - generic: current_state
+          - generic: tool_defined_in
+          - generic: tool_handler_in
+          - generic: missing_parameter
+          - generic: accepts_parameter
+          - generic: returns_data
+          - generic: missing_parameter_support
+          - generic: needs_instruction_update
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: provides
+          - generic: implements
+          - generic: implements
+          - generic: exemplifies_narrative_perspective_of
+          - generic: member_of
+          - generic: member_of
+          - generic: addresses_issue
+          - generic: wraps_implementation_of
+          - generic: depends_on
+          - generic: depends_on
+          - generic: includes
+          - generic: depends_on
+          - generic: should_merge_with
+          - generic: uses_for_regression_testing
+          - generic: includes_branch
+          - generic: considered_for
+          - generic: should_merge_with
+          - generic: has_criterion
+          - generic: exemplifies_narrative_perspective_of
+          - generic: uses
+          - generic: tracks_mutations_of
+          - generic: uses
+          - generic: uses
+          - generic: uses
+          - generic: uses
+          - generic: provides
+          - generic: ceo_of
+          - generic: uses
+          - generic: tests
+          - generic: has_operating_mode
+          - generic: has_operating_mode
+          - generic: produces
+          - generic: can_perform
+          - generic: stores
+          - generic: uses
+          - generic: uses
+          - generic: uses
+          - generic: uses
+          - generic: created_by
+          - generic: created_by
+          - generic: created_from
+          - generic: member_of
+          - generic: member_of
+          - generic: leverages_capability
+          - generic: stored_in
+          - generic: has_property
+          - generic: member_of
+          - generic: member_of
+          - generic: defines
+          - generic: has_status
+          - generic: member_of
+          - generic: status
+          - generic: closed_beads
+          - generic: status
+          - generic: modification
+          - generic: caused_by
+          - generic: is_not_code_bug
+          - generic: timeout_duration
+          - generic: experiences
+          - generic: affects
+          - generic: test_results
+          - generic: committed_at
+          - generic: caused_by
+          - generic: includes_branch
+          - generic: uses
+          - generic: relates_to
+          - generic: uses
+          - generic: member_of
+          - generic: operational_status
+          - generic: member_of
+          - generic: member_of
+          - generic: implements
+          - generic: has_property
+          - generic: uses
+          - generic: imports
+          - generic: has_property
+          - generic: has_property
+          - generic: used_by
+          - generic: has_property
+          - generic: has_property
+          - generic: has_property
+          - generic: operational_status
+          - generic: has_property
+          - generic: has_property
+          - generic: runs_service
+          - generic: runs_service
+          - generic: operational_status
+          - generic: runs_on_port
+          - generic: loads_model
+          - generic: has_property
+          - generic: depends_on
+          - generic: has_property
+          - generic: depends_on
+          - generic: exposes
+          - generic: created_by
+          - generic: provides
+          - generic: controls
+          - generic: uses
+          - generic: has_value
+          - generic: implements
+          - generic: used_for
+          - generic: used_for
+          - generic: writes_to
+          - generic: member_of
+          - generic: approach
+          - generic: performs
+          - generic: uses_algorithm
+          - generic: leverages_capability
+          - generic: has_property
+          - generic: defines
+          - generic: documented_in
+          - generic: specified_by
+          - generic: populated_by
+          - generic: has_property
+          - generic: tracks_metric
+          - generic: tracks_metric
+          - generic: has_property
+          - generic: member_of
+          - generic: references
+          - generic: has_attribute
+          - generic: enables_downstream
+          - generic: depends_on
+          - generic: references
+          - generic: member_of
+          - generic: member_of
+          - generic: implements
+          - generic: tracks
+          - generic: has_attribute
+          - generic: implements
+          - generic: imports
+          - generic: uses
+          - generic: member_of
+          - generic: uses
+          - generic: provides
+          - generic: implements
+          - generic: status
+          - generic: tests
+          - generic: has_capability
+          - generic: has_capability
+          - generic: has_capability
+          - generic: has_capability
+          - generic: has_capability
+          - generic: throws_error
+          - generic: implements
+          - generic: implements
+          - generic: has_property
+          - generic: has_property
+          - generic: has_property
+          - generic: member_of
+          - generic: member_of
+          - generic: provides_service_to
+          - generic: member_of
+          - generic: modifies
+          - generic: uses
+          - generic: member_of
+          - generic: constrains
+          - generic: member_of
+          - generic: has_collection
+          - generic: defined_in
+          - generic: uses_distance_metric
+          - generic: needs_health_monitoring
+          - generic: supports_operation
+          - generic: has_allowed_status_values
+          - generic: supports_operation
+          - generic: supports_operation
+          - generic: adds_constraint_value
+          - generic: supports_operation
+          - generic: used_by
+          - generic: affects_search_path_for
+          - generic: used_by
+          - generic: implements_behavior
+          - generic: implements
+          - generic: defines
+          - generic: stored_in
+          - generic: member_of
+          - generic: has_attribute
+          - generic: leverages_capability
+          - generic: has_attribute
+          - generic: has_attribute
+          - generic: describes
+          - generic: describes
+          - generic: needs_health_monitoring
+          - generic: orchestrates
+          - generic: orchestrates
+          - generic: describes_use_cases_for
+          - generic: grounds_analysis_in
+          - generic: includes_section_on
+          - generic: includes_section_on
+          - generic: includes_section_on
+          - generic: leverages_capability
+          - generic: member_of
+          - generic: member_of
+          - generic: improves
+          - generic: member_of
+          - generic: member_of
+          - generic: depends_on
+          - generic: member_of
+          - generic: member_of
+          - generic: monitors
+          - generic: monitors
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: described_in
+          - generic: described_in
+          - generic: is_primitive_for
+          - generic: used_by
+          - generic: implements
+          - generic: monitors
+          - generic: needs_health_monitoring
+          - generic: triggers
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: provides_api_for
+          - generic: member_of
+          - generic: has_column
+          - generic: distinguishes
+          - generic: distinguishes
+          - generic: has_default_value
+          - generic: implements
+          - generic: member_of
+          - generic: has_data_type
+          - generic: has_constraint
+          - generic: has_table
+          - generic: generates
+          - generic: generates
+          - generic: generates
+          - generic: generates
+          - generic: requires_migration
+          - generic: has_status
+          - generic: has_status
+          - generic: has_status
+          - generic: has_status
+          - generic: has_temporal_dimension
+          - generic: stores
+          - generic: provides_audit_trail_for
+          - generic: leverages_capability
+          - generic: health_status
+          - generic: needs_health_monitoring
+          - generic: is_primitive_for
+          - generic: is_primitive_for
+          - generic: provides_service_for
+          - generic: used_by
+          - generic: composes
+          - generic: bridges_gap_for
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: member_of
+          - generic: current_status
+          - generic: improves
+          - generic: improves
+          - generic: improves
+          - generic: solves
+          - generic: enables_verification_of
+          - generic: validates
+          - generic: implements
+          - generic: enables
+          - generic: demonstrates_concept
+          - generic: member_of
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: includes
+          - generic: accepts_topic_mode
+          - generic: stores_relationship_with
+          - generic: includes_section_on
+          - generic: includes_section_on
+          - generic: leverages_capability
+          - generic: leverages_capability
+          - generic: contains
+          - generic: leverages_capability
+          - generic: enables_mechanism_for
+          - generic: caused_issue
+          - generic: has_status
+          - generic: has_fix
+          - generic: captures_state_for
+          - generic: employs
+          - generic: addresses
+          - generic: parent_branch_of
+          - generic: leverages_capability
+          - generic: has_quality
+          - generic: leverages_capability
+          - generic: part_of_system
+          - generic: member_of
+          - generic: member_of
+          - generic: component_in
+          - generic: component_in
+          - generic: component_in
+          - generic: uses_framework
+          - generic: has_status
+          - generic: has_feature
+          - generic: has_feature
+          - generic: has_status
+          - generic: determines
+          - generic: has_component
+          - generic: depends_on
+          - generic: implements
+          - generic: encompasses
+          - generic: denormalizes
+          - generic: regulates
+          - generic: enables
+          - generic: has_quality
+          - generic: leverages_capability
+          - generic: leverages_capability
+          - generic: supports_detection_of
+          - generic: aggregates_metrics_for
+          - generic: separates_concerns_between
+          - generic: has_capability
+          - generic: has_capability
+          - generic: has_capability
+        - generic [ref=e8336]:
+          - generic [ref=e13565]: PostgreSQL
+          - generic [ref=e13568]: Qdrant
+          - generic [ref=e13571]: Apache AGE
+          - generic [ref=e13574]: blast radius
+          - generic [ref=e13577]: Frankenstein
+          - generic [ref=e13580]: Anthropic
+          - generic [ref=e13583]: Phase B
+          - generic [ref=e13586]: causal-mcp.test.ts
+          - generic [ref=e13589]: Causal Patterns
+          - generic [ref=e13592]: D3
+          - generic [ref=e13595]: memory_entities
+          - generic [ref=e13598]: mention_context
+          - generic [ref=e13601]: source_references JSONB
+          - generic [ref=e13604]: link_entity_to_memory
+          - generic [ref=e13607]: Hono
+          - generic [ref=e13610]: get_entity_sources
+          - generic [ref=e13613]: linkMemoryToEntity
+          - generic [ref=e13616]: ml-services/app/graph_agent.py
+          - generic [ref=e13619]: linkEntitiesToMemory
+          - generic [ref=e13622]: Entity Similarity Search
+          - generic [ref=e13625]: Claude Code
+          - generic [ref=e13628]: valid_at and invalid_at
+          - generic [ref=e13631]: Sparse Truth Graph
+          - generic [ref=e13634]: Mnemo
+          - generic [ref=e13637]: facts.ts
+          - generic [ref=e13640]: src/services/causal-agent.ts
+          - generic [ref=e13643]: Dashboard.js
+          - generic [ref=e13646]: TopGapCard
+          - generic [ref=e13649]: expireFact
+          - generic [ref=e13652]: expire_fact
+          - generic [ref=e13655]: feat/sparse-truth-graph
+          - generic [ref=e13658]: Ollama
+          - generic [ref=e13661]: feat/gardener-merge-quality
+          - generic [ref=e13664]: Victor Frankenstein
+          - generic [ref=e13667]: Walton
+          - generic [ref=e13670]: same_as link
+          - generic [ref=e13673]: SQLite
+          - generic [ref=e13676]: feat/cognitive-platform-v1
+          - generic [ref=e13679]: Anthropic SDK
+          - generic [ref=e13682]: feat/reasoning-agent
+          - generic [ref=e13685]: causal-integration.test.ts
+          - generic [ref=e13688]: causal-pipeline.test.ts
+          - generic [ref=e13691]: frankenstein.test.ts
+          - generic [ref=e13694]: Frankenstein regression timeout
+          - generic [ref=e13697]: ML service saturation
+          - generic [ref=e13700]: pg-boss
+          - generic [ref=e13703]: "Graph Quality Problems: What We Are Hardening Against"
+          - generic [ref=e13706]: Fact Triple
+          - generic [ref=e13709]: FastAPI
+          - generic [ref=e13712]: Docker
+          - generic [ref=e13715]: Confidence Score
+          - generic [ref=e13718]: nomic-embed-text
+          - generic [ref=e13721]: viz/index.html
+          - generic [ref=e13724]: B07
+          - generic [ref=e13727]: Source Memory (Qdrant)
+          - generic [ref=e13730]: Append-only Audit Trail
+          - generic [ref=e13733]: FACT_COUNT_THRESHOLD
+          - generic [ref=e13736]: search_path and ag_catalog
+          - generic [ref=e13739]: Entity Reclassification Service
+          - generic [ref=e13742]: entity_type_history
+          - generic [ref=e13745]: Exclusive Predicate
+          - generic [ref=e13748]: Fact Deduplication
+          - generic [ref=e13751]: ml-client
+          - generic [ref=e13754]: entity_clusters table
+          - generic [ref=e13757]: MlClientError
+          - generic [ref=e13760]: causal_patterns
+          - generic [ref=e13763]: valid_pattern_status
+          - generic [ref=e13766]: CTA component
+          - generic [ref=e13769]: promotePatterns()
+          - generic [ref=e13772]: Relationship Matching
+          - generic [ref=e13775]: services/causal-patterns.ts
+          - generic [ref=e13778]: three_signal_scoring
+          - generic [ref=e13781]: 001_consolidated.sql
+          - generic [ref=e13784]: 012_pattern_rejected.sql
+          - generic [ref=e13787]: merge_candidates
+          - generic [ref=e13790]: 014_entity_topology.sql
+          - generic [ref=e13793]: Canonical Entity Name
+          - generic [ref=e13796]: topology_primitives
+          - generic [ref=e13799]: entity_topology
+          - generic [ref=e13802]: 024.1-hdbscan-clustering.md
+          - generic [ref=e13805]: cross_cluster_generator
+          - generic [ref=e13808]: 21-cluster-bridging-master.md
+          - generic [ref=e13811]: Serial FIFO Queue
+          - generic [ref=e13814]: Conditional Causal Trigger
+          - generic [ref=e13817]: clustering_compute_runs table
+          - generic [ref=e13820]: causal agent
+          - generic [ref=e13823]: extract() phase
+          - generic [ref=e13826]: candidate_source
+          - generic [ref=e13829]: Unified Graph Agent
+          - generic [ref=e13832]: causal trigger
+          - generic [ref=e13835]: 017_candidate_source.sql
+          - generic [ref=e13838]: mnemo-causal
+          - generic [ref=e13841]: Parallel processing race conditions in graph ingestion
+          - generic [ref=e13844]: learn
+          - generic [ref=e13847]: Entity Resolution
+          - generic [ref=e13850]: Telegram
+          - generic [ref=e13853]: Supersession Logic
+          - generic [ref=e13856]: graph-mcp
+          - generic [ref=e13859]: StdioServerTransport
+          - generic [ref=e13862]: Frankenstein Regression Test
+          - generic [ref=e13865]: extraction agent
+          - generic [ref=e13868]: Model Context Protocol
+          - generic [ref=e13871]: host
+          - generic [ref=e13874]: Reasoning Layer Hardening
+          - generic [ref=e13877]: facts
+          - generic [ref=e13880]: Cypher Traversal (AGE)
+          - generic [ref=e13883]: Point-in-time State Reconstruction
+          - generic [ref=e13886]: entity_drift_state table
+          - generic [ref=e13889]: ingest() pipeline function
+          - generic [ref=e13892]: ML Service (Python FastAPI)
+          - generic [ref=e13895]: Dual-Graph Architecture
+          - generic [ref=e13898]: fact_history
+          - generic [ref=e13901]: 013_graph_stats.sql
+          - generic [ref=e13904]: 06-graph-meta-layer.md
+          - generic [ref=e13907]: store() phase
+          - generic [ref=e13910]: 22-graph-stats-foundation.md
+          - generic [ref=e13913]: Temporal Ordering of Facts
+          - generic [ref=e13916]: Hono
+          - generic [ref=e13919]: 009_audit_trail.sql
+          - generic [ref=e13922]: ADWIN
+          - generic [ref=e13925]: Graph C (Causal Layer)
+          - generic [ref=e13928]: river
+          - generic [ref=e13931]: Phase Gate (S before C)
+          - generic [ref=e13934]: 3-Stage Entity Resolution
+          - generic [ref=e13937]: courses
+          - generic [ref=e13940]: graph_stats
+          - generic [ref=e13943]: HDBSCAN
+          - generic [ref=e13946]: graph-s
+          - generic [ref=e13949]: graph-c
+          - generic [ref=e13952]: reconciliation_agent
+          - generic [ref=e13955]: reasoning-layer
+          - generic [ref=e13958]: pattern lifecycle
+          - generic [ref=e13961]: quality-self-hardening
+          - generic [ref=e13964]: sync_entity_to_graph trigger
+          - generic [ref=e13967]: seed-demo.ts
+          - generic [ref=e13970]: Causal Edges
+          - generic [ref=e13973]: Reasoning Agent — Query Mode
+          - generic [ref=e13976]: MCP config
+          - generic [ref=e13979]: design doc 15 blast-radius
+          - generic [ref=e13982]: Unified graph agent MCP interface
+          - generic [ref=e13985]: design doc 16 contradictions
+          - generic [ref=e13988]: reasoning agent patrol loop
+          - generic [ref=e13991]: design doc 17 patterns
+          - generic [ref=e13994]: Edge confidence scoring
+          - generic [ref=e13997]: reasoning_reports
+          - generic [ref=e14000]: Causal reasoning separation principle
+          - generic [ref=e14003]: Reasoning Layer
+          - generic [ref=e14006]: causal_events table
+          - generic [ref=e14009]: Causal language detection
+          - generic [ref=e14012]: Quality & Self-Hardening
+          - generic [ref=e14015]: edge_source_refs reverse-lookup index
+          - generic [ref=e14018]: Non-negotiable traceability principle
+          - generic [ref=e14021]: Create Course
+          - generic [ref=e14024]: Append-only audit pattern
+          - generic [ref=e14027]: Preact
+          - generic [ref=e14030]: Use-cases course prompt
+          - generic [ref=e14033]: Claude Code -p flag integration
+          - generic [ref=e14036]: Multi-input causality verification
+          - generic [ref=e14039]: Project Management Brain
+          - generic [ref=e14042]: Model-agnostic MCP interface
+          - generic [ref=e14045]: Edge mutation types
+          - generic [ref=e14048]: Living Personal Knowledge Graph
+          - generic [ref=e14051]: Dual-graph architecture (Graph S + Graph C)
+          - generic [ref=e14054]: Insights
+          - generic [ref=e14057]: card shadow
+          - generic [ref=e14060]: Causal edge lifecycle states
+          - generic [ref=e14063]: Dashboard.js
+          - generic [ref=e14066]: Corroboration vs decay
+          - generic [ref=e14069]: Causal mode
+          - generic [ref=e14072]: Diff mode
+          - generic [ref=e14075]: Source excerpt on edge click
+          - generic [ref=e14078]: Query history
+          - generic [ref=e14081]: Service health pill
+          - generic [ref=e14084]: Saved views
+          - generic [ref=e14087]: Onboarding overlay
+          - generic [ref=e14090]: Batch ingest with progress
+          - generic [ref=e14093]: Insight feed
+          - generic [ref=e14096]: presentation-mode.ts
+          - generic [ref=e14099]: Graph S course
+          - generic [ref=e14102]: learn viz
+          - generic [ref=e14105]: index.html
+          - generic [ref=e14108]: TopGap
+          - generic [ref=e14111]: JumpBackIn
+          - generic [ref=e14114]: Engineering Codebase Intelligence
+          - generic [ref=e14117]: find_causal_patterns Tool
+          - generic [ref=e14120]: Research Literature Synthesis
+          - generic [ref=e14123]: Frankenstein regression test corpus
+          - generic [ref=e14126]: Compliance and Audit
+          - generic [ref=e14129]: docker
+          - generic [ref=e14132]: Graph S
+          - generic [ref=e14135]: Memory (source text unit in Qdrant)
+          - generic [ref=e14138]: Graph C (Causal Reasoning Layer)
+          - generic [ref=e14141]: Serial FIFO queue (temporal ordering fix)
+          - generic [ref=e14144]: Reasoning Agent — Patrol Mode
+          - generic [ref=e14147]: Conditional Causal Agent Trigger
+          - generic [ref=e14150]: Understanding of the merge_candidates lifecycle and throughput as a metric
+          - generic [ref=e14153]: Graph C Causal Layer
+          - generic [ref=e14156]: reasoning agent
+          - generic [ref=e14159]: Primitive Composition Strategy
+          - generic [ref=e14162]: Apache AGE graph traversal for candidate matching
+    - generic:
+      - button "×"
+      - generic:
+        - heading "Detail" [level=2]
+        - paragraph: Click a node or edge
+  - generic [ref=e45]:
+    - generic "Toggle drift timeline" [ref=e46] [cursor=pointer]: ▾ drift
+    - generic [ref=e47]: no drift events yet
+    - button "Compute" [ref=e48] [cursor=pointer]
+  - generic [ref=e49]:
+    - generic [ref=e50]: Time
+    - slider [ref=e51] [cursor=pointer]: "100"
+    - generic [ref=e52]: Now
+    - button "Reset" [ref=e53] [cursor=pointer]

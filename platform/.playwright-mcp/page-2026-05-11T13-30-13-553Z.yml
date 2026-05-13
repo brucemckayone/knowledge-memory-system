@@ -1,0 +1,540 @@
+- generic [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+  - generic [ref=e133]:
+    - generic [ref=e134]:
+      - generic [ref=e135] [cursor=pointer]: ← Back to course
+      - generic [ref=e136]:
+        - generic [ref=e137]:
+          - generic [ref=e138]: "Graph C: The Causal Reasoning Layer in Nmemo"
+          - heading "Section 1 — The Dual-Graph Mental Model" [level=1] [ref=e139]
+          - generic [ref=e140]: Establishes the foundational distinction between Graph S and Graph C. Graph S is a temporal state graph answering 'what is true and when'; Graph C is a perpendicular causal graph answering 'why did this become true'. Understanding this split is the prerequisite for everything else in the course.
+        - generic [ref=e141]:
+          - heading "Learning objectives" [level=3] [ref=e142]
+          - list [ref=e143]:
+            - listitem [ref=e144]: Articulate the difference between Graph S (temporal state) and Graph C (causal reasoning) in one sentence each
+            - listitem [ref=e145]: Explain why 'perpendicular' is an accurate metaphor for the relationship between the two graphs
+            - listitem [ref=e146]: Describe the bi-temporal fact model in Graph S and identify what it does NOT capture
+            - listitem [ref=e147]: State why Graph S must be hardened before Graph C can be built (the Phase Gate rule)
+        - generic [ref=e149]:
+          - generic [ref=e150]:
+            - generic [ref=e151]: ~12 min read
+            - generic [ref=e152]:
+              - button "✎ Edited · v1" [ref=e454] [cursor=pointer]
+              - generic [ref=e153] [cursor=pointer]: Regenerate
+          - generic [ref=e156]:
+            - generic [ref=e157]:
+              - paragraph [ref=e158]:
+                - text: "Nmemo's knowledge architecture rests on one foundational split:"
+                - emphasis [ref=e159]: what is true and when
+                - text: is a different kind of knowledge than
+                - emphasis [ref=e160]: why it became true
+                - text: — and each kind demands its own graph. Graph S is a temporal state graph, tracking entities and bi-temporal facts with full historical precision. Graph C is a perpendicular causal graph, recording the reasoning chains that explain why states change.
+              - paragraph [ref=e161]:
+                - text: These two graphs are not layered — one on top of the other — they are
+                - emphasis [ref=e162]: perpendicular
+                - text: ": each occupies a dimension the other cannot express. Until that split is internalized, every downstream design decision in this course will feel arbitrary. This section makes it concrete."
+            - generic [ref=e163]:
+              - paragraph [ref=e164]:
+                - text: "Imagine you've built a knowledge graph with perfect temporal fidelity. Every fact about every entity is timestamped twice — once for when it was true in the real world, once for when your system recorded it. You can ask:"
+                - emphasis [ref=e165]: What did we know about Alice's role on 2023-12-01, using only information recorded before that date?
+                - text: The system answers without hesitation.
+              - paragraph [ref=e166]:
+                - text: "Now ask a different kind of question:"
+                - emphasis [ref=e167]: Why did Alice's role change?
+              - paragraph [ref=e168]:
+                - text: The graph goes silent. Not because the data is missing — the old role, the new role, and both timestamps are all there. The graph is silent because
+                - strong [ref=e169]: temporal precision and causal explanation are different kinds of knowledge
+                - text: ", and a state graph is only built for one of them."
+              - paragraph [ref=e170]: "This gap is not a bug you can patch by adding a column. Consider what answering 'why' actually requires:"
+              - list [ref=e171]:
+                - listitem [ref=e172]: A traceable chain of events that preceded the state change
+                - listitem [ref=e173]: The reasoning that connects those events to the new state
+                - listitem [ref=e174]: References to the sources that justified that reasoning
+                - listitem [ref=e175]: A way to query across multiple such chains to find patterns
+              - paragraph [ref=e176]:
+                - text: None of those things fit naturally into a fact row with valid and transaction timestamps. You could force them in — a
+                - code [ref=e177]: reason
+                - text: varchar here, a
+                - code [ref=e178]: source
+                - text: text field there — but the moment two facts are causally linked, or a single cause produces a cascade of state changes, the relational shoehorn breaks. You end up with either NULLs, denormalized JSON blobs, or a shadow schema bolted to the side of your carefully designed temporal tables.
+              - paragraph [ref=e179]:
+                - text: The right response is to recognize that temporal state and causal reasoning are
+                - emphasis [ref=e180]: orthogonal dimensions
+                - text: of knowledge. They share anchor points — a fact node is where they meet — but each extends in a direction the other cannot express. That geometric intuition is what the dual-graph architecture makes precise.
+            - paragraph [ref=e182]:
+              - emphasis [ref=e183]: "[Artifact generation failed for SvgFigure: fixed-kind SvgFigure fell back to markdown]"
+            - generic [ref=e184]:
+              - 'heading "Graph S: The Temporal State Graph" [level=3] [ref=e185]'
+              - paragraph [ref=e186]:
+                - text: "Graph S answers two questions with surgical precision:"
+                - emphasis [ref=e187]: what was true in the real world
+                - text: ", and"
+                - emphasis [ref=e188]: when did we know it
+                - text: . Every fact you store carries two independent time ranges, and that distinction matters more than it might first appear.
+              - paragraph [ref=e189]:
+                - strong [ref=e190]: Valid time
+                - text: is when something was true in reality — Alice joined OrgX on 2023-01-01.
+                - strong [ref=e191]: Transaction time
+                - text: is when your system recorded that fact — you ingested the data on 2023-01-15. These two clocks are independent. A fact can be valid for years before you record it. A correction you make today can backdate the valid-time range to last year. Querying along each axis independently is what makes the model bi-temporal rather than just timestamped.
+              - paragraph [ref=e192]: "The seven core tables in Graph S are:"
+              - list [ref=e193]:
+                - listitem [ref=e194]:
+                  - strong [ref=e195]:
+                    - code [ref=e196]: entities
+                  - text: — named nodes (people, organisations, concepts) with a type and a canonical embedding
+                - listitem [ref=e197]:
+                  - strong [ref=e198]:
+                    - code [ref=e199]: entity_aliases
+                  - text: — alternate names that resolve to the same entity, enabling deduplication
+                - listitem [ref=e200]:
+                  - strong [ref=e201]:
+                    - code [ref=e202]: relationships
+                  - text: — typed edges between entities (e.g.,
+                  - code [ref=e203]: WORKS_AT
+                  - text: ","
+                  - code [ref=e204]: REPORTS_TO
+                  - text: )
+                - listitem [ref=e205]:
+                  - strong [ref=e206]:
+                    - code [ref=e207]: facts
+                  - text: — subject–predicate–object triples, each carrying both time ranges
+                - listitem [ref=e208]:
+                  - strong [ref=e209]:
+                    - code [ref=e210]: fact_sources
+                  - text: — the raw memory records that originally asserted a fact
+                - listitem [ref=e211]:
+                  - strong [ref=e212]:
+                    - code [ref=e213]: memories
+                  - text: — the ingested text chunks stored in Qdrant with their vector embeddings
+                - listitem [ref=e214]:
+                  - strong [ref=e215]:
+                    - code [ref=e216]: causal_triggers
+                  - text: — lightweight bookkeeping for when the causal agent should fire (populated by Graph S, consumed by Graph C)
+              - paragraph [ref=e217]: "With those tables in place, Graph S can answer questions like:"
+              - list [ref=e218]:
+                - listitem [ref=e219]:
+                  - emphasis [ref=e220]: What role did Alice hold on 2023-06-01 according to our records as of today?
+                - listitem [ref=e221]:
+                  - emphasis [ref=e222]: What did we believe about Alice's role on 2023-12-01, based only on data we had ingested by that date?
+                - listitem [ref=e223]:
+                  - emphasis [ref=e224]: When was a fact first asserted, and has it ever been corrected?
+              - paragraph [ref=e225]: Each of those queries pins a moment on both the valid-time axis and the transaction-time axis. The answer changes depending on which combination you pick — and all historical combinations remain queryable, because corrections append new records rather than overwriting old ones.
+              - paragraph [ref=e226]:
+                - text: What Graph S cannot tell you is
+                - emphasis [ref=e227]: why
+                - text: Alice's role changed. Two facts —
+                - code [ref=e228]: "role: Engineer"
+                - text: followed by
+                - code [ref=e229]: "role: Senior Engineer"
+                - text: — can coexist in the table with perfectly precise timestamps, and Graph S will store them faithfully with no awareness that one caused or replaced the other. That gap is exactly what the vertical axis, Graph C, exists to fill. The interactive widget below makes the bi-temporal mechanics tangible before we name what's missing.
+            - generic [ref=e230]:
+              - generic [ref=e231]:
+                - generic [ref=e232]: "Bi-temporal facts: valid time vs transaction time"
+                - generic [ref=e234]: ready
+              - iframe [ref=e235]:
+                - generic [ref=f1e3]:
+                  - img [ref=f1e4]:
+                    - generic [ref=f1e5]:
+                      - generic [ref=f1e6]: Valid Time — when true in the real world
+                      - generic [ref=f1e8]: Transaction Time — when we recorded it
+                      - generic [ref=f1e10]: "2023"
+                      - generic [ref=f1e11]: "2024"
+                      - generic [ref=f1e12]: "2025"
+                      - generic [ref=f1e13]: "2026"
+                      - generic [ref=f1e14]: now
+                    - generic [ref=f1e15]:
+                      - generic [ref=f1e17]: Engineer at OrgX
+                      - generic [ref=f1e19]: Recorded 2023-01-15 — Engineer
+                  - generic [ref=f1e20]:
+                    - button "Record Correction (2024-06-01)" [ref=f1e21] [cursor=pointer]
+                    - 'button "Query: what did we know on 2023-12-01?" [disabled] [ref=f1e22]'
+                    - button "Reset" [ref=f1e23] [cursor=pointer]
+                  - generic [ref=f1e24]:
+                    - text: Initial state. On 2023-01-15 we recorded that Alice is an Engineer at OrgX, valid from 2023-01-01 onward. Both clocks align — a single row in
+                    - code [ref=f1e25]: facts
+                    - text: . Click Record Correction to see what happens when reality changes.
+            - generic [ref=e236]:
+              - heading "What Graph S Cannot Tell You" [level=3] [ref=e237]
+              - paragraph [ref=e238]:
+                - text: Graph S gives you extraordinary precision over
+                - emphasis [ref=e239]: what was true and when
+                - text: . You can reconstruct exactly what the system believed about any entity at any transaction timestamp, correct facts retroactively without losing history, and query across two independent time axes. That is genuinely powerful — and it is genuinely insufficient.
+              - paragraph [ref=e240]: "Consider two facts Graph S records without complaint:"
+              - list [ref=e241]:
+                - listitem [ref=e242]:
+                  - code [ref=e243]: "Alice — role: Engineer at OrgX"
+                  - text: (valid from 2023-01-01)
+                - listitem [ref=e244]:
+                  - code [ref=e245]: "Alice — role: Senior Engineer at OrgX"
+                  - text: (valid from 2024-06-01)
+              - paragraph [ref=e246]:
+                - text: Graph S stores both. It can tell you precisely when each was recorded and when each was valid. What it cannot tell you is
+                - strong [ref=e247]: why the second fact exists
+                - text: . Was it a promotion? A re-org? A data correction? A merger that reclassified all Engineering titles? Graph S has no schema for that relationship. The two facts sit side-by-side in the bi-temporal model with no causal edge connecting them.
+              - paragraph [ref=e248]: "This gap has three concrete faces:"
+              - list [ref=e249]:
+                - listitem [ref=e250]:
+                  - strong [ref=e251]: No causal chain.
+                  - text: Graph S records state transitions but has no structure to represent that one event
+                  - emphasis [ref=e252]: caused
+                  - text: another.
+                - listitem [ref=e253]:
+                  - strong [ref=e254]: No reasoning trace.
+                  - text: There is no field in any of Graph S's seven tables that holds the inference or argument behind a fact — just the fact itself and its timestamps.
+                - listitem [ref=e255]:
+                  - strong [ref=e256]: No source attribution at the edge level.
+                  - text: You can attach a source to a fact, but you cannot record
+                  - emphasis [ref=e257]: which combination of sources and prior facts, taken together, justified a new belief
+                  - text: .
+              - paragraph [ref=e258]:
+                - text: These are not oversights in the schema — they are fundamental to what a temporal state graph is
+                - emphasis [ref=e259]: for
+                - text: . A new dimension of knowledge is needed to answer the 'why', and that is precisely what Graph C provides.
+            - generic [ref=e260]:
+              - 'heading "Graph C: The Causal Dimension" [level=3] [ref=e261]'
+              - paragraph [ref=e262]:
+                - text: "Graph C answers the question Graph S structurally cannot:"
+                - emphasis [ref=e263]: why did this fact come to be?
+                - text: "Where Graph S is a temporal record of state — what was true, and when — Graph C is a causal record of reasoning: the chain of evidence and inference that explains state changes."
+              - paragraph [ref=e264]:
+                - text: "The one-sentence definition:"
+                - strong [ref=e265]: Graph C is an append-only causal graph whose edges encode the reasoning chains and source attribution that explain why entities and facts in Graph S changed.
+              - paragraph [ref=e266]: "Every causal edge in Graph C connects two events and carries exactly two non-negotiable fields:"
+              - list [ref=e267]:
+                - listitem [ref=e268]:
+                  - strong [ref=e269]:
+                    - code [ref=e270]: reasoning TEXT NOT NULL
+                  - text: — a human-readable (and LLM-generated) explanation of the causal link. This cannot be empty. A causal edge without reasoning is structurally indistinguishable from a coincidence.
+                - listitem [ref=e271]:
+                  - strong [ref=e272]:
+                    - code [ref=e273]: source_references JSONB NOT NULL
+                  - text: "— the traceable evidence: document IDs, memory IDs, timestamps, and any other provenance that grounds the reasoning in real source material. Without this, the reasoning is unverifiable."
+              - paragraph [ref=e274]: These are schema constraints, not optional metadata. Dropping either field collapses Graph C's entire value proposition — you'd have an assertion with no argument and no evidence.
+              - heading "Why 'Perpendicular' Is Architecturally Accurate" [level=3] [ref=e275]
+              - paragraph [ref=e276]: It's tempting to picture Graph C as a layer sitting on top of Graph S — a kind of annotation or enrichment pass. That framing is wrong, and the wrong framing leads to wrong design decisions.
+              - paragraph [ref=e277]:
+                - text: "Consider the axes from the diagram above. Graph S extends horizontally: a fact node has a left-pointing history and a right-pointing future, all along the time axis. You can travel arbitrarily far in either direction and still be answering the same kind of question —"
+                - emphasis [ref=e278]: what was the state at time T?
+              - paragraph [ref=e279]:
+                - text: Graph C extends vertically from the same fact node. Moving along the causal axis answers a categorically different question —
+                - emphasis [ref=e280]: what caused this state?
+                - text: No matter how far you travel along the time axis, you never arrive at a causal explanation. No matter how deep you follow a causal chain, you never arrive at a timestamp. The two dimensions are orthogonal by definition.
+              - paragraph [ref=e281]:
+                - text: "This orthogonality has a concrete architectural consequence: a causal edge does not replace or modify a fact in Graph S. It references that fact from a perpendicular direction. Graph S remains the authoritative record of"
+                - emphasis [ref=e282]: what is true
+                - text: ; Graph C is the authoritative record of
+                - emphasis [ref=e283]: why it became true
+                - text: . Neither graph makes the other redundant.
+            - generic [ref=e285]: Loading graph…
+            - generic [ref=e286]:
+              - heading "Why Graph S Must Be Proven Before Graph C Can Be Built" [level=3] [ref=e287]
+              - paragraph [ref=e288]:
+                - text: The concept map above shows two graphs that communicate — causal edges in Graph C
+                - emphasis [ref=e289]: explain
+                - text: "facts in Graph S. That communication channel is only as trustworthy as the facts at the other end of it. This is the Phase Gate rule: Graph S must pass a full regression test before a single line of Graph C code is written."
+              - paragraph [ref=e290]: "The regression — called the Frankenstein test in the codebase — validates three specific Graph S capabilities:"
+              - list [ref=e291]:
+                - listitem [ref=e292]:
+                  - strong [ref=e293]: Entity deduplication.
+                  - text: When the same real-world entity appears under different surface forms ("Alice Smith", "A. Smith", "
+                  - link "alice@orgx.com" [ref=e294] [cursor=pointer]:
+                    - /url: mailto:alice@orgx.com
+                  - text: "\"), Graph S must resolve them to one canonical node. Without that, the graph accumulates phantom duplicates."
+                - listitem [ref=e295]:
+                  - strong [ref=e296]: Relationship matching.
+                  - text: When two facts reference the same relationship under variant phrasings ("reports to" / "direct report of"), the system must recognise the match rather than create separate edge types.
+                - listitem [ref=e297]:
+                  - strong [ref=e298]: Fact deduplication.
+                  - text: When the same fact arrives more than once — identical content, different ingestion events — Graph S must suppress the duplicate, not insert a second row.
+              - paragraph [ref=e299]:
+                - text: Now consider what happens if any of these fail and you build Graph C on top anyway. A causal edge connects two nodes. If entity deduplication is broken, those nodes may be phantoms — duplicate representations of the same real-world entity. The causal edge then describes a relationship between a ghost and its twin. Querying
+                - emphasis [ref=e300]: why
+                - text: Alice's role changed returns reasoning about
+                - code [ref=e301]: Alice Smith (node 42)
+                - text: that has nothing to do with facts recorded under
+                - code [ref=e302]: A. Smith (node 17)
+                - text: .
+              - paragraph [ref=e303]: "Fact deduplication failures are equally corrosive: duplicate facts generate spurious causal event candidates, and the causal agent assigns reasoning to state changes that never actually occurred."
+              - paragraph [ref=e304]: The Phase Gate is not bureaucratic caution — it is a structural constraint. A causal graph built on an unreliable state graph is not a knowledge system. It is a confident fabrication.
+            - generic [ref=e305]:
+              - heading "One Rule, Two Graphs" [level=3] [ref=e306]
+              - paragraph [ref=e307]:
+                - text: "Every piece of knowledge Nmemo handles reduces to a single classification question:"
+                - emphasis [ref=e308]: does this data answer "what" or "when" — or does it answer "why"?
+              - list [ref=e309]:
+                - listitem [ref=e310]:
+                  - strong [ref=e311]: "\"What entity exists? What fact holds? When was it valid?\""
+                  - text: → Graph S. The bi-temporal model handles all of it.
+                - listitem [ref=e312]:
+                  - strong [ref=e313]: "\"Why did this fact appear? What caused this state to change?\""
+                  - text: → Graph C. A causal edge with
+                  - code [ref=e314]: reasoning
+                  - text: and
+                  - code [ref=e315]: source_references
+                  - text: is the only correct container.
+              - paragraph [ref=e316]: "When you're unsure, ask: can this knowledge be fully expressed as a timestamped assertion about an entity? If yes, Graph S. If it requires a reasoning chain connecting one state to another, Graph C."
+              - heading "How the Pipeline Bridges Both" [level=3] [ref=e317]
+              - paragraph [ref=e318]:
+                - text: The
+                - code [ref=e319]: ingest()
+                - text: "function makes this split operational. It runs in three stages:"
+              - list [ref=e320]:
+                - listitem [ref=e321]:
+                  - strong [ref=e322]:
+                    - code [ref=e323]: store()
+                  - text: — embeds the raw text and writes it to Qdrant immediately.
+                - listitem [ref=e324]:
+                  - strong [ref=e325]:
+                    - code [ref=e326]: extract()
+                  - text: — runs entity, relationship, and fact extraction; populates Graph S.
+                - listitem [ref=e327]:
+                  - strong [ref=e328]: Conditional causal agent
+                  - text: — fires only when entities have prior causal history, enough new facts were created, or the source text contains explicit causal language. When it fires, it queries both graphs and asserts edges into Graph C.
+              - paragraph [ref=e329]:
+                - text: Notice that the causal agent is
+                - emphasis [ref=e330]: conditional
+                - text: — it doesn't run on every ingest. That gate is what keeps Graph C a reasoned layer rather than a mechanical shadow of Graph S transitions. In Section 2 you'll see exactly how a causal event is structured, what makes its audit trail genuinely append-only, and why
+                - code [ref=e331]: reasoning
+                - text: and
+                - code [ref=e332]: source_references
+                - text: are enforced as
+                - code [ref=e333]: NOT NULL
+                - text: constraints rather than optional metadata.
+            - paragraph [ref=e335]: "You now hold the single mental split that underpins the entire course: Graph S owns truth and time, Graph C owns causality and reasoning. Every schema decision, pipeline step, and query pattern in the sections ahead reduces to one question — which graph is the right home for this piece of knowledge, and how do the two graphs communicate? In Section 2 you'll move from mental model to mechanics, examining exactly how a causal event is structured, what makes an audit trail genuinely append-only, and why the reasoning and source_references fields are non-negotiable constraints rather than optional metadata."
+            - generic [ref=e455]:
+              - generic [ref=e456]:
+                - generic [ref=e457]: Card 1 of 5
+                - generic [ref=e458]: Back
+              - generic "Click to flip" [ref=e459] [cursor=pointer]:
+                - generic [ref=e460]: BACK
+                - generic [ref=e461]: "Two perpendicular graphs: Graph S (state) tracks entities, facts, and temporal states with bi-temporal timestamps. Graph C (causal) extracts and reasons about why events happened. Graph S is the source of truth; Graph C adds causal explanation on top."
+              - generic [ref=e462]:
+                - button "Show Front" [ref=e509] [cursor=pointer]
+                - button "Knew it" [ref=e510] [cursor=pointer]
+                - button "Didn't know" [ref=e511] [cursor=pointer]
+                - button "Reset" [ref=e464] [cursor=pointer]
+          - generic [ref=e336]:
+            - heading "Key takeaways" [level=3] [ref=e337]
+            - list [ref=e338]:
+              - listitem [ref=e339]: "Bi-temporal facts carry two independent timestamps: valid time (when true in reality) and transaction time (when recorded)."
+              - listitem [ref=e340]: Adding causality as columns to Graph S produces NULLs and denormalized JSON; orthogonal dimensions demand separate graphs.
+              - listitem [ref=e341]: Graph S answers 'what was true when'; Graph C answers 'why it changed'—each owns distinct knowledge types.
+              - listitem [ref=e342]: Facts are anchor points where both graphs meet; Graph S extends through time, Graph C through causality.
+              - listitem [ref=e343]: Causal edges must include reasoning text and source_references; without them, causal chains remain unauditable.
+        - generic [ref=e344]:
+          - heading "Notes 0 notes" [level=2] [ref=e345]:
+            - text: Notes
+            - generic [ref=e346]: 0 notes
+          - generic [ref=e347]: Highlight any lesson text and pick "Take a note" to start.
+        - generic [ref=e348]:
+          - heading "Questions 3 total · 0 attempts" [level=2] [ref=e349]
+          - generic [ref=e350]:
+            - generic [ref=e351]:
+              - generic [ref=e352] [cursor=pointer]:
+                - generic [ref=e353]: ▶
+                - generic [ref=e354]: Graph S stores bi-temporal facts about entities. What fundamental question does it fail to answer, and how does Graph C fill that gap?
+                - generic [ref=e355]:
+                  - text: ★★☆☆☆
+                  - generic [ref=e356]: Not attempted
+              - generic [ref=e447]:
+                - generic [ref=e448]: Graph S stores bi-temporal facts about entities. What fundamental question does it fail to answer, and how does Graph C fill that gap?
+                - textbox "Write your answer here..." [ref=e449]: graph S is the one for state right and graph C is for like cause stuff. honestly i think they could just be merged into one big graph because you can put a "reason" column on the facts table and call it done. the whole perpendicular thing seems overcomplicated
+                - button "Submit Answer" [ref=e465] [cursor=pointer]
+                - generic [ref=e467]:
+                  - generic [ref=e468]:
+                    - generic [ref=e469]: Needs Work 35%
+                    - generic [ref=e470]: Needs Work
+                  - generic [ref=e471]: "You're right that Graph S stores state and Graph C stores causality — that's the correct starting point. But here's the critical gap: Graph C isn't optional elegance or a schema choice. It solves a fundamentally different question that a 'reason' column cannot answer. Here's why: A single reason column only works if each fact has exactly one cause. In reality, causality is a *network*. One causal event (e.g., \"user was added to role\") may cause *multiple* facts to change (user's permissions update, audit log entry appears, notification sent). And conversely, one fact might be the consequence of *multiple* prior events. Graph C is a directed graph of *causal events*, not a denormalized column — it captures this many-to-many relationship that a schema column simply cannot express. The \"perpendicular\" design is the insight: Graph S answers 'what is true at time T?' by recording state transitions with bi-temporal timestamps. Graph C cuts *across* those state transitions and asks 'why did this change?' with full causal reasoning + source references. They're orthogonal dimensions of an epistemological record — the temporal audit AND the causal explanation. Without bi-temporal facts (Graph S foundation), you can't even know when things changed. Without causal reasoning (Graph C layer), you can't explain why. One column does neither; two graphs together give you complete traceability. Before moving forward, take a step back and study **Bi-temporal Fact Representation** — understand how valid_at and transaction_at timestamps work. That's the foundation that makes the dual-graph separation necessary."
+                  - generic [ref=e472]: The bi-temporal model gives you a complete audit of state changes but is silent on causality. Graph C is 'perpendicular' because it cuts across the state graph at the moments of change and annotates them with causal reasoning — the two graphs together form a complete epistemological record.
+            - generic [ref=e357]:
+              - generic [ref=e358] [cursor=pointer]:
+                - generic [ref=e359]: ▶
+                - generic [ref=e360]: Why is the Phase Gate rule — 'Graph S must be solid before any Graph C work begins' — architecturally sound rather than just a project manag…
+                - generic [ref=e361]:
+                  - text: ★★★☆☆
+                  - generic [ref=e362]: Not attempted
+              - generic [ref=e478]:
+                - generic [ref=e479]: Why is the Phase Gate rule — 'Graph S must be solid before any Graph C work begins' — architecturally sound rather than just a project management choice?
+                - textbox "Write your answer here..." [ref=e480]: i think its mostly so you dont have to refactor everything later. like if you build graph c first you'd just have to redo it all when graph s changes. so its a sprint planning thing really. you could probably build both at the same time if you had a big enough team though
+                - button "Submit Answer" [ref=e489] [cursor=pointer]
+                - generic [ref=e491]:
+                  - generic [ref=e492]:
+                    - generic [ref=e493]: Needs Work 35%
+                    - generic [ref=e494]: Needs Work
+                  - generic [ref=e495]: "You're right that refactoring is a *consequence* of building Graph C first — and you caught the ordering dependency, which is good. But the Phase Gate isn't actually about avoiding rework; it's about data integrity. Here's the architectural reason: every causal edge has a `source_references` field that points to *specific* Graph S entity IDs and fact IDs. If Graph S has broken entity deduplication, bad relationship matching, or duplicate facts, then those causal edges will reference the wrong entities. Team size doesn't fix this — it's a logical dependency, not a resource problem. If you assert a causal edge against a duplicate entity, the reasoning is corrupted at the foundation, and traceability becomes meaningless. The Phase Gate protects causal integrity by ensuring the substrate (Graph S) is actually sound before you build causal reasoning on top of it. That's why the Frankenstein regression — which tests dedup, matching, and fact dedup — must pass before Phase B starts. It's not 'defer the problem'; it's 'fix the data before you reason about it.'"
+                  - generic [ref=e496]: "Every causal edge's `source_references` JSONB field points to actual Graph S memory IDs and entity IDs. Bad dedup in Graph S means those references point to the wrong targets, making the causal reasoning unverifiable. This is why the Frankenstein regression must pass before Phase B starts."
+            - generic [ref=e363]:
+              - generic [ref=e364] [cursor=pointer]:
+                - generic [ref=e365]: ▶
+                - generic [ref=e366]: Describe in your own words what makes the Apache AGE integration in Graph S a 'traversal index' rather than the canonical data store, and wh…
+                - generic [ref=e367]:
+                  - text: ★★★★☆
+                  - generic [ref=e368]: Not attempted
+              - generic [ref=e484]:
+                - generic [ref=e485]: Describe in your own words what makes the Apache AGE integration in Graph S a 'traversal index' rather than the canonical data store, and why that distinction matters for Graph C design.
+                - textbox "Write your answer here..." [ref=e486]: honestly im not 100% sure but i think AGE is just postgres with graph queries on top, so its like... cypher over the relational tables? a traversal index would mean its kind of a cached view of the relationships maybe. i guess the real data is in the entities and facts tables and AGE just helps walk them faster
+                - button "Submit Answer" [ref=e501] [cursor=pointer]
+                - generic [ref=e503]:
+                  - generic [ref=e504]:
+                    - generic [ref=e505]: Partial 68%
+                    - generic [ref=e506]: Partial
+                  - generic [ref=e507]: "You've got the core intuition right — canonical data lives in PostgreSQL, and AGE provides fast graph traversal on top. That's exactly the separation-of-concerns principle at work. Your description of it as 'helps walk them faster' is spot-on. Here's the missing piece: 'traversal index' is specific because of an AGE gotcha. When you write `MERGE (a)-[r:REL]->(b) SET r.prop = value`, AGE creates the edge but *silently drops the SET for edge properties*. Node properties work fine, but edge attributes get lost. This is the crucial reason the design stores causal edge properties (reasoning, confidence, status) in PostgreSQL's `causal_edges` table, NOT in AGE edges. If you only trusted AGE for causal reasoning metadata, you'd lose data. By keeping the truth in Postgres and using AGE only for traversal, Graph C is immune to this bug. So the distinction matters not just for query performance, but for data integrity: PostgreSQL = guaranteed truth. AGE = fast navigation. Separate concerns, complementary roles."
+                  - generic [ref=e508]: "A known AGE gotcha: `MERGE (a)-[r:REL]->(b) SET r.prop = value` creates the edge but silently drops the SET for edge properties. Node properties work fine. Because Graph C was designed knowing this, causal edge properties (reasoning, confidence, status) are stored in PostgreSQL, not in AGE edge attributes."
+    - complementary "Tutor chat" [ref=e369]:
+      - generic [ref=e370]:
+        - generic [ref=e371]: Tutor
+        - button "Collapse chat" [ref=e372] [cursor=pointer]: ×
+      - generic [ref=e373]:
+        - generic [ref=e374]: when building the duel graph model why did the creator not decide to use no utc time
+        - generic [ref=e375]:
+          - generic [ref=e377]:
+            - paragraph [ref=e378]: Good question—you've spotted a real design choice. But let me reframe what's actually at stake here.
+            - paragraph [ref=e379]:
+              - text: The question isn't really
+              - emphasis [ref=e380]: UTC vs. nothing
+              - text: . It's
+              - strong [ref=e381]: two timestamps vs. one timestamp
+              - text: —or worse,
+              - emphasis [ref=e382]: no clear temporal reference at all
+              - text: .
+            - paragraph [ref=e383]: "Here's the concrete problem UTC solves:"
+            - paragraph [ref=e384]: "Imagine Alice's role changes from \"Engineer\" to \"Manager\" on December 1st. Without UTC time:"
+            - list [ref=e385]:
+              - listitem [ref=e386]: "You store: Old value = Engineer, New value = Manager. Done."
+              - listitem [ref=e387]:
+                - text: "Question:"
+                - emphasis [ref=e388]: What did I know about Alice's role on November 30th, using only information I had recorded by November 30th?
+              - listitem [ref=e389]: "Answer: I don't know. I have no way to distinguish \"facts I recorded before Nov 30\" from \"facts I recorded after.\""
+            - paragraph [ref=e390]:
+              - text: With
+              - strong [ref=e391]: bi-temporal UTC
+              - text: "(record time + valid time):"
+            - list [ref=e392]:
+              - listitem [ref=e393]: "You store: Old value = Engineer, valid from 2023-11-01 to 2023-12-01. New value = Manager, valid from 2023-12-01. Recorded on 2023-12-05."
+              - listitem [ref=e394]:
+                - text: "Question:"
+                - emphasis [ref=e395]: What did I know on Nov 30 using only info recorded by Nov 30?
+              - listitem [ref=e396]: "Answer: Engineer. Clear."
+            - paragraph [ref=e397]:
+              - strong [ref=e398]: This is not optional.
+              - text: Graph S exists to answer
+              - emphasis [ref=e399]: what is true and when
+              - text: ". Without universaltime anchors:"
+            - list [ref=e400]:
+              - listitem [ref=e401]: You lose the ability to reconstruct historical knowledge state
+              - listitem [ref=e402]: You can't distinguish "this fact was always true but we recorded it late" from "this fact was corrected"
+              - listitem [ref=e403]:
+                - text: Causal reasoning (Graph C) has no temporal grounding to explain
+                - emphasis [ref=e404]: why
+                - text: changes happened
+                - emphasis [ref=e405]: when
+                - text: they did
+            - paragraph [ref=e406]:
+              - text: So why UTC specifically, not local time or ordinal sequence? UTC is
+              - strong [ref=e407]: universal, unambiguous, and timezone-agnostic
+              - text: . It lets different systems (your learning engine, external data sources, user inputs) all reference the same moment without confusion.
+            - paragraph [ref=e408]:
+              - strong [ref=e409]: "The perpendicular insight:"
+              - text: Graph S needs universal time to be a reliable record of
+              - emphasis [ref=e410]: what and when
+              - text: ". Graph C then layers on top:"
+              - emphasis [ref=e411]: given what changed and when, what causal chain explains it?
+              - text: Causal events themselves are also timestamped — but they explain the
+              - emphasis [ref=e412]: reasoning
+              - text: behind the temporal transitions Graph S recorded.
+            - paragraph [ref=e413]: Does that clarify the design?
+          - 'button "📝 understands: dual-graph temporal design rationale (0.40)" [ref=e415] [cursor=pointer]'
+        - generic [ref=e416]: Make me a flashcard deck of the key concepts in this section.
+        - generic [ref=e418]:
+          - generic [ref=e419]:
+            - paragraph [ref=e420]:
+              - text: Here's a flashcard deck covering the five load-bearing concepts from Section 1. Work through each card — cover the back and see if you can articulate the answer before revealing it. Pay special attention to the cards about
+              - emphasis [ref=e421]: why
+              - text: temporal precision matters and
+              - emphasis [ref=e422]: how
+              - text: the two graphs relate.
+            - paragraph [ref=e423]: "After you've gone through the deck, try this: pick one card and explain the concept to yourself in your own words, out loud if you can. That's when understanding solidifies."
+          - generic [ref=e424]:
+            - generic [ref=e425]:
+              - generic [ref=e426]:
+                - generic [ref=e427]: Card 1 of 5
+                - generic [ref=e428]: Front
+              - generic "Click to flip" [ref=e429] [cursor=pointer]:
+                - generic [ref=e430]: FRONT
+                - generic [ref=e431]: What is the dual-graph architecture in Nmemo?
+              - generic [ref=e432]:
+                - button "Flip" [ref=e433] [cursor=pointer]
+                - button "Reset" [ref=e434] [cursor=pointer]
+            - button "Pin to lesson" [ref=e435] [cursor=pointer]: 📌 Pin to lesson
+          - paragraph [ref=e437]:
+            - strong [ref=e438]: "Next step:"
+            - text: Once you've worked through the deck, come back with a question about any of these concepts—or tell me which idea is still fuzzy. That's how we'll strengthen your grasp before moving into the mechanisms of Graph C itself.
+        - generic [ref=e473]: are you here
+        - paragraph [ref=e477]: Yep, I'm here. How's the flashcard deck going? Or do you have a question about one of the concepts—like the orthogonality of Graph S and Graph C, or why bi-temporal timestamps matter?
+        - generic [ref=e498]: wait so if graph S has the timestamps doesnt that mean graph C is basically redundant? like you could just look at two timestamped facts and infer the cause from the order they happened in
+        - generic [ref=e514]:
+          - paragraph [ref=e515]: Great instinct—you've asked exactly the right question. But here's where temporal order becomes ambiguous.
+          - paragraph [ref=e516]:
+            - text: "Imagine Alice's role changed from \"Engineer\" to \"Manager\" on 2023-12-01. Graph S records this perfectly: two timestamped facts, clear temporal boundary. But now ask:"
+            - emphasis [ref=e517]: why did that transition happen?
+          - paragraph [ref=e518]:
+            - text: The answer is
+            - emphasis [ref=e519]: not
+            - text: "in the timestamps. Consider these equally valid scenarios:"
+          - list [ref=e520]:
+            - listitem [ref=e521]:
+              - strong [ref=e522]: Promotion
+              - text: ": HR approved a promotion. Decision made 2023-11-28, effective 2023-12-01."
+            - listitem [ref=e523]:
+              - strong [ref=e524]: Lateral move
+              - text: ": Team reorganization. Engineering shuffled, Alice moved to a manager track."
+            - listitem [ref=e525]:
+              - strong [ref=e526]: Data correction
+              - text: ": Alice was always \"Manager\" in reality—we recorded her as \"Engineer\" by mistake and fixed it on 2023-12-01."
+            - listitem [ref=e527]:
+              - strong [ref=e528]: System migration
+              - text: ": Old system said \"Engineer,\" new system remapped titles."
+          - paragraph [ref=e529]:
+            - text: All four produce the
+            - emphasis [ref=e530]: exact same
+            - text: temporal transition in Graph S. The timestamps tell you
+            - strong [ref=e531]: when
+            - text: it happened. They do
+            - emphasis [ref=e532]: not
+            - text: tell you
+            - strong [ref=e533]: why
+            - text: .
+          - paragraph [ref=e534]:
+            - strong [ref=e535]: Temporal order ≠ causation.
+            - text: Correlation (things happening near each other in time) is not the same as causation (one event causing another). Alice's role change and, say, a budget approval might both be timestamped for the same day. Graph S sees both events. It cannot distinguish which caused which—or whether they're causal at all.
+          - paragraph [ref=e536]:
+            - text: Graph C's job is to record
+            - emphasis [ref=e537]: which causal chain actually occurred
+            - text: ", with:"
+          - list [ref=e538]:
+            - listitem [ref=e539]: The reasoning that led to the decision (e.g., "performance review showed readiness for management")
+            - listitem [ref=e540]: "The evidence supporting it (links to specific facts: the peer review, the HR approval, external data sources)"
+            - listitem [ref=e541]: Who or what triggered it (the user, the data pipeline, an external system)
+            - listitem [ref=e542]: "Full traceability: if the causal assertion is wrong, you can see exactly where it came from"
+          - paragraph [ref=e543]:
+            - strong [ref=e544]: "The perpendicular insight:"
+            - text: Graph S answers
+            - emphasis [ref=e545]: what happened and when
+            - text: . Graph C answers
+            - emphasis [ref=e546]: why that specific change occurred
+            - text: . Temporal order is necessary—but it is not sufficient. Without Graph C, your system becomes opaque about
+            - emphasis [ref=e547]: why
+            - text: states change. You're left guessing.
+      - group "Quick prompts" [ref=e439]:
+        - button "▦ Diagram" [ref=e440] [cursor=pointer]
+        - button "↦ Walk-through" [ref=e441] [cursor=pointer]
+        - 'button "{} Example" [ref=e442] [cursor=pointer]'
+        - button "⊟ Flashcards" [ref=e443] [cursor=pointer]
+      - generic [ref=e444]:
+        - textbox "Ask about this section…" [active] [ref=e445]
+        - button "Send" [ref=e446] [cursor=pointer]
+  - generic: Pinned to lesson ✓

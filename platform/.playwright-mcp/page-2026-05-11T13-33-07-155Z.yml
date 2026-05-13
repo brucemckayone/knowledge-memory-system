@@ -1,0 +1,462 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+  - generic [ref=e133]:
+    - generic [ref=e134]:
+      - generic [ref=e135] [cursor=pointer]: ← Back to course
+      - generic [ref=e136]:
+        - generic [ref=e609]:
+          - generic [ref=e610]: "Graph C: The Causal Reasoning Layer in Nmemo"
+          - heading "Section 2 — Causal Events and the Append-Only Audit Trail" [level=1] [ref=e611]
+          - generic [ref=e612]: Covers how causal events are recorded as immutable log entries, what fields the causal_events table requires, and why append-only semantics are the foundation of mutation inspectability. Every state change that the causal agent reasons about originates from a causal event record.
+        - generic [ref=e613]:
+          - heading "Learning objectives" [level=3] [ref=e614]
+          - list [ref=e615]:
+            - listitem [ref=e616]: Describe the causal_events table schema and the purpose of each required field
+            - listitem [ref=e617]: Explain why causal events are append-only and what properties that gives the audit trail
+            - listitem [ref=e618]: Distinguish between a causal event (the trigger) and a causal edge (the assertion)
+            - listitem [ref=e619]: Trace a single ingest() call through store() → extract() and identify where a causal event is emitted
+        - generic [ref=e621]:
+          - generic [ref=e622]:
+            - generic [ref=e623]: ~14 min read
+            - generic [ref=e625] [cursor=pointer]: Regenerate
+          - generic [ref=e628]:
+            - generic [ref=e629]:
+              - paragraph [ref=e630]:
+                - text: Every claim the causal agent makes — every assertion that entity A influenced entity B — is grounded in evidence. That evidence lives in the
+                - code [ref=e631]: causal_events
+                - text: "table: an immutable, append-only log of everything that happened during ingestion. Before the agent can reason about cause and effect, it needs raw material it can trust absolutely."
+              - paragraph [ref=e632]:
+                - text: This section walks you through the
+                - code [ref=e633]: causal_events
+                - text: schema field by field, explains why immutability is not a design preference but a foundational constraint, and shows you exactly where in the
+                - code [ref=e634]: ingest()
+                - text: pipeline a causal event record is emitted. By the end, you'll be able to draw a clean line between a causal
+                - emphasis [ref=e635]: event
+                - text: (a timestamped observation) and a causal
+                - emphasis [ref=e636]: edge
+                - text: (a reasoned assertion) — a distinction that matters every time you query, debug, or extend the causal layer.
+            - generic [ref=e637]:
+              - paragraph [ref=e638]:
+                - text: "The causal agent in Nmemo doesn't reason from intuition — it reasons from a log. Before it can assert that one entity influenced another, it needs a record of every discrete thing that happened during ingestion: which entities were created or merged, which facts were asserted or contradicted, and exactly where in the source text each observation came from. That record is the"
+                - code [ref=e639]: causal_events
+                - text: table.
+              - paragraph [ref=e640]:
+                - text: Think of
+                - code [ref=e641]: causal_events
+                - text: as the raw-material layer of Graph C. Graph S stores
+                - emphasis [ref=e642]: what the system currently believes
+                - text: — entities, relationships, facts. Graph C stores
+                - emphasis [ref=e643]: why the system came to believe it
+                - text: ", and the foundation of that explanation is an unbroken sequence of event records that cannot be altered after they're written. The agent reads this log, reasons over it, and emits causal edges. If the log is corrupted or incomplete, the agent's conclusions are unverifiable — you can't audit a claim whose evidence has been quietly edited."
+              - paragraph [ref=e644]: "This is why immutability isn't a style choice here. A trustworthy audit trail has one defining property: past entries never change. The moment you allow an UPDATE on an event record, you lose the ability to replay history and guarantee you'll arrive at the same conclusions. Reproducibility — re-running the causal agent against the same event log and getting the same edges — depends entirely on the log being frozen."
+              - paragraph [ref=e645]:
+                - text: "Here's the practical implication:"
+                - code [ref=e646]: causal_events
+                - text: is append-only. Every ingestion call can add new rows; nothing ever removes or modifies existing ones. The pipeline enforces this at the application layer, not just by convention.
+              - heading "What this section covers" [level=3] [ref=e647]
+              - paragraph [ref=e648]: "The blocks that follow walk through:"
+              - list [ref=e649]:
+                - listitem [ref=e650]:
+                  - text: The full
+                  - code [ref=e651]: causal_events
+                  - text: schema — every column, its type, and its purpose
+                - listitem [ref=e652]: Why each NOT NULL constraint exists and what breaks if you remove it
+                - listitem [ref=e653]:
+                  - text: The distinction between a causal
+                  - emphasis [ref=e654]: event
+                  - text: (an observation) and a causal
+                  - emphasis [ref=e655]: edge
+                  - text: (a reasoned assertion)
+                - listitem [ref=e656]:
+                  - text: Exactly where in the
+                  - code [ref=e657]: ingest()
+                  - text: pipeline an event record is emitted — and why it happens
+                  - emphasis [ref=e658]: after
+                  - text: Graph S writes
+              - paragraph [ref=e659]: By the time you reach the schema diagram on the next card, you'll already have the mental model that makes each field's purpose obvious rather than arbitrary.
+            - paragraph [ref=e661]:
+              - emphasis [ref=e662]: "[Artifact generation failed for Mermaid: fixed-kind Mermaid fell back to markdown]"
+            - generic [ref=e663]:
+              - 'heading "Field-by-Field: What Each Column Does" [level=3] [ref=e664]'
+              - paragraph [ref=e665]:
+                - text: The ER diagram above gives you the shape of
+                - code [ref=e666]: causal_events
+                - text: . Now look at what each field actually
+                - emphasis [ref=e667]: does
+                - text: — because the column design is where the audit contract gets enforced.
+              - paragraph [ref=e668]:
+                - strong [ref=e669]:
+                  - code [ref=e670]: id UUID PK
+                - text: — a generated UUID, never reused. UUIDs rather than auto-increment integers mean causal events can be emitted from distributed writers without coordination, and a row's identity is stable across replicas and backups.
+              - paragraph [ref=e671]:
+                - strong [ref=e672]:
+                  - code [ref=e673]: memory_id UUID NOT NULL FK → memories(id)
+                - text: "— the ingested source text this event belongs to. NOT NULL because a causal event with no origin is meaningless: the agent cannot reason back to evidence it cannot locate. Every event is tethered to exactly one memory record."
+              - paragraph [ref=e674]:
+                - strong [ref=e675]:
+                  - code [ref=e676]: entity_ids UUID[]
+                  - text: and
+                  - code [ref=e677]: fact_ids UUID[]
+                - text: — nullable arrays populated
+                - emphasis [ref=e678]: after
+                - code [ref=e679]: extract()
+                - text: runs. They're null at the moment of emission if extraction hasn't completed yet; the pipeline back-fills them once Graph S writes succeed. Think of them as the event's index into the graph — the agent uses them to pull entity and fact rows without re-parsing the payload.
+              - paragraph [ref=e680]:
+                - strong [ref=e681]:
+                  - code [ref=e682]: event_type TEXT NOT NULL
+                - text: "— a categorical label drawn from a closed set:"
+                - code [ref=e683]: ENTITY_CREATED
+                - text: ","
+                - code [ref=e684]: ENTITY_MERGED
+                - text: ","
+                - code [ref=e685]: FACT_ASSERTED
+                - text: ","
+                - code [ref=e686]: FACT_CONTRADICTED
+                - text: ","
+                - code [ref=e687]: CAUSAL_TRIGGER
+                - text: . NOT NULL and enumerated because the conditional trigger check in
+                - code [ref=e688]: ingest()
+                - text: reads this column to decide whether the causal agent should run. If this value were nullable or free-form, the branching logic would have to defensive-parse arbitrary strings. The category also tells the agent
+                - emphasis [ref=e689]: what kind of thing happened
+                - text: — which is distinct from
+                - emphasis [ref=e690]: why it happened
+                - text: ", and you should keep that distinction in mind."
+              - paragraph [ref=e691]:
+                - strong [ref=e692]:
+                  - code [ref=e693]: payload JSONB NOT NULL
+                - text: "— the raw evidence snapshot captured at emission time. This is the data the agent actually reasons over: extracted entity names, fact text, confidence scores, anything the ML service returned. NOT NULL because an event without evidence isn't an event — it's a placeholder. Storing it as JSONB rather than a typed relation keeps the schema forward-compatible; future extraction models can add fields to the payload without a migration."
+              - paragraph [ref=e694]:
+                - strong [ref=e695]:
+                  - code [ref=e696]: source_references JSONB NOT NULL
+                - text: — the traceability anchor. It records
+                - emphasis [ref=e697]: exactly
+                - text: "where in the source text the evidence came from: the chunk text, character offset, and the"
+                - code [ref=e698]: memory_id
+                - text: of the source document. This is the field that makes every downstream causal edge auditable. When you trace an edge back through
+                - code [ref=e699]: triggered_edge_id
+                - text: to its source event,
+                - code [ref=e700]: source_references
+                - text: "tells you the precise passage the agent was looking at. NOT NULL here is load-bearing: an edge whose evidence cannot be located in the original text is not a reasoned assertion — it's a guess."
+              - paragraph [ref=e701]:
+                - strong [ref=e702]:
+                  - code [ref=e703]: reasoning TEXT
+                  - text: (nullable)
+                - text: — null at emission time, always. The causal agent fills this field in
+                - emphasis [ref=e704]: only if it fires
+                - text: ", writing its chain-of-thought explanation for why this event is causally significant. The nullable contract encodes a meaningful state: null means \"the agent has not yet evaluated this event\" or \"the agent ran but did not engage this event directly\". You should not interpret null as missing data — it means the conditional trigger was not met, or the agent did not trace through this particular row."
+              - paragraph [ref=e705]:
+                - strong [ref=e706]:
+                  - code [ref=e707]: triggered_edge_id UUID nullable FK → causal_edges(id)
+                - text: "— populated if the agent creates a causal edge in response to this event. Nullable because most events will not trigger an edge: the causal agent is selective, not exhaustive. When it is populated, it closes the audit loop — you can move in either direction: event → edge, or edge → event."
+              - paragraph [ref=e708]:
+                - strong [ref=e709]:
+                  - code [ref=e710]: created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                - text: "— the immutable timestamp set by the database at insert time. The application layer never writes this value; the default ensures it reflects actual wall-clock insertion order. This column is the spine of the append-only log: replaying events in"
+                - code [ref=e711]: created_at
+                - text: order reconstructs the exact sequence of Graph S mutations as they occurred.
+              - paragraph [ref=e712]:
+                - text: Taken together, these fields give the causal agent a complete, auditable brief for every change it might reason about — and give
+                - emphasis [ref=e713]: you
+                - text: a precise location to look when any edge needs to be challenged or re-evaluated.
+            - generic [ref=e714]:
+              - heading "Why Append-Only Is a Hard Constraint, Not a Convention" [level=3] [ref=e715]
+              - paragraph [ref=e716]:
+                - text: The
+                - code [ref=e717]: causal_events
+                - text: "table accepts exactly one SQL verb:"
+                - code [ref=e718]: INSERT
+                - text: . No
+                - code [ref=e719]: UPDATE
+                - text: . No
+                - code [ref=e720]: DELETE
+                - text: . This isn't a style preference or a performance optimisation — it's the load-bearing constraint that makes every downstream causal assertion trustworthy.
+              - paragraph [ref=e721]:
+                - text: Take a moment to appreciate what you lose the instant you allow mutation. Suppose an ingestion run produced a
+                - code [ref=e722]: FACT_CONTRADICTED
+                - text: event, and a later migration script silently updates that row to
+                - code [ref=e723]: FACT_ASSERTED
+                - text: to clean up an inconsistency. The causal edge that originally cited the contradiction still exists, but its evidentiary basis has been quietly erased. You can no longer verify what the agent saw when it fired. The edge now floats, unanchored. This is not a hypothetical failure mode — it's the exact failure mode that append-only semantics are designed to prevent.
+              - paragraph [ref=e724]: "Keeping the log insert-only buys the system three concrete properties:"
+              - list [ref=e725]:
+                - listitem [ref=e726]:
+                  - strong [ref=e727]: Temporal integrity.
+                  - text: Every row carries a
+                  - code [ref=e728]: created_at
+                  - text: timestamp set at insertion and never touched again. Replaying rows in
+                  - code [ref=e729]: created_at
+                  - text: order reconstructs the exact sequence of observations the system made during any historical ingest run. You can ask "what did the graph look like after the third ingestion but before the fifth?" and get a precise answer.
+                - listitem [ref=e730]:
+                  - strong [ref=e731]: Audit completeness.
+                  - text: Every input that influenced a causal assertion is permanently on record. If the agent asserted that entity A influenced entity B, you can follow
+                  - code [ref=e732]: triggered_edge_id
+                  - text: back to the originating event, read its
+                  - code [ref=e733]: payload
+                  - text: and
+                  - code [ref=e734]: source_references
+                  - text: ", and verify that the raw evidence actually supports the claim. Nothing can be quietly removed to make a weak assertion look stronger in retrospect."
+                - listitem [ref=e735]:
+                  - strong [ref=e736]: Deterministic replay.
+                  - text: If you re-run the causal agent against the same event log — same rows, same order, same
+                  - code [ref=e737]: payload
+                  - text: "values — it must produce the same edges. This property is what makes the causal layer testable. A mutable log breaks replay determinism: two runs against a log that has been edited in between will diverge, and you have no way to tell which run reflected the original evidence."
+              - paragraph [ref=e738]:
+                - text: Note carefully what append-only does
+                - emphasis [ref=e739]: not
+                - text: "guarantee on its own: the database engine doesn't enforce it via a DDL constraint the way a"
+                - code [ref=e740]: NOT NULL
+                - text: column prevents null inserts. Append-only is enforced at the application layer — specifically, the pipeline code that writes to
+                - code [ref=e741]: causal_events
+                - text: never issues
+                - code [ref=e742]: UPDATE
+                - text: or
+                - code [ref=e743]: DELETE
+                - text: statements, and no code path should be added that does. The discipline has to be maintained in code review and migration review, not relied on from the schema alone. (This is also why the animation in the next block shows a rejected mutation as an application-level rejection, not a database error.)
+              - paragraph [ref=e744]:
+                - text: "The practical upshot: treat every row in"
+                - code [ref=e745]: causal_events
+                - text: as permanently published the moment it's written. If an earlier extraction was wrong — say, an entity was misidentified — the correction arrives as a
+                - emphasis [ref=e746]: new
+                - text: event (typically
+                - code [ref=e747]: ENTITY_MERGED
+                - text: ), not as an edit to the original row. The original observation stays in the log exactly as it was. The history of what the system believed, and when, remains intact.
+            - generic [ref=e748]:
+              - generic [ref=e749]:
+                - generic [ref=e750]: Append-only causal_events log
+                - generic [ref=e752]: ready
+              - iframe [ref=e753]:
+                - generic [ref=f2e2]:
+                  - generic [ref=f2e3]: Press Play — simulate three ingest() calls
+                  - generic [ref=f2e4]:
+                    - button "▶ Play" [ref=f2e5] [cursor=pointer]
+                    - button "⏸ Pause" [ref=f2e6] [cursor=pointer]
+                    - button "↺ Reset" [ref=f2e7] [cursor=pointer]
+                  - generic [ref=f2e8]: postgres=# SELECT id, event_type, created_at FROM causal_events;
+                  - generic [ref=f2e9]:
+                    - generic [ref=f2e10]:
+                      - generic [ref=f2e11]:
+                        - generic [ref=f2e12]: id
+                        - generic [ref=f2e13]: event_type
+                        - generic [ref=f2e14]: created_at
+                      - generic [ref=f2e15]:
+                        - generic [ref=f2e16]: — no rows yet —
+                        - generic: "Append-only: mutations rejected"
+                    - generic [ref=f2e17]:
+                      - button "⚠ Attempt UPDATE causal_events SET …"
+                  - generic [ref=f2e18]:
+                    - text: Each row is sealed at INSERT. The log only grows downward;
+                    - code [ref=f2e19]: UPDATE
+                    - text: and
+                    - code [ref=f2e20]: DELETE
+                    - text: are denied at the policy layer so every causal edge traces back to immutable source evidence.
+            - generic [ref=e754]:
+              - 'heading "Events vs. Edges: Two Different Things" [level=3] [ref=e755]'
+              - paragraph [ref=e756]:
+                - text: "The single most important boundary in the causal layer is this: a causal"
+                - emphasis [ref=e757]: event
+                - text: is an observation the system records automatically; a causal
+                - emphasis [ref=e758]: edge
+                - text: is an interpretation the agent asserts deliberately. Conflating them is the most common source of confusion when reading or extending Graph C.
+              - paragraph [ref=e759]:
+                - strong [ref=e760]: A causal event is an input.
+                - text: When
+                - code [ref=e761]: ingest()
+                - text: runs, Graph S writes happen — entities land in the
+                - code [ref=e762]: entities
+                - text: table, facts land in
+                - code [ref=e763]: facts
+                - text: ", contradictions are detected. After those writes complete, the pipeline inserts one or more rows into"
+                - code [ref=e764]: causal_events
+                - text: . That record is a timestamped, immutable snapshot of
+                - emphasis [ref=e765]: what happened
+                - text: ": which entities were touched, which facts were asserted, what the raw payload looked like, where in the source text the evidence came from. The system does this unconditionally. No agent is running yet. No reasoning has occurred."
+              - paragraph [ref=e766]:
+                - strong [ref=e767]: A causal edge is an output.
+                - text: After the conditional trigger fires, the causal agent inspects the event log, retrieves relevant context, and decides whether one entity plausibly influenced another. If it does, it writes a row to
+                - code [ref=e768]: causal_edges
+                - text: — a structured assertion carrying a
+                - code [ref=e769]: reasoning TEXT NOT NULL
+                - text: field, a
+                - code [ref=e770]: strength
+                - text: score between 0.0 and 1.0, and
+                - code [ref=e771]: source_references
+                - text: pointing back to the specific source chunks that grounded the reasoning. An edge is never automatic; it requires the agent to run, and the agent runs only when at least one trigger condition is met.
+              - paragraph [ref=e772]: "The relationship between them is asymmetric and many-to-many:"
+              - list [ref=e773]:
+                - listitem [ref=e774]: A single edge may be informed by several events — for example, ENTITY_CREATED plus FACT_ASSERTED together suggest a pattern worth asserting.
+                - listitem [ref=e775]: A single event may eventually inform several edges as more ingestions accumulate context.
+                - listitem [ref=e776]:
+                  - text: Every edge must back-link to at least one originating event via
+                  - code [ref=e777]: triggered_edge_id
+                  - text: on the event row.
+              - paragraph [ref=e778]: This asymmetry is not incidental — it reflects the epistemic structure of the system. Events are cheap and automatic; the system generates them on every ingest. Edges are expensive and deliberate; they carry an explicit reasoning chain and must be justifiable. If you ever find an edge with no traceable event, or an event you feel compelled to UPDATE to reflect a later interpretation, something has gone wrong at the design level, not just the implementation level.
+            - generic [ref=e780]: Loading graph…
+            - generic [ref=e781]:
+              - generic [ref=e782]:
+                - generic [ref=e783]: Tracing ingest() to the causal event emission point
+                - generic [ref=e785]: ready
+              - iframe [ref=e786]:
+                - generic [ref=f3e3]:
+                  - generic [ref=f3e4]:
+                    - generic [ref=f3e5]:
+                      - text: Tracing
+                      - code [ref=f3e6]: ingest('Paracetamol inhibits COX enzymes')
+                    - generic [ref=f3e7]: Step 1 of 7
+                  - generic [ref=f3e8]:
+                    - generic [ref=f3e9]:
+                      - heading "Call stack" [level=4] [ref=f3e10]
+                      - generic [ref=f3e11]:
+                        - generic [ref=f3e12]: ingest(text)
+                        - generic [ref=f3e13]: │ store(text)
+                        - generic [ref=f3e14]: │ extract(memoryId)
+                        - generic [ref=f3e15]: │ │ writeEntities(...)
+                        - generic [ref=f3e16]: │ │ writeFacts(...)
+                        - generic [ref=f3e17]: │ emitCausalEvent(...)
+                        - generic [ref=f3e18]: │ maybeRunAgent(...)
+                    - generic [ref=f3e19]:
+                      - heading "src/pipeline/ingest.ts" [level=4] [ref=f3e20]
+                      - generic [ref=f3e21]: "async function ingest(text: string): Promise<IngestResult> { // Synchronous pipeline — no queue, no agents const memoryId = await store(text); const extracted = await extract(memoryId); // ... causal event + conditional agent return { memoryId, ...extracted }; }"
+                      - generic [ref=f3e22]: Entry point — synchronous pipeline begins. One function call drives the entire ingest flow.
+                  - generic [ref=f3e23]:
+                    - button "◀ Previous" [disabled] [ref=f3e24]
+                    - button "Next ▶" [ref=f3e33] [cursor=pointer]
+            - generic [ref=e787]:
+              - paragraph [ref=e788]:
+                - text: Three pitfalls catch engineers working with
+                - code [ref=e789]: causal_events
+                - text: for the first time.
+              - paragraph [ref=e790]:
+                - strong [ref=e791]: Append-only is enforced in application code, not by a database constraint.
+                - text: Nothing in PostgreSQL stops an
+                - code [ref=e792]: UPDATE causal_events SET reasoning = '...' WHERE id = $1
+                - text: — the table has no row-level trigger that rejects mutations, no
+                - code [ref=e793]: CHECK
+                - text: that can block an UPDATE. The contract lives in
+                - code [ref=e794]: causal-service.ts
+                - text: ", which never issues UPDATE or DELETE against this table. A migration script, a backfill, or a one-off admin query that mutates existing rows silently breaks the replay guarantee, and the system won't warn you."
+              - paragraph [ref=e795]:
+                - strong [ref=e796]:
+                  - code [ref=e797]: event_type
+                  - text: describes what happened, not what caused it.
+                - code [ref=e798]: FACT_ASSERTED
+                - text: means a fact was written to Graph S during that ingest call. It carries no information about causal direction. Causal direction is an interpretation — it belongs in a causal edge, not in the event record's type label. Using
+                - code [ref=e799]: event_type
+                - text: as a proxy for causality is the most common semantic mistake in early Graph C queries.
+              - paragraph [ref=e800]:
+                - strong [ref=e801]: Events and edges are many-to-many, not one-to-one.
+                - text: A single edge may be informed by several events — an entity-creation event from one ingest call and a fact-contradiction event from a later one. Equally, one event can inform multiple edges if the causal agent runs more than once over the same evidence. The
+                - code [ref=e802]: triggered_edge_id
+                - text: back-link records
+                - emphasis [ref=e803]: one
+                - text: edge per event; the full relationship is queryable through the edges'
+                - code [ref=e804]: source_references
+                - text: JSONB.
+              - paragraph [ref=e805]:
+                - text: "Section 3 moves from observation to assertion: the"
+                - code [ref=e806]: causal_edges
+                - text: schema, the non-negotiable
+                - code [ref=e807]: reasoning
+                - text: and
+                - code [ref=e808]: source_references
+                - text: fields that make every edge auditable, and the
+                - code [ref=e809]: PROPOSED → CONFIRMED → REFUTED
+                - text: lifecycle that governs how the agent's claims are validated over time.
+            - paragraph [ref=e811]: "You can now describe the causal_events table from memory, explain why its append-only contract is non-negotiable, and locate the emission point inside the ingest() pipeline — step 6, after all Graph S writes, before the conditional agent run. You also have a sharp distinction between events and edges: events are observations the system records automatically; edges are interpretations the agent asserts deliberately. Section 3 picks up exactly where that distinction leads — into the causal_edges schema, the reasoning and source_references fields that make every edge auditable, and the lifecycle that governs how an edge moves from PROPOSED to CONFIRMED or REFUTED."
+          - generic [ref=e812]:
+            - heading "Key takeaways" [level=3] [ref=e813]
+            - list [ref=e814]:
+              - listitem [ref=e815]: Causal events are append-only — never update or delete — ensuring reproducible audit trails and verifiable agent reasoning.
+              - listitem [ref=e816]: Every causal event has memory_id, event_type, and payload as NOT NULL anchors to source, category, and evidence.
+              - listitem [ref=e817]: Events are system-recorded observations; edges are agent-asserted interpretations; events always precede edge creation in the pipeline.
+              - listitem [ref=e818]: Causal events emit after Graph S writes succeed, then conditional logic checks event_type to trigger the agent.
+              - listitem [ref=e819]: Entity and fact IDs back-fill after extraction, indexing events to Graph S rows for agent navigation.
+              - listitem [ref=e820]: UUIDs for event IDs enable distributed emission without coordination, preserving identity across replicas and backups.
+        - generic [ref=e821]:
+          - heading "Notes 0 notes" [level=2] [ref=e822]:
+            - text: Notes
+            - generic [ref=e823]: 0 notes
+          - generic [ref=e824]: Highlight any lesson text and pick "Take a note" to start.
+        - generic [ref=e825]:
+          - heading "Questions 4 total · 0 attempts" [level=2] [ref=e826]
+          - generic [ref=e827]:
+            - generic [ref=e828]:
+              - generic [ref=e829] [cursor=pointer]:
+                - generic [ref=e830]: ▶
+                - generic [ref=e831]: What is the difference between a causal event and a causal edge in Graph C? Give a concrete example involving a memory ingestion.
+                - generic [ref=e832]:
+                  - text: ★★☆☆☆
+                  - generic [ref=e833]: Not attempted
+              - generic [ref=e853]:
+                - generic [ref=e854]: What is the difference between a causal event and a causal edge in Graph C? Give a concrete example involving a memory ingestion.
+                - textbox "Write your answer here..." [ref=e855]: i think a causal event is the trigger and a causal edge is the connection between two things. so like if alice's role changed thats the event and then the edge would point from that event to her new role fact. honestly they sound like the same thing in two different schemas to me
+                - button "Submit Answer" [ref=e876] [cursor=pointer]
+                - generic [ref=e878]:
+                  - generic [ref=e879]:
+                    - generic [ref=e880]: Partial 40%
+                    - generic [ref=e881]: Needs Work
+                  - generic [ref=e882]: "You're on the right track recognizing that events and edges are *different kinds of things*, but the distinction isn't about two schemas — it's about **observation vs. inference**. Here's the key: a causal *event* is an immutable ground-truth **record of what happened**. When you ingest a text saying 'Alice was promoted to VP', the pipeline automatically logs a causal event: 'memory M was ingested, entity Alice was extracted, role fact was created at time T'. This event is append-only and never changes — it's the audit trail. A causal *edge*, by contrast, is a **reasoned assertion** created *after* the fact by the Haiku agent. The agent reads multiple events, reasons over entity histories and extracted facts, then proposes: 'Alice's mentorship CAUSED her promotion'. This edge has **reasoning** and **source references** attached. Crucially, edges have a lifecycle — they can be proposed, confirmed, superseded, or retracted as new information arrives. You can always replay edges from events if reasoning improves. In your example: ingesting 'Alice was promoted' creates an *event* (automatic, immutable). The agent then *reasons* and asserts an *edge* claiming what caused the promotion (reasoned, potentially revisable). The edge doesn't point from the event to the fact — rather, the event *records* the fact's creation, and the edge asserts a *causal relationship* between entities or facts based on reasoning. This separation means you keep ground truth (events) separate from inference (edges), which is essential for auditability and reasoning improvement. **Focus on this observation-vs-inference distinction next, and re-read Section 2 on the append-only audit trail property.**"
+                  - generic [ref=e883]: Keeping events and edges separate preserves the distinction between observation and inference. Events are ground truth log entries; edges are reasoned conclusions that can have a lifecycle (proposed → confirmed → superseded). You can always replay edges from events if reasoning improves.
+            - generic [ref=e834]:
+              - generic [ref=e835] [cursor=pointer]:
+                - generic [ref=e836]: ▶
+                - generic [ref=e837]: Why does append-only semantics for causal events make the system more trustworthy than an update-in-place approach? What specific capabiliti…
+                - generic [ref=e838]:
+                  - text: ★★★☆☆
+                  - generic [ref=e839]: Not attempted
+              - generic [ref=e858]:
+                - generic [ref=e859]: Why does append-only semantics for causal events make the system more trustworthy than an update-in-place approach? What specific capabilities does it enable?
+                - textbox "Write your answer here..." [ref=e860]: because if you can edit history you can hide mistakes, so append only means everyone can see what really happened. it's like git
+                - button "Submit Answer" [ref=e884] [cursor=pointer]
+                - generic [ref=e886]:
+                  - generic [ref=e887]:
+                    - generic [ref=e888]: Partial 60%
+                    - generic [ref=e889]: Partial
+                  - generic [ref=e890]: "You got the core principle right—append-only prevents rewriting history and ensures transparency. Your git analogy is spot-on: just like git preserves every commit, the causal_events table permanently records every observation the system makes. That's exactly the security and auditability angle you articulated. But the question asks for *specific capabilities* that append-only enables, and you hit only one of the four. Here's what you missed: (1) **Full audit reconstruction**: You can trace backwards from any causal edge to see the exact sequence of events and reasoning that led to it. (2) **Replay**: If a better causal model is developed, you can re-run the agent over the same raw events without losing data—the old edges stay in history, the new edges are added. (3) **Contradiction detection**: When conflicting observations exist (\"A causes B\" vs \"B causes A\"), they're both visible in the log side-by-side. With update-in-place, one would just overwrite the other silently. (4) **Temporal provenance**: You can see exactly *when* the system learned a relationship, which matters for reasoning about when evidence arrived. The underlying pattern here is *event sourcing*—separate the immutable event log (causal_events) from the materialized view (causal_edges, what we currently believe). This separation is what makes correction and contradiction detection possible. Focus on understanding event sourcing next, and the four capabilities will click into place."
+                  - generic [ref=e891]: This is the same principle as event sourcing in distributed systems. The causal_events table is effectively an event log; causal_edges are the materialized view of what the agent currently believes. Separating the log from the belief state is what makes the system inspectable and correctable.
+            - generic [ref=e840]:
+              - generic [ref=e841] [cursor=pointer]:
+                - generic [ref=e842]: ▶
+                - generic [ref=e843]: Walk through the ingest() pipeline step by step and identify exactly where a causal event would be emitted and what data it would capture at…
+                - generic [ref=e844]:
+                  - text: ★★★★☆
+                  - generic [ref=e845]: Not attempted
+              - generic [ref=e863]:
+                - generic [ref=e864]: Walk through the ingest() pipeline step by step and identify exactly where a causal event would be emitted and what data it would capture at that point.
+                - textbox "Write your answer here..." [ref=e865]: ingest calls store() and then extract() and somewhere in extract the new facts get written so probably the causal event gets created when a fact is inserted. i don't really remember the conditional trigger logic but i think it has something to do with how many facts changed
+                - button "Submit Answer" [ref=e892] [cursor=pointer]
+                - generic [ref=e894]:
+                  - generic [ref=e895]:
+                    - generic [ref=e896]: Partial 45%
+                    - generic [ref=e897]: Partial
+                  - generic [ref=e898]: "You've got the general flow right—ingest() does call store() and then extract()—and you correctly intuited that the conditional trigger checks how many facts were created. But there are two critical gaps here. **Timing matters:** The causal event is NOT emitted when individual facts are inserted. It's emitted *after extract() completes* as a single atomic event. Why? Because we need to know the complete set of entities and facts that were created or matched before we can emit an event that references them. If we emitted on each fact insertion, we'd have partial events with incomplete entity references, which breaks our source traceability chain. **Data capture:** The event must capture four pieces of information: (1) the **memoryId**—this is the link back to the raw source text stored in Qdrant, critical for `source_references` in causal edges; (2) **entity IDs** created or matched; (3) **fact IDs** created; and (4) the **extraction trigger type** (one of three signals: existing causal history, fact count threshold, or explicit causal language in text). This event then becomes the input to the conditional trigger check, which decides whether to invoke the causal agent. Read **04-sparse-branch-design.md section on the causal agent conditional logic** to nail down the three trigger signals. Next, focus on understanding why the memoryId matters for building source_references chains in causal edges."
+                  - generic [ref=e899]: The event is emitted after extract() because that's when we know which entities and facts were affected. Emitting before extract() would give us a meaningless event with no entity/fact references. The memoryId in the event is what allows source_references in causal edges to trace back to the original raw text in Qdrant.
+            - generic [ref=e846]:
+              - generic [ref=e847] [cursor=pointer]:
+                - generic [ref=e848]: ▶
+                - generic [ref=e849]: What does 'mutation inspectability' mean in the context of Graph C, and how does the causal_events table support it?
+                - generic [ref=e850]:
+                  - text: ★★★☆☆
+                  - generic [ref=e851]: Not attempted
+              - generic [ref=e868]:
+                - generic [ref=e869]: What does 'mutation inspectability' mean in the context of Graph C, and how does the causal_events table support it?
+                - textbox "Write your answer here..." [ref=e870]: mutation inspectability is being able to look at any change and understand it. the causal_events table makes this possible because every change writes a row there so you can audit it later
+                - button "Evaluating..." [disabled] [ref=e872]
+    - complementary "Tutor chat" [ref=e369]:
+      - generic [ref=e370]:
+        - generic [ref=e371]: Tutor
+        - button "Collapse chat" [ref=e372] [cursor=pointer]: ×
+      - generic [ref=e373]:
+        - generic [ref=e873]: if causal events are append-only, what happens if someone made a mistake when they wrote the reasoning? do you just live with the wrong reasoning forever?
+        - generic [ref=e874]: Thinking...
+      - group "Quick prompts" [ref=e439]:
+        - button "▦ Diagram" [ref=e440] [cursor=pointer]
+        - button "↦ Walk-through" [ref=e441] [cursor=pointer]
+        - 'button "{} Example" [ref=e442] [cursor=pointer]'
+        - button "⊟ Flashcards" [ref=e443] [cursor=pointer]
+      - generic [ref=e444]:
+        - textbox "Ask about this section…" [disabled] [ref=e445]
+        - button "Send" [disabled] [ref=e446]
+  - generic: Pinned to lesson ✓

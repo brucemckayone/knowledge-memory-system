@@ -1,0 +1,60 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "Mnemo" [level=1] [ref=e3]
+    - generic [ref=e4]:
+      - generic [ref=e5] [cursor=pointer]: Facts
+      - generic [ref=e7] [cursor=pointer]: Causal
+      - generic [ref=e9] [cursor=pointer]: Sources
+      - generic [ref=e11] [cursor=pointer]: Merge
+      - generic [ref=e13] [cursor=pointer]: Same-As
+      - generic [ref=e15] [cursor=pointer]: Contradictions
+    - generic [ref=e17]:
+      - button "Force" [ref=e18] [cursor=pointer]
+      - button "DAG" [ref=e19] [cursor=pointer]
+    - generic [ref=e20]: color
+    - combobox "Entity color encoding" [ref=e21] [cursor=pointer]:
+      - option "by Type" [selected]
+      - option "by Component"
+      - option "by Community"
+      - option "by Cluster"
+    - generic "Show convex hulls per cluster (slow at scale)" [ref=e22] [cursor=pointer]:
+      - checkbox "Hulls" [ref=e23]
+      - text: Hulls
+    - generic [ref=e24]: halo
+    - combobox "Centrality halo metric (size scales with the chosen score)" [ref=e25] [cursor=pointer]:
+      - option "PageRank" [selected]
+      - option "Betweenness"
+    - generic [ref=e26] [cursor=pointer]:
+      - checkbox "Auto 5s" [checked] [ref=e27]
+      - text: Auto 5s
+    - generic [ref=e28]:
+      - button "Ingest" [ref=e29] [cursor=pointer]
+      - button "Garden" [ref=e30] [cursor=pointer]
+      - button "Reconcile" [ref=e31] [cursor=pointer]
+      - button "Topology" [ref=e32] [cursor=pointer]
+      - button "Cluster" [ref=e33] [cursor=pointer]
+      - button "Cross-cluster" [ref=e34] [cursor=pointer]
+      - button "Contradictions" [ref=e35] [cursor=pointer]
+      - button "Patterns" [ref=e36] [cursor=pointer]
+    - generic [ref=e37]:
+      - button "Clear Graph" [ref=e38] [cursor=pointer]
+      - button "Reset All" [ref=e39] [cursor=pointer]
+    - generic [ref=e40]:
+      - button "Reason" [ref=e41] [cursor=pointer]
+      - button "Query" [ref=e42] [cursor=pointer]
+  - generic [ref=e43]:
+    - img [ref=e44]
+    - generic:
+      - button "×"
+      - generic:
+        - heading "Detail" [level=2]
+        - paragraph: Click a node or edge
+  - generic [ref=e45]:
+    - generic "Toggle drift timeline" [ref=e46] [cursor=pointer]: ▾ drift
+    - generic [ref=e47]: no events
+    - button "Compute" [ref=e48] [cursor=pointer]
+  - generic [ref=e49]:
+    - generic [ref=e50]: Time
+    - slider [ref=e51] [cursor=pointer]: "100"
+    - generic [ref=e52]: Now
+    - button "Reset" [ref=e53] [cursor=pointer]

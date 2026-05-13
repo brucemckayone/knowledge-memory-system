@@ -1,0 +1,27 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+      - button "Presentation" [ref=e7] [cursor=pointer]
+  - generic [ref=e247]:
+    - generic [ref=e248]:
+      - heading "Courses" [level=1] [ref=e249]
+      - button "+ New Course" [ref=e250] [cursor=pointer]
+    - generic [ref=e251]:
+      - generic [ref=e252] [cursor=pointer]:
+        - generic [ref=e253]:
+          - generic [ref=e254]: "Graph C: The Causal Reasoning Layer in Nmemo"
+          - generic [ref=e255]: ready
+        - generic [ref=e256]: A deep-dive into Graph C, the perpendicular causal layer of Nmemo's dual-graph architecture. Learners will understand how causal events are recorded with full traceability, how edges evolve through a defined lifecycle, and how the causal MCP server exposes the entire layer to reasoning agents. By the end, learners can design, implement, and query causal reasoning pipelines on top of a hardened Graph S foundation.
+      - generic [ref=e257] [cursor=pointer]:
+        - generic [ref=e258]:
+          - generic [ref=e259]: "How This System Hardens Itself: Graph Quality, Test-Harden Loop, and Cross-Cluster Bridging"
+          - generic [ref=e260]: ready
+        - generic [ref=e261]: A deep dive into the Nmemo sparse-truth-graph self-hardening architecture. You will understand every technique the system uses to detect, prevent, and repair graph quality problems — from duplicate entity resolution through HDBSCAN clustering to cross-cluster bridging — and how the test-harden recursive loop proves each improvement is real. By the end you will be able to reason confidently about why the system is structured the way it is and how the five hardening techniques compose into a self-improving whole.
+      - generic [ref=e262] [cursor=pointer]:
+        - generic [ref=e263]:
+          - generic [ref=e264]: "What This Graph Could Power: A Strategic Analysis of Primitives and Use Cases"
+          - generic [ref=e265]: ready
+        - generic [ref=e266]: A strategy and R&D course that maps the system's exact capabilities — Graph S bi-temporal facts, Graph C causal edges, topology analytics, entity resolution, confidence decay, and MCP-first agent writes — and then reasons through six domains where composing those primitives produces outcomes that no conventional system architecture can match. Every claim is grounded in a specific service, schema, or design document. The audience is expected to read critically and push back.

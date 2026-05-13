@@ -1,0 +1,611 @@
+- generic [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: ◈ Adaptive Learn
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Courses" [ref=e6] [cursor=pointer]
+  - generic [ref=e133]:
+    - generic [ref=e134]:
+      - generic [ref=e135] [cursor=pointer]: ← Back to course
+      - generic [ref=e136]:
+        - generic [ref=e947]:
+          - generic [ref=e948]: "Graph C: The Causal Reasoning Layer in Nmemo"
+          - 'heading "Section 3 — Causal Edges: Assertion, Schema, and Lifecycle" [level=1] [ref=e949]'
+          - generic [ref=e950]: "Examines the anatomy of a causal edge in detail: the mandatory reasoning and source_references fields, the confidence scoring model, and how edges move through a defined status lifecycle from proposed to confirmed to superseded. This section also covers the 002_causal_graph.sql migration and its use of explicit public. schema qualifiers."
+        - generic [ref=e951]:
+          - heading "Learning objectives" [level=3] [ref=e952]
+          - list [ref=e953]:
+            - listitem [ref=e954]: Recite the required fields of a causal edge and explain why each is non-negotiable
+            - listitem [ref=e955]: Describe all stages of the causal edge lifecycle and the transitions between them
+            - listitem [ref=e956]: Explain the purpose of the source_references JSONB field and what it must contain
+            - listitem [ref=e957]: Explain why 002_causal_graph.sql uses explicit public. schema qualifiers on all DDL
+        - generic [ref=e959]:
+          - generic [ref=e960]:
+            - generic [ref=e961]: ~13 min read
+            - generic [ref=e963] [cursor=pointer]: Regenerate
+          - generic [ref=e966]:
+            - generic [ref=e967]:
+              - paragraph [ref=e968]: "A causal edge is Graph C's atomic claim: entity A caused or influenced entity B, with a timestamped reasoning trace and a chain of source references that makes that claim auditable months later. Without those two anchors the edge is an oracle — queryable but unchallengeable, impossible to supersede intelligently."
+              - paragraph [ref=e969]:
+                - text: This section dissects one edge from its SQL columns to its full lifecycle. You'll see why
+                - code [ref=e970]: reasoning
+                - text: and
+                - code [ref=e971]: source_references
+                - text: are architectural non-negotiables, how a numeric confidence score is assigned and consumed downstream, how an edge moves through
+                - code [ref=e972]: proposed → confirmed → superseded
+                - text: ", and why every DDL statement in"
+                - code [ref=e973]: 002_causal_graph.sql
+                - text: carries an explicit
+                - code [ref=e974]: public.
+                - text: prefix. By the end you can write a valid edge insertion, recite every lifecycle transition, and explain the schema-qualifier hazard to a colleague.
+            - generic [ref=e975]:
+              - heading "The Causal Edge as an Assertion Record" [level=3] [ref=e976]
+              - paragraph [ref=e977]:
+                - text: "When the causal agent decides that EntityA influenced EntityB, it produces two things: an entry in Apache AGE's property graph, and a row in the PostgreSQL"
+                - code [ref=e978]: causal_edges
+                - text: table. These are not the same artifact serving the same purpose — they're complementary layers with distinct jobs.
+              - paragraph [ref=e979]:
+                - text: The
+                - strong [ref=e980]: AGE graph edge
+                - text: "is a traversal-index entry. Its value is performance: it lets graph queries traverse cause-effect chains efficiently using Cypher without scanning the relational table. It is not a data store. As you'll see in the WARNING callout below, AGE silently drops"
+                - code [ref=e981]: SET
+                - text: clauses on edge properties in the current version, so no canonical data can safely live there.
+              - paragraph [ref=e982]:
+                - text: The
+                - strong [ref=e983]:
+                  - code [ref=e984]: causal_edges
+                  - text: table row
+                - text: "is the canonical assertion record. It is the source of truth for everything the edge claims:"
+              - list [ref=e985]:
+                - listitem [ref=e986]:
+                  - emphasis [ref=e987]: What
+                  - text: was asserted — the two entity IDs and the
+                  - code [ref=e988]: edge_type
+                - listitem [ref=e989]:
+                  - emphasis [ref=e990]: Why
+                  - text: it was asserted — the
+                  - code [ref=e991]: reasoning
+                  - text: text written by the agent at assertion time
+                - listitem [ref=e992]:
+                  - emphasis [ref=e993]: On what evidence
+                  - text: — the
+                  - code [ref=e994]: source_references
+                  - text: array pointing back to ingested source passages
+                - listitem [ref=e995]:
+                  - emphasis [ref=e996]: How confident
+                  - text: — a numeric score in
+                  - code [ref=e997]: "[0.000, 1.000]"
+                - listitem [ref=e998]:
+                  - emphasis [ref=e999]: What stage it's in
+                  - text: — a lifecycle
+                  - code [ref=e1000]: status
+                  - text: of
+                  - code [ref=e1001]: proposed
+                  - text: ","
+                  - code [ref=e1002]: confirmed
+                  - text: ", or"
+                  - code [ref=e1003]: superseded
+              - paragraph [ref=e1004]:
+                - text: "In Section 2 you saw causal events: the triggers — new facts, causal language in source text, existing causal history — that tell the pipeline the causal agent should run. A causal edge is what the agent produces when it runs. The event says"
+                - emphasis [ref=e1005]: run
+                - text: ; the edge records
+                - emphasis [ref=e1006]: what was concluded and why
+                - text: ". That separation is intentional: the event log is ephemeral coordination, the edge row is permanent, auditable knowledge."
+              - paragraph [ref=e1007]: Every detail in the sections that follow — the NOT NULL constraints, the JSONB structure, the lifecycle transitions, the schema qualifiers — is an elaboration of what it means for that row to be a trustworthy, challengeable, supersedable assertion.
+            - paragraph [ref=e1009]:
+              - emphasis [ref=e1010]: "[Artifact generation failed for SvgFigure: fixed-kind SvgFigure fell back to markdown]"
+            - generic [ref=e1011]:
+              - heading "Why reasoning and source_references Are Correctness Constraints" [level=3] [ref=e1012]:
+                - text: Why
+                - code [ref=e1013]: reasoning
+                - text: and
+                - code [ref=e1014]: source_references
+                - text: Are Correctness Constraints
+              - paragraph [ref=e1015]:
+                - text: The
+                - code [ref=e1016]: NOT NULL
+                - text: "constraints on these two columns are not defensive coding style — they encode a design invariant:"
+                - strong [ref=e1017]: every causal edge must carry its own justification
+                - text: . Remove either field and the edge becomes an opaque assertion, a number with no provenance.
+              - paragraph [ref=e1018]:
+                - text: Consider what happens without
+                - code [ref=e1019]: reasoning
+                - text: . A downstream agent retrieving an edge between two entities sees a confidence score and a status, but has no way to evaluate the
+                - emphasis [ref=e1020]: quality
+                - text: of the causal claim. It cannot tell whether the agent hedged heavily, drew on three corroborating sources, or produced a confident hallucination. More concretely, when a
+                - emphasis [ref=e1021]: better
+                - text: edge arrives — one with higher confidence or contradicting evidence — the supersession logic needs to compare reasoning traces to decide which edge to keep. Without text to compare, that decision degrades to comparing numbers, which is insufficient. An edge without
+                - code [ref=e1022]: reasoning
+                - text: "is an oracle: queryable, but unchallengeable."
+              - paragraph [ref=e1023]:
+                - text: The same logic applies to
+                - code [ref=e1024]: source_references
+                - text: ", with an added audit dimension. Graph C's append-only design (established in Section 2) means edges accumulate over time; the system never forgets, it supersedes. That guarantee is only meaningful if you can trace any edge back to the ingested text that motivated it. Without"
+                - code [ref=e1025]: source_references
+                - text: ", an edge that survives six months of supersession cycles has no chain of custody. You cannot answer:"
+                - emphasis [ref=e1026]: which memory record justified this?
+                - text: You cannot run a correction sweep when a source text is found to be wrong. The edge exists, but it is epistemically ungrounded — no better than a magic number stored in a lookup table.
+              - paragraph [ref=e1027]:
+                - text: Think of these two fields together as the edge's
+                - emphasis [ref=e1028]: burden of proof
+                - text: ":"
+              - list [ref=e1029]:
+                - listitem [ref=e1030]:
+                  - code [ref=e1031]: reasoning
+                  - text: — the agent's stated argument, in natural language, at the moment of assertion. It captures hedging, analogy, and the chain of inference that produced the confidence score.
+                - listitem [ref=e1032]:
+                  - code [ref=e1033]: source_references
+                  - text: "— the physical anchors: the"
+                  - code [ref=e1034]: memory_id
+                  - text: FKs and verbatim excerpts that tie the argument to real ingested text.
+              - paragraph [ref=e1035]:
+                - text: Stripping either one doesn't just weaken the edge — it breaks the contract that makes Graph C auditable, correctable, and supersedable in a principled way. The database enforces this with
+                - code [ref=e1036]: NOT NULL
+                - text: because there is no valid reason to assert an edge without both.
+            - generic [ref=e1037]:
+              - generic [ref=e1039]: Code · js
+              - code [ref=e1041]: "const validEdge = { id: '550e8400-e29b-41d4-a716-446655440000', cause_entity_id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8', effect_entity_id: '6ba7b811-9dad-11d1-80b4-00c04fd430c9', edge_type: 'ENABLES', confidence: 0.82, status: 'proposed', reasoning: 'EntityA (database expertise) appears to enable EntityB (PostgreSQL migration) due to temporal proximity in source texts. The causal linkage is suggestive, as infrastructure readiness also contributes. Confidence is moderate (0.82) reflecting this conditional relationship.', source_references: [ { memory_id: '550e8400-e29b-41d4-a716-446655440001', text_excerpt: 'The team lead studied SQL for 2 years and recently proposed migrating to PostgreSQL.', ingest_timestamp: '2026-05-10T14:32:00Z' }, { memory_id: '550e8400-e29b-41d4-a716-446655440002', text_excerpt: 'After migration, performance improved 40%, validating the prior expertise.', ingest_timestamp: '2026-05-11T09:15:00Z' } ] }; const invalidEdge = { id: '550e8400-e29b-41d4-a716-446655440000', cause_entity_id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8', effect_entity_id: '6ba7b811-9dad-11d1-80b4-00c04fd430c9', edge_type: 'ENABLES', confidence: 0.82, status: 'proposed' }; console.log('✓ VALID EDGE:'); console.log(JSON.stringify(validEdge, null, 2)); console.log(''); console.log('✗ INVALID — missing reasoning & source_references (NOT NULL violation):'); console.log(JSON.stringify(invalidEdge, null, 2));"
+              - generic [ref=e1042]:
+                - button "Run" [ref=e1043] [cursor=pointer]
+                - button "Reset" [ref=e1044] [cursor=pointer]
+            - generic [ref=e1045]:
+              - heading "Confidence Scoring" [level=3] [ref=e1046]
+              - paragraph [ref=e1047]:
+                - text: Every causal edge carries a
+                - code [ref=e1048]: confidence
+                - text: value typed as
+                - code [ref=e1049]: NUMERIC(4,3)
+                - text: — a decimal in the closed range
+                - code [ref=e1050]: "[0.000, 1.000]"
+                - text: ". The Haiku agent assigns this score at assertion time, before the edge is written to the database. It is never left null and never set by the caller: the agent owns it."
+              - paragraph [ref=e1051]:
+                - text: Three signals push the score
+                - strong [ref=e1052]: up
+                - text: ":"
+              - list [ref=e1053]:
+                - listitem [ref=e1054]:
+                  - strong [ref=e1055]: Multiple corroborating sources.
+                  - text: Each additional
+                  - code [ref=e1056]: source_references
+                  - text: entry that independently supports the claim adds weight. Two distinct memory excerpts both showing the same causal pattern are stronger evidence than one.
+                - listitem [ref=e1057]:
+                  - strong [ref=e1058]: Unhedged causal language.
+                  - text: Phrases like "directly causes" or "is required for" score higher than "may contribute to" or "could influence". The agent parses its own reasoning string for hedging markers.
+                - listitem [ref=e1059]:
+                  - strong [ref=e1060]: Prior confirmed edges of the same type between the same pair.
+                  - text: If
+                  - code [ref=e1061]: (EntityA)-[:ENABLES]->(EntityB)
+                  - text: has already been confirmed once, a new observation of the same relationship starts with inherited credibility rather than from zero.
+              - paragraph [ref=e1062]:
+                - text: Three signals keep it
+                - strong [ref=e1063]: low
+                - text: ":"
+              - list [ref=e1064]:
+                - listitem [ref=e1065]: A single source reference with no corroboration.
+                - listitem [ref=e1066]: Hedged or speculative language in the reasoning.
+                - listitem [ref=e1067]: A first-time entity pair with no causal history — the agent has no prior signal to lean on.
+              - paragraph [ref=e1068]:
+                - text: Downstream consumers treat the score as a filter gate. When building a causal chain, a caller can discard any edge below a chosen threshold — say
+                - code [ref=e1069]: "0.6"
+                - text: "— to keep only relationships with meaningful evidential support:"
+              - code [ref=e1071]: SELECT * FROM public.causal_edges WHERE status = 'confirmed' AND confidence >= 0.6 ORDER BY confidence DESC;
+              - paragraph [ref=e1072]:
+                - text: The score also drives the
+                - strong [ref=e1073]:
+                  - code [ref=e1074]: proposed → confirmed
+                  - text: lifecycle transition
+                - text: "you'll explore next: confirmation requires that confidence clears a configured threshold"
+                - emphasis [ref=e1075]: and
+                - text: that an agent or reviewer approves. A high-confidence edge can be confirmed programmatically; a low-confidence one waits for human review. This is why the score isn't cosmetic — it is the primary gating input for an edge's entire forward journey through the lifecycle.
+            - generic [ref=e1076]:
+              - generic [ref=e1077]:
+                - generic [ref=e1078]: "Causal edge lifecycle: proposed → confirmed → superseded · d3"
+                - generic [ref=e1080]: ready
+              - iframe [ref=e1081]:
+                - generic [ref=f5e3]:
+                  - img [ref=f5e5]:
+                    - generic [ref=f5e6]: confidence ≥ threshold
+                    - generic [ref=f5e7]: "& agent/reviewer approval"
+                    - generic [ref=f5e8]: higher-confidence edge
+                    - generic [ref=f5e9]: for same entity pair
+                    - generic [ref=f5e11]: contradicting evidence arrives
+                    - generic [ref=f5e12]: before confirmation
+                    - generic [ref=f5e16] [cursor=pointer]: proposed
+                    - generic [ref=f5e20] [cursor=pointer]: confirmed
+                    - generic [ref=f5e24] [cursor=pointer]: superseded
+                  - generic [ref=f5e25]:
+                    - button "Reset" [ref=f5e26] [cursor=pointer]
+                    - text: Click a state to inspect.
+            - generic [ref=e1082]:
+              - 'heading "Inside source_references: What Each Array Element Must Carry" [level=3] [ref=e1083]':
+                - text: Inside
+                - code [ref=e1084]: source_references
+                - text: ": What Each Array Element Must Carry"
+              - paragraph [ref=e1085]:
+                - text: Every element in the
+                - code [ref=e1086]: source_references
+                - text: "JSONB array is a structured object with three required subfields:"
+              - list [ref=e1087]:
+                - listitem [ref=e1088]:
+                  - strong [ref=e1089]:
+                    - code [ref=e1090]: memory_id
+                  - text: — a UUID foreign key back to the
+                  - code [ref=e1091]: memories
+                  - text: "table. This is the join anchor: given any causal edge, you can retrieve the exact ingested text that spawned it. Without this link, a text excerpt floats free with no provenance chain."
+                - listitem [ref=e1092]:
+                  - strong [ref=e1093]:
+                    - code [ref=e1094]: text_excerpt
+                  - text: "— the verbatim passage from the source text that supports the causal claim. \"Verbatim\" matters here: a paraphrase introduces the agent's interpretation; the raw excerpt lets a reviewer judge the claim against the actual evidence independently."
+                - listitem [ref=e1095]:
+                  - strong [ref=e1096]:
+                    - code [ref=e1097]: ingest_timestamp
+                  - text: — the ISO-8601 timestamp recording when that source memory entered the system. This anchors the reference in bi-temporal space and lets you reconstruct what the agent knew at assertion time, which is essential when edges are later challenged or superseded.
+              - paragraph [ref=e1098]: "A minimal valid element looks like this:"
+              - code [ref=e1100]: "{ \"memory_id\": \"a3f7...\", \"text_excerpt\": \"Component A must complete initialisation before Component B can register its handlers.\", \"ingest_timestamp\": \"2026-04-10T14:22:00Z\" }"
+              - heading "Why JSONB Instead of a Normalised Join Table" [level=3] [ref=e1101]
+              - paragraph [ref=e1102]:
+                - text: You might expect a separate
+                - code [ref=e1103]: edge_sources
+                - text: "table with one row per reference — a conventional FK design. The deliberate choice here is JSONB, and it's driven by anticipated schema evolution. Future reference types will carry fields that don't fit the current three-column shape: Qdrant chunk IDs for vector-retrieved passages, external document URLs, page-and-paragraph offsets for PDFs. With a normalised table you'd need a migration for each new reference type. With JSONB, the causal edge schema itself doesn't change — you add fields to the array objects and the existing rows remain valid."
+              - paragraph [ref=e1104]:
+                - text: The tradeoff is queryability, and that's handled by a
+                - strong [ref=e1105]: GIN index
+                - text: "on"
+                - code [ref=e1106]: source_references
+                - text: ":"
+              - code [ref=e1108]: CREATE INDEX idx_causal_edges_source_refs ON public.causal_edges USING GIN (source_references);
+              - paragraph [ref=e1109]:
+                - text: With a GIN index in place, Postgres can locate every causal edge that cites a specific
+                - code [ref=e1110]: memory_id
+                - text: efficiently — useful when a memory is corrected or deleted and you need to audit which edges it supported. The index makes JSONB containment queries (
+                - code [ref=e1111]: "@>"
+                - text: ) fast without sacrificing the schema flexibility that a join table would foreclose.
+              - heading "Connection Back to Confidence" [level=3] [ref=e1112]
+              - paragraph [ref=e1113]:
+                - text: Because the Haiku agent reads
+                - code [ref=e1114]: source_references
+                - text: at assertion time, the array length and excerpt quality directly feed the confidence score covered above. A single weak excerpt produces a low score; two or more strong, unhedged excerpts corroborating the same claim push it higher. The array is therefore both the audit trail and an implicit signal about how well-evidenced the edge is.
+            - generic [ref=e1115]:
+              - heading "The public. Prefix Is a Correctness Constraint" [level=3] [ref=e1116]:
+                - text: The
+                - code [ref=e1117]: public.
+                - text: Prefix Is a Correctness Constraint
+              - paragraph [ref=e1118]:
+                - text: When
+                - code [ref=e1119]: 001_consolidated.sql
+                - text: "runs, it issues this at session level:"
+              - code [ref=e1121]: SET search_path = ag_catalog, public, "$user";
+              - paragraph [ref=e1122]:
+                - text: That directive persists for the life of the database connection — including across every subsequent migration file that executes in the same session. By the time
+                - code [ref=e1123]: 002_causal_graph.sql
+                - text: runs, the first schema in the resolution order is
+                - code [ref=e1124]: ag_catalog
+                - text: ", not"
+                - code [ref=e1125]: public
+                - text: .
+              - paragraph [ref=e1126]:
+                - text: Any
+                - code [ref=e1127]: CREATE TABLE
+                - text: in
+                - code [ref=e1128]: "002"
+                - text: that omits an explicit schema prefix silently lands in
+                - code [ref=e1129]: ag_catalog
+                - text: . PostgreSQL reports no error; the table is created successfully. The problem surfaces the moment a foreign key tries to reference
+                - code [ref=e1130]: public.entities
+                - text: or
+                - code [ref=e1131]: public.facts
+                - text: — the cross-schema reference either fails to resolve, or resolves to the wrong object and enforces nothing. No loud failure, just a
+                - code [ref=e1132]: causal_edges
+                - text: table with integrity constraints that don't work.
+              - paragraph [ref=e1133]:
+                - text: The rule for every DDL statement in
+                - code [ref=e1134]: 002_causal_graph.sql
+                - text: "is therefore concrete and non-negotiable:"
+              - code [ref=e1136]: CREATE TABLE public.causal_edges ( ... ); CREATE INDEX ON public.causal_edges (cause_entity_id); cause_entity_id UUID REFERENCES public.entities(id), effect_entity_id UUID REFERENCES public.entities(id)
+              - paragraph [ref=e1137]:
+                - text: Every
+                - code [ref=e1138]: CREATE TABLE
+                - text: ","
+                - code [ref=e1139]: CREATE INDEX
+                - text: ", and"
+                - code [ref=e1140]: REFERENCES
+                - text: clause carries an explicit
+                - code [ref=e1141]: public.
+                - text: "prefix. If you read this as defensive verbosity — the kind of redundant qualification you'd strip in a single-schema database — correct that read. Each qualifier is load-bearing: remove any one of them and the object silently migrates to"
+                - code [ref=e1142]: ag_catalog
+                - text: without warning.
+              - paragraph [ref=e1143]:
+                - text: The apparent fix of opening
+                - code [ref=e1144]: "002"
+                - text: with
+                - code [ref=e1145]: SET search_path = public
+                - text: is not available. The Graph S sync triggers —
+                - code [ref=e1146]: sync_entity_to_graph
+                - text: and
+                - code [ref=e1147]: trigger_sync_fact
+                - text: — and AGE's
+                - code [ref=e1148]: cypher()
+                - text: function all depend on
+                - code [ref=e1149]: ag_catalog
+                - text: "being present in the session path. Resetting that path from inside a new migration silently breaks those triggers on every subsequent database connection, with no compile-time error to catch it. The explicit-qualifier pattern is the only approach that satisfies both constraints at once: new DDL objects land in"
+                - code [ref=e1150]: public
+                - text: ", and the AGE runtime inherits an unmodified path."
+            - generic [ref=e1151]:
+              - generic [ref=e1152]:
+                - generic [ref=e1153]: "!"
+                - generic [ref=e1154]: AGE Edge Properties Are Silent No-Ops
+              - generic [ref=e1156]:
+                - paragraph [ref=e1157]:
+                  - text: In the current version of Apache AGE, executing
+                  - code [ref=e1158]: MERGE (a)-[r:REL]->(b) SET r.property = value
+                  - text: creates the edge relationship but silently discards the SET clause — the property is never persisted on the edge.
+                - paragraph [ref=e1159]: Node properties work correctly; only edge properties are affected.
+                - paragraph [ref=e1160]: Therefore all canonical causal data — reasoning, confidence, status, source_references — must live exclusively in the PostgreSQL causal_edges table, never in AGE edge properties, or the data will be silently lost.
+            - generic [ref=e1161]:
+              - paragraph [ref=e1162]:
+                - text: Every concept you've worked through — the NOT NULL constraints on
+                - code [ref=e1163]: reasoning
+                - text: and
+                - code [ref=e1164]: source_references
+                - text: ", the"
+                - code [ref=e1165]: NUMERIC(4,3)
+                - text: confidence field, the three-state
+                - code [ref=e1166]: status
+                - text: lifecycle, the JSONB reference array, and the
+                - code [ref=e1167]: public.
+                - text: qualifier discipline — is the exact contract the causal MCP server enforces at runtime.
+              - paragraph [ref=e1168]: "Section 4 introduces the Haiku agent's 7 MCP tools. Each one is a thin, purposeful operation over the rows and columns you can now name without looking them up:"
+              - list [ref=e1169]:
+                - listitem [ref=e1170]:
+                  - strong [ref=e1171]: Assert
+                  - text: writes a new row with
+                  - code [ref=e1172]: status = 'proposed'
+                  - text: ", populating"
+                  - code [ref=e1173]: reasoning
+                  - text: ","
+                  - code [ref=e1174]: source_references
+                  - text: ", and"
+                  - code [ref=e1175]: confidence
+                  - text: in one step.
+                - listitem [ref=e1176]:
+                  - strong [ref=e1177]: Confirm
+                  - text: transitions
+                  - code [ref=e1178]: status
+                  - text: to
+                  - code [ref=e1179]: "'confirmed'"
+                  - text: after the confidence threshold check you've already seen.
+                - listitem [ref=e1180]:
+                  - strong [ref=e1181]: Supersede
+                  - text: flips
+                  - code [ref=e1182]: status
+                  - text: to
+                  - code [ref=e1183]: "'superseded'"
+                  - text: on the old edge and writes the replacement — the same row-level operation, applied to a pair.
+                - listitem [ref=e1184]:
+                  - strong [ref=e1185]: Query tools
+                  - text: filter by
+                  - code [ref=e1186]: status
+                  - text: ","
+                  - code [ref=e1187]: edge_type
+                  - text: ", confidence range, or"
+                  - code [ref=e1188]: memory_id
+                  - text: inside
+                  - code [ref=e1189]: source_references
+                  - text: — all columns you already recognise.
+              - paragraph [ref=e1190]: There are no new data structures in Section 4. The tool definitions read as natural expressions of the model you already own.
+            - paragraph [ref=e1192]: "You can now describe a causal edge from every angle: its complete column inventory and the constraints that make two of those columns non-negotiable, the confidence scoring logic and how it gates lifecycle transitions, every status state and the conditions that drive movement between them, the internal structure of a source_references array, and the schema-qualifier discipline that keeps 002_causal_graph.sql correct under AGE's session-level search_path. Section 4 builds directly on this foundation: the Haiku agent's 7 MCP tools are each a thin, purposeful verb over the causal_edges schema you just mapped — assertion, confirmation, supersession, and query all reduce to operations on the columns you can now name by heart."
+          - generic [ref=e1193]:
+            - heading "Key takeaways" [level=3] [ref=e1194]
+            - list [ref=e1195]:
+              - listitem [ref=e1196]: "Causal edges split into two layers: AGE graph for traversal performance, causal_edges table for canonical assertion data."
+              - listitem [ref=e1197]: "reasoning and source_references NOT NULL constraints encode the invariant: every edge carries justification or becomes an opaque oracle."
+              - listitem [ref=e1198]: "Every causal edge records: entity pair, edge type, reasoning text, source references array, confidence score (0-1), and status."
+              - listitem [ref=e1199]: All causal_edges DDL needs explicit public. schema qualifiers; AGE's session-level search_path otherwise routes objects to ag_catalog.
+              - listitem [ref=e1200]: Edges are append-only and supersedable; source_references provide chain of custody linking edges to ingested source texts.
+              - listitem [ref=e1201]: Downstream agents compare reasoning traces to decide supersession; numeric confidence alone is insufficient for intelligent edge replacement.
+        - generic [ref=e1202]:
+          - heading "Notes 0 notes" [level=2] [ref=e1203]:
+            - text: Notes
+            - generic [ref=e1204]: 0 notes
+          - generic [ref=e1205]: Highlight any lesson text and pick "Take a note" to start.
+        - generic [ref=e1206]:
+          - heading "Questions 4 total · 0 attempts" [level=2] [ref=e1207]
+          - generic [ref=e1208]:
+            - generic [ref=e1209]:
+              - generic [ref=e1210] [cursor=pointer]:
+                - generic [ref=e1211]: ▶
+                - generic [ref=e1212]: Two fields on every causal edge are described as 'non-negotiable'. Name them, explain what each must contain, and justify why neither can be…
+                - generic [ref=e1213]:
+                  - text: ★★☆☆☆
+                  - generic [ref=e1214]: Not attempted
+              - generic [ref=e1234]:
+                - generic [ref=e1235]: Two fields on every causal edge are described as 'non-negotiable'. Name them, explain what each must contain, and justify why neither can be nullable.
+                - textbox "Write your answer here..." [ref=e1236]: reasoning and source_references. reasoning is the explanation in english and source_references is like a list of pointers to where the information came from. without them the edge is just an assertion with no proof so its untrustworthy. i think the schema makes them not null
+                - button "Evaluating..." [disabled] [ref=e1238]
+            - generic [ref=e1215]:
+              - generic [ref=e1216] [cursor=pointer]:
+                - generic [ref=e1217]: ▶
+                - generic [ref=e1218]: Describe the full lifecycle of a causal edge from initial assertion to potential supersession. What triggers each transition?
+                - generic [ref=e1219]:
+                  - text: ★★★☆☆
+                  - generic [ref=e1220]: Not attempted
+              - generic [ref=e1239]:
+                - generic [ref=e1240]: Describe the full lifecycle of a causal edge from initial assertion to potential supersession. What triggers each transition?
+                - textbox "Write your answer here..." [ref=e1241]: an edge gets proposed when the agent finds evidence, then it goes to confirmed if its solid, and superseded if a new edge replaces it. when superseded you keep the old one in the table because audit trail. i'm not 100% sure on the exact status names sorry
+                - button "Submit Answer" [ref=e1356] [cursor=pointer]
+                - generic [ref=e1358]:
+                  - generic [ref=e1359]:
+                    - generic [ref=e1360]: Partial 68%
+                    - generic [ref=e1361]: Partial
+                  - generic [ref=e1362]: "You nailed the core concept—edges progress through `proposed` → `confirmed` → `superseded`, and the system preserves old edges in the table for audit trail rather than deleting them. That's exactly right. You also correctly identified that superseded edges reference the new edge that replaced them, which is critical for tracing how the system's understanding evolved. Here's what completes the picture: The question specifically asked *what triggers each transition*, and that's where the specifics live. **Proposed → Confirmed** happens when additional corroborating evidence arrives (e.g., subsequent causal events reference the same entity pair, or a human reviewer validates the edge). **Confirmed → Superseded** happens when a *later, higher-confidence edge* covering the same cause-effect relationship is asserted—the old edge is marked with a supersession reference, not deleted. There's also a **Refuted** status (which you didn't mention) that can be asserted if strong contradicting evidence arrives. The key detail: initial proposed edges have confidence *below* 0.9 until corroboration arrives. Confirmation is about *evidence accumulation and threshold crossing*, not just \"it seems solid.\" This is what makes the system debuggable—you can always replay how the AI's certainty changed. Next time, focus on naming the **specific triggers** for each state transition: what has to happen (new evidence? human input? confidence milestone?) for the edge to move from one status to the next. That's the operational definition of the lifecycle. You're clearly comfortable with the append-only model and audit trail concept—now tie it to the *conditions* that drive the transitions."
+                  - generic [ref=e1363]: The lifecycle design means you always have the full history of what the system believed and when. 'Superseded' is not a delete — it preserves the reasoning trail showing how the system's understanding evolved. This is critical for debugging and for auditing AI-assisted knowledge evolution.
+            - generic [ref=e1221]:
+              - generic [ref=e1222] [cursor=pointer]:
+                - generic [ref=e1223]: ▶
+                - generic [ref=e1224]: The source_references field is JSONB. What structure should it contain, and what makes a source_reference record sufficient for full traceab…
+                - generic [ref=e1225]:
+                  - text: ★★★★☆
+                  - generic [ref=e1226]: Not attempted
+              - generic [ref=e1244]:
+                - generic [ref=e1245]: The source_references field is JSONB. What structure should it contain, and what makes a source_reference record sufficient for full traceability?
+                - textbox "Write your answer here..." [ref=e1246]: "i think source_references is an array of objects with document_id and a snippet maybe? like {doc_id: '...', text: '...'}. a good source reference points to something specific enough that you could go check it. a bad one would just say 'because reasons'"
+                - button "Submit Answer" [ref=e1364] [cursor=pointer]
+                - generic [ref=e1366]:
+                  - generic [ref=e1367]:
+                    - generic [ref=e1368]: Partial 55%
+                    - generic [ref=e1369]: Partial
+                  - generic [ref=e1370]: "You got the core intuition right: source_references is an array of objects that point to something specific, and vague references are worse than useless for audit trails. But you're missing three critical fields that make traceability actually work. Your answer conflated all reference types into a single `doc_id` field. In reality, each object needs: **(1) memoryId** — the ID of the raw source text in Qdrant/Postgres (this is what lets you retrieve the original text), **(2) entityIds** — an **array** of Graph S entity IDs that the edge references (not a single ID), **(3) factIds** — an **array** of Graph S fact IDs that were considered, and **(4) excerpt** — optional but crucial, the specific text span that justified the edge. This is why JSONB is used: it's flexible enough to handle 1 memory + 3 entities + 2 facts *or* 10 memories + 0 entities + 15 facts, while staying queryable with PostgreSQL's `->` and `@>` operators for audit queries. Full traceability has three parts: (1) Use memoryId to retrieve the original raw text from Qdrant. (2) Look up the entity and fact records in Graph S tables — these are separate records with their own IDs. (3) Verify the agent's reasoning text in the causal edge is consistent with all the records you just retrieved. Without all three, the reference is incomplete — you can't close the loop from edge back to evidence. Right now you understand step 1 (get the text) but you're missing the Graph S prerequisite — entities and facts are distinct, independently queryable records, not tags."
+                  - generic [ref=e1371]: JSONB is used (not a foreign-key table) because source references are flexible — an edge may reference 1 memory or 10, may reference facts only or entities only. JSONB lets the schema accommodate this variability while still being queryable with PostgreSQL's -> and @> operators for audit queries.
+            - generic [ref=e1227]:
+              - generic [ref=e1228] [cursor=pointer]:
+                - generic [ref=e1229]: ▶
+                - generic [ref=e1230]: Why must 002_causal_graph.sql use explicit 'public.' schema qualifiers on all CREATE TABLE and REFERENCES statements, when 001_consolidated.…
+                - generic [ref=e1231]:
+                  - text: ★★★★★
+                  - generic [ref=e1232]: Not attempted
+              - generic [ref=e1249]:
+                - generic [ref=e1250]: Why must 002_causal_graph.sql use explicit 'public.' schema qualifiers on all CREATE TABLE and REFERENCES statements, when 001_consolidated.sql did not need to?
+                - textbox "Write your answer here..." [ref=e1251]: im not sure honestly. is it because postgres has a search path and without public it might land in the wrong schema? something with AGE making search_path weird i think but i forget exactly
+                - button "Submit Answer" [ref=e1372] [cursor=pointer]
+                - generic [ref=e1374]:
+                  - generic [ref=e1375]:
+                    - generic [ref=e1376]: Partial 50%
+                    - generic [ref=e1377]: Partial
+                  - generic [ref=e1378]: "You're on the right track—you correctly identified that search_path and schema placement are central to the issue, and you sensed AGE's involvement. That intuition is good foundation. But you're missing two critical pieces that complete the picture. Here's the full mechanism: When migration 001 runs `SET search_path = ag_catalog, public, \"$user\"` at the session level, that search_path **persists to the next migration file** (002) running in the same `psql` session. Without explicit schema qualifiers, any unqualified `CREATE TABLE` lands in the first schema in the path—which is `ag_catalog`. So `CREATE TABLE causal_edges` becomes a table in `ag_catalog`, not `public`. Then when you write `REFERENCES facts(id)`, PostgreSQL looks up `facts` in the search path, finds `ag_catalog.facts` (which doesn't exist), and the FK fails—migration broken. You can't fix this by changing search_path in migration 002 because **AGE's `cypher()` function and Graph S's trigger functions depend on ag_catalog being in the path**. Changing it would break existing triggers and the graph traversal. So explicit qualifiers (`public.causal_edges`, `public.REFERENCES public.facts(id)`) are the only solution—they override the search_path and guarantee tables land in the right schema. Go back to `CLAUDE.md` section \"AGE / search_path Gotchas\" and read it in full. This is a subtle but unavoidable detail in this architecture."
+                  - generic [ref=e1379]: This is a subtle but critical PostgreSQL + AGE interaction. The search_path set by migration 001 persists across migration files in the same session. It cannot be changed in migration 002 because AGE's cypher() function and Graph S triggers depend on ag_catalog being in the path. Explicit qualifiers are the correct solution.
+    - complementary "Tutor chat" [ref=e369]:
+      - generic [ref=e370]:
+        - generic [ref=e371]: Tutor
+        - button "Collapse chat" [ref=e372] [cursor=pointer]: ×
+      - generic [ref=e373]:
+        - generic [ref=e1233]: "Ask me anything about \"Section 3 — Causal Edges: Assertion, Schema, and Lifecycle\". Highlight any text in the lesson for quick popovers; longer conversations live here."
+        - generic [ref=e1255]:
+          - generic [ref=e1256]:
+            - paragraph [ref=e1257]:
+              - text: Excellent question — you've found the key tension that actually
+              - emphasis [ref=e1258]: makes
+              - text: Graph C's design work.
+            - paragraph [ref=e1259]: "Here's the critical distinction you need:"
+            - list [ref=e1260]:
+              - listitem [ref=e1261]:
+                - strong [ref=e1262]: Causal events
+                - text: (in
+                - code [ref=e1263]: causal_events
+                - text: "table) are immutable. Never touched. They're the timestamped observation log of what happened during ingestion: entity created, fact asserted, fact contradicted, etc."
+              - listitem [ref=e1264]:
+                - strong [ref=e1265]: Causal edges
+                - text: (in
+                - code [ref=e1266]: causal_edges
+                - text: table) are mutable. They
+                - emphasis [ref=e1267]: can
+                - text: be corrected, deprecated, or retracted.
+            - paragraph [ref=e1268]:
+              - text: The immutability of events
+              - emphasis [ref=e1269]: enables
+              - text: "you to fix reasoning. Here's how:"
+            - paragraph [ref=e1270]:
+              - text: When the causal agent writes an edge like
+              - code [ref=e1271]: reasoning = "entity X caused fact F because of Z"
+              - text: with
+              - code [ref=e1272]: "source_references = {entity_id: 123, fact_id: 456}"
+              - text: ", that edge is a claim grounded in immutable events. Later, if you realize the reasoning was wrong:"
+            - list [ref=e1273]:
+              - listitem [ref=e1274]:
+                - text: You retract the edge (set
+                - code [ref=e1275]: lifecycle_status = 'retracted'
+                - text: with a
+                - code [ref=e1276]: retraction_reason
+                - text: )
+              - listitem [ref=e1277]:
+                - text: You create a
+                - emphasis [ref=e1278]: new
+                - text: edge with corrected reasoning, pointing to the same immutable events
+              - listitem [ref=e1279]: Both edges remain in the audit trail with full traceability
+            - paragraph [ref=e1280]:
+              - text: "Now anyone querying the system sees the full story: \"We thought X caused F for reason Z, but retracted that and found it was actually reason W.\" The immutable event log is the evidence backing both the mistake"
+              - emphasis [ref=e1281]: and
+              - text: the correction.
+          - generic [ref=e1282]:
+            - document [ref=e1380]:
+              - generic [ref=e1383]:
+                - generic [ref=e1389]:
+                  - text: 📋 IMMUTABLE EVENT LOG
+                  - text: "E1: X observed"
+                  - text: "E2: Y detected"
+                  - text: "E3: Z confirmed"
+                - generic [ref=e1395]:
+                  - text: ❌ REASONING v1
+                  - text: "Causal Edge: X→Y"
+                  - text: "confidence: 0.80"
+                - generic [ref=e1401]:
+                  - text: ⚠️ NEW EVENT
+                  - text: Edge1 was wrong
+                  - text: added to log
+                - generic [ref=e1407]:
+                  - text: ✅ REASONING v2
+                  - text: "Causal Edge: X→Y→Z"
+                  - text: "confidence: 0.95"
+                - generic [ref=e1413]:
+                  - text: ✨ KEY INSIGHT
+                  - text: Events never changed
+                  - text: Both versions visible
+                  - text: Reasoning evolved
+            - button "Pin to lesson" [ref=e1318] [cursor=pointer]: 📌 Pin to lesson
+          - generic [ref=e1319]:
+            - paragraph [ref=e1320]:
+              - strong [ref=e1321]: "Why this destroys the \"Graph C is redundant\" objection:"
+            - paragraph [ref=e1322]: "You might think: \"I can just read Graph S timestamps and infer causality.\" But here's what you'd lose:"
+            - list [ref=e1323]:
+              - listitem [ref=e1324]:
+                - strong [ref=e1325]: Timestamp ordering is temporal sequence, not causality.
+                - text: A happened before B doesn't mean A caused B.
+              - listitem [ref=e1326]:
+                - strong [ref=e1327]: No correction mechanism.
+                - text: If you inferred causality wrong, you're stuck forever. You can't mark it retracted without losing the original claim.
+              - listitem [ref=e1328]:
+                - strong [ref=e1329]: No mandatory evidence.
+                - text: Graph S facts don't record
+                - emphasis [ref=e1330]: why
+                - text: the agent thought they were related — just the facts themselves.
+            - paragraph [ref=e1331]: "Graph C gives you:"
+            - list [ref=e1332]:
+              - listitem [ref=e1333]:
+                - strong [ref=e1334]: Reasoned assertions
+                - text: with mandatory
+                - code [ref=e1335]: source_references
+                - text: pointing to specific entities and facts
+              - listitem [ref=e1336]:
+                - strong [ref=e1337]: Retraction and correction
+                - text: — you can mark edges as deprecated or retracted, then create new ones
+              - listitem [ref=e1338]:
+                - strong [ref=e1339]: Audit trail of reasoning
+                - text: ", not just facts"
+              - listitem [ref=e1340]:
+                - strong [ref=e1341]: Lifecycle tracking
+                - text: "— every edge has a status: draft, validated, deprecated, retracted"
+            - paragraph [ref=e1342]:
+              - text: The append-only event log is the
+              - emphasis [ref=e1343]: foundation
+              - text: that makes all this possible. When you retract an edge and create a corrected one, both are grounded in evidence that nobody touched.
+          - generic [ref=e1344]:
+            - generic [ref=e1345]:
+              - generic [ref=e1346]:
+                - generic [ref=e1347]: OK
+                - generic [ref=e1348]: Takeaway
+              - generic [ref=e1350]:
+                - paragraph [ref=e1351]:
+                  - strong [ref=e1352]: Immutability ≠ Frozen Reasoning
+                - paragraph [ref=e1353]:
+                  - text: Causal events are immutable. But causal edges are not. The immutability of the event log is precisely what gives you the
+                  - emphasis [ref=e1354]: freedom
+                  - text: "to correct reasoning: when you retract an edge and create a new one, both are grounded in evidence that never changed."
+            - button "Pin to lesson" [ref=e1355] [cursor=pointer]: 📌 Pin to lesson
+      - group "Quick prompts" [ref=e439]:
+        - button "▦ Diagram" [ref=e440] [cursor=pointer]
+        - button "↦ Walk-through" [ref=e441] [cursor=pointer]
+        - 'button "{} Example" [ref=e442] [cursor=pointer]'
+        - button "⊟ Flashcards" [ref=e443] [cursor=pointer]
+      - generic [ref=e444]:
+        - textbox "Ask about this section…" [active] [ref=e445]
+        - button "Send" [ref=e446] [cursor=pointer]
+  - generic: Pinned to lesson ✓
