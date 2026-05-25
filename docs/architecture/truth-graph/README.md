@@ -34,6 +34,14 @@ Technical direction for the Mnemo knowledge graph system — dual-graph architec
 | 18 | [Test Data Hardening Protocol](18-test-data-hardening-protocol.md) | Recursive agentic test-data improvement loop — required for every phase |
 | 19 | [Implementation Runbook](19-implementation-runbook.md) | Step-by-step for picking up and closing a phase. Checklists for migration, MCP tools, actor threading, pitfalls. |
 
+### Cycle synthesis (31)
+
+| # | Document | What It Covers |
+|---|----------|----------------|
+| 31 | [Review Cycle Synthesis](31-review-cycle-synthesis.md) | Cross-feature synthesis of Reviews #1–#13 (May 2026). Themes (T1/T7/T8/T9/T10/T11/T12/T13 + transport divergence), compose gaps, cross-cutting findings, prioritised landing roadmap. Read this after any per-feature arch doc to understand the cross-cutting context. |
+
+> **README catalogue is stale beyond doc 19** — docs 20–30 exist on disk but aren't yet listed here. See nmemo-2yv for cleanup tracking.
+
 ## Status
 
 - **Graph S:** Hardened. Frankenstein regression passing. Entity resolution + merge lifecycle working.
