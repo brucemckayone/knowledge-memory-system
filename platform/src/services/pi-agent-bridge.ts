@@ -11,7 +11,8 @@
  * a per-invocation system prompt and runs until it stops or times out.
  *
  * Usage: npx tsx src/services/pi-agent-bridge.ts
- *   Listens on port 3001 (configurable via PI_BRIDGE_PORT env var).
+ *   Listens on port 3099 (configurable via PI_BRIDGE_PORT env var).
+ *   3099 avoids the 3001 collision with the platform server (.env PORT=3001).
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'http';
@@ -35,7 +36,7 @@ import { GRAPH_TOOLS, handleToolCall, type ToolCallContext } from './causal-agen
 // Config
 // ============================================
 
-const PORT = parseInt(process.env.PI_BRIDGE_PORT || '3001', 10);
+const PORT = parseInt(process.env.PI_BRIDGE_PORT || '3099', 10);
 const REQUEST_TIMEOUT_MS = 10_000; // time to wait for bridge startup
 
 // ============================================

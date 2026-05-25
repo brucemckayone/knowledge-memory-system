@@ -31,6 +31,12 @@ Cross-project gotchas (anything that isn't Mnemo-specific) also go to `bd rememb
 
 ## 2026-05-25
 
+### nmemo-2yv.112 — Pi bridge port default 3001 → 3099
+
+- **Lesson:** When a bead's Scoped fix lists multiple edits and one of them is incompatible with the project's actual dev environment, prefer the smallest faithful change that satisfies the bead's *acceptance* over a literal application that introduces a regression. Here the bead asked for `"bridge": "PI_BRIDGE_PORT=3099 tsx src/services/pi-agent-bridge.ts"` in `package.json`, but inline `KEY=value cmd` syntax doesn't work in Windows cmd/PowerShell (the user's primary shell per CLAUDE.md), so `npm run bridge` would have regressed. Skipping that step was the right call because the code-default change at `pi-agent-bridge.ts:38` already satisfies the actual acceptance bullet ("npm run bridge starts the bridge on 3099 with no extra env setup needed"). Always check the bead's *acceptance contract* vs the *implementation list* — the former is the binding spec.
+- **Surprise:** Bullet 5 said "deleting ml-services/.env and running make bridge + make ml works (llm.py picks up the 3099 code default)" — but deleting `.env` also strips `LLM_PROVIDER=pi`, which makes `LLM_PROVIDER` default to `claude`, which means `PiBridgeProvider` is never instantiated and the bridge-URL default never gets exercised. The bullet as literally written passes vacuously. To honour the bullet's *intent* (verify the code default), unset `PI_BRIDGE_URL` while keeping `LLM_PROVIDER=pi` and instantiate `PiBridgeProvider` directly.
+- **Pattern noted:** Bullet 6 ("Port table in doc 29") referenced a doc owned by a separate bead (`.110`). This is a recurring shape in this review cycle — beads sometimes carry forward dependencies that can't be satisfied at their own implementation time. The skill should treat such bullets as "deferred to the owning bead" rather than halting acceptance.
+
 ### nmemo-2yv.123 — /api/mcp-health probe retargeted to graph-mcp.ts
 
 - **Lesson:** When two callers share a piece of resolved config (here: a filesystem path), extracting a single resolver that both routes through is the cheap way to make drift a compile-time error. The probe and the per-actor MCP config writer now both call `getGraphMcpScriptPath()`; future changes to where `graph-mcp.ts` lives must update one place. The pattern is worth applying any time a "production config writer" and an "observability probe" of that same production thing diverge.

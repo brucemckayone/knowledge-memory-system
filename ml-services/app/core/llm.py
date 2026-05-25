@@ -451,7 +451,7 @@ class PiBridgeProvider:
     Switch to this provider via: LLM_PROVIDER=pi
     """
 
-    BRIDGE_URL = os.getenv("PI_BRIDGE_URL", "http://localhost:3001")
+    BRIDGE_URL = os.getenv("PI_BRIDGE_URL", "http://localhost:3099")
 
     def __init__(self) -> None:
         # Eagerly check bridge is reachable (health check)
