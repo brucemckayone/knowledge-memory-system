@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { testDb, createTestEntity, createTestFact } from '../setup.js';
 import {
-  checkCausalMcpHealth,
+  checkGraphMcpHealth,
   invokeCausalAgent,
   type CausalDelta,
 } from '../../services/causal-agent.js';
@@ -82,8 +82,8 @@ describe('B06 Integration: Causal MCP + Claude Code', () => {
 
   // --- MCP Health Check ---
 
-  it('causal MCP server starts and exposes the seven causal tools', async () => {
-    const health = await checkCausalMcpHealth();
+  it('graph MCP server starts and exposes the seven causal tools', async () => {
+    const health = await checkGraphMcpHealth();
 
     expect(health.ok).toBe(true);
     expect(health.tools).toBeDefined();

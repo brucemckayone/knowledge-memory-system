@@ -8,7 +8,12 @@
 import path from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { testDb, createTestEntity, createTestFact } from '../setup.js';
-import { GRAPH_TOOLS, handleToolCall, getMcpConfigPath } from '../../services/causal-agent.js';
+import {
+  GRAPH_TOOLS,
+  handleToolCall,
+  getMcpConfigPath,
+  getGraphMcpScriptPath,
+} from '../../services/causal-agent.js';
 import fs from 'fs';
 
 describe('B06: Causal MCP server', () => {
@@ -41,6 +46,16 @@ describe('B06: Causal MCP server', () => {
   });
 
   // --- MCP config generation ---
+
+  it('getGraphMcpScriptPath returns an absolute path to the production graph MCP server', () => {
+    // The /api/mcp-health probe and the per-actor MCP config must spawn the
+    // same script. Asserting on the shared resolver pins both call sites to
+    // graph-mcp.ts so the probe cannot silently drift back to causal-mcp.ts.
+    const scriptPath = getGraphMcpScriptPath();
+    expect(path.isAbsolute(scriptPath)).toBe(true);
+    expect(scriptPath.endsWith(path.join('src', 'services', 'graph-mcp.ts'))).toBe(true);
+    expect(scriptPath).not.toMatch(/causal-mcp\.ts$/);
+  });
 
   it('getMcpConfigPath generates valid JSON config', () => {
     const configPath = getMcpConfigPath();

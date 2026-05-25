@@ -1977,8 +1977,20 @@ export interface CausalAgentResult {
 }
 
 /**
+ * Resolve the absolute filesystem path to the production graph MCP server
+ * script. Single source of truth — both `getMcpConfigPath` (which tells
+ * Claude Code where to spawn the server) and `checkGraphMcpHealth` (which
+ * probes the same server for `/api/mcp-health`) must read through here so
+ * they cannot drift apart.
+ */
+export function getGraphMcpScriptPath(): string {
+  const platformRoot = path.resolve(__dirname, '..', '..');
+  return path.resolve(platformRoot, 'src', 'services', 'graph-mcp.ts');
+}
+
+/**
  * Generate a temporary MCP config JSON with resolved absolute paths.
- * Claude Code reads this file to know how to spawn the causal MCP server.
+ * Claude Code reads this file to know how to spawn the graph MCP server.
  */
 export function getMcpConfigPath(actor: Actor = 'graph_agent'): string {
   const platformRoot = path.resolve(__dirname, '..', '..');
@@ -1990,7 +2002,7 @@ export function getMcpConfigPath(actor: Actor = 'graph_agent'): string {
   // Use absolute path to the MCP server script — Claude Code does not
   // respect the cwd field when spawning MCP servers, so the script path
   // must be resolvable from any working directory.
-  const serverScript = path.resolve(platformRoot, 'src', 'services', 'graph-mcp.ts');
+  const serverScript = getGraphMcpScriptPath();
 
   // The MCP server process inherits a minimal env from Claude Code.
   // Pass through the required env vars so config.ts validation passes, plus
@@ -2284,15 +2296,19 @@ export interface McpHealthResult {
 }
 
 /**
- * Spawn the causal MCP server and verify it responds to a tools/list request.
- * Uses the raw JSON-RPC protocol over stdio (no SDK client needed).
+ * Spawn the production graph MCP server and verify it responds to a
+ * tools/list request. Uses the raw JSON-RPC protocol over stdio (no SDK
+ * client needed). Resolves the script path through `getGraphMcpScriptPath`
+ * so the probe target stays locked to whatever `getMcpConfigPath` writes
+ * into the per-actor MCP configs that production agents consume.
  */
-export async function checkCausalMcpHealth(timeoutMs = 15_000): Promise<McpHealthResult> {
+export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealthResult> {
   const start = Date.now();
   const platformRoot = path.resolve(__dirname, '..', '..');
+  const serverScript = getGraphMcpScriptPath();
 
   return new Promise((resolve) => {
-    const proc = spawn('npx', ['tsx', 'src/services/causal-mcp.ts'], {
+    const proc = spawn('npx', ['tsx', serverScript], {
       cwd: platformRoot,
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: process.platform === 'win32',

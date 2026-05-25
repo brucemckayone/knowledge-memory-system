@@ -1,6 +1,6 @@
-import { checkCausalMcpHealth } from '../src/services/causal-agent.js';
+import { checkGraphMcpHealth } from '../src/services/causal-agent.js';
 
-const result = await checkCausalMcpHealth(20_000);
+const result = await checkGraphMcpHealth(20_000);
 console.log(JSON.stringify({
   ok: result.ok,
   toolCount: result.tools?.length ?? 0,

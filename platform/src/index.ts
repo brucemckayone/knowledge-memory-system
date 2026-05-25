@@ -1450,10 +1450,12 @@ app.get('/api/cross-cluster/candidates', async (c) => {
   }
 });
 
-// MCP health probe — spawns causal-mcp.ts, asks for tools/list, returns the catalogue.
+// MCP health probe — spawns the production graph MCP server (graph-mcp.ts),
+// asks for tools/list, returns the catalogue. The URL path stays `mcp-health`
+// because it's user-facing observability surface — the rename is internal.
 app.get('/api/mcp-health', async (c) => {
-  const { checkCausalMcpHealth } = await import('./services/causal-agent.js');
-  const result = await checkCausalMcpHealth();
+  const { checkGraphMcpHealth } = await import('./services/causal-agent.js');
+  const result = await checkGraphMcpHealth();
   return c.json(result, result.ok ? 200 : 503);
 });
 
