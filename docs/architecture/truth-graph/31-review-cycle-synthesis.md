@@ -182,6 +182,8 @@ Each theme below: definition, the cross-feature pattern that produces it, the op
 
 Seven gaps where Feature A should call Feature B and doesn't. Each gap names the cure (existing bead cluster) and the structural lesson (often pointing at a §4 cross-cutting finding).
 
+The process gate that catches new instances of these gaps at PR time is the **Feature integration checklist** in [`CONTRIBUTING.md`](../../../CONTRIBUTING.md#feature-integration-checklist) — items 1-8 map one-to-one onto G2 / G4 / T13 / G5 / G6 / G8 / G1 / T11 below.
+
 ### G1 — Health composition
 
 Every boundary module has a probe. Nothing composes them.
@@ -338,6 +340,8 @@ Five findings the cross-cutting view surfaced that no per-feature review had fil
 **Pattern.** T13 — half-built pipelines. Multiple per-review headlines were variants of "feature exists but the connecting wire is missing". No process gate forces "show me the read path" before merge.
 
 **Fix.** Add a "Feature integration checklist" section to `CONTRIBUTING.md`. Eight items: service-layer-write-only, compute-trigger registered, pipeline/viz/MCP wires, `*_runs` row, enums in SSOT, cross-language strings match, health composed, startup validator. Items reference C1/C2/C3 forward — checklist becomes load-bearing as those beads land. No PR-template modification; no mechanical enforcement.
+
+**Landed at** [`CONTRIBUTING.md` §"Feature integration checklist"](../../../CONTRIBUTING.md#feature-integration-checklist).
 
 ### C5 — Transport parity contract test — `nmemo-2yv.134` (P3)
 
