@@ -16,6 +16,8 @@ import { getMergeCandidates } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
 import type { ReconciliationDriftInvoker } from './services/causal-agent.js';
+import { markDerivedComputed as markDerivedFreshness } from './services/derived-freshness.js';
+import { startScheduler, stopScheduler } from './scheduler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const vizHtmlPath = join(__dirname, '../viz/index.html');
@@ -1213,6 +1215,12 @@ app.post('/api/topology/compute', async (c) => {
     if (!response.ok) {
       return c.json({ ok: false, status: response.status, error: body, durationMs: Date.now() - start }, response.status as 409 | 500);
     }
+    // Bead nmemo-2yv.84 — reset the derived_freshness counter for this kind
+    // on the success path. The post-ingest counter trigger keys off this row.
+    // Fire-and-forget: the dynamic import + UPDATE live inside markDerivedComputed's
+    // own try/catch (see derived-freshness.ts); failure here must not perturb
+    // the route's success response.
+    void markDerivedFreshness('topology');
     // Phase 4 trigger (doc 25 §3.2): fire-and-forget the cross-cluster
     // generator. The generator's own freshness gate checks that BOTH topology
     // and clustering computes are fresh; if clustering is stale this run
@@ -1379,6 +1387,9 @@ app.post('/api/clustering/compute', async (c) => {
     if (!response.ok) {
       return c.json({ ok: false, status: response.status, error: body, durationMs: Date.now() - start }, response.status as 409 | 500);
     }
+    // Bead nmemo-2yv.84 — reset the derived_freshness counter on success. The
+    // post-ingest counter trigger reads this row to gate the next compute.
+    void markDerivedFreshness('clustering');
     // Phase 4 trigger (doc 25 §3.2). Mirrors the topology/compute hook above.
     void triggerCrossClusterAfterCompute('clustering');
     return c.json({ ok: true, result: body, durationMs: Date.now() - start });
@@ -1690,4 +1701,16 @@ if (!process.env.VITEST) {
   serve({ fetch: app.fetch, port }, (info) => {
     console.log(`Platform listening on :${info.port}`);
   });
+  // Bead nmemo-2yv.84 — single home for all time-driven cadences. Today
+  // registers the drift patrol job; future cadences (e.g. .71 reasoning
+  // patrol if time-driven) land in scheduler.ts.
+  startScheduler();
+  // Stop cron tasks on shutdown so node-cron's interval doesn't keep the
+  // event loop alive after the HTTP server closes.
+  const shutdown = (signal: string) => {
+    console.log(`[shutdown] ${signal} received — stopping scheduler`);
+    stopScheduler();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }

@@ -229,6 +229,20 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     }
   }
 
+  // Bead nmemo-2yv.84 — post-ingest counter trigger. The 024 migration's
+  // AFTER INSERT trigger has already bumped facts_since_compute inside this
+  // transaction; here we read-and-fire if the threshold is crossed. Lazy
+  // import + outer try/catch so a missing/broken helper can't perturb the
+  // caller, and so the fact-insert success path stays the contract here.
+  void (async () => {
+    try {
+      const { maybeFireFactThresholdCompute } = await import('./derived-freshness.js');
+      await maybeFireFactThresholdCompute();
+    } catch (err) {
+      console.warn('[createFact] post-ingest counter trigger failed:', err instanceof Error ? err.message : err);
+    }
+  })();
+
   return factId;
 }
 

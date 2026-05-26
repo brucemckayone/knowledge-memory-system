@@ -30,6 +30,26 @@ const envSchema = z.object({
   // failures, the helper transitions triggered_action='reconciliation_failed'
   // and stops retrying. Default 3 mirrors the bead's locked spec.
   MAX_RECONCILIATION_ATTEMPTS: z.coerce.number().int().positive().default(3),
+
+  // Auto-trigger knobs for derived-state computes (bead nmemo-2yv.84).
+  // PLATFORM_PORT default 3000 matches the existing serve() call; surfaced
+  // here so the scheduler's POST URL stays in sync with the listening port.
+  PLATFORM_PORT: z.coerce.number().int().positive().default(3000),
+  // Cron cadence for the drift patrol. node-cron supports 5-field cron
+  // strings ("*/15 * * * *") and a 6-field form with leading seconds. We
+  // accept a raw cron expression for full flexibility, or fall back to the
+  // minutes-interval form via DRIFT_PATROL_INTERVAL_MIN when unset.
+  DRIFT_PATROL_CRON: z.string().optional(),
+  // Convenience knob for the common "every N minutes" cadence. Honoured only
+  // when DRIFT_PATROL_CRON is unset. Default 60 minutes per the bead spec.
+  DRIFT_PATROL_INTERVAL_MIN: z.coerce.number().int().positive().default(60),
+  // Threshold for the post-ingest counter trigger. Once derived_freshness's
+  // facts_since_compute crosses this value, topology + clustering compute
+  // are fired together (fire-and-forget) and both rows reset.
+  TOPOLOGY_CLUSTERING_FACT_THRESHOLD: z.coerce.number().int().positive().default(100),
+  // Suppress the scheduler at startup (tests, scripts, one-off CLIs).
+  // Set DISABLE_SCHEDULER=1 to skip startScheduler() registration.
+  DISABLE_SCHEDULER: z.coerce.boolean().default(false),
 });
 
 /**

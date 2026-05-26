@@ -19,9 +19,9 @@ This doc is intentionally a single markdown table — no YAML/JSON manifest, no 
 | Compute | Service file | Trigger condition | Cadence / threshold | `*_runs` table | Trigger source (code) |
 |---|---|---|---|---|---|
 | `graph_stats` | `src/services/graph-stats.ts` | Threshold (patrol-cascade) | Every N patrol cycles via `incrementGraphStatsCount` | n/a (single-row materialised view) | `src/pipeline.ts` (patrol cascade) |
-| `entity_topology` | `ml-services/app/topology.py` | **MANUAL ONLY — see `nmemo-2yv.84`** | — | `topology_compute_runs` | `POST /api/topology/compute` only |
-| `hdbscan_clustering` | `ml-services/app/semantic_clustering.py` | **MANUAL ONLY — see `nmemo-2yv.84`** | — | `clustering_compute_runs` | `POST /api/clustering/compute` only |
-| `drift_detection` | `ml-services/app/drift.py` | **MANUAL ONLY — see `nmemo-2yv.84`** | — | `entity_drift_events` | `POST /api/drift/compute` only |
+| `entity_topology` | `ml-services/app/topology.py` | DB-reactive (post-merge) + threshold-driven (post-ingest counter) | Fires on every successful `merge_entities()`; also fires when `derived_freshness.facts_since_compute >= TOPOLOGY_CLUSTERING_FACT_THRESHOLD` (default 100). Manual debug surface preserved. | `topology_compute_runs` | `src/services/derived-freshness.ts` (`triggerTopologyAndClusteringAfterMerge`, `maybeFireFactThresholdCompute`); `POST /api/topology/compute` still callable (bead `.84`) |
+| `hdbscan_clustering` | `ml-services/app/semantic_clustering.py` | DB-reactive (post-merge) + threshold-driven (post-ingest counter) | Same anchors as `entity_topology` — both compute kinds fire together so the cross-cluster generator's BOTH-upstreams-fresh gate stays satisfied. Manual debug surface preserved. | `clustering_compute_runs` | `src/services/derived-freshness.ts`; `POST /api/clustering/compute` still callable (bead `.84`) |
+| `drift_detection` | `ml-services/app/drift.py` | Scheduled (time-driven) | `DRIFT_PATROL_INTERVAL_MIN` cadence (default 60min) via `node-cron` job registered in `src/scheduler.ts`. Manual debug surface preserved. | `entity_drift_events` | `src/scheduler.ts` (`drift-patrol` job); `POST /api/drift/compute` still callable (bead `.84`) |
 | `cross_cluster_generator` | `src/services/cross-cluster-generator.ts` | Post-compute fire-and-forget (chained off topology + clustering) | Inline after each `/api/{topology,clustering}/compute` success | `cross_cluster_runs` (bead `.92`) | `triggerCrossClusterAfterCompute` in `src/index.ts` |
 | `gardener` | `src/services/gardener.ts` | Threshold (patrol-cascade) | Every N patrols; gardener auto-trigger writes don't reach `gardening_reports`, see `nmemo-2yv.67` | `gardening_reports` (write gap) | `src/pipeline.ts` (patrol cascade) |
 | `reconciliation_agent` | `ml-services/app/reconciliation_agent.py` | **MANUAL ONLY — see `nmemo-2yv.61`** (state-driven trigger is the target) | — | `reconciliation_runs` | `POST /api/reconcile` only |
@@ -75,6 +75,8 @@ The compute fires only via an explicit HTTP call or viz button. **This is a depr
 - the MVP placeholder before the real auto-trigger lands (the four P1 beads `.61 .71 .72 .84` are all in this category today).
 
 Rows in §2 with `MANUAL ONLY — see <bead>` are explicit work-in-progress placeholders.
+
+The bead `.84` Decision section blesses **time-driven cadences as a third blessed mechanism** alongside DB-reactive event-handlers and post-event chains. The `Scheduled` taxonomy in §3 covers them; the `src/scheduler.ts` module is the single home for all such jobs going forward.
 
 ## 4. PR contract
 

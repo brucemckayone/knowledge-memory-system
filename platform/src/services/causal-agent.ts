@@ -1490,6 +1490,20 @@ async function _handleToolCallInner(
           `);
         }
 
+        // Bead nmemo-2yv.84 — successful merge invalidates topology + clustering
+        // (the merge re-points facts/edges and merges clusters). Fire both
+        // computes fire-and-forget; the lazy-imported helper has its own
+        // try/catch and never throws out. We do not block the tool return
+        // on the compute completing — the next viz refresh shows fresh data.
+        void (async () => {
+          try {
+            const { triggerTopologyAndClusteringAfterMerge } = await import('./derived-freshness.js');
+            await triggerTopologyAndClusteringAfterMerge(`merge:${sourceId}->${targetId}`);
+          } catch (err) {
+            console.warn('[execute_merge] post-merge auto-trigger failed:', err instanceof Error ? err.message : err);
+          }
+        })();
+
         return JSON.stringify({ merged: true, survivorId });
       } catch (err) {
         return JSON.stringify({ merged: false, error: err instanceof Error ? err.message : String(err) });

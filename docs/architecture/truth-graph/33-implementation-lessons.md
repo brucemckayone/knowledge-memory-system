@@ -29,6 +29,13 @@ Cross-project gotchas (anything that isn't Mnemo-specific) also go to `bd rememb
 
 <!-- Entries below this line, newest at the bottom. -->
 
+### nmemo-2yv.84 — topology / clustering / drift auto-triggers
+
+- **Lesson:** Module-cached config (`config = loadConfig()` at module init) plus a fire-and-forget HTTP target (here: `http://127.0.0.1:${config.PLATFORM_PORT}/api/...`) creates a hard-to-test seam. A direct `process.env` override at call time has the right runtime semantics but makes prod code think test-mode. A small explicit `_setComputeUrlPortForTesting(port)` seam (underscore-prefixed export, null-or-number override) is the cheapest honest middle: production runs through `config`; tests inject the stub server's bound port without leaking env-var tweaks. Same shape worked for `scheduler.ts`. Worth the four extra lines.
+- **Surprise:** The bead's locked Decision specified a `derived_freshness` table with "On fact insert, increment facts_since_compute. When >= threshold, fire compute fire-and-forget." Initial instinct was to put the whole detect-and-fire logic in a single PL/pgSQL trigger. Pulled back — PL/pgSQL has no business calling HTTP endpoints (pg_net / pl/pythonu would be required). The split: DB trigger increments only; platform-layer `maybeFireFactThresholdCompute()` does the atomic compare-and-reset + fires. The atomic reset (UPDATE ... WHERE facts_since_compute >= threshold RETURNING) deduplicates parallel-inserter races without an advisory lock — the second inserter sees `facts_since_compute = 0` and returns 0 rows from RETURNING.
+- **Pattern noted:** Time-driven cadences are a real third category alongside DB-reactive and post-event chains. Doc 32 §3 already had the `Scheduled` taxonomy slot; this bead populated it. The single `scheduler.ts` home for all `node-cron` jobs (drift today, `.71` reasoning patrol next, etc.) keeps the lifecycle (`startScheduler`/`stopScheduler` + SIGTERM hook) in one place — every additional time-driven cadence registers there, not in its own ad-hoc setInterval.
+- **Pattern noted:** The bead acceptance bullet "Concurrency: all auto-triggered computes go through /api/{topology,clustering,drift}/compute and respect .87's race-window fix" was satisfied for free because every trigger here POSTs to the existing HTTP route. Routing all auto-triggers through the same HTTP endpoints the manual debug paths use means one concurrency story to maintain. This is the same principle as "the freshness gate stays satisfied because both compute kinds fire together" — fewer code paths == fewer concurrency arguments to rebuild.
+
 ## 2026-05-25
 
 ### nmemo-2yv.63 — merge_entities() FK violation on contradictions (T13 + post-merge integrity)
