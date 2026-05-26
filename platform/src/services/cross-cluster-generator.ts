@@ -379,7 +379,16 @@ async function upsertCandidate(p: ScoredPair, runner: Runner): Promise<void> {
                               ELSE EXCLUDED.candidate_source END,
       detection_count = merge_candidates.detection_count + 1,
       last_detected_at = NOW(),
-      resolution_reasoning = EXCLUDED.resolution_reasoning
+      -- Bead nmemo-2yv.90: mirror the candidate_source B4 lock one level down.
+      -- If the existing row was emitted by the cross-cluster generator, keep
+      -- its cross-cluster JSON reasoning; otherwise take the incoming blob.
+      -- Without this, a later three-signal scorer upsert (which preserves the
+      -- cross_cluster_generator source tag via the lock above) would clobber
+      -- the JSON reasoning_seed the reconciliation_agent renders in the
+      -- cross-cluster prompt block (doc 25 §2.4).
+      resolution_reasoning = CASE WHEN merge_candidates.candidate_source = 'cross_cluster_generator'
+                                  THEN merge_candidates.resolution_reasoning
+                                  ELSE EXCLUDED.resolution_reasoning END
   `);
 }
 

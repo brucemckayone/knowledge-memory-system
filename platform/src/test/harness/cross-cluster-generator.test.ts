@@ -376,7 +376,7 @@ describe('cross-cluster candidate generator', () => {
     expect(detections[0]!.detection_count).toBe(2);
   });
 
-  it('ON CONFLICT preserves cross_cluster_generator (never downgrades to three_signal_scoring)', async () => {
+  it('ON CONFLICT preserves cross_cluster_generator (never downgrades to three_signal_scoring) AND preserves resolution_reasoning (bead nmemo-2yv.90)', async () => {
     await ensureUpstreamFresh();
     const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
     const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
@@ -386,25 +386,43 @@ describe('cross-cluster candidate generator', () => {
     await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
     await generateCrossClusterCandidates();
 
-    // Now simulate the existing 3-signal scorer detecting the same pair.
+    // Capture the original cross-cluster reasoning JSON for later comparison.
+    const before = await testDb<{ resolution_reasoning: string }[]>`
+      SELECT resolution_reasoning FROM public.merge_candidates
+    `;
+    const ccReasoning = before[0]!.resolution_reasoning;
+    expect(ccReasoning).toContain('contributions');  // sanity: it's the cross-cluster JSON
+
+    // Now simulate the three-signal scorer upserting the same pair with a
+    // three-signal-style reasoning blob. The cross-cluster generator's upsert
+    // (which also runs again — i.e. the cross-cluster generator itself on a
+    // re-run) must preserve both the source tag AND the reasoning.
     const [aId, bId] = a.id < b.id ? [a.id, b.id] : [b.id, a.id];
     await testDb`
       INSERT INTO public.merge_candidates
         (entity_a_id, entity_b_id, centroid_similarity, memory_overlap,
-         structural_similarity, combined_score, status, candidate_source)
-      VALUES (${aId}::uuid, ${bId}::uuid, 0.5, 0.5, 0.5, 0.5, 'staging', 'three_signal_scoring')
+         structural_similarity, combined_score, status, candidate_source, resolution_reasoning)
+      VALUES (${aId}::uuid, ${bId}::uuid, 0.5, 0.5, 0.5, 0.5, 'staging', 'three_signal_scoring',
+              'three-signal verbiage about centroid/memory/structural similarity')
       ON CONFLICT (entity_a_id, entity_b_id) DO UPDATE SET
         candidate_source = CASE WHEN merge_candidates.candidate_source = 'cross_cluster_generator'
                                 THEN merge_candidates.candidate_source
                                 ELSE EXCLUDED.candidate_source END,
         centroid_similarity = EXCLUDED.centroid_similarity,
         memory_overlap = EXCLUDED.memory_overlap,
-        structural_similarity = EXCLUDED.structural_similarity
+        structural_similarity = EXCLUDED.structural_similarity,
+        resolution_reasoning = CASE WHEN merge_candidates.candidate_source = 'cross_cluster_generator'
+                                    THEN merge_candidates.resolution_reasoning
+                                    ELSE EXCLUDED.resolution_reasoning END
     `;
-    const rows = await testDb<{ candidate_source: string }[]>`
-      SELECT candidate_source FROM public.merge_candidates
+    const rows = await testDb<{ candidate_source: string; resolution_reasoning: string }[]>`
+      SELECT candidate_source, resolution_reasoning FROM public.merge_candidates
     `;
     expect(rows[0]!.candidate_source).toBe('cross_cluster_generator');
+    // R3 B4 lock extended to reasoning (nmemo-2yv.90): cross-cluster JSON
+    // survives the three-signal scorer's collision; the LLM verifier still
+    // sees the right reasoning_seed.
+    expect(rows[0]!.resolution_reasoning).toBe(ccReasoning);
   });
 
   it('freshness gate: stale upstream skips with reason "stale_upstream"', async () => {
