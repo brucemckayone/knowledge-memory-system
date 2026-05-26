@@ -1,6 +1,6 @@
 import { esc } from '../util.js';
 import { state } from '../state.js';
-import { fetchImpact } from './impact.js';
+import { impactSectionMarkup, triggerImpactFetch } from './impact.js';
 import { loadGhostsForEntity } from '../overlays/ghosts.js';
 import { loadHistoryInto } from './history.js';
 import { getDriftEventsForEntity, getDriftState } from '../api.js';
@@ -271,19 +271,18 @@ export function showNodeDetail(d) {
   }
 
   // Phase 4 — Impact analysis subpanel for entity + causalEvent roots.
+  // showEdgeDetail's fact branch uses the same helpers below (bead .103).
   const apiNodeType = d._nodeType === 'causalEvent' ? 'causal_event'
                     : d._nodeType === 'entity' ? 'entity'
                     : null;
   if (apiNodeType) {
-    html += `<div id="impact-section" class="impact-section" data-node-id="${esc(d.id)}" data-node-type="${apiNodeType}">`;
-    html += `<div class="impact-loading">Computing impact analysis…</div>`;
-    html += `</div>`;
+    html += impactSectionMarkup(apiNodeType, d.id);
   }
 
   panel.innerHTML = html;
 
   if (apiNodeType) {
-    fetchImpact(apiNodeType, d.id, { hypothetical: null });
+    triggerImpactFetch(apiNodeType, d.id);
   }
 
   // viz.5 — lazy-load ghosts for this entity and stream into the placeholder.
@@ -315,6 +314,10 @@ export function showEdgeDetail(d) {
     if (d.sourceMemoryId) html += field('Memory ID', d.sourceMemoryId);
     html += `<div class="section-label">History</div>`;
     html += `<div id="hist-${esc(d.id)}" class="hist-mount"></div>`;
+    // Bead nmemo-2yv.103 — fact roots now expose the impact subpanel that
+    // entity / causalEvent nodes already had. Service + tool + API + tests
+    // already supported all three root types; only the viz consumer lagged.
+    html += impactSectionMarkup('fact', d.id);
 
   } else if (d._edgeType === 'causal') {
     html += `<h2>Causal Edge</h2>`;
@@ -367,5 +370,13 @@ export function showEdgeDetail(d) {
     const target = document.getElementById(`hist-${d.id}`);
     const kind = d._edgeType === 'fact' ? 'fact' : 'causal';
     loadHistoryInto(target, kind, d.id);
+  }
+
+  // Bead nmemo-2yv.103 — populate the fact-root impact subpanel after
+  // innerHTML lands. Same two-phase pattern as showNodeDetail's entity /
+  // causalEvent path. Causal edges intentionally NOT included — the service
+  // contract RootNodeType excludes them.
+  if (d._edgeType === 'fact') {
+    triggerImpactFetch('fact', d.id);
   }
 }

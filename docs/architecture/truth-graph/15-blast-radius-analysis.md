@@ -294,7 +294,7 @@ Only the `expire` mode is currently supported. `invalidate` and `weaken` were or
 
 ## Viz Integration
 
-`viz/js/app.js` — on clicking a node in the detail panel, show a new "Impact" subpanel:
+`viz/js/panels/detail.js` — on clicking a fact edge, entity node, or causal-event node in the detail panel, show an "Impact" subpanel. All three root types are first-class: `showNodeDetail` mounts it for entity + causalEvent nodes; `showEdgeDetail` mounts it inside the `fact` edge branch. The subpanel itself lives in `viz/js/panels/impact.js` and is invoked through two helpers — `impactSectionMarkup(apiNodeType, nodeId)` for the placeholder markup, `triggerImpactFetch(apiNodeType, nodeId)` for the post-`innerHTML` async fetch. Causal edges are intentionally excluded — the service contract `RootNodeType = 'fact' | 'entity' | 'causal_event'` doesn't admit them (bead `nmemo-2yv.103`).
 
 - Renders a tree: direct dependents on the left, transitive chains in the middle, citation dependents on the right, patterns at the bottom
 - Severity colour-coded: critical = red, high = orange, medium = yellow, low = grey

@@ -1,6 +1,33 @@
 import { esc } from '../util.js';
 import { getImpact } from '../api.js';
 
+/**
+ * Mount the impact subpanel markup into the detail container's HTML pipeline.
+ *
+ *   apiNodeType: 'fact' | 'entity' | 'causal_event'
+ *   nodeId:      UUID
+ *
+ * Returns the HTML fragment that callers should append to their `html`
+ * accumulator. After the caller assigns `panel.innerHTML`, the caller MUST
+ * call `triggerImpactFetch` to populate the placeholder. Two-phase API
+ * (markup → innerHTML → fetch) preserves the existing detail.js ordering
+ * where the panel renders synchronously and impact streams in after.
+ *
+ * Bead nmemo-2yv.103 — extracted from showNodeDetail so showEdgeDetail's
+ * fact branch can reuse the same scaffolding.
+ */
+export function impactSectionMarkup(apiNodeType, nodeId) {
+  return `<div id="impact-section" class="impact-section" data-node-id="${esc(nodeId)}" data-node-type="${apiNodeType}">`
+    + `<div class="impact-loading">Computing impact analysis…</div>`
+    + `</div>`;
+}
+
+/** Companion to impactSectionMarkup — fires the async impact fetch against
+ *  the freshly-rendered subpanel. Call AFTER assigning `panel.innerHTML`. */
+export function triggerImpactFetch(apiNodeType, nodeId) {
+  fetchImpact(apiNodeType, nodeId, { hypothetical: null });
+}
+
 export async function fetchImpact(nodeType, nodeId, opts = {}) {
   const section = document.getElementById('impact-section');
   if (!section) return;
