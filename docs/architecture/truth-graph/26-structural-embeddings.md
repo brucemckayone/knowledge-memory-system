@@ -157,6 +157,35 @@ CREATE INDEX IF NOT EXISTS idx_entity_topology_kge_model
 
 (The HNSW index for KGE vector ANN is added when needed; the column existing alone doesn't require it.)
 
+#### 3.4.1 Onboarding a new `candidate_source` value (bead nmemo-2yv.93)
+
+If a future KGE-driven enumerator surfaces its own candidate rows on
+`merge_candidates` (rather than augmenting an existing source's signal
+vector via §3.3), the new source value must be added as a coordinated
+landing:
+
+1. Extend `CANDIDATE_SOURCE_VALUES` in `src/services/enums.ts` with the
+   new literal (e.g. `'kge_generator'`).
+2. Ship a follow-up migration that drops + recreates the
+   `valid_candidate_source` CHECK on `public.merge_candidates` to admit
+   the new value. Mirror the shape of
+   `030_candidate_source_check.sql` (DROP CONSTRAINT IF EXISTS, ADD
+   CONSTRAINT with the full enumerated set, `-- keep in sync` comment).
+3. Update the reconciliation_agent's prompt-builder
+   (`ml-services/app/reconciliation_agent.py
+   _build_reconciliation_prompt`) — the source tag is currently
+   informational, but if the new enumerator needs branch-specific
+   prompting (the legacy reason candidate_source exists at all), wire
+   it in the same landing.
+4. Update doc 25 §2.3 / §3.3's enumeration of valid sources.
+
+The paired-landing rule exists because the `valid_candidate_source`
+CHECK fails-closed on an unknown writer (per `030_candidate_source_check.sql`
+header — schema-layer typo guard). A writer that ships before its
+CHECK migration will throw on every insert; a CHECK that ships before
+its writer does no harm. Land in TS-tuple-then-migration order if
+splitting across PRs.
+
 ---
 
 **Sections 4 (Verification), 5 (Benchmark), 6 (Edge cases), 7 (Iteration cycle) deferred.** They will be written if and when Phase 5 is approved for ship after Phase 4 evaluation. The decision criterion is documented in master `21` §7 Phase 4 milestone.

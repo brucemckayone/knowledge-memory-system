@@ -44,3 +44,33 @@
  */
 export const RESOLUTION_VALUES = ['merge', 'same_as', 'link', 'distinct'] as const;
 export type ResolutionValue = typeof RESOLUTION_VALUES[number];
+
+/**
+ * Values admitted by `merge_candidates.candidate_source` (DB CHECK) and used
+ * by the two upstream writers as an ENUMERATOR-ORIGIN TAG. Bead nmemo-2yv.93.
+ *
+ * Authoritative locations to keep in sync:
+ * - `src/services/merge-scorer.ts` — `UpsertCtx.candidateSource` type.
+ * - `src/services/cross-cluster-generator.ts` — upsert call sites.
+ * - `src/services/graph-meta.ts` — within-component upsert call site.
+ * - `src/db/migrations/030_candidate_source_check.sql` —
+ *   `valid_candidate_source` CHECK constraint (and any later migration
+ *   that re-ALTERs it to admit a new source value).
+ *
+ * Semantic notes:
+ * - `three_signal_scoring`    — from `detectMergeCandidates`' within-
+ *   component sweep (3 direct-similarity signals: centroid, memory
+ *   overlap, structural). See doc 25 §2.3.
+ * - `cross_cluster_generator` — from `cross-cluster-generator.ts`'s
+ *   component-pair / drift-driven sweep (signals depend on cluster
+ *   structure rather than shared memories). See doc 25 §2.3 / §3.3.
+ *
+ * Onboarding a new source value (e.g. doc 26 structural-embeddings):
+ * extend this tuple AND ship a paired migration that drops + recreates
+ * the `valid_candidate_source` CHECK with the new value included. The
+ * paired-landing rule exists because the reconciliation_agent's
+ * prompt-builder branches on exact string equality; an unknown source
+ * silently falls back to the generic block. See doc 26 §3.4.
+ */
+export const CANDIDATE_SOURCE_VALUES = ['three_signal_scoring', 'cross_cluster_generator'] as const;
+export type CandidateSourceValue = typeof CANDIDATE_SOURCE_VALUES[number];

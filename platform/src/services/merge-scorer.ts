@@ -65,6 +65,7 @@
 import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
 import type { GraphStats } from './graph-stats.js';
+import type { CandidateSourceValue } from './enums.js';
 
 // =============================================================================
 // Configuration
@@ -339,7 +340,9 @@ export interface MergeScorerCtx {
  *  value (cross-cluster's pattern). */
 export interface UpsertCtx {
   runner: Runner;
-  candidateSource: 'three_signal_scoring' | 'cross_cluster_generator';
+  /** keep in sync with src/services/enums.ts:CANDIDATE_SOURCE_VALUES + the
+   *  `valid_candidate_source` DB CHECK (bead nmemo-2yv.93). */
+  candidateSource: CandidateSourceValue;
   /** Per-pair status. Return 'staging' or 'candidate'. */
   statusFor: (scored: ScoredCandidate) => 'staging' | 'candidate';
   /** Per-pair JSON-serialisable reasoning extras. Merged with the signal

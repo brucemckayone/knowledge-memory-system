@@ -79,6 +79,17 @@ ALTER TABLE public.merge_candidates ADD COLUMN candidate_source VARCHAR(40) NOT 
 CREATE INDEX IF NOT EXISTS idx_merge_candidates_source ON public.merge_candidates (candidate_source);
 ```
 
+Schema-layer enforcement of the source enum lives in
+`030_candidate_source_check.sql` (bead nmemo-2yv.93) — a CHECK
+constraint `valid_candidate_source` restricting the column to
+exactly the two values listed here. The TS-side single source of
+truth is `CANDIDATE_SOURCE_VALUES` in `src/services/enums.ts`; the
+migration carries a `-- keep in sync` comment pointing at it
+(mirrors the `RESOLUTION_VALUES` / `valid_resolution` pattern from
+bead nmemo-2yv.130). Onboarding a new source value (the next likely
+candidate is doc 26 KGE-based) ships a paired migration extending
+the CHECK — see doc 26 §3.4.1.
+
 ### 2.4 Reconciliation_agent prompt extension
 
 The existing `reconciliation_agent.py` iterates over `merge_candidates` rows and decides per pair: same_as / merge / distinct. Post-bead `nmemo-2yv.42` (unified scorer) and `nmemo-2yv.44` (prompt-builder collapse), the system prompt carries a single signal-interpretation section **between INVESTIGATION PROCESS and BRIDGE FACTS**:
@@ -212,6 +223,26 @@ ALTER TABLE public.merge_candidates
 CREATE INDEX IF NOT EXISTS idx_merge_candidates_source
   ON public.merge_candidates (candidate_source);
 ```
+
+Migration `030_candidate_source_check.sql` (bead nmemo-2yv.93) adds
+the schema-layer enum guard:
+
+```sql
+ALTER TABLE public.merge_candidates
+  DROP CONSTRAINT IF EXISTS valid_candidate_source;
+
+-- keep in sync with src/services/enums.ts:CANDIDATE_SOURCE_VALUES (bead nmemo-2yv.93)
+ALTER TABLE public.merge_candidates
+  ADD CONSTRAINT valid_candidate_source CHECK (
+    candidate_source IN ('three_signal_scoring', 'cross_cluster_generator')
+  );
+```
+
+The CHECK fails-closed on a typo in either writer
+(`cross-cluster-generator.ts`'s upsert or `graph-meta.ts`'s
+three-signal upsert), preventing the reconciliation_agent's
+prompt-builder from silently delivering the wrong prompt block on
+an unknown source value.
 
 ### 3.4 Read patterns
 
