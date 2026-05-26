@@ -1,114 +1,76 @@
 # Entity Merge Cascade Tests
 
-## Critical Bug: CASCADE Deletion on Merge
+## Status
 
-The `merge_entities()` PL/pgSQL function in `db/migrations/003_entities.sql` (lines 138-188) has a **data-loss bug**:
+**Historical design notes.** This file recorded the EMC-001..EMC-009 test cases
+that were originally written against the PL/pgSQL entity-merge function in
+`db/migrations/005_reconciliation.sql`. The function had a data-loss bug
+(DELETE source BEFORE re-pointing facts) which mig 005 itself corrected by
+re-ordering the steps.
 
-- `facts.subject_entity_id` has `ON DELETE CASCADE` (004_facts.sql:19). When the source entity is deleted during merge, PostgreSQL CASCADE-deletes **every fact where the source is the subject**.
-- `facts.object_entity_id` has `ON DELETE SET NULL` (004_facts.sql:21). Facts referencing the source as object get `object_entity_id` silently set to NULL.
+Bead **nmemo-2yv.30** then replaced the PL/pgSQL function with the audited TS
+service `mergeEntities()` in `platform/src/services/entities.ts`. The
+PL/pgSQL function was dropped in `db/migrations/026_merge_entities_audit_event.sql`.
 
-The function correctly handles aliases and memory_entities, but **completely ignores facts and graph edges**.
+The implemented test cases live at
+`platform/src/test/integration/entity-merge-cascade.test.ts` and now drive
+the merge through the TS service. EMC-010 (added by nmemo-2yv.30) covers the
+new audit-trail contract — every fact mutation emits a `fact_history` row
+with `event_type='merged'`, and the whole merge is atomic.
 
-## Current State
+## Current behaviour (after bead nmemo-2yv.30)
 
-### What merge_entities() does today:
-1. Records audit in `entity_merges`
-2. Moves aliases to target (`ON CONFLICT DO NOTHING`)
+The TS `mergeEntities()` service:
+
+1. Records audit row in `entity_merges`
+2. Copies aliases from source to target (`ON CONFLICT DO NOTHING`)
 3. Adds source canonical name as `merged_name` alias on target
-4. Updates `memory_entities.entity_id` from source to target
-5. Appends source ID to target's `merged_from` array
-6. **Deletes source entity** (triggering CASCADE on facts)
+4. Re-points `facts.subject_entity_id` from source to target — **emits one
+   `fact_history(event_type='merged')` row per affected fact**
+5. Re-points `facts.object_entity_id` from source to target — **emits one
+   `fact_history(event_type='merged')` row per affected fact**
+6. Expires exact-duplicate facts after re-pointing — **emits one
+   `fact_history(event_type='merged')` row per duplicate**
+7. Re-points `memory_entities` (with unique-constraint dedup)
+8. Re-points `causal_events.subject_entity_id`
+9. Re-points `same_as_links` (preserves a<b canonical ordering)
+10. Re-points `contradictions` (mig 020 / nmemo-2yv.63 dedup + re-point)
+11. Appends source ID to target's `merged_from` array, updates last_seen_at
+12. Deletes the source entity
 
-### What it does NOT do:
-- Update `facts.subject_entity_id` before delete (data loss via CASCADE)
-- Update `facts.object_entity_id` before delete (data degradation via SET NULL)
-- Handle `memory_entities` unique constraint conflicts when both entities reference same memory
-- Re-route Apache AGE graph edges
-- Handle transitive merge chains (A->B then B->C)
-- Detect conflicting exclusive-predicate facts after merge
+The entire merge runs in `db.transaction(...)`. An invalid actor, a CHECK
+violation, or any DB error rolls the whole thing back — including the audit
+rows.
 
-## Relevant Files
+## Test scenarios (EMC-001..EMC-010)
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `db/migrations/003_entities.sql` | 138-188 | `merge_entities()` PL/pgSQL function |
-| `db/migrations/004_facts.sql` | 15-46 | Facts schema, FK constraints (CASCADE/SET NULL) |
-| `db/migrations/005_apache_age.sql` | — | Graph sync triggers |
-| `services/entities.ts` | — | App-level entity resolution |
-| `services/facts.ts` | — | Fact CRUD |
-| `services/graph.ts` | — | AGE graph queries |
-| `db/schema.ts` | 142, 190, 206, 232 | entities, entityMerges, memoryEntities, facts |
-| `test/integration/database.test.ts` | 299 | DB-006 merge audit test (audit only) |
-| `test/integration/knowledge-graph.test.ts` | 375 | KG-007 graph merge test (audit only) |
-| `test/setup.ts` | — | createTestEntity, createTestFact, createTestMemoryEntity |
+### EMC-001 — facts with merged entity as SUBJECT are re-pointed
+### EMC-002 — facts with merged entity as OBJECT are re-pointed
+### EMC-003 — aliases consolidated onto target
+### EMC-004 — memory_entities links re-pointed
+### EMC-005 — entity_merges audit trail row written
+### EMC-007 — multi-level merge chain (A->B->C)
+### EMC-008 — conflicting exclusive-predicate facts preserved after merge
+### EMC-009 — exact duplicate facts are collapsed during merge
 
-## Test Scenarios
+(EMC-006 — AGE graph edge re-routing — was never implemented; the AGE graph
+is a derived traversal index and stays in sync via the entity sync triggers,
+not via the merge path. Tracked separately if needed.)
 
-### EMC-001: Facts with merged entity as SUBJECT are re-pointed
-**Setup:** Create entity A, entity B. Create 3 facts with A as subject.
-**Action:** Merge A into B.
-**Assert:** All 3 facts now have `subject_entity_id = B.id`. No facts deleted.
-**Note:** Currently FAILS — facts are CASCADE-deleted. This test documents the bug.
-
-### EMC-002: Facts with merged entity as OBJECT are re-pointed
-**Setup:** Create entities A, B, C. Create fact: C works_at A (A is object).
-**Action:** Merge A into B.
-**Assert:** Fact now has `object_entity_id = B.id` (not NULL).
-**Note:** Currently FAILS — object_entity_id is SET NULL.
-
-### EMC-003: Aliases consolidated onto target entity
-**Setup:** Create entity A with aliases ["Johnny", "J"]. Create entity B with aliases ["John S"].
-**Action:** Merge A into B.
-**Assert:** B has aliases ["John S", "Johnny", "J", <A's canonical name>]. A's aliases removed.
-
-### EMC-004: memory_entities links re-pointed (unique constraint conflict)
-**Setup:** Create entities A, B. Create memory M. Link M to A and M to B (both reference same memory).
-**Action:** Merge A into B.
-**Assert:** M is linked to B only (no duplicate). memory_entities has single row for M-B.
-
-### EMC-005: entity_merges audit trail
-**Setup:** Create entities A, B.
-**Action:** Merge A into B.
-**Assert:** `entity_merges` has row with `source_entity_id=A, target_entity_id=B, merged_at=now()`.
-
-### EMC-006: Graph edges re-routed (AGE-gated)
-**Setup:** Create entities A, B, C. Create fact C->knows->A (creates graph edge C->A).
-**Action:** Merge A into B.
-**Assert:** Graph edge now points C->B. No orphaned edge to A.
-**Skip if:** Apache AGE not available.
-
-### EMC-007: Multi-level merge chain (A->B->C)
-**Setup:** Create entities A, B, C. Create facts on A.
-**Action:** Merge A into B. Then merge B into C.
-**Assert:** All facts originally on A now have `subject_entity_id = C.id`. A's aliases and B's aliases all on C.
-
-### EMC-008: Merge with conflicting exclusive-predicate facts
-**Setup:** Create entity A with fact "works_at Acme". Create entity B with fact "works_at Google". Both exclusive predicate, both active (no invalid_at).
-**Action:** Merge A into B.
-**Assert:** After merge, B has TWO active works_at facts (conflict). Should either: (a) flag for conflict resolution, or (b) document that merge doesn't resolve conflicts.
-
-## Test File
-
-**Location:** `platform/src/test/integration/entity-merge-cascade.test.ts`
-
-**Imports:**
-```typescript
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { testDb, createTestEntity, createTestFact, createTestMemoryEntity, deleteFromTables, randomUUID } from '../setup.js';
-```
+### EMC-010 (nmemo-2yv.30) — audit trail
+- Every re-pointed subject fact has one `fact_history(event_type='merged')`
+  row with the configured `actor` and reasoning identifying it as a subject
+  re-point.
+- Every re-pointed object fact has the same shape with object-side reasoning.
+- Every duplicate-expired fact has reasoning identifying it as a
+  duplicate-removal.
+- A merge with an invalid actor leaves zero partial state (rollback test).
 
 ## Dependencies
 
-- **Required:** PostgreSQL (test DB)
-- **Optional:** Apache AGE (gate EMC-006 with `skipIf(!ageAvailable)`)
-- **Not needed:** ML Services, Qdrant, Ollama
+- **Required:** PostgreSQL (test DB).
+- **Not needed:** ML Services, Qdrant, Ollama.
 
-## Implementation Note
+## Test file
 
-**The merge function itself needs fixing before most tests can pass.** Tests EMC-001, EMC-002, EMC-006, EMC-007 will fail against current code — they document the EXPECTED behavior. Write them first as failing tests, then fix `merge_entities()` to make them pass.
-
-Fix requires adding these lines BEFORE the `DELETE FROM entities`:
-```sql
-UPDATE facts SET subject_entity_id = target_id WHERE subject_entity_id = source_id;
-UPDATE facts SET object_entity_id = target_id WHERE object_entity_id = source_id;
-```
+`platform/src/test/integration/entity-merge-cascade.test.ts`

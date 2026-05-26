@@ -3,7 +3,7 @@
  *
  * Three auto-trigger anchors for the derived-state computes:
  *
- *  1. Post-merge — merge_entities() invalidates topology + clustering
+ *  1. Post-merge — an entity merge invalidates topology + clustering
  *     (the merge re-points edges and merges clusters). triggerTopologyAndClusteringAfterMerge()
  *     fires both computes fire-and-forget on every successful merge.
  *
@@ -105,7 +105,7 @@ export async function markDerivedComputed(kind: 'topology' | 'clustering'): Prom
 
 /** ============================================================
  * Post-merge trigger (bead nmemo-2yv.84 acceptance bullet 5).
- * merge_entities() re-points facts + edges and merges clusters; topology
+ * An entity merge re-points facts + edges and merges clusters; topology
  * and clustering both need to recompute. Mirrors triggerCrossClusterAfterCompute
  * in index.ts: fire-and-forget, never throws out.
  * ============================================================ */

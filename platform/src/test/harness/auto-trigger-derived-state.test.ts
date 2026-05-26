@@ -4,8 +4,8 @@
  * Three integration tests, one per anchor:
  *  1. Post-ingest counter: insert >= TOPOLOGY_CLUSTERING_FACT_THRESHOLD facts,
  *     assert derived_freshness resets (proxy for "compute was fired").
- *  2. Post-merge: invoke merge_entities() at SQL level, assert that the
- *     derived-freshness helper's HTTP fire path was reached.
+ *  2. Post-merge: invoke the derived-freshness helper directly and assert
+ *     that the HTTP fire path was reached.
  *  3. Scheduler: register a fast-cadence drift job, assert the runner fires.
  *
  * The HTTP-side compute is faked via a localhost server-stub so the tests

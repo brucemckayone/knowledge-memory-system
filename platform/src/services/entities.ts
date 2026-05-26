@@ -8,11 +8,12 @@
  * - < 0.75: Create new entity
  */
 
-import { db } from '../db/index.js';
+import { db, type Tx } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
 import { entities, entityAliases, memoryEntities, entityTypes, type Entity } from '../db/schema.js';
 import { eq, ilike, sql, and, or } from 'drizzle-orm';
 import { ml } from './ml-client.js';
+import { recordFactChange, unwrapRows, type Actor } from './audit.js';
 
 // EntityType is now loaded dynamically from entity_types table.
 // This string type allows any value — runtime validation happens via getValidEntityTypes().
@@ -469,4 +470,319 @@ async function generateEmbedding(text: string): Promise<number[]> {
     console.warn('Embedding generation error:', error);
     return [];
   }
+}
+
+// ============================================
+// Entity merge (audited replacement for PL/pgSQL entity-merge function)
+// ============================================
+
+/**
+ * Parameters for {@link mergeEntities}. Mirrors the old PL/pgSQL function's
+ * 5-argument signature with the addition of `actor` (required) — every fact
+ * mutation MUST carry an actor for the audit trail (mig 009 valid_fact_actor
+ * CHECK).
+ *
+ * Bead nmemo-2yv.30.
+ */
+export interface MergeEntitiesParams {
+  /** Source entity to be merged away. Deleted at the end of the merge. */
+  sourceId: string;
+  /** Target entity that absorbs the source's facts, aliases, and edges. */
+  targetId: string;
+  /** Human/agent-readable explanation for the merge (recorded in entity_merges.merge_reason). */
+  reason?: string;
+  /** Tagged source of the merge decision (auto, llm_verified, manual, …). */
+  method?: string;
+  /** Optional similarity score that drove the merge. */
+  score?: number | null;
+  /**
+   * Actor recorded on every fact_history row emitted by this merge.
+   * Defaults to 'reconciliation_agent' — the production caller. Other actors
+   * (system_trigger, user) are valid but rare.
+   */
+  actor?: Actor;
+  /**
+   * Optional outer transaction. Pass when the caller already owns a tx and
+   * needs the merge to land atomically with surrounding work. When omitted,
+   * the function opens its own transaction.
+   */
+  tx?: Tx;
+}
+
+export interface MergeEntitiesResult {
+  /** ID of the surviving entity (always the supplied targetId on success). */
+  survivorId: string;
+}
+
+/**
+ * Audited replacement for the PL/pgSQL entity-merge function
+ * (originally mig 005, extended by mig 020 for contradictions). Bead
+ * nmemo-2yv.30.
+ *
+ * Subsumes every behaviour of the old SQL function:
+ *   - INSERT entity_merges row (audit of the merge action itself)
+ *   - Copy entity_aliases from source to target (dedup via ON CONFLICT)
+ *   - Add source.canonical_name as an alias on target
+ *   - Re-point facts.subject_entity_id and facts.object_entity_id
+ *   - Expire duplicate facts after re-pointing (same predicate + object)
+ *   - Re-point entity_merges where source was the target of an earlier merge
+ *   - Reconcile memory_entities (unique-collapse + re-point)
+ *   - Delete remaining source aliases
+ *   - Re-point causal_events.subject_entity_id
+ *   - Re-point same_as_links (a/b sides, with canonical ordering preserved)
+ *   - Re-point contradictions (per mig 020 dedup + re-point)
+ *   - Append source.id to target.merged_from, update last_seen_at
+ *   - Delete the source entity
+ *
+ * Crucial difference from the SQL function: every fact mutation emits exactly
+ * one `fact_history` row with `event_type = 'merged'` and `actor` threaded
+ * from the caller (default `reconciliation_agent`). The whole merge runs in
+ * a single transaction — any audit-write failure rolls the entire merge back
+ * (the audit invariant, doc 12).
+ *
+ * @throws if `sourceId` does not exist (NotFoundError-like — preserves the
+ *         old function's "Source entity not found" semantic).
+ * @returns `{ survivorId }` — always the supplied `targetId` on success.
+ */
+export async function mergeEntities(params: MergeEntitiesParams): Promise<MergeEntitiesResult> {
+  const {
+    sourceId,
+    targetId,
+    reason = 'Duplicate detected',
+    method = 'auto',
+    score = null,
+    actor = 'reconciliation_agent',
+    tx: outerTx,
+  } = params;
+
+  // Whole-merge atomicity. If the caller passed an outer tx, use it; else
+  // open our own. Same shape as the rest of the service layer (facts.ts).
+  const runMerge = async (tx: Tx): Promise<MergeEntitiesResult> => {
+    // ── 1. Verify source exists; capture its canonical_name for the
+    //       alias row added to target.
+    const sourceRows = unwrapRows<{ canonical_name: string }>(await tx.execute(sql`
+      SELECT canonical_name FROM public.entities WHERE id = ${sourceId}::uuid
+    `));
+    if (sourceRows.length === 0) {
+      throw new Error(`Source entity ${sourceId} not found`);
+    }
+    const sourceName = sourceRows[0]!.canonical_name;
+
+    // ── 2. entity_merges audit row (audit of the merge itself, not of
+    //       individual fact mutations — distinct from fact_history).
+    await tx.execute(sql`
+      INSERT INTO public.entity_merges (
+        source_entity_id, target_entity_id, merge_reason, merge_method, similarity_score
+      )
+      VALUES (
+        ${sourceId}::uuid, ${targetId}::uuid, ${reason}, ${method}, ${score}
+      )
+    `);
+
+    // ── 3. Copy source aliases onto target, then add source canonical_name
+    //       as an alias on target. Dedup via ON CONFLICT.
+    await tx.execute(sql`
+      INSERT INTO public.entity_aliases (entity_id, alias, alias_type, source)
+      SELECT ${targetId}::uuid, alias, alias_type, 'merge'
+      FROM public.entity_aliases
+      WHERE entity_id = ${sourceId}::uuid
+      ON CONFLICT (entity_id, alias) DO NOTHING
+    `);
+    await tx.execute(sql`
+      INSERT INTO public.entity_aliases (entity_id, alias, alias_type, source)
+      VALUES (${targetId}::uuid, ${sourceName}, 'merged_name', 'merge')
+      ON CONFLICT (entity_id, alias) DO NOTHING
+    `);
+
+    // ── 4. Re-point facts where source is the SUBJECT. UPDATE ... RETURNING
+    //       so the audit set EXACTLY matches the mutation set — a SELECT-then-
+    //       UPDATE pair would race with concurrent inserters (the platform's
+    //       READ COMMITTED default isolation lets a fact with
+    //       subject_entity_id = sourceId land between the two statements
+    //       and slip an UPDATE without an audit row).
+    const subjectFactRows = unwrapRows<{ id: string }>(await tx.execute(sql`
+      UPDATE public.facts SET subject_entity_id = ${targetId}::uuid
+      WHERE subject_entity_id = ${sourceId}::uuid
+      RETURNING id::text AS id
+    `));
+    if (subjectFactRows.length > 0) {
+      const subjectReasoning = `Entity merge: subject_entity_id re-pointed from ${sourceId} to ${targetId}. Merge reason: ${reason}`;
+      for (const row of subjectFactRows) {
+        await recordFactChange({
+          factId: row.id,
+          eventType: 'merged',
+          reasoning: subjectReasoning,
+          actor,
+          tx,
+        });
+      }
+    }
+
+    // ── 5. Re-point facts where source is the OBJECT. Same UPDATE...RETURNING
+    //       shape — see step 4 comment for the race-window rationale.
+    const objectFactRows = unwrapRows<{ id: string }>(await tx.execute(sql`
+      UPDATE public.facts SET object_entity_id = ${targetId}::uuid
+      WHERE object_entity_id = ${sourceId}::uuid
+      RETURNING id::text AS id
+    `));
+    if (objectFactRows.length > 0) {
+      const objectReasoning = `Entity merge: object_entity_id re-pointed from ${sourceId} to ${targetId}. Merge reason: ${reason}`;
+      for (const row of objectFactRows) {
+        await recordFactChange({
+          factId: row.id,
+          eventType: 'merged',
+          reasoning: objectReasoning,
+          actor,
+          tx,
+        });
+      }
+    }
+
+    // ── 6. Deduplicate exact-match facts after re-pointing. UPDATE...RETURNING
+    //       on a ranked CTE — keep the highest-confidence / latest-created
+    //       row, expire the rest. RETURNING gives the exact mutation set so
+    //       the audit emission can't drift from it (same race-rationale as
+    //       step 4).
+    const duplicateRows = unwrapRows<{ id: string }>(await tx.execute(sql`
+      WITH ranked AS (
+        SELECT f.id, ROW_NUMBER() OVER (
+          PARTITION BY f.subject_entity_id, f.predicate,
+            COALESCE(f.object_entity_id::text, ''), COALESCE(f.object_value, '')
+          ORDER BY f.confidence DESC NULLS LAST, f.created_at DESC
+        ) AS rn
+        FROM public.facts f
+        WHERE (f.subject_entity_id = ${targetId}::uuid OR f.object_entity_id = ${targetId}::uuid)
+          AND f.expired_at IS NULL
+      )
+      UPDATE public.facts
+      SET expired_at = NOW(),
+          expire_reason = 'Duplicate removed during entity merge'
+      WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+      RETURNING id::text AS id
+    `));
+    if (duplicateRows.length > 0) {
+      const dedupReasoning = `Entity merge: duplicate fact expired after subject/object re-point to ${targetId}. Merge reason: ${reason}`;
+      for (const row of duplicateRows) {
+        await recordFactChange({
+          factId: row.id,
+          eventType: 'merged',
+          reasoning: dedupReasoning,
+          actor,
+          tx,
+        });
+      }
+    }
+
+    // ── 7. Re-point entity_merges where source was the target of an
+    //       earlier merge (transitive merge bookkeeping). No audit needed —
+    //       entity_merges is itself an audit table.
+    await tx.execute(sql`
+      UPDATE public.entity_merges SET target_entity_id = ${targetId}::uuid
+      WHERE target_entity_id = ${sourceId}::uuid
+    `);
+
+    // ── 8. Reconcile memory_entities. Delete source rows that would
+    //       collide with existing target rows for the same memory_id, then
+    //       re-point the rest. No audit — memory_entities has no history.
+    await tx.execute(sql`
+      DELETE FROM public.memory_entities
+      WHERE entity_id = ${sourceId}::uuid
+        AND memory_id IN (
+          SELECT memory_id FROM public.memory_entities WHERE entity_id = ${targetId}::uuid
+        )
+    `);
+    await tx.execute(sql`
+      UPDATE public.memory_entities SET entity_id = ${targetId}::uuid
+      WHERE entity_id = ${sourceId}::uuid
+    `);
+
+    // ── 9. Delete the source's now-redundant alias rows (their canonical
+    //       text was copied onto target in step 3).
+    await tx.execute(sql`
+      DELETE FROM public.entity_aliases WHERE entity_id = ${sourceId}::uuid
+    `);
+
+    // ── 10. Re-point causal_events. Same step the SQL function had — the
+    //        bead nmemo-2yv.30 spec calls these out as non-fact tables that
+    //        don't need fact_history rows.
+    await tx.execute(sql`
+      UPDATE public.causal_events SET subject_entity_id = ${targetId}::uuid
+      WHERE subject_entity_id = ${sourceId}::uuid
+    `);
+
+    // ── 11. Re-point same_as_links preserving the canonical (a < b)
+    //        ordering, then drop links that became self-referential or
+    //        duplicate.
+    await tx.execute(sql`
+      UPDATE public.same_as_links SET entity_a_id = ${targetId}::uuid
+      WHERE entity_a_id = ${sourceId}::uuid AND ${targetId}::uuid < entity_b_id
+    `);
+    await tx.execute(sql`
+      UPDATE public.same_as_links SET entity_b_id = ${targetId}::uuid
+      WHERE entity_b_id = ${sourceId}::uuid AND entity_a_id < ${targetId}::uuid
+    `);
+    await tx.execute(sql`
+      DELETE FROM public.same_as_links
+      WHERE entity_a_id = entity_b_id
+         OR (entity_a_id = ${targetId}::uuid AND entity_b_id = ${targetId}::uuid)
+    `);
+
+    // ── 12. Re-point contradictions (mig 020 / nmemo-2yv.63). Dedup against
+    //        the partial UNIQUE INDEX idx_contradictions_unique_active —
+    //        same COALESCE sentinel UUID + column tuple shape as the SQL
+    //        function (any drift here would either over-delete or fail the
+    //        UPDATE).
+    await tx.execute(sql`
+      DELETE FROM public.contradictions src
+      WHERE src.entity_id = ${sourceId}::uuid
+        AND src.resolved_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM public.contradictions tgt
+          WHERE tgt.entity_id = ${targetId}::uuid
+            AND tgt.resolved_at IS NULL
+            AND tgt.contradiction_type = src.contradiction_type
+            AND COALESCE(tgt.fact_a_id, '00000000-0000-0000-0000-000000000000'::uuid)
+              = COALESCE(src.fact_a_id, '00000000-0000-0000-0000-000000000000'::uuid)
+            AND COALESCE(tgt.fact_b_id, '00000000-0000-0000-0000-000000000000'::uuid)
+              = COALESCE(src.fact_b_id, '00000000-0000-0000-0000-000000000000'::uuid)
+            AND COALESCE(tgt.edge_a_id, '00000000-0000-0000-0000-000000000000'::uuid)
+              = COALESCE(src.edge_a_id, '00000000-0000-0000-0000-000000000000'::uuid)
+            AND COALESCE(tgt.edge_b_id, '00000000-0000-0000-0000-000000000000'::uuid)
+              = COALESCE(src.edge_b_id, '00000000-0000-0000-0000-000000000000'::uuid)
+        )
+    `);
+    await tx.execute(sql`
+      UPDATE public.contradictions SET entity_id = ${targetId}::uuid
+      WHERE entity_id = ${sourceId}::uuid
+    `);
+
+    // ── 13. Append source to target.merged_from, update target.last_seen_at
+    //        to the GREATEST of source and target. No audit — entities has
+    //        no history table.
+    await tx.execute(sql`
+      UPDATE public.entities
+      SET merged_from = merged_from || ${sourceId}::uuid,
+          last_seen_at = GREATEST(
+            last_seen_at,
+            (SELECT last_seen_at FROM public.entities WHERE id = ${sourceId}::uuid)
+          ),
+          updated_at = NOW()
+      WHERE id = ${targetId}::uuid
+    `);
+
+    // ── 14. Finally, delete the source. All FK-bearing tables have either
+    //        been re-pointed (steps 4-12) or cascade-cleared (entity_aliases
+    //        step 9). With contradictions re-pointed in step 12, the FK in
+    //        mig 011 no longer blocks this DELETE.
+    await tx.execute(sql`
+      DELETE FROM public.entities WHERE id = ${sourceId}::uuid
+    `);
+
+    return { survivorId: targetId };
+  };
+
+  if (outerTx) {
+    return runMerge(outerTx);
+  }
+  return db.transaction(runMerge);
 }

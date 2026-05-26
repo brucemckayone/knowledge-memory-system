@@ -1,12 +1,16 @@
 /**
- * Integration: merge_entities() re-points contradictions through a merge.
+ * Integration: mergeEntities() re-points contradictions through a merge.
  *
  * Regression guard for bead nmemo-2yv.63. mig 011 added
  * contradictions.entity_id REFERENCES entities(id) with no ON DELETE
- * clause, so a source entity with any contradictions row caused
- * merge_entities() to fail with an FK violation at its final DELETE.
+ * clause, so a source entity with any contradictions row caused the
+ * entity-merge path to fail with an FK violation at its final DELETE.
  *
- * mig 020 rewrites merge_entities() to:
+ * mig 020 added contradictions re-point logic to the PL/pgSQL function;
+ * bead nmemo-2yv.30 then REPLACED the PL/pgSQL function with the audited
+ * TS mergeEntities() service (the SQL function was dropped in mig 026).
+ * The contradictions re-point logic is preserved verbatim in the TS
+ * implementation — this test pins that behaviour:
  *   1. Delete source contradictions that would clash with an existing
  *      unresolved target row (same type + same fact/edge tuple).
  *   2. Re-point the rest via UPDATE entity_id = target_id.
@@ -15,8 +19,9 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { testDb, createTestEntity, createTestFact } from '../setup.js';
+import { mergeEntities } from '../../services/entities.js';
 
-describe('merge_entities contradictions re-point (nmemo-2yv.63)', () => {
+describe('mergeEntities() contradictions re-point (nmemo-2yv.63)', () => {
   let sourceId: string;
   let targetId: string;
   let factAId: string;
@@ -57,7 +62,7 @@ describe('merge_entities contradictions re-point (nmemo-2yv.63)', () => {
         'opposing_object',
         ${factAId}::uuid, ${factBId}::uuid, ${sourceId}::uuid,
         'sql_heuristic',
-        'Two different works_at values for the same subject — regression test for merge_entities re-point of contradictions.',
+        'Two different works_at values for the same subject — regression test for entity-merge re-point of contradictions.',
         'medium'
       )
       RETURNING id
@@ -71,11 +76,15 @@ describe('merge_entities contradictions re-point (nmemo-2yv.63)', () => {
     await testDb`DELETE FROM public.entities WHERE id IN (${sourceId}::uuid, ${targetId}::uuid)`.catch(() => {});
   });
 
-  it('merge_entities succeeds when source has a contradiction, and the contradiction follows the survivor', async () => {
-    const result = await testDb<Array<{ merge_entities: string }>>`
-      SELECT merge_entities(${sourceId}::uuid, ${targetId}::uuid, 'regression test', 'auto', 0.99) AS merge_entities
-    `;
-    expect(result[0]!.merge_entities).toBe(targetId);
+  it('mergeEntities succeeds when source has a contradiction, and the contradiction follows the survivor', async () => {
+    const result = await mergeEntities({
+      sourceId,
+      targetId,
+      reason: 'regression test',
+      method: 'auto',
+      score: 0.99,
+    });
+    expect(result.survivorId).toBe(targetId);
 
     // Contradiction re-pointed to target.
     const [c] = await testDb<Array<{ entity_id: string }>>`

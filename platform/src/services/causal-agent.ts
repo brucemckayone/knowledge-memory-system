@@ -16,7 +16,7 @@ import { spawn } from 'child_process';
 import dotenv from 'dotenv';
 import { getEntityFacts, createFact, expireFact, invalidateFact, updateFactConfidence, restoreFact } from './facts.js';
 import { findConnectedEntities } from './graph.js';
-import { findSimilarEntities, resolveEntity, linkMemoryToEntity } from './entities.js';
+import { findSimilarEntities, resolveEntity, linkMemoryToEntity, mergeEntities } from './entities.js';
 import { searchMemories, getMemory } from './qdrant.js';
 import { db } from '../db/index.js';
 import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports } from '../db/schema.js';
@@ -1474,10 +1474,17 @@ async function _handleToolCallInner(
       }
 
       try {
-        const result = await db.execute(
-          sql`SELECT public.merge_entities(${sourceId}::uuid, ${targetId}::uuid, ${mergeReason}, 'reconciliation_agent')`
-        ) as unknown as Array<{ merge_entities: string }>;
-        const survivorId = result[0]?.merge_entities ?? targetId;
+        // Bead nmemo-2yv.30 — audited TS replacement for the PL/pgSQL
+        // entity-merge function (dropped in mig 026). Every fact re-point
+        // and duplicate-expiry now emits a fact_history row with
+        // event_type='merged' inside a single transaction.
+        const { survivorId } = await mergeEntities({
+          sourceId,
+          targetId,
+          reason: mergeReason,
+          method: 'reconciliation_agent',
+          actor: 'reconciliation_agent',
+        });
 
         // If a candidate ID was provided, resolve it
         if (toolInput.merge_candidate_id) {

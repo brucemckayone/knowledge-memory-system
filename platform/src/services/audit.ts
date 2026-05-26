@@ -55,7 +55,14 @@ export type FactEventType =
   | 'superseded'
   | 'expired'
   | 'invalidated'
-  | 'restored';
+  | 'restored'
+  // Bead nmemo-2yv.30 — fact subject/object re-pointed (or fact expired as a
+  // duplicate) by an entity merge. Distinct from 'revised' because the
+  // change originates in a merge operation, not a content correction.
+  // Keep in sync with the public.fact_history.event_type CHECK
+  // constraint in mig 026 (and the original constraint definition in
+  // mig 009).
+  | 'merged';
 
 export type EdgeEventType =
   | 'created'
