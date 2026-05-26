@@ -1,5 +1,7 @@
 # Recursive Knowledge Gardening: Implementation Architecture Guide
 
+> **Historical (2026-05-26, bead `nmemo-2yv.70`):** This research document predates the current LLM-agent gardener. The KARMA-style multi-agent scheduler architecture described below was never built. The shipped gardener is a single Claude Code agent invoked via `ml-services/app/gardener_agent.py`; canonical design is [doc 36](../architecture/truth-graph/36-gardener-agent.md). This file is preserved as reference material for the entity-resolution algorithms, bi-temporal modeling, and benchmarks it surveys.
+
 A personal knowledge management system that autonomously organizes, deduplicates, and synthesizes knowledge requires orchestrating seven interconnected technical domains. This research provides implementation-ready specifications for building the "gardening" layer on your existing Qdrant + PostgreSQL + Ollama stack.
 
 > **Note (2026-03):** This document has been updated to reflect the system as built. The original research proposed nine agents with MAB scheduling; the implementation uses seven agents with tiered priority scheduling. Research content (entity resolution algorithms, bi-temporal modeling, benchmarks, etc.) remains as-is — it informed the design and is still valid reference material.

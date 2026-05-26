@@ -129,9 +129,11 @@ After extraction completes, if newly created/updated entities meet the minimum d
 
 Not after every extraction. Only when enough data has accumulated. The check is cheap: count mentions, bail out early if below threshold.
 
-## Future: Reconciliation Agent (Phase 2)
+## Reconciliation Agent
 
 A specialized LLM agent that reads merge candidates, inspects entities via MCP tools (facts, source texts, graph neighbors), and decides merge/alias/link/distinct. Uses the existing `merge_entities()` SQL function for merges. Records reasoning in `merge_candidates.resolution_reasoning`.
+
+**Canonical design:** [doc 35](35-reconciliation-agent.md). The agent shipped post-`005_reconciliation.sql` and has been auto-triggered from the pipeline since bead `nmemo-2yv.61`.
 
 ## Graph-Level Statistics (Phase 2+)
 

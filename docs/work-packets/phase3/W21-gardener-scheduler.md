@@ -1,5 +1,7 @@
 # Work Packet W21: Central Controller (Gardener Scheduler)
 
+> **Historical (2026-05-26, bead `nmemo-2yv.70`):** The job-queue scheduler architecture in this work packet was abandoned. The shipped gardener is an LLM agent triggered every N graph-agent runs from `platform/src/pipeline.ts`, plus a manual `POST /api/garden` endpoint. Canonical design: [doc 36](../../architecture/truth-graph/36-gardener-agent.md). This file is preserved as a record of an earlier design direction.
+
 **Status:** ✅ Complete
 **Dependencies:** W16-W20 (Phase 3 Foundation)  
 **Estimated Time:** 3-4 hours
