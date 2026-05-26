@@ -14,6 +14,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from .core.llm import llm_client
 from .core.concurrency import llm_pool, QueueFullError
+from .core.prompt_safety import (
+    PROMPT_SAFETY_SYSTEM_CLAUSE,
+    delimit_for_prompt,
+)
 
 router = APIRouter()
 
@@ -162,7 +166,9 @@ Candidates you couldn't resolve with confidence, and what additional information
 - NEVER create a same_as link without source_evidence (at least one entry with type, id, relevance).
 - NEVER execute_merge without 0.9+ confidence.
 - Always call resolve_candidate after every resolution.
-- Always update summaries after resolving."""
+- Always update summaries after resolving.
+
+""" + PROMPT_SAFETY_SYSTEM_CLAUSE + """"""
 
 
 def _build_reconciliation_prompt(candidates: list[dict], recent_reports: list[str]) -> str:
@@ -220,9 +226,18 @@ def _build_reconciliation_prompt(candidates: list[dict], recent_reports: list[st
 
     if recent_reports:
         lines.append(f"\n### Recent Extraction Reports ({len(recent_reports)} reports)\n")
+        # nmemo-2yv.62 — extraction_reports.report_text is agent-written
+        # by the graph_agent's PHASE 6 output. Route it through the T8
+        # prompt-safety helper so an adversarial source can't inject
+        # directives via persisted reports. The helper handles cap +
+        # sanitise + delimited-block wrapping. The system-prompt clause
+        # tells the agent that content inside <extraction_report> is data.
         for i, report in enumerate(recent_reports[:5], 1):
-            trimmed = report[:2000] + "..." if len(report) > 2000 else report
-            lines.append(f"**Report {i}:**\n```\n{trimmed}\n```\n")
+            lines.append(
+                f"**Report {i}:**\n"
+                + delimit_for_prompt(report, kind="report", attrs={"index": i})
+                + "\n"
+            )
 
     lines.append("\n## Instructions\n")
     lines.append(

@@ -46,6 +46,7 @@ import { ml } from './ml-client.js';
 import { config } from '../config.js';
 import { normalizePredicate } from './predicates.js';
 import { RESOLUTION_VALUES } from './enums.js';
+import { delimitForPrompt } from './prompt-safety.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1156,8 +1157,11 @@ async function _handleToolCallInner(
         .select({ alias: entityAliases.alias, aliasType: entityAliases.aliasType })
         .from(entityAliases)
         .where(eq(entityAliases.entityId, entityId));
+      // nmemo-2yv.62 — entity_meta.summary is agent-written and read back
+      // into the next-turn prompt via this tool result. Wrap in a
+      // delimited block so the agent treats it as data.
       return JSON.stringify({
-        summary,
+        summary: delimitForPrompt(summary, { kind: 'summary', attrs: { entity_id: entityId } }),
         aliases: aliases.map(a => ({ alias: a.alias, type: a.aliasType })),
         facts: facts.map(f => ({
           id: f.id,
@@ -1428,13 +1432,17 @@ async function _handleToolCallInner(
         for (const row of metaRows) summaries[row.entityId] = row.summary ?? null;
       }
 
+      // nmemo-2yv.62 — wrap each persisted summary in a delimited block.
       return JSON.stringify(matches.map(m => ({
         entityId: m.entityId,
         canonicalName: m.canonicalName,
         entityType: m.entityType,
         matchedAlias: m.alias,
         aliasType: m.aliasType,
-        summary: summaries[m.entityId] ?? null,
+        summary: delimitForPrompt(summaries[m.entityId] ?? null, {
+          kind: 'summary',
+          attrs: { entity_id: m.entityId },
+        }),
       })));
     }
 
@@ -1653,13 +1661,33 @@ async function _handleToolCallInner(
         LIMIT 20
       `) as unknown as Array<Record<string, unknown>>;
 
+      // nmemo-2yv.62 — wrap agent-writable read-back fields (entity_meta.summary
+      // via a_summary/b_summary; extraction_reports.report_text via reportText)
+      // in delimited blocks. The agent's system prompt treats their contents
+      // as data, not instructions.
       return JSON.stringify({
         candidates: candidates.map(c => ({
           ...c,
+          a_summary: delimitForPrompt(c.a_summary as string | null, {
+            kind: 'summary',
+            attrs: { entity_id: c.entity_a_id as string },
+          }),
+          b_summary: delimitForPrompt(c.b_summary as string | null, {
+            kind: 'summary',
+            attrs: { entity_id: c.entity_b_id as string },
+          }),
           a_aliases: aliasMap[c.entity_a_id as string] ?? [],
           b_aliases: aliasMap[c.entity_b_id as string] ?? [],
         })),
-        reports: reports.map(r => ({ id: r.id, memoryId: r.memoryId, createdAt: r.createdAt, reportText: r.reportText })),
+        reports: reports.map(r => ({
+          id: r.id,
+          memoryId: r.memoryId,
+          createdAt: r.createdAt,
+          reportText: delimitForPrompt(r.reportText, {
+            kind: 'report',
+            attrs: { id: r.id, memory_id: r.memoryId },
+          }),
+        })),
         unconfirmedAliases: unconfirmed,
         orphans,
       });
@@ -1871,9 +1899,13 @@ async function _handleToolCallInner(
       const entity = entityRows[0];
       const meta = metaRows[0];
 
+      // nmemo-2yv.62 — wrap persisted summary in a delimited block.
       return JSON.stringify({
         entity: entity ? { id: entity.id, canonicalName: entity.canonicalName, entityType: entity.entityType } : null,
-        summary: meta?.summary ?? null,
+        summary: delimitForPrompt(meta?.summary ?? null, {
+          kind: 'summary',
+          attrs: { entity_id: entityId },
+        }),
         meta: meta ? {
           mentionCount: meta.mentionCount, sourceMemoryCount: meta.sourceMemoryCount,
           factCount: meta.factCount, spread: meta.spread,
@@ -1943,9 +1975,24 @@ async function _handleToolCallInner(
         .orderBy(desc(reasoningReports.createdAt))
         .limit(limit);
 
+      // nmemo-2yv.62 Review #8 — reasoning_reports has two T8-exposed fields:
+      //   .question — user-controlled via POST /api/reason/query body
+      //   .report   — reasoning_agent-written markdown
+      // Both flow back into the reasoning agent's prompt via this tool result;
+      // wrap each in its own delimited block.
       return JSON.stringify(reports.map(r => ({
-        id: r.id, mode: r.mode, question: r.question,
-        report: r.report, actionsTaken: r.actionsTaken, createdAt: r.createdAt,
+        id: r.id,
+        mode: r.mode,
+        question: delimitForPrompt(r.question, {
+          kind: 'prior_question',
+          attrs: { report_id: r.id },
+        }),
+        report: delimitForPrompt(r.report, {
+          kind: 'reasoning_report',
+          attrs: { report_id: r.id, mode: r.mode },
+        }),
+        actionsTaken: r.actionsTaken,
+        createdAt: r.createdAt,
       })));
     }
 

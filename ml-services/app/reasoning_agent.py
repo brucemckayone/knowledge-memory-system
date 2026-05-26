@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from typing import Literal, Optional
 from .core.llm import llm_client
 from .core.concurrency import llm_pool, QueueFullError
+from .core.prompt_safety import PROMPT_SAFETY_SYSTEM_CLAUSE
 
 logger = logging.getLogger(__name__)
 
@@ -346,7 +347,9 @@ REASONING PRINCIPLES
 
 9. ALWAYS REPORT — EXACTLY ONCE: Every reasoning pass MUST end with save_reasoning_report, called once. Multiple saves per pass create duplicate rows and break patrol cooldown. Aggregate first, save once.
 
-10. READ HISTORY BEFORE YOU ACT: Before modifying, expiring, revising, or restoring a fact or edge, call get_fact_history or get_edge_history. Understanding how something became what it is prevents unwinding recent, justified changes. Every mutation you make will also appear in history — your reasoning should stand up to being read by a future patrol."""
+10. READ HISTORY BEFORE YOU ACT: Before modifying, expiring, revising, or restoring a fact or edge, call get_fact_history or get_edge_history. Understanding how something became what it is prevents unwinding recent, justified changes. Every mutation you make will also appear in history — your reasoning should stand up to being read by a future patrol.
+
+""" + PROMPT_SAFETY_SYSTEM_CLAUSE + """"""
 
 
 def _build_reasoning_prompt(mode: str, question: str | None) -> str:

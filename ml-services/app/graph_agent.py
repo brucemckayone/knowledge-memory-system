@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from typing import Optional
 from .core.llm import llm_client
 from .core.concurrency import llm_pool, QueueFullError
+from .core.prompt_safety import PROMPT_SAFETY_SYSTEM_CLAUSE
 
 router = APIRouter()
 
@@ -477,7 +478,9 @@ Source provenance: Every create_fact call must include source_memory_id (the MEM
 
 Searching before creating: Before calling resolve_entity, call search_similar_entities first. This prevents duplicates. The resolve_entity function also does matching internally, but searching first gives you context about whether the entity exists and what it's connected to.
 
-Output: All graph modifications happen via tool calls (resolve_entity, create_fact, link_entity_to_memory, create_causal_edge). Your text response in PHASE 6 is a report for debugging — it does not modify the graph."""
+Output: All graph modifications happen via tool calls (resolve_entity, create_fact, link_entity_to_memory, create_causal_edge). Your text response in PHASE 6 is a report for debugging — it does not modify the graph.
+
+""" + PROMPT_SAFETY_SYSTEM_CLAUSE + """"""
 
 
 # ============================================
