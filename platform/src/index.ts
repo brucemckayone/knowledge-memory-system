@@ -14,7 +14,7 @@ import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents,
 import { isNull, sql, eq } from 'drizzle-orm';
 import { getMergeCandidates } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
-import { checkQdrantHealth } from './services/qdrant.js';
+import { checkQdrantHealth, ensureCollections } from './services/qdrant.js';
 import type { ReconciliationDriftInvoker } from './services/causal-agent.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1655,6 +1655,7 @@ const port = parseInt(process.env.PORT || '3000', 10);
 // Skip the network listener when imported under Vitest so endpoint tests can
 // drive routes via `app.request()` without binding the dev port.
 if (!process.env.VITEST) {
+  await ensureCollections();
   serve({ fetch: app.fetch, port }, (info) => {
     console.log(`Platform listening on :${info.port}`);
   });

@@ -13,13 +13,12 @@ export const COLLECTIONS = {
 } as const;
 
 /**
- * Ensure collections exist with correct schema
+ * Ensure collections exist; throw on dimension mismatch against EMBED_DIMENSIONS.
  */
 export async function ensureCollections(): Promise<void> {
   const collections = await qdrant.getCollections();
   const existing = new Set(collections.collections.map((c) => c.name));
 
-  // Memories collection
   if (!existing.has(COLLECTIONS.MEMORIES)) {
     await qdrant.createCollection(COLLECTIONS.MEMORIES, {
       vectors: {
@@ -27,9 +26,26 @@ export async function ensureCollections(): Promise<void> {
         distance: 'Cosine',
       },
     });
-    console.log('✅ Created memories collection');
+    console.log(`✅ Created memories collection (size=${config.EMBED_DIMENSIONS})`);
+    return;
   }
 
+  // Collection exists — validate dimension against current config.
+  const info = await qdrant.getCollection(COLLECTIONS.MEMORIES);
+  const vectorsConfig = info.config?.params?.vectors;
+  const actualSize =
+    vectorsConfig && 'size' in vectorsConfig && typeof vectorsConfig.size === 'number'
+      ? vectorsConfig.size
+      : undefined;
+  if (actualSize !== config.EMBED_DIMENSIONS) {
+    throw new Error(
+      `Qdrant collection "${COLLECTIONS.MEMORIES}" dimension mismatch: ` +
+        `collection has size=${actualSize}, but EMBED_DIMENSIONS=${config.EMBED_DIMENSIONS} ` +
+        `(EMBED_MODEL=${config.EMBED_MODEL}). ` +
+        `Run clearMemories() to drop and recreate the collection, or revert EMBED_MODEL ` +
+        `to the model that originally produced size=${actualSize} vectors.`,
+    );
+  }
 }
 
 /**
