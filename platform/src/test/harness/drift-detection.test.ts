@@ -579,13 +579,9 @@ print("ok", river.__version__, v)
 
   it('13. reconciliation_agent sibling endpoint: drift payload reaches the prompt verbatim', async (ctx) => {
     if (!existsSync(VENV_PYTHON)) return skipCtx(ctx);
-    // Acceptance criterion: "reconciliation_agent sibling endpoint shipped +
-    // integration test verifies agent receives drift payload". We exercise
-    // the prompt-builder path that the FastAPI handler invokes — a real
-    // /reconciliation-agent/drift POST would also feed the same prompt to
-    // the LLM. Asserting the prompt embeds entity_id, drift_magnitude,
-    // source_cluster_id, target_cluster_id verifies the wire format the
-    // agent receives.
+    // Exercises the prompt-builder directly. The platform-side caller that
+    // POSTs to /reconciliation-agent/drift is covered separately in
+    // drift-reconciliation-trigger.test.ts (bead nmemo-2yv.83).
     const driver = `
 import sys, json
 sys.path.insert(0, r"${ML_SERVICES_DIR.replace(/\\/g, '\\\\')}")

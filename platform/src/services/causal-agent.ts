@@ -2169,6 +2169,74 @@ export async function invokeReconciliationAgent(params: {
 }
 
 // ============================================
+// Reconciliation-drift Agent Invocation (bead nmemo-2yv.83)
+// ============================================
+// Sibling to invokeReconciliationAgent — targets the
+// /reconciliation-agent/drift endpoint with a single-entity drift payload.
+// Returns a structured { status, result?, error? } so the platform-side
+// caller (triggerReconciliationDriftAfterCompute) can classify
+// transient vs permanent failures without parsing exception messages.
+// Network failures (ECONNREFUSED / timeouts) surface as status === 0.
+
+export interface ReconciliationDriftAgentParams {
+  entity_id: string;
+  drift_magnitude: number;
+  centroid_snapshot: number[];
+  centroid_current: number[];
+  source_cluster_id: number | null;
+  target_cluster_id: number | null;
+}
+
+export interface ReconciliationDriftAgentResponse {
+  status: number;
+  result?: string;
+  error?: string;
+}
+
+export type ReconciliationDriftInvoker = (
+  params: ReconciliationDriftAgentParams,
+) => Promise<ReconciliationDriftAgentResponse>;
+
+export async function invokeReconciliationDriftAgent(
+  params: ReconciliationDriftAgentParams,
+): Promise<ReconciliationDriftAgentResponse> {
+  const mcpConfigPath = getMcpConfigPath('reconciliation_agent');
+  try {
+    const response = await fetch(`${config.ML_SERVICES_URL}/reconciliation-agent/drift`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        entity_id: params.entity_id,
+        drift_magnitude: params.drift_magnitude,
+        centroid_snapshot: params.centroid_snapshot,
+        centroid_current: params.centroid_current,
+        source_cluster_id: params.source_cluster_id,
+        target_cluster_id: params.target_cluster_id,
+        mcp_config_path: mcpConfigPath,
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => response.statusText);
+      return { status: response.status, error: detail };
+    }
+    // Defensive parse: a malformed/truncated 200 body (or an upstream proxy
+    // returning HTML with a 200) shouldn't cascade into the caller's outer
+    // try/catch as status=0 (which would be misclassified as a network
+    // error). Treat parse failures as 502 — transient (the helper retries)
+    // but distinct from "no body at all".
+    const body = (await response.json().catch(() => null)) as { result?: unknown } | null;
+    if (!body || typeof body.result !== 'string') {
+      return { status: 502, error: 'malformed agent response body' };
+    }
+    return { status: response.status, result: body.result };
+  } catch (err) {
+    // ECONNREFUSED / DNS failure / aborted fetch — surface as status=0 so
+    // the caller can classify alongside HTTP 5xx (transient).
+    return { status: 0, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ============================================
 // Gardener Agent Invocation
 // ============================================
 

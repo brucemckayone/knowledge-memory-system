@@ -25,6 +25,11 @@ const envSchema = z.object({
 
   // Anthropic API (Phase B: causal agent)
   ANTHROPIC_API_KEY: z.string().optional(),
+
+  // Drift-reconciliation retry cap (bead nmemo-2yv.83). After N transient
+  // failures, the helper transitions triggered_action='reconciliation_failed'
+  // and stops retrying. Default 3 mirrors the bead's locked spec.
+  MAX_RECONCILIATION_ATTEMPTS: z.coerce.number().int().positive().default(3),
 });
 
 /**

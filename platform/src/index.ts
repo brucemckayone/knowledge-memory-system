@@ -13,6 +13,7 @@ import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, gardeningReports } from './db/index.js';
 import { isNull, sql, eq } from 'drizzle-orm';
 import { getMergeCandidates } from './services/graph-meta.js';
+import type { ReconciliationDriftInvoker } from './services/causal-agent.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const vizHtmlPath = join(__dirname, '../viz/index.html');
@@ -1015,6 +1016,188 @@ async function triggerCrossClusterAfterCompute(after: 'topology' | 'clustering')
 }
 
 // ============================================
+// Drift-reconciliation post-compute trigger (bead nmemo-2yv.83)
+// Fire-and-forget; never blocks the HTTP response of /api/drift/compute.
+// Selects ALL pending drift events (decoupled from "rows from this call")
+// so stragglers from previous failed cycles get re-attempted. Per-event
+// invocation is serial — the ml-services llm_pool already bounds LLM
+// concurrency, and serial keeps logs readable.
+// ============================================
+
+// pgvector returns a JSON-shaped literal '[v1,v2,...]'. Defensive parser:
+// arrays pass through; strings get parsed; anything else returns [].
+function parsePgVector(input: unknown): number[] {
+  if (Array.isArray(input)) return input as number[];
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        if (Array.isArray(parsed)) return parsed as number[];
+      } catch {
+        // fall through to empty
+      }
+    }
+  }
+  return [];
+}
+
+function isPermanentFailureStatus(status: number): boolean {
+  // Bead spec: HTTP 404 (entity not found) and HTTP 400 (bad payload) are
+  // the only specific permanent classes. Everything else falls through to
+  // the transient bucket and goes through MAX-attempts exhaustion before
+  // being marked permanently failed.
+  return status === 400 || status === 404;
+}
+
+export async function triggerReconciliationDriftAfterCompute(
+  invokerOverride?: ReconciliationDriftInvoker,
+): Promise<void> {
+  const maxAttempts = config.MAX_RECONCILIATION_ATTEMPTS;
+  try {
+    // Lazy import inside try so a module-load failure (rare but possible
+    // in a future bundling/build edit) lands in the catch rather than
+    // becoming an unhandled rejection — the route fires us with void.
+    const invoker = invokerOverride
+      ?? (await import('./services/causal-agent.js')).invokeReconciliationDriftAgent;
+    // NB: payload field source_cluster_id maps to the storage column
+    // cluster_id_at_detection (see 016_entity_drift.sql §3.2). The agent
+    // request model uses the "source/target" framing; the row schema
+    // uses "at-detection/target".
+    const pending = (await db.execute(sql`
+      SELECT id::text                       AS id,
+             entity_id::text                AS entity_id,
+             drift_magnitude,
+             centroid_snapshot::text        AS centroid_snapshot_text,
+             centroid_current::text         AS centroid_current_text,
+             cluster_id_at_detection        AS source_cluster_id,
+             target_cluster_id              AS target_cluster_id,
+             reconciliation_attempt_count   AS reconciliation_attempt_count
+      FROM public.entity_drift_events
+      WHERE triggered_action = 'reconciliation_invoked'
+        AND reconciliation_run_id IS NULL
+        AND reconciliation_attempt_count < ${maxAttempts}
+      ORDER BY detected_at ASC
+    `)) as unknown as Array<{
+      id: string;
+      entity_id: string;
+      drift_magnitude: number;
+      centroid_snapshot_text: string;
+      centroid_current_text: string;
+      source_cluster_id: number | null;
+      target_cluster_id: number | null;
+      reconciliation_attempt_count: number;
+    }>;
+
+    if (pending.length === 0) {
+      console.log('[drift-reconciliation] no pending events');
+      return;
+    }
+
+    console.log(`[drift-reconciliation] processing ${pending.length} pending events (max_attempts=${maxAttempts})`);
+
+    for (const row of pending) {
+      // Per-iteration try so one poison row (e.g. unexpected DB error on a
+      // single UPDATE) doesn't abort the rest of the batch. Anything that
+      // didn't reach a terminal state this cycle is re-selected next cycle.
+      try {
+        const snapshot = parsePgVector(row.centroid_snapshot_text);
+        const current = parsePgVector(row.centroid_current_text);
+
+        const response = await invoker({
+          entity_id: row.entity_id,
+          drift_magnitude: row.drift_magnitude,
+          centroid_snapshot: snapshot,
+          centroid_current: current,
+          source_cluster_id: row.source_cluster_id,
+          target_cluster_id: row.target_cluster_id,
+        });
+
+        // Success requires status 200 AND a non-empty string result. An
+        // empty/whitespace result (e.g. LLM exhausted max_turns without
+        // emitting text) falls through to the transient branch so the row
+        // gets re-attempted rather than silently audit-rowed with empty
+        // content. invokeReconciliationDriftAgent already coerces malformed
+        // JSON / network errors to non-200 statuses, so by the time we get
+        // here status=200 AND result is the only "useful body" shape.
+        const resultIsUsable = typeof response.result === 'string'
+          && response.result.trim().length > 0;
+        if (response.status === 200 && resultIsUsable) {
+          // SUCCESS: write the agent's report into reasoning_reports (audit
+          // table per bead spec), then set the drift event's run_id to the
+          // generated row's id. mode='patrol' is the closest existing legal
+          // CHECK value — the drift-reconciliation agent IS doing a focused
+          // single-entity patrol. actions_taken carries the drift_event_id
+          // so the audit row is reverse-traceable to its trigger.
+          const inserted = (await db.execute(sql`
+            INSERT INTO public.reasoning_reports (mode, report, actions_taken, entity_ids)
+            VALUES (
+              'patrol',
+              ${response.result},
+              ${JSON.stringify({ drift_event_id: row.id, source: 'reconciliation_drift_agent' })}::jsonb,
+              ARRAY[${row.entity_id}]::uuid[]
+            )
+            RETURNING id::text AS id
+          `)) as unknown as Array<{ id: string }>;
+
+          const runId = inserted[0]?.id;
+          if (runId) {
+            await db.execute(sql`
+              UPDATE public.entity_drift_events
+              SET reconciliation_run_id = ${runId}
+              WHERE id = ${row.id}::uuid
+            `);
+            console.log(`[drift-reconciliation] entity=${row.entity_id} drift_event=${row.id} run_id=${runId}`);
+          } else {
+            console.warn(`[drift-reconciliation] entity=${row.entity_id} drift_event=${row.id} INSERT returned no id`);
+          }
+        } else if (isPermanentFailureStatus(response.status)) {
+          // PERMANENT (specific error class): mark failed immediately.
+          await db.execute(sql`
+            UPDATE public.entity_drift_events
+            SET triggered_action = 'reconciliation_failed',
+                error_detail     = ${`HTTP ${response.status}: ${response.error ?? 'no detail'}`}
+            WHERE id = ${row.id}::uuid
+          `);
+          console.warn(`[drift-reconciliation] entity=${row.entity_id} drift_event=${row.id} permanent_failure status=${response.status}`);
+        } else {
+          // TRANSIENT: increment counter. If counter hits MAX_ATTEMPTS,
+          // promote to permanent so 'reconciliation_failed' eventually fires
+          // even for chronically-failing events (resolves folded-scope C7).
+          const newCount = row.reconciliation_attempt_count + 1;
+          const detail = `HTTP ${response.status}: ${response.error ?? 'no detail'}`;
+          if (newCount >= maxAttempts) {
+            await db.execute(sql`
+              UPDATE public.entity_drift_events
+              SET reconciliation_attempt_count = ${newCount},
+                  triggered_action             = 'reconciliation_failed',
+                  error_detail                 = ${`exhausted ${maxAttempts} attempts: ${detail}`}
+              WHERE id = ${row.id}::uuid
+            `);
+            console.warn(`[drift-reconciliation] entity=${row.entity_id} drift_event=${row.id} exhausted_attempts attempts=${newCount}`);
+          } else {
+            await db.execute(sql`
+              UPDATE public.entity_drift_events
+              SET reconciliation_attempt_count = ${newCount},
+                  error_detail                 = ${detail}
+              WHERE id = ${row.id}::uuid
+            `);
+            console.warn(`[drift-reconciliation] entity=${row.entity_id} drift_event=${row.id} transient_failure attempts=${newCount} status=${response.status}`);
+          }
+        }
+      } catch (rowErr) {
+        console.warn(
+          `[drift-reconciliation] row drift_event=${row.id} entity=${row.entity_id} failed:`,
+          rowErr instanceof Error ? rowErr.message : rowErr,
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[drift-reconciliation] helper failed:', err instanceof Error ? err.message : err);
+  }
+}
+
+// ============================================
 // Topology (Phase 2 — nmemo-a7f.2.1, doc 23 §2.4 + 23.1 §3.3)
 // POST /api/topology/compute proxies to the ml-services sidecar (igraph).
 // GET  /api/components/:component_id reads the local entity_topology table.
@@ -1329,6 +1512,11 @@ app.post('/api/drift/compute', async (c) => {
     if (!response.ok) {
       return c.json({ ok: false, status: response.status, error: body, durationMs: Date.now() - start }, response.status as 409 | 500);
     }
+    // Bead nmemo-2yv.83 — fire-and-forget the reconciliation-drift caller.
+    // Picks up rows just inserted by this compute call (triggered_action=
+    // 'reconciliation_invoked' AND reconciliation_run_id IS NULL) and any
+    // stragglers from previous cycles still under MAX_RECONCILIATION_ATTEMPTS.
+    void triggerReconciliationDriftAfterCompute();
     return c.json({ ok: true, result: body, durationMs: Date.now() - start });
   } catch (err) {
     return c.json({ ok: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 502);
