@@ -396,33 +396,6 @@ app.get('/api/viz/merge-candidates', async (c) => {
   return c.json(candidates);
 });
 
-app.post('/api/viz/run-meta', async (c) => {
-  // Run the migration first (idempotent)
-  const { readFileSync: readFs } = await import('node:fs');
-  // Try both paths (tsx runs from src/, compiled from dist/)
-  // Run all graph meta migrations in order
-  for (const migFile of ['003_graph_meta.sql', '004_entity_summary.sql']) {
-    let migSql: string;
-    try {
-      migSql = readFs(join(__dirname, 'db/migrations', migFile), 'utf-8');
-    } catch {
-      migSql = readFs(join(__dirname, '../db/migrations', migFile), 'utf-8');
-    }
-    await db.execute(sql.raw(migSql));
-  }
-
-  // Get all entity IDs
-  const allEntities = await db.select({ id: entities.id }).from(entities);
-  const entityIds = allEntities.map(e => e.id);
-
-  // Compute meta + detect candidates
-  const { updateEntityMeta: update, detectMergeCandidates: detect } = await import('./services/graph-meta.js');
-  await update(entityIds);
-  const candidateCount = await detect(entityIds);
-
-  return c.json({ entitiesProcessed: entityIds.length, candidatesDetected: candidateCount });
-});
-
 app.post('/api/reconcile', async (c) => {
   // Manually trigger the reconciliation agent to resolve identity questions
   const body: { include_reports?: boolean; max_reports?: number } =
