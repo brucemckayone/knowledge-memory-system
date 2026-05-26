@@ -575,14 +575,9 @@ app.get('/api/impact/:type/:id', async (c) => {
   }
 
   const hypothetical = c.req.query('hypothetical');
-  if (
-    hypothetical !== undefined &&
-    hypothetical !== 'expire' &&
-    hypothetical !== 'invalidate' &&
-    hypothetical !== 'weaken'
-  ) {
+  if (hypothetical !== undefined && hypothetical !== 'expire') {
     return c.json(
-      { error: `Invalid hypothetical "${hypothetical}" — expected expire|invalidate|weaken` },
+      { error: `Invalid hypothetical "${hypothetical}" — expected expire` },
       400,
     );
   }
@@ -596,7 +591,7 @@ app.get('/api/impact/:type/:id', async (c) => {
       nodeType,
       nodeId,
       maxDepth,
-      hypothetical: hypothetical as 'expire' | 'invalidate' | 'weaken' | undefined,
+      hypothetical: hypothetical as 'expire' | undefined,
       includePatterns,
     });
     return c.json(report);

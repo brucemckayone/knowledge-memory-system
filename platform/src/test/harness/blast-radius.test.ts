@@ -1238,10 +1238,13 @@ describe('Phase 4 — HTTP GET /api/impact/:type/:id (nmemo-437.7)', () => {
 
   it('returns 400 for invalid hypothetical', async () => {
     const fakeId = randomUUID();
-    const res = await app.request(`/api/impact/fact/${fakeId}?hypothetical=destroy`);
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/Invalid hypothetical/);
+    for (const mode of ['destroy', 'invalidate', 'weaken']) {
+      const res = await app.request(`/api/impact/fact/${fakeId}?hypothetical=${mode}`);
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toMatch(/Invalid hypothetical/);
+      expect(body.error).toMatch(/expected expire$/);
+    }
   });
 
   it('returns 404 for a non-existent root', async () => {

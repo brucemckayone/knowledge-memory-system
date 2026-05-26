@@ -38,7 +38,7 @@ export type ImpactNodeType = 'fact' | 'entity' | 'causal_event' | 'causal_edge' 
 export type RootNodeType = Extract<ImpactNodeType, 'fact' | 'entity' | 'causal_event'>;
 export type ImpactRelationship = 'direct' | 'transitive' | 'citation' | 'pattern_member';
 export type ImpactSeverity = 'critical' | 'high' | 'medium' | 'low';
-export type HypotheticalAction = 'expire' | 'invalidate' | 'weaken';
+export type HypotheticalAction = 'expire';
 
 export interface ImpactNode {
   nodeType: ImpactNodeType;
@@ -676,12 +676,12 @@ function pickSeverity(
   },
   otherSourcesByEdge: Map<string, number>,
 ): ImpactSeverity {
-  const isHypotheticalExpire = ctx.hypothetical === 'expire';
+  const isHypothetical = ctx.hypothetical === 'expire';
 
   // Rule 1 — citation that becomes sole evidence under hypothetical expire
   if (
     n.relationship === 'citation' &&
-    isHypotheticalExpire &&
+    isHypothetical &&
     (n.corroborationCount ?? 0) >= 3 &&
     (otherSourcesByEdge.get(n.nodeId) ?? 0) === 0
   ) {
@@ -696,7 +696,7 @@ function pickSeverity(
   // of corroboration depth.
   if (
     n.relationship === 'citation' &&
-    isHypotheticalExpire &&
+    isHypothetical &&
     (otherSourcesByEdge.get(n.nodeId) ?? 0) === 0
   ) {
     return 'critical';

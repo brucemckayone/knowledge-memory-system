@@ -102,7 +102,7 @@ export interface ImpactNode {
 
 export interface BlastRadiusReport {
   root: { nodeType: string; nodeId: string; summary: string };
-  hypothetical?: 'expire' | 'invalidate' | 'weaken';
+  hypothetical?: 'expire';
   directDependents: ImpactNode[];
   transitiveChains: ImpactNode[];
   citationDependents: ImpactNode[];
@@ -116,7 +116,7 @@ export async function analyzeImpact(params: {
   nodeType: 'fact' | 'entity' | 'causal_event';
   nodeId: string;
   maxDepth?: number;           // default 3
-  hypothetical?: 'expire' | 'invalidate' | 'weaken';
+  hypothetical?: 'expire';
   includePatterns?: boolean;   // default true (requires Phase 6)
 }): Promise<BlastRadiusReport>;
 ```
@@ -133,7 +133,7 @@ export async function analyzeImpact(params: {
       node_type: { enum: ['fact', 'entity', 'causal_event'] },
       node_id: { type: 'string', format: 'uuid' },
       max_depth: { type: 'number', minimum: 1, maximum: 10, default: 3 },
-      hypothetical: { enum: ['expire', 'invalidate', 'weaken'] },
+      hypothetical: { enum: ['expire'] },
     },
     required: ['node_type', 'node_id'],
   },
@@ -273,6 +273,8 @@ WHERE p.status IN ('provisional', 'canonical')
 - Direct causal edges touching this event get their "irreplaceable" status evaluated
 
 This produces a "what would happen if..." report without changing state. Useful for UIs showing consequences before a user clicks "Confirm".
+
+Only the `expire` mode is currently supported. `invalidate` and `weaken` were originally specified but never implemented — `invalidate` requires temporal-window citation semantics the data model doesn't carry, and `weaken` had no clear service-level semantic. They were removed from the API in Review #11 to keep the surface honest. Re-add deliberately if the citation model gains time bounds.
 
 ## Reasoning Agent Integration
 

@@ -888,8 +888,8 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
         hypothetical: {
           type: 'string',
-          enum: ['expire', 'invalidate', 'weaken'],
-          description: 'Re-score severity as if the root were mutated. Makes ZERO database writes. Use to preview cascade impact before destructive actions.',
+          enum: ['expire'],
+          description: 'Re-score severity as if the root were expired. Makes ZERO database writes. Use to preview cascade impact before destructive actions.',
         },
       },
       required: ['node_type', 'node_id'],
