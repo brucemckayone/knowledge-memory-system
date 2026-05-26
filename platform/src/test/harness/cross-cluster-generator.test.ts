@@ -509,6 +509,40 @@ describe('cross-cluster candidate generator', () => {
     expect(list.find((c) => c.combinedScore > 0.95 && c.combinedScore < 1.0)).toBeUndefined();
   });
 
+  it('listCrossClusterCandidates: default statusFilter hides resolved rows; explicit ["resolved"] returns them (bead .98)', async () => {
+    // Seed one 'candidate' and one 'resolved' cross_cluster_generator row.
+    // Both must descend from candidate_source='cross_cluster_generator' to
+    // pass the helper's source filter; status is the only thing that differs.
+    const a = await createTestEntity({ canonicalName: 'CandA', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'CandB', entityType: 'person' });
+    const cEntity = await createTestEntity({ canonicalName: 'ResC', entityType: 'person' });
+    const dEntity = await createTestEntity({ canonicalName: 'ResD', entityType: 'person' });
+    const [ab1, ab2] = a.id < b.id ? [a.id, b.id] : [b.id, a.id];
+    const [cd1, cd2] = cEntity.id < dEntity.id ? [cEntity.id, dEntity.id] : [dEntity.id, cEntity.id];
+    await testDb.unsafe(`
+      INSERT INTO public.merge_candidates
+        (entity_a_id, entity_b_id, combined_score, status, candidate_source)
+      VALUES
+        ('${ab1}'::uuid, '${ab2}'::uuid, 0.80, 'candidate', 'cross_cluster_generator'),
+        ('${cd1}'::uuid, '${cd2}'::uuid, 0.90, 'resolved',  'cross_cluster_generator')
+    `);
+
+    // Default args: only the candidate row surfaces.
+    const defaults = await listCrossClusterCandidates();
+    expect(defaults.length).toBe(1);
+    expect(defaults[0]!.status).toBe('candidate');
+
+    // Explicit ['resolved']: only the resolved row surfaces.
+    const resolved = await listCrossClusterCandidates(100, ['resolved']);
+    expect(resolved.length).toBe(1);
+    expect(resolved[0]!.status).toBe('resolved');
+
+    // Explicit ['candidate', 'resolved']: both surface.
+    const both = await listCrossClusterCandidates(100, ['candidate', 'resolved']);
+    expect(both.length).toBe(2);
+    expect(new Set(both.map((r) => r.status))).toEqual(new Set(['candidate', 'resolved']));
+  });
+
   // ---------------------------------------------------------------------------
   // cross_cluster_runs telemetry (bead nmemo-2yv.92)
   // ---------------------------------------------------------------------------

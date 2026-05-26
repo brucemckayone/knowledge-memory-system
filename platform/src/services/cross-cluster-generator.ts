@@ -591,9 +591,36 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
   return finalResult;
 }
 
+/** Valid merge_candidates.status values (CHECK constraint in 003_graph_meta.sql:67-69).
+ *  Exported for the /api/cross-cluster/candidates route's input validation
+ *  (bead nmemo-2yv.98). */
+export const CROSS_CLUSTER_CANDIDATE_STATUSES = [
+  'candidate',
+  'staging',
+  'provisional',
+  'resolved',
+] as const;
+
+/** Default status filter when listCrossClusterCandidates is called without an
+ *  explicit statusFilter. Matches the viz panel's intent — never show resolved
+ *  rows. Aligns with the partial indexes idx_merge_candidates_score /
+ *  idx_merge_candidates_status (003_graph_meta.sql:75-79, both WHERE status !=
+ *  'resolved'). Bead nmemo-2yv.98 locked Decision (2026-05-22): default to
+ *  ['candidate', 'staging']. */
+const DEFAULT_CROSS_CLUSTER_STATUS_FILTER: readonly string[] = ['candidate', 'staging'];
+
 /** GET endpoint helper — list cross-cluster-generated candidates with entity
- *  display info, ordered by score. Used by viz / debugging per §3.4. */
-export async function listCrossClusterCandidates(limit = 100): Promise<Array<{
+ *  display info, ordered by score. Used by viz / debugging per §3.4.
+ *
+ *  The default `statusFilter` (`['candidate', 'staging']`) hides resolved rows
+ *  so the viz panel stops re-rendering historical resolutions forever (bead
+ *  nmemo-2yv.98). Callers needing the audit view pass an explicit filter:
+ *  `listCrossClusterCandidates(100, ['resolved'])` returns only resolved.
+ */
+export async function listCrossClusterCandidates(
+  limit = 100,
+  statusFilter: readonly string[] = DEFAULT_CROSS_CLUSTER_STATUS_FILTER,
+): Promise<Array<{
   id: string;
   entityA: { id: string; name: string; type: string };
   entityB: { id: string; name: string; type: string };
@@ -621,6 +648,7 @@ export async function listCrossClusterCandidates(limit = 100): Promise<Array<{
     JOIN public.entities a ON a.id = mc.entity_a_id
     JOIN public.entities b ON b.id = mc.entity_b_id
     WHERE mc.candidate_source = 'cross_cluster_generator'
+      AND mc.status = ANY(ARRAY[${sql.join(statusFilter.map(s => sql`${s}`), sql`, `)}]::text[])
     ORDER BY mc.combined_score DESC
     LIMIT ${limit}
   `)) as unknown as Array<Record<string, unknown>>;

@@ -1611,9 +1611,32 @@ app.post('/api/cross-cluster/generate', async (c) => {
 app.get('/api/cross-cluster/candidates', async (c) => {
   const limitRaw = c.req.query('limit');
   const limit = limitRaw ? Math.max(1, Math.min(500, Number.parseInt(limitRaw, 10) || 100)) : 100;
+  // Optional ?status=candidate,staging,provisional,resolved — comma-separated,
+  // validated against the merge_candidates CHECK constraint vocabulary. Empty
+  // / unset = use the helper's default (['candidate', 'staging']) so the viz
+  // panel stops rendering resolved rows forever (bead nmemo-2yv.98).
+  const { listCrossClusterCandidates, CROSS_CLUSTER_CANDIDATE_STATUSES } =
+    await import('./services/cross-cluster-generator.js');
+  const statusRaw = c.req.query('status');
+  let statusFilter: readonly string[] | undefined;
+  if (statusRaw !== undefined && statusRaw.length > 0) {
+    const requested = statusRaw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+    const allowed = new Set<string>(CROSS_CLUSTER_CANDIDATE_STATUSES);
+    const invalid = requested.filter((s) => !allowed.has(s));
+    if (invalid.length > 0) {
+      return c.json(
+        {
+          error: `invalid status value(s): ${invalid.join(', ')}. Allowed: ${CROSS_CLUSTER_CANDIDATE_STATUSES.join(', ')}`,
+        },
+        400,
+      );
+    }
+    if (requested.length > 0) statusFilter = requested;
+  }
   try {
-    const { listCrossClusterCandidates } = await import('./services/cross-cluster-generator.js');
-    const candidates = await listCrossClusterCandidates(limit);
+    // statusFilter === undefined falls through to the helper's default param
+    // (['candidate','staging']) — no explicit branching needed.
+    const candidates = await listCrossClusterCandidates(limit, statusFilter);
     return c.json({ count: candidates.length, candidates });
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);

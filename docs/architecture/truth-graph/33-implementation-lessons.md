@@ -76,6 +76,14 @@ Cross-project gotchas (anything that isn't Mnemo-specific) also go to `bd rememb
 
 ## 2026-05-26
 
+### nmemo-2yv.98 — listCrossClusterCandidates statusFilter (sibling of .45)
+
+- **Lesson:** When a sibling bead (.45) recently landed the same filter+paginate pattern on an adjacent query helper, the cheapest implementation is to mirror its shape *with the new bead's locked defaults*, not the sibling's defaults. Here .45 chose `['staging','candidate','provisional']` as default-unresolved; .98 locked `['candidate','staging']` specifically (drops 'provisional' from default). The bead's Decision section wins by definition — the sibling's choice is informative but not normative. Read both, follow the lock.
+- **Lesson:** The `sql.join(arr.map(s => sql\`${s}\`), sql\`, \`)::text[]` idiom from .45 transplants cleanly to any helper that needs a runtime-variable status set. Reusing the exact idiom (not paraphrasing it) makes the diff trivially auditable against the prior bead. Pattern crystallised: status-filter SQL = `WHERE col = ANY(ARRAY[${sql.join(arr.map(s => sql\`${s}\`), sql\`, \`)}]::text[])`.
+- **Surprise:** The bead body cited `cross-cluster-generator.ts:521-563` for the helper, but the actual lines were 596-639 (78-line drift). Line-ref drift is the same shape as .111's path drift — *symbols + behaviour* matched; the line numbers had aged. Note in PREMISE_OK rather than halt. Pattern: bead premise = symbols + behaviour, not line numbers.
+- **Pattern noted:** Exposing the valid-vocabulary enum (`CROSS_CLUSTER_CANDIDATE_STATUSES`) from the service module rather than redeclaring it in the route handler keeps the source of truth single. The route imports and validates against it; when a future migration extends the CHECK constraint, only the service-layer constant changes. Same shape as .45's `DEFAULT_UNRESOLVED_STATUSES` — but exporting the FULL set (incl. 'resolved') is what the route validator needs, not just the unresolved subset.
+- **Pattern noted:** A ternary like `cond ? f(x) : f(x, y)` collapses to `f(x, y-or-undefined)` when `f` has a default param — passing `undefined` to a defaulted parameter triggers the default per ES2015 spec. /simplify caught this one-liner. Worth remembering: explicit `undefined` IS the "use default" signal at the call site.
+
 ### nmemo-2yv.31 — 'superseded' fact event_type wired up
 
 - **Lesson:** When a vocabulary value is declared at every layer (TS union, DB CHECK constraint, fixture, doc) but written by ZERO production paths, the gap is invisible to schema-only audits. The fix here was one line in `createFact`'s supersession loop — `eventType: 'superseded'` — but the diagnostic was a grep for production occurrences of the literal. **General rule:** whenever a CHECK constraint enumerates N values, grep production code for each value; any with zero hits is a dead vocabulary slot until proven otherwise.
