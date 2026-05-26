@@ -2039,6 +2039,29 @@ export function getGraphMcpScriptPath(): string {
  * Generate a temporary MCP config JSON with resolved absolute paths.
  * Claude Code reads this file to know how to spawn the graph MCP server.
  */
+/**
+ * Build the env dict that the production MCP server subprocess needs.
+ *
+ * Single source of truth for env passed to the graph MCP server — both
+ * `getMcpConfigPath` (which writes it into per-actor MCP configs that
+ * Claude Code consumes) and `checkGraphMcpHealth` (which spawns the same
+ * server directly) call this. Bead nmemo-2yv.126 — without the shared
+ * builder, an env-list edit on one side silently drifts from the other
+ * and the probe passes against an easier startup contract than production.
+ *
+ * Prefers `process.env` (set by test setup or runtime) over `.env` file.
+ */
+export function getMcpEnv(actor: Actor): Record<string, string> {
+  const platformRoot = path.resolve(__dirname, '..', '..');
+  const envFile = dotenv.config({ path: path.resolve(platformRoot, '.env') });
+  const env: Record<string, string> = { MNEMO_AGENT_ACTOR: actor };
+  for (const key of ['DATABASE_URL', 'QDRANT_URL', 'ML_SERVICES_URL', 'EMBED_MODEL', 'NODE_ENV']) {
+    const val = process.env[key] || envFile.parsed?.[key];
+    if (val) env[key] = val;
+  }
+  return env;
+}
+
 export function getMcpConfigPath(actor: Actor = 'graph_agent'): string {
   const platformRoot = path.resolve(__dirname, '..', '..');
   // One config file per actor so invoke* calls don't clobber each other's
@@ -2051,24 +2074,13 @@ export function getMcpConfigPath(actor: Actor = 'graph_agent'): string {
   // must be resolvable from any working directory.
   const serverScript = getGraphMcpScriptPath();
 
-  // The MCP server process inherits a minimal env from Claude Code.
-  // Pass through the required env vars so config.ts validation passes, plus
-  // MNEMO_AGENT_ACTOR so audit writes attribute to the correct agent.
-  // Prefer process.env (set by test setup or runtime) over .env file.
-  const envFile = dotenv.config({ path: path.resolve(platformRoot, '.env') });
-  const env: Record<string, string> = { MNEMO_AGENT_ACTOR: actor };
-  for (const key of ['DATABASE_URL', 'QDRANT_URL', 'ML_SERVICES_URL', 'EMBED_MODEL', 'NODE_ENV']) {
-    const val = process.env[key] || envFile.parsed?.[key];
-    if (val) env[key] = val;
-  }
-
   const mcpConfig = {
     mcpServers: {
       'mnemo-graph': {
         command: 'npx',
         args: ['tsx', serverScript],
         cwd: platformRoot,
-        env,
+        env: getMcpEnv(actor),
       },
     },
   };
@@ -2406,16 +2418,29 @@ export async function invokeReasoningAgent(params: ReasoningAgentParams): Promis
 export interface McpHealthResult {
   ok: boolean;
   tools?: string[];
+  /** True when the `get_graph_topology` round-trip (id=3) returned a structured
+   *  response — either a tool result or a tool-level error envelope. False when
+   *  the transport itself failed (timeout, JSON parse error, connection drop).
+   *  `ok` requires BOTH `tools/list` AND this round-trip to succeed. Added by
+   *  bead nmemo-2yv.126 so the probe exercises the MCP→DB path, not just
+   *  the spawn+initialize handshake. */
+  topologyOk?: boolean;
   error?: string;
   durationMs: number;
 }
 
 /**
- * Spawn the production graph MCP server and verify it responds to a
- * tools/list request. Uses the raw JSON-RPC protocol over stdio (no SDK
- * client needed). Resolves the script path through `getGraphMcpScriptPath`
- * so the probe target stays locked to whatever `getMcpConfigPath` writes
- * into the per-actor MCP configs that production agents consume.
+ * Spawn the production graph MCP server and verify it responds to BOTH a
+ * `tools/list` request AND a `tools/call get_graph_topology` round-trip. Uses
+ * the raw JSON-RPC protocol over stdio (no SDK client needed). Resolves the
+ * script path + env through the shared resolvers (`getGraphMcpScriptPath`,
+ * `getMcpEnv`) so the probe spawns the subprocess with the SAME contract
+ * production agents see — no probe-vs-production env drift (bead .126).
+ *
+ * The `get_graph_topology` round-trip ensures "green" means "the agent can
+ * actually do useful work" — a server that starts cleanly but cannot reach
+ * Postgres returns ok=false here, where the old probe (which only sent
+ * initialize + tools/list) would silently return ok=true.
  */
 export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealthResult> {
   const start = Date.now();
@@ -2427,11 +2452,23 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
       cwd: platformRoot,
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: process.platform === 'win32',
+      // Bead nmemo-2yv.126: pass the SAME env that production MCP configs
+      // pass (via getMcpConfigPath). Without this, the probe would inherit
+      // the platform process's full process.env and silently pass against
+      // a richer startup contract than production.
+      env: getMcpEnv('graph_agent'),
     });
 
     let stdout = '';
     let stderr = '';
     let resolved = false;
+    let toolsList: string[] | undefined;
+    // Bead nmemo-2yv.126: track which request stages we've already dispatched
+    // so the stdout handler — which re-iterates ALL accumulated lines every
+    // time data arrives — doesn't double-send subsequent requests. Without
+    // this, three response chunks would cause three tools/list sends.
+    let toolsListSent = false;
+    let topologyCallSent = false;
 
     const finish = (result: McpHealthResult) => {
       if (resolved) return;
@@ -2441,7 +2478,7 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
     };
 
     const timer = setTimeout(() => {
-      finish({ ok: false, error: 'MCP server timed out', durationMs: Date.now() - start });
+      finish({ ok: false, tools: toolsList, error: 'MCP server timed out', durationMs: Date.now() - start });
     }, timeoutMs);
 
     proc.stdout.on('data', (chunk: Buffer) => {
@@ -2453,9 +2490,9 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
         if (!line.trim()) continue;
         try {
           const msg = JSON.parse(line);
-          // Response to initialize
-          if (msg.id === 1 && msg.result) {
-            // Send tools/list
+          // Response to initialize (id=1) → send tools/list (id=2) once.
+          if (msg.id === 1 && msg.result && !toolsListSent) {
+            toolsListSent = true;
             const toolsReq = JSON.stringify({
               jsonrpc: '2.0',
               id: 2,
@@ -2464,11 +2501,35 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
             });
             proc.stdin.write(toolsReq + '\n');
           }
-          // Response to tools/list
-          if (msg.id === 2 && msg.result?.tools) {
+          // Response to tools/list (id=2) → send tools/call get_graph_topology (id=3) once.
+          if (msg.id === 2 && msg.result?.tools && !topologyCallSent) {
+            topologyCallSent = true;
+            toolsList = msg.result.tools.map((t: { name: string }) => t.name);
+            const callReq = JSON.stringify({
+              jsonrpc: '2.0',
+              id: 3,
+              method: 'tools/call',
+              params: { name: 'get_graph_topology', arguments: {} },
+            });
+            proc.stdin.write(callReq + '\n');
+          }
+          // Response to tools/call get_graph_topology (id=3). A `result` field
+          // (with or without `isError:true`) is proof the MCP→DB path works —
+          // the tool ran. A JSON-RPC `error` field means the protocol layer
+          // itself rejected the call (e.g. method-not-found, schema mismatch);
+          // that's a real probe failure → topologyOk=false. Transport-level
+          // failures (id=3 never arrives, JSON parse error) surface via the
+          // timeout / exit paths.
+          if (msg.id === 3) {
             clearTimeout(timer);
-            const tools = msg.result.tools.map((t: { name: string }) => t.name);
-            finish({ ok: true, tools, durationMs: Date.now() - start });
+            const topologyOk = msg.result !== undefined;
+            finish({
+              ok: toolsList !== undefined && topologyOk,
+              tools: toolsList,
+              topologyOk,
+              error: topologyOk ? undefined : `tools/call get_graph_topology returned JSON-RPC error: ${JSON.stringify(msg.error)}`,
+              durationMs: Date.now() - start,
+            });
           }
         } catch {
           // Not JSON yet, keep accumulating
@@ -2482,13 +2543,13 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
 
     proc.on('error', (err) => {
       clearTimeout(timer);
-      finish({ ok: false, error: `Failed to spawn: ${err.message}`, durationMs: Date.now() - start });
+      finish({ ok: false, tools: toolsList, error: `Failed to spawn: ${err.message}`, durationMs: Date.now() - start });
     });
 
     proc.on('exit', (code) => {
       clearTimeout(timer);
       if (!resolved) {
-        finish({ ok: false, error: `Server exited with code ${code}: ${stderr}`, durationMs: Date.now() - start });
+        finish({ ok: false, tools: toolsList, error: `Server exited with code ${code}: ${stderr}`, durationMs: Date.now() - start });
       }
     });
 
