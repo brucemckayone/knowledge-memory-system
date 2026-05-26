@@ -625,6 +625,140 @@ export async function resolveContradiction(
   });
 }
 
+// ============================================
+// Agent-detected insertion path (nmemo-2yv.39)
+// ============================================
+//
+// The four SQL heuristics above cover opposing_object / expired_but_cited /
+// cyclic_causal / temporal_impossible. They cannot surface chain_conflict
+// (two reasoning chains reaching opposing conclusions — requires semantic
+// understanding) and cannot catch aliased-predicate variants that escape
+// lexical matching. createContradiction is the write path for any
+// contradiction the reasoning agent (or a user, via support tooling) notices
+// during patrol. It mirrors the SQL heuristics' insertion shape:
+//   - validates `at_least_one_node` before INSERT (defence-in-depth against
+//     the DB CHECK firing late)
+//   - enforces detection_reasoning length >= MIN_DETECTION_REASONING_LENGTH
+//   - relies on `idx_contradictions_unique_active` (partial unique index on
+//     the type + node-ref tuple WHERE resolved_at IS NULL) plus
+//     ON CONFLICT DO NOTHING for dedup against SQL-detected duplicates;
+//     on conflict, the existing row's id is returned (no-op insert).
+
+const MIN_DETECTION_REASONING_LENGTH = 20;
+
+export type AgentDetector = 'reasoning_agent' | 'user';
+
+export interface CreateContradictionParams {
+  contradictionType: ContradictionType;
+  factAId?: string;
+  factBId?: string;
+  edgeAId?: string;
+  edgeBId?: string;
+  entityId?: string;
+  detectedBy: AgentDetector;
+  detectionReasoning: string;
+  detectionContext?: Record<string, unknown>;
+  severity?: ContradictionSeverity;
+}
+
+/**
+ * Insert an agent-detected (or user-asserted) contradiction. Returns the new
+ * row's id, or — when the partial unique index `idx_contradictions_unique_active`
+ * already has an unresolved row for the same (type, node-refs) tuple — the
+ * existing row's id (no-op insert; the agent's reasoning is silently ignored
+ * because the conflict is already visible).
+ *
+ * Throws when:
+ *   - detection_reasoning is shorter than MIN_DETECTION_REASONING_LENGTH
+ *   - no node reference (fact_a / fact_b / edge_a / edge_b / entity) is supplied
+ */
+export async function createContradiction(
+  params: CreateContradictionParams,
+): Promise<{ id: string }> {
+  const {
+    contradictionType,
+    factAId,
+    factBId,
+    edgeAId,
+    edgeBId,
+    entityId,
+    detectedBy,
+    detectionReasoning,
+    detectionContext,
+    severity,
+  } = params;
+
+  if (!detectionReasoning || detectionReasoning.trim().length < MIN_DETECTION_REASONING_LENGTH) {
+    throw new Error(
+      `createContradiction: detection_reasoning must be at least ${MIN_DETECTION_REASONING_LENGTH} characters; got ${detectionReasoning?.length ?? 0}`,
+    );
+  }
+
+  if (!factAId && !factBId && !edgeAId && !edgeBId && !entityId) {
+    throw new Error(
+      `createContradiction: at_least_one_node — supply at least one of fact_a_id / fact_b_id / edge_a_id / edge_b_id / entity_id`,
+    );
+  }
+
+  const contextJsonb = detectionContext == null
+    ? sql`NULL::jsonb`
+    : jsonbLiteral(detectionContext);
+  const sev: ContradictionSeverity = severity ?? 'medium';
+
+  // ON CONFLICT DO NOTHING fires when the partial unique index already has an
+  // unresolved row with the same (type, node-refs) tuple. In that case the
+  // INSERT returns zero rows; we then SELECT the colliding row to return its
+  // id. The SELECT mirrors the partial index's COALESCE-to-sentinel shape so
+  // it matches the same unresolved row the index would have flagged.
+  const inserted = (await db.execute(sql`
+    INSERT INTO public.contradictions (
+      contradiction_type, fact_a_id, fact_b_id, edge_a_id, edge_b_id, entity_id,
+      detected_by, detection_reasoning, detection_context, severity
+    )
+    VALUES (
+      ${contradictionType},
+      ${factAId ?? null}::uuid,
+      ${factBId ?? null}::uuid,
+      ${edgeAId ?? null}::uuid,
+      ${edgeBId ?? null}::uuid,
+      ${entityId ?? null}::uuid,
+      ${detectedBy},
+      ${detectionReasoning},
+      ${contextJsonb},
+      ${sev}
+    )
+    ON CONFLICT DO NOTHING
+    RETURNING id::text AS id
+  `)) as unknown as Array<{ id: string }>;
+
+  if (inserted[0]) {
+    return { id: inserted[0].id };
+  }
+
+  const sentinel = '00000000-0000-0000-0000-000000000000';
+  const existing = (await db.execute(sql`
+    SELECT id::text AS id
+    FROM public.contradictions
+    WHERE contradiction_type = ${contradictionType}
+      AND COALESCE(fact_a_id, ${sentinel}::uuid) = COALESCE(${factAId ?? null}::uuid, ${sentinel}::uuid)
+      AND COALESCE(fact_b_id, ${sentinel}::uuid) = COALESCE(${factBId ?? null}::uuid, ${sentinel}::uuid)
+      AND COALESCE(edge_a_id, ${sentinel}::uuid) = COALESCE(${edgeAId ?? null}::uuid, ${sentinel}::uuid)
+      AND COALESCE(edge_b_id, ${sentinel}::uuid) = COALESCE(${edgeBId ?? null}::uuid, ${sentinel}::uuid)
+      AND COALESCE(entity_id, ${sentinel}::uuid) = COALESCE(${entityId ?? null}::uuid, ${sentinel}::uuid)
+      AND resolved_at IS NULL
+    LIMIT 1
+  `)) as unknown as Array<{ id: string }>;
+
+  if (!existing[0]) {
+    // Defensive: ON CONFLICT fired but the colliding row vanished (resolved
+    // between INSERT and SELECT). Re-throw rather than fabricate an id.
+    throw new Error(
+      `createContradiction: ON CONFLICT fired but no matching unresolved row found for type=${contradictionType}`,
+    );
+  }
+  return { id: existing[0].id };
+}
+
 export async function getContradictionById(id: string): Promise<ContradictionRow | null> {
   const result = await db.execute(sql`
     SELECT

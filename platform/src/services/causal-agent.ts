@@ -26,9 +26,11 @@ import { getFactHistory, getEdgeHistory, type Actor } from './audit.js';
 import {
   getContradictions,
   resolveContradiction,
+  createContradiction,
   type ContradictionType,
   type ContradictionSeverity,
   type ResolutionType,
+  type AgentDetector,
 } from './contradictions.js';
 import {
   analyzeImpact,
@@ -910,6 +912,42 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['contradiction_id', 'resolution_type', 'resolution_reasoning'],
+    },
+  },
+  {
+    name: 'create_contradiction',
+    description:
+      'Surface an agent-detected contradiction. Use this when patrol investigation reveals a conflict the four SQL heuristics could not catch: (a) chain_conflict — two reasoning chains you investigated reach opposing conclusions about the same predicate-subject; (b) opposing facts that use ALIASED predicate strings (semantically same predicate, lexically different — the SQL heuristic only matches on exact predicate equality); (c) any contradiction whose detection requires semantic understanding rather than a lookup. Inserts into the contradictions table with detected_by=reasoning_agent (or user). detection_reasoning MUST cite the specific facts/edges/chains involved and explain why the SQL heuristics could not surface this case (must be at least 20 characters). Supply at least one of fact_a_id / fact_b_id / edge_a_id / edge_b_id / entity_id. When the same (type + node-refs) tuple already has an unresolved contradiction, the existing row’s id is returned (no duplicate is created).',
+    mutates: true,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        contradiction_type: {
+          type: 'string',
+          enum: ['opposing_object', 'expired_but_cited', 'cyclic_causal', 'temporal_impossible', 'chain_conflict'],
+          description: 'Type of contradiction. Use "chain_conflict" for two reasoning chains reaching opposing conclusions; use "opposing_object" for aliased-predicate cases the SQL heuristic missed.',
+        },
+        fact_a_id: { type: 'string', description: 'UUID of an involved fact (optional; at least one of fact_a/b_id, edge_a/b_id, entity_id required).' },
+        fact_b_id: { type: 'string', description: 'UUID of a second involved fact (optional).' },
+        edge_a_id: { type: 'string', description: 'UUID of an involved causal edge (optional).' },
+        edge_b_id: { type: 'string', description: 'UUID of a second involved causal edge (optional).' },
+        entity_id: { type: 'string', description: 'UUID of the involved entity, e.g. shared subject for an aliased-predicate opposing_object (optional).' },
+        detection_reasoning: {
+          type: 'string',
+          description: 'Why this is a contradiction. Cite specific facts/edges/chains and explain why the SQL heuristics could not catch it. Must be at least 20 characters.',
+          minLength: 20,
+        },
+        detection_context: {
+          type: 'object',
+          description: 'Optional structured metadata (e.g. {"chain_a_ids": [...], "chain_b_ids": [...], "aliased_predicates": ["lives_at","resides_at"]}).',
+        },
+        severity: {
+          type: 'string',
+          enum: ['critical', 'high', 'medium', 'low'],
+          description: 'Severity tier. Defaults to "medium" if omitted.',
+        },
+      },
+      required: ['contradiction_type', 'detection_reasoning'],
     },
   },
 
@@ -2149,6 +2187,34 @@ async function _handleToolCallInner(
         dismissedReason: toolInput.dismissed_reason as string | undefined,
       });
       return JSON.stringify({ resolved: true });
+    }
+
+    case 'create_contradiction': {
+      // detected_by mirrors the call context's agent — reasoning_agent during
+      // patrol, user when invoked via support tooling. Any other actor (e.g.
+      // graph_agent / gardener_agent) is rejected here: the contradictions
+      // table's valid_detected_by CHECK only permits sql_heuristic /
+      // reasoning_agent / user, and surfacing the rejection at the dispatcher
+      // gives a clearer error than the DB constraint violation.
+      if (context.agent !== 'reasoning_agent' && context.agent !== 'user') {
+        throw new Error(
+          `create_contradiction: actor ${context.agent} not permitted; use reasoning_agent or user`,
+        );
+      }
+      const detectedBy: AgentDetector = context.agent;
+      const result = await createContradiction({
+        contradictionType: toolInput.contradiction_type as ContradictionType,
+        factAId: toolInput.fact_a_id as string | undefined,
+        factBId: toolInput.fact_b_id as string | undefined,
+        edgeAId: toolInput.edge_a_id as string | undefined,
+        edgeBId: toolInput.edge_b_id as string | undefined,
+        entityId: toolInput.entity_id as string | undefined,
+        detectedBy,
+        detectionReasoning: toolInput.detection_reasoning as string,
+        detectionContext: toolInput.detection_context as Record<string, unknown> | undefined,
+        severity: toolInput.severity as ContradictionSeverity | undefined,
+      });
+      return JSON.stringify({ created: true, id: result.id });
     }
 
     case 'analyze_blast_radius': {

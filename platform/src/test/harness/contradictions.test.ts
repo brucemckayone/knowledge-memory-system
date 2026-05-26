@@ -35,6 +35,7 @@ import {
   detectTemporalImpossible,
   detectContradictions,
   resolveContradiction,
+  createContradiction,
   getContradictions,
   getContradictionById,
 } from '../../services/contradictions.js';
@@ -869,6 +870,105 @@ describe('Phase 5 — MCP tools (nmemo-cae.8)', () => {
     const c = await getContradictionById(row!.id);
     expect(c?.resolvedAt).not.toBeNull();
     expect(c?.resolvedBy).toBe('reasoning_agent');
+  });
+});
+
+// ============================================
+// createContradiction (nmemo-2yv.39) — agent-detected INSERT path
+// ============================================
+
+describe('Phase 5 — createContradiction service (nmemo-2yv.39)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('inserts a chain_conflict row visible via get_contradictions', async () => {
+    const entity = await createTestEntity({ canonicalName: 'Subject-Of-Conflict', entityType: 'person' });
+    const factA = await createTestFact({ subjectEntityId: entity.id, predicate: 'reports_to', objectValue: 'Alice', confidence: 0.7 });
+    const factB = await createTestFact({ subjectEntityId: entity.id, predicate: 'reports_to', objectValue: 'Bob', confidence: 0.7 });
+
+    const { id } = await createContradiction({
+      contradictionType: 'chain_conflict',
+      entityId: entity.id,
+      factAId: factA.id,
+      factBId: factB.id,
+      detectedBy: 'reasoning_agent',
+      detectionReasoning: 'Two reasoning chains reached opposing conclusions about reports_to for this subject.',
+      detectionContext: { chain_a_ids: ['c1'], chain_b_ids: ['c2'] },
+      severity: 'high',
+    });
+
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+
+    const rows = await getContradictions({ contradictionType: 'chain_conflict', unresolvedOnly: true });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.id).toBe(id);
+    expect(rows[0]!.detectedBy).toBe('reasoning_agent');
+    expect(rows[0]!.severity).toBe('high');
+    expect(rows[0]!.entityId).toBe(entity.id);
+  });
+
+  it('throws when detection_reasoning is shorter than 20 chars', async () => {
+    const entity = await createTestEntity({ canonicalName: 'Short-Reasoning-Subject', entityType: 'person' });
+    await expect(
+      createContradiction({
+        contradictionType: 'chain_conflict',
+        entityId: entity.id,
+        detectedBy: 'reasoning_agent',
+        detectionReasoning: 'too short',
+      }),
+    ).rejects.toThrow(/at least 20/);
+  });
+
+  it('throws at_least_one_node when no node refs are supplied', async () => {
+    await expect(
+      createContradiction({
+        contradictionType: 'chain_conflict',
+        detectedBy: 'reasoning_agent',
+        detectionReasoning: 'Detected something with no nodes attached — should be rejected.',
+      }),
+    ).rejects.toThrow(/at_least_one_node/);
+  });
+
+  it('dedup: second call with same (type + node-refs) returns the same id (no duplicate row)', async () => {
+    const entity = await createTestEntity({ canonicalName: 'Dedup-Subject', entityType: 'person' });
+    const params = {
+      contradictionType: 'chain_conflict' as const,
+      entityId: entity.id,
+      detectedBy: 'reasoning_agent' as const,
+      detectionReasoning: 'Two chains reached opposing conclusions for this subject (first detection).',
+    };
+    const first = await createContradiction(params);
+    const second = await createContradiction({
+      ...params,
+      detectionReasoning: 'Two chains reached opposing conclusions for this subject (second detection).',
+    });
+    expect(second.id).toBe(first.id);
+
+    const all = await getContradictions({ contradictionType: 'chain_conflict', unresolvedOnly: false });
+    expect(all).toHaveLength(1);
+  });
+
+  it('MCP create_contradiction round-trips via handleToolCall', async () => {
+    const entity = await createTestEntity({ canonicalName: 'MCP-Subject', entityType: 'person' });
+    const result = await handleToolCall(
+      'create_contradiction',
+      {
+        contradiction_type: 'chain_conflict',
+        entity_id: entity.id,
+        detection_reasoning: 'Phase 2 investigation surfaced opposing conclusions across two chains.',
+        severity: 'medium',
+      },
+      { agent: 'reasoning_agent' },
+    );
+    const parsed = JSON.parse(result) as { created: boolean; id: string };
+    expect(parsed.created).toBe(true);
+    expect(parsed.id).toMatch(/^[0-9a-f-]{36}$/);
+
+    const row = await getContradictionById(parsed.id);
+    expect(row?.contradictionType).toBe('chain_conflict');
+    expect(row?.detectedBy).toBe('reasoning_agent');
+    expect(row?.entityId).toBe(entity.id);
   });
 });
 

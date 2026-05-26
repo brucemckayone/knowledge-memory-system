@@ -228,6 +228,86 @@ async function detectCyclicCausal(): Promise<number> { /* similar pattern */ }
 async function detectTemporalImpossible(): Promise<number> { /* similar pattern */ }
 ```
 
+## Detection — Reasoning Agent
+
+The four SQL heuristics above catch lexical / structural conflicts: same
+subject + predicate with different objects, edges citing expired facts,
+unwindowed causal cycles, and edges with cause occurring after effect. They
+cannot surface contradictions that require semantic understanding —
+specifically:
+
+1. **chain_conflict** — two reasoning chains the agent investigated reach
+   opposing conclusions about the same predicate-subject. Detecting this
+   requires the agent to remember conclusions across chains it produced
+   during the same patrol pass. The SQL heuristic has no view of reasoning
+   chains; only the agent does.
+2. **Aliased-predicate opposing facts** — two facts whose objects disagree
+   but whose predicates differ lexically while meaning the same thing (e.g.
+   `lives_at` vs `resides_at`). `detectOpposingObjects` joins on exact
+   predicate equality, so it cannot catch these.
+
+The `create_contradiction` MCP tool is the write path for both. It mirrors
+the insertion shape of the SQL heuristics:
+
+| Concern | Behaviour |
+|---|---|
+| `at_least_one_node` | Enforced at the service boundary (defence-in-depth against the DB CHECK) — at least one of `fact_a_id`, `fact_b_id`, `edge_a_id`, `edge_b_id`, `entity_id` must be supplied. |
+| `detection_reasoning` | Required, must be at least 20 characters. Must cite the specific facts/edges/chains and explain why the SQL heuristics could not catch the case. |
+| `detected_by` | Set automatically from the tool-call context — `reasoning_agent` during patrol, `user` via support tooling. Other actors are rejected at the dispatcher. |
+| Dedup | The partial unique index `idx_contradictions_unique_active` covers all five types. `ON CONFLICT DO NOTHING` + a follow-up `SELECT` returns the existing row's id when the same (type + node-refs) tuple is already unresolved — so an agent re-flagging a SQL-detected conflict is a no-op. |
+
+### `create_contradiction` MCP tool
+
+```typescript
+{
+  name: 'create_contradiction',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      contradiction_type: { enum: ['opposing_object', 'expired_but_cited',
+                                    'cyclic_causal', 'temporal_impossible',
+                                    'chain_conflict'] },
+      fact_a_id: { type: 'string' },
+      fact_b_id: { type: 'string' },
+      edge_a_id: { type: 'string' },
+      edge_b_id: { type: 'string' },
+      entity_id: { type: 'string' },
+      detection_reasoning: { type: 'string', minLength: 20 },
+      detection_context: { type: 'object' },
+      severity: { enum: ['critical', 'high', 'medium', 'low'] },
+    },
+    required: ['contradiction_type', 'detection_reasoning'],
+  },
+}
+```
+
+### chain_conflict workflow
+
+```d2
+direction: down
+
+investigate: "Phase 2 — investigate\nneighbourhoods" { shape: step }
+chains: "Build reasoning\nchains" { shape: rectangle }
+notice: "Notice two chains\nreach opposing\nconclusions" { shape: diamond; style.fill: "#fff3cd" }
+create: "create_contradiction(\n  type=chain_conflict,\n  entity_id=...,\n  detection_reasoning=cite both chains\n)" { shape: rectangle; style.fill: "#fff3cd" }
+report: "Phase 4 — REPORT\nincludes the\nnewly-flagged conflict" { shape: step }
+
+investigate -> chains -> notice
+notice -> create -> report
+notice -> investigate: "no — continue"
+```
+
+### Aliased-predicate workflow
+
+Aliased predicates are equally an agent-detection problem because lexical
+equality is the only thing the SQL heuristic can do. The agent surfaces
+these by calling `create_contradiction` with `contradiction_type='opposing_object'`
+plus the two fact ids and the shared entity, naming both predicate strings
+in `detection_reasoning`. The same partial unique index protects against
+duplicate rows, but the agent should still check
+`get_contradictions({ entity_id, contradiction_type: 'opposing_object' })`
+first to avoid wasting an MCP call on something already flagged.
+
 ## Resolution Flow
 
 ### Reasoning Agent Patrol Addition

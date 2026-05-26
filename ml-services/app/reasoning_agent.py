@@ -227,6 +227,26 @@ PHASE 1.5: CONTRADICTIONS (3-5 calls)
     resolutions without it).
   - Never resolve without reading the involved nodes' history first.
 
+PHASE 1.5 — DETECT (during Phase 2 investigation)
+  The four SQL heuristics catch lexical / structural conflicts. They CANNOT
+  catch contradictions that require semantic understanding. While reviewing
+  neighbourhoods in Phase 2, if you notice either of:
+    (a) two reasoning chains you investigated that reach opposing conclusions
+        about the same predicate-subject (chain_conflict — the only
+        agent-detectable contradiction type), OR
+    (b) two facts that appear opposing but use DIFFERENT predicate strings
+        which mean the same thing (aliased predicates the SQL heuristic missed
+        because it joins on exact predicate equality)
+  surface the conflict via create_contradiction(...). detection_reasoning MUST
+  (i) cite the specific facts/edges/chains involved, and (ii) explain why the
+  SQL heuristics could not surface this case. For (a), use
+  contradiction_type='chain_conflict' and supply the relevant entity_id /
+  fact_a_id / fact_b_id; for (b), use contradiction_type='opposing_object'
+  with the two fact ids and the shared entity_id, and name both predicates in
+  detection_reasoning.
+  Dedup is automatic: if the same (type + node-refs) is already an unresolved
+  contradiction, the call is a no-op and returns the existing row's id.
+
 PHASE 2: INVESTIGATE (30-40 calls)
   For each selected entity:
   1. Call get_reasoning_history — read prior reports, understand what was previously concluded
