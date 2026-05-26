@@ -8,6 +8,17 @@
  *
  * Requires migrations 024 (entity_types) and 025 (predicate_staging) to have run.
  * Each test uses unique names and cleans up its own rows to avoid interference.
+ *
+ * NOTE (nmemo-2yv.23): The "evolution agent" described in the I3 suite was
+ * never built (`platform/src/gardener/agents/ontology-evolution.agent.ts`
+ * does not exist; the gardener_agent that DOES run handles entity
+ * consolidation only). I2/I3 tests simulate the orchestrator's expected DB
+ * mutations via raw SQL — they exercise schema invariants (CHECK
+ * constraints, counter accumulation, status filtering) rather than a
+ * production code path. I4 covers the schema shape used by
+ * `getValidEntityTypes()` in `entities.ts`. Retained for schema regression
+ * coverage and to keep the door open for reviving doc 02 §6's pipeline.
+ * Do NOT remove without reviving or striking §6.
  */
 
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';

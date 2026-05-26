@@ -2,7 +2,15 @@
  * Predicate Ontology Service
  *
  * Manages the canonical predicate ontology for knowledge graph relationships.
- * Used by W27 Schema Alignment Agent to normalize predicates.
+ * Live entry points used in production: `normalizePredicate()` (Layer 1
+ * structural normalisation, called from the graph_agent path), `CANONICAL_ONTOLOGY`
+ * (canonical alias map), `isCanonicalPredicate()`, and `recordPredicateUsage()`
+ * (bumps usage counters on every fact creation via `facts.ts::createFact`).
+ *
+ * The remaining exports (`syncOntologyToDb`, `findNonCanonicalPredicates`,
+ * `normalizeFactPredicates`, `transitionPredicateStatus`) are `@deprecated`
+ * (nmemo-2yv.23) — they were the API surface of the predicate-evolution
+ * orchestrator that was never built. See doc 02 §6 for the deferred design.
  */
 
 import { db } from '../db/index.js';
@@ -296,6 +304,13 @@ export function isCanonicalPredicate(predicate: string): boolean {
 
 /**
  * Sync ontology to database
+ *
+ * @deprecated (nmemo-2yv.23) No production caller. The canonical seed is loaded
+ * by migration 001_consolidated.sql:157 directly; this TS path is redundant.
+ * Kept for documentation/test use; safe to remove once
+ * docs/architecture/truth-graph/02-graph-s-hardening.md §6 ("Wire the
+ * Ontology Evolution Pipeline") is either revived or struck. See bead .23
+ * notes for the drop-vs-revive decision.
  */
 export async function syncOntologyToDb(): Promise<number> {
   let synced = 0;
@@ -336,6 +351,14 @@ export async function syncOntologyToDb(): Promise<number> {
 
 /**
  * Find non-canonical predicates in facts table
+ *
+ * @deprecated (nmemo-2yv.23) No production caller. Designed as input to the
+ * predicate-evolution orchestrator that was never built (the referenced
+ * `platform/src/gardener/agents/ontology-evolution.agent.ts` does not exist;
+ * the gardener_agent that DOES run handles entity consolidation only).
+ * Kept for documentation/test use; safe to remove once
+ * docs/architecture/truth-graph/02-graph-s-hardening.md §6 is either
+ * revived or struck. See bead .23 notes.
  */
 export async function findNonCanonicalPredicates(): Promise<Array<{ predicate: string; count: number }>> {
   const canonicalList = Object.keys(CANONICAL_ONTOLOGY);
@@ -352,6 +375,12 @@ export async function findNonCanonicalPredicates(): Promise<Array<{ predicate: s
 
 /**
  * Update facts to use canonical predicate
+ *
+ * @deprecated (nmemo-2yv.23) No production caller. Designed as the bulk-rewrite
+ * step the predicate-evolution orchestrator would invoke after Layer 2/3 review
+ * approved a merge; that orchestrator was never built. Kept for documentation/
+ * test use; safe to remove once doc 02 §6 is revived or struck.
+ * See bead .23 notes.
  */
 export async function normalizeFactPredicates(
   fromPredicate: string,
@@ -396,6 +425,12 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 /**
  * Transition a predicate's status with validation.
  * Throws if the transition is not allowed.
+ *
+ * @deprecated (nmemo-2yv.23) No production caller. The CAS-style state machine
+ * is correct (see ontology-state-machine.test.ts) but no orchestrator walks
+ * predicates through the staging → candidate → provisional → canonical
+ * lifecycle in production. Kept for documentation/test use; safe to remove
+ * once doc 02 §6 is revived or struck. See bead .23 notes.
  */
 export async function transitionPredicateStatus(
   predicate: string,

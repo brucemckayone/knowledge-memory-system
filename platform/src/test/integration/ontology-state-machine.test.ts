@@ -3,6 +3,13 @@
  *
  * Proves that predicate status transitions follow the designed lifecycle.
  * Valid transitions succeed, invalid transitions throw.
+ *
+ * NOTE (nmemo-2yv.23): `transitionPredicateStatus` is currently @deprecated
+ * — no production code walks predicates through the staging → candidate →
+ * provisional → canonical lifecycle. This suite is retained as a regression
+ * guard on the state-machine API's correctness so that if/when an
+ * orchestrator is revived (per doc 02 §6), the lifecycle invariants don't
+ * have to be re-derived. Do NOT remove without reviving or striking §6.
  */
 
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';

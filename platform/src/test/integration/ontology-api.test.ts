@@ -2,6 +2,14 @@
  * Ontology API Integration Tests
  *
  * Tests the new API endpoints for the living ontology system.
+ *
+ * NOTE (nmemo-2yv.23): The ML `/compare-predicates` endpoint these tests
+ * exercise has no production caller — it was designed as Layer 3 of the
+ * predicate-evolution pipeline (doc 02 §6), but the orchestrator that
+ * would invoke it was never built. The endpoint and these tests are
+ * retained so the LLM-gate behaviour stays exercised against the actual
+ * ML service, in case the pipeline is revived. Do NOT remove the endpoint
+ * or this suite without reviving or striking §6.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { ML_SERVICES_URL, isMLServiceAvailable ,

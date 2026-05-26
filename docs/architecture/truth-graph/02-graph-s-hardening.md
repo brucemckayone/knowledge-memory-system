@@ -218,7 +218,26 @@ Unique facts = unique causal events. A duplicate fact creates a duplicate state 
 
 ## 6. Wire the Ontology Evolution Pipeline
 
-### Current State
+> **Status (nmemo-2yv.23, 2026-05-26): DEFERRED.** The orchestrator described
+> below was never built. The named file
+> `platform/src/gardener/agents/ontology-evolution.agent.ts` does not exist
+> on any branch. The gardener that DOES run (ml-services
+> `gardener_agent.py`, invoked from `pipeline.ts:363` and `index.ts:454`)
+> handles entity consolidation only — it does not walk the predicate
+> lifecycle. The supporting API in `platform/src/services/predicates.ts`
+> (`syncOntologyToDb`, `findNonCanonicalPredicates`, `normalizeFactPredicates`,
+> `transitionPredicateStatus`) is marked `@deprecated` pending a revive-or-strike
+> decision. `recordPredicateUsage` is the one function retained as live —
+> `facts.ts:320` calls it on every fact creation, so counters keep
+> accumulating in case the pipeline is later revived. Schema columns,
+> the CHECK on `status`, and the state-machine tests
+> (`ontology-state-machine.test.ts`, `ontology-evolution.test.ts`,
+> `ontology-api.test.ts`) all remain, retaining the door for a revival
+> without reconstructing schema/test scaffolding from scratch. The
+> design content below is preserved as historical record of the intended
+> shape; do not treat it as a current spec.
+
+### Current State (historical, design intent)
 
 The living ontology system is the most thoroughly designed subsystem that isn't fully operational. The design in `docs/design/living-ontology.md` specifies three layers of predicate intelligence:
 
@@ -230,7 +249,7 @@ The living ontology system is the most thoroughly designed subsystem that isn't 
 
 The database infrastructure is ready: migration 025 added staging lifecycle columns (`status`, `first_seen_at`, `distinct_memory_count`, `usage_count`, `promoted_at`, `rejected_at`). Valid status transitions are defined. The `ontologyEvolutionAgent` in `platform/src/gardener/agents/ontology-evolution.agent.ts` has the three-layer structure but Layers 2 and 3 aren't connected.
 
-### The Fix
+### The Fix (deferred — see Status banner above)
 
 **Wire Layer 2:** Integrate embedding generation with enriched descriptions (not raw labels), compute cosine similarity against canonical predicates, apply the two-threshold scoring from the benchmarks.
 
@@ -244,12 +263,12 @@ The database infrastructure is ready: migration 025 added staging lifecycle colu
 
 **Enable the scheduled job:** The ontology evolution agent is registered but its nightly schedule (2 AM) was disabled during truth graph testing. Re-enable it.
 
-### Files to Modify
+### Files to Modify (if revived)
 
 | File | Change |
 |------|--------|
 | `platform/src/gardener/agents/ontology-evolution.agent.ts` | Wire embedding similarity scoring (Layer 2) and ML comparison call (Layer 3). Apply promotion lifecycle logic. |
-| `platform/src/services/predicates.ts` | Add `getPredicateEmbedding()`, `findSimilarPredicates()` functions |
+| `platform/src/services/predicates.ts` | Add `getPredicateEmbedding()`, `findSimilarPredicates()` functions; un-deprecate `syncOntologyToDb` / `findNonCanonicalPredicates` / `normalizeFactPredicates` / `transitionPredicateStatus`. |
 | `platform/src/gardener/controller.ts` | Re-enable nightly ontology evolution schedule |
 
 ### Graph C Prerequisite
@@ -257,6 +276,8 @@ The database infrastructure is ready: migration 025 added staging lifecycle colu
 Stable ontology = stable causal vocabulary. Graph C's causal extraction needs to reference predicates by their canonical names. If "works_at" and "employed_at" aren't merged, causal chains that span both predicates can't be traversed as a single causal pattern. The emergent ontology ensures that Graph C's causal patterns are built on a converging vocabulary, not a diverging one.
 
 This also extends to Graph C itself — the causal graph will develop its own emergent ontology of causal pathway types (meta-causal patterns). The mechanism is identical: extract freely, canonicalise by convergence, promote through staging. The living ontology pipeline designed for Graph S predicates will be reused for Graph C's causal vocabulary.
+
+Until §6's pipeline is revived, predicate convergence relies entirely on Layer 1 (`normalizePredicate()` + the canonical seed in migration 001_consolidated.sql:157). Non-canonical predicates the graph agent invents accumulate in `fact_predicates` with `status='staging'` and never converge automatically.
 
 ---
 
