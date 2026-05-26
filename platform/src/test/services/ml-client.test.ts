@@ -26,11 +26,15 @@ import { ml, MlClientError } from '../../services/ml-client.js';
 // ---------------------------------------------------------------------------
 
 /** Build a Response-like mock with the minimum surface mlFetch reads. */
-function mockResponse(opts: { ok: boolean; status: number; body?: unknown; text?: string }): Response {
+function mockResponse(opts: { ok: boolean; status: number; body?: unknown; text?: string; headers?: Record<string, string> }): Response {
+  const headerMap = new Map<string, string>(
+    Object.entries(opts.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]),
+  );
   return {
     ok: opts.ok,
     status: opts.status,
     statusText: opts.text ?? 'mock',
+    headers: { get: (name: string) => headerMap.get(name.toLowerCase()) ?? null },
     async json() { return opts.body; },
     async text() { return opts.text ?? JSON.stringify(opts.body ?? ''); },
   } as unknown as Response;
@@ -112,6 +116,44 @@ describe('ml-client mlFetch retry/timeout/error (nmemo-2yv.115)', () => {
     expect((err as MlClientError).status).toBe(0);
     expect((err as MlClientError).detail).toBe('Request timed out');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries on 429 with Retry-After: 2 and sleeps ~2000ms before the next attempt (nmemo-2yv.119)', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(mockResponse({
+        ok: false, status: 429, text: 'Too Many Requests',
+        headers: { 'Retry-After': '2' },
+      }))
+      .mockResolvedValueOnce(mockResponse({
+        ok: true, status: 200,
+        body: { vector: [9], model: 'm', dimensions: 1 },
+      }));
+    const promise = ml.embed('x');
+    // Less than 2000ms — second attempt should NOT have fired yet.
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    // Cross the 2000ms boundary — second attempt fires.
+    await vi.advanceTimersByTimeAsync(600);
+    const result = await promise;
+    expect(result.vector).toEqual([9]);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries on 429 with no Retry-After and uses the default backoff schedule (nmemo-2yv.119)', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(mockResponse({ ok: false, status: 429, text: 'Too Many Requests' }))
+      .mockResolvedValueOnce(mockResponse({
+        ok: true, status: 200,
+        body: { vector: [7], model: 'm', dimensions: 1 },
+      }));
+    const promise = ml.embed('x');
+    // Default BACKOFF_MS[0] = 500ms; before that the second attempt is pending.
+    await vi.advanceTimersByTimeAsync(400);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(200);
+    const result = await promise;
+    expect(result.vector).toEqual([7]);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
   it('retries on network error (fetch rejection) and throws MlClientError after exhaustion', async () => {

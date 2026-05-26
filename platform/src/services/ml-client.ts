@@ -54,9 +54,35 @@ export interface ExtractRelationshipsResponse {
 
 // --- Core fetch wrapper with timeout + retry ---
 
-const RETRY_STATUS_CODES = new Set([502, 503, 504]);
+const RETRY_STATUS_CODES = new Set([429, 502, 503, 504]);
 const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = [500, 1000];
+const MAX_RETRY_AFTER_MS = 60_000;
+
+/**
+ * Parse an HTTP Retry-After header value. Accepts either a seconds count
+ * ("5", "30") or an HTTP-date ("Wed, 21 Oct 2026 07:28:00 GMT"). Returns
+ * milliseconds capped at MAX_RETRY_AFTER_MS, or null if the header is
+ * absent / unparseable. Negative dates (already in the past) clamp to 0.
+ */
+function parseRetryAfter(header: string | null): number | null {
+  if (!header) return null;
+  const trimmed = header.trim();
+  if (trimmed === '') return null;
+  // Try seconds-format first (integer-only — Date.parse would accept "5"
+  // as a year on some engines).
+  if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
+    const asSeconds = Number(trimmed);
+    if (Number.isFinite(asSeconds)) {
+      return Math.min(asSeconds * 1000, MAX_RETRY_AFTER_MS);
+    }
+  }
+  const asDateMs = Date.parse(trimmed);
+  if (Number.isFinite(asDateMs)) {
+    return Math.min(Math.max(0, asDateMs - Date.now()), MAX_RETRY_AFTER_MS);
+  }
+  return null;
+}
 
 async function mlFetch<T>(
   endpoint: string,
@@ -83,9 +109,13 @@ async function mlFetch<T>(
         return (await response.json()) as T;
       }
 
-      // Retryable status codes
+      // Retryable status codes. 429 honours Retry-After when present;
+      // 502/503/504 keep the existing linear backoff schedule.
       if (RETRY_STATUS_CODES.has(response.status) && attempt < MAX_ATTEMPTS - 1) {
-        await sleep(BACKOFF_MS[attempt]!);
+        const retryAfterMs = response.status === 429
+          ? parseRetryAfter(response.headers.get('Retry-After'))
+          : null;
+        await sleep(retryAfterMs ?? BACKOFF_MS[attempt]!);
         continue;
       }
 
