@@ -5,7 +5,7 @@
  * Every edge requires reasoning (TEXT NOT NULL) and source_references (JSONB NOT NULL).
  */
 
-import { db } from '../db/index.js';
+import { db, type Tx } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
 import { causalEdges, causalEvents, edgeSourceRefs, type CausalEvent, type CausalEdge } from '../db/schema.js';
 import { eq, and, gte, lte, sql, or, inArray, isNull } from 'drizzle-orm';
@@ -324,6 +324,12 @@ export interface ExpireCausalEdgeParams {
   reasoningReportId?: string | null;
   /** Free-text reason persisted on causal_edges.expire_reason (defaults to `reasoning`). */
   expireReason?: string;
+  /**
+   * Optional outer transaction. When supplied, the UPDATE + edge_history
+   * write run on this tx; when omitted, expireCausalEdge opens its own
+   * transaction (existing behaviour). See bead nmemo-2yv.38.
+   */
+  tx?: Tx;
 }
 
 /**
@@ -332,9 +338,10 @@ export interface ExpireCausalEdgeParams {
  * No-op if the edge is already expired or doesn't exist.
  */
 export async function expireCausalEdge(params: ExpireCausalEdgeParams): Promise<void> {
-  const { edgeId, reasoning, actor, reasoningReportId = null, expireReason } = params;
+  const { edgeId, reasoning, actor, reasoningReportId = null, expireReason, tx: outerTx } = params;
+  const reader = outerTx ?? db;
 
-  const existing = await db
+  const existing = await reader
     .select({ strength: causalEdges.strength, reasoning: causalEdges.reasoning })
     .from(causalEdges)
     .where(and(eq(causalEdges.id, edgeId), isNull(causalEdges.expiredAt)))
@@ -342,7 +349,7 @@ export async function expireCausalEdge(params: ExpireCausalEdgeParams): Promise<
 
   if (!existing[0]) return;
 
-  await db.transaction(async (tx) => {
+  const runUpdate = async (tx: Tx): Promise<void> => {
     await tx
       .update(causalEdges)
       .set({ expiredAt: new Date(), expireReason: expireReason ?? reasoning })
@@ -359,7 +366,13 @@ export async function expireCausalEdge(params: ExpireCausalEdgeParams): Promise<
       reasoningReportId,
       tx,
     });
-  });
+  };
+
+  if (outerTx) {
+    await runUpdate(outerTx);
+  } else {
+    await db.transaction(runUpdate);
+  }
 }
 
 export interface ReviseCausalEdgeParams {
@@ -374,6 +387,8 @@ export interface ReviseCausalEdgeParams {
   /** Additional source references appended to the edge. */
   addedSourceRefs?: SourceReference[];
   reasoningReportId?: string | null;
+  /** Optional outer transaction; see ExpireCausalEdgeParams.tx for rationale. */
+  tx?: Tx;
 }
 
 /**
@@ -384,13 +399,14 @@ export interface ReviseCausalEdgeParams {
  * @throws if the edge does not exist, is expired, or newStrength is out of range.
  */
 export async function reviseCausalEdge(params: ReviseCausalEdgeParams): Promise<void> {
-  const { edgeId, reasoning, actor, newStrength, newReasoning, addedSourceRefs, reasoningReportId = null } = params;
+  const { edgeId, reasoning, actor, newStrength, newReasoning, addedSourceRefs, reasoningReportId = null, tx: outerTx } = params;
+  const reader = outerTx ?? db;
 
   if (newStrength !== undefined && (newStrength < 0 || newStrength > 1)) {
     throw new Error('newStrength must be between 0 and 1');
   }
 
-  const existing = await db
+  const existing = await reader
     .select({
       strength: causalEdges.strength,
       reasoning: causalEdges.reasoning,
@@ -412,7 +428,7 @@ export async function reviseCausalEdge(params: ReviseCausalEdgeParams): Promise<
     ? [...(prevRefs as SourceReference[]), ...addedSourceRefs]
     : (prevRefs as SourceReference[]);
 
-  await db.transaction(async (tx) => {
+  const runUpdate = async (tx: Tx): Promise<void> => {
     await tx.execute(sql`
       UPDATE public.causal_edges
       SET strength = ${newStrength ?? prevStrength},
@@ -438,7 +454,13 @@ export async function reviseCausalEdge(params: ReviseCausalEdgeParams): Promise<
     if (addedSourceRefs && addedSourceRefs.length > 0) {
       await syncEdgeSourceRefs(edgeId, addedSourceRefs, tx);
     }
-  });
+  };
+
+  if (outerTx) {
+    await runUpdate(outerTx);
+  } else {
+    await db.transaction(runUpdate);
+  }
 }
 
 // ============================================

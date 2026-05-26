@@ -19,6 +19,17 @@ const client = postgres(config.DATABASE_URL, {
 // Create drizzle instance with schema
 export const db = drizzle(client, { schema });
 
+/**
+ * Drizzle transaction handle. Mutating service primitives (expireFact,
+ * invalidateFact, expireCausalEdge, reviseCausalEdge) accept an optional
+ * `tx` of this type so a multi-step caller can wrap them in a single
+ * outer transaction — primary use case: resolveContradiction needs to
+ * SELECT FOR UPDATE on the contradiction row and dispatch side-effect
+ * writes atomically. When `tx` is omitted, the primitive opens its
+ * own transaction internally (existing behaviour).
+ */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 // Export schema for convenience
 export * from './schema.js';
 

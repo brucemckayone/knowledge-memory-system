@@ -313,6 +313,14 @@ Reasoning agent system prompt gets a new phase block:
 
 ### Resolution Handler
 
+The handler wraps the claim + side effects + closing UPDATE in a single
+transaction so two concurrent callers serialise on the row lock — without
+the `SELECT ... FOR UPDATE`, both callers can pass the `resolvedAt === null`
+check and double-mutate (bead nmemo-2yv.38). The graph-mutation primitives
+(`expireFact`, `invalidateFact`, `expireCausalEdge`, `reviseCausalEdge`)
+accept an optional `tx` parameter so the side effects run inside the same
+outer transaction.
+
 ```typescript
 export async function resolveContradiction(params: {
   contradictionId: string;
@@ -321,41 +329,48 @@ export async function resolveContradiction(params: {
   actor: Actor;
   reasoningReportId?: string;
 }): Promise<void> {
-  const contradiction = await loadContradiction(params.contradictionId);
-  if (contradiction.resolvedAt) throw new Error('Already resolved');
+  await db.transaction(async (tx) => {
+    // Row-lock — concurrent callers block here until this tx commits.
+    const [contradiction] = await tx.execute(sql`
+      SELECT id, fact_a_id, fact_b_id, edge_a_id, edge_b_id, resolved_at
+      FROM public.contradictions WHERE id = ${params.contradictionId}::uuid FOR UPDATE
+    `);
+    if (!contradiction) throw new Error('not found');
+    if (contradiction.resolvedAt) throw new Error('Already resolved');
 
-  // Apply the resolution's side effects
-  switch (params.resolutionType) {
-    case 'expire_a':
-      if (contradiction.factAId) {
-        await expireFact({ factId: contradiction.factAId, reasoning: params.resolutionReasoning, actor: params.actor });
-      }
-      break;
-    case 'expire_b': /* similar */; break;
-    case 'invalidate_a': /* similar */; break;
-    case 'expire_edge_a':
-      if (!contradiction.edgeAId) throw new Error('expire_edge_a requires edge_a_id');
-      await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: params.resolutionReasoning, actor: params.actor });
-      break;
-    case 'expire_edge_b': /* similar on edgeBId */; break;
-    case 'expire_both_edges': /* both edges */; break;
-    case 'both_valid':
-    case 'dismissed':
-      // No mutation — just mark resolved
-      break;
-    // ...
-  }
+    // Apply side effects on the locked tx.
+    switch (params.resolutionType) {
+      case 'expire_a':
+        if (!contradiction.factAId) throw new Error('expire_a requires fact_a_id');
+        await expireFact({ factId: contradiction.factAId, reasoning: params.resolutionReasoning, actor: params.actor, tx });
+        break;
+      case 'expire_b': /* similar */; break;
+      case 'invalidate_a': /* similar, calls invalidateFact({..., tx}) */; break;
+      case 'expire_edge_a':
+        if (!contradiction.edgeAId) throw new Error('expire_edge_a requires edge_a_id');
+        await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: params.resolutionReasoning, actor: params.actor, tx });
+        break;
+      case 'expire_edge_b': /* similar on edgeBId */; break;
+      case 'expire_both_edges': /* both edges */; break;
+      case 'both_valid':
+      case 'dismissed':
+        // No mutation — just mark resolved
+        break;
+      // ...
+    }
 
-  // Mark contradiction resolved
-  await db.update(contradictions)
-    .set({
-      resolvedAt: new Date(),
-      resolvedBy: params.actor,
-      resolutionType: params.resolutionType,
-      resolutionReasoning: params.resolutionReasoning,
-      resolutionReportId: params.reasoningReportId ?? null,
-    })
-    .where(eq(contradictions.id, params.contradictionId));
+    // Mark contradiction resolved — inside the same tx so the claim,
+    // mutations, and close commit atomically.
+    await tx.update(contradictions)
+      .set({
+        resolvedAt: new Date(),
+        resolvedBy: params.actor,
+        resolutionType: params.resolutionType,
+        resolutionReasoning: params.resolutionReasoning,
+        resolutionReportId: params.reasoningReportId ?? null,
+      })
+      .where(eq(contradictions.id, params.contradictionId));
+  });
 }
 ```
 

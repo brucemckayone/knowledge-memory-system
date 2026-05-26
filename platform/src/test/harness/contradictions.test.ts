@@ -680,6 +680,96 @@ describe('Phase 5 — edge-mutating resolution (nmemo-2yv.37)', () => {
 });
 
 // ============================================
+// Concurrent resolution (nmemo-2yv.38)
+//
+// resolveContradiction wraps SELECT FOR UPDATE + side effects + closing
+// UPDATE in a single transaction so two simultaneous callers serialise on
+// the row lock: exactly one wins, the other observes resolved_at set and
+// throws "already resolved". Pre-fix shape did a SELECT, JS check, side
+// effects, and a final unconditional UPDATE — two concurrent callers
+// could both pass the resolvedAt check, both run their side effects, and
+// race their UPDATEs (silent double-mutation).
+// ============================================
+
+describe('Phase 5 — concurrent resolution serialisation (nmemo-2yv.38)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  async function seedOpposingForRace(): Promise<{ contradictionId: string; factAId: string; factBId: string }> {
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    await detectOpposingObjects();
+    const [row] = await getContradictions({ unresolvedOnly: true, contradictionType: 'opposing_object' });
+    if (!row?.factAId || !row.factBId) {
+      throw new Error('seed: expected opposing_object contradiction with both fact ids');
+    }
+    return { contradictionId: row.id, factAId: row.factAId, factBId: row.factBId };
+  }
+
+  async function readFactExpiry(factId: string): Promise<Date | null> {
+    const rows = await testDb<Array<{ expired_at: Date | null }>>`
+      SELECT expired_at FROM public.facts WHERE id = ${factId}::uuid
+    `;
+    return rows[0]?.expired_at ?? null;
+  }
+
+  it('two simultaneous expire_a / expire_b calls — exactly one wins, exactly one fact expired', async () => {
+    const { contradictionId, factAId, factBId } = await seedOpposingForRace();
+
+    const callA = resolveContradiction({
+      contradictionId,
+      resolutionType: 'expire_a',
+      resolutionReasoning: 'Concurrent caller A picks expire_a — fact A is the superseded one.',
+      actor: 'reasoning_agent',
+    });
+    const callB = resolveContradiction({
+      contradictionId,
+      resolutionType: 'expire_b',
+      resolutionReasoning: 'Concurrent caller B picks expire_b — fact B is the superseded one.',
+      actor: 'user',
+    });
+
+    const results = await Promise.allSettled([callA, callB]);
+    const succeeded = results.filter(r => r.status === 'fulfilled');
+    const rejected = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[];
+
+    expect(succeeded.length).toBe(1);
+    expect(rejected.length).toBe(1);
+    expect(String(rejected[0]!.reason)).toMatch(/already resolved/);
+
+    // Exactly one fact ended up expired — the one chosen by the winning caller.
+    const aExpired = await readFactExpiry(factAId);
+    const bExpired = await readFactExpiry(factBId);
+    const expiredCount = (aExpired ? 1 : 0) + (bExpired ? 1 : 0);
+    expect(expiredCount).toBe(1);
+
+    const c = await getContradictionById(contradictionId);
+    expect(c?.resolvedAt).not.toBeNull();
+    expect(c?.resolutionType).toMatch(/^expire_(a|b)$/);
+  });
+
+  it('second call after first commits — observes resolved_at and throws', async () => {
+    const { contradictionId } = await seedOpposingForRace();
+
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'expire_a',
+      resolutionReasoning: 'First caller resolves — second should now reject.',
+      actor: 'reasoning_agent',
+    });
+
+    await expect(
+      resolveContradiction({
+        contradictionId,
+        resolutionType: 'expire_b',
+        resolutionReasoning: 'Second caller arrives after commit — should observe resolved_at and reject.',
+        actor: 'user',
+      }),
+    ).rejects.toThrow(/already resolved/);
+  });
+});
+
+// ============================================
 // MCP tool dispatch (cae.8)
 // ============================================
 

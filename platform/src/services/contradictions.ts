@@ -402,97 +402,126 @@ export async function resolveContradiction(
     );
   }
 
-  const contradiction = await getContradictionById(contradictionId);
-  if (!contradiction) {
-    throw new Error(`resolveContradiction: contradiction ${contradictionId} not found`);
-  }
-  if (contradiction.resolvedAt) {
-    throw new Error(`resolveContradiction: ${contradictionId} already resolved`);
-  }
+  // Wrap the claim + side effects + closing UPDATE in a single transaction so
+  // the SELECT FOR UPDATE row-lock serialises concurrent callers on the same
+  // contradiction. Previous shape did a SELECT (no lock), JS check, side
+  // effects, and a final UPDATE — two simultaneous callers could both pass
+  // the resolvedAt check and both run their side effects (e.g. expire_a +
+  // expire_b expiring both facts when only one was intended). See bead
+  // nmemo-2yv.38.
+  await db.transaction(async (tx) => {
+    const lockedRows = (await tx.execute(sql`
+      SELECT
+        id::text                AS id,
+        fact_a_id::text         AS "factAId",
+        fact_b_id::text         AS "factBId",
+        edge_a_id::text         AS "edgeAId",
+        edge_b_id::text         AS "edgeBId",
+        resolved_at             AS "resolvedAt"
+      FROM public.contradictions
+      WHERE id = ${contradictionId}::uuid
+      FOR UPDATE
+    `)) as unknown as Array<{
+      id: string;
+      factAId: string | null;
+      factBId: string | null;
+      edgeAId: string | null;
+      edgeBId: string | null;
+      resolvedAt: Date | null;
+    }>;
+    const contradiction = lockedRows[0];
 
-  // Dispatch side effects before marking resolved so any failure aborts the
-  // resolution (the contradiction stays open for retry / agent reconsideration).
-  switch (resolutionType) {
-    case 'expire_a': {
-      if (!contradiction.factAId) {
-        throw new Error(`resolveContradiction: expire_a requires fact_a_id (none on ${contradictionId})`);
-      }
-      await expireFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId });
-      break;
+    if (!contradiction) {
+      throw new Error(`resolveContradiction: contradiction ${contradictionId} not found`);
     }
-    case 'expire_b': {
-      if (!contradiction.factBId) {
-        throw new Error(`resolveContradiction: expire_b requires fact_b_id (none on ${contradictionId})`);
-      }
-      await expireFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId });
-      break;
+    if (contradiction.resolvedAt) {
+      throw new Error(`resolveContradiction: ${contradictionId} already resolved`);
     }
-    case 'expire_both': {
-      if (!contradiction.factAId || !contradiction.factBId) {
-        throw new Error(`resolveContradiction: expire_both requires both fact_a_id and fact_b_id`);
-      }
-      await expireFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId });
-      await expireFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId });
-      break;
-    }
-    case 'invalidate_a': {
-      if (!contradiction.factAId) {
-        throw new Error(`resolveContradiction: invalidate_a requires fact_a_id`);
-      }
-      await invalidateFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId });
-      break;
-    }
-    case 'invalidate_b': {
-      if (!contradiction.factBId) {
-        throw new Error(`resolveContradiction: invalidate_b requires fact_b_id`);
-      }
-      await invalidateFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId });
-      break;
-    }
-    case 'expire_edge_a': {
-      if (!contradiction.edgeAId) {
-        throw new Error(`resolveContradiction: expire_edge_a requires edge_a_id (none on ${contradictionId})`);
-      }
-      await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: resolutionReasoning, actor, reasoningReportId });
-      break;
-    }
-    case 'expire_edge_b': {
-      if (!contradiction.edgeBId) {
-        throw new Error(`resolveContradiction: expire_edge_b requires edge_b_id (none on ${contradictionId})`);
-      }
-      await expireCausalEdge({ edgeId: contradiction.edgeBId, reasoning: resolutionReasoning, actor, reasoningReportId });
-      break;
-    }
-    case 'expire_both_edges': {
-      if (!contradiction.edgeAId || !contradiction.edgeBId) {
-        throw new Error(`resolveContradiction: expire_both_edges requires both edge_a_id and edge_b_id`);
-      }
-      await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: resolutionReasoning, actor, reasoningReportId });
-      await expireCausalEdge({ edgeId: contradiction.edgeBId, reasoning: resolutionReasoning, actor, reasoningReportId });
-      break;
-    }
-    case 'reconcile':
-    case 'both_valid':
-    case 'dismissed':
-      // No mutation — the agent has narrated why the conflict is acceptable
-      // or accommodated. The closing UPDATE below records the decision.
-      break;
-    default: {
-      const _exhaustive: never = resolutionType;
-      throw new Error(`resolveContradiction: unknown resolution_type ${JSON.stringify(_exhaustive)}`);
-    }
-  }
 
-  await db.execute(sql`
-    UPDATE public.contradictions
-    SET resolved_at          = NOW(),
-        resolved_by          = ${actor},
-        resolution_type      = ${resolutionType},
-        resolution_reasoning = ${resolutionReasoning},
-        resolution_report_id = ${reasoningReportId},
-        dismissed_reason     = ${resolutionType === 'dismissed' ? (params.dismissedReason ?? null) : null}
-    WHERE id = ${contradictionId}::uuid
-  `);
+    // Dispatch side effects on the locked tx so the contradiction claim,
+    // fact/edge mutations, and final UPDATE commit atomically.
+    switch (resolutionType) {
+      case 'expire_a': {
+        if (!contradiction.factAId) {
+          throw new Error(`resolveContradiction: expire_a requires fact_a_id (none on ${contradictionId})`);
+        }
+        await expireFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        break;
+      }
+      case 'expire_b': {
+        if (!contradiction.factBId) {
+          throw new Error(`resolveContradiction: expire_b requires fact_b_id (none on ${contradictionId})`);
+        }
+        await expireFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        break;
+      }
+      case 'expire_both': {
+        if (!contradiction.factAId || !contradiction.factBId) {
+          throw new Error(`resolveContradiction: expire_both requires both fact_a_id and fact_b_id`);
+        }
+        await expireFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        await expireFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        break;
+      }
+      case 'invalidate_a': {
+        if (!contradiction.factAId) {
+          throw new Error(`resolveContradiction: invalidate_a requires fact_a_id`);
+        }
+        await invalidateFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        break;
+      }
+      case 'invalidate_b': {
+        if (!contradiction.factBId) {
+          throw new Error(`resolveContradiction: invalidate_b requires fact_b_id`);
+        }
+        await invalidateFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        break;
+      }
+      case 'expire_edge_a': {
+        if (!contradiction.edgeAId) {
+          throw new Error(`resolveContradiction: expire_edge_a requires edge_a_id (none on ${contradictionId})`);
+        }
+        await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        break;
+      }
+      case 'expire_edge_b': {
+        if (!contradiction.edgeBId) {
+          throw new Error(`resolveContradiction: expire_edge_b requires edge_b_id (none on ${contradictionId})`);
+        }
+        await expireCausalEdge({ edgeId: contradiction.edgeBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        break;
+      }
+      case 'expire_both_edges': {
+        if (!contradiction.edgeAId || !contradiction.edgeBId) {
+          throw new Error(`resolveContradiction: expire_both_edges requires both edge_a_id and edge_b_id`);
+        }
+        await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        await expireCausalEdge({ edgeId: contradiction.edgeBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        break;
+      }
+      case 'reconcile':
+      case 'both_valid':
+      case 'dismissed':
+        // No mutation — the agent has narrated why the conflict is acceptable
+        // or accommodated. The closing UPDATE below records the decision.
+        break;
+      default: {
+        const _exhaustive: never = resolutionType;
+        throw new Error(`resolveContradiction: unknown resolution_type ${JSON.stringify(_exhaustive)}`);
+      }
+    }
+
+    await tx.execute(sql`
+      UPDATE public.contradictions
+      SET resolved_at          = NOW(),
+          resolved_by          = ${actor},
+          resolution_type      = ${resolutionType},
+          resolution_reasoning = ${resolutionReasoning},
+          resolution_report_id = ${reasoningReportId},
+          dismissed_reason     = ${resolutionType === 'dismissed' ? (params.dismissedReason ?? null) : null}
+      WHERE id = ${contradictionId}::uuid
+    `);
+  });
 }
 
 export async function getContradictionById(id: string): Promise<ContradictionRow | null> {

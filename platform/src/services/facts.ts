@@ -10,7 +10,7 @@
  * fact_history row in the same transaction as the mutation.
  */
 
-import { db } from '../db/index.js';
+import { db, type Tx } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
 import { facts, factPredicates, entities, causalEvents, type Fact } from '../db/schema.js';
 import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
@@ -272,6 +272,14 @@ export interface ExpireFactParams {
   reasoningReportId?: string | null;
   /** Optional free-text reason persisted on facts.expire_reason (defaults to `reasoning`). */
   expireReason?: string;
+  /**
+   * Optional outer transaction. When supplied, the UPDATE + fact_history
+   * write run on this tx; when omitted, expireFact opens its own
+   * transaction (existing behaviour). createCausalEvent and
+   * cascadeFactExpiry remain best-effort post-mutation work outside the
+   * supplied tx — see bead nmemo-2yv.38 for the rationale.
+   */
+  tx?: Tx;
 }
 
 /**
@@ -279,13 +287,24 @@ export interface ExpireFactParams {
  *
  * Writes a fact_history row with event_type='expired' in the same transaction
  * as the UPDATE. Also emits a causal_event of transition_type='expired'.
+ *
+ * NOTE — outer-tx callers (nmemo-2yv.38): when `params.tx` is supplied, the
+ * UPDATE + fact_history write run on that tx, but `createCausalEvent` and
+ * `cascadeFactExpiry` still run on the module-level `db` pool (independent
+ * connection). If the outer tx rolls back after expireFact returns, the
+ * causal_event row and cascade-expired edges remain — they did not
+ * participate in the rollback. Plumbing tx into those two delegations is
+ * tracked as the "broader improvement" follow-up to nmemo-2yv.38.
  */
 export async function expireFact(params: ExpireFactParams): Promise<void> {
-  const { factId, reasoning, actor, reasoningReportId = null, expireReason } = params;
+  const { factId, reasoning, actor, reasoningReportId = null, expireReason, tx: outerTx } = params;
+  const reader = outerTx ?? db;
 
   // Fetch fact metadata BEFORE expiring — we need the pre-mutation state for
-  // the history row and for the causal event context.
-  const existing = await db
+  // the history row and for the causal event context. When an outer tx is
+  // supplied, the read sees that tx's snapshot so the no-op check is
+  // consistent with the UPDATE that follows.
+  const existing = await reader
     .select({
       subjectEntityId: facts.subjectEntityId,
       predicate: facts.predicate,
@@ -307,7 +326,7 @@ export async function expireFact(params: ExpireFactParams): Promise<void> {
   // proceed regardless. Best-effort: a missing topology_bridges row simply
   // means topology hasn't been computed yet, which is not an error here.
   try {
-    const bridgeRows = (await db.execute(sql`
+    const bridgeRows = (await reader.execute(sql`
       SELECT source_entity_id::text AS source_entity_id,
              target_entity_id::text AS target_entity_id
       FROM public.topology_bridges
@@ -332,7 +351,7 @@ export async function expireFact(params: ExpireFactParams): Promise<void> {
     }
   }
 
-  await db.transaction(async (tx) => {
+  const runUpdate = async (tx: Tx): Promise<void> => {
     await tx
       .update(facts)
       .set({
@@ -351,7 +370,13 @@ export async function expireFact(params: ExpireFactParams): Promise<void> {
       reasoningReportId,
       tx,
     });
-  });
+  };
+
+  if (outerTx) {
+    await runUpdate(outerTx);
+  } else {
+    await db.transaction(runUpdate);
+  }
 
   await createCausalEvent({
     factId,
@@ -373,6 +398,8 @@ export interface InvalidateFactParams {
   /** When the fact stopped being true in reality (defaults to now). */
   invalidAt?: Date;
   reasoningReportId?: string | null;
+  /** Optional outer transaction; see ExpireFactParams.tx for rationale. */
+  tx?: Tx;
 }
 
 /**
@@ -380,12 +407,16 @@ export interface InvalidateFactParams {
  *
  * Writes a fact_history row with event_type='invalidated' in the same
  * transaction as the UPDATE.
+ *
+ * NOTE — outer-tx callers: see expireFact's outer-tx note; the same
+ * post-mutation delegation pattern applies here.
  */
 export async function invalidateFact(params: InvalidateFactParams): Promise<void> {
-  const { factId, reasoning, actor, invalidAt, reasoningReportId = null } = params;
+  const { factId, reasoning, actor, invalidAt, reasoningReportId = null, tx: outerTx } = params;
   const effectiveInvalidAt = invalidAt ?? new Date();
+  const reader = outerTx ?? db;
 
-  const existing = await db
+  const existing = await reader
     .select({
       subjectEntityId: facts.subjectEntityId,
       predicate: facts.predicate,
@@ -402,7 +433,7 @@ export async function invalidateFact(params: InvalidateFactParams): Promise<void
     return;
   }
 
-  await db.transaction(async (tx) => {
+  const runUpdate = async (tx: Tx): Promise<void> => {
     await tx
       .update(facts)
       .set({ invalidAt: effectiveInvalidAt })
@@ -418,7 +449,13 @@ export async function invalidateFact(params: InvalidateFactParams): Promise<void
       reasoningReportId,
       tx,
     });
-  });
+  };
+
+  if (outerTx) {
+    await runUpdate(outerTx);
+  } else {
+    await db.transaction(runUpdate);
+  }
 
   await createCausalEvent({
     factId,
