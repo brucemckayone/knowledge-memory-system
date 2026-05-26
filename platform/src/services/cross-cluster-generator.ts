@@ -94,6 +94,10 @@ export interface CandidateGenerationResult {
   driftDrivenCandidates: number;
   /** Wall-clock duration in ms. */
   durationMs: number;
+  /** ID of the cross_cluster_runs row for this invocation. Set for every result —
+   *  the runs row is INSERTed in a short separate tx BEFORE the main work, so it
+   *  exists even when the main tx rolls back. Used by viz / HTTP for correlation. */
+  runId: string;
 }
 
 interface EntityRow {
@@ -338,12 +342,27 @@ async function upsertCandidate(p: ScoredPair, runner: Runner): Promise<void> {
 
 export async function generateCrossClusterCandidates(): Promise<CandidateGenerationResult> {
   const t0 = Date.now();
+  // INSERT the run row in a SHORT separate transaction BEFORE opening the
+  // main advisory-lock tx. The row survives main-tx rollback — error paths
+  // still leave a forensic record. Mirrors sibling topology/clustering runs
+  // pattern (doc 25 §3.x; bead nmemo-2yv.92).
+  const runInsert = (await db.execute(sql`
+    INSERT INTO public.cross_cluster_runs (status)
+    VALUES ('running')
+    RETURNING id::text AS id
+  `)) as unknown as Array<{ id: string }>;
+  const runId = runInsert[0]!.id;
+
   let result: CandidateGenerationResult | null = null;
+  let mainError: unknown;
+  let errored = false;
   // Wrap the whole pipeline in a single transaction so that:
   //   1. pg_try_advisory_xact_lock pins acquisition + release to the same
   //      session (transaction-scoped — auto-released on COMMIT/ROLLBACK,
   //      can never leak past this function), and
   //   2. all reads + the upserts share one consistent snapshot.
+  // Catch errors via .catch() so we can UPDATE the run row to 'error' in the
+  // separate post-tx path below, then rethrow (preserves caller behaviour).
   await db.transaction(async (tx) => {
     const lockResult = (await tx.execute(sql`
       SELECT pg_try_advisory_xact_lock(hashtext(${ADVISORY_LOCK_KEY})) AS acquired
@@ -356,6 +375,7 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
         candidatesInserted: 0,
         driftDrivenCandidates: 0,
         durationMs: Date.now() - t0,
+        runId,
       };
       return;
     }
@@ -373,6 +393,7 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
         candidatesInserted: 0,
         driftDrivenCandidates: 0,
         durationMs: Date.now() - t0,
+        runId,
       };
       return;
     }
@@ -502,18 +523,49 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
       candidatesInserted,
       driftDrivenCandidates: driftDriven,
       durationMs: Date.now() - t0,
+      runId,
     };
+  }).catch((err: unknown) => {
+    mainError = err;
+    errored = true;
   });
-  // pg_try_advisory_xact_lock auto-releases on transaction COMMIT — no
-  // explicit unlock needed. `result` is set inside the closure either way.
-  return result ?? {
-    ran: false,
-    skippedReason: 'lock_held',
-    componentPairsEvaluated: 0,
-    candidatesInserted: 0,
-    driftDrivenCandidates: 0,
-    durationMs: Date.now() - t0,
-  };
+  // pg_try_advisory_xact_lock auto-releases on transaction COMMIT/ROLLBACK —
+  // no explicit unlock needed. On the success/skip path `result` is set inside
+  // the closure; on the error path `.catch()` above flips `errored` and we
+  // route through the error branch before reading `result`.
+
+  // Error path: UPDATE the run row to 'error' and rethrow. The `errored` flag
+  // (vs `mainError !== null`) guards against `throw null/undefined/0` cases —
+  // a falsy thrown value would otherwise mis-route into the success branch.
+  if (errored) {
+    const message = mainError instanceof Error ? mainError.message : String(mainError);
+    await db.execute(sql`
+      UPDATE public.cross_cluster_runs
+      SET status = 'error',
+          completed_at = NOW(),
+          duration_ms = ${Date.now() - t0},
+          error = ${message}
+      WHERE id = ${runId}::uuid
+    `);
+    throw mainError;
+  }
+
+  // Success / skip path: every closure exit assigned `result` (including the
+  // two skip branches and the success branch), so it is non-null here.
+  const finalResult = result!;
+  const finalStatus = finalResult.ran ? 'completed' : 'skipped';
+  await db.execute(sql`
+    UPDATE public.cross_cluster_runs
+    SET status                    = ${finalStatus},
+        completed_at              = NOW(),
+        skipped_reason            = ${finalResult.skippedReason ?? null},
+        component_pairs_evaluated = ${finalResult.componentPairsEvaluated},
+        candidates_inserted       = ${finalResult.candidatesInserted},
+        drift_driven_candidates   = ${finalResult.driftDrivenCandidates},
+        duration_ms               = ${finalResult.durationMs}
+    WHERE id = ${runId}::uuid
+  `);
+  return finalResult;
 }
 
 /** GET endpoint helper — list cross-cluster-generated candidates with entity
@@ -560,6 +612,55 @@ export async function listCrossClusterCandidates(limit = 100): Promise<Array<{
     lastDetectedAt: r.last_detected_at instanceof Date
       ? r.last_detected_at.toISOString()
       : String(r.last_detected_at),
+  }));
+}
+
+/** GET endpoint helper — list the most recent cross_cluster_runs rows for the
+ *  viz panel header + operational dashboards. Mirrors the sibling pattern for
+ *  topology_compute_runs / clustering_compute_runs (bead nmemo-2yv.92). */
+export async function listCrossClusterRuns(limit = 20): Promise<Array<{
+  id: string;
+  startedAt: string;
+  completedAt: string | null;
+  status: 'running' | 'completed' | 'skipped' | 'error';
+  skippedReason: string | null;
+  componentPairsEvaluated: number | null;
+  candidatesInserted: number | null;
+  driftDrivenCandidates: number | null;
+  durationMs: number | null;
+  error: string | null;
+}>> {
+  const rows = (await db.execute(sql`
+    SELECT
+      id::text                  AS id,
+      started_at                AS started_at,
+      completed_at              AS completed_at,
+      status                    AS status,
+      skipped_reason            AS skipped_reason,
+      component_pairs_evaluated AS component_pairs_evaluated,
+      candidates_inserted       AS candidates_inserted,
+      drift_driven_candidates   AS drift_driven_candidates,
+      duration_ms               AS duration_ms,
+      error                     AS error
+    FROM public.cross_cluster_runs
+    ORDER BY started_at DESC
+    LIMIT ${limit}
+  `)) as unknown as Array<Record<string, unknown>>;
+  const toIso = (v: unknown): string | null => {
+    if (v == null) return null;
+    return v instanceof Date ? v.toISOString() : String(v);
+  };
+  return rows.map((r) => ({
+    id: r.id as string,
+    startedAt: toIso(r.started_at) ?? '',
+    completedAt: toIso(r.completed_at),
+    status: r.status as 'running' | 'completed' | 'skipped' | 'error',
+    skippedReason: (r.skipped_reason as string | null) ?? null,
+    componentPairsEvaluated: (r.component_pairs_evaluated as number | null) ?? null,
+    candidatesInserted: (r.candidates_inserted as number | null) ?? null,
+    driftDrivenCandidates: (r.drift_driven_candidates as number | null) ?? null,
+    durationMs: (r.duration_ms as number | null) ?? null,
+    error: (r.error as string | null) ?? null,
   }));
 }
 

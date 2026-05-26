@@ -20,6 +20,7 @@ import {
 import {
   generateCrossClusterCandidates,
   listCrossClusterCandidates,
+  listCrossClusterRuns,
 } from '../../services/cross-cluster-generator.js';
 
 interface TopologySeed {
@@ -125,7 +126,13 @@ async function fullReset() {
   await testDb`DELETE FROM public.entity_drift_events`;
   await testDb`DELETE FROM public.topology_compute_runs`;
   await testDb`DELETE FROM public.clustering_compute_runs`;
+  await testDb`DELETE FROM public.cross_cluster_runs`;
   await testDb`DELETE FROM public.merge_candidates`;
+  // Defensive: drop the error-path test's sabotage trigger + function in case
+  // a prior process crashed between CREATE and the test's finally-block DROP.
+  // No-op when they don't exist (IF EXISTS).
+  await testDb.unsafe(`DROP TRIGGER IF EXISTS sabotage_mc_trigger_ncc92 ON public.merge_candidates;`);
+  await testDb.unsafe(`DROP FUNCTION IF EXISTS sabotage_merge_candidates_ncc92();`);
 }
 
 describe('cross-cluster candidate generator', () => {
@@ -476,5 +483,149 @@ describe('cross-cluster candidate generator', () => {
     }
     // The 3-signal row is not in the result.
     expect(list.find((c) => c.combinedScore > 0.95 && c.combinedScore < 1.0)).toBeUndefined();
+  });
+
+  // ---------------------------------------------------------------------------
+  // cross_cluster_runs telemetry (bead nmemo-2yv.92)
+  // ---------------------------------------------------------------------------
+
+  it('telemetry: completed run produces a "completed" row with all counters populated', async () => {
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 1 });
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+
+    const result = await generateCrossClusterCandidates();
+    expect(result.ran).toBe(true);
+    expect(result.runId).toBeTruthy();
+
+    const runs = await listCrossClusterRuns(5);
+    expect(runs.length).toBe(1);
+    const run = runs[0]!;
+    expect(run.id).toBe(result.runId);
+    expect(run.status).toBe('completed');
+    expect(run.skippedReason).toBeNull();
+    expect(run.completedAt).not.toBeNull();
+    expect(run.componentPairsEvaluated).toBe(result.componentPairsEvaluated);
+    expect(run.candidatesInserted).toBe(result.candidatesInserted);
+    expect(run.driftDrivenCandidates).toBe(result.driftDrivenCandidates);
+    expect(typeof run.durationMs).toBe('number');
+    expect(run.durationMs!).toBeGreaterThanOrEqual(0);
+    expect(run.error).toBeNull();
+  });
+
+  it('telemetry: lock-held skip produces a "skipped" row with skipped_reason="lock_held"', async () => {
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 1 });
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+
+    // Pin a reserved session and hold the advisory lock so the generator's
+    // pg_try_advisory_xact_lock returns false.
+    const reserved = await testDb.reserve();
+    try {
+      await reserved`SELECT pg_advisory_lock(hashtext('cross_cluster_generator'))`;
+      const result = await generateCrossClusterCandidates();
+      expect(result.ran).toBe(false);
+      expect(result.skippedReason).toBe('lock_held');
+      expect(result.runId).toBeTruthy();
+
+      const runs = await listCrossClusterRuns(5);
+      expect(runs.length).toBe(1);
+      const run = runs[0]!;
+      expect(run.id).toBe(result.runId);
+      expect(run.status).toBe('skipped');
+      expect(run.skippedReason).toBe('lock_held');
+      expect(run.completedAt).not.toBeNull();
+      expect(typeof run.durationMs).toBe('number');
+      expect(run.durationMs!).toBeGreaterThanOrEqual(0);
+      expect(run.error).toBeNull();
+    } finally {
+      await reserved`SELECT pg_advisory_unlock(hashtext('cross_cluster_generator'))`;
+      reserved.release();
+    }
+  });
+
+  it('telemetry: stale-upstream skip produces a "skipped" row with skipped_reason="stale_upstream"', async () => {
+    // Same seeding pattern as the existing stale-upstream test: completed_at
+    // sits in the past, the entity sits in the present → stale.
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedCluster(a.id, { clusterId: 1 });
+    const past = new Date(Date.now() - 60 * 60 * 1000);
+    await testDb`
+      INSERT INTO public.topology_compute_runs
+        (started_at, completed_at, status, computation_version, entities_processed)
+      VALUES (${past}, ${past}, 'completed', 1, 1)
+    `;
+    await testDb`
+      INSERT INTO public.clustering_compute_runs
+        (started_at, completed_at, status, computation_version, entities_processed, cluster_count, noise_count)
+      VALUES (${past}, ${past}, 'completed', 1, 1, 1, 0)
+    `;
+
+    const result = await generateCrossClusterCandidates();
+    expect(result.ran).toBe(false);
+    expect(result.skippedReason).toBe('stale_upstream');
+    expect(result.runId).toBeTruthy();
+
+    const runs = await listCrossClusterRuns(5);
+    expect(runs.length).toBe(1);
+    const run = runs[0]!;
+    expect(run.id).toBe(result.runId);
+    expect(run.status).toBe('skipped');
+    expect(run.skippedReason).toBe('stale_upstream');
+    expect(run.completedAt).not.toBeNull();
+    expect(run.error).toBeNull();
+  });
+
+  it('telemetry: a thrown error inside the main tx produces an "error" row AND the exception propagates', async () => {
+    await ensureUpstreamFresh();
+    // Seed a legitimate above-threshold pair so the generator reaches the
+    // upsertCandidate call inside the main tx.
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 1 });
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+
+    // Sabotage: a BEFORE INSERT trigger on merge_candidates that raises on
+    // every insert. The upsertCandidate inside the main tx will hit this and
+    // throw, rolling back the main tx. The separate-tx run row (INSERTed before
+    // the main tx opens) must survive and be UPDATEd to status='error'.
+    await testDb.unsafe(`
+      CREATE OR REPLACE FUNCTION sabotage_merge_candidates_ncc92() RETURNS TRIGGER AS $$
+      BEGIN
+        RAISE EXCEPTION 'sabotage error for nmemo-2yv.92 telemetry test';
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+    await testDb.unsafe(`
+      DROP TRIGGER IF EXISTS sabotage_mc_trigger_ncc92 ON public.merge_candidates;
+      CREATE TRIGGER sabotage_mc_trigger_ncc92 BEFORE INSERT ON public.merge_candidates
+      FOR EACH ROW EXECUTE FUNCTION sabotage_merge_candidates_ncc92();
+    `);
+    try {
+      await expect(generateCrossClusterCandidates()).rejects.toThrow(/sabotage/);
+
+      const runs = await listCrossClusterRuns(5);
+      expect(runs.length).toBe(1);
+      const run = runs[0]!;
+      expect(run.status).toBe('error');
+      expect(run.completedAt).not.toBeNull();
+      expect(typeof run.durationMs).toBe('number');
+      expect(run.error).toBeTruthy();
+      expect(run.error).toContain('sabotage');
+    } finally {
+      await testDb.unsafe(`DROP TRIGGER IF EXISTS sabotage_mc_trigger_ncc92 ON public.merge_candidates;`);
+      await testDb.unsafe(`DROP FUNCTION IF EXISTS sabotage_merge_candidates_ncc92();`);
+    }
   });
 });

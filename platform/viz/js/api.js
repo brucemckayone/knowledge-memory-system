@@ -38,6 +38,9 @@ export const computeClustering = () => postJson('/api/clustering/compute');
 export const getCrossClusterCandidates = (limit = 200) =>
   getJson(`/api/cross-cluster/candidates?limit=${limit}`);
 export const generateCrossCluster = () => postJson('/api/cross-cluster/generate');
+// Cross-cluster generator runs (bead nmemo-2yv.92). Most recent first.
+export const getCrossClusterRuns = (limit = 20) =>
+  getJson(`/api/cross-cluster/runs?limit=${limit}`);
 
 // ---- Contradictions ----
 export const getContradictions = (limit = 200) => getJson(`/api/contradictions?limit=${limit}`);

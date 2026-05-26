@@ -1641,6 +1641,21 @@ app.get('/api/cross-cluster/candidates', async (c) => {
   }
 });
 
+// GET /api/cross-cluster/runs — most recent cross_cluster_runs rows for viz +
+// operational dashboards (bead nmemo-2yv.92). Mirrors the sibling pattern for
+// topology / clustering compute runs.
+app.get('/api/cross-cluster/runs', async (c) => {
+  const limitRaw = c.req.query('limit');
+  const limit = limitRaw ? Math.max(1, Math.min(200, Number.parseInt(limitRaw, 10) || 20)) : 20;
+  try {
+    const { listCrossClusterRuns } = await import('./services/cross-cluster-generator.js');
+    const runs = await listCrossClusterRuns(limit);
+    return c.json({ count: runs.length, runs });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
 // MCP health probe — spawns the production graph MCP server (graph-mcp.ts),
 // asks for tools/list, returns the catalogue. The URL path stays `mcp-health`
 // because it's user-facing observability surface — the rename is internal.

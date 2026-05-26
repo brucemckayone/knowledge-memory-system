@@ -8,7 +8,7 @@
 
 import { state } from '../state.js';
 import { esc } from '../util.js';
-import { getCrossClusterCandidates, generateCrossCluster } from '../api.js';
+import { getCrossClusterCandidates, generateCrossCluster, getCrossClusterRuns } from '../api.js';
 import { renderAll } from '../canvas/render.js';
 import { toggleFocus } from '../canvas/focus.js';
 
@@ -51,11 +51,44 @@ export async function refreshCrossCluster() {
   }
 }
 
+function formatRunHeader(run) {
+  if (!run) return '';
+  const startedAt = run.startedAt ? new Date(run.startedAt) : null;
+  const hh = startedAt ? String(startedAt.getHours()).padStart(2, '0') : '--';
+  const mm = startedAt ? String(startedAt.getMinutes()).padStart(2, '0') : '--';
+  let outcome;
+  if (run.status === 'completed') {
+    outcome = `completed (${run.candidatesInserted ?? 0} candidates, ${run.driftDrivenCandidates ?? 0} drift-driven)`;
+  } else if (run.status === 'skipped') {
+    outcome = `skipped (${esc(run.skippedReason || 'unknown')})`;
+  } else if (run.status === 'error') {
+    outcome = `error: ${esc(run.error || 'unknown')}`;
+  } else {
+    outcome = esc(run.status);
+  }
+  const duration = typeof run.durationMs === 'number' ? ` · ${run.durationMs}ms` : '';
+  return `<div class="cc-last-run">Last run: ${hh}:${mm} — ${outcome}${duration}</div>`;
+}
+
+async function refreshLastRunHeader() {
+  const headerHost = document.getElementById('crossClusterLastRun');
+  if (!headerHost) return;
+  try {
+    const body = await getCrossClusterRuns(1);
+    const run = (body.runs || [])[0] || null;
+    headerHost.innerHTML = formatRunHeader(run);
+  } catch {
+    headerHost.innerHTML = '';
+  }
+}
+
 function renderPanel(rows) {
   const list = document.getElementById('crossClusterList');
   const meta = document.getElementById('crossClusterMeta');
   if (!list || !meta) return;
   meta.textContent = `${rows.length} candidate${rows.length === 1 ? '' : 's'}`;
+  // Fire and forget — header populates asynchronously.
+  refreshLastRunHeader();
   if (rows.length === 0) {
     list.innerHTML = '<div class="ctrad-empty">No cross-cluster candidates yet. Click <b>Generate</b> to run the Phase 4 generator.</div>';
     return;
