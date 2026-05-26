@@ -196,10 +196,29 @@ async function runAgent(req: BridgeRequest): Promise<BridgeResponse> {
     };
   }
 
-  // Timeout guard — reject the promise if the agent takes too long
-  const timeoutPromise = new Promise<BridgeResponse>((_resolve) => {
-    setTimeout(() => {
-      _resolve({
+  // Create session up-front so the timeout branch can abort + dispose it on hang.
+  const { session } = await createAgentSession({
+    model: resolvedModel,
+    thinkingLevel: thinking as any,
+    tools: [], // no built-in tools
+    customTools: tools,
+    sessionManager: SessionManager.inMemory(),
+    settingsManager,
+    resourceLoader,
+    authStorage,
+    modelRegistry,
+  });
+
+  let timedOut = false;
+  let timeoutHandle: NodeJS.Timeout | undefined;
+
+  // Timeout guard — on expiry, abort the in-flight prompt then dispose (best-effort).
+  const timeoutPromise = new Promise<BridgeResponse>((resolve) => {
+    timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      // Fire-and-forget cleanup; the caller already has its timeout response.
+      void session.abort().finally(() => session.dispose());
+      resolve({
         result: result || '',
         cost,
         error: `Agent timed out after ${timeout}s`,
@@ -210,18 +229,6 @@ async function runAgent(req: BridgeRequest): Promise<BridgeResponse> {
   });
 
   const agentPromise = (async (): Promise<BridgeResponse> => {
-    const { session } = await createAgentSession({
-      model: resolvedModel,
-      thinkingLevel: thinking as any,
-      tools: [], // no built-in tools
-      customTools: tools,
-      sessionManager: SessionManager.inMemory(),
-      settingsManager,
-      resourceLoader,
-      authStorage,
-      modelRegistry,
-    });
-
     try {
       // Subscribe to events for result collection
       session.subscribe((event: AgentSessionEvent) => {
@@ -284,7 +291,9 @@ async function runAgent(req: BridgeRequest): Promise<BridgeResponse> {
         turns: turnCount,
       };
     } finally {
-      session.dispose();
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      // Gate dispose on !timedOut to avoid double-dispose (the timeout branch already disposed).
+      if (!timedOut) session.dispose();
     }
   })();
 
