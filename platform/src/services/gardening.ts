@@ -18,10 +18,13 @@
  */
 import { db } from '../db/index.js';
 import { gardeningReports } from '../db/schema.js';
+import type { TriggerTypeValue } from './enums.js';
 
 export interface RecordGardeningRunOpts {
-  /** Trigger surface: 'manual' = POST /api/garden; 'auto' = pipeline counter */
-  trigger: 'manual' | 'auto';
+  /** Trigger surface: 'manual' = POST /api/garden; 'auto' = pipeline counter.
+   *  keep in sync with src/services/enums.ts:TRIGGER_TYPE_VALUES + the
+   *  `valid_trigger_type` DB CHECK (bead nmemo-2yv.69). */
+  trigger: TriggerTypeValue;
   /** For 'auto' runs: graph_agent runs since the previous gardening tick */
   runsSinceLast?: number;
   /** The agent's structured Markdown report (Phase 4 output). */

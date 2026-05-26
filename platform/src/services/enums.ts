@@ -74,3 +74,33 @@ export type ResolutionValue = typeof RESOLUTION_VALUES[number];
  */
 export const CANDIDATE_SOURCE_VALUES = ['three_signal_scoring', 'cross_cluster_generator'] as const;
 export type CandidateSourceValue = typeof CANDIDATE_SOURCE_VALUES[number];
+
+/**
+ * Values admitted by `gardening_reports.trigger_type` (DB CHECK) and used by
+ * the gardener-run writer to tag the source surface of each persisted run.
+ * Bead nmemo-2yv.69.
+ *
+ * Authoritative locations to keep in sync:
+ * - `src/services/gardening.ts` — `RecordGardeningRunOpts.trigger` type.
+ * - `src/db/schema.ts` — `gardeningReports.triggerType` column (drizzle).
+ * - `src/db/migrations/031_trigger_type_check.sql` — `valid_trigger_type`
+ *   CHECK constraint (and any later migration that re-ALTERs it to admit
+ *   a new trigger value).
+ *
+ * Semantic notes:
+ * - `manual` — `POST /api/garden` user-initiated invocation (see
+ *   `index.ts` /api/garden handler).
+ * - `auto`   — pipeline counter threshold trip via the gardener
+ *   auto-trigger (`pipeline.ts` — bead nmemo-2yv.67 added the
+ *   persistence path).
+ *
+ * Onboarding a new trigger value (no concrete next-source today; doc
+ * 36 lists only manual + auto): extend this tuple AND ship a paired
+ * migration that drops + recreates the `valid_trigger_type` CHECK with
+ * the new value included. The paired-landing rule exists because any
+ * downstream analytics over trigger_type branches on exact string
+ * equality; an unknown trigger silently miscounts. See doc 36 §8.1 for
+ * the schema-layer enforcement reference.
+ */
+export const TRIGGER_TYPE_VALUES = ['manual', 'auto'] as const;
+export type TriggerTypeValue = typeof TRIGGER_TYPE_VALUES[number];

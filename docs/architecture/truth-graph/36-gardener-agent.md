@@ -250,6 +250,8 @@ CREATE TABLE public.gardening_reports (
 );
 ```
 
+The `trigger_type` enum (`'manual' | 'auto'`) is enforced at the schema layer by the `valid_trigger_type` CHECK constraint added in `031_trigger_type_check.sql` (bead `nmemo-2yv.69`). The canonical TS-side declaration lives at `src/services/enums.ts:TRIGGER_TYPE_VALUES`; the migration carries a `-- keep in sync with src/services/enums.ts:TRIGGER_TYPE_VALUES` comment naming the authoritative location. A typo in either writer (`POST /api/garden` or the pipeline auto-trigger) now fails the insert with a `check_violation` rather than landing silently.
+
 Today the manual insert populates only `trigger_type`, `report_text`, `duration_ms`. The structured columns (`actions`, `same_as_created`, etc.) are zero/null — no report-parser exists. The aspirational design is `recordGardeningRun(opts)` extracting counts from the agent's structured report; until then, those columns are placeholders.
 
 ### 8.2 Auto path (today — incomplete)
