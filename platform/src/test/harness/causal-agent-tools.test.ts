@@ -157,6 +157,79 @@ describe('B05: Causal agent — tool definitions', () => {
     expect(typeof parsed.edgeId).toBe('string');
   });
 
+  // nmemo-2yv.25: trace_causes / project_trajectory / get_causal_delta are exposed
+  // as MCP tools so the reasoning agent can ask "why did this fact become true?" /
+  // "what does this fact lead to?" / "what changed causally in this window?".
+  //
+  // These tests need an active (eventId → eventId2) edge. The earlier
+  // `create_causal_edge handler creates edge and returns id` test creates one
+  // and the unique partial index (cause_event_id, effect_event_id) WHERE
+  // expired_at IS NULL prevents inserting a duplicate. Reuse whichever active
+  // edge already exists, or insert one fresh if the test order ever drops the
+  // dependency.
+  async function ensureActiveEdge(): Promise<void> {
+    const existing = await testDb`
+      SELECT 1 FROM causal_edges
+      WHERE cause_event_id = ${eventId}::uuid
+        AND effect_event_id = ${eventId2}::uuid
+        AND expired_at IS NULL
+      LIMIT 1
+    `;
+    if (existing.length === 0) {
+      await testDb`
+        INSERT INTO causal_edges (cause_event_id, effect_event_id, strength, initial_strength, extraction_method, reasoning, source_references)
+        VALUES (${eventId}::uuid, ${eventId2}::uuid, 0.8, 0.8, 'inference', 'nmemo-2yv.25 test edge', '[]'::jsonb)
+      `;
+    }
+  }
+
+  it('trace_causes handler walks the chain backwards from a fact', async () => {
+    const fact2Rows = await testDb`
+      SELECT id FROM facts WHERE subject_entity_id = ${entityId}::uuid AND predicate = 'relocated_to' LIMIT 1
+    `;
+    const fact2Id = (fact2Rows[0] as { id: string }).id;
+    await ensureActiveEdge();
+
+    const result = await handleToolCall('trace_causes', { fact_id: fact2Id });
+    const parsed = JSON.parse(result);
+    expect(Array.isArray(parsed.chain)).toBe(true);
+    // Chain must contain at least the starting event (eventId2) and the upstream cause (eventId).
+    const eventIds = parsed.chain.map((n: { event: { id: string } }) => n.event.id);
+    expect(eventIds).toContain(eventId2);
+    expect(eventIds).toContain(eventId);
+  });
+
+  it('project_trajectory handler walks the chain forwards from a fact', async () => {
+    await ensureActiveEdge();
+
+    const result = await handleToolCall('project_trajectory', { fact_id: factId });
+    const parsed = JSON.parse(result);
+    expect(Array.isArray(parsed.chain)).toBe(true);
+    // Chain must contain the starting event (eventId) and the downstream effect (eventId2).
+    const eventIds = parsed.chain.map((n: { event: { id: string } }) => n.event.id);
+    expect(eventIds).toContain(eventId);
+    expect(eventIds).toContain(eventId2);
+  });
+
+  it('get_causal_delta handler returns events and edges in window', async () => {
+    // The events created in beforeAll already sit inside a wide window. Bounding
+    // with entity_id keeps the result narrow under concurrent test traffic.
+    const from = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const to = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const result = await handleToolCall('get_causal_delta', {
+      from,
+      to,
+      entity_id: entityId,
+    });
+    const parsed = JSON.parse(result);
+    expect(Array.isArray(parsed.events)).toBe(true);
+    expect(Array.isArray(parsed.edges)).toBe(true);
+    // Both events for this entity should land in the window.
+    const ids = parsed.events.map((e: { id: string }) => e.id);
+    expect(ids).toContain(eventId);
+    expect(ids).toContain(eventId2);
+  });
+
   it('unknown tool throws error', async () => {
     await expect(
       handleToolCall('nonexistent_tool', {}),

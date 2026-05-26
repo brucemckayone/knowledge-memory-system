@@ -542,6 +542,8 @@ async function findCausalGhosts(
 ): Promise<MissingCausalLink[]>
 ```
 
+**Production wiring (bead nmemo-2yv.25):** `traceCauses`, `projectTrajectory`, and `getCausalDelta` are exposed to the reasoning agent as MCP tools (`trace_causes`, `project_trajectory`, `get_causal_delta`) on the unified `mnemo-graph` MCP server (`services/graph-mcp.ts`). Dispatch lives in `causal-agent.ts` next to the existing read-only causal tools. All three are read-only (`mutates: false`) so they run outside the write-serialisation queue. The reasoning agent uses them to ask "why did this fact become true?" (`trace_causes`), "what does this fact lead to?" (`project_trajectory`), and "what changed causally in this window?" (`get_causal_delta`). The signatures match §4.1 verbatim — input is the existing service-function arguments, output is a JSON serialisation of the existing return shape. No new domain logic; this bead is the wiring.
+
 ### 4.2 Cypher Queries in `causal_graph`
 
 ```cypher

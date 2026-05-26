@@ -21,7 +21,7 @@ import { searchMemories, getMemory } from './qdrant.js';
 import { db } from '../db/index.js';
 import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports } from '../db/schema.js';
 import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
-import { getEntityCausalHistory, createCausalEdge, expireCausalEdge, reviseCausalEdge, type SourceReference as CausalSourceRef } from './causal.js';
+import { getEntityCausalHistory, createCausalEdge, expireCausalEdge, reviseCausalEdge, traceCauses, projectTrajectory, getCausalDelta, type SourceReference as CausalSourceRef } from './causal.js';
 import { getFactHistory, getEdgeHistory, type Actor } from './audit.js';
 import {
   getContradictions,
@@ -196,6 +196,78 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['entity_id'],
+    },
+  },
+  {
+    name: 'trace_causes',
+    description:
+      'Walk Graph C backwards from a fact to find its root causes. Returns the causal chain from root cause through to the starting event. Use to answer "why did this fact become true?". Cycles are detected and short-circuited.',
+    mutates: false,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        fact_id: {
+          type: 'string',
+          description: 'UUID of the fact whose causal history should be traced backwards',
+        },
+        max_depth: {
+          type: 'number',
+          description: 'Maximum number of causal hops to walk (default: 10)',
+        },
+        min_strength: {
+          type: 'number',
+          description: 'Minimum edge strength (0.0-1.0) to follow when walking the chain (default: 0)',
+        },
+      },
+      required: ['fact_id'],
+    },
+  },
+  {
+    name: 'project_trajectory',
+    description:
+      'Walk Graph C forward from a fact to its downstream effects. Returns the causal chain from the starting event through to leaf effects. Use to answer "what does this fact lead to?". Cycles are detected and short-circuited.',
+    mutates: false,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        fact_id: {
+          type: 'string',
+          description: 'UUID of the fact whose downstream trajectory should be projected',
+        },
+        max_depth: {
+          type: 'number',
+          description: 'Maximum number of causal hops to walk (default: 10)',
+        },
+        min_strength: {
+          type: 'number',
+          description: 'Minimum edge strength (0.0-1.0) to follow when walking the chain (default: 0)',
+        },
+      },
+      required: ['fact_id'],
+    },
+  },
+  {
+    name: 'get_causal_delta',
+    description:
+      'Get the causal events and edges created within a time window. Use to inspect what new causal activity has been recorded in a recent interval, optionally narrowed to a single entity. Returns events plus the edges created in the same window.',
+    mutates: false,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        from: {
+          type: 'string',
+          description: 'Start of the time window (ISO 8601 timestamp, inclusive). Example: "2026-05-26T00:00:00Z".',
+        },
+        to: {
+          type: 'string',
+          description: 'End of the time window (ISO 8601 timestamp, inclusive). Example: "2026-05-26T23:59:59Z".',
+        },
+        entity_id: {
+          type: 'string',
+          description: 'Optional entity UUID to narrow events to those whose subject is this entity. Edges are not filtered by entity.',
+        },
+      },
+      required: ['from', 'to'],
     },
   },
   {
@@ -1293,6 +1365,95 @@ async function _handleToolCallInner(
           lastCorroborated: e.lastCorroborated,
           initialStrength: e.initialStrength,
           decayApplied: e.decayApplied,
+        })),
+      });
+    }
+
+    case 'trace_causes': {
+      const chain = await traceCauses(toolInput.fact_id as string, {
+        maxDepth: toolInput.max_depth as number | undefined,
+        minStrength: toolInput.min_strength as number | undefined,
+      });
+      return JSON.stringify({
+        chain: chain.map(node => ({
+          event: {
+            id: node.event.id,
+            factId: node.event.factId,
+            transitionType: node.event.transitionType,
+            subjectEntityId: node.event.subjectEntityId,
+            predicate: node.event.predicate,
+            deltaConfidence: node.event.deltaConfidence,
+            occurredAt: node.event.occurredAt,
+            sourceText: node.event.sourceText,
+          },
+          edge: node.edge ? {
+            id: node.edge.id,
+            causeEventId: node.edge.causeEventId,
+            effectEventId: node.edge.effectEventId,
+            strength: node.edge.strength,
+            reasoning: node.edge.reasoning,
+            sourceReferences: node.edge.sourceReferences,
+            extractionMethod: node.edge.extractionMethod,
+          } : null,
+        })),
+      });
+    }
+
+    case 'project_trajectory': {
+      const chain = await projectTrajectory(toolInput.fact_id as string, {
+        maxDepth: toolInput.max_depth as number | undefined,
+        minStrength: toolInput.min_strength as number | undefined,
+      });
+      return JSON.stringify({
+        chain: chain.map(node => ({
+          event: {
+            id: node.event.id,
+            factId: node.event.factId,
+            transitionType: node.event.transitionType,
+            subjectEntityId: node.event.subjectEntityId,
+            predicate: node.event.predicate,
+            deltaConfidence: node.event.deltaConfidence,
+            occurredAt: node.event.occurredAt,
+            sourceText: node.event.sourceText,
+          },
+          edge: node.edge ? {
+            id: node.edge.id,
+            causeEventId: node.edge.causeEventId,
+            effectEventId: node.edge.effectEventId,
+            strength: node.edge.strength,
+            reasoning: node.edge.reasoning,
+            sourceReferences: node.edge.sourceReferences,
+            extractionMethod: node.edge.extractionMethod,
+          } : null,
+        })),
+      });
+    }
+
+    case 'get_causal_delta': {
+      const delta = await getCausalDelta(
+        new Date(toolInput.from as string),
+        new Date(toolInput.to as string),
+        { entityId: toolInput.entity_id as string | undefined },
+      );
+      return JSON.stringify({
+        events: delta.events.map(e => ({
+          id: e.id,
+          factId: e.factId,
+          transitionType: e.transitionType,
+          subjectEntityId: e.subjectEntityId,
+          predicate: e.predicate,
+          deltaConfidence: e.deltaConfidence,
+          occurredAt: e.occurredAt,
+          sourceText: e.sourceText,
+        })),
+        edges: delta.edges.map(e => ({
+          id: e.id,
+          causeEventId: e.causeEventId,
+          effectEventId: e.effectEventId,
+          strength: e.strength,
+          reasoning: e.reasoning,
+          sourceReferences: e.sourceReferences,
+          extractionMethod: e.extractionMethod,
         })),
       });
     }
