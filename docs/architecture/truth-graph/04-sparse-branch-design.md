@@ -143,7 +143,7 @@ services: Core Services {
   qdrant: "qdrant.ts\nstoreMemory(), searchMemories(),\ngetMemory(), updatePayload()"
   ml: "ml-client.ts\nembed(), extractEntities(),\nextractRelationships()"
   causal: "causal.ts [Phase B]\ncreateCausalEdge(), traceCauses(),\nprojectTrajectory(), getCausalDelta()"
-  causal-agent: "causal-agent.ts [Phase B]\nHaiku with tool-use\n7 tools for graph/vector/CRUD"
+  causal-agent: "causal-agent.ts [Phase B]\nHaiku with tool-use\nTools for graph/vector/CRUD (see GRAPH_TOOLS — doc 30)"
 }
 
 db: "PostgreSQL" {
@@ -608,7 +608,7 @@ The system prompt instructs Haiku to:
 
 ### 5.6 LLM Provider Routing
 
-The causal agent uses **Claude Code** invoked via the `-p` flag. The 7 tools are exposed as an **MCP server** (`services/causal-mcp.ts`) that Claude Code connects to via `--mcp-config`. This approach is vendor-agnostic — the MCP interface is a standard protocol, not tied to any specific LLM provider.
+The causal agent uses **Claude Code** invoked via the `-p` flag. The tools in `GRAPH_TOOLS` (see `src/services/causal-agent.ts`) are exposed as an **MCP server** (`src/services/graph-mcp.ts`) that Claude Code connects to via `--mcp-config`. This approach is vendor-agnostic — the MCP interface is a standard protocol, not tied to any specific LLM provider. See [doc 30 — MCP transport](30-mcp-transport.md) for the full two-transport contract (MCP via Claude Code vs Pi bridge).
 
 ```typescript
 import { execFile } from 'child_process';
@@ -1100,7 +1100,7 @@ psql -h localhost -p 5433 -U cognitive -d cognitive -c "SELECT * FROM ag_catalog
 | B3 | Create `services/causal.ts` — Graph C query/write functions | `src/services/causal.ts` | B1, B2 |
 | B4 | Extend `services/facts.ts` — create causal events on fact create/expire/invalidate | `src/services/facts.ts` | B3 |
 | B5 | Extend `services/graph.ts` — add `causal_graph` queries | `src/services/graph.ts` | B1 |
-| B6 | Create `services/causal-mcp.ts` — MCP server exposing 7 causal tools | `src/services/causal-mcp.ts` | B3, B4, B5 |
+| B6 | Create `services/graph-mcp.ts` — MCP server exposing the GRAPH_TOOLS catalogue (currently 38) | `src/services/graph-mcp.ts` | B3, B4, B5 |
 | B7 | Create `services/causal-agent.ts` — Claude Code invocation via `-p` with MCP config, system prompt | `src/services/causal-agent.ts` | B6 |
 | B8 | Extend `pipeline.ts` — call causal agent after extract() | `src/pipeline.ts` | B7 |
 | B9 | Add `CLAUDE_CODE_PATH` to config | `src/config.ts` | B6 |

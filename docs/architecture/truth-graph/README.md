@@ -38,6 +38,7 @@ Technical direction for the Mnemo knowledge graph system — dual-graph architec
 
 | # | Document | What It Covers |
 |---|----------|----------------|
+| 30 | [MCP Transport](30-mcp-transport.md) | Canonical two-transport contract for the agent flows. MCP path (Claude Code subprocess + stdio MCP server) vs Pi bridge path (HTTP). LLM_PROVIDER env-var switch, parity contract, write-tool serialisation, health-probe semantics, server-identity invariant. T1 / T9 / T11 / T13 cure (bead `nmemo-2yv.125`). |
 | 31 | [Review Cycle Synthesis](31-review-cycle-synthesis.md) | Cross-feature synthesis of Reviews #1–#13 (May 2026). Themes (T1/T7/T8/T9/T10/T11/T12/T13 + transport divergence), compose gaps, cross-cutting findings, prioritised landing roadmap. Read this after any per-feature arch doc to understand the cross-cutting context. |
 | 32 | [Compute-trigger registry](32-compute-trigger-registry.md) | Canonical list of every graph compute (graph_stats / topology / clustering / drift / cross_cluster / gardener / reconciliation / reasoning_patrol / pattern_detection / decay) with its trigger condition, cadence, runs table, and source code path. PR contract: new computes must add a row in the same PR. T12 cure (bead `nmemo-2yv.131`). |
 
@@ -48,7 +49,7 @@ Technical direction for the Mnemo knowledge graph system — dual-graph architec
 - **Graph S:** Hardened. Frankenstein regression passing. Entity resolution + merge lifecycle working.
 - **Graph C:** Structural foundation built (Phase B). Causal events emit on fact changes; edges can be created with reasoning + source_references.
 - **Reasoning Layer:** Currently being hardened via 10–17 (this series). Audit trail is the bedrock; lifecycle, blast radius, contradictions, and patterns layer on top.
-- **Reasoning Agent:** Patrol + query modes built, 25 MCP tools, never smoke-tested end-to-end (Phase 0 of this series).
+- **Reasoning Agent:** Patrol + query modes built, the full `GRAPH_TOOLS` catalogue via the MCP / Pi transports (see [doc 30](30-mcp-transport.md)), never smoke-tested end-to-end (Phase 0 of this series).
 - **Lifetime-Scale:** Conceptual design in 01 Section 6. No implementation yet — deferred until reasoning layer is stable.
 
 ## Key Decisions

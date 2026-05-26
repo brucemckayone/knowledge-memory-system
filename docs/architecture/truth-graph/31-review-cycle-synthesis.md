@@ -294,7 +294,7 @@ Two transports for the same agentic tool-call surface; one (Pi bridge) was intro
 | Divergence | Bead | Pi | MCP |
 |---|---|---|---|
 | Duplicate server file | `.124` | n/a | `causal-mcp.ts` ships alongside `graph-mcp.ts`, identical surface |
-| Write-tool serialization | `.127` | 17 tools forced `sequential` | No mutex; concurrent writes |
+| Write-tool serialization | `.127` | seventeen tools forced `sequential` | No mutex; concurrent writes |
 | Doc-vs-code drift | `.125` | n/a | docs 04/07/11 quote 7/12/25 tools (actually 38), wrong file name |
 | Health probe target | `.123` | Pi `/health` works | MCP probe targets the wrong file |
 | Probe env | `.126` | Same-process, env inherited | Subprocess; env must be passed explicitly, not done today |

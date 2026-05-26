@@ -119,7 +119,7 @@ Now that new facts exist (each generating a causal event), the agent reasons abo
 
 ## Tool Inventory
 
-The graph agent has access to 12 MCP tools via the unified `graph-mcp.ts` server:
+The graph agent has access to the full `GRAPH_TOOLS` catalogue via the unified `graph-mcp.ts` server (see [doc 30 — MCP transport](30-mcp-transport.md) for the contract; tool count is whatever `GRAPH_TOOLS.length` returns, currently 38):
 
 ### Read tools (graph investigation)
 | Tool | Purpose | Phase |

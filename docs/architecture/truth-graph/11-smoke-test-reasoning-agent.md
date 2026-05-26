@@ -7,7 +7,7 @@
 
 ## Purpose
 
-The reasoning agent is fully implemented — 25 MCP tools, patrol + query modes, system prompt — but has never been tested end-to-end. Before we invest in code changes, we validate that the existing invocation chain works against the loaded MISRA C++ 2023 data.
+The reasoning agent is fully implemented — the tools in `GRAPH_TOOLS` (currently 38; see [doc 30](30-mcp-transport.md)), patrol + query modes, system prompt — but has never been tested end-to-end. Before we invest in code changes, we validate that the existing invocation chain works against the loaded MISRA C++ 2023 data.
 
 This phase ships no code. It ships a playbook, findings, and a list of any bugs discovered. Bugs get fixed here before they contaminate later phases.
 
@@ -51,8 +51,8 @@ llm: "Claude Code CLI\nsubprocess" {
   allowed: "--allowedTools mcp__mnemo-graph__*"
 }
 
-mcp: "MCP Server\ncausal-mcp.ts" {
-  tools: "25 tools from\nGRAPH_TOOLS"
+mcp: "MCP Server\ngraph-mcp.ts" {
+  tools: "Tools from\nGRAPH_TOOLS"
 }
 
 db: "PostgreSQL :5433" {
@@ -115,7 +115,7 @@ curl http://localhost:8000/health
 ```bash
 # From platform directory
 cd platform
-npx tsx src/services/causal-mcp.ts
+npx tsx src/services/graph-mcp.ts
 # Should start and await stdin. Type tools/list JSON-RPC request manually or Ctrl-C.
 ```
 
@@ -124,13 +124,13 @@ Also exercise the automated health check:
 curl http://localhost:3001/api/mcp-health
 ```
 
-**Expected:** `ok: true`, `tools: [...]` with at least 25 entries (current build exposes 32; Phase 1 audit-trail tools layered on after this doc was written).
+**Expected:** `ok: true`, `tools: [...]` with `GRAPH_TOOLS.length` entries (currently 38; see [doc 30](30-mcp-transport.md) for the parity contract).
 
 **Failure modes to watch:**
 - `npx tsx` not resolvable → check PATH
 - `shell: true` not set on Windows → see `causal-agent.ts:1781`
-- tsx can't find `causal-mcp.ts` → check `cwd` resolves correctly
-- Tool count < 25 → `GRAPH_TOOLS` array truncation or import failure
+- tsx can't find `graph-mcp.ts` → check `cwd` resolves correctly
+- Tool count drift from `GRAPH_TOOLS.length` → `GRAPH_TOOLS` array truncation or import failure
 
 ### Test 3 — Reasoning Agent Patrol Mode
 
