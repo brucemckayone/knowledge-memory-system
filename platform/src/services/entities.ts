@@ -537,8 +537,15 @@ export interface MergeEntitiesResult {
  *     source DELETE)
  *   - Re-point reasoning_reports.entity_ids[] (per nmemo-2yv.65 — array_replace
  *     where source appears)
+ *   - Re-point entity_drift_events.entity_id (per nmemo-2yv.64 — preserves
+ *     drift chronology on the survivor)
+ *   - Drop target's entity_topology / entity_clusters / entity_drift_state
+ *     rows (per nmemo-2yv.64 — derived state; source's rows CASCADE-clear on
+ *     step-14 DELETE; survivor recomputes fresh via step-15 trigger)
  *   - Append source.id to target.merged_from, update last_seen_at
  *   - Delete the source entity
+ *   - Fire post-merge topology + clustering recompute trigger (per
+ *     nmemo-2yv.84 — fire-and-forget; never throws out)
  *
  * Crucial difference from the SQL function: every fact mutation emits exactly
  * one `fact_history` row with `event_type = 'merged'` and `actor` threaded
@@ -822,6 +829,72 @@ export async function mergeEntities(params: MergeEntitiesParams): Promise<MergeE
       WHERE ${sourceId}::uuid = ANY(entity_ids)
     `);
 
+    // ── 12.7. entity_topology / entity_clusters / entity_drift_state /
+    //        entity_drift_events handling (nmemo-2yv.64).
+    //
+    //        All four tables FK back to entities(id) ON DELETE CASCADE
+    //        (migs 014, 015, 016). Without explicit handling in this merge,
+    //        the CASCADE on step 14's source DELETE silently drops the
+    //        source's rows while target keeps potentially-stale rows, and
+    //        the survivor's derived state (component_id, k_core, pagerank,
+    //        community_id, cluster assignment, ADWIN drift state) is computed
+    //        against pre-merge connectivity, not the merged-in source's
+    //        edges.
+    //
+    //        Treatment per locked Scoped fix:
+    //          • entity_topology — derived data (recomputed from the live
+    //            graph by the gardener's topology pass). Drop target's row
+    //            so the post-merge auto-trigger (.84 chain) regenerates
+    //            fresh state for the merged identity. Source's row is
+    //            CASCADE-cleared in step 14. No re-point: a re-pointed
+    //            source row would collide on PRIMARY KEY (entity_id) with
+    //            target's row, and the columns (component_id, k_core,
+    //            pagerank, community_id) are connectivity-derived — there
+    //            is no meaningful merge of two pre-merge snapshots.
+    //          • entity_clusters — same shape as entity_topology. The
+    //            centroid_snapshot, cluster_id, cluster_probability fields
+    //            are clustering-run outputs over the live entity_meta.centroid.
+    //            Drop target's row; the next clustering compute reassigns
+    //            the merged identity to whichever cluster its (now-richer)
+    //            centroid lands in.
+    //          • entity_drift_state — ADWIN detector pickled blob over the
+    //            entity's observation stream. The merge changes the entity's
+    //            connectivity AND the centroid stream feeding ADWIN — drop
+    //            both source and target rows. Next drift pass initialises
+    //            fresh state. (CASCADE handles source automatically; we
+    //            explicitly DELETE target.)
+    //          • entity_drift_events — append-only event log (per-event row
+    //            with detected_at, drift_magnitude, centroid pair). The
+    //            Scoped fix specifies re-pointing entity_id from source to
+    //            target to preserve chronology of detected drift events.
+    //            Each event is keyed by its own id; re-pointing changes the
+    //            owning entity without losing history. CRITICAL ordering:
+    //            re-point MUST happen BEFORE the CASCADE on step 14 (which
+    //            would otherwise drop these rows along with source).
+    //
+    //        Recompute is queued via two paths: (1) the existing post-merge
+    //        auto-trigger fired from execute_merge after mergeEntities()
+    //        returns, and (2) the unconditional trigger fired below from
+    //        within mergeEntities() itself (see step 15) — guarantees the
+    //        recompute queue fires for ALL callers of mergeEntities(), not
+    //        only execute_merge.
+    //
+    //        No audit emission for any of these: all four tables are
+    //        derived-state caches, not fact-graph assertions.
+    await tx.execute(sql`
+      UPDATE public.entity_drift_events SET entity_id = ${targetId}::uuid
+      WHERE entity_id = ${sourceId}::uuid
+    `);
+    await tx.execute(sql`
+      DELETE FROM public.entity_topology WHERE entity_id = ${targetId}::uuid
+    `);
+    await tx.execute(sql`
+      DELETE FROM public.entity_clusters WHERE entity_id = ${targetId}::uuid
+    `);
+    await tx.execute(sql`
+      DELETE FROM public.entity_drift_state WHERE entity_id = ${targetId}::uuid
+    `);
+
     // ── 13. Append source to target.merged_from, update target.last_seen_at
     //        to the GREATEST of source and target. No audit — entities has
     //        no history table.
@@ -847,8 +920,29 @@ export async function mergeEntities(params: MergeEntitiesParams): Promise<MergeE
     return { survivorId: targetId };
   };
 
-  if (outerTx) {
-    return runMerge(outerTx);
-  }
-  return db.transaction(runMerge);
+  const result = outerTx ? await runMerge(outerTx) : await db.transaction(runMerge);
+
+  // ── 15. Queue topology / clustering recompute on the merged identity
+  //       (nmemo-2yv.64). Fired AFTER the transaction commits — the trigger
+  //       POSTs to /api/{topology,clustering}/compute fire-and-forget. Lazy
+  //       dynamic import (and not a static import at the top of this file)
+  //       to side-step the circular dependency that would otherwise form:
+  //       derived-freshness.ts → fireComputeEndpoint → (compute route) →
+  //       entities.ts. The helper is also fired from execute_merge in
+  //       causal-agent.ts for the same merge; the helper's own try/catch
+  //       swallows failures and never throws out, so the duplicate fire is
+  //       harmless and only costs one extra in-progress (409) response
+  //       returned by the second caller. This belt-and-braces invocation
+  //       guarantees the trigger fires for all callers of mergeEntities(),
+  //       including the direct callers exercised by the integration tests.
+  void (async () => {
+    try {
+      const { triggerTopologyAndClusteringAfterMerge } = await import('./derived-freshness.js');
+      await triggerTopologyAndClusteringAfterMerge(`merge:${sourceId}->${targetId}`);
+    } catch (err) {
+      console.warn('[mergeEntities] post-merge auto-trigger failed:', err instanceof Error ? err.message : err);
+    }
+  })();
+
+  return result;
 }

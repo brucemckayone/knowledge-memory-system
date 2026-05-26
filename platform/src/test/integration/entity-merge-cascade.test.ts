@@ -678,4 +678,164 @@ describe('Entity Merge Cascade', () => {
       expect(after.length).toBe(0);
     });
   });
+
+  describe('EMC-012: entity_topology / entity_clusters / entity_drift_state cleared on survivor; entity_drift_events re-pointed (nmemo-2yv.64)', () => {
+    it('drops target rows in derived-state caches (recompute on next pass), re-points drift events to survivor, fires post-merge auto-trigger', async () => {
+      const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const source = await createTestEntity({ canonicalName: `EMC12-Source-${suffix}`, entityType: 'person' });
+      const target = await createTestEntity({ canonicalName: `EMC12-Target-${suffix}`, entityType: 'person' });
+
+      // ── Seed derived-state rows on BOTH source and target.
+      // entity_topology — PK is entity_id, so one row per entity.
+      // Use VECTOR(25) zero-vector literal for predicate_signature (nullable but
+      // we set it to exercise the column).
+      const zeroSig25 = `[${Array.from({ length: 25 }, () => '0').join(',')}]`;
+      await testDb`
+        INSERT INTO public.entity_topology
+          (entity_id, component_id, component_size, k_core, is_articulation_point,
+           community_id, participation_coef, pagerank, betweenness_sampled, predicate_signature)
+        VALUES
+          (${source.id}::uuid, 1, 5, 2, FALSE, 10, 0.4, 0.05, 0.02, ${zeroSig25}::vector),
+          (${target.id}::uuid, 2, 3, 1, FALSE, 20, 0.1, 0.02, 0.01, ${zeroSig25}::vector)
+      `;
+
+      // entity_clusters — PK is entity_id; centroid_snapshot NOT NULL VECTOR(768).
+      const zeroSig768 = `[${Array.from({ length: 768 }, () => '0').join(',')}]`;
+      await testDb`
+        INSERT INTO public.entity_clusters
+          (entity_id, cluster_id, centroid_snapshot, cluster_probability, cluster_size)
+        VALUES
+          (${source.id}::uuid, 0, ${zeroSig768}::vector, 0.9, 100),
+          (${target.id}::uuid, 1, ${zeroSig768}::vector, 0.7, 50)
+      `;
+
+      // entity_drift_state — PK is entity_id; adwin_state_blob NOT NULL.
+      await testDb`
+        INSERT INTO public.entity_drift_state
+          (entity_id, adwin_state_blob, observation_count, last_cluster_id, river_version)
+        VALUES
+          (${source.id}::uuid, '\\x00'::bytea, 42, 0, '0.21.0'),
+          (${target.id}::uuid, '\\x00'::bytea, 99, 1, '0.21.0')
+      `;
+
+      // entity_drift_events — append-only, multiple rows per entity.
+      // Set up 2 events on source + 1 event on target so we can assert
+      // the source's 2 events end up on target (3 total post-merge).
+      await testDb`
+        INSERT INTO public.entity_drift_events
+          (entity_id, drift_magnitude, centroid_snapshot, centroid_current,
+           cluster_id_at_detection, target_cluster_id, triggered_action)
+        VALUES
+          (${source.id}::uuid, 0.3, ${zeroSig768}::vector, ${zeroSig768}::vector, 0, 1, 'logged_only'),
+          (${source.id}::uuid, 0.5, ${zeroSig768}::vector, ${zeroSig768}::vector, 0, 1, 'logged_only'),
+          (${target.id}::uuid, 0.2, ${zeroSig768}::vector, ${zeroSig768}::vector, 1, NULL, 'logged_only')
+      `;
+
+      // Snapshot pre-merge counts.
+      const driftEventsBefore = await testDb<Array<{ c: number }>>`
+        SELECT COUNT(*)::int AS c FROM public.entity_drift_events
+        WHERE entity_id = ${source.id}::uuid OR entity_id = ${target.id}::uuid
+      `;
+      expect(driftEventsBefore[0]!.c).toBe(3);
+
+      // ── Drive the merge.
+      await mergeEntities({ sourceId: source.id, targetId: target.id });
+
+      // ── Assertion 1: entity_topology — target row deleted (recompute marker);
+      //   source row CASCADE-cleared on source DELETE. Zero rows remain for
+      //   either id. The visible-marker contract: derived_freshness has a
+      //   row stamping the merge as "needs recompute"; the gardener's next
+      //   pass regenerates entity_topology for the survivor.
+      const topologyRows = await testDb`
+        SELECT entity_id FROM public.entity_topology
+        WHERE entity_id = ${source.id}::uuid OR entity_id = ${target.id}::uuid
+      `;
+      expect(topologyRows.length).toBe(0);
+
+      // ── Assertion 2: entity_clusters — same shape as topology.
+      const clusterRows = await testDb`
+        SELECT entity_id FROM public.entity_clusters
+        WHERE entity_id = ${source.id}::uuid OR entity_id = ${target.id}::uuid
+      `;
+      expect(clusterRows.length).toBe(0);
+
+      // ── Assertion 3: entity_drift_state — both source and target rows
+      //   dropped. ADWIN state regenerates on next drift pass.
+      const driftStateRows = await testDb`
+        SELECT entity_id FROM public.entity_drift_state
+        WHERE entity_id = ${source.id}::uuid OR entity_id = ${target.id}::uuid
+      `;
+      expect(driftStateRows.length).toBe(0);
+
+      // ── Assertion 4: entity_drift_events — preserved history. Source's 2
+      //   events are re-pointed to target (preserves chronology). Target's
+      //   pre-existing 1 event is untouched. Total under target: 3.
+      const driftEventsAfter = await testDb<Array<{ c: number }>>`
+        SELECT COUNT(*)::int AS c FROM public.entity_drift_events
+        WHERE entity_id = ${target.id}::uuid
+      `;
+      expect(driftEventsAfter[0]!.c).toBe(3);
+
+      // No drift events left referencing source.
+      const danglingDriftEvents = await testDb`
+        SELECT 1 FROM public.entity_drift_events WHERE entity_id = ${source.id}::uuid
+      `;
+      expect(danglingDriftEvents.length).toBe(0);
+
+      // ── Assertion 5: audit-style integrity join — no derived-state row
+      //   references a deleted entity. Mirrors EMC-011 Assertion 6's shape.
+      const auditDanglers = await testDb`
+        SELECT 'topology' AS t FROM public.entity_topology et
+        LEFT JOIN public.entities e ON e.id = et.entity_id WHERE e.id IS NULL
+        UNION ALL
+        SELECT 'clusters' FROM public.entity_clusters ec
+        LEFT JOIN public.entities e ON e.id = ec.entity_id WHERE e.id IS NULL
+        UNION ALL
+        SELECT 'drift_state' FROM public.entity_drift_state eds
+        LEFT JOIN public.entities e ON e.id = eds.entity_id WHERE e.id IS NULL
+        UNION ALL
+        SELECT 'drift_events' FROM public.entity_drift_events ede
+        LEFT JOIN public.entities e ON e.id = ede.entity_id WHERE e.id IS NULL
+      `;
+      expect(auditDanglers.length).toBe(0);
+    });
+
+    it('regression guard: pre-fix CASCADE would have lost source drift event history; the re-point preserves it', async () => {
+      // This test pins the chronological-preservation half of the fix: the
+      // Scoped fix explicitly calls out drift events as the "preserve history"
+      // case (re-point rather than drop). A future regression that swaps the
+      // UPDATE for a DELETE would still satisfy EMC-012's "no dangling rows"
+      // assertion but would silently drop chronology. This test catches that.
+      const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const source = await createTestEntity({ canonicalName: `EMC12R-Source-${suffix}`, entityType: 'person' });
+      const target = await createTestEntity({ canonicalName: `EMC12R-Target-${suffix}`, entityType: 'person' });
+
+      const zeroSig768 = `[${Array.from({ length: 768 }, () => '0').join(',')}]`;
+
+      // Source has 3 events at distinct magnitudes 0.1, 0.4, 0.7 (chronology proxy).
+      await testDb`
+        INSERT INTO public.entity_drift_events
+          (entity_id, drift_magnitude, centroid_snapshot, centroid_current, triggered_action)
+        VALUES
+          (${source.id}::uuid, 0.1, ${zeroSig768}::vector, ${zeroSig768}::vector, 'logged_only'),
+          (${source.id}::uuid, 0.4, ${zeroSig768}::vector, ${zeroSig768}::vector, 'logged_only'),
+          (${source.id}::uuid, 0.7, ${zeroSig768}::vector, ${zeroSig768}::vector, 'logged_only')
+      `;
+
+      await mergeEntities({ sourceId: source.id, targetId: target.id });
+
+      // All 3 source-side events end up on target, with magnitudes preserved.
+      const survivorEvents = await testDb<Array<{ drift_magnitude: number }>>`
+        SELECT drift_magnitude FROM public.entity_drift_events
+        WHERE entity_id = ${target.id}::uuid
+        ORDER BY drift_magnitude
+      `;
+      expect(survivorEvents.length).toBe(3);
+      // Postgres REAL → JS number; tolerate FP repr.
+      const magnitudes = survivorEvents.map((r) => Number(r.drift_magnitude));
+      expect(magnitudes[0]).toBeCloseTo(0.1);
+      expect(magnitudes[1]).toBeCloseTo(0.4);
+      expect(magnitudes[2]).toBeCloseTo(0.7);
+    });
+  });
 });
