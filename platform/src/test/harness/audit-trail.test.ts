@@ -720,7 +720,7 @@ describe('Phase 1 — Audit Trail Foundation', () => {
   });
 
   describe('supersession cascade', () => {
-    it('exclusive-predicate supersession emits a cascade expired row', async () => {
+    it('exclusive-predicate supersession emits a cascade superseded row (bead nmemo-2yv.31)', async () => {
       // Register an exclusive predicate so the supersession branch fires.
       const PRED = `audit_test_lives_in_${randomUUID().slice(0, 8)}`;
       await testDb`
@@ -747,10 +747,20 @@ describe('Phase 1 — Audit Trail Foundation', () => {
 
       expect(secondId).not.toBe(firstId);
       const firstHist = await getFactHistory(firstId);
-      const expired = firstHist.find(h => h.eventType === 'expired');
-      expect(expired).toBeDefined();
-      expect(expired!.actor).toBe('cascade');
-      expect(expired!.reasoning).toContain('superseded');
+      // The supersession cascade writes event_type='superseded' (not
+      // 'expired'). The reasoning string references the superseding fact's
+      // (subject, predicate) tuple so downstream consumers can hop from the
+      // history row to the cause of the supersession.
+      const superseded = firstHist.find(h => h.eventType === 'superseded');
+      expect(superseded).toBeDefined();
+      expect(superseded!.actor).toBe('cascade');
+      expect(superseded!.reasoning).toContain('superseded');
+      expect(superseded!.reasoning).toContain(subjectId);
+      expect(superseded!.reasoning).toContain(PRED);
+      // Genuine expiry is a distinct lifecycle event: a supersession must NOT
+      // also produce an 'expired' row for the same fact (the cascade collapse
+      // is what bead .31 fixes).
+      expect(firstHist.some(h => h.eventType === 'expired')).toBe(false);
     });
   });
 
@@ -1642,9 +1652,12 @@ describe('Phase 1 — pre-mutation blast-radius audit (bead nmemo-2yv.102)', () 
   });
 
   it('createFact superseder cascade leaves pre_expire_blast_radius NULL on the prior fact_history row', async () => {
-    // Cascade-internal expiry — driven by createFact's exclusive-predicate
+    // Cascade-internal supersession — driven by createFact's exclusive-predicate
     // supersession path. Not agent-initiated; bead's contract says the audit
     // column stays NULL when the cascade actor writes the row.
+    //
+    // Bead nmemo-2yv.31 — the supersession-cascade row now carries
+    // event_type='superseded' (not 'expired'). Match accordingly.
     const PRED = `bead102_blast_${randomUUID().slice(0, 8)}`;
     await testDb`
       INSERT INTO fact_predicates (predicate, is_exclusive)
@@ -1670,7 +1683,7 @@ describe('Phase 1 — pre-mutation blast-radius audit (bead nmemo-2yv.102)', () 
 
     const rows = await testDb`
       SELECT pre_expire_blast_radius, actor FROM fact_history
-      WHERE fact_id = ${firstId}::uuid AND event_type = 'expired'
+      WHERE fact_id = ${firstId}::uuid AND event_type = 'superseded'
     `;
     expect(rows).toHaveLength(1);
     expect(rows[0]!.actor).toBe('cascade');

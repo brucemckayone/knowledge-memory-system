@@ -121,7 +121,9 @@ export async function getFactSources(factId: string): Promise<FactSource[]> {
  *
  * Writes a fact_history row with event_type='created' in the same transaction
  * as the INSERT. If supersession fires, each superseded fact gets its own
- * fact_history row with event_type='expired' attributed to actor='cascade'.
+ * fact_history row with event_type='superseded' attributed to actor='cascade'
+ * (bead nmemo-2yv.31 — kept distinct from 'expired' so audit consumers can
+ * tell "replaced by a newer specific assertion" apart from "genuine expiry").
  */
 export async function createFact(params: CreateFactParams): Promise<string> {
   const {
@@ -153,12 +155,17 @@ export async function createFact(params: CreateFactParams): Promise<string> {
 
     // Expire old facts that this one supersedes. The supersession is a side
     // effect of the new write, so attribute it to 'cascade' with a reasoning
-    // string pointing at the parent mutation.
+    // string pointing at the parent mutation. Tag the fact_history row as
+    // event_type='superseded' (bead nmemo-2yv.31) so downstream consumers can
+    // tell "replaced by a newer specific assertion" apart from "genuine
+    // expiry" — both flowed through expireFact previously and collapsed onto
+    // the same 'expired' label.
     for (const oldFact of superseded) {
       await expireFact({
         factId: oldFact.id,
         reasoning: `Cascade: superseded by new fact for (${subjectEntityId}, ${predicate})`,
         actor: 'cascade',
+        eventType: 'superseded',
         reasoningReportId,
       });
     }
@@ -420,13 +427,24 @@ export interface ExpireFactParams {
    * nmemo-2yv.102.
    */
   preExpireBlastRadius?: SeveritySummary | null;
+  /**
+   * Distinguishes "genuine expiry" (fact no longer true in the world; the
+   * default) from "supersession" (replaced by a newer, more specific
+   * assertion on an exclusive predicate; emitted by createFact's cascade
+   * loop). Both write a fact_history row, but the event_type label drives
+   * how downstream consumers — contradiction triage, blast-radius, pattern
+   * lifecycle — interpret why the fact ended. See bead nmemo-2yv.31.
+   */
+  eventType?: 'expired' | 'superseded';
 }
 
 /**
  * Expire a fact (mark as incorrect in our records).
  *
- * Writes a fact_history row with event_type='expired' in the same transaction
- * as the UPDATE. Also emits a causal_event of transition_type='expired'.
+ * Writes a fact_history row in the same transaction as the UPDATE. The event
+ * type defaults to 'expired' (genuine expiry) but callers can pass
+ * `eventType: 'superseded'` for the createFact cascade path (bead
+ * nmemo-2yv.31). Also emits a causal_event of transition_type='expired'.
  *
  * NOTE — outer-tx callers (nmemo-2yv.38): when `params.tx` is supplied, the
  * UPDATE + fact_history write run on that tx, but `createCausalEvent` and
@@ -445,6 +463,7 @@ export async function expireFact(params: ExpireFactParams): Promise<void> {
     expireReason,
     tx: outerTx,
     preExpireBlastRadius = null,
+    eventType = 'expired',
   } = params;
   const reader = outerTx ?? db;
 
@@ -510,7 +529,7 @@ export async function expireFact(params: ExpireFactParams): Promise<void> {
 
     await recordFactChange({
       factId,
-      eventType: 'expired',
+      eventType,
       previousConfidence: existing[0]!.confidence ?? null,
       newConfidence: existing[0]!.confidence ?? null,
       reasoning,
