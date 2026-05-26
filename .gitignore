@@ -45,6 +45,12 @@ qdrant_storage/
 
 # Claude Code transient state
 **/.claude/scheduled_tasks.lock
+# Agent-tool worktree scratch (isolated agent runs); cleaned up automatically
+.claude/worktrees/
+
+# Per-session scratch directories (review notes, finding bodies, diff dumps)
+.tmp/
+**/.tmp/
 
 # Drizzle
 drizzle/
