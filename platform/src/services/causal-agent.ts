@@ -2795,6 +2795,13 @@ export async function invokeReasoningAgent(params: ReasoningAgentParams): Promis
 export interface McpHealthResult {
   ok: boolean;
   tools?: string[];
+  /** Server identity reported by the MCP server in its `initialize` response
+   *  (`serverInfo.name`). Captured so callers (and the integration test) can
+   *  verify the spawned subprocess identifies itself as the expected server
+   *  — currently `'mnemo-graph'` for graph-mcp.ts. Added by bead nmemo-2yv.128
+   *  so the test guards against server-identity drift at the MCP protocol layer.
+   *  Undefined when the initialize response carries no `serverInfo.name`. */
+  serverName?: string;
   /** True when the `get_graph_topology` round-trip (id=3) returned a structured
    *  response — either a tool result or a tool-level error envelope. False when
    *  the transport itself failed (timeout, JSON parse error, connection drop).
@@ -2840,6 +2847,9 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
     let stderr = '';
     let resolved = false;
     let toolsList: string[] | undefined;
+    // Bead nmemo-2yv.128: capture serverInfo.name from the initialize response
+    // so the test (and other callers) can guard against server-identity drift.
+    let serverName: string | undefined;
     // Bead nmemo-2yv.126: track which request stages we've already dispatched
     // so the stdout handler — which re-iterates ALL accumulated lines every
     // time data arrives — doesn't double-send subsequent requests. Without
@@ -2855,7 +2865,7 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
     };
 
     const timer = setTimeout(() => {
-      finish({ ok: false, tools: toolsList, error: 'MCP server timed out', durationMs: Date.now() - start });
+      finish({ ok: false, tools: toolsList, serverName, error: 'MCP server timed out', durationMs: Date.now() - start });
     }, timeoutMs);
 
     proc.stdout.on('data', (chunk: Buffer) => {
@@ -2870,6 +2880,8 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
           // Response to initialize (id=1) → send tools/list (id=2) once.
           if (msg.id === 1 && msg.result && !toolsListSent) {
             toolsListSent = true;
+            // Bead nmemo-2yv.128: capture serverInfo.name from initialize result.
+            serverName = msg.result?.serverInfo?.name;
             const toolsReq = JSON.stringify({
               jsonrpc: '2.0',
               id: 2,
@@ -2903,6 +2915,7 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
             finish({
               ok: toolsList !== undefined && topologyOk,
               tools: toolsList,
+              serverName,
               topologyOk,
               error: topologyOk ? undefined : `tools/call get_graph_topology returned JSON-RPC error: ${JSON.stringify(msg.error)}`,
               durationMs: Date.now() - start,
@@ -2920,13 +2933,13 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
 
     proc.on('error', (err) => {
       clearTimeout(timer);
-      finish({ ok: false, tools: toolsList, error: `Failed to spawn: ${err.message}`, durationMs: Date.now() - start });
+      finish({ ok: false, tools: toolsList, serverName, error: `Failed to spawn: ${err.message}`, durationMs: Date.now() - start });
     });
 
     proc.on('exit', (code) => {
       clearTimeout(timer);
       if (!resolved) {
-        finish({ ok: false, tools: toolsList, error: `Server exited with code ${code}: ${stderr}`, durationMs: Date.now() - start });
+        finish({ ok: false, tools: toolsList, serverName, error: `Server exited with code ${code}: ${stderr}`, durationMs: Date.now() - start });
       }
     });
 
