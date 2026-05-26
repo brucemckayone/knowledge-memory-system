@@ -46,7 +46,7 @@ import { ml } from './ml-client.js';
 import { config } from '../config.js';
 import { normalizePredicate } from './predicates.js';
 import { RESOLUTION_VALUES } from './enums.js';
-import { delimitForPrompt } from './prompt-safety.js';
+import { capAndSanitize, delimitForPrompt } from './prompt-safety.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -433,7 +433,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
   {
     name: 'update_entity_summary',
     description:
-      'Update the living summary for an entity. Call this after creating facts to keep the entity profile current. The summary should describe who/what the entity is, their current state, narrative role, known aliases/references, and any unresolved ambiguities.',
+      'Update the living summary for an entity. Call this after creating facts to keep the entity profile current. The summary should describe who/what the entity is, their current state, narrative role, known aliases/references, and any unresolved ambiguities. Keep summary under 2000 characters; inputs over 3000 characters are rejected.',
     mutates: true,
     inputSchema: {
       type: 'object' as const,
@@ -444,7 +444,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
         summary: {
           type: 'string',
-          description: 'Natural language summary. Include: current state, narrative role, known references/aliases (e.g. "referred to as the stranger, he, my friend"), temporal context, and any ambiguities (e.g. "may be the same person as...").',
+          description: 'Natural language summary. Include: current state, narrative role, known references/aliases (e.g. "referred to as the stranger, he, my friend"), temporal context, and any ambiguities (e.g. "may be the same person as..."). Keep under 2000 characters; the handler rejects inputs over 3000 characters.',
         },
       },
       required: ['entity_id', 'summary'],
@@ -1447,8 +1447,22 @@ async function _handleToolCallInner(
     }
 
     case 'update_entity_summary': {
+      // nmemo-2yv.53 — write-side T8 hardening. Reject oversize inputs with a
+      // structured error (so the agent sees the failure) and normalise
+      // whitespace + control chars before persisting. Read-back wrapping is
+      // applied at every read site via delimitForPrompt (see .62).
       const entityId = toolInput.entity_id as string;
-      const summary = toolInput.summary as string;
+      const rawSummary = toolInput.summary as string;
+      if (typeof rawSummary === 'string' && rawSummary.length > 3000) {
+        return JSON.stringify({
+          error: 'summary exceeds 3000 character limit',
+          length: rawSummary.length,
+          limit: 3000,
+        });
+      }
+      // Sanitise: CRLF/CR → LF, strip C0 controls except \n/\t, collapse 3+
+      // newlines to 2, trim. capAndSanitize returns '' for null/undefined.
+      const summary = capAndSanitize(rawSummary, { kind: 'summary' });
       const updatedAt = new Date();
       await db
         .insert(entityMeta)
