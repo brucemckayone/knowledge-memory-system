@@ -182,19 +182,39 @@ PHASE 1.5: CONTRADICTIONS (3-5 calls)
   2. Pull involved-node history: get_fact_history for fact_a/b_id,
      get_edge_history for edge_a/b_id. The history rows reveal whether the
      conflict is a stale artefact or genuinely current.
-  3. Decide a resolution_type:
+  3. Decide a resolution_type. The set splits by what the detection_type
+     said is broken — a fact vs a causal edge:
+
+     FACT-BASED (use for opposing_object):
        expire_a / expire_b      one fact is superseded; expire it
        expire_both              both depend on a now-debunked source
        invalidate_a / invalidate_b  fact was once true, now isn't (preserve history)
+
+     EDGE-BASED (use for cyclic_causal / temporal_impossible / expired_but_cited):
+       expire_edge_a            the broken edge; e.g. for cyclic_causal pick
+                                the weaker of the two (lower strength /
+                                lower-confidence reasoning) to break the cycle;
+                                for temporal_impossible pick the edge whose
+                                causal direction contradicts the timeline;
+                                for expired_but_cited expire the edge that
+                                still cites the expired fact
+       expire_edge_b            same logic on the other edge (used by
+                                cyclic_causal when edge_b is the weaker one)
+       expire_both_edges        both edges should go (rare — both sides of a
+                                cycle are wrong, or both edges cite an
+                                expired fact)
+
+     NO-MUTATION CLOSERS:
        both_valid               both stand (e.g. non-exclusive predicate, distinct
                                 temporal windows). Cite the windowing in reasoning.
        reconcile                no mutation; agent narrates the reconciliation
        dismissed                false positive (provide dismissed_reason)
+
   4. Apply via resolve_contradiction(contradiction_id, resolution_type,
      resolution_reasoning) — the dispatcher chains into expireFact /
-     invalidateFact for the mutating types so audit + cascade fire for free.
-     Resolution_reasoning MUST be at least 20 characters and cite the
-     evidence you read in step 2.
+     invalidateFact / expireCausalEdge for the mutating types so audit +
+     cascade fire for free. Resolution_reasoning MUST be at least 20
+     characters and cite the evidence you read in step 2.
 
   Rules:
   - Prefer both_valid only when temporal windowing or non-exclusive predicate

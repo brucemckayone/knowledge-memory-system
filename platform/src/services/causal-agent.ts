@@ -848,8 +848,8 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         contradiction_id: { type: 'string', description: 'UUID of the contradiction to resolve' },
         resolution_type: {
           type: 'string',
-          enum: ['expire_a', 'expire_b', 'expire_both', 'invalidate_a', 'invalidate_b', 'reconcile', 'both_valid', 'dismissed'],
-          description: 'How to resolve. expire_*/invalidate_* mutate the underlying fact; reconcile/both_valid/dismissed close without mutation.',
+          enum: ['expire_a', 'expire_b', 'expire_both', 'invalidate_a', 'invalidate_b', 'expire_edge_a', 'expire_edge_b', 'expire_both_edges', 'reconcile', 'both_valid', 'dismissed'],
+          description: 'How to resolve. expire_*/invalidate_* mutate the underlying fact; expire_edge_*/expire_both_edges mutate the underlying causal edge (use for cyclic_causal / temporal_impossible / expired_but_cited where the conflict lives on the edge, not the fact); reconcile/both_valid/dismissed close without mutation.',
         },
         resolution_reasoning: {
           type: 'string',

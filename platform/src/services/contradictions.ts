@@ -24,6 +24,7 @@
 import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
 import { expireFact, invalidateFact } from './facts.js';
+import { expireCausalEdge } from './causal.js';
 import type { Actor } from './audit.js';
 
 // ============================================
@@ -349,6 +350,9 @@ export type ResolutionType =
   | 'expire_both'
   | 'invalidate_a'
   | 'invalidate_b'
+  | 'expire_edge_a'
+  | 'expire_edge_b'
+  | 'expire_both_edges'
   | 'reconcile'
   | 'both_valid'
   | 'dismissed';
@@ -371,14 +375,17 @@ const MIN_REASONING_LENGTH = 20;
  * then closes the contradiction with provenance fields populated.
  *
  * Side-effect matrix:
- *   expire_a       → expireFact(factAId)
- *   expire_b       → expireFact(factBId)
- *   expire_both    → expireFact(factAId) AND expireFact(factBId)
- *   invalidate_a   → invalidateFact(factAId)
- *   invalidate_b   → invalidateFact(factBId)
- *   reconcile      → no mutation (agent narrates the reconciliation only)
- *   both_valid     → no mutation (e.g. temporally-windowed claims)
- *   dismissed      → no mutation; dismissed_reason captured
+ *   expire_a          → expireFact(factAId)
+ *   expire_b          → expireFact(factBId)
+ *   expire_both       → expireFact(factAId) AND expireFact(factBId)
+ *   invalidate_a      → invalidateFact(factAId)
+ *   invalidate_b      → invalidateFact(factBId)
+ *   expire_edge_a     → expireCausalEdge(edgeAId)
+ *   expire_edge_b     → expireCausalEdge(edgeBId)
+ *   expire_both_edges → expireCausalEdge(edgeAId) AND expireCausalEdge(edgeBId)
+ *   reconcile         → no mutation (agent narrates the reconciliation only)
+ *   both_valid        → no mutation (e.g. temporally-windowed claims)
+ *   dismissed         → no mutation; dismissed_reason captured
  *
  * Throws if the contradiction is already resolved or if the reasoning is
  * shorter than MIN_REASONING_LENGTH characters.
@@ -440,6 +447,28 @@ export async function resolveContradiction(
         throw new Error(`resolveContradiction: invalidate_b requires fact_b_id`);
       }
       await invalidateFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId });
+      break;
+    }
+    case 'expire_edge_a': {
+      if (!contradiction.edgeAId) {
+        throw new Error(`resolveContradiction: expire_edge_a requires edge_a_id (none on ${contradictionId})`);
+      }
+      await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: resolutionReasoning, actor, reasoningReportId });
+      break;
+    }
+    case 'expire_edge_b': {
+      if (!contradiction.edgeBId) {
+        throw new Error(`resolveContradiction: expire_edge_b requires edge_b_id (none on ${contradictionId})`);
+      }
+      await expireCausalEdge({ edgeId: contradiction.edgeBId, reasoning: resolutionReasoning, actor, reasoningReportId });
+      break;
+    }
+    case 'expire_both_edges': {
+      if (!contradiction.edgeAId || !contradiction.edgeBId) {
+        throw new Error(`resolveContradiction: expire_both_edges requires both edge_a_id and edge_b_id`);
+      }
+      await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: resolutionReasoning, actor, reasoningReportId });
+      await expireCausalEdge({ edgeId: contradiction.edgeBId, reasoning: resolutionReasoning, actor, reasoningReportId });
       break;
     }
     case 'reconcile':

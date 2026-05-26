@@ -31,6 +31,12 @@ Cross-project gotchas (anything that isn't Mnemo-specific) also go to `bd rememb
 
 ## 2026-05-25
 
+### nmemo-2yv.37 — edge-mutating contradiction resolution (T13 half-built pipeline)
+
+- **Lesson:** When a polymorphic enum (here: `resolution_type`) dispatches through a TypeScript switch, the `default: const _exhaustive: never` pattern is what catches drift — but ONLY if every layer (DB CHECK, MCP enum, HTTP body cast, agent prompt) is also extended in lockstep. The TS exhaustiveness check protects the dispatcher, not the boundary layers above it. For new vocabulary, edit the union LAST so any layer you missed becomes a compile error against the (already-extended) switch's exhaustiveness verifier. Counter-pattern: don't edit the union first, because then the switch happily accepts unhandled values during the in-progress edits.
+- **Surprise:** The bead's "Scoped fix" mentioned six layers (migration, contradictions.ts, causal-agent.ts, index.ts, reasoning_agent.py, doc 16). The seventh (HTTP body inline type union at index.ts:673-676) was visible only as a `body.resolution_type as` cast — not as a type imported from the service layer. This is a pre-existing weak-typing seam that lets the union drift silently; future hardening could replace the cast with `import type { ResolutionType }`.
+- **Pattern noted:** The bead listed a "Future direction" footnote about replacing the static enum-dispatcher with a per-contradiction agent call. Option B (this bead) is a stopgap. The TOCTOU race surfaced by the code-review subagent (`expireCausalEdge` is a no-op on already-expired edges → if another path expires the edge between detection and resolution, the contradiction closes with no history row) is a known consequence of the static-dispatch design; the "Future direction" rewrite obviates it.
+
 ### nmemo-2yv.60 — resolve_candidate enum / merge_candidates CHECK alignment (T7 naming mismatch)
 
 - **Lesson:** When a CHECK constraint enumerates vocabulary that other layers (tool schemas, agent prompts, table names) also enumerate, a divergence is silent and total — every write of the new value hits the CHECK and fails on the close path, while the upstream side-effect (here: the same_as_links row) lands via a different write path. The bug only surfaces if you check the candidate row's *post-resolution* status rather than the link table. This is a generalisable test-design lesson: when a pipeline writes to two tables and an error in one is recoverable into the other, end-to-end tests must assert *both* terminal states, not just the visible one.

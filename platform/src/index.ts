@@ -673,6 +673,7 @@ app.post('/api/contradictions/:id/resolve', async (c) => {
       resolutionType: body.resolution_type as
         | 'expire_a' | 'expire_b' | 'expire_both'
         | 'invalidate_a' | 'invalidate_b'
+        | 'expire_edge_a' | 'expire_edge_b' | 'expire_both_edges'
         | 'reconcile' | 'both_valid' | 'dismissed',
       resolutionReasoning: body.resolution_reasoning,
       actor: 'user',

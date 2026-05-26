@@ -528,6 +528,158 @@ describe('Phase 5 — resolveContradiction dispatcher (nmemo-cae.7)', () => {
 });
 
 // ============================================
+// Edge-mutating resolution (nmemo-2yv.37)
+//
+// expire_edge_a / expire_edge_b / expire_both_edges route resolveContradiction
+// into expireCausalEdge, closing the broken edge in the graph rather than
+// only marking the contradiction "resolved" while the cycle / temporal
+// inversion / expired-citation edge persists.
+// ============================================
+
+describe('Phase 5 — edge-mutating resolution (nmemo-2yv.37)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  async function getCyclicContradiction(): Promise<{ id: string; edgeAId: string; edgeBId: string }> {
+    await loadFixture('phase5-contradictions/fixtures/cyclic-no-span.sql');
+    await detectCyclicCausal();
+    const [row] = await getContradictions({ unresolvedOnly: true, contradictionType: 'cyclic_causal' });
+    if (!row?.edgeAId || !row.edgeBId) {
+      throw new Error('expected cyclic_causal contradiction with both edge ids populated');
+    }
+    return { id: row.id, edgeAId: row.edgeAId, edgeBId: row.edgeBId };
+  }
+
+  async function readEdge(edgeId: string): Promise<{ expired_at: Date | null }> {
+    const rows = await testDb<Array<{ expired_at: Date | null }>>`
+      SELECT expired_at FROM public.causal_edges WHERE id = ${edgeId}::uuid
+    `;
+    if (!rows[0]) throw new Error(`causal_edge ${edgeId} not found`);
+    return rows[0];
+  }
+
+  async function readEdgeHistory(edgeId: string, eventType: string): Promise<number> {
+    const [count] = await testDb<Array<{ n: string }>>`
+      SELECT COUNT(*)::text AS n
+      FROM public.causal_edge_history
+      WHERE edge_id = ${edgeId}::uuid AND event_type = ${eventType}
+    `;
+    return Number(count!.n);
+  }
+
+  it('cyclic_causal + expire_edge_a expires edge A and closes the contradiction', async () => {
+    const { id, edgeAId, edgeBId } = await getCyclicContradiction();
+
+    await resolveContradiction({
+      contradictionId: id,
+      resolutionType: 'expire_edge_a',
+      resolutionReasoning: 'Edge A is the weaker of the two cycle edges (lower-confidence reasoning); expiring it breaks the cycle.',
+      actor: 'reasoning_agent',
+    });
+
+    expect((await readEdge(edgeAId)).expired_at).not.toBeNull();
+    expect((await readEdge(edgeBId)).expired_at).toBeNull();
+    expect(await readEdgeHistory(edgeAId, 'expired')).toBe(1);
+
+    const c = await getContradictionById(id);
+    expect(c?.resolvedAt).not.toBeNull();
+    expect(c?.resolutionType).toBe('expire_edge_a');
+  });
+
+  it('cyclic_causal + expire_edge_b expires edge B and closes the contradiction', async () => {
+    const { id, edgeAId, edgeBId } = await getCyclicContradiction();
+
+    await resolveContradiction({
+      contradictionId: id,
+      resolutionType: 'expire_edge_b',
+      resolutionReasoning: 'Edge B contradicts the established temporal direction; expiring it breaks the cycle.',
+      actor: 'reasoning_agent',
+    });
+
+    expect((await readEdge(edgeBId)).expired_at).not.toBeNull();
+    expect((await readEdge(edgeAId)).expired_at).toBeNull();
+    expect(await readEdgeHistory(edgeBId, 'expired')).toBe(1);
+
+    const c = await getContradictionById(id);
+    expect(c?.resolutionType).toBe('expire_edge_b');
+  });
+
+  it('cyclic_causal + expire_both_edges expires both edges and closes the contradiction', async () => {
+    const { id, edgeAId, edgeBId } = await getCyclicContradiction();
+
+    await resolveContradiction({
+      contradictionId: id,
+      resolutionType: 'expire_both_edges',
+      resolutionReasoning: 'Both edges depend on the same now-debunked source; expiring both is the only honest close.',
+      actor: 'reasoning_agent',
+    });
+
+    expect((await readEdge(edgeAId)).expired_at).not.toBeNull();
+    expect((await readEdge(edgeBId)).expired_at).not.toBeNull();
+    expect(await readEdgeHistory(edgeAId, 'expired')).toBe(1);
+    expect(await readEdgeHistory(edgeBId, 'expired')).toBe(1);
+
+    const c = await getContradictionById(id);
+    expect(c?.resolutionType).toBe('expire_both_edges');
+  });
+
+  it('temporal_impossible + expire_edge_a expires the offending edge', async () => {
+    await loadFixture('phase5-contradictions/fixtures/temporal-impossible.sql');
+    await detectTemporalImpossible();
+    const [row] = await getContradictions({ unresolvedOnly: true, contradictionType: 'temporal_impossible' });
+    if (!row?.edgeAId) throw new Error('expected temporal_impossible with edge_a_id populated');
+
+    await resolveContradiction({
+      contradictionId: row.id,
+      resolutionType: 'expire_edge_a',
+      resolutionReasoning: 'Edge cause.occurred_at is after effect.occurred_at — causal direction reversed; expire.',
+      actor: 'reasoning_agent',
+    });
+
+    expect((await readEdge(row.edgeAId)).expired_at).not.toBeNull();
+    expect(await readEdgeHistory(row.edgeAId, 'expired')).toBe(1);
+    const c = await getContradictionById(row.id);
+    expect(c?.resolutionType).toBe('expire_edge_a');
+  });
+
+  it('expired_but_cited + expire_edge_a expires the citing edge', async () => {
+    await loadFixture('phase5-contradictions/fixtures/expired-but-cited.sql');
+    await detectExpiredButCited();
+    const [row] = await getContradictions({ unresolvedOnly: true, contradictionType: 'expired_but_cited' });
+    if (!row?.edgeAId) throw new Error('expected expired_but_cited with edge_a_id populated');
+
+    await resolveContradiction({
+      contradictionId: row.id,
+      resolutionType: 'expire_edge_a',
+      resolutionReasoning: 'Edge cites a fact that has been expired; the citation is no longer sound — expire the edge.',
+      actor: 'reasoning_agent',
+    });
+
+    expect((await readEdge(row.edgeAId)).expired_at).not.toBeNull();
+    expect(await readEdgeHistory(row.edgeAId, 'expired')).toBe(1);
+    const c = await getContradictionById(row.id);
+    expect(c?.resolutionType).toBe('expire_edge_a');
+  });
+
+  it('expire_edge_a throws when contradiction has no edge_a_id (e.g. opposing_object)', async () => {
+    await loadFixture('phase5-contradictions/fixtures/opposing-object-simple.sql');
+    await detectOpposingObjects();
+    const [row] = await getContradictions({ unresolvedOnly: true, contradictionType: 'opposing_object' });
+    if (!row) throw new Error('expected opposing_object contradiction');
+
+    await expect(
+      resolveContradiction({
+        contradictionId: row.id,
+        resolutionType: 'expire_edge_a',
+        resolutionReasoning: 'Attempting an edge resolution on a fact-based contradiction should be rejected.',
+        actor: 'reasoning_agent',
+      }),
+    ).rejects.toThrow(/expire_edge_a requires edge_a_id/);
+  });
+});
+
+// ============================================
 // MCP tool dispatch (cae.8)
 // ============================================
 

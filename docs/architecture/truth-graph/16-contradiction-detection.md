@@ -103,8 +103,10 @@ CREATE TABLE public.contradictions (
   ),
   CONSTRAINT valid_resolution_type CHECK (
     resolution_type IS NULL OR resolution_type IN (
-      'expire_a', 'expire_b', 'expire_both', 'reconcile', 'both_valid',
-      'invalidate_a', 'invalidate_b', 'dismissed'
+      'expire_a', 'expire_b', 'expire_both',
+      'invalidate_a', 'invalidate_b',
+      'expire_edge_a', 'expire_edge_b', 'expire_both_edges',
+      'reconcile', 'both_valid', 'dismissed'
     )
   ),
   CONSTRAINT valid_severity CHECK (severity IN ('critical', 'high', 'medium', 'low')),
@@ -299,6 +301,7 @@ Reasoning agent system prompt gets a new phase block:
       contradiction_id: { type: 'string', format: 'uuid' },
       resolution_type: {
         enum: ['expire_a', 'expire_b', 'expire_both', 'invalidate_a', 'invalidate_b',
+               'expire_edge_a', 'expire_edge_b', 'expire_both_edges',
                'reconcile', 'both_valid', 'dismissed'],
       },
       resolution_reasoning: { type: 'string', minLength: 20 },
@@ -330,6 +333,12 @@ export async function resolveContradiction(params: {
       break;
     case 'expire_b': /* similar */; break;
     case 'invalidate_a': /* similar */; break;
+    case 'expire_edge_a':
+      if (!contradiction.edgeAId) throw new Error('expire_edge_a requires edge_a_id');
+      await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: params.resolutionReasoning, actor: params.actor });
+      break;
+    case 'expire_edge_b': /* similar on edgeBId */; break;
+    case 'expire_both_edges': /* both edges */; break;
     case 'both_valid':
     case 'dismissed':
       // No mutation — just mark resolved
