@@ -393,14 +393,69 @@ describe('cross-cluster benchmark — synthetic-10k', () => {
     // because synthetic-10k's ground-truth bridge pairs are intra-
     // component (all in component_0), and Phase 4 by design only targets
     // cross-component pairs. groundTruthDistribution captures this so the
-    // 0 recall is interpretable. Updating the synthetic generator to
-    // produce cross-component bridges is tracked as follow-up work.
+    // 0 recall is interpretable. The cross-component sibling fixture
+    // (`synthetic-10k-cross-component`, nmemo-2yv.95) is the recall-gated
+    // variant; this `synthetic-10k` suite is retained as the intra-component
+    // baseline so existing snapshot infrastructure stays stable.
     expect(report.score.recall).toBeGreaterThanOrEqual(0);
     expect(report.groundTruthDistribution).toBeDefined();
   });
 
   it('precision is RECORDED in the benchmark report', () => {
     expect(report.score.precision).toBeGreaterThanOrEqual(0);
+  });
+
+  it('total wall clock under doc 25 §5.1 hard cap (150s)', () => {
+    expect(report.totalElapsedMs).toBeLessThan(150_000);
+  });
+});
+
+/**
+ * Cross-component synthetic fixture (nmemo-2yv.95). Same shape as the
+ * synthetic-10k suite above, but the underlying snapshot is generated in
+ * `cross-component` mode — the 50 bridge pairs land across distinct
+ * connected components, which is the regime Phase 4's cross-cluster
+ * generator is designed to target. Recall is gated here (doc 25 §5.2:
+ * recall >= 0.6, precision >= 0.3) because the fixture supports it; the
+ * intra-component synthetic-10k suite above remains as the legacy
+ * baseline whose ground-truth shape is structurally invisible to Phase 4.
+ */
+describe('cross-cluster benchmark — synthetic-10k-cross-component', () => {
+  let report: BenchmarkReport;
+  beforeAll(async (ctx) => {
+    if (!existsSync(VENV_PYTHON)) {
+      console.warn('[benchmark] venv python not found — skipping');
+      skipCtx(ctx);
+      return;
+    }
+    await ensureSnapshot('synthetic-10k-cross-component');
+    report = await runBenchmark('synthetic-10k-cross-component');
+    writeReport('synthetic-10k-cross-component', report);
+  }, 1_200_000);
+
+  it('generator ran end-to-end on 10k entities', () => {
+    expect(report.generator.ran).toBe(true);
+    expect(report.topology.entity_count).toBe(10_000);
+  });
+
+  it('ground-truth bridges are cross-component (no same-component / unknown pairs)', () => {
+    // The whole point of the cross-component fixture: every ground-truth
+    // bridge pair sits across two distinct connected components. If any
+    // pair lands in the sameComponent or unknown bucket, the cross-cluster
+    // facts / non-bridge same_as_links suppression in cross-component mode
+    // failed to isolate the cluster modes — regenerate the snapshot with
+    // `pnpm snapshot:ensure --force synthetic-10k-cross-component`.
+    expect(report.groundTruthDistribution.crossComponent).toBeGreaterThan(0);
+    expect(report.groundTruthDistribution.sameComponent).toBe(0);
+    expect(report.groundTruthDistribution.unknown).toBe(0);
+  });
+
+  it('recall >= 0.6 (doc 25 §5.2 acceptance)', () => {
+    expect(report.score.recall).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it('precision >= 0.3 (doc 25 §5.2 acceptance)', () => {
+    expect(report.score.precision).toBeGreaterThanOrEqual(0.3);
   });
 
   it('total wall clock under doc 25 §5.1 hard cap (150s)', () => {

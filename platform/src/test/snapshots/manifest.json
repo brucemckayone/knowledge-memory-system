@@ -159,6 +159,49 @@
       "regeneration_command": "pnpm snapshot:synthetic synthetic-10k",
       "deterministic": true,
       "notes": "Same generator as synthetic-1k. Targets §5.1 thresholds (<30s generate, <5s load). Plain-format dump strategy as synthetic-1k."
+    },
+    {
+      "name": "synthetic-10k-cross-component",
+      "kind": "synthetic",
+      "description": "10000 deterministic synthetic entities across 5 cluster modes with 50 bridge pairs, generated in cross-component mode (no cross-cluster facts, no non-bridge same_as_links). Each cluster mode becomes its own connected graph component, so the 50 bridge pairs are genuine cross-component bridges — exactly what Phase 4 (cross-cluster generator, doc 25 §2.1) is designed to target. Sibling of synthetic-10k; the two coexist because synthetic-10k still serves as the intra-component fixture for the existing snapshot suite, while this variant is the recall-gated fixture. Tracked under nmemo-2yv.95.",
+      "generator_params": {
+        "entity_count": 10000,
+        "cluster_count": 5,
+        "facts_per_entity_mean": 3.2,
+        "centroid_dim": 768,
+        "bridge_pairs": 50,
+        "seed": 42,
+        "mode": "cross-component"
+      },
+      "pg_dump_flags": [
+        "--format=plain",
+        "--no-owner",
+        "--no-privileges",
+        "--no-tablespaces",
+        "--no-comments",
+        "--no-publications",
+        "--no-subscriptions",
+        "--no-security-labels"
+      ],
+      "pg_dump_format": "plain",
+      "files": {
+        "postgres": "test-snapshots/synthetic-10k-cross-component/cognitive.dump",
+        "ground_truth": "test-snapshots/synthetic-10k-cross-component/ground_truth.json"
+      },
+      "expected_hashes": {},
+      "schema_version": 29,
+      "postgres_version": "16",
+      "stats": {
+        "total_entities": 10000,
+        "total_facts": 32000,
+        "total_memories": 25014,
+        "bridge_pairs_count": 50,
+        "ingest_time_ms": 0
+      },
+      "regenerated_at": null,
+      "regeneration_command": "pnpm snapshot:synthetic synthetic-10k-cross-component",
+      "deterministic": true,
+      "notes": "Cross-component variant of synthetic-10k (nmemo-2yv.95 follow-up to nmemo-a7f.4.1). Suppresses the 5% cross-cluster fact prob and the non-bridge same_as_links pass, so each of the 5 cluster modes becomes a separate connected graph component. Bridge pairs land across distinct components (annotated with component_a_id / component_b_id in ground_truth.json) — Phase 4's cross-cluster generator can score these correctly. expected_hashes is empty on first commit and populates on first successful regeneration; the cross-cluster-generator.snapshot.test.ts 'synthetic-10k-cross-component' suite gates recall >= 0.6 / precision >= 0.3 against this fixture (doc 25 §5.2). schema_version 29 covers migrations 017-029 added since the synthetic-1k / synthetic-10k baselines."
     }
   ]
 }

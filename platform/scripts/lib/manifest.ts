@@ -42,6 +42,24 @@ export interface IngestParams {
   run_gardening?: boolean;
 }
 
+/**
+ * Synthetic generator mode. Controls whether bridge pairs land in the same
+ * graph component or across distinct components.
+ *
+ * - `intra-component` (default; backwards-compatible with synthetic-1k /
+ *   synthetic-10k): cross-cluster facts at ~5% probability and non-bridge
+ *   same_as_links link entities across cluster modes, so the cluster modes
+ *   collapse to a single connected component. Bridge entities pinned to
+ *   different cluster modes are nonetheless intra-component because the
+ *   cross-cluster fact wiring connects them through the graph.
+ * - `cross-component`: cross-cluster facts and non-bridge same_as_links are
+ *   suppressed, so each cluster mode becomes its own connected component.
+ *   Bridge entities pinned to different modes are then cross-component. Phase
+ *   4 (cross-cluster generator) by design only targets cross-component pairs,
+ *   so this is the fixture against which recall is meaningfully gated.
+ */
+export type SyntheticGeneratorMode = 'intra-component' | 'cross-component';
+
 export interface GeneratorParams {
   entity_count: number;
   cluster_count: number;
@@ -49,6 +67,12 @@ export interface GeneratorParams {
   centroid_dim: number;
   bridge_pairs: number;
   seed: number;
+  /**
+   * Defaults to `intra-component` when absent (preserves the synthetic-1k /
+   * synthetic-10k contract). Set to `cross-component` to seed bridges across
+   * distinct graph components. Tracked under nmemo-2yv.95.
+   */
+  mode?: SyntheticGeneratorMode;
 }
 
 export interface SnapshotStats {

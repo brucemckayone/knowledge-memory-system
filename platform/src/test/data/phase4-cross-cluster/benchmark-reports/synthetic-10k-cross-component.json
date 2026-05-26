@@ -1,0 +1,61 @@
+{
+  "snapshot": "synthetic-10k-cross-component",
+  "generatedAt": "pending-first-run",
+  "weights": {
+    "cluster": 0.35,
+    "drift_a": 0.125,
+    "drift_b": 0.125,
+    "role": 0.2,
+    "centrality": 0.15,
+    "articulation": 0.05
+  },
+  "thresholds": {
+    "MIN_COMPONENT_SIZE": "default(2)",
+    "MIN_K_CORE_FOR_BRIDGE": "default(1)",
+    "BRIDGE_SCORE_THRESHOLD": "default(0.3)",
+    "MAX_CANDIDATES_PER_COMPONENT_PAIR": "default(5)",
+    "DRIFT_RECENCY_DAYS": "default(30)"
+  },
+  "topology": {
+    "entity_count": 0,
+    "edge_count": 0,
+    "pagerank_max": 0
+  },
+  "clustering": {
+    "entity_count": 0,
+    "cluster_count": 0,
+    "noise_count": 0
+  },
+  "generator": {
+    "ran": false,
+    "componentPairsEvaluated": 0,
+    "candidatesInserted": 0,
+    "driftDrivenCandidates": 0,
+    "durationMs": 0
+  },
+  "score": {
+    "recall": 0,
+    "precision": 0,
+    "f1": 0,
+    "truePositives": 0,
+    "falsePositives": 0,
+    "falseNegatives": 50,
+    "candidatesEmitted": 0,
+    "groundTruthSize": 50
+  },
+  "perSignalContributions": {
+    "cluster": { "mean": 0, "max": 0, "nonZero": 0 },
+    "drift_a": { "mean": 0, "max": 0, "nonZero": 0 },
+    "drift_b": { "mean": 0, "max": 0, "nonZero": 0 },
+    "role": { "mean": 0, "max": 0, "nonZero": 0 },
+    "centrality": { "mean": 0, "max": 0, "nonZero": 0 },
+    "articulation": { "mean": 0, "max": 0, "nonZero": 0 }
+  },
+  "groundTruthDistribution": {
+    "crossComponent": 0,
+    "sameComponent": 0,
+    "unknown": 0
+  },
+  "totalElapsedMs": 0,
+  "notes": "Pending first-run baseline (nmemo-2yv.95). The cross-cluster-generator.snapshot.test.ts 'synthetic-10k-cross-component' suite overwrites this file on each successful run. Until the first run lands against live infrastructure (Postgres + Qdrant + ml-services on port 8000 + venv python), the values above are placeholder zeros and crossComponent=0. Doc 25 §5.2 acceptance gates: recall >= 0.6, precision >= 0.3, wall-clock < 150s. The sibling synthetic-10k.json baseline carries the intra-component variant for comparison; both fixtures will coexist long-term — intra-component as the legacy snapshot for incidental coverage, cross-component as the recall-gated fixture."
+}

@@ -61,7 +61,14 @@ const QDRANT_COLLECTION = 'memories';
  * resulting centroids sit at cosine distance well under 0.05 from the mode.
  */
 const SIGMA_INTRA_CLUSTER = 0.01;
-const CROSS_CLUSTER_FACT_PROB = 0.05;
+/**
+ * Probability that a randomly-drawn fact crosses cluster modes when running
+ * the default `intra-component` mode. The 5% cross-cluster prob is what
+ * collapses the five cluster modes into a single connected component in the
+ * `intra-component` fixture. `cross-component` mode zeroes this out (see
+ * `effectiveCrossClusterFactProb`).
+ */
+const CROSS_CLUSTER_FACT_PROB_DEFAULT = 0.05;
 const CENTROID_SANITY_MAX_DISTANCE = 0.15;
 
 interface SyntheticEntity {
@@ -79,6 +86,24 @@ interface BridgePair {
   a: string;
   b: string;
   reason: string;
+  /**
+   * When the generator runs in `cross-component` mode, each bridge pair is
+   * annotated with the cluster modes the two endpoints are pinned to. The
+   * Phase 4 scorer (cross-cluster-generator.snapshot.test.ts) uses these to
+   * separate cross-component hits from same-component noise without
+   * re-querying `entity_topology`. Absent in `intra-component` mode for
+   * backwards compatibility with the synthetic-1k / synthetic-10k fixtures.
+   */
+  component_a_id?: number;
+  component_b_id?: number;
+}
+
+function resolveMode(params: GeneratorParams): 'intra-component' | 'cross-component' {
+  return params.mode ?? 'intra-component';
+}
+
+function effectiveCrossClusterFactProb(params: GeneratorParams): number {
+  return resolveMode(params) === 'cross-component' ? 0 : CROSS_CLUSTER_FACT_PROB_DEFAULT;
 }
 
 export async function generateSynthetic(name: string): Promise<{
@@ -284,6 +309,7 @@ function layoutEntities(rng: SeededRandom, p: GeneratorParams): {
 
   // Seed the bridge entities first so their cluster pinning is determined
   // independently of the round-robin assignment used for the rest.
+  const annotateComponentIds = resolveMode(p) === 'cross-component';
   for (let bIdx = 0; bIdx < bridgeModePairs.length; bIdx++) {
     const [modeA, modeB] = bridgeModePairs[bIdx]!;
     const aId = uuidv5(`${p.seed}|bridge|${bIdx}|a`, SYNTHETIC_NS);
@@ -310,7 +336,17 @@ function layoutEntities(rng: SeededRandom, p: GeneratorParams): {
       bridgeIndex: bIdx,
       memoryIds: [],
     });
-    bridgePairs.push({ a: aId, b: bId, reason: `bridge_pair_${bIdx}` });
+    // In cross-component mode the cluster id IS the component id (each cluster
+    // becomes its own connected component because cross-cluster facts and
+    // non-bridge same_as_links are suppressed). In intra-component mode the
+    // five clusters collapse to one connected component, so component_a_id /
+    // component_b_id annotations would be misleading and are omitted.
+    const pair: BridgePair = { a: aId, b: bId, reason: `bridge_pair_${bIdx}` };
+    if (annotateComponentIds) {
+      pair.component_a_id = modeA;
+      pair.component_b_id = modeB;
+    }
+    bridgePairs.push(pair);
   }
 
   for (let i = entities.length; i < p.entity_count; i++) {
@@ -508,9 +544,10 @@ async function writeFacts(
       created_at: Date;
     }> = [];
 
+    const crossClusterProb = effectiveCrossClusterFactProb(params);
     for (let f = 0; f < targetTotal; f++) {
       const subject = entities[rng.nextInt(0, entities.length - 1)]!;
-      const isCrossCluster = rng.next() < CROSS_CLUSTER_FACT_PROB && !subject.isBridge;
+      const isCrossCluster = rng.next() < crossClusterProb && !subject.isBridge;
       let object: SyntheticEntity;
       if (isCrossCluster) {
         const otherCluster = pickOtherCluster(rng, subject.cluster, params.cluster_count);
@@ -658,6 +695,14 @@ async function writeNonBridgeSameAsLinks(
   bridgeModePairs: Array<[number, number]>,
   params: GeneratorParams,
 ): Promise<void> {
+  // Cross-component mode: skip entirely. The non-bridge same_as_links pass
+  // links entities across distinct cluster modes, which creates inter-cluster
+  // graph edges and merges the five clusters into a single connected
+  // component — defeating the cross-component contract this mode exists to
+  // provide. Bridge pairs remain the only cross-cluster signal.
+  if (resolveMode(params) === 'cross-component') {
+    return;
+  }
   // Stay clear of bridge-pair cluster pairs: per §3.3 step 7, bridge entities
   // must not be linked by same_as_links. The simplest invariant is "no
   // same_as_links between any two clusters that participate in a bridge pair."
