@@ -13,6 +13,8 @@ import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, gardeningReports } from './db/index.js';
 import { isNull, sql, eq } from 'drizzle-orm';
 import { getMergeCandidates } from './services/graph-meta.js';
+import { ml } from './services/ml-client.js';
+import { checkQdrantHealth } from './services/qdrant.js';
 import type { ReconciliationDriftInvoker } from './services/causal-agent.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -21,8 +23,13 @@ const vizHtmlPath = join(__dirname, '../viz/index.html');
 export const app = new Hono();
 
 app.get('/health', async (c) => {
-  const db = await checkDatabaseHealth();
-  return c.json({ status: db ? 'ok' : 'degraded', db });
+  const [db, mlOk, qdrantOk] = await Promise.all([
+    checkDatabaseHealth(),
+    ml.health(),
+    checkQdrantHealth(),
+  ]);
+  const status = db && mlOk && qdrantOk ? 'ok' : 'degraded';
+  return c.json({ status, db, ml: mlOk, qdrant: qdrantOk });
 });
 
 // `contentType` (optional) hints the graph agent: 'prose' | 'code-ts' | 'code-sql'.
