@@ -110,21 +110,6 @@ app.get('/viz/js/*', async (c) => {
   }
 });
 
-// Test endpoint for entity summary tools
-app.post('/api/viz/test-summary', async (c) => {
-  const { handleToolCall } = await import('./services/causal-agent.js');
-  const body = await c.req.json<{ entity_id: string; summary: string }>();
-  const result = await handleToolCall('update_entity_summary', body);
-  return c.json(JSON.parse(result));
-});
-app.get('/api/viz/test-query-facts', async (c) => {
-  const { handleToolCall } = await import('./services/causal-agent.js');
-  const entityId = c.req.query('entity_id');
-  if (!entityId) return c.json({ error: 'entity_id required' }, 400);
-  const result = await handleToolCall('query_entity_facts', { entity_id: entityId });
-  return c.json(JSON.parse(result));
-});
-
 app.get('/api/viz/unified', async (c) => {
   // Fetch all data in parallel
   const [ents, fcts, memLinks, events, edges_raw, metaRows, candidates, sameAsRows] = await Promise.all([
