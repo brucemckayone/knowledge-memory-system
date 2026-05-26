@@ -109,26 +109,33 @@ export async function createFact(params: CreateFactParams): Promise<string> {
   if (existingMatch[0]) {
     // Exact match exists — update confidence and source, don't create duplicate.
     // The confidence bump is itself a mutation; record it if confidence actually changed.
+    // Bead nmemo-2yv.29: wrap UPDATE + recordFactChange in one transaction so a
+    // failed audit insert rolls the confidence bump back. Without this, a CHECK
+    // violation (e.g. bad actor) commits the UPDATE then throws, leaving a fact
+    // with newer confidence and no history row recording the change.
     const existing = existingMatch[0];
     const prevConfidence = existing.confidence ?? 0;
     const nextConfidence = Math.max(prevConfidence, confidence);
 
-    await db.update(facts).set({
-      confidence: nextConfidence,
-      sourceMemoryId: sourceMemoryId ?? undefined,
-    }).where(eq(facts.id, existing.id));
+    await db.transaction(async (tx) => {
+      await tx.update(facts).set({
+        confidence: nextConfidence,
+        sourceMemoryId: sourceMemoryId ?? undefined,
+      }).where(eq(facts.id, existing.id));
 
-    if (nextConfidence > prevConfidence) {
-      await recordFactChange({
-        factId: existing.id,
-        eventType: 'confidence_raised',
-        previousConfidence: prevConfidence,
-        newConfidence: nextConfidence,
-        reasoning: reasoning ?? 'Corroborating observation raised confidence on existing fact',
-        actor,
-        reasoningReportId,
-      });
-    }
+      if (nextConfidence > prevConfidence) {
+        await recordFactChange({
+          factId: existing.id,
+          eventType: 'confidence_raised',
+          previousConfidence: prevConfidence,
+          newConfidence: nextConfidence,
+          reasoning: reasoning ?? 'Corroborating observation raised confidence on existing fact',
+          actor,
+          reasoningReportId,
+          tx,
+        });
+      }
+    });
     return existing.id;
   }
 

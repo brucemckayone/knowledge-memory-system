@@ -252,6 +252,49 @@ describe('Phase 1 — Audit Trail Foundation', () => {
       expect(rows[0]!.expired_at).toBeNull();
       expect(rows[0]!.invalid_at).toBeNull();
     });
+
+    // Bead nmemo-2yv.29 regression: the dedup-and-corroborate branch of
+    // createFact wraps its UPDATE + recordFactChange in db.transaction so a
+    // failing audit insert (here: actor value the CHECK constraint rejects)
+    // rolls the confidence bump back. Without the wrap the fact would have
+    // committed a newer confidence with no history row recording the change.
+    it('createFact dedup-and-corroborate path rolls back the confidence bump if recordFactChange throws (bead nmemo-2yv.29)', async () => {
+      const { subjectId, objectId } = await seedTwoEntities();
+      const initialFactId = await createFact({
+        subjectEntityId: subjectId,
+        predicate: 'works_at',
+        objectEntityId: objectId,
+        confidence: 0.4,
+        sourceText: 'baseline',
+        actor: 'graph_agent',
+      });
+
+      const beforeRows = await testDb`SELECT confidence FROM facts WHERE id = ${initialFactId}::uuid`;
+      const prevConfidence = (beforeRows[0]!.confidence as number);
+      const historyBefore = await getFactHistory(initialFactId);
+      expect(historyBefore).toHaveLength(1); // created
+
+      // Second call hits the dedup branch (same subject + predicate + object,
+      // not expired). New confidence is higher → confidence_raised path → calls
+      // recordFactChange. The invalid actor trips the valid_fact_actor CHECK
+      // on fact_history (009 §47-50), and the wrap in db.transaction must
+      // roll back the UPDATE that just bumped confidence.
+      await expect(createFact({
+        subjectEntityId: subjectId,
+        predicate: 'works_at',
+        objectEntityId: objectId,
+        confidence: 0.9,
+        sourceText: 'corroborating observation',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentional CHECK violation
+        actor: 'no_such_actor' as any,
+      })).rejects.toBeDefined();
+
+      const afterRows = await testDb`SELECT confidence FROM facts WHERE id = ${initialFactId}::uuid`;
+      expect(afterRows[0]!.confidence).toBeCloseTo(prevConfidence, 5);
+
+      const historyAfter = await getFactHistory(initialFactId);
+      expect(historyAfter).toHaveLength(1); // no new row
+    });
   });
 
   describe('causal_edge_history', () => {
