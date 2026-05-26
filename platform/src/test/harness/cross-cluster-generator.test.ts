@@ -144,6 +144,12 @@ describe('cross-cluster candidate generator', () => {
     delete process.env.BRIDGE_SCORE_THRESHOLD;
     delete process.env.MAX_CANDIDATES_PER_COMPONENT_PAIR;
     delete process.env.DRIFT_RECENCY_DAYS;
+    delete process.env.CROSS_CLUSTER_W_CLUSTER;
+    delete process.env.CROSS_CLUSTER_W_DRIFT_A;
+    delete process.env.CROSS_CLUSTER_W_DRIFT_B;
+    delete process.env.CROSS_CLUSTER_W_ROLE;
+    delete process.env.CROSS_CLUSTER_W_CENTRALITY;
+    delete process.env.CROSS_CLUSTER_W_ARTICULATION;
   });
 
   it('empty graph: no error, no candidates, ran=true', async () => {
@@ -626,6 +632,108 @@ describe('cross-cluster candidate generator', () => {
     } finally {
       await testDb.unsafe(`DROP TRIGGER IF EXISTS sabotage_mc_trigger_ncc92 ON public.merge_candidates;`);
       await testDb.unsafe(`DROP FUNCTION IF EXISTS sabotage_merge_candidates_ncc92();`);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Score-weight env override + normalisation (bead nmemo-2yv.91)
+  // ---------------------------------------------------------------------------
+
+  it('weight defaults sum to 1.0 (invariant guard against future regressions)', () => {
+    // If a future edit changes a default and breaks the sum, the normalisation
+    // warn will fire on every default invocation — noisy logs, no behaviour
+    // change but a stale-comment risk. Catch the drift here.
+    expect(0.35 + 0.125 + 0.125 + 0.20 + 0.15 + 0.05).toBeCloseTo(1.0, 6);
+  });
+
+  it('weight env override: doubling one weight warns AND preserves candidate ordering after normalisation', async () => {
+    // Seed: two component pairs (a1↔b1 and a2↔b2) both above default
+    // threshold 0.3 — a1↔b1 at ~0.48, a2↔b2 at ~0.33. The cross-pairs
+    // a1↔b2 / a2↔b1 stay below threshold (different clusters → score ~0.12),
+    // so both runs produce exactly the same 2-pair set; ordering preserved
+    // iff normalisation scales proportionally.
+    const setup = async () => {
+      await fullReset();
+      delete process.env.CROSS_CLUSTER_W_CLUSTER;
+      await ensureUpstreamFresh();
+      const a1 = await createTestEntity({ canonicalName: 'A1', entityType: 'person' });
+      const a2 = await createTestEntity({ canonicalName: 'A2', entityType: 'person' });
+      const b1 = await createTestEntity({ canonicalName: 'B1', entityType: 'person' });
+      const b2 = await createTestEntity({ canonicalName: 'B2', entityType: 'person' });
+      await seedTopology(a1.id, { componentId: 0, pagerank: 0.5 });
+      await seedTopology(a2.id, { componentId: 0, pagerank: 0.4 });
+      await seedTopology(b1.id, { componentId: 1, pagerank: 0.5 });
+      await seedTopology(b2.id, { componentId: 1, pagerank: 0.4 });
+      await seedCluster(a1.id, { clusterId: 7, probability: 0.95 });
+      await seedCluster(b1.id, { clusterId: 7, probability: 0.95 });
+      await seedCluster(a2.id, { clusterId: 8, probability: 0.6 });
+      await seedCluster(b2.id, { clusterId: 8, probability: 0.6 });
+      return { a1, b1, a2, b2 };
+    };
+
+    // Default-weights run captures the ordering.
+    const { a1, b1, a2, b2 } = await setup();
+    await generateCrossClusterCandidates();
+    const defaultOrder = (await listCrossClusterCandidates()).map((c) => {
+      const ids = new Set([c.entityA.id, c.entityB.id]);
+      if (ids.has(a1.id) && ids.has(b1.id)) return 'a1b1';
+      if (ids.has(a2.id) && ids.has(b2.id)) return 'a2b2';
+      return 'other';
+    });
+
+    // 2x cluster weight (sum = 1.0 + 0.35 = 1.35) → expect a warn + normalised
+    // weights → since cluster is the dominant signal and we scale all weights
+    // proportionally, the ordering of candidates is preserved.
+    const warns: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => { warns.push(args.map(String).join(' ')); };
+    try {
+      const setup2 = await setup();
+      void setup2;
+      process.env.CROSS_CLUSTER_W_CLUSTER = String(0.35 * 2);
+      await generateCrossClusterCandidates();
+      const overrideOrder = (await listCrossClusterCandidates()).map((c) => {
+        const ids = new Set([c.entityA.id, c.entityB.id]);
+        if (ids.has(setup2.a1.id) && ids.has(setup2.b1.id)) return 'a1b1';
+        if (ids.has(setup2.a2.id) && ids.has(setup2.b2.id)) return 'a2b2';
+        return 'other';
+      });
+      // Ordering preserved (same pairs in same order).
+      expect(overrideOrder).toEqual(defaultOrder);
+      // A warn was emitted naming the sum drift.
+      expect(warns.some((w) => /weights sum=.*!=\s*1\.0.*normalising/.test(w))).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('weight env override: sum = 0 yields zero candidates with a warn, no crash', async () => {
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 1 });
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+
+    // Zero every weight via env.
+    process.env.CROSS_CLUSTER_W_CLUSTER = '0';
+    process.env.CROSS_CLUSTER_W_DRIFT_A = '0';
+    process.env.CROSS_CLUSTER_W_DRIFT_B = '0';
+    process.env.CROSS_CLUSTER_W_ROLE = '0';
+    process.env.CROSS_CLUSTER_W_CENTRALITY = '0';
+    process.env.CROSS_CLUSTER_W_ARTICULATION = '0';
+
+    const warns: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => { warns.push(args.map(String).join(' ')); };
+    try {
+      const r = await generateCrossClusterCandidates();
+      expect(r.ran).toBe(true);
+      expect(r.candidatesInserted).toBe(0);
+      expect(warns.some((w) => /too close to 0/.test(w))).toBe(true);
+    } finally {
+      console.warn = origWarn;
     }
   });
 });

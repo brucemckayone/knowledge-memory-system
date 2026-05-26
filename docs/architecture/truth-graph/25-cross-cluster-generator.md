@@ -300,7 +300,7 @@ Under `platform/src/test/data/phase4-cross-cluster/benchmark-reports/`:
 | Two entities already in `merge_candidates` (any source) | Existing UNIQUE constraint on (entity_a_id, entity_b_id); INSERT does upsert (or skip — depending on existing logic). Verify no duplicate rows. |
 | Drift event for entity that's been deleted | drift_event row cascade-deleted; pipeline correctly handles missing entity. |
 | Concurrent generation invocations | Advisory lock `pg_try_advisory_lock(hashtext('cross_cluster_generator'))`; second call short-circuits with "generation in progress." Released on completion (or rolled back automatically on transaction end). Cold-eyes review B5 lock. |
-| Score weights sum != 1.0 | Pipeline normalises before comparing to threshold. |
+| Score weights sum != 1.0 | Pipeline normalises (each weight ÷ sum) before comparing to threshold AND emits a `console.warn` naming the drift so operator typos surface. Sum = 0 also warns; the run yields zero candidates. See bead nmemo-2yv.91. |
 | Score depends on a NULL column (e.g. pagerank not yet computed) | Treat as 0; component pair may still produce candidates from other signals. |
 
 ## 7. Iteration cycle
@@ -347,6 +347,26 @@ Weights are not magic. The protocol:
 2. **Grid-search post-hoc.** After each Phase 4 benchmark run on `synthetic-10k` ground truth, an offline analysis grid-searches weights in `[0, 0.5]` × 6 dimensions (subject to `sum=1.0`) for F1-optimal at recall ≥ 0.6. Top-3 candidate weight vectors logged.
 3. **Adoption requires evidence.** A weight vector change ships only if it improves F1 AND maintains recall ≥ 0.6 on at least two distinct snapshots (`synthetic-10k` + `mixed-narrative-technical-1k`). One-snapshot wins are noise.
 4. **Per-corpus tuning is future work.** For now, one weight vector applies globally. If real-world ingest produces consistent per-corpus underperformance, revisit.
+
+#### Env-override workflow (bead nmemo-2yv.91)
+
+Operators tune weights without source edits via these env vars (each defaults to the §6 reference value):
+
+| Env var                          | Signal           | Default |
+|----------------------------------|------------------|---------|
+| `CROSS_CLUSTER_W_CLUSTER`        | embedding match  | 0.35    |
+| `CROSS_CLUSTER_W_DRIFT_A`        | drift A→B        | 0.125   |
+| `CROSS_CLUSTER_W_DRIFT_B`        | drift B→A        | 0.125   |
+| `CROSS_CLUSTER_W_ROLE`           | role similarity  | 0.20    |
+| `CROSS_CLUSTER_W_CENTRALITY`     | centrality match | 0.15    |
+| `CROSS_CLUSTER_W_ARTICULATION`   | articulation     | 0.05    |
+
+Behaviour:
+
+- Weights read per `generateCrossClusterCandidates()` invocation — restart not required.
+- If `|sum - 1.0| > 1e-3`, the pipeline normalises each weight (`w_i / sum`) before scoring AND emits a `console.warn` naming the sum drift. Operator typo (e.g. only setting one weight) surfaces instead of being silently rescaled.
+- If `sum == 0`, the pipeline emits a separate warn and yields zero candidates (no crash, no NaN scores).
+- `BRIDGE_SCORE_THRESHOLD` stays calibrated against the normalised weighted sum (bounded by 1), so threshold semantics are preserved across weight changes.
 
 ### 7.5 Forward evolution
 

@@ -66,14 +66,60 @@ function maxCandidatesPerPair(): number { return envInt('MAX_CANDIDATES_PER_COMP
 /** Drift event recency window for the §2.2 drift signal (days). */
 function driftRecencyDays(): number { return envInt('DRIFT_RECENCY_DAYS', 30); }
 
-// Score weights (§2.2). Sum should be 1.0; if env-overridden, we don't enforce
-// re-normalisation — the threshold compares directly to the raw weighted sum.
-const W_CLUSTER = 0.35;       // w1
-const W_DRIFT_A = 0.125;      // w2
-const W_DRIFT_B = 0.125;      // w3
-const W_ROLE = 0.20;          // w4
-const W_CENTRALITY = 0.15;    // w5
-const W_ARTICULATION = 0.05;  // w6
+// Score weight defaults (§2.2). Per-invocation env-override + normalisation
+// applies in computeWeights() — see bead nmemo-2yv.91. Operators tune via
+// CROSS_CLUSTER_W_<NAME>; the pipeline normalises and emits a console.warn
+// when |sum - 1.0| > 1e-3 so typos surface instead of being silently rescaled.
+const W_CLUSTER_DEFAULT = 0.35;       // w1
+const W_DRIFT_A_DEFAULT = 0.125;      // w2
+const W_DRIFT_B_DEFAULT = 0.125;      // w3
+const W_ROLE_DEFAULT = 0.20;          // w4
+const W_CENTRALITY_DEFAULT = 0.15;    // w5
+const W_ARTICULATION_DEFAULT = 0.05;  // w6
+
+interface ScoreWeights {
+  cluster: number;
+  driftA: number;
+  driftB: number;
+  role: number;
+  centrality: number;
+  articulation: number;
+}
+
+/** Per-invocation: read env overrides for each weight, normalise if the sum
+ *  drifts from 1.0, and warn so operators notice typos. Returns a vector that
+ *  always sums to 1.0 (or all-zero, when every weight is zeroed). */
+function computeWeights(): ScoreWeights {
+  const raw: ScoreWeights = {
+    cluster:      envFloat('CROSS_CLUSTER_W_CLUSTER',      W_CLUSTER_DEFAULT),
+    driftA:       envFloat('CROSS_CLUSTER_W_DRIFT_A',      W_DRIFT_A_DEFAULT),
+    driftB:       envFloat('CROSS_CLUSTER_W_DRIFT_B',      W_DRIFT_B_DEFAULT),
+    role:         envFloat('CROSS_CLUSTER_W_ROLE',         W_ROLE_DEFAULT),
+    centrality:   envFloat('CROSS_CLUSTER_W_CENTRALITY',   W_CENTRALITY_DEFAULT),
+    articulation: envFloat('CROSS_CLUSTER_W_ARTICULATION', W_ARTICULATION_DEFAULT),
+  };
+  const sum = raw.cluster + raw.driftA + raw.driftB + raw.role + raw.centrality + raw.articulation;
+  const EPS = 1e-3;
+  // Abs check catches both exact-zero (every weight zeroed) and near-zero
+  // (mixed-sign cancellation like +0.5 + -0.5 + …). Without this, the
+  // normalise branch would divide by ~0 and produce astronomical weights.
+  if (Math.abs(sum) < EPS) {
+    console.warn(`[cross-cluster] score weights sum=${sum.toExponential(2)} too close to 0; pipeline will produce no candidates. Check CROSS_CLUSTER_W_* env vars.`);
+    return raw;
+  }
+  if (Math.abs(sum - 1.0) > EPS) {
+    console.warn(`[cross-cluster] score weights sum=${sum.toFixed(4)} != 1.0; normalising. Check CROSS_CLUSTER_W_* env overrides.`);
+    return {
+      cluster:      raw.cluster / sum,
+      driftA:       raw.driftA / sum,
+      driftB:       raw.driftB / sum,
+      role:         raw.role / sum,
+      centrality:   raw.centrality / sum,
+      articulation: raw.articulation / sum,
+    };
+  }
+  return raw;
+}
 
 const ADVISORY_LOCK_KEY = 'cross_cluster_generator';
 
@@ -262,6 +308,7 @@ function scorePair(
   b: EntityRow,
   driftMap: Map<string, DriftRow>,
   maxGlobalPagerank: number,
+  weights: ScoreWeights,
 ): ScoredPair['contributions'] & { score: number } {
   // w1 — embedding cluster match. min(prob_a, prob_b) when same non-noise cluster.
   let cluster = 0;
@@ -286,11 +333,11 @@ function scorePair(
   // w6 — articulation bonus. 0.5 if either is articulation point.
   const articulation = (a.is_articulation_point || b.is_articulation_point) ? 0.5 : 0;
   const score =
-    W_CLUSTER * cluster
-    + W_DRIFT_A * drift_a + W_DRIFT_B * drift_b
-    + W_ROLE * role
-    + W_CENTRALITY * centrality
-    + W_ARTICULATION * articulation;
+    weights.cluster * cluster
+    + weights.driftA * drift_a + weights.driftB * drift_b
+    + weights.role * role
+    + weights.centrality * centrality
+    + weights.articulation * articulation;
   return { cluster, drift_a, drift_b, role, centrality, articulation, score };
 }
 
@@ -412,6 +459,9 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
     let maxGlobalPagerank = 0;
     for (const e of entities) if ((e.pagerank ?? 0) > maxGlobalPagerank) maxGlobalPagerank = e.pagerank!;
 
+    // Per-invocation weights: env-overridable + normalised. See bead nmemo-2yv.91.
+    const weights = computeWeights();
+
     // Bucket entities by component, and capture the doc 25 §2 "A.size" via
     // the entity_topology.component_size metadata column. Bucket length and
     // component_size differ when k_core filtering drops entities — A.size is
@@ -453,7 +503,7 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
         const scored: ScoredPair[] = [];
         for (const a of aBucket) {
           for (const b of bBucket) {
-            const c = scorePair(a, b, driftMap, maxGlobalPagerank);
+            const c = scorePair(a, b, driftMap, maxGlobalPagerank, weights);
             if (c.score < threshold) continue;
             scored.push({
               entityA: a.entity_id, entityB: b.entity_id,
@@ -494,7 +544,7 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
         if (e.cluster_id !== drift.target_cluster_id) continue;
         if (e.component_id === driftedEntity.component_id) continue;
         if (driftedEntity.component_id === null || e.component_id === null) continue;
-        const c = scorePair(driftedEntity, e, driftMap, maxGlobalPagerank);
+        const c = scorePair(driftedEntity, e, driftMap, maxGlobalPagerank, weights);
         const key = driftedEntity.entity_id < e.entity_id
           ? `${driftedEntity.entity_id}|${e.entity_id}`
           : `${e.entity_id}|${driftedEntity.entity_id}`;
