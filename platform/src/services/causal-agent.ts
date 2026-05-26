@@ -974,6 +974,39 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
   },
 ];
 
+/**
+ * Tools that mutate the graph. Serialised in `handleToolCall` — the dispatcher
+ * is the single source of truth for write ordering across BOTH transports
+ * (Pi bridge + MCP). Bead nmemo-2yv.127 — without this, the MCP transport
+ * (graph-mcp.ts) would dispatch concurrent `tools/call` messages with no
+ * mutex on writes, racing on entity resolution / merge / expiry.
+ *
+ * Hand-maintained because the alternative (a `mutates: boolean` field on
+ * ToolDefinition) spreads the policy across 33 tool defs and makes the
+ * "which tools mutate?" answer harder to grep, not easier. One central set,
+ * one grep, one source of truth.
+ */
+const WRITE_TOOLS = new Set<string>([
+  'create_causal_edge', 'create_fact', 'resolve_entity', 'link_entity_to_memory',
+  'add_entity_alias', 'update_entity_summary', 'create_same_as_link', 'execute_merge',
+  'resolve_candidate', 'expire_fact', 'invalidate_fact', 'restore_fact',
+  'update_fact_confidence', 'expire_causal_edge', 'revise_causal_edge',
+  'resolve_contradiction', 'save_reasoning_report',
+]);
+
+/**
+ * Per-process serialisation queue for write tools. Reads run freely; writes
+ * chain through the queue so two simultaneous `tool_use` blocks from one
+ * Claude message run in order, regardless of transport.
+ *
+ * Queue fails OPEN — a prior write's failure does NOT block subsequent
+ * writes. Operationally this matters: a transient DB write failure during a
+ * patrol cycle would otherwise convert into a denial-of-service on every
+ * downstream write in the same process. The `.catch(() => undefined)` below
+ * absorbs the prior failure so the next write runs regardless.
+ */
+let writeQueue: Promise<unknown> = Promise.resolve();
+
 // ============================================
 // Tool Handlers
 // ============================================
@@ -1033,14 +1066,27 @@ export async function handleToolCall(
   console.error(`[mcp:${toolCallCount}:${resolved.agent}] ${toolName}(${inputSummary})`);
   const startTime = Date.now();
 
-  try {
-    const result = await _handleToolCallInner(toolName, toolInput, resolved);
-    console.error(`[mcp:${toolCallCount}:${resolved.agent}] ${toolName} OK +${Date.now() - startTime}ms (${result.length} chars)`);
-    return result;
-  } catch (err) {
-    console.error(`[mcp:${toolCallCount}:${resolved.agent}] ${toolName} ERROR +${Date.now() - startTime}ms: ${err}`);
-    throw err;
+  const run = async (): Promise<string> => {
+    try {
+      const result = await _handleToolCallInner(toolName, toolInput, resolved);
+      console.error(`[mcp:${toolCallCount}:${resolved.agent}] ${toolName} OK +${Date.now() - startTime}ms (${result.length} chars)`);
+      return result;
+    } catch (err) {
+      console.error(`[mcp:${toolCallCount}:${resolved.agent}] ${toolName} ERROR +${Date.now() - startTime}ms: ${err}`);
+      throw err;
+    }
+  };
+
+  // Bead nmemo-2yv.127: serialise write tools through writeQueue so both
+  // transports (Pi + MCP) inherit consistent write ordering. Reads run freely.
+  // Queue fails open — a prior failure does not block subsequent writes.
+  if (WRITE_TOOLS.has(toolName)) {
+    const prev = writeQueue.catch(() => undefined);
+    const next = prev.then(run);
+    writeQueue = next;
+    return next;
   }
+  return run();
 }
 
 async function _handleToolCallInner(

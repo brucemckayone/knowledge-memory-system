@@ -67,8 +67,11 @@ function buildPiTools(actor: string) {
       label: toolDef.name,
       description: toolDef.description,
       parameters: jsonSchemaToTypeBox(toolDef.inputSchema as Record<string, unknown>),
-      // Tools that write to the DB should run sequentially to avoid races
-      executionMode: isWriteTool(toolDef.name) ? 'sequential' : 'parallel',
+      // Bead nmemo-2yv.127: write-tool serialisation moved into the shared
+      // `handleToolCall` dispatcher so BOTH transports (Pi + MCP) inherit it.
+      // Pi's per-tool executionMode is now unconditionally 'parallel' — the
+      // dispatcher's writeQueue is the single source of truth for ordering.
+      executionMode: 'parallel',
       execute: async (_toolCallId, params, _signal, _onUpdate) => {
         const context: ToolCallContext = {
           agent: actor as ToolCallContext['agent'],
@@ -81,18 +84,6 @@ function buildPiTools(actor: string) {
       },
     }),
   );
-}
-
-const WRITE_TOOLS = new Set([
-  'create_causal_edge', 'create_fact', 'resolve_entity', 'link_entity_to_memory',
-  'add_entity_alias', 'update_entity_summary', 'create_same_as_link', 'execute_merge',
-  'resolve_candidate', 'expire_fact', 'invalidate_fact', 'restore_fact',
-  'update_fact_confidence', 'expire_causal_edge', 'revise_causal_edge',
-  'resolve_contradiction', 'save_reasoning_report',
-]);
-
-function isWriteTool(name: string): boolean {
-  return WRITE_TOOLS.has(name);
 }
 
 // ============================================

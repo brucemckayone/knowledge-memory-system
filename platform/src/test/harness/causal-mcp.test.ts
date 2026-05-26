@@ -182,3 +182,87 @@ describe('B06: Causal MCP server', () => {
     expect(JSON.parse(result).error).toBe('Memory not found');
   });
 });
+
+// ===========================================================================
+// Bead nmemo-2yv.127 — write-tool serialisation in handleToolCall
+// ===========================================================================
+describe('B06: write-tool serialisation (nmemo-2yv.127)', () => {
+  it('two concurrent create_fact calls both complete; both rows persist (queue does not deadlock)', async () => {
+    const subj = await createTestEntity({ canonicalName: 'WriteRaceSubj', entityType: 'person' });
+    const obj1 = await createTestEntity({ canonicalName: 'WriteRaceObj1', entityType: 'location' });
+    const obj2 = await createTestEntity({ canonicalName: 'WriteRaceObj2', entityType: 'location' });
+
+    const [r1, r2] = await Promise.all([
+      handleToolCall('create_fact', {
+        subject_entity_id: subj.id, predicate: 'visited',
+        object_entity_id: obj1.id, confidence: 0.9,
+      }),
+      handleToolCall('create_fact', {
+        subject_entity_id: subj.id, predicate: 'visited',
+        object_entity_id: obj2.id, confidence: 0.9,
+      }),
+    ]);
+
+    const p1 = JSON.parse(r1);
+    const p2 = JSON.parse(r2);
+    expect(p1.factId).toBeDefined();
+    expect(p2.factId).toBeDefined();
+    expect(p1.factId).not.toBe(p2.factId);
+
+    // Both rows persisted — the queue ran both writes to completion.
+    const rows = await testDb<{ id: string }[]>`
+      SELECT id FROM public.facts WHERE id IN (${p1.factId}::uuid, ${p2.factId}::uuid)
+    `;
+    expect(rows.length).toBe(2);
+
+    // Cleanup
+    await testDb.unsafe(`DELETE FROM facts WHERE subject_entity_id = '${subj.id}'`).catch(() => {});
+    await testDb.unsafe(`DELETE FROM entities WHERE id IN ('${subj.id}', '${obj1.id}', '${obj2.id}')`).catch(() => {});
+  });
+
+  it('queue fails open — a failing write does not block the next write in the chain', async () => {
+    const subj = await createTestEntity({ canonicalName: 'FailOpenSubj', entityType: 'person' });
+    const obj = await createTestEntity({ canonicalName: 'FailOpenObj', entityType: 'location' });
+
+    // First call targets a non-existent fact UUID — expire_fact will fail.
+    // Second call must complete with a normal create_fact result regardless.
+    // (Promise.all preserves array order at chain time — handleToolCall queues
+    //  both via writeQueue in array order; the second's .then runs after the
+    //  first's catch absorbs the failure.)
+    const settled = await Promise.allSettled([
+      handleToolCall('expire_fact', { fact_id: '00000000-0000-0000-0000-000000000000' }),
+      handleToolCall('create_fact', {
+        subject_entity_id: subj.id, predicate: 'lives_in',
+        object_entity_id: obj.id, confidence: 0.9,
+      }),
+    ]);
+
+    // The create_fact (second in array order) must have completed normally.
+    const second = settled[1]!;
+    expect(second.status).toBe('fulfilled');
+    if (second.status === 'fulfilled') {
+      const parsed = JSON.parse(second.value);
+      expect(parsed.factId).toBeDefined();
+    }
+
+    // Cleanup
+    await testDb.unsafe(`DELETE FROM facts WHERE subject_entity_id = '${subj.id}'`).catch(() => {});
+    await testDb.unsafe(`DELETE FROM entities WHERE id IN ('${subj.id}', '${obj.id}')`).catch(() => {});
+  });
+
+  it('reads run in parallel — two concurrent query_entity_facts calls both complete', async () => {
+    const a = await createTestEntity({ canonicalName: 'ReadParA', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'ReadParB', entityType: 'person' });
+
+    // query_entity_facts is NOT in WRITE_TOOLS, so these run without the queue.
+    // (No race risk on reads; this test documents the contract.)
+    const [r1, r2] = await Promise.all([
+      handleToolCall('query_entity_facts', { entity_id: a.id }),
+      handleToolCall('query_entity_facts', { entity_id: b.id }),
+    ]);
+    expect(JSON.parse(r1)).toBeDefined();
+    expect(JSON.parse(r2)).toBeDefined();
+
+    await testDb.unsafe(`DELETE FROM entities WHERE id IN ('${a.id}', '${b.id}')`).catch(() => {});
+  });
+});
