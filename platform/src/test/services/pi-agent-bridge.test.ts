@@ -58,8 +58,22 @@ describe('Pi Agent Bridge: tool conversion', () => {
     expect(unique.size).toBe(names.length);
   });
 
-  it('write tools are identified correctly', () => {
-    const WRITE_TOOLS = new Set([
+  it('every tool declares mutates: boolean explicitly', () => {
+    // Bead nmemo-2yv.113: the dispatcher's writeQueue (causal-agent.ts
+    // handleToolCall) and the bridge's startup assertion both depend on
+    // every GRAPH_TOOLS entry declaring `mutates: boolean` — undefined is not
+    // allowed (would coerce to falsy and silently route a write tool through
+    // the parallel-execution path).
+    for (const tool of GRAPH_TOOLS) {
+      expect(typeof tool.mutates, `tool "${tool.name}" missing mutates: boolean`).toBe('boolean');
+    }
+  });
+
+  it('expected write tools are flagged mutates: true', () => {
+    // The 17 known write tools from the design decision (bead .113).
+    // This guards against accidentally flipping a write tool to mutates: false,
+    // which would un-serialise it through the dispatcher's writeQueue.
+    const EXPECTED_WRITE_TOOLS = new Set([
       'create_causal_edge', 'create_fact', 'resolve_entity', 'link_entity_to_memory',
       'add_entity_alias', 'update_entity_summary', 'create_same_as_link', 'execute_merge',
       'resolve_candidate', 'expire_fact', 'invalidate_fact', 'restore_fact',
@@ -67,10 +81,11 @@ describe('Pi Agent Bridge: tool conversion', () => {
       'resolve_contradiction', 'save_reasoning_report',
     ]);
 
-    // Every write tool exists in GRAPH_TOOLS
-    for (const name of WRITE_TOOLS) {
-      expect(GRAPH_TOOLS.some(t => t.name === name), `write tool "${name}" not found`).toBe(true);
-    }
+    const actualWriteTools = new Set(
+      GRAPH_TOOLS.filter((t) => t.mutates).map((t) => t.name),
+    );
+
+    expect(actualWriteTools).toEqual(EXPECTED_WRITE_TOOLS);
   });
 
   it('all required parameters for each tool have descriptions', () => {

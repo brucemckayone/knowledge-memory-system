@@ -57,6 +57,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export interface ToolDefinition {
   name: string;
   description: string;
+  /**
+   * Bead nmemo-2yv.113: per-tool flag declaring whether the tool mutates graph
+   * state. Drives the dispatcher's write-serialisation queue (handleToolCall) and
+   * any transport-level concurrency policy (e.g. Pi bridge executionMode).
+   *
+   * Every tool MUST set this explicitly — there is no default. A startup
+   * assertion in pi-agent-bridge.ts (and a unit test in pi-agent-bridge.test.ts)
+   * catches missing flags before the bridge serves traffic.
+   */
+  mutates: boolean;
   inputSchema: {
     type: 'object';
     properties: Record<string, unknown>;
@@ -69,6 +79,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'query_entity_facts',
     description:
       'Get all active bi-temporal facts for a given entity. Returns facts where the entity is the subject.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -84,6 +95,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'query_entity_neighbours',
     description:
       'Traverse the knowledge graph to find entities connected to a given entity, optionally filtered by relationship type and depth.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -107,6 +119,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'search_similar_entities',
     description:
       'Semantic similarity search over all entities using pgvector. Find entities whose names/descriptions are semantically close to a query text.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -134,6 +147,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'search_memories',
     description:
       'Semantic search over source texts in the vector store. Find past inputs that are semantically related to a query.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -153,6 +167,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_memory_text',
     description:
       'Retrieve the full source text of a specific memory by ID.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -168,6 +183,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_causal_history',
     description:
       'Get existing causal chains involving a given entity. Returns causal events and edges from Graph C with reasoning, strength, and source references.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -183,6 +199,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'create_causal_edge',
     description:
       'Assert a causal link between two causal events with detailed reasoning and source references. Every edge must be auditable — provide thorough reasoning and list all sources that informed the conclusion.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -240,6 +257,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'resolve_entity',
     description:
       'Resolve a text mention to an existing entity or create a new one. Searches by embedding similarity and name matching. Returns the resolved entity with its canonical name and ID.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -263,6 +281,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'create_fact',
     description:
       'Create a relationship (fact) between two entities. Handles deduplication automatically — if the exact fact already exists, it returns the existing ID. For exclusive predicates (e.g. lives_in), supersedes the old value.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -314,6 +333,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_fact_source',
     description:
       'Get the source memory and text for a specific fact. Returns the source_text quote, the source memory ID, and a preview of the full source document.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -329,6 +349,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_entity_sources',
     description:
       'Get all source memories that mention a given entity. Returns the memory IDs, mention texts, and context snippets. Use this to trace an entity back to its original source material.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -344,6 +365,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'link_entity_to_memory',
     description:
       'Record that a specific entity was mentioned in a source memory. Creates the provenance link between the entity and the document it was found in.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -371,6 +393,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'add_entity_alias',
     description:
       'Register a discovered reference or alternative name for an entity. Use this when you find that an entity is referred to by a different name, title, pronoun pattern, or role in the text.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -394,6 +417,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'search_entity_aliases',
     description:
       'Search across all entity aliases for a text match. Use this during ORIENT to resolve references like "the stranger", "I", "the captain" to known entities. Returns matching entities with their canonical name, aliases, and summary.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -409,6 +433,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'update_entity_summary',
     description:
       'Update the living summary for an entity. Call this after creating facts to keep the entity profile current. The summary should describe who/what the entity is, their current state, narrative role, known aliases/references, and any unresolved ambiguities.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -431,6 +456,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'create_same_as_link',
     description:
       'Create a same_as identity link between two entities that represent the same real-world referent but serve different narrative roles. Both entities and ALL their facts are preserved — this is NOT a merge. Use this when entities should remain distinct nodes (e.g. "the stranger" described by Walton vs "Victor Frankenstein" who narrates his own story). Prefer this over execute_merge whenever the entities carry different narrative meaning.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -486,6 +512,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'execute_merge',
     description:
       'Destructively merge two entities into one. The source entity is DELETED and all its facts, aliases, memory links, and causal events are re-pointed to the target. Use this ONLY when both entities have the exact same meaning and keeping them separate adds no value (e.g. "R. Walton" and "Robert Walton" with identical facts). Prefer create_same_as_link when entities serve different narrative roles.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -514,6 +541,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'resolve_candidate',
     description:
       'Mark a merge candidate as resolved with a decision and reasoning. Call this AFTER executing a merge, creating a same_as link, or determining the entities are distinct. This closes the candidate so it is not re-evaluated.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -542,6 +570,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_reconciliation_context',
     description:
       'Get all context needed for reconciliation decisions in one call. Returns: unresolved merge candidates (with entity summaries + aliases), recent extraction reports, unconfirmed aliases, and orphan entities (zero facts). Call this at the start of a reconciliation session to understand what needs resolution.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -564,6 +593,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_graph_topology',
     description:
       'Pre-analyzed graph structure overview. Returns: summary stats, top 10 hub nodes, disconnected islands, isolates, orphans (mentioned but zero facts), and SPARSE LEAVES — entities with only 1-2 connections dangling off a hub. Sparse leaves look like islands visually even though they are technically connected. They are the primary targets for cross-linking. Designed for large graphs.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {},
@@ -577,6 +607,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'expire_fact',
     description:
       'Expire a fact (mark as incorrect or superseded in our records). Creates a causal event recording the expiry. Use when a fact is redundant, contradicted by newer evidence, or no longer valid.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -596,6 +627,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'invalidate_fact',
     description:
       'Invalidate a fact (mark as no longer true in reality, though it was once true). Creates a causal event.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -615,6 +647,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_neighbourhood_profile',
     description:
       'Get a comprehensive profile of an entity and its neighbourhood in a single call. Returns: entity details + summary, all active facts (as subject and object), direct neighbours, causal history, source memory count, and entity meta statistics.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -630,6 +663,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_reasoning_targets',
     description:
       'Get a ranked list of entities/neighbourhoods that need reasoning attention. Scores based on: fact density, causal event density, node degree, time since last reasoning pass.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -645,6 +679,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_reasoning_history',
     description:
       'Get prior reasoning reports that touched a given entity. Returns the most recent reports with their findings, actions taken, and timestamps.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -664,6 +699,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'save_reasoning_report',
     description:
       'Save a reasoning report ONCE at the very end of a reasoning pass. Call this exactly one time per /api/reason invocation — multiple calls create duplicate rows and break patrol cooldown. Aggregate findings across all phases first, then save with all entities/facts/edges deduplicated.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -710,6 +746,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_fact_history',
     description:
       'Get the full mutation history for a fact. Returns events in reverse chronological order (newest first). Call this BEFORE modifying or expiring a fact — understanding how something became what it is prevents unwinding recent, justified changes.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -729,6 +766,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_edge_history',
     description:
       'Get the full mutation history for a causal edge. Returns events in reverse chronological order. Call this to understand how an edge was formed, corroborated, and revised before acting on it.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -751,6 +789,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'update_fact_confidence',
     description:
       'Change a fact\'s confidence score. Writes a confidence_raised or confidence_lowered event to fact_history with your reasoning. Use when new evidence strengthens or weakens an existing fact without superseding it.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -765,6 +804,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'restore_fact',
     description:
       'Restore a previously expired or invalidated fact. Clears expired_at and invalid_at and writes a restored event to fact_history. Use after reviewing history and determining the earlier expiry was premature.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -778,6 +818,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'expire_causal_edge',
     description:
       'Expire a causal edge (soft-delete). Writes an expired event to causal_edge_history. Use when evidence no longer supports the causal link or an upstream fact was retracted.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -791,6 +832,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'revise_causal_edge',
     description:
       'Revise a causal edge — update strength and/or on-edge reasoning, optionally append source references. Writes a revised event preserving the previous values. Use when new evidence refines an existing causal conclusion without invalidating it.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -822,6 +864,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_contradictions',
     description:
       'Fetch contradictions detected by the SQL heuristics. Returns rows with full provenance (detection_reasoning, detection_context, severity). Defaults to unresolved only. Call this during PHASE 1.5 of the reasoning patrol to surface unresolved conflicts before deciding which neighbourhoods to investigate.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -845,6 +888,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'resolve_contradiction',
     description:
       'Apply a resolution to an open contradiction. Dispatches into expire/invalidate (when the resolution mutates a fact) and closes the contradiction record with full reasoning. Use after reading get_fact_history / get_edge_history for the involved nodes. Reasoning must be at least 20 characters.',
+    mutates: true,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -874,6 +918,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'analyze_blast_radius',
     description:
       'Compute the impact tree for a fact, entity, or causal_event: direct dependents, transitive causal chains (bidirectional, cycle-safe), citation dependents (via Phase 3 edge_source_refs index), and pattern impact. Each node is severity-scored (critical/high/medium/low). Use BEFORE expire_fact / invalidate_fact: pass hypothetical=expire to preview the cascade severity tally without mutating state. Critical/high severity dependents must be acknowledged in the resolution reasoning.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -908,6 +953,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_active_patterns',
     description:
       'List active causal patterns. Defaults to status=[provisional, canonical] — these are the patterns the system has validated as repeatable causal structures. Optional entity_id filter restricts to patterns the entity participates in (joins through causal_edges.pattern_id). Use during query mode to ground answers about processes/mechanisms in stable patterns.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -939,6 +985,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'find_causal_ghosts',
     description:
       'Find expected-but-missing causal links for an entity, based on canonical pattern templates. A "ghost" is the missing position when an entity covers N-1 of N edge positions in a known pattern. During patrol, call this for the central entity of the neighbourhood: for each high-confidence ghost, search source memories for evidence the missing link should exist before creating the edge.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -956,6 +1003,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     name: 'get_pattern_instances',
     description:
       'Get the concrete causal edges that instantiate a given pattern. Useful for audit: "which actual chains in the graph make this pattern canonical?". Returns up to `limit` edges ordered by pattern_position then created_at.',
+    mutates: false,
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -983,18 +1031,15 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
  * (graph-mcp.ts) would dispatch concurrent `tools/call` messages with no
  * mutex on writes, racing on entity resolution / merge / expiry.
  *
- * Hand-maintained because the alternative (a `mutates: boolean` field on
- * ToolDefinition) spreads the policy across 33 tool defs and makes the
- * "which tools mutate?" answer harder to grep, not easier. One central set,
- * one grep, one source of truth.
+ * Bead nmemo-2yv.113: derived at module load from the per-tool `mutates`
+ * field on each GRAPH_TOOLS entry. The flag is declared inline next to the
+ * tool definition so adding a new tool can't silently drift this set. A
+ * startup assertion in pi-agent-bridge.ts checks every tool has the flag set
+ * before serving traffic — converts a forgotten-field race into a startup error.
  */
-const WRITE_TOOLS = new Set<string>([
-  'create_causal_edge', 'create_fact', 'resolve_entity', 'link_entity_to_memory',
-  'add_entity_alias', 'update_entity_summary', 'create_same_as_link', 'execute_merge',
-  'resolve_candidate', 'expire_fact', 'invalidate_fact', 'restore_fact',
-  'update_fact_confidence', 'expire_causal_edge', 'revise_causal_edge',
-  'resolve_contradiction', 'save_reasoning_report',
-]);
+const WRITE_TOOLS = new Set<string>(
+  GRAPH_TOOLS.filter((t) => t.mutates).map((t) => t.name),
+);
 
 /**
  * Per-process serialisation queue for write tools. Reads run freely; writes

@@ -379,6 +379,35 @@ const server = createServer(async (req, res) => {
   sendJson(res, 404, { error: 'Not found' });
 });
 
+// ============================================
+// Startup assertions
+// ============================================
+
+/**
+ * Bead nmemo-2yv.113: Fail fast if any tool is missing the `mutates: boolean`
+ * flag. The dispatcher's writeQueue (causal-agent.ts handleToolCall) relies
+ * on this flag to know which tools to serialise. A forgotten field on a new
+ * write tool would otherwise silently degrade to `mutates === undefined`
+ * (falsy) → run-in-parallel → DB race on the resource the tool writes.
+ *
+ * Better to fail at process start than to lose writes at runtime.
+ */
+function assertMutatesFlagsDeclared(): void {
+  const missing: string[] = [];
+  for (const tool of GRAPH_TOOLS) {
+    if (typeof tool.mutates !== 'boolean') {
+      missing.push(tool.name);
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `Pi Agent Bridge refusing to start — ${missing.length} tool(s) missing required \`mutates: boolean\` flag: ${missing.join(', ')}`,
+    );
+  }
+}
+
+assertMutatesFlagsDeclared();
+
 server.listen(PORT, () => {
   console.error(`Pi Agent Bridge running on http://localhost:${PORT}`);
   console.error(`  GET  /health  — health check`);
