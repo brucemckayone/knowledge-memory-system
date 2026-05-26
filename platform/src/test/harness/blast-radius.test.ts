@@ -684,7 +684,7 @@ describe('Phase 4 — Severity scoring (nmemo-437.4)', () => {
     await cleanSlate();
   });
 
-  it('scores transitive depth=1 as high', async () => {
+  it('scores transitive depth=1 as high when effect has no other causes (nmemo-2yv.100)', async () => {
     const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
     const fact = await createTestFact({
       subjectEntityId: alice.id,
@@ -697,6 +697,47 @@ describe('Phase 4 — Severity scoring (nmemo-437.4)', () => {
 
     const transitive = report.transitiveChains.find((t) => t.depth === 1);
     expect(transitive?.severity).toBe('high');
+    expect(transitive?.otherCausesCount).toBe(0);
+  });
+
+  it('scores transitive depth=1 as medium when effect has 1-2 other causes (nmemo-2yv.100)', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events } = await setupChain(2, fact.id);
+    // Add ONE alternate cause for events[1] not originating from the root events[0].
+    const altCause = await insertCausalEvent({ factId: fact.id, transitionType: 'created' });
+    await insertCausalEdge({ causeEventId: altCause, effectEventId: events[1]! });
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: events[0]! });
+
+    const transitive = report.transitiveChains.find((t) => t.depth === 1 && t.effectEventId === events[1]);
+    expect(transitive?.severity).toBe('medium');
+    expect(transitive?.otherCausesCount).toBe(1);
+  });
+
+  it('scores transitive depth=1 as low when effect has >=3 other causes (nmemo-2yv.100)', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const { events } = await setupChain(2, fact.id);
+    // Add THREE alternate causes for events[1] not originating from the root.
+    for (let i = 0; i < 3; i++) {
+      const altCause = await insertCausalEvent({ factId: fact.id, transitionType: 'created' });
+      await insertCausalEdge({ causeEventId: altCause, effectEventId: events[1]! });
+    }
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: events[0]! });
+
+    const transitive = report.transitiveChains.find((t) => t.depth === 1 && t.effectEventId === events[1]);
+    expect(transitive?.severity).toBe('low');
+    expect(transitive?.otherCausesCount).toBe(3);
   });
 
   it('scores transitive depth=2 as medium', async () => {

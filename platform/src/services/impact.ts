@@ -54,6 +54,10 @@ export interface ImpactNode {
   edgesOutsideRoot?: number;
   /** Pattern-member only: declared length of the pattern template. */
   templateLength?: number;
+  /** Transitive-edge only: the edge's effect_event_id (propagated for severity scoring). */
+  effectEventId?: string;
+  /** Transitive depth=1 only: count of active edges into the same effect that don't originate from a root event. */
+  otherCausesCount?: number;
 }
 
 export interface RootNode {
@@ -138,6 +142,7 @@ export async function analyzeImpact(params: AnalyzeImpactParams): Promise<BlastR
     rootNodeType: nodeType,
     rootNodeId: nodeId,
     rootCorroboration: root.corroborationCount,
+    rootEventIds,
     hypothetical,
   });
 
@@ -512,6 +517,7 @@ async function findTransitiveChains(
     reasoning: `Reachable via ${r.depth}-hop causal chain (cause=${r.causeEventId}, effect=${r.effectEventId})`,
     strength: r.strength,
     corroborationCount: r.corroborationCount,
+    effectEventId: r.effectEventId,
   }));
 }
 
@@ -635,6 +641,7 @@ async function scoreSeverity(
     rootNodeType: RootNodeType;
     rootNodeId: string;
     rootCorroboration?: number;
+    rootEventIds?: string[];
     hypothetical?: HypotheticalAction;
   },
 ): Promise<void> {
@@ -659,6 +666,38 @@ async function scoreSeverity(
     `);
     for (const row of counts) {
       otherSourcesByEdge.set(row.edgeId, Number(row.otherCount));
+    }
+  }
+
+  // Rule 2 tiers depth-1 transitive nodes by alternate-cause count of the effect.
+  // Batch one query over the distinct effect_event_ids.
+  const depth1EffectIds = Array.from(
+    new Set(
+      nodes
+        .filter((n) => n.relationship === 'transitive' && n.depth === 1 && n.effectEventId)
+        .map((n) => n.effectEventId!),
+    ),
+  );
+  if (depth1EffectIds.length > 0 && ctx.rootEventIds && ctx.rootEventIds.length > 0) {
+    const effectsLiteral = `{${depth1EffectIds.join(',')}}`;
+    const rootsLiteral = `{${ctx.rootEventIds.join(',')}}`;
+    const counts = await rawQuery<{ effectEventId: string; otherCausesCount: number }>(sql`
+      SELECT
+        effect_event_id,
+        COUNT(*) FILTER (WHERE cause_event_id <> ALL(${rootsLiteral}::uuid[]))::integer AS other_causes_count
+      FROM public.causal_edges
+      WHERE effect_event_id = ANY(${effectsLiteral}::uuid[])
+        AND expired_at IS NULL
+      GROUP BY effect_event_id
+    `);
+    const byEffect = new Map<string, number>();
+    for (const row of counts) {
+      byEffect.set(row.effectEventId, Number(row.otherCausesCount));
+    }
+    for (const n of nodes) {
+      if (n.relationship === 'transitive' && n.depth === 1 && n.effectEventId) {
+        n.otherCausesCount = byEffect.get(n.effectEventId) ?? 0;
+      }
     }
   }
 
@@ -718,9 +757,12 @@ function pickSeverity(
     return 'critical';
   }
 
-  // Rule 2 — direct causal child / transitive depth=1
+  // Rule 2 — direct causal child / transitive depth=1, tiered by other-cause count of the effect.
   if (n.relationship === 'transitive' && n.depth === 1) {
-    return 'high';
+    const others = n.otherCausesCount ?? 0;
+    if (others === 0) return 'high';
+    if (others <= 2) return 'medium';
+    return 'low';
   }
 
   // Rule 3 — strong active citation

@@ -70,9 +70,10 @@ Five rules, evaluated in order. First match wins.
 | Condition | Severity |
 |-----------|----------|
 | Edge has corroboration_count >= 3 AND this node is its sole evidence | **critical** |
-| Direct causal child with no other causes | **high** |
+| Direct causal child / transitive depth=1, effect has no other active causes | **high** |
 | Citation dependent where edge is active and strength >= 0.7 | **high** |
-| Transitive chain at depth 1 | **high** |
+| Transitive depth=1, effect has 1-2 other active causes | **medium** |
+| Transitive depth=1, effect has >=3 other active causes | **low** |
 | Citation dependent where edge has multiple other sources | **medium** |
 | Direct fact sharing entity | **medium** |
 | Transitive chain at depth 2 | **medium** |
