@@ -888,7 +888,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
   {
     name: 'resolve_contradiction',
     description:
-      'Apply a resolution to an open contradiction. Dispatches into expire/invalidate (when the resolution mutates a fact) and closes the contradiction record with full reasoning. Use after reading get_fact_history / get_edge_history for the involved nodes. Reasoning must be at least 20 characters.',
+      'Apply a resolution to an open contradiction. Dispatches into expire/invalidate (when the resolution mutates a fact) and closes the contradiction record with full reasoning. Use after reading get_fact_history / get_edge_history for the involved nodes. Reasoning must be at least 20 characters. When resolution_type is "dismissed", dismissed_reason is REQUIRED (short kebab-case tag identifying the dismissal category, e.g. "predicate-semantics-permits-multi", "aliased-predicate") — the call will reject without it.',
     mutates: true,
     inputSchema: {
       type: 'object' as const,
@@ -906,7 +906,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
         dismissed_reason: {
           type: 'string',
-          description: 'Required when resolution_type is "dismissed" — captures the dismissal rationale to dismissed_reason.',
+          description: 'REQUIRED when resolution_type is "dismissed" — short kebab-case categorical tag (e.g. "predicate-semantics-permits-multi", "aliased-predicate"). Distinct from resolution_reasoning (narrative): this is the tag that powers audit queries like "how many false positives by category?". The service rejects dismissed resolutions that omit this field.',
         },
       },
       required: ['contradiction_id', 'resolution_type', 'resolution_reasoning'],

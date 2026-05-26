@@ -72,17 +72,33 @@ function renderContradictionsPanel(rows) {
 async function resolveContradictionUI(contradictionId) {
   const resolutionType = window.prompt(RESOLUTION_TYPE_PROMPT);
   if (!resolutionType) return;
+  const resolutionTypeTrimmed = resolutionType.trim();
   const resolutionReasoning = window.prompt('Reasoning (min 20 chars):');
   if (!resolutionReasoning || resolutionReasoning.trim().length < 20) {
     alert('Reasoning must be at least 20 characters.');
     return;
   }
 
+  // When dismissing, the server requires a short kebab-case categorical tag
+  // (dismissed_reason) so audit queries can group false positives by category.
+  // The narrative resolution_reasoning is not a substitute. See bead nmemo-2yv.40.
+  const body = {
+    resolution_type: resolutionTypeTrimmed,
+    resolution_reasoning: resolutionReasoning,
+  };
+  if (resolutionTypeTrimmed === 'dismissed') {
+    const dismissedReason = window.prompt(
+      'Dismissal category (short kebab-case tag, e.g. aliased-predicate, predicate-semantics-permits-multi):',
+    );
+    if (!dismissedReason || !dismissedReason.trim()) {
+      alert('Dismissed resolutions require a dismissal category tag.');
+      return;
+    }
+    body.dismissed_reason = dismissedReason.trim();
+  }
+
   try {
-    await resolveContradiction(contradictionId, {
-      resolution_type: resolutionType.trim(),
-      resolution_reasoning: resolutionReasoning,
-    });
+    await resolveContradiction(contradictionId, body);
     await refreshContradictions();
   } catch (err) {
     alert(`Resolve failed: ${err.message}`);

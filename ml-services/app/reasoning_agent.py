@@ -209,7 +209,9 @@ PHASE 1.5: CONTRADICTIONS (3-5 calls)
        both_valid               both stand (e.g. non-exclusive predicate, distinct
                                 temporal windows). Cite the windowing in reasoning.
        reconcile                no mutation; agent narrates the reconciliation
-       dismissed                false positive (provide dismissed_reason)
+       dismissed                false positive (REQUIRED: provide dismissed_reason
+                                as a short kebab-case categorical tag — the call
+                                will reject without it)
 
   4. Apply via resolve_contradiction(contradiction_id, resolution_type,
      resolution_reasoning) — the dispatcher chains into expireFact /
@@ -220,7 +222,9 @@ PHASE 1.5: CONTRADICTIONS (3-5 calls)
   Rules:
   - Prefer both_valid only when temporal windowing or non-exclusive predicate
     semantics legitimately accommodate both.
-  - Use dismissed only for clear false positives — provide dismissed_reason.
+  - Use dismissed only for clear false positives — provide dismissed_reason
+    (short kebab-case categorical tag; the service rejects dismissed
+    resolutions without it).
   - Never resolve without reading the involved nodes' history first.
 
 PHASE 2: INVESTIGATE (30-40 calls)

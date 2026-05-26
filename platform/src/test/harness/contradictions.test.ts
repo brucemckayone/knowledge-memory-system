@@ -459,6 +459,54 @@ describe('Phase 5 — resolveContradiction dispatcher (nmemo-cae.7)', () => {
     expect(c?.dismissedReason).toBe('predicate-semantics-permits-multi');
   });
 
+  // ============================================
+  // Dismissed-reason server-enforcement (nmemo-2yv.40)
+  //
+  // resolution_type='dismissed' MUST carry a non-empty dismissed_reason — the
+  // short kebab-case categorical tag that powers "false positives by category"
+  // audit queries. Pre-fix, dismissedReason flowed through as NULL silently;
+  // these guards lock the contract at the service boundary.
+  // ============================================
+
+  it('rejects dismissed without dismissed_reason', async () => {
+    const { contradictionId } = await seedOpposingContradiction();
+    await expect(
+      resolveContradiction({
+        contradictionId,
+        resolutionType: 'dismissed',
+        resolutionReasoning: 'False positive — the predicate semantics here permit multiple objects.',
+        actor: 'reasoning_agent',
+        // dismissedReason omitted
+      }),
+    ).rejects.toThrow(/dismissed_reason is required/);
+  });
+
+  it('rejects dismissed with empty-string dismissed_reason', async () => {
+    const { contradictionId } = await seedOpposingContradiction();
+    await expect(
+      resolveContradiction({
+        contradictionId,
+        resolutionType: 'dismissed',
+        resolutionReasoning: 'False positive — the predicate semantics here permit multiple objects.',
+        actor: 'reasoning_agent',
+        dismissedReason: '',
+      }),
+    ).rejects.toThrow(/dismissed_reason is required/);
+  });
+
+  it('rejects dismissed with whitespace-only dismissed_reason', async () => {
+    const { contradictionId } = await seedOpposingContradiction();
+    await expect(
+      resolveContradiction({
+        contradictionId,
+        resolutionType: 'dismissed',
+        resolutionReasoning: 'False positive — the predicate semantics here permit multiple objects.',
+        actor: 'reasoning_agent',
+        dismissedReason: '   ',
+      }),
+    ).rejects.toThrow(/dismissed_reason is required/);
+  });
+
   it('reconcile closes without mutation', async () => {
     const { contradictionId, factAId, factBId } = await seedOpposingContradiction();
     await resolveContradiction({

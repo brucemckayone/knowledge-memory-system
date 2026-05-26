@@ -275,6 +275,7 @@ Reasoning agent system prompt gets a new phase block:
 > Rules:
 > - Prefer `both_valid` only when temporal windowing could legitimately allow both (e.g. "works_at Acme (2020-2022)" and "works_at Globex (2022-present)")
 > - Use `dismissed` only for false positives with clear explanation
+> - When `resolution_type='dismissed'`, `dismissed_reason` is **required**: a short kebab-case categorical tag (e.g. `aliased-predicate`, `predicate-semantics-permits-multi`) distinct from the narrative `resolution_reasoning`. The service rejects dismissed resolutions that omit it. The tag enables audit queries like "how many false positives by category?".
 > - Every resolution MUST cite evidence — the history rows of the facts/edges involved
 
 ### MCP Tools
@@ -305,6 +306,10 @@ Reasoning agent system prompt gets a new phase block:
                'reconcile', 'both_valid', 'dismissed'],
       },
       resolution_reasoning: { type: 'string', minLength: 20 },
+      // Conditional: required when resolution_type === 'dismissed'. Not in
+      // the static `required` array because JSON Schema conditional-required
+      // is awkward; the service-layer throw is the authority.
+      dismissed_reason: { type: 'string' },
     },
     required: ['contradiction_id', 'resolution_type', 'resolution_reasoning'],
   },
@@ -328,7 +333,18 @@ export async function resolveContradiction(params: {
   resolutionReasoning: string;
   actor: Actor;
   reasoningReportId?: string;
+  dismissedReason?: string;  // required when resolutionType === 'dismissed'
 }): Promise<void> {
+  // Reasoning length gate (existing).
+  if (!params.resolutionReasoning || params.resolutionReasoning.trim().length < 20) {
+    throw new Error('reasoning must be at least 20 characters');
+  }
+  // Dismissed-reason gate (bead nmemo-2yv.40): dismissed must carry a
+  // categorical tag, distinct from the narrative reasoning. Without it,
+  // audit queries that group false positives by category can't run.
+  if (params.resolutionType === 'dismissed' && (!params.dismissedReason || !params.dismissedReason.trim())) {
+    throw new Error("dismissed_reason is required when resolution_type is 'dismissed'");
+  }
   await db.transaction(async (tx) => {
     // Row-lock — concurrent callers block here until this tx commits.
     const [contradiction] = await tx.execute(sql`

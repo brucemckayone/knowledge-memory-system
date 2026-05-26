@@ -407,6 +407,18 @@ export async function resolveContradiction(
     );
   }
 
+  // When resolution_type is 'dismissed', dismissed_reason is required: it is a
+  // short kebab-case categorical tag that captures *why* the contradiction was
+  // a false positive (distinct from resolution_reasoning, which is a 20+ char
+  // narrative). Without the tag, the audit query "how many false positives by
+  // category?" can't be run and dismissed rows look "resolved" with no
+  // structural explanation. See bead nmemo-2yv.40.
+  if (resolutionType === 'dismissed' && (!params.dismissedReason || !params.dismissedReason.trim())) {
+    throw new Error(
+      `resolveContradiction: dismissed_reason is required when resolution_type is 'dismissed' (short kebab-case categorical tag)`,
+    );
+  }
+
   // Pre-mutation blast-radius severity captured per resolution type:
   //   - expire_a / expire_b / invalidate_a / invalidate_b → SeveritySummary
   //   - expire_edge_a / expire_edge_b                     → SeveritySummary
