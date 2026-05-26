@@ -24,6 +24,7 @@ import {
   filterResolvedPairs,
   type PairInput,
 } from './merge-scorer.js';
+import { getGraphStats } from './graph-stats.js';
 
 // Minimum mentions before an entity is eligible for merge analysis
 const MIN_MENTIONS_FOR_ANALYSIS = 2;
@@ -201,8 +202,15 @@ export async function detectMergeCandidates(entityIds: string[]): Promise<number
   const eligible = await filterResolvedPairs(pairs, db);
   if (eligible.length === 0) return 0;
 
+  // Bead nmemo-2yv.43 — read graph_stats once per batch and pass to the
+  // scorer so weights adapt to the current graph distribution (centroid
+  // saturation, single-cluster collapse). Null is fine: the scorer treats
+  // null/undefined identically (no adaptation), so a freshly-migrated DB
+  // with no graph_stats row falls back cleanly to static weights.
+  const graphStats = await getGraphStats();
+
   // ONE set-based SQL pass for nine-signal scoring.
-  const scored = await scoreMergeCandidates(eligible, { runner: db });
+  const scored = await scoreMergeCandidates(eligible, { runner: db, graphStats });
 
   // Threshold filter — STAGING is the floor; CANDIDATE is the promotion line.
   const kept = scored.filter((s) => s.combinedScore >= SCORE_THRESHOLD_STAGING);

@@ -47,6 +47,7 @@ import {
   type PairInput,
   type ScoredCandidate,
 } from './merge-scorer.js';
+import { getGraphStats } from './graph-stats.js';
 
 // =============================================================================
 // Tunable knobs (env-overridable per doc 25 §3.x)
@@ -465,9 +466,18 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
       const [a, b] = k.split('|');
       allPairs.push({ entityAId: a!, entityBId: b! });
     }
+    // Bead nmemo-2yv.43 — read graph_stats once per generator run and pass
+    // into the scorer for adaptive weighting. Read uses the module-level
+    // `db` handle (separate connection from `tx`) so it doesn't observe the
+    // in-flight transaction's uncommitted writes — that's the right snapshot
+    // (graph_stats is a singleton refreshed by its own /compute path; the
+    // scorer wants the most recently committed view, not whatever this run
+    // is partway through writing). Null is fine — adaptWeights() handles
+    // null identically to "static weights".
+    const graphStats = allPairs.length === 0 ? null : await getGraphStats();
     const scored = allPairs.length === 0
       ? []
-      : await scoreMergeCandidates(allPairs, { runner: tx, weights: scorerWeights });
+      : await scoreMergeCandidates(allPairs, { runner: tx, weights: scorerWeights, graphStats });
 
     // Apply policies per partition:
     //   §2.2 (driftDriven=false): drop below BRIDGE_SCORE_THRESHOLD; cap by

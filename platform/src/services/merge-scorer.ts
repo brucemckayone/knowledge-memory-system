@@ -51,12 +51,20 @@
  * No migration here — bead .43 (adaptive weighting) may promote signals to
  * columns if aggregate queries need them.
  *
- * Weights stay STATIC in this bead (a config struct merged with optional
- * caller overrides). Bead .43 wires graph_stats-driven adaptive weighting.
+ * Weights stay STATIC at the base level (a config struct merged with optional
+ * caller overrides). Bead .43 wires `graph_stats`-driven adaptive modulation
+ * on top: when a `MergeScorerCtx.graphStats` snapshot is supplied, the scorer
+ * derates signals whose aggregate distribution makes them uninformative for
+ * the current graph (saturated centroids, single-cluster graphs) and
+ * redistributes the slack proportionally over the remaining non-zero weights.
+ * The effective weight vector + the snapshot used are recorded per-pair in
+ * `merge_candidates.scoring_version` (JSONB, mig 025) so two runs against
+ * different graph states are mutually explicable.
  */
 
 import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
+import type { GraphStats } from './graph-stats.js';
 
 // =============================================================================
 // Configuration
@@ -76,8 +84,9 @@ export interface MergeScorerWeights {
 
 /** Default static weights for the nine signals. Sum to 1.0; this is the
  *  invariant that future tunings must preserve. Callers may override per-call
- *  via ctx.weights. Future bead .43 wires graph_stats-driven adaptive
- *  weighting; for now these are the F1a defaults. */
+ *  via ctx.weights. Bead .43 layers `adaptWeights()` on top — call-site
+ *  modulation against graph_stats happens AFTER the base/override pick, so
+ *  these defaults always describe the "naïve" pre-adaptation weights. */
 export const DEFAULT_WEIGHTS: MergeScorerWeights = Object.freeze({
   centroidSimilarity:        0.15,
   memoryOverlap:             0.15,
@@ -89,6 +98,169 @@ export const DEFAULT_WEIGHTS: MergeScorerWeights = Object.freeze({
   articulationBonus:         0.07,
   componentMatch:            0.05,
 });
+
+// =============================================================================
+// Adaptive weighting (bead nmemo-2yv.43, doc 22 §2.2 row 2)
+// =============================================================================
+
+/** Centroid-similarity-saturation threshold. When the graph's p90-p10 spread
+ *  is below this, every entity's centroid sits near every other's — the
+ *  signal carries no discriminative information and its weight is halved.
+ *  Sourced from the bead's locked Scoped fix; not env-overridable (operators
+ *  would override the symptom rather than tune the rule). */
+const CENTROID_SATURATION_SPREAD = 0.1;
+
+/** A trimmed snapshot of graph_stats columns the modulation rules consume.
+ *  Stored verbatim in scoring_version so the audit record is self-contained
+ *  — readers don't have to join back to graph_stats to know what state
+ *  produced the score. */
+export interface GraphStatsSnapshot {
+  centroid_sim_p10:         number | null;
+  centroid_sim_p90:         number | null;
+  embedding_cluster_count:  number | null;
+  computed_at:              string | null;
+}
+
+/** The audit blob written to merge_candidates.scoring_version. */
+export interface ScoringVersion {
+  weights:               MergeScorerWeights;
+  graph_stats_snapshot:  GraphStatsSnapshot | null;
+  /** False when adaptWeights() returned the base weights unchanged (either no
+   *  snapshot supplied, or both rules' guards failed). Lets a forensic query
+   *  filter "rows scored under adaptive vs static" without comparing vectors. */
+  adapted:               boolean;
+}
+
+function toSnapshot(stats: GraphStats | null | undefined): GraphStatsSnapshot | null {
+  if (!stats) return null;
+  return {
+    centroid_sim_p10:        stats.centroidSimP10,
+    centroid_sim_p90:        stats.centroidSimP90,
+    embedding_cluster_count: stats.embeddingClusterCount,
+    computed_at:             stats.computedAt instanceof Date
+      ? stats.computedAt.toISOString()
+      : null,
+  };
+}
+
+/** The keys of MergeScorerWeights, used by adaptWeights() to enumerate the
+ *  "other" weights when redistributing slack from a derated signal.
+ *  `satisfies ReadonlyArray<keyof MergeScorerWeights>` is the compile-time
+ *  guard against drift if a new signal weight is added to the interface. */
+const WEIGHT_KEYS = [
+  'centroidSimilarity',
+  'memoryOverlap',
+  'structuralSimilarity',
+  'clusterMatch',
+  'predicateSignatureCosine',
+  'driftRecencyEither',
+  'centralityMatch',
+  'articulationBonus',
+  'componentMatch',
+] as const satisfies ReadonlyArray<keyof MergeScorerWeights>;
+
+/**
+ * Redistribute `slack` (a positive weight removed from one signal) over the
+ * remaining `keepers` proportionally to their existing weights. Returns a new
+ * vector. If every keeper weight is zero (degenerate edge case — caller
+ * zeroed everything else), the slack is dropped on the floor; the resulting
+ * sum drifts below 1.0 and downstream NULL-renormalisation in
+ * computeCombinedScore handles it.
+ *
+ * Pure function — does not mutate `base`.
+ */
+function redistribute(
+  base: MergeScorerWeights,
+  slack: number,
+  keepers: ReadonlyArray<keyof MergeScorerWeights>,
+): MergeScorerWeights {
+  if (slack <= 0 || keepers.length === 0) return base;
+  let keepersSum = 0;
+  for (const k of keepers) keepersSum += base[k];
+  if (keepersSum <= 0) return base; // every keeper already zero — see header
+  const out: MergeScorerWeights = { ...base };
+  for (const k of keepers) {
+    out[k] = base[k] + slack * (base[k] / keepersSum);
+  }
+  return out;
+}
+
+/**
+ * Apply the bead's locked modulation rules against a graph_stats snapshot.
+ * Pure function — does not mutate `base`.
+ *
+ * Rules (bead .43 Scoped fix step 2):
+ *   1. centroid_sim_p90 - centroid_sim_p10 < CENTROID_SATURATION_SPREAD
+ *      → halve W_CENTROID, redistribute the removed half over the other
+ *        eight signals proportionally. Rationale: in a single-cluster
+ *        corpus every entity's centroid sits within a tight band; the
+ *        signal saturates near 1.0 across most pairs and carries no
+ *        information.
+ *   2. embedding_cluster_count <= 1 (or null — "we don't know" treated as
+ *      "no cluster signal info available")
+ *      → zero W_CLUSTER, redistribute the full weight. Rationale: with
+ *        one cluster (or no cluster compute yet), cluster_match is either
+ *        a tautology (every pair matches) or non-existent — keeping its
+ *        weight in the denominator depresses scores for the common case.
+ *
+ * Both rules can fire simultaneously: a single-cluster graph that's also
+ * centroid-saturated gets both adjustments, applied in order (rule 1 first
+ * so rule 2 redistributes against the already-adjusted vector).
+ *
+ * Returns `{ weights, adapted }`. `adapted=false` when neither rule fired
+ * (either guards failed or stats are null) — caller uses this to set the
+ * `scoring_version.adapted` flag.
+ */
+export function adaptWeights(
+  base: MergeScorerWeights,
+  stats: GraphStats | null | undefined,
+): { weights: MergeScorerWeights; adapted: boolean } {
+  if (!stats) return { weights: base, adapted: false };
+
+  let weights: MergeScorerWeights = { ...base };
+  let adapted = false;
+
+  // Rule 1 — centroid saturation. Both p10 and p90 must be present; without
+  // either, we can't measure spread and abstain (conservative — apply base
+  // weights, mark adapted=false).
+  const p10 = stats.centroidSimP10;
+  const p90 = stats.centroidSimP90;
+  if (p10 !== null && p90 !== null && (p90 - p10) < CENTROID_SATURATION_SPREAD) {
+    const half = weights.centroidSimilarity / 2;
+    weights = {
+      ...weights,
+      centroidSimilarity: weights.centroidSimilarity - half,
+    };
+    // Redistribute the removed half over every OTHER weight. Includes
+    // clusterMatch even if rule 2 will zero it next — rule 2 reads the
+    // already-redistributed vector, so the slack-into-cluster-then-back-out
+    // ordering keeps the centroid → others mapping clean.
+    weights = redistribute(
+      weights,
+      half,
+      WEIGHT_KEYS.filter((k) => k !== 'centroidSimilarity'),
+    );
+    adapted = true;
+  }
+
+  // Rule 2 — single-cluster / no-cluster-info. NULL is treated as "no info"
+  // (cluster compute hasn't run or graph is empty) — same handling as <= 1.
+  const cc = stats.embeddingClusterCount;
+  if (cc === null || cc <= 1) {
+    const w = weights.clusterMatch;
+    if (w > 0) {
+      weights = { ...weights, clusterMatch: 0 };
+      weights = redistribute(
+        weights,
+        w,
+        WEIGHT_KEYS.filter((k) => k !== 'clusterMatch'),
+      );
+      adapted = true;
+    }
+  }
+
+  return { weights, adapted };
+}
 
 /** Recent-drift window for the drift_recency_either signal. Days. */
 function driftRecencyDays(): number {
@@ -133,6 +305,13 @@ export interface ScoredCandidate {
   /** NULL-aware weighted average over non-NULL signals. Always in [0, 1] under
    *  default weights and signal-domain assumptions. */
   combinedScore: number;
+  /** Audit trail snapshot of the effective weight vector + graph_stats inputs
+   *  used to compute this row. One snapshot per scoreMergeCandidates call —
+   *  every ScoredCandidate in a batch shares the same object. Passed through
+   *  to upsertScoredCandidates and written to merge_candidates.scoring_version
+   *  (mig 025) so two rows scored under different adaptive states are
+   *  mutually explicable. Bead nmemo-2yv.43. */
+  scoringVersion: ScoringVersion;
 }
 
 /** Loose runner type — matches both the global drizzle `db` handle and the
@@ -140,10 +319,17 @@ export interface ScoredCandidate {
 type Runner = { execute: typeof db.execute };
 
 /** Per-call scoring context. The runner is required; weights default to
- *  DEFAULT_WEIGHTS. */
+ *  DEFAULT_WEIGHTS; graphStats is optional and enables bead .43 adaptive
+ *  modulation (see `adaptWeights()` for the locked rules). When graphStats
+ *  is omitted the scorer is bit-equivalent to the pre-.43 static path. */
 export interface MergeScorerCtx {
   runner: Runner;
   weights?: MergeScorerWeights;
+  /** When supplied, weights are adapted per-batch against this snapshot
+   *  before scoring. `null` is treated identically to `undefined` — no
+   *  adaptation — so callers can pass `await getGraphStats()` directly
+   *  without a NULL-check. */
+  graphStats?: GraphStats | null;
 }
 
 /** Per-call upsert context. The caller decides candidate_source, per-pair
@@ -187,7 +373,20 @@ export async function scoreMergeCandidates(
 ): Promise<ScoredCandidate[]> {
   if (pairs.length === 0) return [];
 
-  const weights = ctx.weights ?? DEFAULT_WEIGHTS;
+  // Base weights (caller override OR module default). Adaptive modulation
+  // (bead .43) layers on top — adaptWeights() consumes the graph_stats
+  // snapshot if one was supplied; returns the base unchanged otherwise.
+  const baseWeights = ctx.weights ?? DEFAULT_WEIGHTS;
+  const { weights, adapted } = adaptWeights(baseWeights, ctx.graphStats);
+  // One snapshot per batch — every ScoredCandidate produced by this call
+  // shares the same scoringVersion object. The audit row exists even when
+  // adaptation didn't fire (adapted=false) so static-path rows are still
+  // explainable; the `adapted` flag distinguishes them at query time.
+  const scoringVersion: ScoringVersion = {
+    weights,
+    graph_stats_snapshot: toSnapshot(ctx.graphStats),
+    adapted,
+  };
 
   // Canonicalise pair ordering (a < b) per merge_candidates CHECK constraint.
   // Caller-supplied order is preserved in the OUTPUT array by mapping back
@@ -389,7 +588,7 @@ export async function scoreMergeCandidates(
     ORDER BY p.pair_idx
   `)) as unknown as Array<RawSignalRow>;
 
-  return rawRows.map((r) => buildScoredCandidate(r, maxGlobalPagerank, weights));
+  return rawRows.map((r) => buildScoredCandidate(r, maxGlobalPagerank, weights, scoringVersion));
 }
 
 interface RawSignalRow {
@@ -418,6 +617,7 @@ function buildScoredCandidate(
   r: RawSignalRow,
   maxGlobalPagerank: number,
   weights: MergeScorerWeights,
+  scoringVersion: ScoringVersion,
 ): ScoredCandidate {
   // cluster_match: min(prob_a, prob_b) when same non-noise cluster. See the
   // module header for the rationale on min-vs-product. NULL when either side
@@ -476,6 +676,7 @@ function buildScoredCandidate(
     entityBId: r.b_id,
     signals,
     combinedScore: computeCombinedScore(signals, weights),
+    scoringVersion,
   };
 }
 
@@ -548,12 +749,19 @@ export async function upsertScoredCandidates(
       combined_score: s.combinedScore,
       ...(reasoningExtras ?? {}),
     });
+    // scoring_version is the bead .43 audit blob; always populated on new
+    // writes. ON CONFLICT overwrites because the latest scoring run is the
+    // authoritative interpretation — a forensic query that needs prior
+    // versions reads merge_candidates_audit (if/when we add one) rather than
+    // mining the row in place.
+    const scoringVersionJson = JSON.stringify(s.scoringVersion);
     await ctx.runner.execute(sql`
       INSERT INTO public.merge_candidates (
         entity_a_id, entity_b_id,
         centroid_similarity, memory_overlap, structural_similarity,
         combined_score, status, candidate_source,
-        detection_count, last_detected_at, resolution_reasoning
+        detection_count, last_detected_at, resolution_reasoning,
+        scoring_version
       ) VALUES (
         ${s.entityAId}::uuid, ${s.entityBId}::uuid,
         ${s.signals.centroid_similarity},
@@ -564,7 +772,8 @@ export async function upsertScoredCandidates(
         ${ctx.candidateSource},
         1,
         NOW(),
-        ${reasoning}
+        ${reasoning},
+        ${scoringVersionJson}::jsonb
       )
       ON CONFLICT (entity_a_id, entity_b_id) DO UPDATE SET
         centroid_similarity = EXCLUDED.centroid_similarity,
@@ -583,6 +792,7 @@ export async function upsertScoredCandidates(
         resolution_reasoning = CASE WHEN merge_candidates.candidate_source = 'cross_cluster_generator'
                                     THEN merge_candidates.resolution_reasoning
                                     ELSE EXCLUDED.resolution_reasoning END,
+        scoring_version = EXCLUDED.scoring_version,
         detection_count = merge_candidates.detection_count + 1,
         last_detected_at = NOW()
     `);
