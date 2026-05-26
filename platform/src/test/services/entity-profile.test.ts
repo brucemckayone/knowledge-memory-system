@@ -21,8 +21,15 @@ vi.mock('../../db/index.js', () => ({
         })),
       })),
     })),
-    execute: vi.fn(() => Promise.resolve({ rows: [] })),
+    execute: vi.fn(() => Promise.resolve([])),
   },
+}));
+
+// rawQuery() in entity-profile.ts wraps db.execute() with snake_case→camelCase
+// transformation. Mock it directly so tests can stage the dedup-query result
+// without having to spin up the full mock chain.
+vi.mock('../../db/raw.js', () => ({
+  rawQuery: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock('../../services/qdrant.js', () => ({
@@ -53,11 +60,15 @@ import { getEntityProfile, formatEntityProfile, searchEntities, getEntityMemorie
 import { getEntityById, findEntitiesByName } from '../../services/entities.js';
 import { getEntityFacts } from '../../services/facts.js';
 import { findConnectedEntities } from '../../services/graph.js';
+import { qdrant } from '../../services/qdrant.js';
+import { rawQuery } from '../../db/raw.js';
 
 const mockGetEntityById = vi.mocked(getEntityById);
 const mockGetEntityFacts = vi.mocked(getEntityFacts);
 const mockFindConnected = vi.mocked(findConnectedEntities);
 const mockFindByName = vi.mocked(findEntitiesByName);
+const mockQdrantRetrieve = vi.mocked(qdrant.retrieve);
+const mockRawQuery = vi.mocked(rawQuery);
 
 function makeEntity(overrides: Partial<Entity> = {}): Entity & { aliases: string[] } {
   return {
@@ -163,9 +174,37 @@ describe('Entity Profile Service', () => {
 
   describe('getEntityMemories', () => {
     it('should return empty array when no memory links exist', async () => {
-      // db.select mock already returns []
+      // rawQuery mock returns [] by default — short-circuits before qdrant.retrieve
+      mockRawQuery.mockResolvedValueOnce([]);
       const result = await getEntityMemories('ent-001');
       expect(result).toEqual([]);
+    });
+
+    // bead nmemo-2yv.58 H6 — Qdrant errors must be logged before the swallow
+    it('should log a warn-level message and return [] when qdrant.retrieve throws', async () => {
+      const entityId = 'ent-h6-warn';
+      const upstreamErr = new Error('qdrant connection refused');
+
+      mockRawQuery.mockResolvedValueOnce([{ memoryId: 'mem-001' }]);
+      mockQdrantRetrieve.mockRejectedValueOnce(upstreamErr);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const result = await getEntityMemories(entityId);
+
+      // Graceful degradation: still returns [] (existing contract)
+      expect(result).toEqual([]);
+
+      // Logging: warn was called with a stable prefix, the entity_id, and the
+      // underlying error message
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const [msg, errArg] = warnSpy.mock.calls[0]!;
+      expect(String(msg)).toContain('entity-profile.getEntityMemories');
+      expect(String(msg)).toContain('qdrant.retrieve failed');
+      expect(String(msg)).toContain(entityId);
+      expect(String(errArg)).toContain('qdrant connection refused');
+
+      warnSpy.mockRestore();
     });
   });
 

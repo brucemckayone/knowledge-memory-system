@@ -5,9 +5,8 @@
  * by combining data from entities, facts, graph, and memories.
  */
 
-import { db } from '../db/index.js';
-import { memoryEntities } from '../db/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { rawQuery } from '../db/raw.js';
+import { sql } from 'drizzle-orm';
 import { getEntityById, findEntitiesByName, type EntityType } from './entities.js';
 import { getEntityFacts } from './facts.js';
 import { findConnectedEntities, type GraphEntity } from './graph.js';
@@ -53,13 +52,24 @@ export async function getEntityMemories(
 ): Promise<EntityMemory[]> {
   const { limit = 10 } = options;
 
-  // Get memory IDs linked to this entity
-  const links = await db
-    .select({ memoryId: memoryEntities.memoryId })
-    .from(memoryEntities)
-    .where(eq(memoryEntities.entityId, entityId))
-    .orderBy(desc(memoryEntities.createdAt))
-    .limit(limit);
+  // Get memory IDs linked to this entity. The unique index on memory_entities
+  // is (memory_id, entity_id, COALESCE(mention_start, -1)), so the same
+  // (memory_id, entity_id) pair can repeat once per mention offset. Deduplicate
+  // by memory_id via DISTINCT ON in a subquery, keeping the most-recent
+  // createdAt per memory, then ORDER BY that createdAt DESC and LIMIT.
+  // Without this, heavily-mentioned hub entities silently return fewer
+  // memories than the caller requested (bead nmemo-2yv.58 H8).
+  const links = await rawQuery<{ memoryId: string }>(sql`
+    SELECT memory_id
+    FROM (
+      SELECT DISTINCT ON (memory_id) memory_id, created_at
+      FROM public.memory_entities
+      WHERE entity_id = ${entityId}::uuid
+      ORDER BY memory_id, created_at DESC
+    ) dedup
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  `);
 
   if (links.length === 0) return [];
 
@@ -80,8 +90,14 @@ export async function getEntityMemories(
         createdAt: (payload.created_at || '') as string,
       };
     });
-  } catch {
-    // Qdrant may be unavailable
+  } catch (error) {
+    // Qdrant may be unavailable — degrade gracefully but log so a persistent
+    // outage doesn't masquerade as "this entity has no recent memories" in
+    // every downstream consumer (bead nmemo-2yv.58 H6).
+    console.warn(
+      `[entity-profile.getEntityMemories] qdrant.retrieve failed for entity_id=${entityId}:`,
+      error instanceof Error ? error.message : error,
+    );
     return [];
   }
 }
