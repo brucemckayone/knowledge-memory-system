@@ -12,8 +12,11 @@ Drives the full Phase 3.1 pipeline:
     _acquire_run -> _export_centroids -> compute_hdbscan -> _write_back ->
     _update_graph_stats -> _complete_run
 
-All work runs in one Postgres transaction; partial failure rolls back and the
-clustering_compute_runs row is marked 'failed'.
+All work runs in one Postgres transaction guarded by a
+pg_try_advisory_xact_lock (bead nmemo-2yv.87, see app/core/locks.py). Partial
+failure rolls back the entire transaction — the in-progress clustering_compute_runs
+row is rolled back alongside the rest, so failures leave no row behind. Only
+successful completions persist.
 
 Algorithm: HDBSCAN (Campello-Moulavi-Sander, PAKDD 2013) via the `hdbscan`
 PyPI package, cosine distance metric. min_cluster_size and min_samples are
@@ -45,6 +48,8 @@ import psycopg
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from psycopg.rows import dict_row
+
+from .core.locks import COMPUTE_LOCK_KEYS
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -107,81 +112,75 @@ def clustering_compute() -> ClusteringComputeResponse:
     start = time.perf_counter()
 
     with psycopg.connect(_conn_str(), row_factory=dict_row) as conn:
-        in_flight = _check_in_progress(conn)
-        if in_flight is not None:
-            raise HTTPException(
-                status_code=409,
-                detail=f"clustering compute already in progress (run_id={in_flight}). Try again after it finishes.",
-            )
-
-        run_id = _acquire_run(conn)
-        conn.commit()
-
         try:
-            centroids = _export_centroids(conn)
-            assignments = compute_hdbscan(
-                centroids,
-                min_cluster_size=_hdbscan_min_cluster_size(),
-                min_samples=_hdbscan_min_samples(),
-            )
+            # Bead nmemo-2yv.87: race-free gate via pg_try_advisory_xact_lock.
+            # See topology.py for the full pattern rationale.
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT pg_try_advisory_xact_lock(%s) AS acquired",
+                        (COMPUTE_LOCK_KEYS["semantic_clustering"],),
+                    )
+                    lock_row = cur.fetchone()
+                if not lock_row or not lock_row["acquired"]:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="clustering compute already in progress. Try again after it finishes.",
+                    )
 
-            cluster_count, noise_count, intra_mean, inter_mean = _summarise(assignments)
+                run_id = _acquire_run(conn)
 
-            _write_back(
-                conn,
-                assignments=assignments,
-                computation_version=COMPUTATION_VERSION,
-            )
+                centroids = _export_centroids(conn)
+                assignments = compute_hdbscan(
+                    centroids,
+                    min_cluster_size=_hdbscan_min_cluster_size(),
+                    min_samples=_hdbscan_min_samples(),
+                )
 
-            _update_graph_stats(
-                conn,
-                cluster_count=cluster_count,
-                mean_intra=intra_mean,
-                mean_inter=inter_mean,
-                computation_version=COMPUTATION_VERSION,
-            )
+                cluster_count, noise_count, intra_mean, inter_mean = _summarise(assignments)
 
-            elapsed_ms = int((time.perf_counter() - start) * 1000)
+                _write_back(
+                    conn,
+                    assignments=assignments,
+                    computation_version=COMPUTATION_VERSION,
+                )
 
-            _complete_run(
-                conn,
-                run_id,
-                status="completed",
-                entities_processed=len(assignments),
-                cluster_count=cluster_count,
-                noise_count=noise_count,
-            )
-            conn.commit()
+                _update_graph_stats(
+                    conn,
+                    cluster_count=cluster_count,
+                    mean_intra=intra_mean,
+                    mean_inter=inter_mean,
+                    computation_version=COMPUTATION_VERSION,
+                )
 
-            return ClusteringComputeResponse(
-                run_id=run_id,
-                status="completed",
-                computation_version=COMPUTATION_VERSION,
-                elapsed_ms=elapsed_ms,
-                entities_processed=len(assignments),
-                cluster_count=cluster_count,
-                noise_count=noise_count,
-                mean_intra_cluster_distance=intra_mean,
-                mean_inter_cluster_distance=inter_mean,
-                notes="HDBSCAN cosine clustering per doc 24.1 §3. centroid_snapshot frozen at clustering time per master §10 lock B.",
-            )
-        except Exception as exc:  # pragma: no cover — covered via integration
-            logger.exception("clustering/compute failed")
-            try:
-                conn.rollback()
+                elapsed_ms = int((time.perf_counter() - start) * 1000)
+
                 _complete_run(
                     conn,
                     run_id,
-                    status="failed",
-                    entities_processed=None,
-                    cluster_count=None,
-                    noise_count=None,
-                    error_detail=str(exc),
+                    status="completed",
+                    entities_processed=len(assignments),
+                    cluster_count=cluster_count,
+                    noise_count=noise_count,
                 )
-                conn.commit()
-            except Exception:
-                logger.exception("failed to mark clustering run as failed")
-            raise HTTPException(status_code=500, detail=f"clustering/compute failed: {exc}")
+
+                return ClusteringComputeResponse(
+                    run_id=run_id,
+                    status="completed",
+                    computation_version=COMPUTATION_VERSION,
+                    elapsed_ms=elapsed_ms,
+                    entities_processed=len(assignments),
+                    cluster_count=cluster_count,
+                    noise_count=noise_count,
+                    mean_intra_cluster_distance=intra_mean,
+                    mean_inter_cluster_distance=inter_mean,
+                    notes="HDBSCAN cosine clustering per doc 24.1 §3. centroid_snapshot frozen at clustering time per master §10 lock B.",
+                )
+        except HTTPException:
+            raise
+        except Exception:  # pragma: no cover — covered via integration
+            logger.exception("clustering/compute failed")
+            raise HTTPException(status_code=500, detail="clustering compute failed")
 
 
 # --------------------------------------------------------------------------

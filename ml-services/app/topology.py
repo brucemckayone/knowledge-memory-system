@@ -12,8 +12,11 @@ Drives the full Phase 2 unified compute pipeline:
 
     _acquire_run → _export_graph → compute_components (and siblings) → _write_back → _complete_run
 
-All work runs in one Postgres transaction; partial failure rolls back and the
-topology_compute_runs row is marked 'failed' (master §2.3.3).
+All work runs in one Postgres transaction guarded by a
+pg_try_advisory_xact_lock (bead nmemo-2yv.87, see app/core/locks.py). Partial
+failure rolls back the entire transaction — the in-progress topology_compute_runs
+row is rolled back alongside the rest, so failures leave no row behind. Only
+successful completions persist.
 
 Currently shipped (all five Phase 2 features populated):
   - 23.1 compute_components (real implementation, igraph-backed)
@@ -43,6 +46,8 @@ import psycopg
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from psycopg.rows import dict_row
+
+from .core.locks import COMPUTE_LOCK_KEYS
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -100,84 +105,83 @@ def topology_compute() -> TopologyComputeResponse:
     start = time.perf_counter()
 
     with psycopg.connect(_conn_str(), row_factory=dict_row) as conn:
-        # ------- §8.1 — concurrency / progress tracking -----------------
-        in_flight = _check_in_progress(conn)
-        if in_flight is not None:
-            raise HTTPException(
-                status_code=409,
-                detail=f"topology compute already in progress (run_id={in_flight}). Try again after it finishes.",
-            )
-
-        run_id = _acquire_run(conn)
-        conn.commit()
-
         try:
-            # ------- export -------------------------------------------------
-            graph, entity_count, edge_count = _export_graph(conn)
+            # Bead nmemo-2yv.87: race-free gate. pg_try_advisory_xact_lock
+            # auto-releases at transaction end (commit, rollback, connection
+            # drop). The whole compute happens inside this single
+            # transaction so the lock is held for the duration. No stale-
+            # in_progress dance needed — a failed run rolls back the
+            # acquire INSERT alongside the lock.
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT pg_try_advisory_xact_lock(%s) AS acquired",
+                        (COMPUTE_LOCK_KEYS["topology"],),
+                    )
+                    lock_row = cur.fetchone()
+                if not lock_row or not lock_row["acquired"]:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="topology compute already in progress. Try again after it finishes.",
+                    )
 
-            # ------- compute -----------------------------------------------
-            components = compute_components(graph)
-            k_core = compute_k_core(graph)
-            articulation = compute_articulation(graph)
-            bridges = compute_bridges(graph)
-            communities = compute_communities(graph, computation_version=COMPUTATION_VERSION)
-            centrality = compute_centrality(graph)
+                run_id = _acquire_run(conn)
 
-            # ------- write-back (single transaction per master §2.3.2) ----
-            _write_back(
-                conn,
-                components=components,
-                k_core=k_core,
-                articulation=articulation,
-                communities=communities,
-                centrality=centrality,
-                bridges=bridges,
-                computation_version=COMPUTATION_VERSION,
-            )
+                # ------- export -------------------------------------------------
+                graph, entity_count, edge_count = _export_graph(conn)
 
-            elapsed_ms = int((time.perf_counter() - start) * 1000)
-            component_count = len(set(cid for cid, _ in components.values())) if components else 0
-            largest_component_size = max((sz for _, sz in components.values()), default=0)
-            articulation_point_count = sum(1 for v in articulation.values() if v)
-            bridge_count = len(bridges)
-            community_count = len(set(cid for cid, _ in communities.values())) if communities else 0
-            pagerank_max = max((pr for pr, _ in centrality.values()), default=0.0) if centrality else None
-            betweenness_max = max((bw for _, bw in centrality.values()), default=0.0) if centrality else None
+                # ------- compute -----------------------------------------------
+                components = compute_components(graph)
+                k_core = compute_k_core(graph)
+                articulation = compute_articulation(graph)
+                bridges = compute_bridges(graph)
+                communities = compute_communities(graph, computation_version=COMPUTATION_VERSION)
+                centrality = compute_centrality(graph)
 
-            _complete_run(conn, run_id, status="completed", entities_processed=entity_count)
-            conn.commit()
-
-            return TopologyComputeResponse(
-                run_id=run_id,
-                status="completed",
-                computation_version=COMPUTATION_VERSION,
-                elapsed_ms=elapsed_ms,
-                entities_processed=entity_count,
-                edge_count=edge_count,
-                component_count=component_count,
-                largest_component_size=largest_component_size,
-                articulation_point_count=articulation_point_count,
-                bridge_count=bridge_count,
-                community_count=community_count,
-                pagerank_max=pagerank_max,
-                betweenness_max=betweenness_max,
-                notes="all five Phase 2 features populated: 23.1 components, 23.2 k_core, 23.3 articulation+bridges, 23.4 communities, 23.5 centrality (PageRank + sampled betweenness).",
-            )
-        except Exception as exc:  # pragma: no cover — covered via integration
-            logger.exception("topology/compute failed")
-            try:
-                conn.rollback()
-                _complete_run(
+                # ------- write-back (single transaction per master §2.3.2) ----
+                _write_back(
                     conn,
-                    run_id,
-                    status="failed",
-                    entities_processed=None,
-                    error_detail=str(exc),
+                    components=components,
+                    k_core=k_core,
+                    articulation=articulation,
+                    communities=communities,
+                    centrality=centrality,
+                    bridges=bridges,
+                    computation_version=COMPUTATION_VERSION,
                 )
-                conn.commit()
-            except Exception:
-                logger.exception("failed to mark topology run as failed")
-            raise HTTPException(status_code=500, detail=f"topology/compute failed: {exc}")
+
+                elapsed_ms = int((time.perf_counter() - start) * 1000)
+                component_count = len(set(cid for cid, _ in components.values())) if components else 0
+                largest_component_size = max((sz for _, sz in components.values()), default=0)
+                articulation_point_count = sum(1 for v in articulation.values() if v)
+                bridge_count = len(bridges)
+                community_count = len(set(cid for cid, _ in communities.values())) if communities else 0
+                pagerank_max = max((pr for pr, _ in centrality.values()), default=0.0) if centrality else None
+                betweenness_max = max((bw for _, bw in centrality.values()), default=0.0) if centrality else None
+
+                _complete_run(conn, run_id, status="completed", entities_processed=entity_count)
+
+                return TopologyComputeResponse(
+                    run_id=run_id,
+                    status="completed",
+                    computation_version=COMPUTATION_VERSION,
+                    elapsed_ms=elapsed_ms,
+                    entities_processed=entity_count,
+                    edge_count=edge_count,
+                    component_count=component_count,
+                    largest_component_size=largest_component_size,
+                    articulation_point_count=articulation_point_count,
+                    bridge_count=bridge_count,
+                    community_count=community_count,
+                    pagerank_max=pagerank_max,
+                    betweenness_max=betweenness_max,
+                    notes="all five Phase 2 features populated: 23.1 components, 23.2 k_core, 23.3 articulation+bridges, 23.4 communities, 23.5 centrality (PageRank + sampled betweenness).",
+                )
+        except HTTPException:
+            raise
+        except Exception:  # pragma: no cover — covered via integration
+            logger.exception("topology/compute failed")
+            raise HTTPException(status_code=500, detail="topology compute failed")
 
 
 # --------------------------------------------------------------------------

@@ -54,6 +54,8 @@ from fastapi import APIRouter, HTTPException
 from psycopg.rows import dict_row
 from pydantic import BaseModel
 
+from .core.locks import COMPUTE_LOCK_KEYS
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -126,65 +128,57 @@ def drift_compute() -> DriftComputeResponse:
     start = time.perf_counter()
 
     with psycopg.connect(_conn_str(), row_factory=dict_row) as conn:
-        in_flight = _check_in_progress(conn)
-        if in_flight is not None:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    f"drift compute already in progress (run_id={in_flight}). "
-                    "Try again after it finishes."
-                ),
-            )
-
-        run_id = _acquire_run(conn)
-        conn.commit()
-
         try:
-            result = compute_drift(conn)
-            elapsed_ms = int((time.perf_counter() - start) * 1000)
-            _complete_run(
-                conn,
-                run_id,
-                status="completed",
-                entities_processed=result["entities_processed"],
-                drift_events_count=result["drift_events_count"],
-            )
-            conn.commit()
-            return DriftComputeResponse(
-                run_id=run_id,
-                status="completed",
-                computation_version=COMPUTATION_VERSION,
-                elapsed_ms=elapsed_ms,
-                entities_processed=result["entities_processed"],
-                drift_events_count=result["drift_events_count"],
-                state_resets_cluster=result["state_resets_cluster"],
-                state_resets_river=result["state_resets_river"],
-                state_resets_corrupt=result["state_resets_corrupt"],
-                skipped_no_snapshot=result["skipped_no_snapshot"],
-                skipped_zero_norm=result["skipped_zero_norm"],
-                notes=(
-                    "ADWIN drift sweep per doc 24.2 §3. Bulk-load state pattern "
-                    "(W4); per-entity reset on cluster reassignment (B2) or "
-                    "river version mismatch (W3); target_cluster_id computed "
-                    "at event-emission time (master §10 line 429)."
-                ),
-            )
-        except Exception as exc:  # pragma: no cover — covered via integration
-            logger.exception("drift/compute failed")
-            try:
-                conn.rollback()
+            # Bead nmemo-2yv.87: race-free gate via pg_try_advisory_xact_lock.
+            # See topology.py for the full pattern rationale.
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT pg_try_advisory_xact_lock(%s) AS acquired",
+                        (COMPUTE_LOCK_KEYS["drift"],),
+                    )
+                    lock_row = cur.fetchone()
+                if not lock_row or not lock_row["acquired"]:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="drift compute already in progress. Try again after it finishes.",
+                    )
+
+                run_id = _acquire_run(conn)
+
+                result = compute_drift(conn)
+                elapsed_ms = int((time.perf_counter() - start) * 1000)
                 _complete_run(
                     conn,
                     run_id,
-                    status="failed",
-                    entities_processed=None,
-                    drift_events_count=None,
-                    error_detail=str(exc),
+                    status="completed",
+                    entities_processed=result["entities_processed"],
+                    drift_events_count=result["drift_events_count"],
                 )
-                conn.commit()
-            except Exception:
-                logger.exception("failed to mark drift run as failed")
-            raise HTTPException(status_code=500, detail=f"drift/compute failed: {exc}")
+                return DriftComputeResponse(
+                    run_id=run_id,
+                    status="completed",
+                    computation_version=COMPUTATION_VERSION,
+                    elapsed_ms=elapsed_ms,
+                    entities_processed=result["entities_processed"],
+                    drift_events_count=result["drift_events_count"],
+                    state_resets_cluster=result["state_resets_cluster"],
+                    state_resets_river=result["state_resets_river"],
+                    state_resets_corrupt=result["state_resets_corrupt"],
+                    skipped_no_snapshot=result["skipped_no_snapshot"],
+                    skipped_zero_norm=result["skipped_zero_norm"],
+                    notes=(
+                        "ADWIN drift sweep per doc 24.2 §3. Bulk-load state pattern "
+                        "(W4); per-entity reset on cluster reassignment (B2) or "
+                        "river version mismatch (W3); target_cluster_id computed "
+                        "at event-emission time (master §10 line 429)."
+                    ),
+                )
+        except HTTPException:
+            raise
+        except Exception:  # pragma: no cover — covered via integration
+            logger.exception("drift/compute failed")
+            raise HTTPException(status_code=500, detail="drift compute failed")
 
 
 # --------------------------------------------------------------------------
