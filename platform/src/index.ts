@@ -14,7 +14,7 @@ import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents,
 import { isNull, sql, eq } from 'drizzle-orm';
 import { getMergeCandidates } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
-import { checkQdrantHealth, ensureCollections } from './services/qdrant.js';
+import { checkQdrantHealth } from './services/qdrant.js';
 import type { ReconciliationDriftInvoker } from './services/causal-agent.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1670,7 +1670,23 @@ const port = parseInt(process.env.PORT || '3000', 10);
 // Skip the network listener when imported under Vitest so endpoint tests can
 // drive routes via `app.request()` without binding the dev port.
 if (!process.env.VITEST) {
-  await ensureCollections();
+  // Bead nmemo-2yv.132: run the startup-validation gate before serving. The
+  // qdrant_dim validator wraps ensureCollections (bead .121); the three
+  // others cover ml-services reach, transport health, and port collisions.
+  // Strict-only — any failure aborts boot. No env-var opt-out (bead .132
+  // Decision section).
+  const { validateStartup } = await import('./services/startup-validation.js');
+  const results = await validateStartup();
+  const failed = results.filter(r => !r.ok);
+  if (failed.length > 0) {
+    console.error('[startup] Validation failures:');
+    for (const r of failed) {
+      console.error(`  - ${r.name}: ${r.detail ?? 'failed'} (${r.durationMs}ms)`);
+    }
+    process.exit(1);
+  }
+  const summary = results.map(r => `${r.name}=${r.durationMs}ms`).join(' ');
+  console.log(`[startup] All validators passed (${summary})`);
   serve({ fetch: app.fetch, port }, (info) => {
     console.log(`Platform listening on :${info.port}`);
   });
