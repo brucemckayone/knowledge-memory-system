@@ -1,7 +1,7 @@
 /**
  * Causal Agent — Tool Definitions (B05) + Invocation (B06)
  *
- * 7 tools for the causal reasoning agent, exposed via MCP server (causal-mcp.ts).
+ * GRAPH_TOOLS are exposed via the unified MCP server (graph-mcp.ts).
  * Each tool maps to an existing service function. The tool schema format
  * is MCP-compatible (JSON Schema inputSchema).
  *
@@ -60,9 +60,6 @@ export interface ToolDefinition {
     required: string[];
   };
 }
-
-/** @deprecated Use GRAPH_TOOLS */
-export const CAUSAL_AGENT_TOOLS: ToolDefinition[] = [];
 
 export const GRAPH_TOOLS: ToolDefinition[] = [
   {
@@ -2034,7 +2031,7 @@ export function getMcpConfigPath(actor: Actor = 'graph_agent'): string {
  *
  * The ML service calls Claude Code with:
  * - The causal system prompt
- * - MCP config pointing to the causal-mcp.ts server
+ * - MCP config pointing to the graph-mcp.ts server (the unified MCP)
  * - max_turns=20 for agentic tool-use loop
  *
  * Claude Code spawns the MCP server, uses the tools to query Graph S/C
