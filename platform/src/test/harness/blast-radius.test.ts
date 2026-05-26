@@ -1643,3 +1643,217 @@ describe('Phase 4 — Performance: realistic-500-entity (nmemo-437.10)', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+// ============================================
+// L3 MISRA fixture — klv.4 graduation criterion (nmemo-2yv.107)
+// ============================================
+
+describe('Phase 4 — L3 MISRA fixture (nmemo-2yv.107, klv.4 graduation)', () => {
+  // R22.1 is the chapter-root rule, used as the impact-analysis root for
+  // every scenario in this block. Constants mirror the UUIDs documented at
+  // the top of phase4-blastradius/fixtures/misra-chapter-impact.sql.
+  const R22_1_ENTITY = '00000008-0000-0000-0000-000000000001';
+  const R22_4_EVENT = '20000008-0000-0000-0000-000000000004';
+  const PATTERN_ID = '40000008-0000-0000-0000-000000000001';
+  const RULE_1_EDGES = [
+    '30000008-0000-0000-0000-000000000001',
+    '30000008-0000-0000-0000-000000000002',
+    '30000008-0000-0000-0000-000000000003',
+  ];
+  const RULE_1B_EDGES = [
+    '30000008-0000-0000-0000-000000000005',
+    '30000008-0000-0000-0000-000000000006',
+    '30000008-0000-0000-0000-000000000007',
+  ];
+
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('produces non-trivial severity tallies for the R22.1 chapter root', async () => {
+    await loadFixture('phase4-blastradius/fixtures/misra-chapter-impact.sql');
+
+    const report = await analyzeImpact({
+      nodeType: 'entity',
+      nodeId: R22_1_ENTITY,
+      maxDepth: 5,
+    });
+
+    // Direct dependents: every fact where R22.1 is subject or object.
+    // Severity defaults to medium (Rule 5).
+    expect(report.directDependents.length).toBeGreaterThanOrEqual(2);
+    expect(report.directDependents.every((d) => d.severity === 'medium')).toBe(true);
+
+    // Transitive chain from R22.1's events reaches at least depth 3
+    // (R22.1 → R22.2 → R22.3 → R22.4).
+    expect(report.transitiveChains.length).toBeGreaterThan(0);
+    const maxDepth = Math.max(0, ...report.transitiveChains.map((t) => t.depth));
+    expect(maxDepth).toBeGreaterThanOrEqual(3);
+
+    // Severity summary must be non-trivial — i.e. show real mass across at
+    // least 3 tiers. (No critical without hypothetical mode.)
+    const summary = report.severitySummary;
+    expect(summary.critical).toBe(0);
+    expect(summary.high).toBeGreaterThan(0);
+    expect(summary.medium).toBeGreaterThan(0);
+    expect(report.totalAffected).toBeGreaterThanOrEqual(10);
+  });
+
+  it('orphan-tier pattern fires at high (F1 — nmemo-2yv.99)', async () => {
+    await loadFixture('phase4-blastradius/fixtures/misra-chapter-impact.sql');
+
+    const report = await analyzeImpact({
+      nodeType: 'entity',
+      nodeId: R22_1_ENTITY,
+      maxDepth: 5,
+    });
+
+    const patternNode = report.patternImpact.find((p) => p.nodeId === PATTERN_ID);
+    expect(patternNode).toBeDefined();
+    // Single-instance pattern, all edges touching the R22.1 root events
+    // → edges_outside_root === 0 → orphan tier → severity 'high'.
+    expect(patternNode!.edgesOutsideRoot).toBe(0);
+    expect(patternNode!.severity).toBe('high');
+    expect(patternNode!.relationship).toBe('pattern_member');
+    expect(patternNode!.nodeType).toBe('causal_pattern');
+  });
+
+  it('redundant-child depth-1 effect tiered to low (F2 — nmemo-2yv.100)', async () => {
+    await loadFixture('phase4-blastradius/fixtures/misra-chapter-impact.sql');
+
+    const report = await analyzeImpact({
+      nodeType: 'entity',
+      nodeId: R22_1_ENTITY,
+      maxDepth: 5,
+    });
+
+    // R22.4_event sits at depth 1 reachable from the chain and has three
+    // alternate causes (R22.6, R22.7, R22.8) besides the chain root path.
+    // F2 (nmemo-2yv.100) tiers depth-1 with >=3 other causes → 'low'.
+    // We deliberately pick the depth-1 node whose effect IS R22.4_event so
+    // the assertion targets the redundant-child scenario specifically.
+    const depth1Redundant = report.transitiveChains.filter(
+      (t) => t.depth === 1 && t.effectEventId === R22_4_EVENT,
+    );
+    expect(depth1Redundant.length).toBeGreaterThan(0);
+    for (const node of depth1Redundant) {
+      expect(node.otherCausesCount).toBeGreaterThanOrEqual(3);
+      expect(node.severity).toBe('low');
+    }
+  });
+
+  it('hypothetical=expire bumps well-corroborated sole-evidence to critical (F8 Rule 1 — nmemo-2yv.106)', async () => {
+    await loadFixture('phase4-blastradius/fixtures/misra-chapter-impact.sql');
+
+    const report = await analyzeImpact({
+      nodeType: 'entity',
+      nodeId: R22_1_ENTITY,
+      hypothetical: 'expire',
+      maxDepth: 5,
+    });
+
+    // Edges 01..03 cite R22.1 (sole evidence) with corroboration_count = 3.
+    // Under hypothetical=expire on R22.1, Rule 1 fires → critical.
+    for (const edgeId of RULE_1_EDGES) {
+      const node = report.citationDependents.find((d) => d.nodeId === edgeId);
+      expect(node).toBeDefined();
+      expect(node!.severity).toBe('critical');
+    }
+    expect(report.severitySummary.critical).toBeGreaterThanOrEqual(3);
+  });
+
+  it('hypothetical=expire bumps low-corroboration sole-evidence to high (F8 Rule 1b — nmemo-2yv.106)', async () => {
+    await loadFixture('phase4-blastradius/fixtures/misra-chapter-impact.sql');
+
+    const report = await analyzeImpact({
+      nodeType: 'entity',
+      nodeId: R22_1_ENTITY,
+      hypothetical: 'expire',
+      maxDepth: 5,
+    });
+
+    // Edges 05..07 cite R22.1 (sole evidence) with corroboration_count = 1.
+    // Under hypothetical=expire on R22.1, Rule 1b fires → high.
+    for (const edgeId of RULE_1B_EDGES) {
+      const node = report.citationDependents.find((d) => d.nodeId === edgeId);
+      expect(node).toBeDefined();
+      expect(node!.severity).toBe('high');
+    }
+  });
+
+  it('hypothetical=expire makes zero database mutations on the L3 fixture', async () => {
+    await loadFixture('phase4-blastradius/fixtures/misra-chapter-impact.sql');
+
+    await analyzeImpact({
+      nodeType: 'entity',
+      nodeId: R22_1_ENTITY,
+      hypothetical: 'expire',
+      maxDepth: 5,
+    });
+
+    // None of the citation-edge rows should have been expired.
+    const allCitedEdges = [...RULE_1_EDGES, ...RULE_1B_EDGES];
+    for (const edgeId of allCitedEdges) {
+      const edgeRow = await testDb`
+        SELECT expired_at FROM causal_edges WHERE id = ${edgeId}::uuid
+      `;
+      expect(edgeRow[0]!.expired_at).toBeNull();
+    }
+
+    // Facts where R22.1 is subject should remain unexpired (the only
+    // first-class lifecycle column in this branch lives on facts/edges,
+    // not entities).
+    const factRows = await testDb`
+      SELECT expired_at, invalid_at
+      FROM facts
+      WHERE subject_entity_id = ${R22_1_ENTITY}::uuid
+    `;
+    for (const row of factRows) {
+      expect(row.expired_at).toBeNull();
+      expect(row.invalid_at).toBeNull();
+    }
+
+    // No fact_history rows written by analyzeImpact (it's read-only).
+    const historyRows = await testDb`
+      SELECT count(*)::int AS c
+      FROM fact_history fh
+      JOIN facts f ON f.id = fh.fact_id
+      WHERE f.subject_entity_id = ${R22_1_ENTITY}::uuid
+    `;
+    expect((historyRows[0]! as { c: number }).c).toBe(0);
+  });
+
+  it('expected.json sanity record matches the frozen severity ladder', async () => {
+    await loadFixture('phase4-blastradius/fixtures/misra-chapter-impact.sql');
+
+    const report = await analyzeImpact({
+      nodeType: 'entity',
+      nodeId: R22_1_ENTITY,
+      hypothetical: 'expire',
+      maxDepth: 5,
+    });
+
+    const expected = loadExpected('phase4-blastradius/expected/misra-chapter-impact.expected.json');
+    // Run side_effect_assertions for the zero-mutation contract.
+    for (const stage of expected.stages) {
+      for (const assertion of stage.assertions) {
+        await runAssertion(testDb, assertion);
+      }
+    }
+
+    // The frozen ladder lives in benchmark_targets for human review; the
+    // hard contract is the rule-by-rule assertions above. Here we only
+    // sanity-check the totals against the snapshot so drift surfaces.
+    const benchmark = expected.benchmark_targets as {
+      severity_summary_under_hypothetical: {
+        critical: number;
+        high: number;
+        medium: number;
+        low: number;
+      };
+      total_affected_under_hypothetical: number;
+    };
+    expect(report.severitySummary).toEqual(benchmark.severity_summary_under_hypothetical);
+    expect(report.totalAffected).toBe(benchmark.total_affected_under_hypothetical);
+  });
+});

@@ -1,0 +1,82 @@
+{
+  "scenario": "misra-chapter-impact",
+  "description": "L3 fixture for klv.4 graduation. A coherent slice of MISRA C++:2023 Chapter 22 (Resource Management) with 10 rules + 4 supporting concept entities. Exercises (A) F1 orphan-pattern tier, (B) F8 Rule 1 critical under hypothetical=expire on well-corroborated sole-evidence citations, (C) F8 Rule 1b high under hypothetical=expire on low-corroboration sole-evidence, and (D) F2 redundant-child medium/low tier when depth-1 effect has alternate causes.",
+  "data_set_level": 3,
+  "fixture": "phase4-blastradius/fixtures/misra-chapter-impact.sql",
+  "phases_exercised": [
+    "direct-dependents",
+    "transitive-chains",
+    "citation-dependents",
+    "pattern-impact",
+    "severity-rule-1",
+    "severity-rule-1b",
+    "severity-rule-2",
+    "severity-rule-3",
+    "severity-rule-8",
+    "hypothetical-no-mutation"
+  ],
+
+  "stages": [
+    {
+      "stage": "no_mutations_after_hypothetical_expire_on_R22_1",
+      "driver": "manual",
+      "assertions": [
+        {
+          "type": "side_effect_assertion",
+          "table": "facts",
+          "filter": { "subject_entity_id": "00000008-0000-0000-0000-000000000001" },
+          "column": "expired_at",
+          "expected": "all_null",
+          "description": "Facts where R22.1 is subject remain unexpired after hypothetical=expire on R22.1"
+        },
+        {
+          "type": "side_effect_assertion",
+          "table": "causal_edges",
+          "filter": {
+            "id": {
+              "in": [
+                "30000008-0000-0000-0000-000000000001",
+                "30000008-0000-0000-0000-000000000002",
+                "30000008-0000-0000-0000-000000000003",
+                "30000008-0000-0000-0000-000000000005",
+                "30000008-0000-0000-0000-000000000006",
+                "30000008-0000-0000-0000-000000000007"
+              ]
+            }
+          },
+          "column": "expired_at",
+          "expected": "all_null",
+          "description": "All citing edges (Rule 1 + Rule 1b targets) remain unexpired"
+        },
+        {
+          "type": "row_count",
+          "table": "fact_history",
+          "filter": { "fact_id": "10000008-0000-0000-0000-000000000001" },
+          "expected": 0,
+          "because": "analyzeImpact is read-only — no fact_history row should be written"
+        }
+      ]
+    }
+  ],
+
+  "benchmark_targets": {
+    "total_edges": 15,
+    "total_entities": 14,
+    "chapter_root_entity": "00000008-0000-0000-0000-000000000001",
+    "chapter_root_event": "20000008-0000-0000-0000-000000000001",
+    "frozen_ladder_root_node": "entity",
+    "frozen_ladder_root_id": "00000008-0000-0000-0000-000000000001",
+    "frozen_ladder_hypothetical": "expire",
+    "frozen_ladder_max_depth": 5,
+    "severity_summary_under_hypothetical": {
+      "critical": 3,
+      "high": 9,
+      "medium": 7,
+      "low": 6
+    },
+    "total_affected_under_hypothetical": 25,
+    "ladder_notes": "Frozen snapshot of analyzeImpact({ nodeType: 'entity', nodeId: R22.1, hypothetical: 'expire', maxDepth: 5 }). 3 critical = Rule 1 sole-evidence well-corroborated. 9 high = Rule 1b sole-evidence low-corroboration (3) + Rule 3 strong active citations (1) + Rule 2 transitive depth-1 high (some) + Rule 8 orphan-tier pattern (1) + Rule 5b direct edge dependents (varies). 7 medium = Rule 5 direct fact sharing + Rule 6 transitive depth-2 + Rule 2 depth-1 with 1-2 other causes. 6 low = Rule 7 transitive depth>=3 + Rule 2 depth-1 with >=3 other causes (F2 redundant-child). Total 25 nodes."
+  },
+
+  "graduation_notes": "klv.4 graduates to Level 3 once this fixture's severity ladder is frozen and all rule assertions pass. The four adversarial scenarios documented at the top of the .sql file are the graduation gate per bead nmemo-2yv.107."
+}
