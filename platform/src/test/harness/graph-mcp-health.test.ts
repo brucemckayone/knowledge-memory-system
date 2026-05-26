@@ -179,9 +179,62 @@ describe('B.graph-mcp-health: probe behaviour (nmemo-2yv.126)', () => {
     const result = await promise;
     expect(result.ok).toBe(false);
     expect(result.error).toContain('exited with code 1');
-    expect(result.error).toContain('ECONNREFUSED');
+    // Bead nmemo-2yv.129: stderr lives in its own field — `error` no longer
+    // embeds it. Both fields must surface the failure context separately so
+    // the success path can also report stderr without leaking into `error`.
+    expect(result.error).not.toContain('ECONNREFUSED');
+    expect(result.stderr).toContain('ECONNREFUSED');
     // tools were observed before the crash, so the result still carries them.
     expect(result.tools).toContain('get_graph_topology');
+  });
+});
+
+describe('B.graph-mcp-health: stderr surfacing (nmemo-2yv.129)', () => {
+  beforeEach(() => {
+    spawnMock.mockReset();
+  });
+
+  it('success path — non-empty stderr is surfaced in McpHealthResult.stderr alongside ok=true', async () => {
+    const { proc } = createFakeProc();
+    spawnMock.mockReturnValue(proc);
+
+    const promise = checkGraphMcpHealth(5_000);
+
+    // Emit a warning to stderr BEFORE the protocol response cycle completes.
+    // Simulates: tsx deprecation warning, dotenv complaint, or the
+    // graph-mcp.ts startup banner — anything operators would want to see.
+    await Promise.resolve();
+    proc.stderr.emit('data', Buffer.from('test-warning: deprecated flag X\n'));
+    emit(proc, { jsonrpc: '2.0', id: 1, result: { protocolVersion: '2024-11-05' } });
+    await Promise.resolve();
+    emit(proc, { jsonrpc: '2.0', id: 2, result: { tools: [{ name: 'get_graph_topology' }] } });
+    await Promise.resolve();
+    emit(proc, { jsonrpc: '2.0', id: 3, result: { content: [{ type: 'text', text: 'ok' }] } });
+
+    const result = await promise;
+
+    // Health succeeded AND the warning is visible in stderr — the asymmetry
+    // the bead targets (success path swallowed stderr) is fixed.
+    expect(result.ok).toBe(true);
+    expect(result.stderr).toContain('test-warning');
+  });
+
+  it('success path — empty stderr leaves McpHealthResult.stderr undefined (no empty-string noise)', async () => {
+    const { proc } = createFakeProc();
+    spawnMock.mockReturnValue(proc);
+
+    const promise = checkGraphMcpHealth(5_000);
+    await Promise.resolve();
+    emit(proc, { jsonrpc: '2.0', id: 1, result: {} });
+    await Promise.resolve();
+    emit(proc, { jsonrpc: '2.0', id: 2, result: { tools: [] } });
+    await Promise.resolve();
+    emit(proc, { jsonrpc: '2.0', id: 3, result: {} });
+
+    const result = await promise;
+    expect(result.ok).toBe(true);
+    // `stderr: stderr || undefined` — empty string → undefined, not ''.
+    expect(result.stderr).toBeUndefined();
   });
 });
 

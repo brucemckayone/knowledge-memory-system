@@ -49,6 +49,13 @@ describe('B06 Integration: graph MCP server end-to-end', () => {
     // Server identity: must match the name agent allowlists use
     // (mcp__mnemo-graph__*). Catches the same drift causal-mcp.ts shipped with.
     expect(health.serverName).toBe('mnemo-graph');
+
+    // Bead nmemo-2yv.129 — stderr surfaces the graph-mcp.ts startup banner
+    // (line 65: `console.error('Mnemo Graph MCP Server running on stdio')`)
+    // on the success path. Binds bead .129's manual /api/mcp-health bullet
+    // to CI: a real subprocess emits the real banner, and the probe reports
+    // it through McpHealthResult.stderr (asymmetry-with-error-path fix).
+    expect(health.stderr).toContain('Mnemo Graph MCP Server running on stdio');
   }, 20_000);
 
   it('graph MCP server returns isError envelope for unknown tools', async () => {

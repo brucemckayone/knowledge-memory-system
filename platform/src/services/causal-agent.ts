@@ -2809,6 +2809,13 @@ export interface McpHealthResult {
    *  bead nmemo-2yv.126 so the probe exercises the MCP→DB path, not just
    *  the spawn+initialize handshake. */
   topologyOk?: boolean;
+  /** Aggregated stderr output from the spawned MCP subprocess. Includes the
+   *  startup banner (`Mnemo Graph MCP Server running on stdio` — graph-mcp.ts)
+   *  and any tsx/dotenv/SDK warnings emitted before the probe resolved.
+   *  Present unconditionally — success AND error paths — so `/api/mcp-health`
+   *  surfaces environmental drift symmetrically (bead nmemo-2yv.129).
+   *  Undefined when the subprocess wrote nothing to stderr. */
+  stderr?: string;
   error?: string;
   durationMs: number;
 }
@@ -2865,7 +2872,7 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
     };
 
     const timer = setTimeout(() => {
-      finish({ ok: false, tools: toolsList, serverName, error: 'MCP server timed out', durationMs: Date.now() - start });
+      finish({ ok: false, tools: toolsList, serverName, stderr: stderr || undefined, error: 'MCP server timed out', durationMs: Date.now() - start });
     }, timeoutMs);
 
     proc.stdout.on('data', (chunk: Buffer) => {
@@ -2917,6 +2924,7 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
               tools: toolsList,
               serverName,
               topologyOk,
+              stderr: stderr || undefined,
               error: topologyOk ? undefined : `tools/call get_graph_topology returned JSON-RPC error: ${JSON.stringify(msg.error)}`,
               durationMs: Date.now() - start,
             });
@@ -2933,13 +2941,16 @@ export async function checkGraphMcpHealth(timeoutMs = 15_000): Promise<McpHealth
 
     proc.on('error', (err) => {
       clearTimeout(timer);
-      finish({ ok: false, tools: toolsList, serverName, error: `Failed to spawn: ${err.message}`, durationMs: Date.now() - start });
+      finish({ ok: false, tools: toolsList, serverName, stderr: stderr || undefined, error: `Failed to spawn: ${err.message}`, durationMs: Date.now() - start });
     });
 
     proc.on('exit', (code) => {
       clearTimeout(timer);
       if (!resolved) {
-        finish({ ok: false, tools: toolsList, serverName, error: `Server exited with code ${code}: ${stderr}`, durationMs: Date.now() - start });
+        // Bead nmemo-2yv.129: stderr lives in its own field; the `error` field
+        // carries only the exit-code summary so success and error paths report
+        // stderr through the same channel (symmetric observability).
+        finish({ ok: false, tools: toolsList, serverName, stderr: stderr || undefined, error: `Server exited with code ${code}`, durationMs: Date.now() - start });
       }
     });
 
