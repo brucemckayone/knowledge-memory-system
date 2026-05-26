@@ -1,27 +1,39 @@
 /**
  * Graph Meta Service
  *
- * Computes per-entity statistics from source vectors and graph structure.
- * Detects merge candidates using three signals:
- *   1. Source vector centroid similarity
- *   2. Source memory overlap (Jaccard)
- *   3. Graph structural similarity (shared outgoing facts)
+ * Computes per-entity statistics (entity_meta) from source vectors and graph
+ * structure, and surfaces within-component merge candidates by enumerating
+ * eligible pairs and delegating scoring + upsert to merge-scorer.ts (bead
+ * nmemo-2yv.42). The signal computation and merge_candidates write surface
+ * now lives in merge-scorer; this module owns:
+ *   1. entity_meta upserts (mention/memory/fact counts, centroid, spread).
+ *   2. The within-component pair enumeration used by detectMergeCandidates.
+ *
+ * Historical note: this file previously embedded a three-signal scorer with
+ * per-pair DB roundtrips. The scorer extraction is the bead .42 deliverable;
+ * the staging vs candidate threshold semantics are preserved.
  */
 
 import { db } from '../db/index.js';
-import { facts, memoryEntities, mergeCandidates } from '../db/schema.js';
+import { facts, memoryEntities } from '../db/schema.js';
 import { eq, and, sql, isNull } from 'drizzle-orm';
 import { getMemoryVectors } from './qdrant.js';
-
-// Weights for combined score (tune via benchmarking)
-const W_CENTROID = 0.3;
-const W_MEMORY_OVERLAP = 0.4;
-const W_STRUCTURAL = 0.3;
+import {
+  scoreMergeCandidates,
+  upsertScoredCandidates,
+  filterResolvedPairs,
+  type PairInput,
+} from './merge-scorer.js';
 
 // Minimum mentions before an entity is eligible for merge analysis
 const MIN_MENTIONS_FOR_ANALYSIS = 2;
 
-// Minimum combined score to create a merge candidate
+// Minimum combined score to create a merge candidate. Below STAGING — drop
+// (signal too weak); STAGING ≤ score < CANDIDATE — status='staging' (visible
+// in viz but not a Reconciliation-Agent target); ≥ CANDIDATE — status='candidate'
+// (Reconciliation-Agent target). The scorer's NULL-aware renormalisation keeps
+// these thresholds comparable across the within-component domain (3 signals
+// always populated when inputs exist).
 const SCORE_THRESHOLD_STAGING = 0.4;
 const SCORE_THRESHOLD_CANDIDATE = 0.7;
 
@@ -126,130 +138,83 @@ export async function updateEntityMeta(entityIds: string[]): Promise<void> {
 }
 
 /**
- * Detect merge candidates for a set of entity IDs.
- * Compares each entity against all other entities with sufficient data.
- * Only creates candidates above the staging threshold.
+ * Detect merge candidates for a set of entity IDs (the three-signal /
+ * within-component domain).
+ *
+ * Flow (bead nmemo-2yv.42):
+ *   1. Read entity_meta for entities with mention_count >= MIN_MENTIONS and a
+ *      centroid — the eligibility gate for this domain.
+ *   2. Enumerate (target × other) pairs where target ∈ entityIds and both
+ *      sides are eligible.
+ *   3. Drop pairs whose existing merge_candidates row is already 'resolved'
+ *      (set-based filter — no per-pair lookup).
+ *   4. Score all remaining pairs in ONE set-based SQL roundtrip via
+ *      scoreMergeCandidates (9 signals with NULL-aware weighted combine).
+ *   5. Drop pairs below SCORE_THRESHOLD_STAGING, label the rest, and upsert
+ *      via upsertScoredCandidates (the only writer of signal columns on
+ *      merge_candidates per the bead).
+ *
+ * Roundtrips: 1 eligibility read + 1 resolved-filter + 1 score CTE +
+ * 1 max-pagerank bootstrap (inside scoreMergeCandidates) + N upserts. The
+ * pre-bead path was O(pairs × 5); the new path is O(pairs) only at the upsert
+ * step.
  */
 export async function detectMergeCandidates(entityIds: string[]): Promise<number> {
   if (entityIds.length === 0) return 0;
 
-  // Get meta for all entities that have enough mentions
+  // Eligibility gate — same as the pre-bead version (mention_count >= 2 and
+  // a centroid). Pairs where either side fails this don't enter the scoring
+  // pass; their signal would be NULL-dominated and below threshold anyway.
   const allMeta = await db.execute(sql`
-    SELECT entity_id, mention_count, source_memory_count, fact_count, centroid
+    SELECT entity_id::text AS entity_id
     FROM entity_meta
     WHERE mention_count >= ${MIN_MENTIONS_FOR_ANALYSIS}
       AND centroid IS NOT NULL
-  `) as unknown as Array<{
-    entity_id: string;
-    mention_count: number;
-    source_memory_count: number;
-    fact_count: number;
-  }>;
+  `) as unknown as Array<{ entity_id: string }>;
 
   if (allMeta.length < 2) return 0;
 
-  // For each input entity, compare against all eligible entities
-  const eligibleIds = new Set(allMeta.map(m => m.entity_id));
-  const targetIds = entityIds.filter(id => eligibleIds.has(id));
-  if (targetIds.length === 0) return 0;
+  const eligibleIds = new Set(allMeta.map((m) => m.entity_id));
+  const targets = entityIds.filter((id) => eligibleIds.has(id));
+  if (targets.length === 0) return 0;
 
-  let candidatesCreated = 0;
-
-  for (const entityId of targetIds) {
-    // Get this entity's memory IDs for overlap computation
-    const myMemories = await db
-      .select({ memoryId: memoryEntities.memoryId })
-      .from(memoryEntities)
-      .where(eq(memoryEntities.entityId, entityId));
-    const myMemorySet = new Set(myMemories.map(m => m.memoryId));
-
-    // Get this entity's outgoing facts for structural comparison
-    const myFacts = await db
-      .select({ predicate: facts.predicate, objectEntityId: facts.objectEntityId })
-      .from(facts)
-      .where(and(eq(facts.subjectEntityId, entityId), isNull(facts.expiredAt)));
-    const myFactSet = new Set(myFacts.map(f => `${f.predicate}|${f.objectEntityId ?? ''}`));
-
-    // Compare against all other eligible entities
+  // Enumerate (target × other) pairs, canonical-ordered, dedup'd. The set
+  // prevents same-pair duplication when two targets in entityIds happen to
+  // also be in allMeta (the second-pass would emit the same canonical pair).
+  const seen = new Set<string>();
+  const pairs: PairInput[] = [];
+  for (const t of targets) {
     for (const other of allMeta) {
-      if (other.entity_id === entityId) continue;
-
-      // Canonical ordering
-      const [aId, bId] = entityId < other.entity_id
-        ? [entityId, other.entity_id]
-        : [other.entity_id, entityId];
-
-      // Skip if already resolved
-      const existing = await db
-        .select({ status: mergeCandidates.status })
-        .from(mergeCandidates)
-        .where(and(
-          eq(mergeCandidates.entityAId, aId),
-          eq(mergeCandidates.entityBId, bId),
-        ))
-        .limit(1);
-
-      if (existing[0]?.status === 'resolved') continue;
-
-      // Signal 1: Centroid similarity (via pgvector)
-      const centroidResult = await db.execute(sql`
-        SELECT 1 - (a.centroid <=> b.centroid) as similarity
-        FROM entity_meta a, entity_meta b
-        WHERE a.entity_id = ${aId} AND b.entity_id = ${bId}
-          AND a.centroid IS NOT NULL AND b.centroid IS NOT NULL
-      `) as unknown as Array<{ similarity: number }>;
-      const centroidSimilarity = centroidResult[0]?.similarity ?? 0;
-
-      // Signal 2: Memory overlap (Jaccard)
-      const otherMemories = await db
-        .select({ memoryId: memoryEntities.memoryId })
-        .from(memoryEntities)
-        .where(eq(memoryEntities.entityId, other.entity_id));
-      const otherMemorySet = new Set(otherMemories.map(m => m.memoryId));
-
-      const sharedMemories = [...myMemorySet].filter(m => otherMemorySet.has(m)).length;
-      const unionMemories = new Set([...myMemorySet, ...otherMemorySet]).size;
-      const memoryOverlap = unionMemories > 0 ? sharedMemories / unionMemories : 0;
-
-      // Signal 3: Structural similarity (shared outgoing facts)
-      const otherFacts = await db
-        .select({ predicate: facts.predicate, objectEntityId: facts.objectEntityId })
-        .from(facts)
-        .where(and(eq(facts.subjectEntityId, other.entity_id), isNull(facts.expiredAt)));
-      const otherFactSet = new Set(otherFacts.map(f => `${f.predicate}|${f.objectEntityId ?? ''}`));
-
-      const sharedFacts = [...myFactSet].filter(f => otherFactSet.has(f)).length;
-      const unionFacts = new Set([...myFactSet, ...otherFactSet]).size;
-      const structuralSimilarity = unionFacts > 0 ? sharedFacts / unionFacts : 0;
-
-      // Combined score
-      const combinedScore = W_CENTROID * centroidSimilarity
-        + W_MEMORY_OVERLAP * memoryOverlap
-        + W_STRUCTURAL * structuralSimilarity;
-
-      if (combinedScore < SCORE_THRESHOLD_STAGING) continue;
-
-      const status = combinedScore >= SCORE_THRESHOLD_CANDIDATE ? 'candidate' : 'staging';
-
-      // Upsert merge candidate
-      await db.execute(sql`
-        INSERT INTO merge_candidates (entity_a_id, entity_b_id, centroid_similarity, memory_overlap, structural_similarity, combined_score, status, detection_count, last_detected_at)
-        VALUES (${aId}, ${bId}, ${centroidSimilarity}, ${memoryOverlap}, ${structuralSimilarity}, ${combinedScore}, ${status}, 1, NOW())
-        ON CONFLICT (entity_a_id, entity_b_id) DO UPDATE SET
-          centroid_similarity = ${centroidSimilarity},
-          memory_overlap = ${memoryOverlap},
-          structural_similarity = ${structuralSimilarity},
-          combined_score = ${combinedScore},
-          status = CASE WHEN merge_candidates.status = 'resolved' THEN merge_candidates.status ELSE ${status} END,
-          detection_count = merge_candidates.detection_count + 1,
-          last_detected_at = NOW()
-      `);
-
-      candidatesCreated++;
+      if (other.entity_id === t) continue;
+      const [a, b] = t < other.entity_id ? [t, other.entity_id] : [other.entity_id, t];
+      const key = `${a}|${b}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pairs.push({ entityAId: a, entityBId: b });
     }
   }
+  if (pairs.length === 0) return 0;
 
-  return candidatesCreated;
+  // Pre-filter resolved pairs so the scorer doesn't spend roundtrips on them
+  // and the upsert path doesn't churn detection_count / last_detected_at on
+  // already-decided rows.
+  const eligible = await filterResolvedPairs(pairs, db);
+  if (eligible.length === 0) return 0;
+
+  // ONE set-based SQL pass for nine-signal scoring.
+  const scored = await scoreMergeCandidates(eligible, { runner: db });
+
+  // Threshold filter — STAGING is the floor; CANDIDATE is the promotion line.
+  const kept = scored.filter((s) => s.combinedScore >= SCORE_THRESHOLD_STAGING);
+  if (kept.length === 0) return 0;
+
+  return upsertScoredCandidates(kept, {
+    runner: db,
+    candidateSource: 'three_signal_scoring',
+    statusFor: (s) => (s.combinedScore >= SCORE_THRESHOLD_CANDIDATE ? 'candidate' : 'staging'),
+    // No caller-extras for the three-signal domain — the scorer's standard
+    // {signals, combined_score} blob is the full record.
+  });
 }
 
 /**

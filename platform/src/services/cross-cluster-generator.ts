@@ -1,11 +1,26 @@
 /**
- * Cross-Cluster Candidate Generator (Phase 4 — doc 25)
+ * Cross-Cluster Candidate Generator (Phase 4 — doc 25; refactored under
+ * bead nmemo-2yv.42)
  *
- * The generator half of the generate-then-verify pattern. The verifier
- * (`reconciliation_agent.py`) is already deployed; this module produces the
- * cross-component identity candidates the existing 3-signal scorer cannot
- * find — entities in disconnected components that may refer to the same
- * real-world referent.
+ * Owns the enumerator half of the cross-component identity-candidate pipeline:
+ *   - §2.2 cluster-pair sweep (a ∈ compA, b ∈ compB for every distinct
+ *     component pair, capped per pair).
+ *   - §2.5 drift-driven additions (drifted entities paired with entities in
+ *     their target_cluster_id from OTHER components).
+ *   - Concurrency: pg_try_advisory_xact_lock guards against overlapping runs.
+ *   - Freshness: skips when topology/clustering compute is stale.
+ *   - Telemetry: cross_cluster_runs row INSERTed in a separate short tx
+ *     BEFORE the main tx so error paths still leave a forensic record.
+ *
+ * Signal computation and the merge_candidates write surface moved to
+ * merge-scorer.ts (bead .42). This module no longer scores pairs in-process;
+ * it builds a pair list, delegates to scoreMergeCandidates, then routes the
+ * scored set through upsertScoredCandidates with cross-cluster reasoning
+ * extras (component IDs, drift_driven flag). Output rows still carry
+ * candidate_source='cross_cluster_generator'; the 3-signal columns are now
+ * NULL because their INPUTS are absent (cross-component pairs typically have
+ * no shared memories / centroids), not because of a per-source lock — uniform
+ * NULL semantics replace the pre-bead §2.5 R3 B3 lock.
  *
  * Inputs (already populated by Phase 1–3 ml-services compute):
  *   - entity_topology    (component_id, k_core, is_articulation_point,
@@ -13,30 +28,25 @@
  *   - entity_clusters    (cluster_id, cluster_probability)
  *   - entity_drift_events(target_cluster_id, triggered_action, detected_at)
  *
- * Output: rows in `merge_candidates` with `candidate_source =
- * 'cross_cluster_generator'`. The 3-signal columns (centroid_similarity,
- * memory_overlap, structural_similarity) are NULL by §2.5 R3 B3 lock —
- * they don't apply to cross-component pairs and signalling them as zero
- * would be a false negative on those signals. The reconciliation_agent's
- * cross-cluster prompt block (the prompt-builder split shipped alongside
- * this module) tells the LLM that NULL is expected, not bad signal.
- *
- * Concurrency: a session-level pg_try_advisory_lock(hashtext(LOCK_KEY))
- * guards against overlapping invocations. Second caller short-circuits.
- *
- * Freshness: skips this cycle when either upstream compute (topology /
- * semantic-clustering) has a completed_at older than the most-recent
- * entities.created_at — the upstream signal would be reading a stale
- * graph. Logged as a skip, not a failure (next patrol retries).
+ * Score-weight env overrides (bead .91) survive: computeWeights() reads the
+ * CROSS_CLUSTER_W_* env vars, normalises, warns on drift, then the result is
+ * mapped into MergeScorerWeights for the scoring call.
  */
 
 import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
 import {
   computePredicateSignature,
-  cosineSignatureSimilarity,
   populatePredicateSignatures,
 } from './predicate-signature.js';
+import {
+  scoreMergeCandidates,
+  upsertScoredCandidates,
+  DEFAULT_WEIGHTS as MERGE_SCORER_DEFAULT_WEIGHTS,
+  type MergeScorerWeights,
+  type PairInput,
+  type ScoredCandidate,
+} from './merge-scorer.js';
 
 // =============================================================================
 // Tunable knobs (env-overridable per doc 25 §3.x)
@@ -121,6 +131,29 @@ function computeWeights(): ScoreWeights {
   return raw;
 }
 
+/** Translate the cross-cluster 6-signal weight vector into the merge-scorer's
+ *  9-signal weight vector. The cross-cluster-historic signals map directly to
+ *  the corresponding scorer signals; the pre-bead drift_a + drift_b split is
+ *  summed into drift_recency_either (the unified replacement). The three
+ *  signal weights NOT in the cross-cluster vector (centroid/memory/structural)
+ *  and componentMatch stay at the merge-scorer's static defaults — they
+ *  contribute only when their signals are non-NULL, which for cross-component
+ *  pairs is usually never (no shared memories, etc.), so the renormalisation
+ *  in computeCombinedScore drops them out for the typical cross-cluster pair. */
+function toMergeScorerWeights(cc: ScoreWeights): MergeScorerWeights {
+  return {
+    centroidSimilarity:       MERGE_SCORER_DEFAULT_WEIGHTS.centroidSimilarity,
+    memoryOverlap:            MERGE_SCORER_DEFAULT_WEIGHTS.memoryOverlap,
+    structuralSimilarity:     MERGE_SCORER_DEFAULT_WEIGHTS.structuralSimilarity,
+    clusterMatch:             cc.cluster,
+    predicateSignatureCosine: cc.role,
+    driftRecencyEither:       cc.driftA + cc.driftB,
+    centralityMatch:          cc.centrality,
+    articulationBonus:        cc.articulation,
+    componentMatch:           MERGE_SCORER_DEFAULT_WEIGHTS.componentMatch,
+  };
+}
+
 const ADVISORY_LOCK_KEY = 'cross_cluster_generator';
 
 // =============================================================================
@@ -168,20 +201,13 @@ interface DriftRow {
   detected_at: Date;
 }
 
-interface ScoredPair {
-  entityA: string;
-  entityB: string;
+/** Per-pair metadata that this module owns (component IDs from the
+ *  enumerator, drift-driven flag from the §2.5 sweep). The scorer doesn't
+ *  know about these; we keep them in a side Map keyed by canonical pair and
+ *  inject via upsertScoredCandidates's reasoningFor callback. */
+interface PairMetadata {
   componentA: number;
   componentB: number;
-  score: number;
-  contributions: {
-    cluster: number;
-    drift_a: number;
-    drift_b: number;
-    role: number;
-    centrality: number;
-    articulation: number;
-  };
   driftDriven: boolean;
 }
 
@@ -256,30 +282,6 @@ async function loadCandidateEntities(runner: Runner): Promise<EntityRow[]> {
   }));
 }
 
-/** Drift events within the recency window (§2.2). One per entity at most —
- *  the most recent. */
-async function loadRecentDriftEvents(runner: Runner): Promise<Map<string, DriftRow>> {
-  const cutoff = new Date(Date.now() - driftRecencyDays() * 24 * 60 * 60 * 1000);
-  const rows = (await runner.execute(sql`
-    SELECT DISTINCT ON (entity_id)
-      entity_id::text   AS entity_id,
-      target_cluster_id AS target_cluster_id,
-      detected_at       AS detected_at
-    FROM public.entity_drift_events
-    WHERE detected_at >= ${cutoff}
-    ORDER BY entity_id, detected_at DESC
-  `)) as unknown as Array<Record<string, unknown>>;
-  const out = new Map<string, DriftRow>();
-  for (const r of rows) {
-    out.set(r.entity_id as string, {
-      entity_id: r.entity_id as string,
-      target_cluster_id: (r.target_cluster_id as number) ?? null,
-      detected_at: r.detected_at as Date,
-    });
-  }
-  return out;
-}
-
 /** Drift events that triggered the action threshold — these become drift-driven
  *  candidates (§2.5). One row per (entity, detected_at) within the window. */
 async function loadActionableDriftEvents(runner: Runner): Promise<DriftRow[]> {
@@ -297,99 +299,6 @@ async function loadActionableDriftEvents(runner: Runner): Promise<DriftRow[]> {
     target_cluster_id: (r.target_cluster_id as number) ?? null,
     detected_at: r.detected_at as Date,
   }));
-}
-
-// =============================================================================
-// Scoring
-// =============================================================================
-
-function scorePair(
-  a: EntityRow,
-  b: EntityRow,
-  driftMap: Map<string, DriftRow>,
-  maxGlobalPagerank: number,
-  weights: ScoreWeights,
-): ScoredPair['contributions'] & { score: number } {
-  // w1 — embedding cluster match. min(prob_a, prob_b) when same non-noise cluster.
-  let cluster = 0;
-  if (
-    a.cluster_id !== null && b.cluster_id !== null &&
-    a.cluster_id === b.cluster_id && a.cluster_id !== -1
-  ) {
-    const pa = a.cluster_probability ?? 0;
-    const pb = b.cluster_probability ?? 0;
-    cluster = Math.min(pa, pb);
-  }
-  // w2/w3 — drift signal. 1.0 when a recent drift on x targets the partner's cluster.
-  const drift_a = driftMap.get(a.entity_id)?.target_cluster_id === b.cluster_id && b.cluster_id !== null ? 1 : 0;
-  const drift_b = driftMap.get(b.entity_id)?.target_cluster_id === a.cluster_id && a.cluster_id !== null ? 1 : 0;
-  // w4 — role similarity (cosine of predicate signatures). Pre-normalised by populator.
-  const role = cosineSignatureSimilarity(a.predicate_signature, b.predicate_signature);
-  // w5 — centrality match. min(pr_a, pr_b) / max_global_pagerank. Rewards bridging two protagonists.
-  let centrality = 0;
-  if (a.pagerank !== null && b.pagerank !== null && maxGlobalPagerank > 0) {
-    centrality = Math.min(a.pagerank, b.pagerank) / maxGlobalPagerank;
-  }
-  // w6 — articulation bonus. 0.5 if either is articulation point.
-  const articulation = (a.is_articulation_point || b.is_articulation_point) ? 0.5 : 0;
-  const score =
-    weights.cluster * cluster
-    + weights.driftA * drift_a + weights.driftB * drift_b
-    + weights.role * role
-    + weights.centrality * centrality
-    + weights.articulation * articulation;
-  return { cluster, drift_a, drift_b, role, centrality, articulation, score };
-}
-
-// =============================================================================
-// Insert side
-// =============================================================================
-
-async function upsertCandidate(p: ScoredPair, runner: Runner): Promise<void> {
-  // Canonical pair ordering — schema CHECK forces entity_a_id < entity_b_id.
-  const [aId, bId] = p.entityA < p.entityB
-    ? [p.entityA, p.entityB]
-    : [p.entityB, p.entityA];
-  const reasoning = JSON.stringify({
-    contributions: p.contributions,
-    component_a: aId === p.entityA ? p.componentA : p.componentB,
-    component_b: bId === p.entityB ? p.componentB : p.componentA,
-    drift_driven: p.driftDriven,
-  });
-  // §2.5 R3 B4 lock: if an existing row is already 'cross_cluster_generator',
-  // never downgrade. CASE expression on EXCLUDED preserves stronger source.
-  await runner.execute(sql`
-    INSERT INTO public.merge_candidates (
-      entity_a_id, entity_b_id,
-      centroid_similarity, memory_overlap, structural_similarity,
-      combined_score, status, candidate_source,
-      detection_count, last_detected_at, resolution_reasoning
-    ) VALUES (
-      ${aId}::uuid, ${bId}::uuid,
-      NULL, NULL, NULL,
-      ${p.score}, 'candidate', 'cross_cluster_generator',
-      1, NOW(), ${reasoning}
-    )
-    ON CONFLICT (entity_a_id, entity_b_id) DO UPDATE SET
-      combined_score = EXCLUDED.combined_score,
-      status = CASE WHEN merge_candidates.status = 'resolved'
-                    THEN merge_candidates.status ELSE EXCLUDED.status END,
-      candidate_source = CASE WHEN merge_candidates.candidate_source = 'cross_cluster_generator'
-                              THEN merge_candidates.candidate_source
-                              ELSE EXCLUDED.candidate_source END,
-      detection_count = merge_candidates.detection_count + 1,
-      last_detected_at = NOW(),
-      -- Bead nmemo-2yv.90: mirror the candidate_source B4 lock one level down.
-      -- If the existing row was emitted by the cross-cluster generator, keep
-      -- its cross-cluster JSON reasoning; otherwise take the incoming blob.
-      -- Without this, a later three-signal scorer upsert (which preserves the
-      -- cross_cluster_generator source tag via the lock above) would clobber
-      -- the JSON reasoning_seed the reconciliation_agent renders in the
-      -- cross-cluster prompt block (doc 25 §2.4).
-      resolution_reasoning = CASE WHEN merge_candidates.candidate_source = 'cross_cluster_generator'
-                                  THEN merge_candidates.resolution_reasoning
-                                  ELSE EXCLUDED.resolution_reasoning END
-  `);
 }
 
 // =============================================================================
@@ -459,17 +368,17 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
     // it's an idempotent upsert that we want visible to subsequent reads.
     await populatePredicateSignatures();
 
-    // Load eligible entities + drift events on the transaction's snapshot.
+    // Load eligible entities + actionable drift events on the transaction's
+    // snapshot. driftMap (the per-entity recent-drift map the pre-bead scorer
+    // consumed) is no longer needed here — drift_recency_either lives inside
+    // scoreMergeCandidates against entity_drift_events directly.
     const entities = await loadCandidateEntities(tx);
-    const driftMap = await loadRecentDriftEvents(tx);
     const actionableDrifts = await loadActionableDriftEvents(tx);
 
-    // Compute max global pagerank for centrality_match denominator.
-    let maxGlobalPagerank = 0;
-    for (const e of entities) if ((e.pagerank ?? 0) > maxGlobalPagerank) maxGlobalPagerank = e.pagerank!;
-
-    // Per-invocation weights: env-overridable + normalised. See bead nmemo-2yv.91.
-    const weights = computeWeights();
+    // Per-invocation weights: env-overridable + normalised (bead .91). Map
+    // into the merge-scorer's 9-signal vector for the scoring call.
+    const ccWeights = computeWeights();
+    const scorerWeights = toMergeScorerWeights(ccWeights);
 
     // Bucket entities by component, and capture the doc 25 §2 "A.size" via
     // the entity_topology.component_size metadata column. Bucket length and
@@ -483,98 +392,143 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
       let bucket = byComponent.get(e.component_id);
       if (!bucket) { bucket = []; byComponent.set(e.component_id, bucket); }
       bucket.push(e);
-      // First non-null component_size wins; per Phase 2 contract every row
-      // in the same component carries the same value.
       if (e.component_size !== null && !componentSizeMeta.has(e.component_id)) {
         componentSizeMeta.set(e.component_id, e.component_size);
       }
     }
-    // Components above MIN_COMPONENT_SIZE — read from metadata, not bucket
-    // length (which is post-k_core and would mis-gate small dense graphs).
     const componentIds = [...byComponent.keys()].filter(
       (cid) => (componentSizeMeta.get(cid) ?? byComponent.get(cid)!.length) >= minComponentSize(),
     );
     componentIds.sort((a, b) => a - b);
 
+    // Enumerate §2.2 (cross-component cluster sweep) and §2.5 (drift-driven)
+    // pairs. Both feed into ONE scoreMergeCandidates call; per-pair metadata
+    // (componentA / componentB / driftDriven) lives in a side-Map keyed by
+    // canonical pair key so we can route it into the upsert reasoning blob
+    // and apply per-(compA, compB) capping on the §2.2 partition only.
+    const canonKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+    const pairMetadata = new Map<string, PairMetadata>();
     let componentPairsEvaluated = 0;
-    let candidatesInserted = 0;
-    let driftDriven = 0;
-    const threshold = bridgeScoreThreshold();
-    const cap = maxCandidatesPerPair();
-    const seen = new Set<string>();  // canonical pair key — dedupe within a run
 
-    // Pair-up across distinct components.
+    // §2.2 — every (componentA, componentB) pair contributes its bucket-cross.
     for (let i = 0; i < componentIds.length; i++) {
       for (let j = i + 1; j < componentIds.length; j++) {
         componentPairsEvaluated++;
         const aBucket = byComponent.get(componentIds[i]!)!;
         const bBucket = byComponent.get(componentIds[j]!)!;
-        const scored: ScoredPair[] = [];
         for (const a of aBucket) {
           for (const b of bBucket) {
-            const c = scorePair(a, b, driftMap, maxGlobalPagerank, weights);
-            if (c.score < threshold) continue;
-            scored.push({
-              entityA: a.entity_id, entityB: b.entity_id,
-              componentA: a.component_id!, componentB: b.component_id!,
-              score: c.score,
-              contributions: {
-                cluster: c.cluster, drift_a: c.drift_a, drift_b: c.drift_b,
-                role: c.role, centrality: c.centrality, articulation: c.articulation,
-              },
+            const k = canonKey(a.entity_id, b.entity_id);
+            if (pairMetadata.has(k)) continue;
+            pairMetadata.set(k, {
+              componentA: a.component_id!,
+              componentB: b.component_id!,
               driftDriven: false,
             });
           }
         }
-        scored.sort((x, y) => y.score - x.score);
-        const kept = scored.slice(0, cap);
-        for (const p of kept) {
-          const k = p.entityA < p.entityB ? `${p.entityA}|${p.entityB}` : `${p.entityB}|${p.entityA}`;
-          if (seen.has(k)) continue;
-          seen.add(k);
-          await upsertCandidate(p, tx);
-          candidatesInserted++;
-        }
       }
     }
 
-    // §2.5 — Drift-driven candidates: pair drifted entity with target_cluster
-    // members in OTHER components. This is additive to the §2.2 sweep above
-    // — drift events that already produced candidates above the threshold
-    // are de-duped via `seen`.
+    // §2.5 — drift-driven additions. Pair drifted entity with target-cluster
+    // members in OTHER components. Drift-driven semantics OVERRIDE §2.2 — a
+    // pair already enumerated by the cluster-pair sweep gets its metadata
+    // promoted to driftDriven=true so it survives the always-insert rule and
+    // the upsert reasoning blob carries drift_driven=true. Pre-bead behaviour:
+    // §2.2's threshold could drop a pair that §2.5 then re-inserted as drift-
+    // driven with no threshold check; preserving that semantic requires the
+    // override here. (Without it, the "drifted entity produces candidates"
+    // test fails when the (drifted, target) score lands just below the §2.2
+    // threshold.)
     const entityById = new Map(entities.map((e) => [e.entity_id, e] as const));
     for (const drift of actionableDrifts) {
       const driftedEntity = entityById.get(drift.entity_id);
       if (!driftedEntity || drift.target_cluster_id === null) continue;
-      // Pair with entities whose cluster_id == target_cluster_id AND
-      // component_id != drifted entity's component (cross-component invariant).
       for (const e of entities) {
         if (e.entity_id === drift.entity_id) continue;
         if (e.cluster_id !== drift.target_cluster_id) continue;
         if (e.component_id === driftedEntity.component_id) continue;
         if (driftedEntity.component_id === null || e.component_id === null) continue;
-        const c = scorePair(driftedEntity, e, driftMap, maxGlobalPagerank, weights);
-        const key = driftedEntity.entity_id < e.entity_id
-          ? `${driftedEntity.entity_id}|${e.entity_id}`
-          : `${e.entity_id}|${driftedEntity.entity_id}`;
-        if (seen.has(key)) continue;  // already emitted by the §2.2 sweep
-        seen.add(key);
-        // Drift-driven rows always insert (per §2.5: pair the drift mechanism
-        // with the candidate-generation mechanism so they reinforce each other).
-        await upsertCandidate({
-          entityA: driftedEntity.entity_id, entityB: e.entity_id,
-          componentA: driftedEntity.component_id, componentB: e.component_id,
-          score: c.score,
-          contributions: {
-            cluster: c.cluster, drift_a: c.drift_a, drift_b: c.drift_b,
-            role: c.role, centrality: c.centrality, articulation: c.articulation,
-          },
+        const k = canonKey(driftedEntity.entity_id, e.entity_id);
+        // Set unconditionally — overwrite §2.2's driftDriven=false if present.
+        pairMetadata.set(k, {
+          componentA: driftedEntity.component_id,
+          componentB: e.component_id,
           driftDriven: true,
-        }, tx);
-        candidatesInserted++;
-        driftDriven++;
+        });
       }
     }
+
+    // Score every enumerated pair in ONE set-based pass (bead .42 perf accept).
+    const allPairs: PairInput[] = [];
+    for (const k of pairMetadata.keys()) {
+      const [a, b] = k.split('|');
+      allPairs.push({ entityAId: a!, entityBId: b! });
+    }
+    const scored = allPairs.length === 0
+      ? []
+      : await scoreMergeCandidates(allPairs, { runner: tx, weights: scorerWeights });
+
+    // Apply policies per partition:
+    //   §2.2 (driftDriven=false): drop below BRIDGE_SCORE_THRESHOLD; cap by
+    //         (componentA, componentB) at MAX_CANDIDATES_PER_COMPONENT_PAIR.
+    //   §2.5 (driftDriven=true):  always insert (no threshold, no cap — see
+    //         pre-bead comment "Drift-driven rows always insert").
+    const threshold = bridgeScoreThreshold();
+    const cap = maxCandidatesPerPair();
+    const sweepByCompPair = new Map<string, ScoredCandidate[]>();
+    const driftKept: ScoredCandidate[] = [];
+    for (const s of scored) {
+      const meta = pairMetadata.get(canonKey(s.entityAId, s.entityBId));
+      if (!meta) continue;
+      if (meta.driftDriven) {
+        driftKept.push(s);
+        continue;
+      }
+      if (s.combinedScore < threshold) continue;
+      const cpKey = `${meta.componentA}|${meta.componentB}`;
+      let bucket = sweepByCompPair.get(cpKey);
+      if (!bucket) { bucket = []; sweepByCompPair.set(cpKey, bucket); }
+      bucket.push(s);
+    }
+    const sweepKept: ScoredCandidate[] = [];
+    for (const bucket of sweepByCompPair.values()) {
+      bucket.sort((x, y) => y.combinedScore - x.combinedScore);
+      sweepKept.push(...bucket.slice(0, cap));
+    }
+
+    const finalSet = [...sweepKept, ...driftKept];
+    const candidatesInserted = finalSet.length === 0
+      ? 0
+      : await upsertScoredCandidates(finalSet, {
+          runner: tx,
+          candidateSource: 'cross_cluster_generator',
+          statusFor: () => 'candidate',
+          reasoningFor: (s) => {
+            const meta = pairMetadata.get(canonKey(s.entityAId, s.entityBId))!;
+            // Preserve the pre-bead reasoning shape so the reconciliation_agent's
+            // cross-cluster prompt block (doc 25 §2.4) and the snapshot test's
+            // perSignalContributionStats keep reading the same field names.
+            // Legacy drift_a / drift_b both carry the unified
+            // drift_recency_either value (bead .42 consolidated the split);
+            // downstream readers see a non-zero where one of the legacy halves
+            // used to fire — conservative direction.
+            return {
+              contributions: {
+                cluster:      s.signals.cluster_match ?? 0,
+                drift_a:      s.signals.drift_recency_either ?? 0,
+                drift_b:      s.signals.drift_recency_either ?? 0,
+                role:         s.signals.predicate_signature_cosine ?? 0,
+                centrality:   s.signals.centrality_match ?? 0,
+                articulation: s.signals.articulation_bonus ?? 0,
+              },
+              component_a: meta.componentA,
+              component_b: meta.componentB,
+              drift_driven: meta.driftDriven,
+            };
+          },
+        });
+    const driftDriven = driftKept.length;
 
     result = {
       ran: true,

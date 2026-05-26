@@ -1,0 +1,63 @@
+{
+  "name": "canonical-corpus",
+  "source": "live-dev-db",
+  "source_detail": "live cognitive DB at benchmark time — MISRA/AUTOSAR/C++ technical-standards corpus (~145 entities)",
+  "computed_at": "2026-05-26T15:44:06.591Z",
+  "entity_count": 218,
+  "pair_count": 100,
+  "duration_ms": 2131,
+  "target_pair_count": 100,
+  "sample_size": 218,
+  "sampled_signal_distribution": {
+    "centroid_similarity": {
+      "non_null": 95,
+      "mean": 0.7124349789520419,
+      "max": 1
+    },
+    "memory_overlap": {
+      "non_null": 100,
+      "mean": 0.0475,
+      "max": 1
+    },
+    "structural_similarity": {
+      "non_null": 94,
+      "mean": 0.002636843062374977,
+      "max": 0.2222222222222222
+    },
+    "cluster_match": {
+      "non_null": 12,
+      "mean": 0.27347638279491876,
+      "max": 1
+    },
+    "predicate_signature_cosine": {
+      "non_null": 0,
+      "mean": null,
+      "max": null
+    },
+    "drift_recency_either": {
+      "non_null": 0,
+      "mean": null,
+      "max": null
+    },
+    "centrality_match": {
+      "non_null": 27,
+      "mean": 0.06485379317948158,
+      "max": 0.1570192146554085
+    },
+    "articulation_bonus": {
+      "non_null": 68,
+      "mean": 0.125,
+      "max": 0.5
+    },
+    "component_match": {
+      "non_null": 27,
+      "mean": 0.37037037037037035,
+      "max": 1
+    }
+  },
+  "thresholds": {
+    "target_ms": 100,
+    "hard_cap_ms": 500
+  },
+  "notes": "Stands in for the bead's \"100-entity scale\" — the live cognitive DB carries ~145 entities. A future synthetic-100 snapshot would let this stage stop borrowing live data."
+}
