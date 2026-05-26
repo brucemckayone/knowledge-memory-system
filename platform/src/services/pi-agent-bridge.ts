@@ -169,16 +169,22 @@ async function runAgent(req: BridgeRequest): Promise<BridgeResponse> {
   let turnCount = 0;
   let error: string | undefined;
 
-  // Resolve model — fall back to first available if specific model not found
+  // Resolve model — strict-by-default. Fail fast on (provider, modelId) miss
+  // rather than silently substituting a different model (which masks config
+  // typos, drifts the caller's cost meter, and changes capability/latency).
   let resolvedModel;
   try {
     const available = await modelRegistry.getAvailable();
     resolvedModel = available.find(
       (m) => m.provider === provider && m.id === modelId,
-    ) || available.find((m) => m.provider === provider) || available[0];
+    );
 
     if (!resolvedModel) {
-      throw new Error(`No models available for provider=${provider} model=${modelId}`);
+      const sample = available.map((m) => `${m.provider}/${m.id}`).slice(0, 20).join(', ');
+      return {
+        result: '',
+        error: `Model not found: provider=${provider} id=${modelId}. Available (first 20): ${sample}`,
+      };
     }
   } catch (err) {
     return {

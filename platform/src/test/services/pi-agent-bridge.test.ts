@@ -162,6 +162,29 @@ describe('Pi Agent Bridge: bridge module structure', () => {
     const source = fs.readFileSync(bridgePath, 'utf8');
     expect(source).toContain('Type.Unsafe');
   });
+
+  it('bridge fails fast on (provider, modelId) miss — no silent fallback', () => {
+    // Bead nmemo-2yv.118: the previous two-tier fallback
+    // (`|| available.find((m) => m.provider === provider) || available[0]`)
+    // silently substituted a different model on config typo, drifting the
+    // caller's cost meter and masking misconfigs. Strict-by-default: on miss
+    // the bridge returns an error response listing the first 20 available
+    // models so the caller can correct its provider/model envvars.
+    const bridgePath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../../services/pi-agent-bridge.ts',
+    );
+    const source = fs.readFileSync(bridgePath, 'utf8');
+
+    // No two-tier fallback shape.
+    expect(source).not.toContain('available.find((m) => m.provider === provider)');
+    expect(source).not.toMatch(/\|\|\s*available\[0\]/);
+
+    // Error response on miss includes the available-models sample.
+    expect(source).toContain('Model not found: provider=');
+    expect(source).toContain('Available (first 20):');
+    expect(source).toContain('.slice(0, 20)');
+  });
 });
 
 // ============================================
