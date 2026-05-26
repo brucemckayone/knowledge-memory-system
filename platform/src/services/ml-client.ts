@@ -211,7 +211,16 @@ export const ml = {
       .replace(/^```(?:json)?\s*/i, '')
       .replace(/```\s*$/i, '')
       .trim();
-    return JSON.parse(cleaned) as T;
+    try {
+      return JSON.parse(cleaned) as T;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new MlClientError(
+        '/chat',
+        422,
+        `generateJson: response is not valid JSON (${message}); cleaned=${JSON.stringify(cleaned.slice(0, 200))}`,
+      );
+    }
   },
 
   async health(): Promise<boolean> {

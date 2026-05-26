@@ -244,13 +244,26 @@ describe('ml-client generateJson fence stripping (nmemo-2yv.115)', () => {
     expect(result).toEqual({ hello: 'world' });
   });
 
-  it('throws on unparseable JSON output (raw bytes are not valid)', async () => {
+  it('throws MlClientError(422) on unparseable JSON output (bead nmemo-2yv.120)', async () => {
+    // generateJson now wraps JSON.parse failure as MlClientError(422) so
+    // callers can pattern-match on the unified error class instead of
+    // distinguishing SyntaxError from network errors.
     fetchSpy.mockResolvedValueOnce(mockResponse({
       ok: true,
       status: 200,
       body: { response: 'not even close to JSON' },
     }));
-    await expect(ml.generateJson('prompt')).rejects.toThrow(SyntaxError);
+    let captured: unknown;
+    try {
+      await ml.generateJson('prompt');
+    } catch (err) {
+      captured = err;
+    }
+    expect(captured).toBeInstanceOf(MlClientError);
+    expect(captured).toMatchObject({
+      status: 422,
+      detail: expect.stringContaining('not valid JSON'),
+    });
   });
 });
 
