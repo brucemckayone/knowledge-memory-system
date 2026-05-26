@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
 import { invokeGraphAgent, invokeGardenerAgent, type ContentType } from './services/causal-agent.js';
+import { recordGardeningRun } from './services/gardening.js';
 import { applyConfidenceDecay } from './services/causal.js';
 import { detectContradictions } from './services/contradictions.js';
 import { updateEntityMeta, detectMergeCandidates } from './services/graph-meta.js';
@@ -365,6 +366,18 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
         if (gardenResult.result) {
           console.log(`[gardener] report:\n${gardenResult.result}`);
         }
+        // Bead nmemo-2yv.67 — persist auto-triggered runs to the audit log
+        // via the shared helper. Inside the same try/catch so a failed
+        // audit write logs but never blocks the pipeline. Same shape as
+        // the manual /api/garden handler.
+        await recordGardeningRun({
+          trigger: 'auto',
+          runsSinceLast: runsSince,
+          report: gardenResult.result || '(no report)',
+          durationMs: Date.now() - tGarden,
+        }).catch(err => {
+          console.warn('[gardener] failed to store report:', err instanceof Error ? err.message : err);
+        });
         gardenerResult = { triggered: true, report: gardenResult.result };
       } catch (err) {
         console.warn('[gardener] failed:', err instanceof Error ? err.message : err);

@@ -10,7 +10,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { ingest, store, extract, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
 import { config } from './config.js';
-import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, gardeningReports } from './db/index.js';
+import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports } from './db/index.js';
 import { isNull, sql, eq } from 'drizzle-orm';
 import { getMergeCandidates } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
@@ -489,6 +489,7 @@ app.post('/api/garden', async (c) => {
   console.log('[garden] manual trigger received');
 
   const { invokeGardenerAgent } = await import('./services/causal-agent.js');
+  const { recordGardeningRun } = await import('./services/gardening.js');
   try {
     console.log('[garden] invoking gardener agent...');
     const result = await invokeGardenerAgent({ trigger: 'manual' });
@@ -498,10 +499,13 @@ app.post('/api/garden', async (c) => {
     console.log(result.result || '(no report)');
     console.log('[garden] --- END REPORT ---');
 
-    // Store report
-    db.insert(gardeningReports).values({
-      triggerType: 'manual',
-      reportText: result.result || '(no report)',
+    // Persist via the shared audit-log helper (bead nmemo-2yv.67). The
+    // helper is fire-and-forget here — a failed audit write logs a warning
+    // but does NOT change the HTTP response. The auto-trigger path in
+    // pipeline.ts calls the same helper, so both surfaces are captured.
+    recordGardeningRun({
+      trigger: 'manual',
+      report: result.result || '(no report)',
       durationMs,
     }).catch(err => {
       console.warn('[garden] failed to store report:', err instanceof Error ? err.message : err);
