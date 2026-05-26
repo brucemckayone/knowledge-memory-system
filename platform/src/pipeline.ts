@@ -101,14 +101,15 @@ export async function maybeTriggerReconciliation(
     lastReconciliationRunAt = Date.now();
     const invoker = invokerOverride ?? (await import('./services/causal-agent.js')).invokeReconciliationAgent;
     const { getMergeCandidates } = await import('./services/graph-meta.js');
-    const [allCandidates, recentReports] = await Promise.all([
+    // Default getMergeCandidates() returns unresolved candidates only — the SQL
+    // filter is canonical; no in-memory dedup needed (bead nmemo-2yv.45).
+    const [unresolved, recentReports] = await Promise.all([
       getMergeCandidates(),
       db.select({ reportText: extractionReports.reportText })
         .from(extractionReports)
         .orderBy(sql`created_at DESC`)
         .limit(10),
     ]);
-    const unresolved = allCandidates.filter((c: { status?: string }) => c.status !== 'resolved');
     console.log(`[reconciliation] auto-triggering candidates=${unresolved.length} unconfirmed_aliases=${unconfirmedRows.length}`);
     const result = await invoker({
       candidates: unresolved as Array<Record<string, unknown>>,

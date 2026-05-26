@@ -164,7 +164,10 @@ app.get('/api/viz/unified', async (c) => {
       spread: entityMeta.spread,
       summary: entityMeta.summary,
     }).from(entityMeta),
-    getMergeCandidates(),
+    // Viz wants every candidate (resolved + unresolved) so the merge edges
+    // remain visible after resolution. Large explicit limit replaces the
+    // legacy unbounded query (bead nmemo-2yv.45).
+    getMergeCandidates({ includeResolved: true, limit: 10000 }),
     db.select({
       id: sameAsLinks.id,
       entityAId: sameAsLinks.entityAId,
@@ -392,7 +395,9 @@ app.get('/api/viz/unified', async (c) => {
 });
 
 app.get('/api/viz/merge-candidates', async (c) => {
-  const candidates = await getMergeCandidates();
+  // Viz surface — return every candidate (resolved + unresolved) under a
+  // large explicit cap (bead nmemo-2yv.45).
+  const candidates = await getMergeCandidates({ includeResolved: true, limit: 10000 });
   return c.json(candidates);
 });
 
@@ -415,8 +420,9 @@ app.post('/api/reconcile', async (c) => {
     return c.json({ triggered: false, candidateCount: 0, message: 'No unresolved candidates or unconfirmed aliases found.' });
   }
 
-  // Fetch candidates and recent extraction reports
-  const [allCandidates, recentReports] = await Promise.all([
+  // Fetch unresolved candidates (default filter — bead nmemo-2yv.45) and recent
+  // extraction reports. The SQL filter is canonical; no in-memory dedup needed.
+  const [unresolved, recentReports] = await Promise.all([
     getMergeCandidates(),
     includeReports
       ? db.select({ reportText: extractionReports.reportText })
@@ -428,7 +434,6 @@ app.post('/api/reconcile', async (c) => {
 
   // Invoke reconciliation agent with unresolved candidates
   const { invokeReconciliationAgent } = await import('./services/causal-agent.js');
-  const unresolved = allCandidates.filter(c => c.status !== 'resolved');
   const result = await invokeReconciliationAgent({
     candidates: unresolved as Array<Record<string, unknown>>,
     recentReports: recentReports.map(r => r.reportText),

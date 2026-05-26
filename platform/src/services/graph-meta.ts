@@ -225,10 +225,44 @@ export async function detectMergeCandidates(entityIds: string[]): Promise<number
   });
 }
 
+/** Default page size when no explicit limit is passed (bead nmemo-2yv.45). */
+export const DEFAULT_MERGE_CANDIDATES_LIMIT = 50;
+
+/** Default status set when neither `statuses` nor `includeResolved` is passed. */
+const DEFAULT_UNRESOLVED_STATUSES = ['staging', 'candidate', 'provisional'] as const;
+
+/** All known statuses — sugar shorthand for `{ includeResolved: true }`. */
+const ALL_STATUSES = [...DEFAULT_UNRESOLVED_STATUSES, 'resolved'] as const;
+
+export interface GetMergeCandidatesOptions {
+  /** Explicit status filter. Wins over `includeResolved`. */
+  statuses?: string[];
+  /** Sugar: when true and `statuses` is unset, fetch every status incl. resolved. */
+  includeResolved?: boolean;
+  /** Page size; defaults to DEFAULT_MERGE_CANDIDATES_LIMIT (50). */
+  limit?: number;
+  /** Page offset; defaults to 0. */
+  offset?: number;
+}
+
 /**
- * Get all unresolved merge candidates, ordered by score.
+ * Get merge candidates filtered by status, paginated, ordered by combined_score DESC.
+ *
+ * Default contract: returns at most {@link DEFAULT_MERGE_CANDIDATES_LIMIT} rows where
+ * status != 'resolved' (i.e. staging | candidate | provisional). The default query
+ * is index-friendly via `idx_merge_candidates_score` (partial WHERE status != 'resolved').
+ *
+ * Options:
+ *   - `statuses`: explicit allow-list. Pass `['resolved']` to fetch resolved-only.
+ *   - `includeResolved`: sugar for "all statuses". Ignored if `statuses` is set.
+ *   - `limit` / `offset`: pagination. Stable ordering via secondary `mc.id` tiebreak.
+ *
+ * Replicating the legacy "get all" call:
+ *   `getMergeCandidates({ includeResolved: true, limit: <large> })`.
+ *
+ * (bead nmemo-2yv.45 — was previously docstring-vs-SQL mismatched: no WHERE / no LIMIT.)
  */
-export async function getMergeCandidates(): Promise<Array<{
+export async function getMergeCandidates(options: GetMergeCandidatesOptions = {}): Promise<Array<{
   id: string;
   entityA: { id: string; name: string; type: string };
   entityB: { id: string; name: string; type: string };
@@ -242,6 +276,11 @@ export async function getMergeCandidates(): Promise<Array<{
   // mig 017 — distinguishes 'three_signal_scoring' from 'cross_cluster_generator'
   candidateSource: string;
 }>> {
+  const statuses: readonly string[] = options.statuses
+    ?? (options.includeResolved ? ALL_STATUSES : DEFAULT_UNRESOLVED_STATUSES);
+  const limit = options.limit ?? DEFAULT_MERGE_CANDIDATES_LIMIT;
+  const offset = options.offset ?? 0;
+
   const rows = await db.execute(sql`
     SELECT
       mc.id, mc.entity_a_id, mc.entity_b_id,
@@ -254,7 +293,9 @@ export async function getMergeCandidates(): Promise<Array<{
     FROM merge_candidates mc
     JOIN entities a ON mc.entity_a_id = a.id
     JOIN entities b ON mc.entity_b_id = b.id
-    ORDER BY mc.combined_score DESC
+    WHERE mc.status = ANY(ARRAY[${sql.join(statuses.map(s => sql`${s}`), sql`, `)}]::text[])
+    ORDER BY mc.combined_score DESC, mc.id ASC
+    LIMIT ${limit} OFFSET ${offset}
   `) as unknown as Array<Record<string, unknown>>;
 
   return rows.map(r => ({
