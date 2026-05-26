@@ -39,8 +39,9 @@ Technical direction for the Mnemo knowledge graph system — dual-graph architec
 | # | Document | What It Covers |
 |---|----------|----------------|
 | 31 | [Review Cycle Synthesis](31-review-cycle-synthesis.md) | Cross-feature synthesis of Reviews #1–#13 (May 2026). Themes (T1/T7/T8/T9/T10/T11/T12/T13 + transport divergence), compose gaps, cross-cutting findings, prioritised landing roadmap. Read this after any per-feature arch doc to understand the cross-cutting context. |
+| 32 | [Compute-trigger registry](32-compute-trigger-registry.md) | Canonical list of every graph compute (graph_stats / topology / clustering / drift / cross_cluster / gardener / reconciliation / reasoning_patrol / pattern_detection / decay) with its trigger condition, cadence, runs table, and source code path. PR contract: new computes must add a row in the same PR. T12 cure (bead `nmemo-2yv.131`). |
 
-> **README catalogue is stale beyond doc 19** — docs 20–30 exist on disk but aren't yet listed here. See nmemo-2yv for cleanup tracking.
+> **README catalogue is stale beyond doc 19** — docs 20–30 exist on disk but aren't yet listed here. See nmemo-2yv for cleanup tracking. (Doc 32 IS listed above; the catalogue stub from doc 20 onwards needs a separate sweep.)
 
 ## Status
 
