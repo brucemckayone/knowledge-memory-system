@@ -342,12 +342,66 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // Tool listing (for debugging)
+  // Tool listing — used by the transport-parity contract test (bead .134)
+  // to fetch the full Pi-side `tools/list` shape for comparison with the
+  // MCP server's `tools/list` JSON-RPC response. Returns the same fields
+  // graph-mcp.ts exposes: name + description + inputSchema (with properties
+  // and required). Anything less would force the parity test to import
+  // GRAPH_TOOLS directly and bypass the bridge — which would not detect
+  // tool-registration drift between Pi's defineTool path and GRAPH_TOOLS.
   if (req.method === 'GET' && req.url === '/tools') {
     sendJson(res, 200, {
-      tools: GRAPH_TOOLS.map((t) => ({ name: t.name, description: t.description.slice(0, 80) })),
+      tools: GRAPH_TOOLS.map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: {
+          type: 'object' as const,
+          properties: t.inputSchema.properties,
+          required: t.inputSchema.required,
+        },
+      })),
       count: GRAPH_TOOLS.length,
     });
+    return;
+  }
+
+  // Direct tool dispatch — bead .134 transport-parity contract test endpoint.
+  // Mirrors the MCP server's `tools/call` envelope shape (`graph-mcp.ts:45-58`)
+  // so the parity test can issue unknown-tool / known-tool calls against BOTH
+  // transports without an LLM in the loop. Success returns
+  // `{ content: [{ type: 'text', text: <result> }] }`; failure (e.g. unknown
+  // tool name reaching `handleToolCall`'s default branch) returns
+  // `{ isError: true, content: [{ type: 'text', text: 'Error: ...' }] }`.
+  // Not part of the production agent flow — agents drive tools through `/run`
+  // via the LLM and Pi SDK.
+  if (req.method === 'POST' && req.url === '/tools/call') {
+    try {
+      const body = await readBody(req);
+      const parsed = JSON.parse(body) as { name?: string; arguments?: Record<string, unknown> };
+      const name = parsed.name;
+      const args = parsed.arguments ?? {};
+
+      if (typeof name !== 'string' || name.length === 0) {
+        sendJson(res, 400, { error: 'Missing required field: name' });
+        return;
+      }
+
+      try {
+        const result = await handleToolCall(name, args);
+        sendJson(res, 200, {
+          content: [{ type: 'text' as const, text: result }],
+        });
+      } catch (err) {
+        sendJson(res, 200, {
+          isError: true,
+          content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : err}` }],
+        });
+      }
+    } catch (err) {
+      sendJson(res, 500, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     return;
   }
 
@@ -416,7 +470,8 @@ assertMutatesFlagsDeclared();
 
 server.listen(PORT, () => {
   console.error(`Pi Agent Bridge running on http://localhost:${PORT}`);
-  console.error(`  GET  /health  — health check`);
-  console.error(`  GET  /tools   — list registered tools`);
-  console.error(`  POST /run     — run agent (prompt + system_prompt → result)`);
+  console.error(`  GET  /health      — health check`);
+  console.error(`  GET  /tools       — list registered tools (name + inputSchema)`);
+  console.error(`  POST /tools/call  — direct tool dispatch (parity-test endpoint)`);
+  console.error(`  POST /run         — run agent (prompt + system_prompt → result)`);
 });

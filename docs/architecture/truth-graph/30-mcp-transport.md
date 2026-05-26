@@ -93,6 +93,19 @@ Both transports dispatch through `handleToolCall` and share the same tool catalo
 2. **One dispatcher.** Every tool call lands in `handleToolCall`, which routes to `_handleToolCallInner`. Both transports go through this function — write serialisation, audit context, and error wrapping happen exactly once regardless of transport (see §6).
 3. **One env builder.** The MCP server subprocess gets its env from `getMcpEnv(actor)` (added by bead `.126`); both `getMcpConfigPath` (which writes the config Claude Code consumes) and `checkGraphMcpHealth` (which spawns the server directly) call this. Pi bridge inherits its env from the running process — its env contract is "whatever the bridge process was started with".
 
+### 5.1 Parity test assertions (bead `nmemo-2yv.134`)
+
+The contract above is enforced by `src/test/harness/transport-parity.test.ts`. It exercises the two live transports (`pi-agent-bridge.ts` over HTTP, `graph-mcp.ts` over stdio JSON-RPC) and asserts:
+
+1. **Tool surface equivalence.** Both transports' `tools/list` (Pi: `GET /tools`; MCP: JSON-RPC `tools/list`) return the same set of tool names. For every tool, `inputSchema.required` is identical across transports (order-insensitive).
+2. **Tool count matches `GRAPH_TOOLS`.** Both transports' tool-list length === `GRAPH_TOOLS.length`. A tool that fails to register in either transport — for instance, a `defineTool` schema rejection in Pi or a missing entry in `setRequestHandler(ListToolsRequestSchema, ...)` on the MCP side — fails this assertion before any agentic flow runs.
+3. **Write-serialization parity.** Two concurrent `create_fact` calls against the Pi bridge's direct-dispatch endpoint (`POST /tools/call`) both persist as distinct rows. The shared `writeQueue` in `handleToolCall` serialises them regardless of transport (post-bead `.127`). The MCP-side mirror lives in `src/test/harness/causal-mcp.test.ts` ("write-tool serialisation") — `handleToolCall` is the singleton dispatcher; re-proving the same queue via JSON-RPC stdio is redundant.
+4. **Unknown-tool error envelope.** Issuing `tools/call` with a bogus tool name (Pi: `POST /tools/call`, MCP: JSON-RPC `tools/call`) returns the same envelope on both: `{ isError: true, content: [{ type: 'text', text: 'Error: ...' }] }`. This guards against either transport silently changing how `handleToolCall`'s default-branch throw is surfaced.
+
+The Pi bridge's `POST /tools/call` is a debug-only endpoint introduced by bead `.134` for this test. It mirrors `graph-mcp.ts`'s envelope shape. Agents do not call it in production — they go through `POST /run` and let the Pi SDK route invocations to the registered `defineTool` handlers.
+
+**ZAI is excluded from the parity test.** ZAI (`LLM_PROVIDER=zai`) runs inside ml-services and has not been audited by any previous review cycle; testing it would require credentials, a network gate in CI, and a separate ZAI-audit pass. The parity test covers the two transports that the platform currently spawns or hosts — Pi bridge (in-process) and MCP (subprocess). Extending parity to ZAI is a follow-up if and when ZAI gets its own audit; tracked in `31-review-cycle-synthesis.md` §2.9 as the open ZAI gap.
+
 ## 6. Transport divergence — known places where behaviour is NOT identical
 
 ### Write-tool serialisation
