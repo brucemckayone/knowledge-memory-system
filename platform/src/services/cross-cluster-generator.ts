@@ -394,17 +394,45 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
     // surface for scoring.
     const byComponent = new Map<number, EntityRow[]>();
     const componentSizeMeta = new Map<number, number>();
+    const componentsMissingSize = new Set<number>();
     for (const e of entities) {
       if (e.component_id === null) continue;
       let bucket = byComponent.get(e.component_id);
       if (!bucket) { bucket = []; byComponent.set(e.component_id, bucket); }
       bucket.push(e);
-      if (e.component_size !== null && !componentSizeMeta.has(e.component_id)) {
-        componentSizeMeta.set(e.component_id, e.component_size);
+      if (e.component_size !== null) {
+        if (!componentSizeMeta.has(e.component_id)) {
+          componentSizeMeta.set(e.component_id, e.component_size);
+        }
+      } else {
+        componentsMissingSize.add(e.component_id);
       }
     }
+    // Doc 25 §2.1 invariant: the MIN_COMPONENT_SIZE gate is the *full* component
+    // size (entity_topology.component_size), not the post-k_core bucket length.
+    // A NULL component_size means upstream (Phase 2 topology compute) didn't
+    // populate the metadata — treat as stale_upstream per bead nmemo-2yv.96
+    // Decision (locked 2026-05-21). Surfacing this as a skip avoids the
+    // pre-bead silent fallback to bucket length, which inverts the invariant.
+    if (componentsMissingSize.size > 0) {
+      const sample = [...componentsMissingSize].slice(0, 10);
+      const suffix = componentsMissingSize.size > sample.length
+        ? ` (and ${componentsMissingSize.size - sample.length} more)`
+        : '';
+      console.warn(`[cross-cluster] entity_topology.component_size NULL for component_ids=[${sample.join(',')}]${suffix}; skipping with skippedReason='stale_upstream' — Phase 2 topology compute should populate component_size.`);
+      result = {
+        ran: false,
+        skippedReason: 'stale_upstream',
+        componentPairsEvaluated: 0,
+        candidatesInserted: 0,
+        driftDrivenCandidates: 0,
+        durationMs: Date.now() - t0,
+        runId,
+      };
+      return;
+    }
     const componentIds = [...byComponent.keys()].filter(
-      (cid) => (componentSizeMeta.get(cid) ?? byComponent.get(cid)!.length) >= minComponentSize(),
+      (cid) => componentSizeMeta.get(cid)! >= minComponentSize(),
     );
     componentIds.sort((a, b) => a - b);
 

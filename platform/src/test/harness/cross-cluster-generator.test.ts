@@ -491,6 +491,48 @@ describe('cross-cluster candidate generator', () => {
     expect(rows[0]!.resolution_reasoning).toBe(ccReasoning);
   });
 
+  it('NULL component_size in entity_topology: skipped with reason "stale_upstream" (bead .96)', async () => {
+    // Doc 25 §2.1 invariant: the MIN_COMPONENT_SIZE gate is the *full*
+    // component size, not the post-k_core bucket length. A NULL component_size
+    // means Phase 2 topology compute didn't populate the metadata; the pre-bead
+    // fallback to byComponent[cid].length silently inverted the invariant.
+    // Fix: scan for NULL component_size and skip with skippedReason
+    // 'stale_upstream' so the operator sees the upstream gap rather than a
+    // silently-degraded gate.
+    await ensureUpstreamFresh();
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    // Seed component_size as NULL via direct INSERT (the seedTopology helper
+    // defaults to 2, which is non-NULL — we need the NULL row explicitly to
+    // exercise the new gate).
+    await testDb.unsafe(`
+      INSERT INTO public.entity_topology
+        (entity_id, component_id, component_size, k_core, is_articulation_point, pagerank, computation_version)
+      VALUES
+        ('${a.id}'::uuid, 0, NULL, 2, false, 0.1, 1),
+        ('${b.id}'::uuid, 1, NULL, 2, false, 0.1, 1)
+    `);
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+
+    const warnings: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(' ')); };
+    try {
+      const r = await generateCrossClusterCandidates();
+      expect(r.ran).toBe(false);
+      expect(r.skippedReason).toBe('stale_upstream');
+      expect(r.componentPairsEvaluated).toBe(0);
+      expect(r.candidatesInserted).toBe(0);
+    } finally {
+      console.warn = origWarn;
+    }
+    // The warn must mention component_size + the affected component_ids so
+    // the operator can correlate to a specific Phase 2 backfill gap.
+    const matched = warnings.find((w) => w.includes('component_size') && (w.includes('component_ids=[0,1]') || w.includes('component_ids=[1,0]')));
+    expect(matched, `expected a component_size warning, got: ${JSON.stringify(warnings)}`).toBeDefined();
+  });
+
   it('freshness gate: stale upstream skips with reason "stale_upstream"', async () => {
     // Simulate: a fresh entity but an old topology compute.
     const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
