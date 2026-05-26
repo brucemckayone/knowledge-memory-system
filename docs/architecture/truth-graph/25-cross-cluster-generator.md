@@ -38,10 +38,10 @@ For each pair of components `(A, B)` where `A.size >= MIN_COMPONENT_SIZE` and `B
 5. **Insert into merge_candidates**: each pair becomes a row with the existing 3-signal columns plus a high `combined_score`. The `resolution_reasoning` field is pre-populated with which signals fired.
 6. **Existing reconciliation flow** picks them up on its next periodic invocation.
 
-The pipeline runs after T0+T1 compute on the same patrol cycle. The trigger model:
+The pipeline runs after T0+T1 compute. The trigger model:
 
 - **On-demand:** `POST /api/cross-cluster/generate` for manual / viz
-- **Patrol-time:** runs after every successful `topology/compute` AND `semantic-clustering/compute` completion within the same patrol cycle. If either upstream compute is stale or failed, this pipeline skips that cycle (logs a warning).
+- **Post-compute auto-trigger:** fire-and-forget from the success branches of `/api/topology/compute` and `/api/clustering/compute` (see §3.2 for wiring). The generator's own freshness gate enforces both-upstream-fresh — if either `topology_compute_runs` or `semantic_clustering_compute_runs` is stale relative to the most recent `entities.created_at`, the run skips with a logged reason.
 
 ### 2.2 The combined signal vector
 
@@ -180,7 +180,9 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
 
 - **`POST /api/cross-cluster/generate`** — manual trigger. Returns the generation result.
 - **`GET /api/cross-cluster/candidates`** — list cross-cluster-generated candidates. Convenience for viz / debugging.
-- **Pipeline integration:** in `pipeline.ts`, after both `topology/compute` and `semantic-clustering/compute` complete successfully on the same patrol, fire `generateCrossClusterCandidates()` in try/catch. Mirrors the existing `incrementPatrolCount` pattern from Phase 6.
+- **Auto-trigger wiring:** a helper `triggerCrossClusterAfterCompute(after: 'topology' | 'clustering')` is called fire-and-forget (`void`) from the success branches of `/api/topology/compute` and `/api/clustering/compute`. The helper wraps `generateCrossClusterCandidates()` in try/catch and logs the result (or skip reason, or failure) without ever surfacing back into the originating HTTP response. The helper currently lives in `platform/src/index.ts`; bead `nmemo-2yv.88` will relocate it (alongside `triggerReconciliationDriftAfterCompute`) into a `services/` module — the doc references it as "the trigger helper" rather than pinning a file path.
+
+The "same patrol both-fresh" constraint from the master plan is not enforced by call-site coordination; instead, the generator's own freshness gate (below) skips when either upstream is stale, and a `pg_try_advisory_xact_lock` inside the generator short-circuits overlapping invocations.
 
 **"Fresh" definition (cold-eyes review W4):** an upstream compute is "fresh" if its `*_compute_runs.completed_at` is more recent than the most recent `entities.created_at` (i.e. nothing's been ingested since the compute ran). Concretely:
 
@@ -197,7 +199,7 @@ async function isUpstreamFresh(runsTable: string): Promise<boolean> {
 }
 ```
 
-The cross-cluster generator skips this cycle if either `topology_compute_runs` or `semantic_clustering_compute_runs` is not fresh. The skip is logged in the pipeline output but not treated as failure — next patrol retries.
+The cross-cluster generator skips this cycle if either `topology_compute_runs` or `semantic_clustering_compute_runs` is not fresh. The skip is logged via the trigger helper's wrapper but not treated as failure — the next compute on either route retries.
 
 ### 3.3 Schema migration
 
@@ -393,7 +395,7 @@ Behaviour:
 - `platform/src/services/graph-meta.ts` — sibling 3-signal generator that this pipeline complements
 - `platform/src/db/migrations/003_graph_meta.sql` — `merge_candidates` schema
 - `ml-services/app/reconciliation_agent.py` — the LLM verifier; prompt extended by this bead
-- `platform/src/pipeline.ts` lines 33-46 — patrol counter pattern
+- The trigger helper (`triggerCrossClusterAfterCompute`) — currently in `platform/src/index.ts`, scheduled for relocation to a `services/` module by bead `nmemo-2yv.88`
 
 ### Sibling features
 - `26-structural-embeddings.md` (Phase 5, deferred) — KGE-based candidate generation, additive to this pipeline
