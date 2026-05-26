@@ -78,15 +78,13 @@ For each candidate pair, before deciding:
 3. If more context is needed: search_memories(query) to find connecting source material.
 4. Check causal history: get_causal_history(entity_id) — if one entity is causally linked to the other, that may indicate identity.
 
-=== CROSS-CLUSTER CANDIDATES ===
+=== INTERPRETING SIGNALS ===
 
-Candidates with `candidate_source == 'cross_cluster_generator'` were identified by combined topological + semantic-space signals (cluster co-membership, drift, role similarity, centrality, articulation), not by direct similarity. The 3-signal columns (`centroid_similarity`, `memory_overlap`, `structural_similarity`) are **NULL** for these rows — that's expected, not a bad signal. Cross-cluster candidates typically have zero shared neighbours and zero source memory overlap; the generator surfaced them because the entities live in disconnected components yet show topological/semantic evidence of being the same identity.
+Each candidate row carries a set of similarity signals (centroid, memory overlap, structural, cluster, drift, role, centrality, articulation). Any of these may be NULL — that means the input wasn't applicable (e.g. cross-component pairs have no shared memories, so memory_overlap is NULL, not zero). Treat NULL as "signal not applicable", NOT as "signal fired weakly".
 
-When investigating a cross-cluster candidate:
-1. Prioritise reading both entities' source memories (`get_entity_sources`) — the strongest evidence will come from textual narrative, not graph signals.
-2. Look for narrative voice changes, role similarities across disjoint subgraphs, or coreference signals that the extraction agent missed (e.g. an entity introduced under a description in one chapter being later named in another).
-3. Do not penalise the candidate for "the existing similarity scores look weak" — they're not the operative signal for this candidate class.
-4. The `resolution_reasoning` field contains the per-signal contribution breakdown; treat it as a hypothesis seed, not a verdict.
+When most direct-similarity signals (centroid, memory_overlap, structural) are NULL — typical for pairs in disconnected components surfaced by topological evidence — the strongest evidence will come from textual narrative, not graph signals. Prioritise `get_entity_sources` to look for narrative voice changes, role similarities across disjoint subgraphs, or coreference signals the extraction agent missed (e.g. an entity introduced under a description in one chapter being later named in another).
+
+The `resolution_reasoning` field (when present) carries a per-signal contribution breakdown. Treat it as a hypothesis seed, not a verdict.
 
 === BRIDGE FACTS ===
 
@@ -171,56 +169,45 @@ Candidates you couldn't resolve with confidence, and what additional information
 """ + PROMPT_SAFETY_SYSTEM_CLAUSE + """"""
 
 
+def _fmt_signal(value: float | None) -> str:
+    """Render a similarity signal for the prompt. NULL stays "NULL" so the
+    LLM can distinguish "signal not applicable" from "signal fired weakly".
+    Per doc 25 §2.5: cross-component pairs typically have NULL centroid /
+    memory_overlap / structural because the inputs are absent, not because
+    the signal voted zero. Rendering NULL as 0.00 would mislead the LLM."""
+    if value is None:
+        return "NULL"
+    return f"{value:.2f}"
+
+
 def _build_reconciliation_prompt(candidates: list[dict], recent_reports: list[str]) -> str:
     """
     Build the reconciliation prompt.
 
-    Per doc 25 §2.4, candidates are split by `candidate_source`:
-      - 'three_signal_scoring' (default for legacy rows + the existing
-        in-extraction generator) — render with the centroid / memory_overlap /
-        structural signals as before.
-      - 'cross_cluster_generator' — render in a separate block that flags
-        the different signal class. The 3-signal columns are NULL for these
-        rows by design (§2.5 R3 B3); rendering them as 0.00 would mislead
-        the LLM. The system-prompt's "CROSS-CLUSTER CANDIDATES" section
-        explains how to investigate this class.
-
-    A row with no `candidate_source` key (older messages, tests, future
-    sources) defaults to the three-signal block so the prompt stays
-    backward-compatible.
+    Post-bead nmemo-2yv.42 + .44: all candidates go through one scoring
+    pipeline (scoreMergeCandidates) and render through one prompt block.
+    The `candidate_source` column tags which enumerator produced the row
+    (three_signal_scoring vs cross_cluster_generator) but doesn't change
+    the rendering — signal-population is uniform (NULL when inputs are
+    absent, populated when inputs exist). The system-prompt's "INTERPRETING
+    SIGNALS" section tells the LLM how to read NULL signals.
     """
-    cross_cluster = [c for c in candidates if c.get('candidate_source') == 'cross_cluster_generator']
-    three_signal = [c for c in candidates if c.get('candidate_source') != 'cross_cluster_generator']
-
     lines = ["## Reconciliation Context\n"]
 
     if not candidates:
         lines.append("### No merge candidates\n")
-
-    if three_signal:
-        lines.append(f"### 3-Signal Candidates ({len(three_signal)} unresolved)\n")
-        for c in three_signal:
-            lines.append(
-                f"- **Candidate {c.get('id', '?')}** | score={c.get('combined_score', 0):.2f} | status={c.get('status', '?')}\n"
-                f"  Entity A: {c.get('a_name', '?')} ({c.get('a_type', '?')}) id={c.get('entity_a_id', '?')}\n"
-                f"  Entity B: {c.get('b_name', '?')} ({c.get('b_type', '?')}) id={c.get('entity_b_id', '?')}\n"
-                f"  Signals: centroid={c.get('centroid_similarity') or 0:.2f} "
-                f"memory_overlap={c.get('memory_overlap') or 0:.2f} "
-                f"structural={c.get('structural_similarity') or 0:.2f}\n"
-            )
-
-    if cross_cluster:
-        lines.append(
-            f"### Cross-Cluster Candidates "
-            f"({len(cross_cluster)} unresolved — different class, see system prompt)\n"
-        )
-        for c in cross_cluster:
+    else:
+        lines.append(f"### Merge Candidates ({len(candidates)} unresolved)\n")
+        for c in candidates:
             reasoning_seed = c.get('resolution_reasoning') or '(no per-signal seed)'
             lines.append(
-                f"- **Candidate {c.get('id', '?')}** | score={c.get('combined_score', 0):.2f} | status={c.get('status', '?')}\n"
+                f"- **Candidate {c.get('id', '?')}** | score={c.get('combined_score', 0):.2f} "
+                f"| source={c.get('candidate_source', 'unknown')} | status={c.get('status', '?')}\n"
                 f"  Entity A: {c.get('a_name', '?')} ({c.get('a_type', '?')}) id={c.get('entity_a_id', '?')}\n"
                 f"  Entity B: {c.get('b_name', '?')} ({c.get('b_type', '?')}) id={c.get('entity_b_id', '?')}\n"
-                f"  3-signal columns: NULL (expected — see system prompt)\n"
+                f"  Signals: centroid={_fmt_signal(c.get('centroid_similarity'))} "
+                f"memory_overlap={_fmt_signal(c.get('memory_overlap'))} "
+                f"structural={_fmt_signal(c.get('structural_similarity'))}\n"
                 f"  reasoning_seed: {reasoning_seed}\n"
             )
 

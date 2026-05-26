@@ -103,10 +103,13 @@ Per `getMergeCandidates()` (`src/services/graph-meta.ts`):
 ]
 ```
 
-The agent's prompt renders these in two blocks (per `_build_reconciliation_prompt`):
+The agent's prompt renders all candidates in a single `### Merge Candidates` block (per `_build_reconciliation_prompt`). Each row carries:
 
-- **3-Signal Candidates** — the default block. Renders centroid/memory_overlap/structural columns numerically.
-- **Cross-Cluster Candidates** — for `candidate_source = 'cross_cluster_generator'` rows. The 3-signal columns are NULL by design (the cross-cluster generator uses topology + drift signals, not direct similarity); rendering them as 0.00 would mislead the LLM. The system prompt's "CROSS-CLUSTER CANDIDATES" section explains how to investigate this class (prioritise reading both entities' source memories — strongest evidence is textual, not graph signals).
+- The `candidate_source` tag inline (`source=three_signal_scoring | cross_cluster_generator | …`) so the agent can see which enumerator surfaced the pair.
+- The 3-signal column values, rendered as `NULL` when the column is null and as `0.NN` otherwise. The literal `NULL` tells the LLM the signal didn't apply (e.g. cross-component pairs have no shared memories); rendering it as `0.00` would mislead the agent into reading the signal as "fired weakly". The system prompt's `=== INTERPRETING SIGNALS ===` section explains this rule.
+- The `reasoning_seed` (from `resolution_reasoning`) when present — a per-signal contribution breakdown the LLM uses as a hypothesis seed.
+
+The pre-bead `nmemo-2yv.44` two-block split (3-Signal Candidates / Cross-Cluster Candidates) is gone: post-bead `.42` both enumerators feed the same `scoreMergeCandidates` and signal-population is uniform (NULL when inputs absent, populated when inputs exist), so a single rendering is sufficient.
 
 ### 3.2 Recent extraction reports
 
@@ -235,13 +238,17 @@ Zero-fact entities (false extractions or isolated mentions):
 2. Decide: real entity that lacks facts (add at least one fact), or false extraction (note — don't delete; aged-orphan cleanup is a separate concern).
 3. If suspected duplicate: `create_same_as_link` or `execute_merge` as appropriate.
 
-### 7.3 Cross-cluster candidates
+### 7.3 Candidates with mostly-NULL direct-similarity signals
 
-Candidates with `candidate_source='cross_cluster_generator'` (see doc 25). The 3-signal columns are NULL by design — those signals don't apply to entities in disconnected components. The agent prioritises:
+Typically: pairs from disconnected components surfaced by the cross-cluster enumerator (`candidate_source='cross_cluster_generator'`, see doc 25). Their `centroid_similarity` / `memory_overlap` / `structural_similarity` are NULL because the inputs are absent (no shared memories, no shared structural neighbours), not because the signals voted zero.
+
+The system prompt's `=== INTERPRETING SIGNALS ===` section tells the agent how to read NULL: as "signal not applicable", not "signal fired weakly". When most direct-similarity signals are NULL, the agent prioritises:
 
 1. Reading both entities' source memories (`get_entity_sources`) — strongest evidence is textual narrative, not graph signals.
 2. Looking for narrative voice changes, role similarities across disjoint subgraphs, or coreference signals the extraction agent missed.
 3. Treating the `resolution_reasoning` field (per-signal contribution breakdown) as a hypothesis seed, not a verdict.
+
+Post-bead `nmemo-2yv.44` this no longer requires a separate prompt block — the single `Merge Candidates` block renders NULL as the literal `NULL` and the `source=` tag tells the agent which enumerator surfaced the pair.
 
 ### 7.4 Bridge facts
 

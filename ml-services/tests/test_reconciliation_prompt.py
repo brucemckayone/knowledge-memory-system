@@ -1,18 +1,22 @@
 """
-Phase 4 — reconciliation prompt-builder integration test (doc 25 §4.2 W6 lock)
+Reconciliation prompt-builder integration test (bead nmemo-2yv.44 single-block
+shape; supersedes doc 25 §2.4's two-block W6 lock).
 
-The contract: when the reconciliation_agent's prompt-builder receives a
-cross-cluster candidate row (`candidate_source == 'cross_cluster_generator'`),
-the resulting prompt must:
-  - contain the literal "Cross-Cluster Candidates" section header
-  - include both entity names so the LLM can ground its investigation
-  - NOT render the NULL 3-signal columns as zeros (which would mislead the
-    LLM into thinking those signals fired weakly when they're inapplicable)
-  - keep three-signal candidates rendered in their own separate block
-  - degrade gracefully on the legacy / unknown candidate_source key
+Post-bead .42 + .44: all candidates go through one scoreMergeCandidates pass
+and render through one prompt block. `candidate_source` becomes an enumerator-
+origin tag (visible in the prompt's source= field) but no longer drives
+prompt branching. The contract:
+
+  - all candidates render in a single "Merge Candidates" block
+  - NULL signals appear as the literal "NULL" (not "0.00") so the LLM can
+    distinguish "signal not applicable" from "signal fired weakly"
+  - the candidate_source value is visible on each row
+  - reasoning_seed propagates from resolution_reasoning when present
+  - legacy / unknown source values degrade gracefully (still render)
 
 These tests are pure-function — no DB, no HTTP, no LLM. They lock the
-prompt-rendering shape against the doc 25 §2.4 / §4.2 contract.
+prompt-rendering shape against the doc 25 §2.4 / §4.2 contract (revised
+under .44 to match the single-block reality post-.42).
 """
 
 import sys
@@ -77,82 +81,80 @@ def make_cross_cluster_candidate(**overrides) -> dict:
     return base
 
 
-def test_system_prompt_carries_cross_cluster_section():
-    """The §2.4 lock requires the 'CROSS-CLUSTER CANDIDATES' section to live
-    between INVESTIGATION PROCESS and BRIDGE FACTS in the system prompt
-    so the LLM has the rules-of-engagement before it encounters the
-    candidate block. Lock the ordering."""
+def test_system_prompt_carries_interpreting_signals_section():
+    """Post-.44 the system prompt has one signal-interpretation section
+    (=== INTERPRETING SIGNALS ===) sitting between INVESTIGATION PROCESS
+    and BRIDGE FACTS — replacing the old two-block CROSS-CLUSTER section.
+    Lock the ordering and the NULL-handling guidance."""
     p = RECONCILIATION_AGENT_SYSTEM_PROMPT
     investigation_idx = p.index("=== INVESTIGATION PROCESS ===")
-    cross_cluster_idx = p.index("=== CROSS-CLUSTER CANDIDATES ===")
+    interpreting_idx = p.index("=== INTERPRETING SIGNALS ===")
     bridge_facts_idx = p.index("=== BRIDGE FACTS ===")
-    assert investigation_idx < cross_cluster_idx < bridge_facts_idx
-    # The section must mention the source-tag literal so the LLM can match
-    # it to the rendered prompt block downstream.
-    assert "cross_cluster_generator" in p
+    assert investigation_idx < interpreting_idx < bridge_facts_idx
+    # Must explain how NULL signals are read.
+    assert "NULL" in p[interpreting_idx:bridge_facts_idx]
+    # Old two-block section must be gone — single-block contract.
+    assert "=== CROSS-CLUSTER CANDIDATES ===" not in p
 
 
-def test_cross_cluster_candidate_renders_with_section_header():
-    """§4.2 lock: prompt for a single cross-cluster row contains the
-    literal section header AND both entity names."""
-    candidates = [make_cross_cluster_candidate()]
-    prompt = _build_reconciliation_prompt(candidates, recent_reports=[])
-    assert "Cross-Cluster Candidates" in prompt
-    assert "Victor Frankenstein" in prompt
-    assert "the stranger" in prompt
-
-
-def test_cross_cluster_candidate_does_not_render_null_signals_as_zeros():
-    """§2.5 R3 B3: NULL 3-signal cols on cross-cluster rows must NOT show
-    up as 'centroid=0.00 memory_overlap=0.00 structural=0.00' — that would
-    teach the LLM that the signals fired weakly when they're inapplicable.
-    The cross-cluster block uses a different rendering."""
-    candidates = [make_cross_cluster_candidate()]
-    prompt = _build_reconciliation_prompt(candidates, recent_reports=[])
-    cross_section_start = prompt.index("Cross-Cluster Candidates")
-    cross_section = prompt[cross_section_start:]
-    assert "centroid=0.00" not in cross_section
-    assert "memory_overlap=0.00" not in cross_section
-    assert "structural=0.00" not in cross_section
-    # The cross-cluster row must say so explicitly.
-    assert "NULL" in cross_section
-
-
-def test_three_signal_candidate_still_renders_in_legacy_block():
-    """Three-signal candidates keep their original rendering. Lock the
-    block name + the centroid/memory/structural inline shape."""
-    candidates = [make_three_signal_candidate()]
-    prompt = _build_reconciliation_prompt(candidates, recent_reports=[])
-    assert "3-Signal Candidates" in prompt
-    assert "centroid=0.81" in prompt
-    assert "memory_overlap=0.20" in prompt
-    assert "structural=0.50" in prompt
-    # No cross-cluster block when none are present.
-    assert "Cross-Cluster Candidates" not in prompt
-
-
-def test_mixed_candidates_split_into_two_blocks():
-    """Mixed pool of both classes: each renders in its own section, in
-    the correct order (3-signal first, then cross-cluster)."""
+def test_single_block_renders_all_candidates_uniformly():
+    """Post-.44 single-block contract: a mix of three_signal +
+    cross_cluster candidates renders in one "Merge Candidates" block,
+    with the candidate_source tag visible on each row."""
     candidates = [
         make_three_signal_candidate(id="ts-A"),
         make_cross_cluster_candidate(id="cc-B"),
         make_three_signal_candidate(id="ts-C", a_name="Bob", b_name="Robert"),
     ]
     prompt = _build_reconciliation_prompt(candidates, recent_reports=[])
-    # Both block headers present.
-    three_idx = prompt.index("3-Signal Candidates")
-    cross_idx = prompt.index("Cross-Cluster Candidates")
-    assert three_idx < cross_idx, "3-signal block must come before cross-cluster"
-    # Counts in headers reflect the split (2 three-signal, 1 cross-cluster).
-    assert "(2 unresolved)" in prompt
-    assert "(1 unresolved" in prompt
+    # One block, not two.
+    assert "Merge Candidates" in prompt
+    assert "3-Signal Candidates" not in prompt
+    assert "Cross-Cluster Candidates" not in prompt
+    # Single count covers everything.
+    assert "(3 unresolved)" in prompt
+    # Each source value visible on its row.
+    assert "source=three_signal_scoring" in prompt
+    assert "source=cross_cluster_generator" in prompt
 
 
-def test_unknown_or_missing_candidate_source_falls_back_to_three_signal():
+def test_null_signals_render_as_literal_NULL_not_zero():
+    """Cross-component pairs leave centroid/memory_overlap/structural NULL
+    (inputs absent). The prompt must render the literal "NULL" so the LLM
+    can distinguish "signal not applicable" from "signal fired weakly".
+    Rendering as 0.00 would mislead the agent."""
+    candidates = [make_cross_cluster_candidate()]
+    prompt = _build_reconciliation_prompt(candidates, recent_reports=[])
+    # Both entity names appear so the LLM can ground its investigation.
+    assert "Victor Frankenstein" in prompt
+    assert "the stranger" in prompt
+    # NULL signals stay NULL — no silent zeros.
+    assert "centroid=NULL" in prompt
+    assert "memory_overlap=NULL" in prompt
+    assert "structural=NULL" in prompt
+    assert "centroid=0.00" not in prompt
+    assert "memory_overlap=0.00" not in prompt
+    assert "structural=0.00" not in prompt
+
+
+def test_populated_signals_still_render_numerically():
+    """When the 3-signal columns are populated (typical for within-component
+    pairs from three_signal_scoring), they render numerically. Lock the
+    centroid/memory/structural inline shape."""
+    candidates = [make_three_signal_candidate()]
+    prompt = _build_reconciliation_prompt(candidates, recent_reports=[])
+    assert "centroid=0.81" in prompt
+    assert "memory_overlap=0.20" in prompt
+    assert "structural=0.50" in prompt
+    # Source tag visible.
+    assert "source=three_signal_scoring" in prompt
+
+
+def test_unknown_or_missing_candidate_source_renders_gracefully():
     """Backward-compat: a candidate with no candidate_source key (older
-    rows, tests, future-source-not-yet-known) renders in the three-signal
-    block so the prompt is never broken by an unrecognised source tag."""
+    rows, tests, future-source-not-yet-known) still renders. The source=
+    field shows 'unknown' for missing keys; explicit unknown values come
+    through verbatim so they're visible for triage."""
     no_source = make_three_signal_candidate()
     no_source.pop("candidate_source")
     unknown_source = make_three_signal_candidate()
@@ -161,16 +163,18 @@ def test_unknown_or_missing_candidate_source_falls_back_to_three_signal():
     prompt = _build_reconciliation_prompt(
         [no_source, unknown_source], recent_reports=[]
     )
-    # Both end up in the three-signal block — count says so.
+    # Both render in the same block.
     assert "(2 unresolved)" in prompt
-    assert "Cross-Cluster Candidates" not in prompt
+    # The unknown source tag passes through, and missing keys default to 'unknown'.
+    assert "source=future_unknown_source_v2" in prompt
+    assert "source=unknown" in prompt
 
 
-def test_cross_cluster_reasoning_seed_propagates_through_prompt():
+def test_reasoning_seed_propagates_through_prompt():
     """The resolution_reasoning JSON (per-signal contributions) is the
     hypothesis seed the LLM uses to focus its investigation. It must
     survive into the rendered prompt so the agent sees which signals
-    fired."""
+    fired — applies to every candidate that has one."""
     candidate = make_cross_cluster_candidate()
     prompt = _build_reconciliation_prompt([candidate], recent_reports=[])
     assert "reasoning_seed" in prompt
@@ -178,15 +182,23 @@ def test_cross_cluster_reasoning_seed_propagates_through_prompt():
     assert "0.91" in prompt    # the cluster contribution literal
 
 
-def test_cross_cluster_with_no_resolution_reasoning_renders_placeholder():
-    """If the generator wrote no resolution_reasoning (older row, manual
-    insert, etc), the prompt should show a placeholder rather than the
-    Python 'None' literal which would confuse the LLM."""
+def test_missing_resolution_reasoning_renders_placeholder():
+    """If no resolution_reasoning was written (older row, manual insert,
+    etc), the prompt shows a placeholder rather than the Python 'None'
+    literal which would confuse the LLM."""
     candidate = make_cross_cluster_candidate()
     candidate["resolution_reasoning"] = None
     prompt = _build_reconciliation_prompt([candidate], recent_reports=[])
     assert "(no per-signal seed)" in prompt
     assert "reasoning_seed: None" not in prompt
+
+
+def test_no_candidates_renders_empty_marker():
+    """Sanity: empty candidate list renders the no-candidates marker
+    rather than an empty Merge Candidates header."""
+    prompt = _build_reconciliation_prompt([], recent_reports=[])
+    assert "No merge candidates" in prompt
+    assert "Merge Candidates (" not in prompt
 
 
 # Standalone runner — matches the existing ml-services/tests/* convention
@@ -195,14 +207,14 @@ def test_cross_cluster_with_no_resolution_reasoning_renders_placeholder():
 # assertion block; running them in order via the runner gives the same
 # behaviour as pytest discovery without the dependency.
 TESTS = [
-    test_system_prompt_carries_cross_cluster_section,
-    test_cross_cluster_candidate_renders_with_section_header,
-    test_cross_cluster_candidate_does_not_render_null_signals_as_zeros,
-    test_three_signal_candidate_still_renders_in_legacy_block,
-    test_mixed_candidates_split_into_two_blocks,
-    test_unknown_or_missing_candidate_source_falls_back_to_three_signal,
-    test_cross_cluster_reasoning_seed_propagates_through_prompt,
-    test_cross_cluster_with_no_resolution_reasoning_renders_placeholder,
+    test_system_prompt_carries_interpreting_signals_section,
+    test_single_block_renders_all_candidates_uniformly,
+    test_null_signals_render_as_literal_NULL_not_zero,
+    test_populated_signals_still_render_numerically,
+    test_unknown_or_missing_candidate_source_renders_gracefully,
+    test_reasoning_seed_propagates_through_prompt,
+    test_missing_resolution_reasoning_renders_placeholder,
+    test_no_candidates_renders_empty_marker,
 ]
 
 

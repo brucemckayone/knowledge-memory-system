@@ -81,37 +81,42 @@ CREATE INDEX IF NOT EXISTS idx_merge_candidates_source ON public.merge_candidate
 
 ### 2.4 Reconciliation_agent prompt extension
 
-The existing `reconciliation_agent.py` iterates over `merge_candidates` rows and decides per pair: same_as / merge / distinct. Phase 4 extends the system prompt **between INVESTIGATION PROCESS and BRIDGE FACTS** (cold-eyes review W7) with a new "CROSS-CLUSTER CANDIDATES" section:
+The existing `reconciliation_agent.py` iterates over `merge_candidates` rows and decides per pair: same_as / merge / distinct. Post-bead `nmemo-2yv.42` (unified scorer) and `nmemo-2yv.44` (prompt-builder collapse), the system prompt carries a single signal-interpretation section **between INVESTIGATION PROCESS and BRIDGE FACTS**:
 
-> **=== CROSS-CLUSTER CANDIDATES ===**
+> **=== INTERPRETING SIGNALS ===**
 >
-> Candidates with `candidate_source == 'cross_cluster_generator'` were identified by combined topological + semantic-space signals, not direct similarity. The 3-signal columns (`centroid_similarity`, `memory_overlap`, `structural_similarity`) are **NULL** for these rows — that's expected, not a bad signal. Cross-cluster candidates typically have zero shared neighbours and zero source memory overlap; the generator surfaced them via embedding-cluster co-membership, drift, role similarity, or centrality match.
+> Each candidate row carries a set of similarity signals (centroid, memory overlap, structural, cluster, drift, role, centrality, articulation). Any of these may be NULL — that means the input wasn't applicable (e.g. cross-component pairs have no shared memories, so `memory_overlap` is NULL, not zero). Treat NULL as "signal not applicable", NOT as "signal fired weakly".
 >
-> When investigating a cross-cluster candidate, prioritise reading both entities' source memories (`get_entity_sources`) and looking for narrative voice changes, role similarities across disjoint subgraphs, or coreference signals that the extraction agent missed. Do not penalise the candidate for "the existing similarity scores look weak" — they're not the operative signal.
+> When most direct-similarity signals (centroid, memory_overlap, structural) are NULL — typical for pairs in disconnected components surfaced by topological evidence — the strongest evidence will come from textual narrative, not graph signals. Prioritise `get_entity_sources` to look for narrative voice changes, role similarities across disjoint subgraphs, or coreference signals the extraction agent missed.
+>
+> The `resolution_reasoning` field (when present) carries a per-signal contribution breakdown. Treat it as a hypothesis seed, not a verdict.
 
-The prompt-builder change in `_build_reconciliation_prompt` (cold-eyes review W6) renders cross-cluster candidates with their own block:
+The prompt-builder collapses to a single block:
 
 ```python
 def _build_reconciliation_prompt(candidates: list[dict], recent_reports: list[str]) -> str:
-    cross_cluster = [c for c in candidates if c.get('candidate_source') == 'cross_cluster_generator']
-    three_signal = [c for c in candidates if c.get('candidate_source') != 'cross_cluster_generator']
-    
     lines = ["## Reconciliation Context\n"]
-    if three_signal:
-        lines.append(f"### 3-Signal Candidates ({len(three_signal)} unresolved)\n")
-        # ... existing rendering ...
-    if cross_cluster:
-        lines.append(f"### Cross-Cluster Candidates ({len(cross_cluster)} unresolved — different class, see system prompt)\n")
-        for c in cross_cluster:
+    if not candidates:
+        lines.append("### No merge candidates\n")
+    else:
+        lines.append(f"### Merge Candidates ({len(candidates)} unresolved)\n")
+        for c in candidates:
             lines.append(
-                f"- **Candidate {c.get('id')}** | score={c.get('combined_score', 0):.2f} | reasoning_seed={c.get('resolution_reasoning')}\n"
+                f"- **Candidate {c.get('id')}** | score={c.get('combined_score', 0):.2f} "
+                f"| source={c.get('candidate_source', 'unknown')} | status={c.get('status')}\n"
                 f"  Entity A: {c.get('a_name')} ({c.get('a_type')}) id={c.get('entity_a_id')}\n"
                 f"  Entity B: {c.get('b_name')} ({c.get('b_type')}) id={c.get('entity_b_id')}\n"
+                f"  Signals: centroid={_fmt_signal(c.get('centroid_similarity'))} "
+                f"memory_overlap={_fmt_signal(c.get('memory_overlap'))} "
+                f"structural={_fmt_signal(c.get('structural_similarity'))}\n"
+                f"  reasoning_seed: {c.get('resolution_reasoning') or '(no per-signal seed)'}\n"
             )
-    # ... rest unchanged ...
+    # ... rest (recent_reports, instructions) unchanged ...
 ```
 
-The prompt change AND the prompt-builder change ship in this bead as one atomic change. §4.2 includes an integration test that asserts a cross-cluster candidate row produces a prompt fragment containing "Cross-Cluster Candidates."
+`_fmt_signal` renders NULL as the literal `"NULL"` (not `"0.00"`) so the LLM can distinguish "signal not applicable" from "signal fired weakly". The `candidate_source` value is visible on each row as informational tag; it no longer drives prompt branching because — post-.42 unification — signal-population is uniform across both enumerators.
+
+§4.2 includes integration tests (`ml-services/tests/test_reconciliation_prompt.py`) locking the single-block shape, NULL rendering, and source-tag visibility.
 
 ### 2.5 Drift events as direct candidates
 
@@ -122,11 +127,11 @@ For drift events above the action threshold, Phase 4 ALSO inserts cross-cluster 
 For each candidate row inserted from a drift event:
 - `entity_a_id`, `entity_b_id` = canonical (LEAST, GREATEST) of (drifted_entity, target_cluster_member)
 - `combined_score` = the §2.2 score, computed against the partner
-- `centroid_similarity`, `memory_overlap`, `structural_similarity` = **NULL** (cold-eyes review R3 B3 lock — these existing 3-signal columns don't apply to cross-cluster rows)
+- `centroid_similarity`, `memory_overlap`, `structural_similarity` = typically **NULL** for cross-component pairs because their inputs (shared memories, structural neighbours) are absent. Post-bead `nmemo-2yv.42`, this follows uniform NULL semantics across both enumerators — a signal is NULL when its inputs are absent, populated when inputs exist. The pre-.42 per-source "NULL by design" lock (originally R3 B3) is superseded: the same observable behaviour now derives from the shared scorer's NULL-on-absent-input rule rather than a per-path policy.
 - `candidate_source` = `'cross_cluster_generator'`
 - `resolution_reasoning` = "Drift-driven candidate; entity drifted toward this cluster on [date]"
 
-ON CONFLICT policy (cold-eyes review R3 B4 lock): on `(entity_a_id, entity_b_id)` collision, **preserve the existing `candidate_source`**. New rows update score columns but never downgrade the source tag. This prevents `'cross_cluster_generator'` rows from being silently demoted to `'three_signal_scoring'` if the existing scorer happens to detect the same pair later.
+ON CONFLICT policy: post-bead `nmemo-2yv.42` both enumerators feed `scoreMergeCandidates`/`upsertScoredCandidates` (merge-scorer.ts), so signal columns are uniform regardless of which path wrote the row. The pre-.42 service-side rule preserving an existing `'cross_cluster_generator'` tag against three-signal downgrade (originally R3 B4) is moot — there's no source-demotion risk because the source tag is now informational (enumerator origin), not policy-bearing. Last-writer-wins on the source tag is acceptable.
 
 This pairs the drift mechanism with the candidate-generation mechanism so they reinforce rather than duplicate work.
 
