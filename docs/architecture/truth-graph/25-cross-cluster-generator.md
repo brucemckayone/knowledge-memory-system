@@ -133,6 +133,8 @@ For each candidate row inserted from a drift event:
 
 ON CONFLICT policy: post-bead `nmemo-2yv.42` both enumerators feed `scoreMergeCandidates`/`upsertScoredCandidates` (merge-scorer.ts), so signal columns are uniform regardless of which path wrote the row. The pre-.42 service-side rule preserving an existing `'cross_cluster_generator'` tag against three-signal downgrade (originally R3 B4) is moot — there's no source-demotion risk because the source tag is now informational (enumerator origin), not policy-bearing. Last-writer-wins on the source tag is acceptable.
 
+Per-event cap (bead `nmemo-2yv.97`): the "always insert" semantics above hold for the **top-N** candidates per drift event. The env knob `MAX_DRIFT_DRIVEN_CANDIDATES_PER_EVENT` (default 10) caps each drift event's contribution — for each event, drift-driven pairs are sorted by combined score DESC and only the top-N are kept. Without this cap, a single drift event whose `target_cluster_id` points at a 500-member cluster would pair the drifted entity with every cross-component member, blowing out the reconciliation_agent's prompt budget on one event and crowding out attention from other candidates. The cap preserves the doc-locked "always insert" intent — the strongest N still bypass `BRIDGE_SCORE_THRESHOLD` that §2.2 enforces — while bounding blast radius. Mirrors the §2.2 `MAX_CANDIDATES_PER_COMPONENT_PAIR` pattern (default 5).
+
 This pairs the drift mechanism with the candidate-generation mechanism so they reinforce rather than duplicate work.
 
 ### 2.6 Out of scope

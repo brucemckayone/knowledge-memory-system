@@ -143,6 +143,7 @@ describe('cross-cluster candidate generator', () => {
     delete process.env.MIN_K_CORE_FOR_BRIDGE;
     delete process.env.BRIDGE_SCORE_THRESHOLD;
     delete process.env.MAX_CANDIDATES_PER_COMPONENT_PAIR;
+    delete process.env.MAX_DRIFT_DRIVEN_CANDIDATES_PER_EVENT;
     delete process.env.DRIFT_RECENCY_DAYS;
     delete process.env.CROSS_CLUSTER_W_CLUSTER;
     delete process.env.CROSS_CLUSTER_W_DRIFT_A;
@@ -352,6 +353,71 @@ describe('cross-cluster candidate generator', () => {
     });
     expect(driftedTarget).toBeDefined();
     expect(driftedTarget!.resolutionReasoning).toContain('drift_driven');
+  });
+
+  it('drift cap: a single drift event targeting a large cross-component cluster yields only MAX_DRIFT_DRIVEN_CANDIDATES_PER_EVENT rows (bead .97)', async () => {
+    // Override the cap so the test runs quickly with smaller fan-out. Default
+    // is 10; the assertion below pins the effective value via the env var.
+    process.env.MAX_DRIFT_DRIVEN_CANDIDATES_PER_EVENT = '10';
+    await ensureUpstreamFresh();
+
+    // Drifted entity in component 0, drifting toward cluster 9.
+    const drifted = await createTestEntity({ canonicalName: 'Drifted', entityType: 'person' });
+    await seedTopology(drifted.id, { componentId: 0, pagerank: 0.5 });
+    await seedCluster(drifted.id, { clusterId: 1, probability: 0.6 });
+
+    // 50 cluster-9 members in component 1 (cross-component). Vary pagerank so
+    // the scorer produces distinguishable scores (top-10 are deterministic).
+    const targets: string[] = [];
+    for (let i = 0; i < 50; i++) {
+      const t = await createTestEntity({ canonicalName: `T${i}`, entityType: 'person' });
+      await seedTopology(t.id, { componentId: 1, pagerank: 0.5 - i * 0.005 });
+      await seedCluster(t.id, { clusterId: 9, probability: 0.9 });
+      targets.push(t.id);
+    }
+
+    // One drift event — drifted heading toward cluster 9. Without the cap,
+    // this would yield 50 drift-driven rows; with cap=10 we expect exactly 10.
+    await seedDriftEvent(drifted.id, { targetClusterId: 9, triggeredAction: 'reconciliation_invoked' });
+
+    const r = await generateCrossClusterCandidates();
+    expect(r.ran).toBe(true);
+    expect(r.driftDrivenCandidates).toBe(10);
+
+    // List the cross-cluster candidates and verify the 10 kept rows are sorted
+    // by score DESC (the top-10 by score, not arbitrary 10).
+    const list = await listCrossClusterCandidates(100);
+    // All inserted rows are drift-driven (no §2.2 partition fires here — the
+    // drifted entity and targets share no cluster_id with each other except
+    // via the drift target_cluster_id, and the cluster signal is in [0,1]).
+    expect(list.length).toBe(10);
+    for (let i = 1; i < list.length; i++) {
+      expect(list[i - 1]!.combinedScore).toBeGreaterThanOrEqual(list[i]!.combinedScore);
+    }
+    // Every kept row pairs drifted with one of the 50 targets.
+    for (const c of list) {
+      const ids = new Set([c.entityA.id, c.entityB.id]);
+      expect(ids.has(drifted.id)).toBe(true);
+      const partnerId = c.entityA.id === drifted.id ? c.entityB.id : c.entityA.id;
+      expect(targets.includes(partnerId)).toBe(true);
+    }
+  });
+
+  it('drift cap respects env override: MAX_DRIFT_DRIVEN_CANDIDATES_PER_EVENT=3 keeps top-3 (bead .97)', async () => {
+    process.env.MAX_DRIFT_DRIVEN_CANDIDATES_PER_EVENT = '3';
+    await ensureUpstreamFresh();
+    const drifted = await createTestEntity({ canonicalName: 'D', entityType: 'person' });
+    await seedTopology(drifted.id, { componentId: 0, pagerank: 0.5 });
+    await seedCluster(drifted.id, { clusterId: 1, probability: 0.6 });
+    for (let i = 0; i < 12; i++) {
+      const t = await createTestEntity({ canonicalName: `T${i}`, entityType: 'person' });
+      await seedTopology(t.id, { componentId: 1, pagerank: 0.5 - i * 0.01 });
+      await seedCluster(t.id, { clusterId: 9, probability: 0.9 });
+    }
+    await seedDriftEvent(drifted.id, { targetClusterId: 9, triggeredAction: 'reconciliation_invoked' });
+
+    const r = await generateCrossClusterCandidates();
+    expect(r.driftDrivenCandidates).toBe(3);
   });
 
   it('idempotent: a second run on identical state inserts no NEW rows (UPDATE only)', async () => {

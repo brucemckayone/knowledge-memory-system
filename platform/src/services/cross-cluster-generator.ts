@@ -74,6 +74,12 @@ function minKCoreForBridge(): number { return envInt('MIN_K_CORE_FOR_BRIDGE', 1)
 function bridgeScoreThreshold(): number { return envFloat('BRIDGE_SCORE_THRESHOLD', 0.3); }
 /** Cap candidates retained per (component_a, component_b) pair. */
 function maxCandidatesPerPair(): number { return envInt('MAX_CANDIDATES_PER_COMPONENT_PAIR', 5); }
+/** Cap candidates retained per drift event in the §2.5 path. One drift event
+ *  whose target_cluster_id points at a large cluster could otherwise pair the
+ *  drifted entity with every cross-component member of that cluster (500+ for
+ *  signal-rich domains), flooding the reconciliation_agent's prompt budget.
+ *  Mirrors MAX_CANDIDATES_PER_COMPONENT_PAIR for the §2.2 sweep. Bead .97. */
+function maxDriftDrivenCandidatesPerEvent(): number { return envInt('MAX_DRIFT_DRIVEN_CANDIDATES_PER_EVENT', 10); }
 /** Drift event recency window for the §2.2 drift signal (days). */
 function driftRecencyDays(): number { return envInt('DRIFT_RECENCY_DAYS', 30); }
 
@@ -441,10 +447,22 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
     // override here. (Without it, the "drifted entity produces candidates"
     // test fails when the (drifted, target) score lands just below the §2.2
     // threshold.)
+    //
+    // Per-event pair sets (bead .97) — one Set<canonKey> per drift event. The
+    // policy-partition pass below uses these to apply the per-event top-N cap
+    // (MAX_DRIFT_DRIVEN_CANDIDATES_PER_EVENT) so a drift event into a 500-
+    // member target cluster doesn't flood the reconciliation_agent's prompt.
+    // A pair pulled by multiple events appears in each event's set; the union
+    // of kept-after-cap subsets forms the final drift-driven partition.
     const entityById = new Map(entities.map((e) => [e.entity_id, e] as const));
+    const driftEventPairKeys: Set<string>[] = [];
     for (const drift of actionableDrifts) {
       const driftedEntity = entityById.get(drift.entity_id);
-      if (!driftedEntity || drift.target_cluster_id === null) continue;
+      if (!driftedEntity || drift.target_cluster_id === null) {
+        driftEventPairKeys.push(new Set());
+        continue;
+      }
+      const eventKeys = new Set<string>();
       for (const e of entities) {
         if (e.entity_id === drift.entity_id) continue;
         if (e.cluster_id !== drift.target_cluster_id) continue;
@@ -457,7 +475,9 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
           componentB: e.component_id,
           driftDriven: true,
         });
+        eventKeys.add(k);
       }
+      driftEventPairKeys.push(eventKeys);
     }
 
     // Score every enumerated pair in ONE set-based pass (bead .42 perf accept).
@@ -482,19 +502,22 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
     // Apply policies per partition:
     //   §2.2 (driftDriven=false): drop below BRIDGE_SCORE_THRESHOLD; cap by
     //         (componentA, componentB) at MAX_CANDIDATES_PER_COMPONENT_PAIR.
-    //   §2.5 (driftDriven=true):  always insert (no threshold, no cap — see
-    //         pre-bead comment "Drift-driven rows always insert").
+    //   §2.5 (driftDriven=true):  always insert (no threshold), but cap per
+    //         drift event at MAX_DRIFT_DRIVEN_CANDIDATES_PER_EVENT — top-N by
+    //         score (bead .97). Preserves the "always insert" semantics for
+    //         the strongest N per event while bounding blast radius when one
+    //         drift event targets a large cluster.
     const threshold = bridgeScoreThreshold();
     const cap = maxCandidatesPerPair();
+    const driftCap = maxDriftDrivenCandidatesPerEvent();
+    const scoredByKey = new Map<string, ScoredCandidate>();
     const sweepByCompPair = new Map<string, ScoredCandidate[]>();
-    const driftKept: ScoredCandidate[] = [];
     for (const s of scored) {
-      const meta = pairMetadata.get(canonKey(s.entityAId, s.entityBId));
+      const k = canonKey(s.entityAId, s.entityBId);
+      scoredByKey.set(k, s);
+      const meta = pairMetadata.get(k);
       if (!meta) continue;
-      if (meta.driftDriven) {
-        driftKept.push(s);
-        continue;
-      }
+      if (meta.driftDriven) continue;  // drift partition handled below
       if (s.combinedScore < threshold) continue;
       const cpKey = `${meta.componentA}|${meta.componentB}`;
       let bucket = sweepByCompPair.get(cpKey);
@@ -505,6 +528,26 @@ export async function generateCrossClusterCandidates(): Promise<CandidateGenerat
     for (const bucket of sweepByCompPair.values()) {
       bucket.sort((x, y) => y.combinedScore - x.combinedScore);
       sweepKept.push(...bucket.slice(0, cap));
+    }
+    // §2.5 per-event cap: for each drift event, collect its scored pairs,
+    // sort by combinedScore DESC, slice to driftCap, union across events into
+    // the kept set. Dedupe by canonical pair key — a pair pulled by multiple
+    // events still appears once in the final drift-driven partition.
+    const driftKeptKeys = new Set<string>();
+    const driftKept: ScoredCandidate[] = [];
+    for (const eventKeys of driftEventPairKeys) {
+      const eventScored: ScoredCandidate[] = [];
+      for (const k of eventKeys) {
+        const s = scoredByKey.get(k);
+        if (s) eventScored.push(s);
+      }
+      eventScored.sort((x, y) => y.combinedScore - x.combinedScore);
+      for (const s of eventScored.slice(0, driftCap)) {
+        const k = canonKey(s.entityAId, s.entityBId);
+        if (driftKeptKeys.has(k)) continue;
+        driftKeptKeys.add(k);
+        driftKept.push(s);
+      }
     }
 
     const finalSet = [...sweepKept, ...driftKept];
