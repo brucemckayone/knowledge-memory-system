@@ -89,7 +89,7 @@ Rationale: severity reflects "irreplaceability" — how much unique evidence or 
 // platform/src/services/impact.ts
 
 export interface ImpactNode {
-  nodeType: 'fact' | 'entity' | 'causal_event' | 'causal_edge';
+  nodeType: 'fact' | 'entity' | 'causal_event' | 'causal_edge' | 'causal_pattern';
   nodeId: string;
   summary: string;              // human-readable label
   relationship: 'direct' | 'transitive' | 'citation' | 'pattern_member';

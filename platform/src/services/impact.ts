@@ -34,7 +34,7 @@ import { findEdgesCitingReference } from './causal.js';
 // Types
 // ============================================
 
-export type ImpactNodeType = 'fact' | 'entity' | 'causal_event' | 'causal_edge';
+export type ImpactNodeType = 'fact' | 'entity' | 'causal_event' | 'causal_edge' | 'causal_pattern';
 export type RootNodeType = Extract<ImpactNodeType, 'fact' | 'entity' | 'causal_event'>;
 export type ImpactRelationship = 'direct' | 'transitive' | 'citation' | 'pattern_member';
 export type ImpactSeverity = 'critical' | 'high' | 'medium' | 'low';
@@ -587,7 +587,7 @@ async function findPatternImpact(rootEventIds: string[]): Promise<ImpactNode[]> 
   `);
 
   return rows.map((r) => ({
-    nodeType: 'fact' as ImpactNodeType, // patterns aren't a graph node type — represented as fact-class for the report
+    nodeType: 'causal_pattern',
     nodeId: r.patternId,
     summary: `Pattern: ${r.name ?? '(unnamed)'} [${r.status}, length=${r.templateLength}]`,
     relationship: 'pattern_member',

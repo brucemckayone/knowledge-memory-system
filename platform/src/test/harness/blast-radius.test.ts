@@ -1039,6 +1039,9 @@ describe('Phase 4 — Pattern impact (Phase 6 forward-compat)', () => {
     expect(report.patternImpact.map((p) => p.nodeId)).toEqual([patternId]);
     expect(report.patternImpact[0]!.severity).toBe('low');
     expect(report.patternImpact[0]!.relationship).toBe('pattern_member');
+    // Bead nmemo-2yv.101: nodeType now honestly reports 'causal_pattern'
+    // (was 'fact' with a lying cast pre-bead).
+    expect(report.patternImpact[0]!.nodeType).toBe('causal_pattern');
   });
 
   it('omits staging-status patterns', async () => {
