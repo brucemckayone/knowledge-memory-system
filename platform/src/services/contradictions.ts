@@ -25,7 +25,12 @@ import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
 import { expireFact, invalidateFact } from './facts.js';
 import { expireCausalEdge } from './causal.js';
-import type { Actor } from './audit.js';
+import { jsonbLiteral, type Actor } from './audit.js';
+import {
+  preflightBlastRadius,
+  maybeWarnBlastRadius,
+  type PreflightResult,
+} from './impact.js';
 
 // ============================================
 // Types
@@ -402,6 +407,16 @@ export async function resolveContradiction(
     );
   }
 
+  // Pre-mutation blast-radius severity captured per resolution type:
+  //   - expire_a / expire_b / invalidate_a / invalidate_b → SeveritySummary
+  //   - expire_edge_a / expire_edge_b                     → SeveritySummary
+  //   - expire_both                                       → { fact_a, fact_b }
+  //   - expire_both_edges                                 → { edge_a, edge_b }
+  //   - reconcile / both_valid / dismissed                → null (no mutation)
+  // Persisted onto contradictions.pre_resolve_blast_radius via the closing
+  // UPDATE. See bead nmemo-2yv.102.
+  let preResolveBlastRadius: unknown = null;
+
   // Wrap the claim + side effects + closing UPDATE in a single transaction so
   // the SELECT FOR UPDATE row-lock serialises concurrent callers on the same
   // contradiction. Previous shape did a SELECT (no lock), JS check, side
@@ -410,6 +425,51 @@ export async function resolveContradiction(
   // expire_b expiring both facts when only one was intended). See bead
   // nmemo-2yv.38.
   await db.transaction(async (tx) => {
+    /** Resolve a target fact to its preflight, warn-on-critical, return PreflightResult. */
+    const preflightFactTarget = async (factId: string): Promise<PreflightResult | null> => {
+      const result = await preflightBlastRadius({ nodeType: 'fact', nodeId: factId });
+      if (result) {
+        maybeWarnBlastRadius({
+          severity: result.severity,
+          totalAffected: result.totalAffected,
+          actor,
+          rootType: 'fact',
+          rootId: factId,
+        });
+      }
+      return result;
+    };
+
+    /**
+     * Resolve an edge to its cause-event blast-radius. Bead nmemo-2yv.102:
+     * "expiring an edge says 'this causal claim is wrong' and the cause is
+     * the most natural anchor." The `expired_at IS NULL` filter mirrors
+     * expireCausalEdge's no-op guard — an already-expired edge yields no
+     * row, no preflight, no spurious critical-warn. Returns null if the
+     * edge is missing/expired or (defensive) has no cause_event_id.
+     */
+    const preflightEdgeTarget = async (edgeId: string): Promise<PreflightResult | null> => {
+      const rows = (await tx.execute(sql`
+        SELECT cause_event_id::text AS "causeEventId"
+        FROM public.causal_edges
+        WHERE id = ${edgeId}::uuid AND expired_at IS NULL
+        LIMIT 1
+      `)) as unknown as Array<{ causeEventId: string | null }>;
+      const causeEventId = rows[0]?.causeEventId;
+      if (!causeEventId) return null;
+      const result = await preflightBlastRadius({ nodeType: 'causal_event', nodeId: causeEventId });
+      if (result) {
+        maybeWarnBlastRadius({
+          severity: result.severity,
+          totalAffected: result.totalAffected,
+          actor,
+          rootType: 'causal_edge',
+          rootId: edgeId,
+        });
+      }
+      return result;
+    };
+
     const lockedRows = (await tx.execute(sql`
       SELECT
         id::text                AS id,
@@ -445,58 +505,82 @@ export async function resolveContradiction(
         if (!contradiction.factAId) {
           throw new Error(`resolveContradiction: expire_a requires fact_a_id (none on ${contradictionId})`);
         }
-        await expireFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        const preflight = await preflightFactTarget(contradiction.factAId);
+        preResolveBlastRadius = preflight?.severity ?? null;
+        await expireFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx, preExpireBlastRadius: preflight?.severity ?? null });
         break;
       }
       case 'expire_b': {
         if (!contradiction.factBId) {
           throw new Error(`resolveContradiction: expire_b requires fact_b_id (none on ${contradictionId})`);
         }
-        await expireFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        const preflight = await preflightFactTarget(contradiction.factBId);
+        preResolveBlastRadius = preflight?.severity ?? null;
+        await expireFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx, preExpireBlastRadius: preflight?.severity ?? null });
         break;
       }
       case 'expire_both': {
         if (!contradiction.factAId || !contradiction.factBId) {
           throw new Error(`resolveContradiction: expire_both requires both fact_a_id and fact_b_id`);
         }
-        await expireFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
-        await expireFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        const preflightA = await preflightFactTarget(contradiction.factAId);
+        const preflightB = await preflightFactTarget(contradiction.factBId);
+        preResolveBlastRadius = {
+          fact_a: preflightA?.severity ?? null,
+          fact_b: preflightB?.severity ?? null,
+        };
+        await expireFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx, preExpireBlastRadius: preflightA?.severity ?? null });
+        await expireFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx, preExpireBlastRadius: preflightB?.severity ?? null });
         break;
       }
       case 'invalidate_a': {
         if (!contradiction.factAId) {
           throw new Error(`resolveContradiction: invalidate_a requires fact_a_id`);
         }
-        await invalidateFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        const preflight = await preflightFactTarget(contradiction.factAId);
+        preResolveBlastRadius = preflight?.severity ?? null;
+        await invalidateFact({ factId: contradiction.factAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx, preExpireBlastRadius: preflight?.severity ?? null });
         break;
       }
       case 'invalidate_b': {
         if (!contradiction.factBId) {
           throw new Error(`resolveContradiction: invalidate_b requires fact_b_id`);
         }
-        await invalidateFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        const preflight = await preflightFactTarget(contradiction.factBId);
+        preResolveBlastRadius = preflight?.severity ?? null;
+        await invalidateFact({ factId: contradiction.factBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx, preExpireBlastRadius: preflight?.severity ?? null });
         break;
       }
       case 'expire_edge_a': {
         if (!contradiction.edgeAId) {
           throw new Error(`resolveContradiction: expire_edge_a requires edge_a_id (none on ${contradictionId})`);
         }
-        await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        const preflight = await preflightEdgeTarget(contradiction.edgeAId);
+        preResolveBlastRadius = preflight?.severity ?? null;
+        await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx, preExpireBlastRadius: preflight?.severity ?? null });
         break;
       }
       case 'expire_edge_b': {
         if (!contradiction.edgeBId) {
           throw new Error(`resolveContradiction: expire_edge_b requires edge_b_id (none on ${contradictionId})`);
         }
-        await expireCausalEdge({ edgeId: contradiction.edgeBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        const preflight = await preflightEdgeTarget(contradiction.edgeBId);
+        preResolveBlastRadius = preflight?.severity ?? null;
+        await expireCausalEdge({ edgeId: contradiction.edgeBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx, preExpireBlastRadius: preflight?.severity ?? null });
         break;
       }
       case 'expire_both_edges': {
         if (!contradiction.edgeAId || !contradiction.edgeBId) {
           throw new Error(`resolveContradiction: expire_both_edges requires both edge_a_id and edge_b_id`);
         }
-        await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
-        await expireCausalEdge({ edgeId: contradiction.edgeBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx });
+        const preflightA = await preflightEdgeTarget(contradiction.edgeAId);
+        const preflightB = await preflightEdgeTarget(contradiction.edgeBId);
+        preResolveBlastRadius = {
+          edge_a: preflightA?.severity ?? null,
+          edge_b: preflightB?.severity ?? null,
+        };
+        await expireCausalEdge({ edgeId: contradiction.edgeAId, reasoning: resolutionReasoning, actor, reasoningReportId, tx, preExpireBlastRadius: preflightA?.severity ?? null });
+        await expireCausalEdge({ edgeId: contradiction.edgeBId, reasoning: resolutionReasoning, actor, reasoningReportId, tx, preExpireBlastRadius: preflightB?.severity ?? null });
         break;
       }
       case 'reconcile':
@@ -511,14 +595,19 @@ export async function resolveContradiction(
       }
     }
 
+    const preResolveJsonb = preResolveBlastRadius == null
+      ? sql`NULL::jsonb`
+      : jsonbLiteral(preResolveBlastRadius);
+
     await tx.execute(sql`
       UPDATE public.contradictions
-      SET resolved_at          = NOW(),
-          resolved_by          = ${actor},
-          resolution_type      = ${resolutionType},
-          resolution_reasoning = ${resolutionReasoning},
-          resolution_report_id = ${reasoningReportId},
-          dismissed_reason     = ${resolutionType === 'dismissed' ? (params.dismissedReason ?? null) : null}
+      SET resolved_at              = NOW(),
+          resolved_by              = ${actor},
+          resolution_type          = ${resolutionType},
+          resolution_reasoning     = ${resolutionReasoning},
+          resolution_report_id     = ${reasoningReportId},
+          dismissed_reason         = ${resolutionType === 'dismissed' ? (params.dismissedReason ?? null) : null},
+          pre_resolve_blast_radius = ${preResolveJsonb}
       WHERE id = ${contradictionId}::uuid
     `);
   });

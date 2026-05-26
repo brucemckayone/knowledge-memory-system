@@ -284,13 +284,62 @@ Only the `expire` mode is currently supported. `invalidate` and `weaken` were or
 ```python
 # ml-services/app/reasoning_agent.py — system prompt addition
 
-> **Before Destructive Actions:** When you are about to call `expire_fact` or
-> `invalidate_fact`, FIRST call `analyze_blast_radius(node_type='fact', node_id=..., hypothetical='expire')`.
+> **Before Destructive Actions:** When you are about to call `expire_fact`,
+> `invalidate_fact`, `expire_causal_edge`, or `resolve_contradiction` with a
+> mutating resolution type, FIRST call
+> `analyze_blast_radius(node_type=..., node_id=..., hypothetical='expire')`.
 > Review the severity summary. If the report includes `critical` severity dependents,
 > do NOT proceed without recording the justification in your reasoning. If there are
 > `high` severity dependents, explain in your reasoning why the expiry is still
 > correct despite the blast radius.
 ```
+
+The prompt-side rule is a soft guideline. Independently of which actor invoked
+the destructive path (reasoning agent, gardener, reconciliation agent, user-
+initiated), the service layer captures the pre-mutation severity summary on
+the audit row — see §"Audit Surface" below. Bead `nmemo-2yv.102` added the
+service-side capture so the invariant is observable regardless of whether the
+prompt-side rule fired.
+
+## Audit Surface
+
+The service layer persists the pre-mutation `severitySummary` to three audit
+columns at the moment of the destructive action. Warn-only — never blocks the
+mutation. The audit data exists to answer the operational question "did the
+agent ever expire facts/edges with critical dependents?"; stronger gating
+(reject-on-critical, override flags) is deferred until the observability
+shows whether agents are systematically expiring critical-dependent state.
+
+| Column | Populated by | Shape |
+|---|---|---|
+| `fact_history.pre_expire_blast_radius` | `expireFact` / `invalidateFact` | `SeveritySummary` (`{critical, high, medium, low}`) or NULL |
+| `causal_edge_history.pre_expire_blast_radius` | `expireCausalEdge` | `SeveritySummary` or NULL |
+| `contradictions.pre_resolve_blast_radius` | `resolveContradiction` (mutating types only) | `SeveritySummary`, or `{fact_a, fact_b}` for `expire_both`, or `{edge_a, edge_b}` for `expire_both_edges`, or NULL |
+
+**NULL semantics.** The column is NULL when the mutation was not
+agent-initiated:
+
+- Cascade-internal mutations (e.g. `createFact` superseder path expiring the
+  prior fact with `actor='cascade'`).
+- Legacy rows written before migration 023.
+- Non-mutating resolution types on `contradictions` (`reconcile`, `both_valid`,
+  `dismissed`).
+
+**Preflight.** Agent-initiated paths call `preflightBlastRadius` (a wrapper
+over `analyzeImpact` with `hypothetical='expire'` and try/catch — the bead's
+contract is non-blocking observability, so a preflight failure logs but never
+blocks the mutation). For edge expiry the preflight roots at the edge's
+`cause_event_id` — expiring an edge says "this causal claim is wrong" and the
+cause is the most natural anchor for the blast-radius walk.
+
+**Warning policy.** When `severitySummary.critical > 0` at preflight time,
+the service emits a single structured `console.warn` line:
+
+```
+[blast-radius] critical-dependent expiry actor=<actor> root_type=<fact|causal_edge> root_id=<uuid> critical=N high=M medium=O low=P total_affected=T
+```
+
+No throw, no rejection, no override flag. The mutation proceeds.
 
 ## Viz Integration
 

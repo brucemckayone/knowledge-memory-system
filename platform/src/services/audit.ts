@@ -18,6 +18,7 @@ import {
   type FactHistory,
   type CausalEdgeHistory,
 } from '../db/schema.js';
+import type { SeveritySummary } from './impact.js';
 
 /**
  * Drizzle 0.29 + postgres.js 3.4 stringify jsonb array/object values when
@@ -100,6 +101,12 @@ export interface RecordFactChangeParams {
   actor: Actor;
   /** Optional Drizzle transaction — pass when audit must be atomic with the mutation. */
   tx?: typeof db;
+  /**
+   * Pre-mutation blast-radius severitySummary, captured at the policy
+   * boundary by agent-initiated expire/invalidate paths. NULL for
+   * cascade-internal mutations. See bead nmemo-2yv.102.
+   */
+  preExpireBlastRadius?: SeveritySummary | null;
 }
 
 /**
@@ -113,6 +120,9 @@ export async function recordFactChange(params: RecordFactChangeParams): Promise<
     throw new Error('reasoning must be a non-empty string');
   }
   const client = params.tx ?? db;
+  const preExpireBlastRadius = params.preExpireBlastRadius == null
+    ? sql`NULL::jsonb`
+    : jsonbLiteral(params.preExpireBlastRadius);
   // Raw-SQL INSERT so jsonb lands as array, not a stringified scalar (see
   // jsonbLiteral note above).
   const result = await client.execute(sql`
@@ -123,7 +133,7 @@ export async function recordFactChange(params: RecordFactChangeParams): Promise<
       previous_invalid_at, new_invalid_at,
       reasoning, source_references,
       reasoning_report_id, causal_event_id,
-      actor
+      actor, pre_expire_blast_radius
     ) VALUES (
       ${params.factId}::uuid, ${params.eventType},
       ${params.previousConfidence ?? null}, ${params.newConfidence ?? null},
@@ -131,7 +141,7 @@ export async function recordFactChange(params: RecordFactChangeParams): Promise<
       ${params.previousInvalidAt ?? null}, ${params.newInvalidAt ?? null},
       ${params.reasoning}, ${jsonbLiteral(params.sourceReferences ?? [])},
       ${params.reasoningReportId ?? null}::uuid, ${params.causalEventId ?? null}::uuid,
-      ${params.actor}
+      ${params.actor}, ${preExpireBlastRadius}
     ) RETURNING id
   `);
   const rows = unwrapRows(result);
@@ -153,6 +163,12 @@ export interface RecordEdgeChangeParams {
   actor: Actor;
   /** Optional Drizzle transaction — pass when audit must be atomic with the mutation. */
   tx?: typeof db;
+  /**
+   * Pre-mutation blast-radius severitySummary, captured at the policy
+   * boundary by agent-initiated edge expiry. NULL for cascade-internal
+   * mutations. See bead nmemo-2yv.102.
+   */
+  preExpireBlastRadius?: SeveritySummary | null;
 }
 
 /**
@@ -168,19 +184,24 @@ export async function recordEdgeChange(params: RecordEdgeChangeParams): Promise<
   const addedRefs = params.addedSourceRefs == null
     ? sql`NULL::jsonb`
     : jsonbLiteral(params.addedSourceRefs);
+  const preExpireBlastRadius = params.preExpireBlastRadius == null
+    ? sql`NULL::jsonb`
+    : jsonbLiteral(params.preExpireBlastRadius);
   const result = await client.execute(sql`
     INSERT INTO public.causal_edge_history (
       edge_id, event_type,
       previous_strength, new_strength,
       previous_reasoning, new_reasoning,
       added_source_refs,
-      reasoning, reasoning_report_id, actor
+      reasoning, reasoning_report_id, actor,
+      pre_expire_blast_radius
     ) VALUES (
       ${params.edgeId}::uuid, ${params.eventType},
       ${params.previousStrength ?? null}, ${params.newStrength ?? null},
       ${params.previousReasoning ?? null}, ${params.newReasoning ?? null},
       ${addedRefs},
-      ${params.reasoning}, ${params.reasoningReportId ?? null}::uuid, ${params.actor}
+      ${params.reasoning}, ${params.reasoningReportId ?? null}::uuid, ${params.actor},
+      ${preExpireBlastRadius}
     ) RETURNING id
   `);
   const rows = unwrapRows(result);

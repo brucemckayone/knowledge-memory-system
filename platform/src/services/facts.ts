@@ -18,6 +18,7 @@ import { ml } from './ml-client.js';
 import { recordPredicateUsage } from './predicates.js';
 import { recordFactChange, type Actor } from './audit.js';
 import { cascadeFactExpiry } from './causal.js';
+import type { SeveritySummary } from './impact.js';
 
 export interface CreateFactParams {
   subjectEntityId: string;
@@ -287,6 +288,14 @@ export interface ExpireFactParams {
    * supplied tx — see bead nmemo-2yv.38 for the rationale.
    */
   tx?: Tx;
+  /**
+   * Pre-mutation blast-radius severitySummary captured at the policy
+   * boundary (handleToolCall for agent-initiated expiry, resolveContradiction
+   * for mutating resolutions). Persisted onto the fact_history row. NULL for
+   * cascade-internal callers (e.g. createFact superseder path). See bead
+   * nmemo-2yv.102.
+   */
+  preExpireBlastRadius?: SeveritySummary | null;
 }
 
 /**
@@ -304,7 +313,15 @@ export interface ExpireFactParams {
  * tracked as the "broader improvement" follow-up to nmemo-2yv.38.
  */
 export async function expireFact(params: ExpireFactParams): Promise<void> {
-  const { factId, reasoning, actor, reasoningReportId = null, expireReason, tx: outerTx } = params;
+  const {
+    factId,
+    reasoning,
+    actor,
+    reasoningReportId = null,
+    expireReason,
+    tx: outerTx,
+    preExpireBlastRadius = null,
+  } = params;
   const reader = outerTx ?? db;
 
   // Fetch fact metadata BEFORE expiring — we need the pre-mutation state for
@@ -376,6 +393,7 @@ export async function expireFact(params: ExpireFactParams): Promise<void> {
       actor,
       reasoningReportId,
       tx,
+      preExpireBlastRadius,
     });
   };
 
@@ -407,6 +425,8 @@ export interface InvalidateFactParams {
   reasoningReportId?: string | null;
   /** Optional outer transaction; see ExpireFactParams.tx for rationale. */
   tx?: Tx;
+  /** Pre-mutation blast-radius severitySummary; see ExpireFactParams. */
+  preExpireBlastRadius?: SeveritySummary | null;
 }
 
 /**
@@ -419,7 +439,15 @@ export interface InvalidateFactParams {
  * post-mutation delegation pattern applies here.
  */
 export async function invalidateFact(params: InvalidateFactParams): Promise<void> {
-  const { factId, reasoning, actor, invalidAt, reasoningReportId = null, tx: outerTx } = params;
+  const {
+    factId,
+    reasoning,
+    actor,
+    invalidAt,
+    reasoningReportId = null,
+    tx: outerTx,
+    preExpireBlastRadius = null,
+  } = params;
   const effectiveInvalidAt = invalidAt ?? new Date();
   const reader = outerTx ?? db;
 
@@ -455,6 +483,7 @@ export async function invalidateFact(params: InvalidateFactParams): Promise<void
       actor,
       reasoningReportId,
       tx,
+      preExpireBlastRadius,
     });
   };
 

@@ -57,6 +57,7 @@ import {
   getEdgeHistory,
 } from '../../services/audit.js';
 import { handleToolCall } from '../../services/causal-agent.js';
+import { resolveContradiction } from '../../services/contradictions.js';
 
 // ============================================
 // Per-test cleanup — history first (FK to facts/edges), dependents before parents
@@ -65,6 +66,12 @@ import { handleToolCall } from '../../services/causal-agent.js';
 async function cleanSlate(): Promise<void> {
   await deleteFromTables({
     tables: [
+      // deleteFromTables enforces FK-safe ordering internally via its own
+      // orderedTables list (src/test/setup.ts); placement here is irrelevant.
+      // 'contradictions' is in the wipe set so rows seeded by the new bead
+      // nmemo-2yv.102 audit-column tests get cleaned between runs. No-op for
+      // the older audit tests, which never insert into contradictions.
+      'contradictions',
       'causal_edge_history',
       'fact_history',
       'causal_edges',
@@ -1289,4 +1296,162 @@ describe('Phase 1 — concurrent-races adversarial variants (nmemo-klv.10)', () 
   // accepts external fact_id (or until we want a raw-SQL contention test).
   // flood.sql is a 1000-mutation load test — duplicate of the existing
   // concurrent-createFact 100-worker test above; skipping for runtime.
+});
+
+// ============================================
+// Bead nmemo-2yv.102 — pre-mutation blast-radius audit columns
+//
+// Three positive paths assert the column is populated when the destructive
+// agent-initiated path runs; the cascade-internal path asserts NULL when an
+// internal mutation (createFact superseder) writes the audit row. The
+// severity object's shape — four numeric buckets — is asserted; specific
+// counts are not, to keep the tests stable against future severity scoring
+// tweaks.
+// ============================================
+
+function withAgentActor(actor: string, fn: () => Promise<void>): Promise<void> {
+  const prev = process.env.MNEMO_AGENT_ACTOR;
+  process.env.MNEMO_AGENT_ACTOR = actor;
+  return fn().finally(() => {
+    if (prev === undefined) delete process.env.MNEMO_AGENT_ACTOR;
+    else process.env.MNEMO_AGENT_ACTOR = prev;
+  });
+}
+
+describe('Phase 1 — pre-mutation blast-radius audit (bead nmemo-2yv.102)', () => {
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+
+  it('handleToolCall(expire_fact) persists pre_expire_blast_radius to fact_history', async () => {
+    const factId = await seedFactForAudit();
+    await withAgentActor('reasoning_agent', async () => {
+      await handleToolCall('expire_fact', { fact_id: factId, reason: 'blast-radius audit positive path' });
+    });
+
+    const rows = await testDb`
+      SELECT pre_expire_blast_radius FROM fact_history
+      WHERE fact_id = ${factId}::uuid AND event_type = 'expired'
+    `;
+    expect(rows).toHaveLength(1);
+    const radius = rows[0]!.pre_expire_blast_radius as Record<string, number> | null;
+    expect(radius).not.toBeNull();
+    expect(radius).toEqual(expect.objectContaining({
+      critical: expect.any(Number),
+      high: expect.any(Number),
+      medium: expect.any(Number),
+      low: expect.any(Number),
+    }));
+  });
+
+  it('handleToolCall(invalidate_fact) persists pre_expire_blast_radius to fact_history', async () => {
+    const factId = await seedFactForAudit();
+    await withAgentActor('reasoning_agent', async () => {
+      await handleToolCall('invalidate_fact', { fact_id: factId, reason: 'blast-radius audit invalidate path' });
+    });
+
+    const rows = await testDb`
+      SELECT pre_expire_blast_radius FROM fact_history
+      WHERE fact_id = ${factId}::uuid AND event_type = 'invalidated'
+    `;
+    expect(rows).toHaveLength(1);
+    const radius = rows[0]!.pre_expire_blast_radius as Record<string, number> | null;
+    expect(radius).not.toBeNull();
+    expect(radius).toEqual(expect.objectContaining({
+      critical: expect.any(Number),
+      high: expect.any(Number),
+      medium: expect.any(Number),
+      low: expect.any(Number),
+    }));
+  });
+
+  it('handleToolCall(expire_causal_edge) persists pre_expire_blast_radius to causal_edge_history', async () => {
+    const { edgeId } = await seedTwoEventsAndEdge();
+    await withAgentActor('reasoning_agent', async () => {
+      await handleToolCall('expire_causal_edge', { edge_id: edgeId, reasoning: 'blast-radius audit edge path' });
+    });
+
+    const rows = await testDb`
+      SELECT pre_expire_blast_radius FROM causal_edge_history
+      WHERE edge_id = ${edgeId}::uuid AND event_type = 'expired'
+    `;
+    expect(rows).toHaveLength(1);
+    const radius = rows[0]!.pre_expire_blast_radius as Record<string, number> | null;
+    expect(radius).not.toBeNull();
+    expect(radius).toEqual(expect.objectContaining({
+      critical: expect.any(Number),
+      high: expect.any(Number),
+      medium: expect.any(Number),
+      low: expect.any(Number),
+    }));
+  });
+
+  it('resolveContradiction(expire_a) persists pre_resolve_blast_radius to contradictions', async () => {
+    const factAId = await seedFactForAudit();
+    const factBId = await seedFactForAudit();
+    const contradictionRows = await testDb`
+      INSERT INTO public.contradictions
+        (contradiction_type, fact_a_id, fact_b_id, detected_by, detection_reasoning)
+      VALUES ('opposing_object', ${factAId}::uuid, ${factBId}::uuid,
+              'sql_heuristic', 'audit test seed for bead nmemo-2yv.102')
+      RETURNING id::text AS id
+    `;
+    const contradictionId = (contradictionRows[0] as { id: string }).id;
+
+    await resolveContradiction({
+      contradictionId,
+      resolutionType: 'expire_a',
+      resolutionReasoning: 'audit test resolution of contradiction via expire_a path (bead nmemo-2yv.102)',
+      actor: 'reasoning_agent',
+    });
+
+    const rows = await testDb`
+      SELECT pre_resolve_blast_radius FROM contradictions
+      WHERE id = ${contradictionId}::uuid
+    `;
+    const radius = rows[0]!.pre_resolve_blast_radius as Record<string, number> | null;
+    expect(radius).not.toBeNull();
+    expect(radius).toEqual(expect.objectContaining({
+      critical: expect.any(Number),
+      high: expect.any(Number),
+      medium: expect.any(Number),
+      low: expect.any(Number),
+    }));
+  });
+
+  it('createFact superseder cascade leaves pre_expire_blast_radius NULL on the prior fact_history row', async () => {
+    // Cascade-internal expiry — driven by createFact's exclusive-predicate
+    // supersession path. Not agent-initiated; bead's contract says the audit
+    // column stays NULL when the cascade actor writes the row.
+    const PRED = `bead102_blast_${randomUUID().slice(0, 8)}`;
+    await testDb`
+      INSERT INTO fact_predicates (predicate, is_exclusive)
+      VALUES (${PRED}, true)
+      ON CONFLICT (predicate) DO UPDATE SET is_exclusive = true
+    `;
+    const { subjectId } = await seedTwoEntities();
+    const firstId = await createFact({
+      subjectEntityId: subjectId,
+      predicate: PRED,
+      objectValue: 'Berlin',
+      confidence: 0.7,
+      actor: 'graph_agent',
+    });
+    const secondId = await createFact({
+      subjectEntityId: subjectId,
+      predicate: PRED,
+      objectValue: 'Paris',
+      confidence: 0.8,
+      actor: 'graph_agent',
+    });
+    expect(secondId).not.toBe(firstId);
+
+    const rows = await testDb`
+      SELECT pre_expire_blast_radius, actor FROM fact_history
+      WHERE fact_id = ${firstId}::uuid AND event_type = 'expired'
+    `;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.actor).toBe('cascade');
+    expect(rows[0]!.pre_expire_blast_radius).toBeNull();
+  });
 });

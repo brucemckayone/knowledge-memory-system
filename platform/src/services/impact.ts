@@ -81,6 +81,9 @@ export interface BlastRadiusReport {
   generatedAt: Date;
 }
 
+/** Re-export the inline severity tally shape so audit/warn helpers can name it. */
+export type SeveritySummary = BlastRadiusReport['severitySummary'];
+
 export interface AnalyzeImpactParams {
   nodeType: RootNodeType;
   nodeId: string;
@@ -157,6 +160,73 @@ export async function analyzeImpact(params: AnalyzeImpactParams): Promise<BlastR
     totalAffected: allNodes.length,
     generatedAt: new Date(),
   };
+}
+
+// ============================================
+// Audit helpers (bead nmemo-2yv.102)
+// ============================================
+
+/**
+ * Compact preflight result for service-level destructive-action audit. The
+ * caller persists `severity` to the appropriate `pre_*_blast_radius` JSONB
+ * column and feeds the same shape to {@link maybeWarnBlastRadius}.
+ */
+export interface PreflightResult {
+  severity: SeveritySummary;
+  totalAffected: number;
+}
+
+/**
+ * Run blast-radius preflight for agent-initiated destructive paths
+ * (expire_fact / invalidate_fact / expire_causal_edge / resolve_contradiction
+ * mutating branches). Returns `null` if the underlying impact analysis throws
+ * — the contract is non-blocking observability, so a transient analysis
+ * failure must never block the caller's mutation. The failure is logged so
+ * operators can see a missing audit row was intentional.
+ */
+export async function preflightBlastRadius(params: {
+  nodeType: RootNodeType;
+  nodeId: string;
+}): Promise<PreflightResult | null> {
+  try {
+    const report = await analyzeImpact({
+      nodeType: params.nodeType,
+      nodeId: params.nodeId,
+      hypothetical: 'expire',
+    });
+    return { severity: report.severitySummary, totalAffected: report.totalAffected };
+  } catch (err) {
+    console.warn(
+      `[blast-radius] preflight failed nodeType=${params.nodeType} nodeId=${params.nodeId}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return null;
+  }
+}
+
+/**
+ * Emit a structured warning line when the preflight surfaced any
+ * `critical`-severity dependents. Single-line format chosen so log
+ * aggregators can grep on `[blast-radius]` and parse `key=value` pairs
+ * without multi-line stitching. Warn-only — never throws, never blocks.
+ *
+ * `rootType` is the *agent-facing* root the destructive action targeted
+ * (`fact` or `causal_edge`), not the internal `nodeType` passed to
+ * `analyzeImpact` (which is `causal_event` for edge preflights — the edge
+ * resolves to its cause event for impact analysis).
+ */
+export function maybeWarnBlastRadius(opts: {
+  severity: SeveritySummary;
+  totalAffected: number;
+  actor: string;
+  rootType: 'fact' | 'causal_edge';
+  rootId: string;
+}): void {
+  if (opts.severity.critical <= 0) return;
+  const { critical, high, medium, low } = opts.severity;
+  console.warn(
+    `[blast-radius] critical-dependent expiry actor=${opts.actor} root_type=${opts.rootType} root_id=${opts.rootId} ` +
+      `critical=${critical} high=${high} medium=${medium} low=${low} total_affected=${opts.totalAffected}`,
+  );
 }
 
 // ============================================

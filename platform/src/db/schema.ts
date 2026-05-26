@@ -520,6 +520,12 @@ export const contradictions = pgTable('contradictions', {
 
   // Dismissal / lifecycle
   dismissedReason: text('dismissed_reason'),
+
+  // nmemo-2yv.102 — pre-mutation blast-radius severitySummary for the
+  // fact/edge targeted by the resolution. For expire_both / expire_both_edges,
+  // a record keyed by fact_a / fact_b / edge_a / edge_b. NULL on non-mutating
+  // resolutions and legacy rows. Migration 023.
+  preResolveBlastRadius: jsonb('pre_resolve_blast_radius'),
 });
 
 export type Contradiction = typeof contradictions.$inferSelect;
@@ -552,6 +558,11 @@ export const factHistory = pgTable('fact_history', {
   causalEventId: uuid('causal_event_id').references(() => causalEvents.id),
   actor: varchar('actor', { length: 32 }).notNull(),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+
+  // nmemo-2yv.102 — pre-mutation blast-radius severitySummary captured at the
+  // moment of expire/invalidate. NULL for cascade-internal mutations and
+  // legacy rows. Migration 023.
+  preExpireBlastRadius: jsonb('pre_expire_blast_radius'),
 });
 
 /**
@@ -573,6 +584,11 @@ export const causalEdgeHistory = pgTable('causal_edge_history', {
   reasoningReportId: uuid('reasoning_report_id').references(() => reasoningReports.id),
   actor: varchar('actor', { length: 32 }).notNull(),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+
+  // nmemo-2yv.102 — pre-mutation blast-radius severitySummary captured at the
+  // moment of edge expiry. NULL for cascade-internal mutations and legacy
+  // rows. Migration 023.
+  preExpireBlastRadius: jsonb('pre_expire_blast_radius'),
 });
 
 // ============================================

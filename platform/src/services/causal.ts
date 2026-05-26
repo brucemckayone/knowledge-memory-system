@@ -17,6 +17,7 @@ import {
   type Actor,
   type SourceReference,
 } from './audit.js';
+import type { SeveritySummary } from './impact.js';
 
 export type { SourceReference };
 
@@ -330,6 +331,14 @@ export interface ExpireCausalEdgeParams {
    * transaction (existing behaviour). See bead nmemo-2yv.38.
    */
   tx?: Tx;
+  /**
+   * Pre-mutation blast-radius severitySummary captured at the policy
+   * boundary (handleToolCall for agent-initiated edge expiry,
+   * resolveContradiction for mutating edge resolutions). Persisted onto the
+   * causal_edge_history row. NULL for cascade-internal callers. See bead
+   * nmemo-2yv.102.
+   */
+  preExpireBlastRadius?: SeveritySummary | null;
 }
 
 /**
@@ -338,7 +347,15 @@ export interface ExpireCausalEdgeParams {
  * No-op if the edge is already expired or doesn't exist.
  */
 export async function expireCausalEdge(params: ExpireCausalEdgeParams): Promise<void> {
-  const { edgeId, reasoning, actor, reasoningReportId = null, expireReason, tx: outerTx } = params;
+  const {
+    edgeId,
+    reasoning,
+    actor,
+    reasoningReportId = null,
+    expireReason,
+    tx: outerTx,
+    preExpireBlastRadius = null,
+  } = params;
   const reader = outerTx ?? db;
 
   const existing = await reader
@@ -365,6 +382,7 @@ export async function expireCausalEdge(params: ExpireCausalEdgeParams): Promise<
       actor,
       reasoningReportId,
       tx,
+      preExpireBlastRadius,
     });
   };
 

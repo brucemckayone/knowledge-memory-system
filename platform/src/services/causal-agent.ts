@@ -32,6 +32,8 @@ import {
 } from './contradictions.js';
 import {
   analyzeImpact,
+  preflightBlastRadius,
+  maybeWarnBlastRadius,
   type RootNodeType as ImpactRootNodeType,
   type HypotheticalAction,
 } from './impact.js';
@@ -1719,23 +1721,52 @@ async function _handleToolCallInner(
     // --- Reasoning agent tool handlers ---
 
     case 'expire_fact': {
+      // Bead nmemo-2yv.102 — service-side blast-radius preflight at the
+      // policy boundary. Warn-only on critical>0; never blocks the mutation.
+      const factId = toolInput.fact_id as string;
+      const preflight = await preflightBlastRadius({ nodeType: 'fact', nodeId: factId });
+      if (preflight) {
+        maybeWarnBlastRadius({
+          severity: preflight.severity,
+          totalAffected: preflight.totalAffected,
+          actor: context.agent,
+          rootType: 'fact',
+          rootId: factId,
+        });
+      }
       await expireFact({
-        factId: toolInput.fact_id as string,
+        factId,
         reasoning: toolInput.reason as string,
         actor: context.agent,
         reasoningReportId: context.reasoningReportId ?? null,
+        preExpireBlastRadius: preflight?.severity ?? null,
       });
       return JSON.stringify({ expired: true });
     }
 
     case 'invalidate_fact': {
+      // Bead nmemo-2yv.102 — preflight with hypothetical='expire' (the only
+      // mode impact.ts currently supports; invalidate-specific hypothetical
+      // was removed in Review #11).
+      const factId = toolInput.fact_id as string;
+      const preflight = await preflightBlastRadius({ nodeType: 'fact', nodeId: factId });
+      if (preflight) {
+        maybeWarnBlastRadius({
+          severity: preflight.severity,
+          totalAffected: preflight.totalAffected,
+          actor: context.agent,
+          rootType: 'fact',
+          rootId: factId,
+        });
+      }
       await invalidateFact({
-        factId: toolInput.fact_id as string,
+        factId,
         invalidAt: toolInput.invalid_at ? new Date(toolInput.invalid_at as string) : undefined,
         reasoning: (toolInput.reason as string | undefined)
           ?? `Fact marked no longer true in reality by ${context.agent}`,
         actor: context.agent,
         reasoningReportId: context.reasoningReportId ?? null,
+        preExpireBlastRadius: preflight?.severity ?? null,
       });
       return JSON.stringify({ invalidated: true });
     }
@@ -1909,11 +1940,39 @@ async function _handleToolCallInner(
     }
 
     case 'expire_causal_edge': {
+      // Bead nmemo-2yv.102 — root the preflight at the edge's cause_event:
+      // "expiring an edge says 'this causal claim is wrong' and the cause is
+      // the most natural anchor". The `expired_at IS NULL` filter matches
+      // expireCausalEdge's own no-op guard (causal.ts) — an already-expired
+      // edge yields no row, no preflight, no spurious critical-warn. A
+      // missing cause_event_id (shouldn't happen — column is NOT NULL — but
+      // defensive) yields no preflight.
+      const edgeId = toolInput.edge_id as string;
+      const edgeRows = await db.execute(sql`
+        SELECT cause_event_id::text AS "causeEventId"
+        FROM public.causal_edges
+        WHERE id = ${edgeId}::uuid AND expired_at IS NULL
+        LIMIT 1
+      `) as unknown as Array<{ causeEventId: string | null }>;
+      const causeEventId = edgeRows[0]?.causeEventId;
+      const preflight = causeEventId
+        ? await preflightBlastRadius({ nodeType: 'causal_event', nodeId: causeEventId })
+        : null;
+      if (preflight) {
+        maybeWarnBlastRadius({
+          severity: preflight.severity,
+          totalAffected: preflight.totalAffected,
+          actor: context.agent,
+          rootType: 'causal_edge',
+          rootId: edgeId,
+        });
+      }
       await expireCausalEdge({
-        edgeId: toolInput.edge_id as string,
+        edgeId,
         reasoning: toolInput.reasoning as string,
         actor: context.agent,
         reasoningReportId: context.reasoningReportId ?? null,
+        preExpireBlastRadius: preflight?.severity ?? null,
       });
       return JSON.stringify({ expired: true });
     }
