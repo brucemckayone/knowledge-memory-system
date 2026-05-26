@@ -1,8 +1,16 @@
 # Reconciliation Agent — Complete Review
 
-**Date:** April 16, 2026  
-**Component:** Post-extraction identity resolution agent  
-**Status:** Phase B (active, fire-and-forget)
+**Date:** April 16, 2026 (re-validated 2026-05-26 per bead nmemo-2yv.61)
+**Component:** Post-extraction identity resolution agent
+**Status:** Phase B (active, fire-and-forget restored by bead .61)
+
+> **2026-05-26 update (bead nmemo-2yv.61):** between April 2026 and May 2026,
+> the pipeline-level auto-trigger described in this doc fell out of the
+> code (no caller in `pipeline.ts`, only `/api/reconcile` HTTP handler).
+> The fix re-introduced the trigger via `maybeTriggerReconciliation()` in
+> `platform/src/pipeline.ts`, added a process-local cooldown gate, and
+> broadened the gating SELECT to include `status='staging'`. Sections below
+> describe the post-fix behaviour.
 
 ---
 
@@ -18,54 +26,70 @@ extract(memoryId)
   ├─ 2. Invoke graph agent (ORIENT → EXTRACT → RELATE → CAUSE → VERIFY)
   ├─ 3. Query created entities + facts from DB
   ├─ 4. Compute entity meta + detect merge candidates [Graph Meta]
-  └─ 5. [FIRE-AND-FORGET] Trigger reconciliation agent ✓
-         └─ Returns immediately, doesn't block
+  ├─ 5. Gardener auto-trigger (every N graph agent runs)
+  └─ 5b. [FIRE-AND-FORGET] Trigger reconciliation agent via
+         maybeTriggerReconciliation() ✓
+         └─ Returns immediately, doesn't block; gated by cooldown
 ```
 
 ### Conditions for Trigger
 
-Reconciliation agent runs **if ANY of these are true**:
+Reconciliation agent runs **if ALL of these are true**:
 
-1. **Unresolved merge candidates exist**
-   ```typescript
-   db.select({ id: mergeCandidates.id })
-     .from(mergeCandidates)
-     .where(eq(mergeCandidates.status, 'candidate'))
-   ```
+1. **Cooldown elapsed** — at least `RECONCILIATION_MIN_INTERVAL_MS` (default 5 minutes)
+   since the last attempted run. Process-local state; restart resets the timer.
 
-2. **Unconfirmed aliases exist**
-   ```typescript
-   db.select({ id: entityAliases.id })
-     .from(entityAliases)
-     .where(eq(entityAliases.aliasType, 'unconfirmed'))
-   ```
+2. **AND** either:
+   - **Pending merge candidates exist** (`status IN ('staging', 'candidate')` — broader
+     than `/api/reconcile`, which only fires on `'candidate'`. The auto-trigger
+     wants to surface fresh `'staging'` candidates the moment `detectMergeCandidates`
+     writes them):
+     ```typescript
+     db.select({ id: mergeCandidates.id })
+       .from(mergeCandidates)
+       .where(inArray(mergeCandidates.status, ['staging', 'candidate']))
+     ```
 
-If either check finds ≥1 row → agent invoked.
+   - **OR Unconfirmed aliases exist**:
+     ```typescript
+     db.select({ id: entityAliases.id })
+       .from(entityAliases)
+       .where(eq(entityAliases.aliasType, 'unconfirmed'))
+     ```
+
+If both pending-work checks are empty → no_pending_work skip.
 
 ### Fire-and-Forget Pattern
 
+The trigger body lives in `maybeTriggerReconciliation()` (exported for
+testability) in `platform/src/pipeline.ts`. It is `await`-ed from
+`extract()` only to capture telemetry (which lands on
+`ExtractResult.reconciliation`); the agent invocation inside it is wrapped
+in try/catch + log + continue, so a failed LLM call never propagates to
+the pipeline caller.
+
 ```typescript
-// pipeline.ts line 188
-if (candidateRows.length > 0 || unconfirmedRows.length > 0) {
-  // Fetch full context
-  const [allCandidates, recentReports] = await Promise.all([
-    getMergeCandidates(),  // All unresolved candidates + scoring
-    db.select(...extractionReports).limit(10),  // Last 10 extraction traces
-  ]);
-
-  // Invoke agent — DOES NOT AWAIT
-  const reconcileResult = await invokeReconciliationAgent({
-    candidates: allCandidates.filter(c => c.status !== 'resolved'),
-    recentReports: recentReports.map(r => r.reportText),
-  });
-
-  // Log report if available
-  if (reconcileResult.result) {
-    console.log(`[reconciliation] report:\n${reconcileResult.result}`);
-  }
-
-  reconciliationResult = { triggered: true, report: reconcileResult.result };
+// Inside maybeTriggerReconciliation() — simplified
+if (Date.now() - lastReconciliationRunAt < RECONCILIATION_MIN_INTERVAL_MS) {
+  return { triggered: false, skippedReason: 'cooldown ...' };
 }
+const [candidateRows, unconfirmedRows] = await Promise.all([
+  db.select(...mergeCandidates)
+    .where(inArray(mergeCandidates.status, ['staging', 'candidate']))
+    .limit(1),
+  db.select(...entityAliases).where(eq(entityAliases.aliasType, 'unconfirmed')).limit(1),
+]);
+if (candidateRows.length === 0 && unconfirmedRows.length === 0) {
+  return { triggered: false, skippedReason: 'no_pending_work' };
+}
+// Reserve cooldown slot BEFORE the long-running agent call so a tight
+// ingest loop doesn't double-fire while the previous agent is still in flight.
+lastReconciliationRunAt = Date.now();
+const result = await invokeReconciliationAgent({
+  candidates: unresolved as Array<Record<string, unknown>>,
+  recentReports: recentReports.map(r => r.reportText),
+});
+return { triggered: true, candidateCount: unresolved.length, report: result.result };
 ```
 
 **Key behavior:**
@@ -561,15 +585,18 @@ Reconciliation Tools (5):
 ### In Pipeline (Catch-and-Swallow)
 
 ```typescript
+// Inside maybeTriggerReconciliation() in pipeline.ts (post bead .61)
 try {
-  const reconcileResult = await invokeReconciliationAgent({...});
-  if (reconcileResult.result) {
-    console.log(`[reconciliation] report:\n${reconcileResult.result}`);
+  const [candidateRows, unconfirmedRows] = await Promise.all([...]);
+  if (candidateRows.length === 0 && unconfirmedRows.length === 0) {
+    return { triggered: false, skippedReason: 'no_pending_work' };
   }
-  reconciliationResult = { triggered: true, report: reconcileResult.result };
+  lastReconciliationRunAt = Date.now();   // cooldown reserved before LLM call
+  const result = await invoker({ candidates: unresolved, recentReports });
+  return { triggered: true, candidateCount: unresolved.length, report: result.result };
 } catch (err) {
-  console.warn('[reconciliation] failed:', err instanceof Error ? err.message : err);
-  reconciliationResult = { triggered: false };  // ← Don't bubble up
+  console.warn('[reconciliation] auto-trigger failed:', err instanceof Error ? err.message : err);
+  return { triggered: false, skippedReason: 'error' };  // ← Don't bubble up
 }
 ```
 

@@ -14,8 +14,8 @@ import { applyConfidenceDecay } from './services/causal.js';
 import { detectContradictions } from './services/contradictions.js';
 import { updateEntityMeta, detectMergeCandidates } from './services/graph-meta.js';
 import { db } from './db/index.js';
-import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports } from './db/schema.js';
-import { eq, inArray } from 'drizzle-orm';
+import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports, mergeCandidates, entityAliases } from './db/schema.js';
+import { eq, inArray, sql } from 'drizzle-orm';
 
 export interface ExtractResult {
   memoryId: string;
@@ -25,6 +25,7 @@ export interface ExtractResult {
   filtered: string[];
   timing: Record<string, number>;
   gardener?: { triggered: boolean; report?: string };
+  reconciliation?: { triggered: boolean; candidateCount?: number; report?: string; skippedReason?: string };
 }
 
 // ============================================
@@ -38,6 +39,89 @@ let graphAgentRunCount = 0;
 // ============================================
 const DECAY_RUN_INTERVAL = 10; // run applyConfidenceDecay every N graph agent runs
 let decayRunCount = 0;
+
+// ============================================
+// Reconciliation Agent Auto-Trigger (bead nmemo-2yv.61)
+// ============================================
+// Pipeline-level cost-bound for the reconciliation agent. Fire-and-forget
+// after every ingest IF there is unresolved work AND we haven't fired in
+// the last RECONCILIATION_MIN_INTERVAL_MS. Process-local state — survives
+// only within a single platform process. A restart resets the cooldown,
+// which is acceptable since the next ingest will refresh the timestamp.
+const RECONCILIATION_MIN_INTERVAL_MS = Number.parseInt(
+  process.env.RECONCILIATION_MIN_INTERVAL_MS ?? `${5 * 60 * 1000}`,
+  10,
+);
+let lastReconciliationRunAt = 0;
+
+/** Test-only — reset the cooldown so unit tests don't depend on wall-clock state. */
+export function _resetReconciliationCooldown(): void {
+  lastReconciliationRunAt = 0;
+}
+
+/**
+ * Reconciliation auto-trigger body, extracted for testability (bead .61).
+ * Returns the telemetry shape that lands on ExtractResult.reconciliation.
+ * Optional `invokerOverride` lets tests stub the LLM call.
+ */
+export type ReconciliationAgentInvoker = (params: {
+  candidates: Array<Record<string, unknown>>;
+  recentReports?: string[];
+}) => Promise<{ result: string }>;
+
+export async function maybeTriggerReconciliation(
+  invokerOverride?: ReconciliationAgentInvoker,
+): Promise<ExtractResult['reconciliation']> {
+  const sinceLast = Date.now() - lastReconciliationRunAt;
+  if (sinceLast < RECONCILIATION_MIN_INTERVAL_MS) {
+    return {
+      triggered: false,
+      skippedReason: `cooldown ${Math.floor(sinceLast / 1000)}s < ${Math.floor(RECONCILIATION_MIN_INTERVAL_MS / 1000)}s`,
+    };
+  }
+  try {
+    const [candidateRows, unconfirmedRows] = await Promise.all([
+      // Auto-trigger fires on EITHER 'staging' or 'candidate' status — the
+      // bead's locked spec is broader than the /api/reconcile manual handler
+      // (which only fires on 'candidate'). detectMergeCandidates inserts
+      // 'staging' for below-threshold pairs and 'candidate' for above; both
+      // need the agent's attention.
+      db.select({ id: mergeCandidates.id }).from(mergeCandidates)
+        .where(inArray(mergeCandidates.status, ['staging', 'candidate'])).limit(1),
+      db.select({ id: entityAliases.id }).from(entityAliases)
+        .where(eq(entityAliases.aliasType, 'unconfirmed')).limit(1),
+    ]);
+    if (candidateRows.length === 0 && unconfirmedRows.length === 0) {
+      return { triggered: false, skippedReason: 'no_pending_work' };
+    }
+    // Reserve the cooldown slot BEFORE the long-running agent call so a tight
+    // ingest loop in the same process doesn't double-fire while the previous
+    // agent is still in flight.
+    lastReconciliationRunAt = Date.now();
+    const invoker = invokerOverride ?? (await import('./services/causal-agent.js')).invokeReconciliationAgent;
+    const { getMergeCandidates } = await import('./services/graph-meta.js');
+    const [allCandidates, recentReports] = await Promise.all([
+      getMergeCandidates(),
+      db.select({ reportText: extractionReports.reportText })
+        .from(extractionReports)
+        .orderBy(sql`created_at DESC`)
+        .limit(10),
+    ]);
+    const unresolved = allCandidates.filter((c: { status?: string }) => c.status !== 'resolved');
+    console.log(`[reconciliation] auto-triggering candidates=${unresolved.length} unconfirmed_aliases=${unconfirmedRows.length}`);
+    const result = await invoker({
+      candidates: unresolved as Array<Record<string, unknown>>,
+      recentReports: recentReports.map(r => r.reportText),
+    });
+    if (result.result) {
+      console.log(`[reconciliation] report:\n${result.result.slice(0, 500)}${result.result.length > 500 ? '…' : ''}`);
+    }
+    return { triggered: true, candidateCount: unresolved.length, report: result.result };
+  } catch (err) {
+    console.warn('[reconciliation] auto-trigger failed:', err instanceof Error ? err.message : err);
+    return { triggered: false, skippedReason: 'error' };
+  }
+}
 
 // ============================================
 // Pattern-Detection Auto-Trigger Counter (Phase 6 — nmemo-d9v.13)
@@ -252,6 +336,7 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
 
   // 4. Update graph meta (entity stats + merge candidate detection)
   let gardenerResult: { triggered: boolean; report?: string } | undefined;
+  let reconciliationResult: ExtractResult['reconciliation'];
   if (entityIds.length > 0) {
     const tMeta = Date.now();
     try {
@@ -287,6 +372,15 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
       }
       timing.gardener = Date.now() - tGarden;
     }
+
+    // 5b. Reconciliation agent auto-trigger (bead nmemo-2yv.61). Same
+    //     fire-and-forget shape as gardener — never blocks the pipeline
+    //     result. The body is extracted to maybeTriggerReconciliation()
+    //     for testability of the cooldown gate. See its docstring for
+    //     the conditional rules.
+    const tRecon = Date.now();
+    reconciliationResult = await maybeTriggerReconciliation();
+    timing.reconciliation = Date.now() - tRecon;
 
     // 6. Auto-trigger confidence decay every N graph agent runs (independent
     //    of the gardener counter — they cycle on different intervals).
@@ -325,7 +419,7 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
     }
   }
 
-  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing, gardener: gardenerResult };
+  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing, gardener: gardenerResult, reconciliation: reconciliationResult };
 }
 
 /**
