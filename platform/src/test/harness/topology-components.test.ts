@@ -12,8 +12,9 @@
  * per-test control of DATABASE_URL and zero external state.
  *
  * The integration with the live sidecar (POST /api/topology/compute) is
- * verified separately via the §5.2 benchmark + manual checks; not gated
- * on this suite.
+ * covered by the bead .86 HTTP-layer test scaffolding in
+ * topology-clustering-drift-http.test.ts (app.request() + mocked ml-services)
+ * and the §5.2 benchmark; not gated on this suite.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { execFileSync } from 'node:child_process';

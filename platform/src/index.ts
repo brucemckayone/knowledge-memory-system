@@ -1001,7 +1001,7 @@ app.get('/api/graph-stats', async (c) => {
 // /clustering/compute. The generator's freshness gate handles the "both
 // upstreams fresh" precondition; the advisory lock handles overlap.
 // ============================================
-async function triggerCrossClusterAfterCompute(after: 'topology' | 'clustering'): Promise<void> {
+export async function triggerCrossClusterAfterCompute(after: 'topology' | 'clustering'): Promise<void> {
   try {
     const { generateCrossClusterCandidates } = await import('./services/cross-cluster-generator.js');
     const result = await generateCrossClusterCandidates();

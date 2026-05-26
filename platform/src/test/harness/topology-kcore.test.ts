@@ -12,8 +12,10 @@
  * The subprocess path drives the same `topology.py` functions (`_export_graph`
  * → `compute_k_core` → `_write_back`).
  *
- * Live HTTP integration with the running sidecar is verified separately via
- * the §5.2 benchmark + manual checks; not gated on this suite.
+ * Live HTTP integration with the running sidecar is covered by the bead .86
+ * HTTP-layer test scaffolding in topology-clustering-drift-http.test.ts
+ * (app.request() + mocked ml-services) and the §5.2 benchmark; not gated
+ * on this suite.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { execFileSync } from 'node:child_process';

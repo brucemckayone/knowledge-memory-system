@@ -13,8 +13,10 @@
  * `DELETE FROM topology_bridges` + bulk INSERT pattern from doc 23.3 §3.2 /
  * master 23 §2.3.2.
  *
- * Live HTTP integration with the running sidecar is verified separately via
- * the §5.2 benchmark + manual checks; not gated on this suite.
+ * Live HTTP integration with the running sidecar is covered by the bead .86
+ * HTTP-layer test scaffolding in topology-clustering-drift-http.test.ts
+ * (app.request() + mocked ml-services) and the §5.2 benchmark; not gated
+ * on this suite.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { execFileSync } from 'node:child_process';

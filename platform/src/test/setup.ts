@@ -132,6 +132,219 @@ export async function isMLServiceAvailable(): Promise<boolean> {
   }
 }
 
+// ============================================================================
+// mockMlServices — bead nmemo-2yv.86
+// ============================================================================
+
+/**
+ * The ml-services routes the platform's compute endpoints proxy to. Keep
+ * this union exhaustive: route-handler integration tests rely on it to
+ * configure per-route mock responses, and a missing route falls through
+ * to the unknown-route 404 branch (which usually surfaces as an unrelated
+ * 502 in the route under test — annoying to debug).
+ *
+ * As of bead .86 the proxied routes are:
+ *   - POST /topology/compute        (proxied by POST /api/topology/compute)
+ *   - POST /clustering/compute      (proxied by POST /api/clustering/compute)
+ *   - POST /drift/compute           (proxied by POST /api/drift/compute)
+ *   - POST /reconciliation-agent/drift  (called by the bead .83 fire-and-forget
+ *                                          helper from inside the drift/compute
+ *                                          success path)
+ *   - GET  /health                  (called by /health composition — bead .111)
+ *
+ * If a new ml-services route lands and a platform handler proxies to it,
+ * add it here and document the platform call site in the JSDoc above.
+ */
+export type MockMlRoute =
+  | '/topology/compute'
+  | '/clustering/compute'
+  | '/drift/compute'
+  | '/reconciliation-agent/drift'
+  | '/health';
+
+/**
+ * The kinds of mocked responses each route can return. Each route can be
+ * configured independently per test:
+ *
+ *   - `{ kind: 'ok', body? }`              — 200 with optional JSON body
+ *   - `{ kind: 'error', status, body? }`   — non-2xx with optional body
+ *   - `{ kind: 'timeout' }`                — never-resolving promise
+ *                                            (use AbortSignal.timeout on the
+ *                                            caller to validate timeout paths)
+ *   - `{ kind: 'queue-full' }`             — 503 + { error: 'queue_full' }
+ *                                            (matches the ml-services
+ *                                            QueueFullError wire shape so
+ *                                            platform-side detection paths
+ *                                            see the canonical body)
+ *   - `{ kind: 'throw', message }`         — fetch itself rejects (network
+ *                                            blip / DNS / TLS error class)
+ */
+export type MockMlRouteResponse =
+  | { kind: 'ok'; body?: unknown }
+  | { kind: 'error'; status: number; body?: unknown }
+  | { kind: 'timeout' }
+  | { kind: 'queue-full' }
+  | { kind: 'throw'; message?: string };
+
+export interface MockMlServicesConfig {
+  /**
+   * Per-route response. Routes omitted from the config return the default
+   * `{ kind: 'ok', body: { ok: true } }`. Use this map to vary one route
+   * (e.g. /drift/compute returns ok, /reconciliation-agent/drift returns
+   * 503) inside a single test.
+   */
+  responses?: Partial<Record<MockMlRoute, MockMlRouteResponse>>;
+  /**
+   * If true (default), unknown / unmocked URLs return a 404 with an
+   * `{ error: 'unmocked endpoint: <url>' }` body so the test sees the
+   * miss as a structured response rather than a fetch error. Set to
+   * `'passthrough'` if a test needs unmocked URLs to hit real fetch
+   * (rarely useful — almost always indicates the route catalogue above
+   * needs a new entry).
+   */
+  unmocked?: '404' | 'passthrough';
+}
+export interface MockMlServicesHandle {
+  /** Every URL fetch() was invoked with, in call order. Useful for assertions
+   *  like "the platform fired both /topology/compute AND
+   *  /reconciliation-agent/drift in the same request." */
+  calls: Array<{ url: string; method: string; body?: unknown }>;
+  /** Restore the original global fetch and clear call records. */
+  restore: () => void;
+  /** Mutate a single route's response mid-test (e.g. first call succeeds,
+   *  second call returns 503). Per-route config replaces the previous one. */
+  setRoute: (route: MockMlRoute, response: MockMlRouteResponse) => void;
+}
+
+/**
+ * Install a global-fetch interceptor that knows the ml-services route
+ * catalogue. Returns a handle for inspection + per-route reconfiguration.
+ *
+ * Usage pattern (bead nmemo-2yv.86):
+ * ```ts
+ * import { describe, it, expect, afterEach } from 'vitest';
+ * import { app } from '../../index.js';
+ * import { mockMlServices, type MockMlServicesHandle } from '../setup.js';
+ *
+ * let ml: MockMlServicesHandle;
+ * afterEach(() => ml?.restore());
+ *
+ * it('POST /api/topology/compute 502s when ml-services is down', async () => {
+ *   ml = mockMlServices({
+ *     responses: { '/topology/compute': { kind: 'throw', message: 'ECONNREFUSED' } },
+ *   });
+ *   const res = await app.request('/api/topology/compute', { method: 'POST' });
+ *   expect(res.status).toBe(502);
+ * });
+ * ```
+ *
+ * Reusable by bead `.20` (pipeline.ts integration), `.68` (gardener), `.79`
+ * (reasoning-agent) when those add their own integration tests — they only
+ * need to extend `MockMlRoute` with their proxied endpoints and reuse the
+ * fetch interceptor.
+ */
+export function mockMlServices(initial: MockMlServicesConfig = {}): MockMlServicesHandle {
+  const calls: MockMlServicesHandle['calls'] = [];
+  const routes = new Map<MockMlRoute, MockMlRouteResponse>();
+  if (initial.responses) {
+    for (const [route, resp] of Object.entries(initial.responses)) {
+      if (resp !== undefined) routes.set(route as MockMlRoute, resp);
+    }
+  }
+  const unmocked = initial.unmocked ?? '404';
+
+  function findRoute(url: string): MockMlRoute | undefined {
+    // Longest-match wins so /reconciliation-agent/drift doesn't accidentally
+    // match a hypothetical future /drift route.
+    const routeList: MockMlRoute[] = [
+      '/reconciliation-agent/drift',
+      '/topology/compute',
+      '/clustering/compute',
+      '/drift/compute',
+      '/health',
+    ];
+    for (const r of routeList) {
+      if (url.includes(r)) return r;
+    }
+    return undefined;
+  }
+
+  function makeResponse(status: number, body: unknown): Response {
+    const jsonStr = JSON.stringify(body);
+    return new Response(jsonStr, {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
+  const realFetch = globalThis.fetch;
+  const interceptor: typeof fetch = async (input, init) => {
+    const url = typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : (input as Request).url;
+    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    let body: unknown;
+    try {
+      const rawBody = init?.body ?? (input instanceof Request ? await input.clone().text() : undefined);
+      if (typeof rawBody === 'string' && rawBody.length > 0) {
+        body = JSON.parse(rawBody);
+      }
+    } catch {
+      // Non-JSON body — leave undefined; tests asserting body shape will see
+      // the absence and notice. We don't reject the fetch itself.
+    }
+    calls.push({ url, method, body });
+
+    const route = findRoute(url);
+    if (!route) {
+      if (unmocked === 'passthrough') return realFetch(input, init);
+      return makeResponse(404, { error: `unmocked endpoint: ${url}` });
+    }
+
+    const resp = routes.get(route) ?? { kind: 'ok', body: { ok: true } };
+    switch (resp.kind) {
+      case 'ok':
+        return makeResponse(200, resp.body ?? { ok: true });
+      case 'error':
+        return makeResponse(resp.status, resp.body ?? { error: `mock error ${resp.status}` });
+      case 'queue-full':
+        return makeResponse(503, { error: 'queue_full', detail: 'mock queue saturated' });
+      case 'throw': {
+        const err = new TypeError(resp.message ?? 'mock fetch failure');
+        throw err;
+      }
+      case 'timeout':
+        // Never resolve — let the caller's AbortSignal or test timeout kick in.
+        // Returning a promise that respects the init.signal abort is friendlier:
+        // the caller can pass AbortSignal.timeout(N) and observe an AbortError.
+        return new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal) {
+            if (signal.aborted) reject(new DOMException('aborted', 'AbortError'));
+            else signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+          }
+          // else: hang forever — test must use vi.useFakeTimers or its own
+          // timeout to bail.
+        });
+    }
+  };
+
+  globalThis.fetch = interceptor;
+
+  return {
+    calls,
+    restore: () => {
+      globalThis.fetch = realFetch;
+      calls.length = 0;
+    },
+    setRoute: (route, response) => {
+      routes.set(route, response);
+    },
+  };
+}
+
 /**
  * Skip a suite or test from a beforeAll/it context.
  *
