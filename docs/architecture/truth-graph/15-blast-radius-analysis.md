@@ -69,7 +69,8 @@ Five rules, evaluated in order. First match wins.
 
 | Condition | Severity |
 |-----------|----------|
-| Edge has corroboration_count >= 3 AND this node is its sole evidence | **critical** |
+| Edge has corroboration_count >= 3 AND this node is its sole evidence under hypothetical=expire | **critical** |
+| Edge has corroboration_count < 3 AND this node is its sole evidence under hypothetical=expire | **high** |
 | Direct causal child / transitive depth=1, effect has no other active causes | **high** |
 | Citation dependent where edge is active and strength >= 0.7 | **high** |
 | Transitive depth=1, effect has 1-2 other active causes | **medium** |
@@ -83,6 +84,8 @@ Five rules, evaluated in order. First match wins.
 | Pattern member, full template survives outside root | **low** |
 
 Rationale: severity reflects "irreplaceability" — how much unique evidence or connection this node provides.
+
+Sole-evidence cascade impact tiers by corroboration: high-corroboration loss is `critical` (the spec's primary signal — the cascade would remove well-corroborated evidence); low-corroboration loss is `high` because the cascade still removes the edge but the trust loss is lower than a well-corroborated edge. Under no-hypothetical or weak-strength conditions, citation severity falls through to Rule 4 (`medium`).
 
 ## API Surface
 
