@@ -1003,7 +1003,7 @@ describe('Phase 4 — Pattern impact (Phase 6 forward-compat)', () => {
     expect(report.patternImpact).toEqual([]);
   });
 
-  it('finds provisional/canonical patterns referenced by the root events', async () => {
+  it('orphan tier — pattern with no edges outside root scores high (nmemo-2yv.99)', async () => {
     const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
     const fact = await createTestFact({
       subjectEntityId: alice.id,
@@ -1013,7 +1013,7 @@ describe('Phase 4 — Pattern impact (Phase 6 forward-compat)', () => {
     const e0 = await insertCausalEvent({ factId: fact.id });
     const e1 = await insertCausalEvent({ factId: fact.id });
 
-    // Seed a pattern (forward-compat for Phase 6 — verifies the JOIN works)
+    // Single pattern edge touching the root — orphans on expiry.
     const patternRows = await testDb`
       INSERT INTO causal_patterns (
         name, description, template_structure, template_length, status
@@ -1037,11 +1037,102 @@ describe('Phase 4 — Pattern impact (Phase 6 forward-compat)', () => {
     const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: e0 });
 
     expect(report.patternImpact.map((p) => p.nodeId)).toEqual([patternId]);
-    expect(report.patternImpact[0]!.severity).toBe('low');
+    expect(report.patternImpact[0]!.severity).toBe('high');
+    expect(report.patternImpact[0]!.edgesOutsideRoot).toBe(0);
+    expect(report.patternImpact[0]!.templateLength).toBe(2);
     expect(report.patternImpact[0]!.relationship).toBe('pattern_member');
     // Bead nmemo-2yv.101: nodeType now honestly reports 'causal_pattern'
     // (was 'fact' with a lying cast pre-bead).
     expect(report.patternImpact[0]!.nodeType).toBe('causal_pattern');
+  });
+
+  it('partial-survival tier — outside > 0 but below template_length scores medium (nmemo-2yv.99)', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const eOutsideA = await insertCausalEvent({ factId: fact.id });
+    const eOutsideB = await insertCausalEvent({ factId: fact.id });
+
+    const patternRows = await testDb`
+      INSERT INTO causal_patterns (
+        name, description, template_structure, template_length, status
+      ) VALUES (
+        'Partial Pattern', 'A test', '{}'::jsonb, 3, 'canonical'
+      )
+      RETURNING id
+    `;
+    const patternId = (patternRows[0] as { id: string }).id;
+
+    // One edge touching the root (e0) + one surviving edge entirely outside it.
+    // outside=1 < template_length=3 → medium tier.
+    await testDb`
+      INSERT INTO causal_edges (
+        cause_event_id, effect_event_id, strength, reasoning, source_references,
+        extraction_method, corroboration_count, initial_strength, pattern_id, pattern_position
+      ) VALUES
+        (${e0}::uuid, ${e1}::uuid, 0.7, 'touching edge', '[]'::jsonb,
+         'manual', 1, 0.7, ${patternId}::uuid, 0),
+        (${eOutsideA}::uuid, ${eOutsideB}::uuid, 0.7, 'surviving edge', '[]'::jsonb,
+         'manual', 1, 0.7, ${patternId}::uuid, 1)
+    `;
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: e0 });
+
+    expect(report.patternImpact.map((p) => p.nodeId)).toEqual([patternId]);
+    expect(report.patternImpact[0]!.severity).toBe('medium');
+    expect(report.patternImpact[0]!.edgesOutsideRoot).toBe(1);
+    expect(report.patternImpact[0]!.templateLength).toBe(3);
+  });
+
+  it('full-survival tier — outside >= template_length scores low (nmemo-2yv.99)', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const eOutsideA = await insertCausalEvent({ factId: fact.id });
+    const eOutsideB = await insertCausalEvent({ factId: fact.id });
+    const eOutsideC = await insertCausalEvent({ factId: fact.id });
+
+    const patternRows = await testDb`
+      INSERT INTO causal_patterns (
+        name, description, template_structure, template_length, status
+      ) VALUES (
+        'Surviving Pattern', 'A test', '{}'::jsonb, 2, 'canonical'
+      )
+      RETURNING id
+    `;
+    const patternId = (patternRows[0] as { id: string }).id;
+
+    // One edge touching root + two edges entirely outside.
+    // outside=2 >= template_length=2 → low tier (full template can still be assembled).
+    await testDb`
+      INSERT INTO causal_edges (
+        cause_event_id, effect_event_id, strength, reasoning, source_references,
+        extraction_method, corroboration_count, initial_strength, pattern_id, pattern_position
+      ) VALUES
+        (${e0}::uuid, ${e1}::uuid, 0.7, 'touching edge', '[]'::jsonb,
+         'manual', 1, 0.7, ${patternId}::uuid, 0),
+        (${eOutsideA}::uuid, ${eOutsideB}::uuid, 0.7, 'surviving 1', '[]'::jsonb,
+         'manual', 1, 0.7, ${patternId}::uuid, 1),
+        (${eOutsideB}::uuid, ${eOutsideC}::uuid, 0.7, 'surviving 2', '[]'::jsonb,
+         'manual', 1, 0.7, ${patternId}::uuid, 0)
+    `;
+
+    const report = await analyzeImpact({ nodeType: 'causal_event', nodeId: e0 });
+
+    expect(report.patternImpact.map((p) => p.nodeId)).toEqual([patternId]);
+    expect(report.patternImpact[0]!.severity).toBe('low');
+    expect(report.patternImpact[0]!.edgesOutsideRoot).toBe(2);
+    expect(report.patternImpact[0]!.templateLength).toBe(2);
   });
 
   it('omits staging-status patterns', async () => {

@@ -50,6 +50,10 @@ export interface ImpactNode {
   reasoning: string;
   strength?: number;
   corroborationCount?: number;
+  /** Pattern-member only: count of pattern edges NOT touching any root event. */
+  edgesOutsideRoot?: number;
+  /** Pattern-member only: declared length of the pattern template. */
+  templateLength?: number;
 }
 
 export interface RootNode {
@@ -566,7 +570,8 @@ async function findPatternImpact(rootEventIds: string[]): Promise<ImpactNode[]> 
     name: string | null;
     status: string;
     templateLength: number;
-    edgeCount: number;
+    edgeCountTouching: number;
+    edgesOutsideRoot: number;
   };
 
   const rootIdsLiteral = `{${rootEventIds.join(',')}}`;
@@ -577,13 +582,22 @@ async function findPatternImpact(rootEventIds: string[]): Promise<ImpactNode[]> 
       p.name,
       p.status,
       p.template_length,
-      COUNT(DISTINCT e.id) AS edge_count
+      COUNT(DISTINCT e.id) FILTER (
+        WHERE e.cause_event_id = ANY(${rootIdsLiteral}::uuid[])
+           OR e.effect_event_id = ANY(${rootIdsLiteral}::uuid[])
+      )::integer AS edge_count_touching,
+      COUNT(DISTINCT e.id) FILTER (
+        WHERE e.cause_event_id <> ALL(${rootIdsLiteral}::uuid[])
+          AND e.effect_event_id <> ALL(${rootIdsLiteral}::uuid[])
+      )::integer AS edges_outside_root
     FROM public.causal_patterns p
     JOIN public.causal_edges e ON e.pattern_id = p.id
     WHERE p.status IN ('provisional', 'canonical')
-      AND (e.cause_event_id = ANY(${rootIdsLiteral}::uuid[])
-        OR e.effect_event_id = ANY(${rootIdsLiteral}::uuid[]))
     GROUP BY p.id, p.name, p.status, p.template_length
+    HAVING COUNT(DISTINCT e.id) FILTER (
+        WHERE e.cause_event_id = ANY(${rootIdsLiteral}::uuid[])
+           OR e.effect_event_id = ANY(${rootIdsLiteral}::uuid[])
+      ) > 0
   `);
 
   return rows.map((r) => ({
@@ -593,7 +607,9 @@ async function findPatternImpact(rootEventIds: string[]): Promise<ImpactNode[]> 
     relationship: 'pattern_member',
     depth: 0,
     severity: 'medium',
-    reasoning: `${r.status} pattern with ${r.edgeCount} edge(s) touching the root events`,
+    reasoning: `${r.status} pattern with ${r.edgeCountTouching} edge(s) touching the root events, ${r.edgesOutsideRoot} surviving outside`,
+    edgesOutsideRoot: r.edgesOutsideRoot,
+    templateLength: r.templateLength,
   }));
 }
 
@@ -741,8 +757,12 @@ function pickSeverity(
     return 'low';
   }
 
-  // Rule 8 — pattern member
+  // Rule 8 — pattern_member, tiered by edges_outside_root vs template_length (heuristic; outside>=need may not actually assemble).
   if (n.relationship === 'pattern_member') {
+    const outside = n.edgesOutsideRoot ?? 0;
+    const need = n.templateLength ?? 0;
+    if (outside === 0) return 'high';
+    if (outside < need) return 'medium';
     return 'low';
   }
 

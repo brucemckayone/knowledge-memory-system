@@ -77,7 +77,9 @@ Five rules, evaluated in order. First match wins.
 | Direct fact sharing entity | **medium** |
 | Transitive chain at depth 2 | **medium** |
 | Transitive chain at depth 3+ | **low** |
-| Pattern member where other instances exist | **low** |
+| Pattern member, root would orphan the pattern (no edges outside root) | **high** |
+| Pattern member, partial survival (0 < edges_outside_root < template_length) | **medium** |
+| Pattern member, full template survives outside root | **low** |
 
 Rationale: severity reflects "irreplaceability" — how much unique evidence or connection this node provides.
 
