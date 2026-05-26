@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { testDb, createTestEntity } from '../setup.js';
 import { handleToolCall } from '../../services/causal-agent.js';
+import { RESOLUTION_VALUES } from '../../services/enums.js';
 
 describe('resolve_candidate integration (nmemo-2yv.60)', () => {
   let entityAId: string;
@@ -78,5 +79,41 @@ describe('resolve_candidate integration (nmemo-2yv.60)', () => {
     expect(after!.resolution).toBe('same_as');
     expect(after!.detection_count).toBe(1);
     expect(after!.resolution_reasoning).toContain('regression test');
+  });
+
+  // Canary for nmemo-2yv.130: every value in RESOLUTION_VALUES must satisfy
+  // the merge_candidates.resolution CHECK. Catches future drift where the
+  // SSOT module and the migration disagree.
+  it.each(RESOLUTION_VALUES)('CHECK admits "%s" from RESOLUTION_VALUES (SSOT alignment, bead nmemo-2yv.130)', async (value) => {
+    const a = await createTestEntity({ canonicalName: `SSOT-Test-A-${value}`, entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: `SSOT-Test-B-${value}`, entityType: 'person' });
+    const sorted = [a.id, b.id].sort();
+    const aId = sorted[0]!;
+    const bId = sorted[1]!;
+    const insertRows = await testDb<Array<{ id: string }>>`
+      INSERT INTO public.merge_candidates (entity_a_id, entity_b_id, combined_score, status)
+      VALUES (${aId}::uuid, ${bId}::uuid, 0.85, 'candidate')
+      RETURNING id
+    `;
+    const id = insertRows[0]!.id;
+    try {
+      // Direct UPDATE against the CHECK — bypasses handleToolCall so the test
+      // proves the schema/SSOT alignment, not handler logic.
+      await testDb`
+        UPDATE public.merge_candidates
+        SET resolution = ${value}, status = 'resolved', resolution_reasoning = ${`SSOT canary for ${value}`}
+        WHERE id = ${id}::uuid
+      `;
+      const after = await testDb<Array<{ resolution: string; status: string }>>`
+        SELECT resolution, status FROM public.merge_candidates WHERE id = ${id}::uuid
+      `;
+      expect(after[0]!.resolution).toBe(value);
+      expect(after[0]!.status).toBe('resolved');
+    } finally {
+      try {
+        await testDb`DELETE FROM public.merge_candidates WHERE id = ${id}::uuid`;
+        await testDb`DELETE FROM public.entities WHERE id IN (${a.id}::uuid, ${b.id}::uuid)`;
+      } catch { /* best-effort cleanup */ }
+    }
   });
 });

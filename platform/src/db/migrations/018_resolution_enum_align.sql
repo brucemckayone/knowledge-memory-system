@@ -28,6 +28,7 @@ WHERE resolution = 'alias';
 ALTER TABLE public.merge_candidates
   DROP CONSTRAINT IF EXISTS valid_resolution;
 
+-- keep in sync with src/services/enums.ts:RESOLUTION_VALUES (bead nmemo-2yv.130)
 ALTER TABLE public.merge_candidates
   ADD CONSTRAINT valid_resolution CHECK (
     resolution IS NULL OR resolution IN ('merge', 'same_as', 'link', 'distinct')

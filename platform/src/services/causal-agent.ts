@@ -43,6 +43,7 @@ import {
 import { ml } from './ml-client.js';
 import { config } from '../config.js';
 import { normalizePredicate } from './predicates.js';
+import { RESOLUTION_VALUES } from './enums.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -520,7 +521,10 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
         resolution: {
           type: 'string',
-          enum: ['merge', 'same_as', 'link', 'distinct'],
+          // SSOT: src/services/enums.ts:RESOLUTION_VALUES (bead nmemo-2yv.130).
+          // Mutable copy via spread because Claude's tool-schema type expects
+          // string[]; the readonly tuple narrows the type at the call site.
+          enum: [...RESOLUTION_VALUES],
           description: 'Resolution type: merge (destructive), same_as (non-destructive identity link), link (softer association), distinct (confirmed different entities)',
         },
         reasoning: {
