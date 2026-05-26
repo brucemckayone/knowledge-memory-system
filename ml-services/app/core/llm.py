@@ -67,7 +67,6 @@ TASK_DEFAULTS: Dict[str, Dict[str, str]] = {
     "chat":                  {"model": "haiku",  "effort": "low"},
     "check_contradiction":   {"model": "haiku",  "effort": "low"},
     "judge":                 {"model": "haiku",  "effort": "low"},
-    "causal_reason":         {"model": "haiku",  "effort": "low"},
     "extract_agentic":       {"model": "haiku",  "effort": "low"},
     "graph_agent":           {"model": "haiku",  "effort": "low"},
     "reconciliation_agent":  {"model": "haiku",  "effort": "low"},

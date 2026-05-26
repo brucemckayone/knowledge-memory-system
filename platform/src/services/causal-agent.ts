@@ -1,12 +1,15 @@
 /**
- * Causal Agent — Tool Definitions (B05) + Invocation (B06)
+ * Causal Agent — Tool Definitions (B05) + Agent Invocations
  *
  * GRAPH_TOOLS are exposed via the unified MCP server (graph-mcp.ts).
  * Each tool maps to an existing service function. The tool schema format
  * is MCP-compatible (JSON Schema inputSchema).
  *
- * The invokeCausalAgent() function calls the ML service's /causal-reason endpoint,
- * which shells out to Claude Code with the MCP config and system prompt.
+ * Agent invocations (invokeGraphAgent, invokeReconciliationAgent, etc.) call the
+ * corresponding ML service endpoints, which shell out to Claude Code with the
+ * MCP config and the agent's system prompt. The unified graph agent handles
+ * causal reasoning inline as a CAUSE phase — there is no longer a standalone
+ * causal agent invocation.
  */
 
 import path from 'path';
@@ -2437,29 +2440,8 @@ async function _handleToolCallInner(
 }
 
 // ============================================
-// Agent Invocation (B06)
+// Agent Invocation
 // ============================================
-
-export interface CausalDelta {
-  sourceText: string;
-  memoryId?: string;
-  newEntities: Array<Record<string, unknown>>;
-  newFacts: Array<Record<string, unknown>>;
-  modifiedFacts: Array<Record<string, unknown>>;
-  causalEvents: Array<{
-    id: string;
-    factId?: string;
-    transitionType: string;
-    subjectEntityId?: string;
-    predicate?: string;
-    sourceText?: string;
-  }>;
-}
-
-export interface CausalAgentResult {
-  result: string;
-  cost?: Record<string, unknown>;
-}
 
 /**
  * Resolve the absolute filesystem path to the production graph MCP server
@@ -2524,49 +2506,6 @@ export function getMcpConfigPath(actor: Actor = 'graph_agent'): string {
   };
   writeFileSync(configPath, JSON.stringify(mcpConfig, null, 2));
   return configPath;
-}
-
-/**
- * Invoke the causal reasoning agent via the ML service.
- *
- * The ML service calls Claude Code with:
- * - The causal system prompt
- * - MCP config pointing to the graph-mcp.ts server (the unified MCP)
- * - max_turns=20 for agentic tool-use loop
- *
- * Claude Code spawns the MCP server, uses the tools to query Graph S/C
- * and Qdrant, then asserts causal edges via create_causal_edge.
- */
-export async function invokeCausalAgent(delta: CausalDelta): Promise<CausalAgentResult> {
-  const mcpConfigPath = getMcpConfigPath('graph_agent');
-
-  const response = await fetch(`${config.ML_SERVICES_URL}/causal-reason`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source_text: delta.sourceText,
-      memory_id: delta.memoryId,
-      new_entities: delta.newEntities,
-      new_facts: delta.newFacts,
-      modified_facts: delta.modifiedFacts,
-      causal_events: delta.causalEvents.map(e => ({
-        id: e.id,
-        fact_id: e.factId,
-        transition_type: e.transitionType,
-        subject_entity_id: e.subjectEntityId,
-        predicate: e.predicate,
-        source_text: e.sourceText,
-      })),
-      mcp_config_path: mcpConfigPath,
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => response.statusText);
-    throw new Error(`Causal reasoning failed (${response.status}): ${detail}`);
-  }
-
-  return response.json() as Promise<CausalAgentResult>;
 }
 
 // ============================================

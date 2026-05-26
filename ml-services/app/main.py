@@ -34,7 +34,6 @@ from .parse_transcript import router as parse_transcript_router
 from .parse_document import router as parse_document_router
 from .parse_markdown import router as parse_markdown_router
 from .compare_predicates import router as compare_predicates_router
-from .causal_reason import router as causal_reason_router
 from .extract_agentic import router as extract_agentic_router
 from .graph_agent import router as graph_agent_router
 from .reconciliation_agent import router as reconciliation_agent_router
@@ -90,8 +89,6 @@ app.include_router(parse_transcript_router, tags=["Transcript Parsing"])
 app.include_router(parse_document_router, tags=["Document Parsing"])
 app.include_router(parse_markdown_router, tags=["Markdown Parsing"])
 app.include_router(compare_predicates_router, tags=["Predicate Comparison"])
-# Phase B: Graph C
-app.include_router(causal_reason_router, tags=["Causal Reasoning"])
 # Agentic extraction
 app.include_router(extract_agentic_router, tags=["Agentic Extraction"])
 # Unified graph agent
@@ -143,8 +140,7 @@ async def health():
             "parse-transcript",
             "parse-document",
             "parse-markdown",
-            "compare-predicates",
-            "causal-reason"
+            "compare-predicates"
         ]
     }
 

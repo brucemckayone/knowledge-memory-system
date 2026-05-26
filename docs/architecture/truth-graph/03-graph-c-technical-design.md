@@ -571,14 +571,16 @@ RETURN path
 
 ### 5.1 Synchronous Consistency
 
-In the sparse branch, Graph C is updated **synchronously** within the same `ingest()` call as Graph S. The pipeline runs: `store()` → `extract()` (Graph S updated) → `runCausalAgent()` (Graph C updated). There is no async queue, no eventual consistency window — when `ingest()` returns, both graphs reflect the new data.
+In the sparse branch, Graph C is updated **synchronously** within the same `ingest()` call as Graph S. The pipeline runs: `store()` → `extract()` → `invokeGraphAgent()` (the unified graph agent, which performs entity / relationship / fact extraction AND causal reasoning inline). There is no async queue, no eventual consistency window — when `ingest()` returns, both graphs reflect the new data.
 
-The causal agent does **not** run on every ingest. It runs conditionally when:
-- New facts involve entities that already have causal history in Graph C, OR
-- More than a threshold number of facts were created in this ingest, OR
-- Explicit causal language was detected in the source text (e.g., "because", "caused by", "led to")
+The unified graph agent runs **unconditionally** on every ingest. The earlier sparse-branch design described a separate conditional causal agent gated by:
+- New facts involving entities with existing causal history, OR
+- Total fact count above a threshold, OR
+- Explicit causal language in the source text
 
-Low-signal inputs (e.g., a simple factual statement with no causal context) skip the causal agent entirely to avoid unnecessary LLM calls.
+That standalone path (`invokeCausalAgent`, `shouldRunCausalAgent`, `containsCausalLanguage`) has been removed. Instead, `invokeGraphAgent` exposes a CAUSE phase as part of its agentic loop and the model itself decides whether to emit causal edges. When the input lacks causal signal — a flat factual statement with no temporal or motivational context — the LLM simply emits no `create_causal_edge` tool calls and the pipeline returns with Graph C unchanged. The skip is implicit (the agent chooses), not gated (no regex / threshold prefilter).
+
+This consolidation removes the regex-based prefilter as a source of false negatives (causal relationships that lack the canonical English markers) and the entity-history check as a source of false positives (familiar entities reasoning over inputs with no new causal content). The trade-off is one extra LLM round-trip on low-signal inputs; in practice the agent terminates quickly when no causal reasoning is warranted.
 
 ### 5.1.1 Future: Deep Analysis Gardener
 
