@@ -484,10 +484,6 @@ async function findDirectDependents(
 }
 
 // ============================================
-// Stubs — implemented in C2 / C3
-// ============================================
-
-// ============================================
 // Transitive chains (bidirectional recursive CTE)
 // ============================================
 
