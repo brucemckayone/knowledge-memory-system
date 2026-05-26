@@ -98,6 +98,8 @@ CREATE TABLE public.entity_meta (
 );
 ```
 
+**Living Summary (see [doc 37](37-entity-living-summary.md)):** `entity_meta` also carries an agent-authored `summary TEXT` column added in migration 004 (and a paired `summary_updated_at TIMESTAMPTZ` post-bead `nmemo-2yv.51`). That feature is documented in 37 — owner of the writers (causal agent's `update_entity_summary` tool), the readers (`entity-profile.ts` assembler + agent-loop tool results), the T8 prompt-safety contract, and the optimistic-locking semantics. `entity_meta` is multi-feature territory: this doc owns the statistical columns (mention_count, centroid, spread, fact_count); doc 37 owns the summary column.
+
 ### `merge_candidates` — pairwise analysis
 
 ```sql
