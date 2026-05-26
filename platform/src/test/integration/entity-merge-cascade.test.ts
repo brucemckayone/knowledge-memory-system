@@ -494,4 +494,188 @@ describe('Entity Merge Cascade', () => {
       expect(auditRows.length).toBe(0);
     });
   });
+
+  describe('EMC-011: topology_bridges + reasoning_reports.entity_ids[] re-point (nmemo-2yv.65)', () => {
+    it('re-points topology_bridges rows where source is on either side; deletes self-bridges and unique-clash rows; CASCADE-clears canonical-order-violating rows on source DELETE', async () => {
+      const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      // The canonical-order CHECK is `source_entity_id < target_entity_id`
+      // (mig 014). The mergeEntities() re-point only triggers when canonical
+      // ordering is preserved — order-violating rows are left dangling and
+      // CASCADE-cleared by mig 028's FK on source DELETE. The test must
+      // therefore pin entity-id ordering so each scenario lands in its
+      // intended branch (re-point vs CASCADE-clear).
+      //
+      // Generate 5 candidate entities and sort by id. We assign roles based
+      // on rank so that:
+      //   peerLow.id < target.id < source.id < peer1.id < peer2.id
+      // This guarantees:
+      //   - (peerLow, source) is canonical; re-point to (peerLow, target) is
+      //     canonical → exercises "source as high side" re-point.
+      //   - (source, peer1) is canonical; re-point to (target, peer1) is
+      //     canonical → exercises "source as low side" re-point.
+      //   - (target, peer1) exercises the unique-clash dedup against the
+      //     re-pointed source-side row.
+      //   - (source, target) is non-canonical (source > target). Insert as
+      //     (target, source) — self-bridge after re-point.
+      const candidates = await Promise.all([
+        createTestEntity({ canonicalName: `EMC11-C0-${suffix}`, entityType: 'person' }),
+        createTestEntity({ canonicalName: `EMC11-C1-${suffix}`, entityType: 'person' }),
+        createTestEntity({ canonicalName: `EMC11-C2-${suffix}`, entityType: 'person' }),
+        createTestEntity({ canonicalName: `EMC11-C3-${suffix}`, entityType: 'person' }),
+        createTestEntity({ canonicalName: `EMC11-C4-${suffix}`, entityType: 'person' }),
+      ]);
+      const sorted = [...candidates].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      const [peerLow, target, source, peer1, peer2] = sorted as [
+        typeof sorted[0], typeof sorted[0], typeof sorted[0], typeof sorted[0], typeof sorted[0]
+      ];
+
+      // Each bridge row needs a fact_id (one_kind CHECK).
+      const insertBridge = async (lo: string, hi: string, factId: string) => {
+        await testDb`
+          INSERT INTO public.topology_bridges (source_entity_id, target_entity_id, fact_id)
+          VALUES (${lo}::uuid, ${hi}::uuid, ${factId}::uuid)
+        `;
+      };
+
+      const fact1 = await createTestFact({ subjectEntityId: source.id, predicate: 'bridges_1', objectValue: `v1-${suffix}` });
+      const fact2 = await createTestFact({ subjectEntityId: source.id, predicate: 'bridges_2', objectValue: `v2-${suffix}` });
+      const fact3 = await createTestFact({ subjectEntityId: source.id, predicate: 'bridges_3', objectValue: `v3-${suffix}` });
+      const fact4 = await createTestFact({ subjectEntityId: source.id, predicate: 'bridges_4', objectValue: `v4-${suffix}` });
+
+      // Bridge A (low side re-point): (source, peer1) → (target, peer1).
+      await insertBridge(source.id, peer1.id, fact1.id);
+      // Bridge B (low side re-point): (source, peer2) → (target, peer2).
+      await insertBridge(source.id, peer2.id, fact2.id);
+      // Bridge C (high side re-point): (peerLow, source) → (peerLow, target).
+      await insertBridge(peerLow.id, source.id, fact3.id);
+      // Bridge D (self-bridge): (target, source) — canonical-form since
+      // target < source. After re-point to (target, target) — DELETEd.
+      await insertBridge(target.id, source.id, fact4.id);
+      // Bridge E (unique-clash): pre-existing (target, peer1). After re-point
+      // of Bridge A, the source-side row collides with this one and is
+      // DELETEd as a unique-clash.
+      const fact5 = await createTestFact({ subjectEntityId: target.id, predicate: 'bridges_5', objectValue: `v5-${suffix}` });
+      await insertBridge(target.id, peer1.id, fact5.id);
+
+      // Snapshot pre-merge bridges referencing source or target.
+      const bridgesBefore = await testDb<Array<{ source_entity_id: string; target_entity_id: string }>>`
+        SELECT source_entity_id::text AS source_entity_id, target_entity_id::text AS target_entity_id
+        FROM public.topology_bridges
+        WHERE source_entity_id IN (${source.id}::uuid, ${target.id}::uuid)
+           OR target_entity_id IN (${source.id}::uuid, ${target.id}::uuid)
+        ORDER BY source_entity_id, target_entity_id
+      `;
+      expect(bridgesBefore.length).toBe(5);
+
+      // Set up a reasoning_report whose entity_ids[] includes source.
+      const reportId = randomUUID();
+      await testDb`
+        INSERT INTO public.reasoning_reports (id, mode, report, entity_ids)
+        VALUES (
+          ${reportId}::uuid,
+          'patrol',
+          'EMC-011 test report',
+          ARRAY[${source.id}::uuid, ${peer1.id}::uuid]
+        )
+      `;
+      // Sanity: report contains source.
+      const reportBefore = await testDb<Array<{ entity_ids: string[] }>>`
+        SELECT entity_ids FROM public.reasoning_reports WHERE id = ${reportId}::uuid
+      `;
+      expect(reportBefore[0]!.entity_ids).toContain(source.id);
+
+      // Drive the merge.
+      await mergeEntities({ sourceId: source.id, targetId: target.id });
+
+      // ── Assertion 1: zero topology_bridges rows still reference source.
+      const danglingBridges = await testDb`
+        SELECT 1 FROM public.topology_bridges
+        WHERE source_entity_id = ${source.id}::uuid OR target_entity_id = ${source.id}::uuid
+      `;
+      expect(danglingBridges.length).toBe(0);
+
+      // ── Assertion 2: zero topology_bridges rows have BOTH endpoints equal
+      //   (no self-bridge survived) AND no rows violate the canonical ordering.
+      //   (DB CHECK would prevent that, but assert as belt-and-braces.)
+      const malformedBridges = await testDb`
+        SELECT 1 FROM public.topology_bridges
+        WHERE source_entity_id = target_entity_id
+           OR source_entity_id >= target_entity_id
+      `;
+      expect(malformedBridges.length).toBe(0);
+
+      // ── Assertion 3a: low-side re-point — (source, peer2) → (target, peer2).
+      const targetPeer2 = await testDb`
+        SELECT 1 FROM public.topology_bridges
+        WHERE source_entity_id = ${target.id}::uuid AND target_entity_id = ${peer2.id}::uuid
+      `;
+      expect(targetPeer2.length).toBe(1);
+
+      // ── Assertion 3b: high-side re-point — (peerLow, source) → (peerLow, target).
+      const peerLowTarget = await testDb`
+        SELECT 1 FROM public.topology_bridges
+        WHERE source_entity_id = ${peerLow.id}::uuid AND target_entity_id = ${target.id}::uuid
+      `;
+      expect(peerLowTarget.length).toBe(1);
+
+      // ── Assertion 4: exactly ONE (target, peer1) bridge survives — Bridge A
+      //   (re-pointed source-side) clashed with Bridge E (pre-existing) on
+      //   UNIQUE(source_entity_id, target_entity_id) and was DELETEd by the
+      //   unique-clash pre-pass.
+      const targetPeer1 = await testDb`
+        SELECT 1 FROM public.topology_bridges
+        WHERE source_entity_id = ${target.id}::uuid AND target_entity_id = ${peer1.id}::uuid
+      `;
+      expect(targetPeer1.length).toBe(1);
+
+      // ── Assertion 5: reasoning_reports.entity_ids[] no longer contains source.
+      const reportAfter = await testDb<Array<{ entity_ids: string[] }>>`
+        SELECT entity_ids FROM public.reasoning_reports WHERE id = ${reportId}::uuid
+      `;
+      expect(reportAfter[0]!.entity_ids).not.toContain(source.id);
+      expect(reportAfter[0]!.entity_ids).toContain(target.id);
+      expect(reportAfter[0]!.entity_ids).toContain(peer1.id);
+
+      // ── Assertion 6: audit query mirroring the bead's acceptance — joining
+      //   topology_bridges to entities returns zero rows on the source side.
+      const auditDanglers = await testDb`
+        SELECT 1 FROM public.topology_bridges b
+        LEFT JOIN public.entities es ON es.id = b.source_entity_id
+        LEFT JOIN public.entities et ON et.id = b.target_entity_id
+        WHERE es.id IS NULL OR et.id IS NULL
+      `;
+      expect(auditDanglers.length).toBe(0);
+    });
+
+    it('FK constraint prevents future regressions: DELETE entity without re-point CASCADES topology_bridges row away', async () => {
+      const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const e1 = await createTestEntity({ canonicalName: `EMC11-FK-A-${suffix}`, entityType: 'person' });
+      const e2 = await createTestEntity({ canonicalName: `EMC11-FK-B-${suffix}`, entityType: 'person' });
+      const linkFact = await createTestFact({ subjectEntityId: e1.id, predicate: 'related', objectEntityId: e2.id });
+
+      const [lo, hi] = e1.id < e2.id ? [e1.id, e2.id] : [e2.id, e1.id];
+      await testDb`
+        INSERT INTO public.topology_bridges (source_entity_id, target_entity_id, fact_id)
+        VALUES (${lo}::uuid, ${hi}::uuid, ${linkFact.id}::uuid)
+      `;
+
+      const before = await testDb`
+        SELECT 1 FROM public.topology_bridges
+        WHERE source_entity_id = ${lo}::uuid AND target_entity_id = ${hi}::uuid
+      `;
+      expect(before.length).toBe(1);
+
+      // Delete e1 directly — CASCADE FK should clear the bridge.
+      // (We can't merge via mergeEntities() here because that would re-point,
+      // not test the FK.) Delete dependent facts first to clear the facts FK.
+      await testDb`DELETE FROM public.facts WHERE id = ${linkFact.id}::uuid`;
+      await testDb`DELETE FROM public.entities WHERE id = ${e1.id}::uuid`;
+
+      const after = await testDb`
+        SELECT 1 FROM public.topology_bridges
+        WHERE source_entity_id = ${lo}::uuid AND target_entity_id = ${hi}::uuid
+      `;
+      expect(after.length).toBe(0);
+    });
+  });
 });

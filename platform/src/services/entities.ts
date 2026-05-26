@@ -531,6 +531,12 @@ export interface MergeEntitiesResult {
  *   - Re-point causal_events.subject_entity_id
  *   - Re-point same_as_links (a/b sides, with canonical ordering preserved)
  *   - Re-point contradictions (per mig 020 dedup + re-point)
+ *   - Re-point topology_bridges (per mig 028 / nmemo-2yv.65 — drop self-
+ *     bridges + unique-clash rows, re-point order-preserving cases; mig 028
+ *     adds ON DELETE CASCADE FKs so order-violating cases CASCADE-clear on
+ *     source DELETE)
+ *   - Re-point reasoning_reports.entity_ids[] (per nmemo-2yv.65 — array_replace
+ *     where source appears)
  *   - Append source.id to target.merged_from, update last_seen_at
  *   - Delete the source entity
  *
@@ -754,6 +760,66 @@ export async function mergeEntities(params: MergeEntitiesParams): Promise<MergeE
     await tx.execute(sql`
       UPDATE public.contradictions SET entity_id = ${targetId}::uuid
       WHERE entity_id = ${sourceId}::uuid
+    `);
+
+    // ── 12.5. Re-point topology_bridges (mig 028 / nmemo-2yv.65). The table
+    //        has source_entity_id < target_entity_id canonical ordering
+    //        (mig 014 line 80) and (source_entity_id, target_entity_id)
+    //        UNIQUE. mig 028 adds ON DELETE CASCADE FKs to entities(id), so
+    //        any row not re-pointed here gets CASCADE-cleared when the
+    //        source entity is deleted in step 14. That's acceptable because
+    //        topology_bridges is derived data — the gardener regenerates it
+    //        from the live graph on the next topology pass.
+    //
+    //        Drop unique-clash rows first: a source-side row whose re-point
+    //        would collide with an existing target-side row. Then update the
+    //        cases where canonical order is preserved (target < other-endpoint
+    //        when source is the low side, or other-endpoint < target when
+    //        source is the high side). Finally delete any self-bridge rows
+    //        (source -> target or target -> source) — these can never satisfy
+    //        the source_entity_id < target_entity_id CHECK after re-point.
+    //
+    //        Pattern mirrors same_as_links re-point (step 11). No audit —
+    //        topology_bridges is recomputed, not a long-lived assertion.
+    await tx.execute(sql`
+      DELETE FROM public.topology_bridges src
+      WHERE (src.source_entity_id = ${sourceId}::uuid AND ${targetId}::uuid < src.target_entity_id
+             AND EXISTS (
+               SELECT 1 FROM public.topology_bridges tgt
+               WHERE tgt.source_entity_id = ${targetId}::uuid
+                 AND tgt.target_entity_id = src.target_entity_id
+             ))
+         OR (src.target_entity_id = ${sourceId}::uuid AND src.source_entity_id < ${targetId}::uuid
+             AND EXISTS (
+               SELECT 1 FROM public.topology_bridges tgt
+               WHERE tgt.source_entity_id = src.source_entity_id
+                 AND tgt.target_entity_id = ${targetId}::uuid
+             ))
+    `);
+    await tx.execute(sql`
+      UPDATE public.topology_bridges SET source_entity_id = ${targetId}::uuid
+      WHERE source_entity_id = ${sourceId}::uuid AND ${targetId}::uuid < target_entity_id
+    `);
+    await tx.execute(sql`
+      UPDATE public.topology_bridges SET target_entity_id = ${targetId}::uuid
+      WHERE target_entity_id = ${sourceId}::uuid AND source_entity_id < ${targetId}::uuid
+    `);
+    await tx.execute(sql`
+      DELETE FROM public.topology_bridges
+      WHERE (source_entity_id = ${sourceId}::uuid AND target_entity_id = ${targetId}::uuid)
+         OR (source_entity_id = ${targetId}::uuid AND target_entity_id = ${sourceId}::uuid)
+    `);
+
+    // ── 12.6. Re-point reasoning_reports.entity_ids[] (mig 008 / nmemo-2yv.65).
+    //        Array column — no element-level FK is enforceable. Use
+    //        array_replace() to swap source for target in every report where
+    //        source appears. The GIN index on entity_ids re-indexes on
+    //        UPDATE. No audit — reasoning_reports is the agent's provenance
+    //        log, not a fact-graph mutation.
+    await tx.execute(sql`
+      UPDATE public.reasoning_reports
+      SET entity_ids = array_replace(entity_ids, ${sourceId}::uuid, ${targetId}::uuid)
+      WHERE ${sourceId}::uuid = ANY(entity_ids)
     `);
 
     // ── 13. Append source to target.merged_from, update target.last_seen_at
