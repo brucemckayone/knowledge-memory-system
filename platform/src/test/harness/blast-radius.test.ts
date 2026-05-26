@@ -932,7 +932,7 @@ describe('Phase 4 — Hypothetical mode (nmemo-437.5)', () => {
     await cleanSlate();
   });
 
-  it('hypothetical=expire bumps sole-evidence citation to critical', async () => {
+  it('hypothetical=expire bumps low-corroboration sole-evidence citation to high', async () => {
     const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
     const fact = await createTestFact({
       subjectEntityId: alice.id,
@@ -958,7 +958,34 @@ describe('Phase 4 — Hypothetical mode (nmemo-437.5)', () => {
 
     // Without hypothetical: weak strength → medium
     expect(reportNoHypo.citationDependents.find((d) => d.nodeId === edgeId)?.severity).toBe('medium');
-    // With hypothetical=expire and sole evidence → critical
+    // With hypothetical=expire and sole evidence but corroboration < 3 → high (Rule 1b)
+    expect(reportHypo.citationDependents.find((d) => d.nodeId === edgeId)?.severity).toBe('high');
+  });
+
+  it('hypothetical=expire bumps well-corroborated sole-evidence citation to critical', async () => {
+    const alice = await createTestEntity({ canonicalName: 'Alice', entityType: 'person' });
+    const fact = await createTestFact({
+      subjectEntityId: alice.id,
+      predicate: 'knows',
+      objectValue: 'Bob',
+    });
+    const e0 = await insertCausalEvent({ factId: fact.id });
+    const e1 = await insertCausalEvent({ factId: fact.id });
+    const edgeId = await seedEdgeCitingFact({
+      factId: fact.id,
+      causeEventId: e0,
+      effectEventId: e1,
+      strength: 0.5,
+      corroborationCount: 3,
+    });
+
+    const reportHypo = await analyzeImpact({
+      nodeType: 'fact',
+      nodeId: fact.id,
+      hypothetical: 'expire',
+    });
+
+    // Sole evidence + corroboration >= 3 under hypothetical=expire → critical (Rule 1)
     expect(reportHypo.citationDependents.find((d) => d.nodeId === edgeId)?.severity).toBe('critical');
   });
 
@@ -1569,9 +1596,13 @@ describe('Phase 4 — Adversarial: fan-out explosion (nmemo-437.10)', () => {
     const elapsed = Date.now() - t0;
 
     expect(report.citationDependents.length).toBe(500);
-    // All 500 edges should bump to critical under hypothetical=expire (sole evidence)
+    // All 500 edges have corroboration_count=1 and sole evidence under hypothetical=expire,
+    // so they hit Rule 1b → high (low-corroboration sole-evidence). Critical is reserved for
+    // well-corroborated sole-evidence loss (Rule 1, corroboration >= 3).
+    const highSeverity = report.citationDependents.filter((d) => d.severity === 'high');
+    expect(highSeverity.length).toBe(500);
     const critical = report.citationDependents.filter((d) => d.severity === 'critical');
-    expect(critical.length).toBe(500);
+    expect(critical.length).toBe(0);
     // Spec target: <500ms; allow 2x margin for CI variance
     expect(elapsed).toBeLessThan(1500);
 

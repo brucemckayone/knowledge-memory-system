@@ -809,14 +809,15 @@ async function scoreSeverity(
  * can drive it without setting up a DB.
  *
  * Spec rule order (first match wins):
- *   1. citation + hypothetical=expire + corroborationCount>=3 + sole evidence  → critical
- *   2. transitive depth=1 (or direct causal child)                              → high
- *   3. citation + active + strength>=0.7                                        → high
- *   4. citation with multiple other sources                                     → medium
- *   5. direct fact sharing entity                                               → medium
- *   6. transitive depth=2                                                       → medium
- *   7. transitive depth>=3                                                      → low
- *   8. pattern_member                                                           → low
+ *   1.  citation + hypothetical=expire + corroborationCount>=3 + sole evidence → critical
+ *   1b. citation + hypothetical=expire + corroborationCount<3  + sole evidence → high
+ *   2.  transitive depth=1 (or direct causal child)                            → high
+ *   3.  citation + active + strength>=0.7                                      → high
+ *   4.  citation with multiple other sources                                   → medium
+ *   5.  direct fact sharing entity                                             → medium
+ *   6.  transitive depth=2                                                     → medium
+ *   7.  transitive depth>=3                                                    → low
+ *   8.  pattern_member                                                         → low
  *   default                                                                    → medium
  */
 function pickSeverity(
@@ -841,18 +842,16 @@ function pickSeverity(
     return 'critical';
   }
 
-  // Rule 1b — same condition without the corroboration floor: a low-corroboration
-  // edge whose only evidence is this root becomes critical under hypothetical
-  // expire (the cascade would expire it). The spec table emphasises the
-  // 'corroboration >= 3' branch for high-confidence loss; we extend to all
-  // sole-evidence cases because the cascade behaviour is identical regardless
-  // of corroboration depth.
+  // Rule 1b — sole-evidence citation with low corroboration under hypothetical
+  // expire. Cascade still removes the edge but the trust loss is lower than a
+  // well-corroborated edge (Rule 1). Flagged at `high` so agents see the cascade
+  // impact without conflating it with high-confidence evidence loss.
   if (
     n.relationship === 'citation' &&
     isHypothetical &&
     (otherSourcesByEdge.get(n.nodeId) ?? 0) === 0
   ) {
-    return 'critical';
+    return 'high';
   }
 
   // Rule 2 — direct causal child / transitive depth=1, tiered by other-cause count of the effect.
