@@ -154,6 +154,33 @@ export const factsRelations = relations(facts, ({ one }) => ({
 }));
 
 /**
+ * Fact Sources
+ *
+ * One-to-many supporting memories per fact. Replaces the
+ * facts.source_memory_id / facts.source_text singletons (which stay
+ * readable during the migration window per bead nmemo-2yv.32 step 5(a),
+ * but are now write-deprecated — every new corroboration appends a row
+ * here instead of overwriting the singleton).
+ *
+ * observation_count increments on a repeat-observation of the same
+ * (fact, memory) pair via INSERT ... ON CONFLICT DO UPDATE;
+ * observed_at refreshes to the latest sighting.
+ *
+ * Defined in mig 029_fact_sources.sql.
+ */
+export const factSources = pgTable('fact_sources', {
+  factId: uuid('fact_id').notNull().references(() => facts.id, { onDelete: 'cascade' }),
+  memoryId: uuid('memory_id').notNull(),
+  sourceText: text('source_text'),
+  observedConfidence: real('observed_confidence'),
+  observedAt: timestamp('observed_at', { withTimezone: true }).defaultNow().notNull(),
+  observationCount: integer('observation_count').default(1).notNull(),
+});
+
+export type FactSource = typeof factSources.$inferSelect;
+export type NewFactSource = typeof factSources.$inferInsert;
+
+/**
  * Fact Predicates
  *
  * Ontology of relationship types

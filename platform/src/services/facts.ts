@@ -12,7 +12,7 @@
 
 import { db, type Tx } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
-import { facts, factPredicates, entities, causalEvents, type Fact } from '../db/schema.js';
+import { facts, factPredicates, entities, causalEvents, factSources, type Fact, type FactSource } from '../db/schema.js';
 import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
 import { ml } from './ml-client.js';
 import { recordPredicateUsage } from './predicates.js';
@@ -43,6 +43,77 @@ export interface CreateFactParams {
 export interface FactSearchResult {
   fact: Fact;
   similarity: number;
+}
+
+/**
+ * Result of a recordFactSource() upsert. `added=true` means the row was
+ * newly inserted (this memory had not been associated with this fact
+ * before); `refreshed=true` means the row already existed and only the
+ * observation_count + observed_at were bumped. Mutually exclusive when
+ * a memoryId was supplied; both false on the memoryId=null no-op path.
+ */
+export interface RecordFactSourceResult {
+  added: boolean;
+  refreshed: boolean;
+}
+
+/**
+ * Upsert a (fact, memory) pair into fact_sources. Returns whether the
+ * pair was newly added (true) or already existed (in which case the row's
+ * observation_count was incremented and observed_at refreshed to now).
+ *
+ * Always operates inside the supplied tx so corroboration audit emission
+ * stays atomic with the source-side write (bead nmemo-2yv.32). No-op when
+ * memoryId is null — facts without a source memory have no per-source row
+ * to write.
+ *
+ * The RETURNING xmax = 0 trick distinguishes "fresh INSERT" from "DO
+ * UPDATE on existing row" — xmax is 0 for a brand-new tuple and non-zero
+ * when an existing row was updated. This is the canonical postgres
+ * idiom for upsert detection in a single round trip.
+ */
+export async function recordFactSource(
+  tx: Tx,
+  factId: string,
+  memoryId: string | null | undefined,
+  sourceText: string | null | undefined,
+  observedConfidence: number | null | undefined,
+): Promise<RecordFactSourceResult> {
+  if (!memoryId) return { added: false, refreshed: false };
+
+  const result = await tx.execute(sql`
+    INSERT INTO public.fact_sources (
+      fact_id, memory_id, source_text, observed_confidence, observed_at, observation_count
+    ) VALUES (
+      ${factId}::uuid, ${memoryId}::uuid, ${sourceText ?? null},
+      ${observedConfidence ?? null}, NOW(), 1
+    )
+    ON CONFLICT (fact_id, memory_id) DO UPDATE
+      SET observation_count = public.fact_sources.observation_count + 1,
+          observed_at       = NOW(),
+          observed_confidence = COALESCE(EXCLUDED.observed_confidence,
+                                         public.fact_sources.observed_confidence),
+          source_text       = COALESCE(EXCLUDED.source_text,
+                                        public.fact_sources.source_text)
+    RETURNING (xmax = 0) AS inserted
+  `);
+  const rows = (Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows ?? []) as Array<{ inserted: boolean }>;
+  const inserted = rows[0]?.inserted === true;
+  return { added: inserted, refreshed: !inserted };
+}
+
+/**
+ * Return all supporting memories for a fact, ordered most-recent first.
+ * The fact_sources table replaces the singleton facts.source_memory_id
+ * (which is preserved during the migration window per bead nmemo-2yv.32
+ * step 5(a)).
+ */
+export async function getFactSources(factId: string): Promise<FactSource[]> {
+  return db
+    .select()
+    .from(factSources)
+    .where(eq(factSources.factId, factId))
+    .orderBy(desc(factSources.observedAt));
 }
 
 /**
@@ -108,29 +179,59 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     .limit(1);
 
   if (existingMatch[0]) {
-    // Exact match exists — update confidence and source, don't create duplicate.
-    // The confidence bump is itself a mutation; record it if confidence actually changed.
-    // Bead nmemo-2yv.29: wrap UPDATE + recordFactChange in one transaction so a
-    // failed audit insert rolls the confidence bump back. Without this, a CHECK
-    // violation (e.g. bad actor) commits the UPDATE then throws, leaving a fact
-    // with newer confidence and no history row recording the change.
+    // Exact match exists — corroborating observation. Don't overwrite the
+    // singleton sourceMemoryId (bead nmemo-2yv.32): instead append to the
+    // fact_sources one-to-many table, then emit an audit row when either
+    // (a) a brand-new source memory was added, OR (b) confidence rose.
+    //
+    // Audit semantics:
+    //   - confidence rose only           → 'confidence_raised'
+    //   - new source added, no Δconf     → 'revised' (evidence widened)
+    //   - both                           → 'confidence_raised' (the higher
+    //                                       signal — the new source is
+    //                                       captured in source_references)
+    //   - same source, same confidence   → fact_sources observation_count
+    //                                       bumps; no fact_history row
+    //                                       (no semantic change)
+    //
+    // Bead nmemo-2yv.29 atomicity property is preserved: a failed audit
+    // insert (e.g. CHECK violation on actor) rolls back the entire branch
+    // — both the confidence UPDATE and the fact_sources upsert.
     const existing = existingMatch[0];
     const prevConfidence = existing.confidence ?? 0;
     const nextConfidence = Math.max(prevConfidence, confidence);
 
     await db.transaction(async (tx) => {
-      await tx.update(facts).set({
-        confidence: nextConfidence,
-        sourceMemoryId: sourceMemoryId ?? undefined,
-      }).where(eq(facts.id, existing.id));
+      const { added: sourceAdded } = await recordFactSource(
+        tx,
+        existing.id,
+        sourceMemoryId,
+        sourceText,
+        confidence,
+      );
 
-      if (nextConfidence > prevConfidence) {
+      const confidenceChanged = nextConfidence > prevConfidence;
+      if (confidenceChanged) {
+        await tx
+          .update(facts)
+          .set({ confidence: nextConfidence })
+          .where(eq(facts.id, existing.id));
+      }
+
+      if (sourceAdded || confidenceChanged) {
+        const eventType = confidenceChanged ? 'confidence_raised' : 'revised';
+        const defaultReasoning = confidenceChanged
+          ? 'Corroborating observation raised confidence on existing fact'
+          : 'New source memory added as evidence for existing fact';
         await recordFactChange({
           factId: existing.id,
-          eventType: 'confidence_raised',
+          eventType,
           previousConfidence: prevConfidence,
           newConfidence: nextConfidence,
-          reasoning: reasoning ?? 'Corroborating observation raised confidence on existing fact',
+          reasoning: reasoning ?? defaultReasoning,
+          sourceReferences: sourceMemoryId
+            ? [{ type: 'memory', id: sourceMemoryId, relevance: sourceText ?? '' }]
+            : [],
           actor,
           reasoningReportId,
           tx,
@@ -147,6 +248,13 @@ export async function createFact(params: CreateFactParams): Promise<string> {
   // Insert the new fact + audit row atomically. The causal_event insert and
   // embedding update sit outside the transaction to keep the hot path short;
   // they're non-blocking best-effort on failure.
+  //
+  // Bead nmemo-2yv.32 — also write the initial fact_sources row inside the
+  // same tx so the supporting-memory record exists from t=0. The created
+  // fact_history row's source_references array already captures the first
+  // source memory; the fact_sources row exists to support subsequent
+  // corroborations (where source_memory_id would have been overwritten
+  // under the old singleton schema).
   const factId = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(facts)
@@ -165,6 +273,8 @@ export async function createFact(params: CreateFactParams): Promise<string> {
       .returning({ id: facts.id });
 
     if (!row) throw new Error('Failed to create fact');
+
+    await recordFactSource(tx, row.id, sourceMemoryId, sourceText, confidence);
 
     await recordFactChange({
       factId: row.id,
@@ -705,11 +815,16 @@ export async function searchFacts(
 }
 
 /**
- * Get fact by ID with entity names
+ * Get fact by ID with entity names and (per bead nmemo-2yv.32) the full
+ * fact_sources array alongside the legacy facts.source_memory_id /
+ * facts.source_text singletons. The singletons remain readable during
+ * the migration window so callers can adopt `sources` gradually before
+ * the singleton columns are dropped in a follow-up bead.
  */
 export async function getFactById(factId: string): Promise<(Fact & {
   subjectName?: string;
   objectName?: string;
+  sources: FactSource[];
 }) | null> {
   const result = await db
     .select()
@@ -721,11 +836,14 @@ export async function getFactById(factId: string): Promise<(Fact & {
 
   const fact = result[0];
 
-  const subjectResult = await db
-    .select({ name: entities.canonicalName })
-    .from(entities)
-    .where(eq(entities.id, fact.subjectEntityId))
-    .limit(1);
+  const [subjectResult, sources] = await Promise.all([
+    db
+      .select({ name: entities.canonicalName })
+      .from(entities)
+      .where(eq(entities.id, fact.subjectEntityId))
+      .limit(1),
+    getFactSources(factId),
+  ]);
 
   let objectName: string | undefined;
   if (fact.objectEntityId) {
@@ -741,6 +859,7 @@ export async function getFactById(factId: string): Promise<(Fact & {
     ...fact,
     subjectName: subjectResult[0]?.name,
     objectName,
+    sources,
   };
 }
 

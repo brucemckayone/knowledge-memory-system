@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 import { writeFileSync } from 'node:fs';
 import { spawn } from 'child_process';
 import dotenv from 'dotenv';
-import { getEntityFacts, createFact, expireFact, invalidateFact, updateFactConfidence, restoreFact } from './facts.js';
+import { getEntityFacts, createFact, expireFact, invalidateFact, updateFactConfidence, restoreFact, getFactSources } from './facts.js';
 import { findConnectedEntities } from './graph.js';
 import { findSimilarEntities, resolveEntity, linkMemoryToEntity, mergeEntities } from './entities.js';
 import { searchMemories, getMemory } from './qdrant.js';
@@ -335,7 +335,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
   {
     name: 'get_fact_source',
     description:
-      'Get the source memory and text for a specific fact. Returns the source_text quote, the source memory ID, and a preview of the full source document.',
+      'Get the supporting memories for a specific fact. Returns the full `sources` array (one entry per corroborating memory with observation_count and observed_at), plus the legacy single source_memory_id/source_text/sourcePreview for backwards compatibility.',
     mutates: false,
     inputSchema: {
       type: 'object' as const,
@@ -1379,6 +1379,13 @@ async function _handleToolCallInner(
         }
       }
 
+      // Bead nmemo-2yv.32 — return the full fact_sources array alongside
+      // the legacy singleton fields. Callers can adopt `sources` (the
+      // authoritative one-to-many supporting-memory set) gradually before
+      // the singleton facts.source_memory_id / facts.source_text columns
+      // are dropped in a follow-up bead.
+      const sources = await getFactSources(fact.id);
+
       return JSON.stringify({
         factId: fact.id,
         predicate: fact.predicate,
@@ -1388,6 +1395,13 @@ async function _handleToolCallInner(
         sourceText: fact.sourceText,
         sourceMemoryId: fact.sourceMemoryId,
         sourcePreview,
+        sources: sources.map((s) => ({
+          memoryId: s.memoryId,
+          sourceText: s.sourceText,
+          observedConfidence: s.observedConfidence,
+          observedAt: s.observedAt,
+          observationCount: s.observationCount,
+        })),
       });
     }
 

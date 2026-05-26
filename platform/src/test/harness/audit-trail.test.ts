@@ -302,6 +302,228 @@ describe('Phase 1 — Audit Trail Foundation', () => {
       const historyAfter = await getFactHistory(initialFactId);
       expect(historyAfter).toHaveLength(1); // no new row
     });
+
+    // ============================================
+    // Bead nmemo-2yv.32 — fact_sources one-to-many redesign
+    // ============================================
+    //
+    // Before this bead, facts.source_memory_id was a singleton: every
+    // corroborating observation overwrote the previous pointer, and the
+    // audit row only fired on confidence increase. A same-confidence
+    // corroboration silently flipped the evidence pointer with no
+    // fact_history record. The redesign moves the supporting-memory set
+    // into a one-to-many fact_sources table and audits every new-source
+    // event regardless of confidence delta.
+    describe('createFact dedup branch — fact_sources one-to-many (bead nmemo-2yv.32)', () => {
+      it('different source memory at same confidence: writes fact_sources row + revised audit row', async () => {
+        const { subjectId, objectId } = await seedTwoEntities();
+        const memA = randomUUID();
+        const memB = randomUUID();
+        const factId = await createFact({
+          subjectEntityId: subjectId,
+          predicate: 'works_at',
+          objectEntityId: objectId,
+          confidence: 0.5,
+          sourceText: 'A says she works at Acme',
+          sourceMemoryId: memA,
+          actor: 'graph_agent',
+        });
+
+        // Second observation — same triple, same confidence, different memory.
+        // Under the old singleton schema this silently overwrote
+        // facts.source_memory_id and wrote no audit row.
+        const factIdAgain = await createFact({
+          subjectEntityId: subjectId,
+          predicate: 'works_at',
+          objectEntityId: objectId,
+          confidence: 0.5,
+          sourceText: 'B confirms she works at Acme',
+          sourceMemoryId: memB,
+          actor: 'graph_agent',
+        });
+        expect(factIdAgain).toBe(factId);
+
+        // fact_sources carries both memories.
+        const srcRows = await testDb`
+          SELECT memory_id::text, observation_count, source_text
+          FROM public.fact_sources
+          WHERE fact_id = ${factId}::uuid
+          ORDER BY observed_at ASC
+        `;
+        expect(srcRows).toHaveLength(2);
+        const memIds = srcRows.map((r) => r.memory_id);
+        expect(memIds).toContain(memA);
+        expect(memIds).toContain(memB);
+        for (const r of srcRows) {
+          expect(r.observation_count).toBe(1);
+        }
+
+        // fact_history: 'created' from the first call + 'revised' from the
+        // new-source corroboration. The 'revised' row carries the new
+        // memory as source_references and the calling actor.
+        const hist = await getFactHistory(factId);
+        expect(hist).toHaveLength(2);
+        const [latest, original] = hist; // reverse-chron
+        expect(original!.eventType).toBe('created');
+        expect(latest!.eventType).toBe('revised');
+        expect(latest!.actor).toBe('graph_agent');
+        expect(latest!.previousConfidence).toBeCloseTo(0.5, 5);
+        expect(latest!.newConfidence).toBeCloseTo(0.5, 5);
+        expect(latest!.sourceReferences).toEqual([
+          { type: 'memory', id: memB, relevance: 'B confirms she works at Acme' },
+        ]);
+
+        // Legacy singleton field still readable during the migration
+        // window (per bead step 5(a)).
+        const factRows = await testDb`SELECT source_memory_id::text FROM facts WHERE id = ${factId}::uuid`;
+        expect(factRows[0]!.source_memory_id).toBe(memA);
+      });
+
+      it('same source memory at higher confidence: confidence_raised + observation_count incremented', async () => {
+        const { subjectId, objectId } = await seedTwoEntities();
+        const memA = randomUUID();
+        const factId = await createFact({
+          subjectEntityId: subjectId,
+          predicate: 'works_at',
+          objectEntityId: objectId,
+          confidence: 0.5,
+          sourceText: 'first sighting',
+          sourceMemoryId: memA,
+          actor: 'graph_agent',
+        });
+
+        await createFact({
+          subjectEntityId: subjectId,
+          predicate: 'works_at',
+          objectEntityId: objectId,
+          confidence: 0.9,
+          sourceText: 'first sighting',
+          sourceMemoryId: memA,
+          actor: 'graph_agent',
+        });
+
+        const srcRows = await testDb`
+          SELECT observation_count
+          FROM public.fact_sources
+          WHERE fact_id = ${factId}::uuid AND memory_id = ${memA}::uuid
+        `;
+        expect(srcRows).toHaveLength(1);
+        expect(srcRows[0]!.observation_count).toBe(2);
+
+        const hist = await getFactHistory(factId);
+        expect(hist).toHaveLength(2);
+        expect(hist[0]!.eventType).toBe('confidence_raised');
+        expect(hist[0]!.previousConfidence).toBeCloseTo(0.5, 5);
+        expect(hist[0]!.newConfidence).toBeCloseTo(0.9, 5);
+
+        // facts.confidence reflects the bump.
+        const factRows = await testDb`SELECT confidence FROM facts WHERE id = ${factId}::uuid`;
+        expect(factRows[0]!.confidence).toBeCloseTo(0.9, 5);
+      });
+
+      it('same source memory, same confidence: observation_count++ but no fact_history row', async () => {
+        const { subjectId, objectId } = await seedTwoEntities();
+        const memA = randomUUID();
+        const factId = await createFact({
+          subjectEntityId: subjectId,
+          predicate: 'works_at',
+          objectEntityId: objectId,
+          confidence: 0.5,
+          sourceText: 'first sighting',
+          sourceMemoryId: memA,
+          actor: 'graph_agent',
+        });
+
+        const observedAtRow = await testDb`
+          SELECT observed_at FROM public.fact_sources WHERE fact_id = ${factId}::uuid AND memory_id = ${memA}::uuid
+        `;
+        const firstObservedAt = observedAtRow[0]!.observed_at as Date;
+
+        // Wait a tick so observed_at advances measurably.
+        await new Promise((r) => setTimeout(r, 10));
+
+        await createFact({
+          subjectEntityId: subjectId,
+          predicate: 'works_at',
+          objectEntityId: objectId,
+          confidence: 0.5,
+          sourceText: 'first sighting',
+          sourceMemoryId: memA,
+          actor: 'graph_agent',
+        });
+
+        const srcRows = await testDb`
+          SELECT observation_count, observed_at
+          FROM public.fact_sources
+          WHERE fact_id = ${factId}::uuid AND memory_id = ${memA}::uuid
+        `;
+        expect(srcRows).toHaveLength(1);
+        expect(srcRows[0]!.observation_count).toBe(2);
+        const secondObservedAt = srcRows[0]!.observed_at as Date;
+        expect(secondObservedAt.getTime()).toBeGreaterThanOrEqual(firstObservedAt.getTime());
+
+        // No semantic change → no new fact_history row.
+        const hist = await getFactHistory(factId);
+        expect(hist).toHaveLength(1);
+        expect(hist[0]!.eventType).toBe('created');
+      });
+
+      it('new fact: writes fact_sources row inside the same tx as the fact INSERT', async () => {
+        const { subjectId, objectId } = await seedTwoEntities();
+        const memA = randomUUID();
+        const factId = await createFact({
+          subjectEntityId: subjectId,
+          predicate: 'works_at',
+          objectEntityId: objectId,
+          confidence: 0.7,
+          sourceText: 'initial observation',
+          sourceMemoryId: memA,
+          actor: 'graph_agent',
+        });
+
+        const srcRows = await testDb`
+          SELECT memory_id::text, source_text, observed_confidence, observation_count
+          FROM public.fact_sources
+          WHERE fact_id = ${factId}::uuid
+        `;
+        expect(srcRows).toHaveLength(1);
+        expect(srcRows[0]!.memory_id).toBe(memA);
+        expect(srcRows[0]!.source_text).toBe('initial observation');
+        expect(srcRows[0]!.observed_confidence).toBeCloseTo(0.7, 5);
+        expect(srcRows[0]!.observation_count).toBe(1);
+      });
+
+      it('backfill invariant: every fact with non-null source_memory_id has a matching fact_sources row', async () => {
+        // The 029 backfill runs at migration time over pre-existing rows.
+        // For tests, every createFact()-produced fact also writes its
+        // initial fact_sources row — so the invariant continues to hold
+        // for all rows the test suite produces.
+        const { subjectId, objectId } = await seedTwoEntities();
+        const memA = randomUUID();
+        const factId = await createFact({
+          subjectEntityId: subjectId,
+          predicate: 'works_at',
+          objectEntityId: objectId,
+          confidence: 0.7,
+          sourceText: 'observation',
+          sourceMemoryId: memA,
+          actor: 'graph_agent',
+        });
+
+        const invariantRows = await testDb`
+          SELECT f.id::text AS fact_id, f.source_memory_id::text AS source_memory_id,
+                 COUNT(fs.memory_id) AS source_count
+          FROM public.facts f
+          LEFT JOIN public.fact_sources fs
+            ON fs.fact_id = f.id AND fs.memory_id = f.source_memory_id
+          WHERE f.source_memory_id IS NOT NULL
+            AND f.id = ${factId}::uuid
+          GROUP BY f.id, f.source_memory_id
+        `;
+        expect(invariantRows).toHaveLength(1);
+        expect(Number(invariantRows[0]!.source_count)).toBe(1);
+      });
+    });
   });
 
   describe('causal_edge_history', () => {
