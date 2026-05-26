@@ -1464,6 +1464,10 @@ async function _handleToolCallInner(
         type: string; id: string; relevance: string;
       }>) ?? [];
 
+      // Bead nmemo-2yv.66: createdBy comes from the dispatcher's resolved
+      // ToolCallContext (gardener_agent vs reconciliation_agent) — never the
+      // hardcoded literal. Attribution drives audit + future training-label
+      // disambiguation (doc 27 §2.2).
       const inserted = await db
         .insert(sameAsLinks)
         .values({
@@ -1472,7 +1476,7 @@ async function _handleToolCallInner(
           reasoning: toolInput.reasoning as string,
           sourceEvidence: refs,
           confidence: toolInput.confidence as number,
-          createdBy: 'reconciliation_agent',
+          createdBy: context.agent,
           mergeCandidateId: toolInput.merge_candidate_id as string | undefined,
         })
         .onConflictDoNothing()
@@ -1523,12 +1527,16 @@ async function _handleToolCallInner(
         // entity-merge function (dropped in mig 026). Every fact re-point
         // and duplicate-expiry now emits a fact_history row with
         // event_type='merged' inside a single transaction.
+        // Bead nmemo-2yv.66: method + actor + resolved_by come from the
+        // dispatcher's resolved ToolCallContext so audit rows attribute the
+        // actual caller (gardener_agent vs reconciliation_agent), not a
+        // hardcoded literal.
         const { survivorId } = await mergeEntities({
           sourceId,
           targetId,
           reason: mergeReason,
-          method: 'reconciliation_agent',
-          actor: 'reconciliation_agent',
+          method: context.agent,
+          actor: context.agent,
         });
 
         // If a candidate ID was provided, resolve it
@@ -1537,7 +1545,7 @@ async function _handleToolCallInner(
             UPDATE public.merge_candidates
             SET status = 'resolved', resolution = 'merge',
                 resolution_reasoning = ${mergeReason},
-                resolved_at = NOW(), resolved_by = 'reconciliation_agent'
+                resolved_at = NOW(), resolved_by = ${context.agent}
             WHERE id = ${toolInput.merge_candidate_id as string}::uuid
           `);
         }
@@ -1563,13 +1571,16 @@ async function _handleToolCallInner(
     }
 
     case 'resolve_candidate': {
+      // Bead nmemo-2yv.66: resolved_by comes from the dispatcher's resolved
+      // ToolCallContext so non-merge resolutions (reject/defer) attribute the
+      // actual caller rather than always 'reconciliation_agent'.
       await db.execute(sql`
         UPDATE public.merge_candidates
         SET status = 'resolved',
             resolution = ${toolInput.resolution as string},
             resolution_reasoning = ${toolInput.reasoning as string},
             resolved_at = NOW(),
-            resolved_by = 'reconciliation_agent'
+            resolved_by = ${context.agent}
         WHERE id = ${toolInput.candidate_id as string}::uuid
       `);
       return JSON.stringify({ resolved: true });

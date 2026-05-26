@@ -393,7 +393,11 @@ export const sameAsLinks = pgTable('same_as_links', {
   reasoning: text('reasoning').notNull(),
   sourceEvidence: jsonb('source_evidence').notNull().default([]),
   confidence: real('confidence').default(0.8).notNull(),
-  createdBy: varchar('created_by', { length: 50 }).default('reconciliation_agent').notNull(),
+  // Bead nmemo-2yv.66: default relaxed to 'unknown' (mig 027). The handler
+  // always supplies the actual caller actor; this default exists only so a
+  // missing explicit value surfaces as 'unknown' in audit queries rather
+  // than silently attributing to reconciliation_agent.
+  createdBy: varchar('created_by', { length: 50 }).default('unknown').notNull(),
   mergeCandidateId: uuid('merge_candidate_id').references(() => mergeCandidates.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({

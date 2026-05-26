@@ -39,14 +39,20 @@ Additionally, the gardener encountered real merge failures due to the `merge_ent
 
 ## What May Still Need Attention
 
-### 1. `created_by` field hardcoded
+### 1. `created_by` field hardcoded — RESOLVED 2026-05-26 (bead nmemo-2yv.66)
 
-`src/services/causal-agent.ts:910` — `create_same_as_link` handler hardcodes:
-```typescript
-createdBy: 'reconciliation_agent',
-```
+`src/services/causal-agent.ts` `create_same_as_link` handler now threads
+the dispatcher's resolved `ToolCallContext.agent` (set by
+`MNEMO_AGENT_ACTOR` env / explicit caller context) through to the INSERT.
+The same fix landed on `execute_merge` (mergeEntities `actor`/`method` +
+merge_candidates `resolved_by`) and `resolve_candidate` (`resolved_by`).
+Migration `027_same_as_created_by_default.sql` relaxes the SQL default
+to `'unknown'` so a missing explicit value surfaces in audit queries
+rather than silently attributing to `reconciliation_agent`.
 
-Should use a dynamic value so gardener-created links are attributed correctly. Either accept `created_by` as a tool parameter or derive from the calling agent context.
+Backfill note: rows created before this fix are NOT retroactively
+re-attributed; forensic queries against pre-fix rows cannot reliably
+distinguish gardener-driven from reconciliation-driven attribution.
 
 ### 2. No tool to delete incorrect same_as links
 

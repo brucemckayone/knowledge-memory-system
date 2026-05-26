@@ -180,11 +180,8 @@ describe('handleToolCall("create_same_as_link") (nmemo-2yv.68)', () => {
   });
 
   it('routes through handleToolCall regardless of which actor invokes it (reconciliation_agent vs gardener_agent)', async () => {
-    // Both actors are valid for the unified graph agent (post-.124). We don't
-    // assert on the persisted created_by column here because the current
-    // handler hardcodes 'reconciliation_agent' (see the bead's .66 follow-up)
-    // — the assertion to lock down is that the DISPATCHER ACCEPTS both
-    // contexts without throwing or fast-failing.
+    // Both actors are valid for the unified graph agent (post-.124). The
+    // dispatcher must accept both contexts without throwing.
     const e1 = await createTestEntity({ canonicalName: 'Actor-Route A', entityType: 'person' });
     const e2 = await createTestEntity({ canonicalName: 'Actor-Route B', entityType: 'person' });
     try {
@@ -223,6 +220,72 @@ describe('handleToolCall("create_same_as_link") (nmemo-2yv.68)', () => {
       await testDb`DELETE FROM public.entities WHERE id IN (${e1.id}::uuid, ${e2.id}::uuid)`.catch(() => {});
     }
   });
+
+  // Bead nmemo-2yv.66: persisted created_by must match the dispatcher's
+  // resolved actor. Pre-fix, every gardener-driven create_same_as_link
+  // landed on the DB as 'reconciliation_agent' (hardcoded literal). The
+  // dispatcher now threads context.agent through to the INSERT.
+  it('persists created_by from the dispatcher actor — gardener_agent path attributes correctly (nmemo-2yv.66)', async () => {
+    const e1 = await createTestEntity({ canonicalName: 'Created-By Gardener A', entityType: 'person' });
+    const e2 = await createTestEntity({ canonicalName: 'Created-By Gardener B', entityType: 'person' });
+    try {
+      const gardenerCtx: ToolCallContext = { agent: 'gardener_agent', reasoningReportId: null };
+      const raw = await handleToolCall(
+        'create_same_as_link',
+        {
+          entity_a_id: e1.id,
+          entity_b_id: e2.id,
+          reasoning: 'Gardener attribution test for nmemo-2yv.66.',
+          source_evidence: [],
+          confidence: 0.81,
+        },
+        gardenerCtx,
+      );
+      const parsed = JSON.parse(raw);
+      expect(parsed.created).toBe(true);
+
+      const rows = await testDb<Array<{ created_by: string }>>`
+        SELECT created_by
+        FROM public.same_as_links
+        WHERE id = ${parsed.linkId}::uuid
+      `;
+      expect(rows[0]!.created_by).toBe('gardener_agent');
+    } finally {
+      await testDb`DELETE FROM public.same_as_links WHERE entity_a_id IN (${e1.id}::uuid, ${e2.id}::uuid) OR entity_b_id IN (${e1.id}::uuid, ${e2.id}::uuid)`.catch(() => {});
+      await testDb`DELETE FROM public.entities WHERE id IN (${e1.id}::uuid, ${e2.id}::uuid)`.catch(() => {});
+    }
+  });
+
+  it('persists created_by from the dispatcher actor — reconciliation_agent path attributes correctly (nmemo-2yv.66)', async () => {
+    const e1 = await createTestEntity({ canonicalName: 'Created-By Recon A', entityType: 'person' });
+    const e2 = await createTestEntity({ canonicalName: 'Created-By Recon B', entityType: 'person' });
+    try {
+      const reconciliationCtx: ToolCallContext = { agent: 'reconciliation_agent', reasoningReportId: null };
+      const raw = await handleToolCall(
+        'create_same_as_link',
+        {
+          entity_a_id: e1.id,
+          entity_b_id: e2.id,
+          reasoning: 'Reconciliation attribution test for nmemo-2yv.66.',
+          source_evidence: [],
+          confidence: 0.78,
+        },
+        reconciliationCtx,
+      );
+      const parsed = JSON.parse(raw);
+      expect(parsed.created).toBe(true);
+
+      const rows = await testDb<Array<{ created_by: string }>>`
+        SELECT created_by
+        FROM public.same_as_links
+        WHERE id = ${parsed.linkId}::uuid
+      `;
+      expect(rows[0]!.created_by).toBe('reconciliation_agent');
+    } finally {
+      await testDb`DELETE FROM public.same_as_links WHERE entity_a_id IN (${e1.id}::uuid, ${e2.id}::uuid) OR entity_b_id IN (${e1.id}::uuid, ${e2.id}::uuid)`.catch(() => {});
+      await testDb`DELETE FROM public.entities WHERE id IN (${e1.id}::uuid, ${e2.id}::uuid)`.catch(() => {});
+    }
+  });
 });
 
 // --- execute_merge handler ---
@@ -255,11 +318,21 @@ describe('handleToolCall("execute_merge") (nmemo-2yv.68)', () => {
   });
 
   it('merges source into target, deletes the source, re-points facts, and emits a fact_history row with event_type=merged (bead .30 audit invariant)', async () => {
-    const raw = await handleToolCall('execute_merge', {
-      source_entity_id: sourceId,
-      target_entity_id: targetId,
-      reasoning: 'Duplicate identity (scaffolding test for unified-graph-agent dispatch of execute_merge).',
-    });
+    // Pass an explicit reconciliation_agent context — bead nmemo-2yv.66
+    // threads context.agent through mergeEntities() as the actor on every
+    // fact_history row. Without an explicit context the dispatcher falls
+    // back to MNEMO_AGENT_ACTOR / 'graph_agent' (the extraction-path
+    // default), which would attribute the merge to the wrong actor.
+    const reconciliationCtx: ToolCallContext = { agent: 'reconciliation_agent', reasoningReportId: null };
+    const raw = await handleToolCall(
+      'execute_merge',
+      {
+        source_entity_id: sourceId,
+        target_entity_id: targetId,
+        reasoning: 'Duplicate identity (scaffolding test for unified-graph-agent dispatch of execute_merge).',
+      },
+      reconciliationCtx,
+    );
     const parsed = JSON.parse(raw);
     expect(parsed.merged).toBe(true);
     expect(parsed.survivorId).toBe(targetId);
