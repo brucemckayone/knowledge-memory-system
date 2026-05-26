@@ -31,6 +31,12 @@ Cross-project gotchas (anything that isn't Mnemo-specific) also go to `bd rememb
 
 ## 2026-05-25
 
+### nmemo-2yv.63 — merge_entities() FK violation on contradictions (T13 + post-merge integrity)
+
+- **Lesson:** When a later migration adds a FK from a new table back to a long-established parent (here: `contradictions.entity_id → entities(id)` in mig 011) WITHOUT an ON DELETE clause, the parent's merge/delete logic must be updated in the SAME landing. PostgreSQL defaults to NO ACTION; the merge SQL in mig 005 (predating mig 011) had no reason to know about a future FK. Audit pattern: whenever adding a FK to entities, run `git grep "DELETE FROM public.entities"` to check the merge_entities() body needs a re-point step.
+- **Surprise:** The bead's recommendation was "re-point rather than CASCADE" — preserving the contradiction trail across merges. But the partial UNIQUE INDEX `idx_contradictions_unique_active` (covering `entity_id` as one of its keys) means a naive `UPDATE contradictions SET entity_id = target_id` can violate the index if both source and target carry an unresolved contradiction with the same (type, fact_a, fact_b, edge_a, edge_b). The dedup DELETE has to mirror the index expression EXACTLY — same COALESCE sentinel UUID and same column tuple. Mis-aligning either would either over-delete or under-delete and fail the merge at the UPDATE.
+- **Pattern noted:** PL/pgSQL multi-step migrations like merge_entities() are append-shaped — each "re-point step" gets bolted on. Without a discipline of "every new FK to entities triggers a paired merge-step", these accumulate as latent bugs. Worth filing a future check: a CI lint that verifies every FK with `REFERENCES public.entities` has a corresponding re-point step in merge_entities() or an explicit `ON DELETE CASCADE`/`SET NULL` clause.
+
 ### nmemo-2yv.38 — resolveContradiction transactional correctness (concurrency hardening)
 
 - **Lesson:** Threading an optional `tx?: Tx` through mutation primitives (`expireFact`, `invalidateFact`, `expireCausalEdge`, `reviseCausalEdge`) is a clean refactor — the `runUpdate(tx)` helper used either with the passed-in tx or under a freshly-opened `db.transaction(runUpdate)` keeps the existing callers backwards-compatible while letting multi-step orchestrators (here: `resolveContradiction`) own the atomicity boundary. The exported `Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]` type alias in `db/index.ts` is the cheapest way to surface drizzle-orm's transaction type without dragging in pg-core internals.
