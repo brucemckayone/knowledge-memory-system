@@ -341,6 +341,43 @@ the service emits a single structured `console.warn` line:
 
 No throw, no rejection, no override flag. The mutation proceeds.
 
+## Observability
+
+Every `analyzeImpact` invocation emits a structured `console.info` log line at
+the tail of the orchestrator. F4 (audit columns + warn-on-critical) captures
+the pre-mutation severity summary on destructive paths only; F7 covers the
+residual general-purpose observability — every read of the impact graph,
+regardless of whether a mutation follows. Bead `nmemo-2yv.105`.
+
+```
+[impact] actor=<actor> root_type=<fact|entity|causal_event> root_id=<uuid> depth=<N> hypo=<expire|none> critical=N high=M medium=O low=P total=T duration_ms=D
+```
+
+The `actor` field is supplied by the caller. Known callers:
+
+- `http` — `/api/impact/:type/:id`
+- `<agent-name>` — the MCP `analyze_blast_radius` tool (`gardener_agent`,
+  `reconciliation_agent`, etc., via the `ToolCallContext.agent` field)
+- `preflight` — `preflightBlastRadius` invocations from F4 destructive-path
+  audit hooks (separable from direct HTTP / MCP calls so log grep can
+  partition the two)
+- `unknown` — fallback when the parameter is not threaded
+
+On a thrown error the orchestrator emits a single `console.warn` line and
+re-throws (HTTP layer turns the throw into a 404/500 per its existing error
+shape):
+
+```
+[impact] error actor=<actor> root_type=<...> root_id=<uuid> message="<error message>"
+```
+
+Format chosen so log aggregators can grep on `[impact] ` and parse `key=value`
+pairs without multi-line stitching. No PostgreSQL row is written per
+invocation — impact is a stateless read query, and a DB row per read would
+have the wrong cost shape (the viz alone could write hundreds of rows per
+session). If aggregation becomes important later, ingest the log stream into
+the observability stack.
+
 ## Viz Integration
 
 `viz/js/panels/detail.js` — on clicking a fact edge, entity node, or causal-event node in the detail panel, show an "Impact" subpanel. All three root types are first-class: `showNodeDetail` mounts it for entity + causalEvent nodes; `showEdgeDetail` mounts it inside the `fact` edge branch. The subpanel itself lives in `viz/js/panels/impact.js` and is invoked through two helpers — `impactSectionMarkup(apiNodeType, nodeId)` for the placeholder markup, `triggerImpactFetch(apiNodeType, nodeId)` for the post-`innerHTML` async fetch. Causal edges are intentionally excluded — the service contract `RootNodeType = 'fact' | 'entity' | 'causal_event'` doesn't admit them (bead `nmemo-2yv.103`).

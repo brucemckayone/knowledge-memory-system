@@ -93,6 +93,10 @@ export interface AnalyzeImpactParams {
   hypothetical?: HypotheticalAction;
   /** When true (default), `findPatternImpact` joins through `causal_edges.pattern_id`. */
   includePatterns?: boolean;
+  /** Caller hint logged on the `[impact]` observability line (bead nmemo-2yv.105).
+   *  Examples: `'http'`, `'gardener_agent'`, `'reconciliation_agent'`. Defaults to
+   *  `'unknown'` so callers that don't thread it still get visible log lines. */
+  actor?: string;
 }
 
 // ============================================
@@ -114,52 +118,76 @@ export async function analyzeImpact(params: AnalyzeImpactParams): Promise<BlastR
     maxDepth = 3,
     hypothetical,
     includePatterns = true,
+    actor = 'unknown',
   } = params;
 
-  const root = await loadRootNode(nodeType, nodeId);
-  if (!root) {
-    throw new Error(`${nodeType} ${nodeId} not found`);
+  const startMs = Date.now();
+  try {
+    const root = await loadRootNode(nodeType, nodeId);
+    if (!root) {
+      throw new Error(`${nodeType} ${nodeId} not found`);
+    }
+
+    const rootEventIds = await resolveRootEvents(nodeType, nodeId);
+
+    const [
+      directDependents,
+      transitiveChains,
+      citationDependents,
+      patternImpact,
+    ] = await Promise.all([
+      findDirectDependents(nodeType, nodeId),
+      findTransitiveChains(rootEventIds, maxDepth),
+      findCitationDependents(nodeType, nodeId),
+      includePatterns ? findPatternImpact(rootEventIds) : Promise.resolve([] as ImpactNode[]),
+    ]);
+
+    const allNodes = [
+      ...directDependents,
+      ...transitiveChains,
+      ...citationDependents,
+      ...patternImpact,
+    ];
+    await scoreSeverity(allNodes, {
+      rootNodeType: nodeType,
+      rootNodeId: nodeId,
+      rootCorroboration: root.corroborationCount,
+      rootEventIds,
+      hypothetical,
+    });
+
+    const severitySummary = tallySeverity(allNodes);
+    // Bead nmemo-2yv.105 — structured observability log line. F4 captures the
+    // pre-mutation severity summary in audit columns for destructive paths; F7
+    // covers every other invocation (HTTP, MCP read-only, viz, preflight) so
+    // production triage can see who called impact and what they got back.
+    const durationMs = Date.now() - startMs;
+    console.info(
+      `[impact] actor=${actor} root_type=${nodeType} root_id=${nodeId} ` +
+        `depth=${maxDepth} hypo=${hypothetical ?? 'none'} ` +
+        `critical=${severitySummary.critical} high=${severitySummary.high} ` +
+        `medium=${severitySummary.medium} low=${severitySummary.low} ` +
+        `total=${allNodes.length} duration_ms=${durationMs}`,
+    );
+
+    return {
+      root,
+      hypothetical,
+      directDependents,
+      transitiveChains,
+      citationDependents,
+      patternImpact,
+      severitySummary,
+      totalAffected: allNodes.length,
+      generatedAt: new Date(),
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[impact] error actor=${actor} root_type=${nodeType} root_id=${nodeId} message="${message}"`,
+    );
+    throw err;
   }
-
-  const rootEventIds = await resolveRootEvents(nodeType, nodeId);
-
-  const [
-    directDependents,
-    transitiveChains,
-    citationDependents,
-    patternImpact,
-  ] = await Promise.all([
-    findDirectDependents(nodeType, nodeId),
-    findTransitiveChains(rootEventIds, maxDepth),
-    findCitationDependents(nodeType, nodeId),
-    includePatterns ? findPatternImpact(rootEventIds) : Promise.resolve([] as ImpactNode[]),
-  ]);
-
-  const allNodes = [
-    ...directDependents,
-    ...transitiveChains,
-    ...citationDependents,
-    ...patternImpact,
-  ];
-  await scoreSeverity(allNodes, {
-    rootNodeType: nodeType,
-    rootNodeId: nodeId,
-    rootCorroboration: root.corroborationCount,
-    rootEventIds,
-    hypothetical,
-  });
-
-  return {
-    root,
-    hypothetical,
-    directDependents,
-    transitiveChains,
-    citationDependents,
-    patternImpact,
-    severitySummary: tallySeverity(allNodes),
-    totalAffected: allNodes.length,
-    generatedAt: new Date(),
-  };
 }
 
 // ============================================
@@ -193,6 +221,10 @@ export async function preflightBlastRadius(params: {
       nodeType: params.nodeType,
       nodeId: params.nodeId,
       hypothetical: 'expire',
+      // Bead nmemo-2yv.105 — preflight invocations log with a distinct actor
+      // so [impact] log lines from destructive-path preflights are separable
+      // from direct HTTP / MCP / viz invocations.
+      actor: 'preflight',
     });
     return { severity: report.severitySummary, totalAffected: report.totalAffected };
   } catch (err) {

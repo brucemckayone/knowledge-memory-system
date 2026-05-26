@@ -562,6 +562,7 @@ app.get('/api/impact/:type/:id', async (c) => {
       maxDepth,
       hypothetical: hypothetical as 'expire' | undefined,
       includePatterns,
+      actor: 'http',
     });
     return c.json(report);
   } catch (err) {

@@ -20,7 +20,7 @@
  * (C3), MCP/HTTP (C4), viz + adversarial + benchmark (C5).
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   testDb,
   deleteFromTables,
@@ -162,6 +162,47 @@ describe('Phase 4 — Foundation (nmemo-437.1)', () => {
       hypothetical: 'expire',
     });
     expect(report.hypothetical).toBe('expire');
+  });
+
+  it('emits a structured [impact] log line on every successful invocation (bead nmemo-2yv.105)', async () => {
+    const entity = await createTestEntity({
+      canonicalName: 'ObservedNode',
+      entityType: 'concept',
+    });
+    const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    try {
+      await analyzeImpact({ nodeType: 'entity', nodeId: entity.id, actor: 'test' });
+      const lines = spy.mock.calls.map((args) => String(args[0]));
+      const impactLine = lines.find((l) => l.startsWith('[impact] '));
+      expect(impactLine).toBeDefined();
+      expect(impactLine).toContain('actor=test');
+      expect(impactLine).toContain(`root_type=entity`);
+      expect(impactLine).toContain(`root_id=${entity.id}`);
+      expect(impactLine).toContain('depth=3');
+      expect(impactLine).toContain('hypo=none');
+      expect(impactLine).toMatch(/critical=\d+ high=\d+ medium=\d+ low=\d+/);
+      expect(impactLine).toMatch(/total=\d+ duration_ms=\d+/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('emits a structured [impact] error log line and re-throws on failure (bead nmemo-2yv.105)', async () => {
+    const fakeId = randomUUID();
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await expect(
+        analyzeImpact({ nodeType: 'fact', nodeId: fakeId, actor: 'test' }),
+      ).rejects.toThrow(/not found/);
+      const lines = spy.mock.calls.map((args) => String(args[0]));
+      const errLine = lines.find((l) => l.startsWith('[impact] error '));
+      expect(errLine).toBeDefined();
+      expect(errLine).toContain('actor=test');
+      expect(errLine).toContain(`root_id=${fakeId}`);
+      expect(errLine).toMatch(/message="[^"]*not found[^"]*"/);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

@@ -2401,6 +2401,7 @@ async function _handleToolCallInner(
         nodeId: toolInput.node_id as string,
         maxDepth: toolInput.max_depth as number | undefined,
         hypothetical: toolInput.hypothetical as HypotheticalAction | undefined,
+        actor: context.agent,
       });
       return JSON.stringify(report);
     }
