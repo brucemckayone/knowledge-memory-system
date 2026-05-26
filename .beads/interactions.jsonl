@@ -337,3 +337,4 @@
 {"id":"int-de7e29c0","kind":"field_change","created_at":"2026-05-26T12:47:06.3391369Z","actor":"unknown","issue_id":"nmemo-2yv.131","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-0b624fbc","kind":"field_change","created_at":"2026-05-26T12:52:36.030991Z","actor":"unknown","issue_id":"nmemo-2yv.132","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-f32abc62","kind":"field_change","created_at":"2026-05-26T13:01:02.6797711Z","actor":"unknown","issue_id":"nmemo-2yv.126","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
+{"id":"int-3fe7e698","kind":"field_change","created_at":"2026-05-26T13:11:40.2884363Z","actor":"unknown","issue_id":"nmemo-2yv.115","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
