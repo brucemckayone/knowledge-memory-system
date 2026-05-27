@@ -237,4 +237,61 @@ describe('graph-stats §22 — foundation', () => {
       testDb`INSERT INTO public.graph_stats (id) VALUES (2)`,
     ).rejects.toThrow(/graph_stats_singleton/);
   });
+
+  it('11. atomicity (nmemo-2yv.48): pre-commit failure leaves aggregates AND duration unchanged', async () => {
+    // Seed a known prior state via a successful compute, then capture all
+    // observable columns. Any drift between aggregate columns and
+    // computed_duration_ms after a failed compute would falsify the option-(a)
+    // atomicity guarantee from bead nmemo-2yv.48.
+    const e1 = await createTestEntity({ canonicalName: 'atomicity-a', entityType: 'thing' });
+    const e2 = await createTestEntity({ canonicalName: 'atomicity-b', entityType: 'thing' });
+    await createTestFact({ subjectEntityId: e1.id, predicate: 'p_init', objectEntityId: e2.id });
+    const before = await computeGraphStats();
+    expect(before.computedDurationMs).not.toBeNull();
+
+    // Inject a pre-commit failure by installing a BEFORE UPDATE trigger on
+    // graph_stats that RAISES on the duration-write statement. This forces the
+    // outer transaction to roll back AFTER the upsert has been issued — exactly
+    // the "process death between commit and post-tx UPDATE" scenario from the
+    // bead's premise (mapped into the post-fix world where the duration UPDATE
+    // runs inside the same tx).
+    try {
+      await testDb.unsafe(`
+        CREATE OR REPLACE FUNCTION pg_temp.graph_stats_48_fault() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.computed_duration_ms IS DISTINCT FROM OLD.computed_duration_ms THEN
+            RAISE EXCEPTION 'nmemo-2yv.48 simulated mid-compute failure';
+          END IF;
+          RETURN NEW;
+        END;
+        $$;
+      `);
+      await testDb.unsafe(`
+        CREATE TRIGGER graph_stats_48_fault
+        BEFORE UPDATE ON public.graph_stats
+        FOR EACH ROW EXECUTE FUNCTION pg_temp.graph_stats_48_fault();
+      `);
+
+      // Mutate the source data so that a non-atomic implementation would land
+      // new aggregates BEFORE the duration write fails — making any post-fault
+      // drift visible.
+      await createTestFact({ subjectEntityId: e1.id, predicate: 'p_drift', objectEntityId: e2.id });
+
+      await expect(computeGraphStats()).rejects.toThrow(/nmemo-2yv\.48 simulated/);
+    } finally {
+      await testDb.unsafe(`DROP TRIGGER IF EXISTS graph_stats_48_fault ON public.graph_stats`);
+    }
+
+    // After the failed compute, the row must look identical to `before` — the
+    // upsert AND the duration write are atomic, so neither landed.
+    const after = await getGraphStats();
+    expect(after).not.toBeNull();
+    expect(after!.totalEntities).toBe(before.totalEntities);
+    expect(after!.totalFacts).toBe(before.totalFacts);
+    expect(after!.totalActiveFacts).toBe(before.totalActiveFacts);
+    expect(after!.predicateDiversity).toBe(before.predicateDiversity);
+    expect(after!.computedDurationMs).toBe(before.computedDurationMs);
+    expect(after!.computedAt.getTime()).toBe(before.computedAt.getTime());
+  });
 });

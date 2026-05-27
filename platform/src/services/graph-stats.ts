@@ -128,7 +128,7 @@ export async function computeGraphStats(): Promise<GraphStats> {
 
   const rows = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT setseed(${CENTROID_RANDOM_SEED})`);
-    return (await tx.execute(sql`
+    const upserted = (await tx.execute(sql`
       WITH
         scale AS (
           SELECT
@@ -219,16 +219,23 @@ export async function computeGraphStats(): Promise<GraphStats> {
         computation_version     = EXCLUDED.computation_version
       RETURNING *
     `)) as unknown as RawRow[];
+
+    if (!upserted[0]) {
+      throw new Error('computeGraphStats: upsert returned no rows');
+    }
+
+    // Atomic duration write: the JS-side wall-clock duration is computed and
+    // written inside the SAME transaction as the upsert, so process death
+    // between the upsert and the duration write can never produce drift
+    // between the aggregate columns and computed_duration_ms. See bead
+    // nmemo-2yv.48 for the falsifying analysis and option-(a) rationale.
+    const durationMs = Date.now() - start;
+    await tx.execute(sql`
+      UPDATE public.graph_stats SET computed_duration_ms = ${durationMs} WHERE id = 1
+    `);
+
+    return [{ ...upserted[0], computed_duration_ms: durationMs }] as RawRow[];
   });
 
-  if (!rows[0]) {
-    throw new Error('computeGraphStats: upsert returned no rows');
-  }
-
-  const durationMs = Date.now() - start;
-  await db.execute(sql`
-    UPDATE public.graph_stats SET computed_duration_ms = ${durationMs} WHERE id = 1
-  `);
-
-  return rowToGraphStats({ ...rows[0], computed_duration_ms: durationMs });
+  return rowToGraphStats(rows[0]!);
 }
