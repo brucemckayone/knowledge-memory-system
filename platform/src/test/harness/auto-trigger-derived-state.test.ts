@@ -13,15 +13,18 @@
  * the compute" (request received) — the route's own success path is exercised
  * by the existing compute-endpoint tests under ml-services.
  */
-import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import { testDb, createTestEntity } from '../setup.js';
 import { registerJob, stopScheduler, getRegisteredJobs } from '../../scheduler.js';
 import {
   maybeFireFactThresholdCompute,
+  maybeFirePatternDetection,
+  maybeFireGraphStats,
   triggerTopologyAndClusteringAfterMerge,
   _setComputeUrlPortForTesting,
 } from '../../services/derived-freshness.js';
+import { config } from '../../config.js';
 
 interface StubServer {
   server: Server;
@@ -65,9 +68,11 @@ async function resetFreshness(): Promise<void> {
 
 describe('bead nmemo-2yv.84 — derived-state auto-triggers', () => {
   beforeAll(async () => {
-    // Confirm the 024 migration ran and seeded both rows.
+    // Confirm the 024 + 035 migrations ran and seeded all four rows
+    // (bead .84 seeded topology+clustering; bead .72's 035 added
+    // pattern_detection + graph_stats).
     const rows = (await testDb`SELECT derived_kind FROM public.derived_freshness ORDER BY derived_kind`) as unknown as Array<{ derived_kind: string }>;
-    expect(rows.map((r) => r.derived_kind)).toEqual(['clustering', 'topology']);
+    expect(rows.map((r) => r.derived_kind)).toEqual(['clustering', 'graph_stats', 'pattern_detection', 'topology']);
   });
 
   describe('derived_freshness DB trigger (acceptance bullet 6)', () => {
@@ -75,7 +80,7 @@ describe('bead nmemo-2yv.84 — derived-state auto-triggers', () => {
       await resetFreshness();
     });
 
-    it('AFTER INSERT trigger increments facts_since_compute on both rows', async () => {
+    it('AFTER INSERT trigger increments facts_since_compute on all rows', async () => {
       const subject = await createTestEntity({ canonicalName: `bead84-fact-subj-${Date.now()}-${Math.random()}`, entityType: 'Concept' });
       const before = (await testDb`SELECT facts_since_compute FROM public.derived_freshness WHERE derived_kind = 'topology'`) as unknown as Array<{ facts_since_compute: number }>;
       const baseline = before[0]?.facts_since_compute ?? 0;
@@ -84,9 +89,12 @@ describe('bead nmemo-2yv.84 — derived-state auto-triggers', () => {
         VALUES (${subject.id}::uuid, 'is', 'a thing', 'bead84-trigger-test-1')
       `;
       const rows = (await testDb`SELECT derived_kind, facts_since_compute FROM public.derived_freshness ORDER BY derived_kind`) as unknown as Array<{ derived_kind: string; facts_since_compute: number }>;
-      // Both rows incremented by 1 (lockstep).
+      // All four rows incremented by 1 (lockstep — the migration-024 trigger
+      // has no WHERE clause, so every kind bumps together).
       expect(rows.find((r) => r.derived_kind === 'topology')?.facts_since_compute).toBe(baseline + 1);
       expect(rows.find((r) => r.derived_kind === 'clustering')?.facts_since_compute).toBe(baseline + 1);
+      expect(rows.find((r) => r.derived_kind === 'pattern_detection')?.facts_since_compute).toBe(baseline + 1);
+      expect(rows.find((r) => r.derived_kind === 'graph_stats')?.facts_since_compute).toBe(baseline + 1);
     });
   });
 
@@ -189,6 +197,161 @@ describe('bead nmemo-2yv.84 — derived-state auto-triggers', () => {
       await new Promise((r) => setTimeout(r, 2200));
       stopScheduler();
       expect(attempted).toBeGreaterThanOrEqual(2);
+    });
+  });
+});
+
+// ============================================================================
+// Bead nmemo-2yv.72 — pattern_detection + graph_stats threshold helpers
+// ============================================================================
+//
+// Three integration tests per kind:
+//  - below threshold → helper is a no-op (no compute fired)
+//  - at threshold → atomic claim, compute fires (spy assertion), counter resets
+//  - failure inside compute → swallowed, caller resolves to undefined
+//
+// We spy on the compute entry points (detectCausalPatterns, promotePatterns,
+// computeGraphStats) so the tests verify the wiring without depending on the
+// real graph schema being seeded for a meaningful run.
+
+describe('bead nmemo-2yv.72 — pattern_detection + graph_stats threshold triggers', () => {
+  beforeEach(async () => {
+    // Reset both .72 rows to 0 so each test starts clean. The DB trigger may
+    // have ticked them during unrelated test ingest activity earlier in the
+    // run.
+    await testDb`
+      UPDATE public.derived_freshness
+         SET facts_since_compute = 0,
+             updated_at          = NOW()
+       WHERE derived_kind IN ('pattern_detection', 'graph_stats')
+    `;
+  });
+
+  describe('maybeFirePatternDetection', () => {
+    it('below the threshold the helper is a no-op (detect+promote NOT called)', async () => {
+      const causalPatterns = await import('../../services/causal-patterns.js');
+      const detectSpy = vi
+        .spyOn(causalPatterns, 'detectCausalPatterns')
+        .mockResolvedValue({ chainsExamined: 0, templatesFound: 0, newStaging: 0, updatedExisting: 0 });
+      const promoteSpy = vi
+        .spyOn(causalPatterns, 'promotePatterns')
+        .mockResolvedValue({ promoted: [], demoted: [], rejected: [] });
+      try {
+        await testDb`UPDATE public.derived_freshness SET facts_since_compute = ${config.PATTERN_DETECTION_FACT_THRESHOLD - 1} WHERE derived_kind = 'pattern_detection'`;
+        await maybeFirePatternDetection();
+        await new Promise((r) => setTimeout(r, 100));
+        expect(detectSpy).not.toHaveBeenCalled();
+        expect(promoteSpy).not.toHaveBeenCalled();
+      } finally {
+        detectSpy.mockRestore();
+        promoteSpy.mockRestore();
+      }
+    });
+
+    it('at threshold: helper claims, fires detect+promote, resets counter to 0', async () => {
+      const causalPatterns = await import('../../services/causal-patterns.js');
+      const detectSpy = vi
+        .spyOn(causalPatterns, 'detectCausalPatterns')
+        .mockResolvedValue({ chainsExamined: 0, templatesFound: 0, newStaging: 0, updatedExisting: 0 });
+      const promoteSpy = vi
+        .spyOn(causalPatterns, 'promotePatterns')
+        .mockResolvedValue({ promoted: [], demoted: [], rejected: [] });
+      try {
+        await testDb`UPDATE public.derived_freshness SET facts_since_compute = ${config.PATTERN_DETECTION_FACT_THRESHOLD} WHERE derived_kind = 'pattern_detection'`;
+        await maybeFirePatternDetection();
+        // Counter reset is synchronous (the claim UPDATE happens before the
+        // fire-and-forget IIFE launches).
+        const reset = (await testDb`SELECT facts_since_compute FROM public.derived_freshness WHERE derived_kind = 'pattern_detection'`) as unknown as Array<{ facts_since_compute: number }>;
+        expect(reset[0]?.facts_since_compute).toBe(0);
+        // Drain the IIFE; detect+promote run inside it.
+        await new Promise((r) => setTimeout(r, 100));
+        expect(detectSpy).toHaveBeenCalled();
+        expect(promoteSpy).toHaveBeenCalled();
+      } finally {
+        detectSpy.mockRestore();
+        promoteSpy.mockRestore();
+      }
+    });
+
+    it('failure inside detect+promote is swallowed (caller resolves)', async () => {
+      const causalPatterns = await import('../../services/causal-patterns.js');
+      const detectSpy = vi
+        .spyOn(causalPatterns, 'detectCausalPatterns')
+        .mockRejectedValue(new Error('boom'));
+      try {
+        await testDb`UPDATE public.derived_freshness SET facts_since_compute = ${config.PATTERN_DETECTION_FACT_THRESHOLD} WHERE derived_kind = 'pattern_detection'`;
+        await expect(maybeFirePatternDetection()).resolves.toBeUndefined();
+        await new Promise((r) => setTimeout(r, 100));
+        expect(detectSpy).toHaveBeenCalled();
+      } finally {
+        detectSpy.mockRestore();
+      }
+    });
+  });
+
+  describe('maybeFireGraphStats', () => {
+    it('below the threshold the helper is a no-op (computeGraphStats NOT called)', async () => {
+      const graphStats = await import('../../services/graph-stats.js');
+      const computeSpy = vi
+        .spyOn(graphStats, 'computeGraphStats')
+        .mockResolvedValue({
+          totalEntities: 0,
+          totalFacts: 0,
+          totalActiveFacts: 0,
+          totalMemories: 0,
+          computedDurationMs: 1,
+        } as unknown as Awaited<ReturnType<typeof graphStats.computeGraphStats>>);
+      try {
+        await testDb`UPDATE public.derived_freshness SET facts_since_compute = ${config.GRAPH_STATS_FACT_THRESHOLD - 1} WHERE derived_kind = 'graph_stats'`;
+        await maybeFireGraphStats();
+        await new Promise((r) => setTimeout(r, 100));
+        expect(computeSpy).not.toHaveBeenCalled();
+      } finally {
+        computeSpy.mockRestore();
+      }
+    });
+
+    it('at threshold: helper claims, fires computeGraphStats, resets counter to 0', async () => {
+      const graphStats = await import('../../services/graph-stats.js');
+      const computeSpy = vi
+        .spyOn(graphStats, 'computeGraphStats')
+        .mockResolvedValue({
+          totalEntities: 0,
+          totalFacts: 0,
+          totalActiveFacts: 0,
+          totalMemories: 0,
+          computedDurationMs: 1,
+        } as unknown as Awaited<ReturnType<typeof graphStats.computeGraphStats>>);
+      try {
+        await testDb`UPDATE public.derived_freshness SET facts_since_compute = ${config.GRAPH_STATS_FACT_THRESHOLD} WHERE derived_kind = 'graph_stats'`;
+        await maybeFireGraphStats();
+        const reset = (await testDb`SELECT facts_since_compute FROM public.derived_freshness WHERE derived_kind = 'graph_stats'`) as unknown as Array<{ facts_since_compute: number }>;
+        expect(reset[0]?.facts_since_compute).toBe(0);
+        await new Promise((r) => setTimeout(r, 100));
+        expect(computeSpy).toHaveBeenCalled();
+      } finally {
+        computeSpy.mockRestore();
+      }
+    });
+
+    it('counter helpers are independent: firing pattern_detection does not reset graph_stats and vice versa', async () => {
+      // Park graph_stats well below threshold, drive pattern_detection over.
+      // Only pattern_detection should reset; graph_stats stays put.
+      const causalPatterns = await import('../../services/causal-patterns.js');
+      vi.spyOn(causalPatterns, 'detectCausalPatterns')
+        .mockResolvedValue({ chainsExamined: 0, templatesFound: 0, newStaging: 0, updatedExisting: 0 });
+      vi.spyOn(causalPatterns, 'promotePatterns')
+        .mockResolvedValue({ promoted: [], demoted: [], rejected: [] });
+      try {
+        await testDb`UPDATE public.derived_freshness SET facts_since_compute = ${config.PATTERN_DETECTION_FACT_THRESHOLD} WHERE derived_kind = 'pattern_detection'`;
+        await testDb`UPDATE public.derived_freshness SET facts_since_compute = 1 WHERE derived_kind = 'graph_stats'`;
+        await maybeFirePatternDetection();
+        const rows = (await testDb`SELECT derived_kind, facts_since_compute FROM public.derived_freshness WHERE derived_kind IN ('pattern_detection', 'graph_stats') ORDER BY derived_kind`) as unknown as Array<{ derived_kind: string; facts_since_compute: number }>;
+        expect(rows.find((r) => r.derived_kind === 'pattern_detection')?.facts_since_compute).toBe(0);
+        expect(rows.find((r) => r.derived_kind === 'graph_stats')?.facts_since_compute).toBe(1);
+      } finally {
+        vi.restoreAllMocks();
+      }
     });
   });
 });

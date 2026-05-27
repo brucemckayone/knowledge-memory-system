@@ -58,6 +58,18 @@ const envSchema = z.object({
   // facts_since_compute crosses this value, topology + clustering compute
   // are fired together (fire-and-forget) and both rows reset.
   TOPOLOGY_CLUSTERING_FACT_THRESHOLD: z.coerce.number().int().positive().default(100),
+  // Bead nmemo-2yv.72 — pattern-detection and graph-stats cadences are now
+  // DB-reactive (same shape as topology/clustering, separate counters). Each
+  // has its own threshold reflecting its cost profile:
+  //   - pattern_detection: walks all active causal chains, clusters by
+  //     template, upserts patterns. Moderate cost — default 50 facts.
+  //   - graph_stats: single-pass aggregate counts over entities + facts.
+  //     Cheap — default 20 facts so health telemetry stays fresh.
+  // Both compute in-process (no ml-services hop), so the thresholds are
+  // tuned to the SQL/CPU cost of the platform-side function rather than to
+  // an HTTP round-trip.
+  PATTERN_DETECTION_FACT_THRESHOLD: z.coerce.number().int().positive().default(50),
+  GRAPH_STATS_FACT_THRESHOLD: z.coerce.number().int().positive().default(20),
   // Suppress the scheduler at startup (tests, scripts, one-off CLIs).
   // Set DISABLE_SCHEDULER=1 to skip startScheduler() registration.
   DISABLE_SCHEDULER: z.coerce.boolean().default(false),

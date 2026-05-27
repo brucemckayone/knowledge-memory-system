@@ -86,8 +86,12 @@ async function fireComputeEndpoint(
  * Reset facts_since_compute and stamp last_computed_at for a single derived_kind.
  * Called by the success branches of the /api/{topology,clustering}/compute
  * routes (the only places that know the compute actually finished).
+ *
+ * Bead nmemo-2yv.72 extends this to the two new in-process compute kinds —
+ * pattern_detection and graph_stats — so the per-kind threshold helpers below
+ * can stamp last_computed_at after their fire-and-forget compute settles.
  */
-export async function markDerivedComputed(kind: 'topology' | 'clustering'): Promise<void> {
+export async function markDerivedComputed(kind: 'topology' | 'clustering' | 'pattern_detection' | 'graph_stats'): Promise<void> {
   try {
     await db.execute(sql`
       UPDATE public.derived_freshness
@@ -178,6 +182,132 @@ export async function maybeFireFactThresholdCompute(): Promise<void> {
   } catch (err) {
     console.warn(
       '[derived-freshness] maybeFireFactThresholdCompute failed:',
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
+/** ============================================================
+ * Per-kind threshold helpers — pattern_detection + graph_stats
+ * (bead nmemo-2yv.72).
+ *
+ * Both kinds were previously gated by counters in pipeline.ts ticked on
+ * reasoning-patrol success (Rule 2 violation per doc 34 §3.4). They now
+ * follow the same DB-reactive shape as topology + clustering: the AFTER-
+ * INSERT trigger on public.facts (migration 024) bumps facts_since_compute
+ * for every row in derived_freshness; the helper here reads-and-resets when
+ * its row crosses the configured threshold and fires the compute in-process.
+ *
+ * Unlike topology + clustering — which proxy through HTTP into ml-services —
+ * pattern detection and graph_stats are platform-side TS functions. We call
+ * them directly here (no /api/{...}/compute hop) so the auto-trigger path
+ * has no HTTP self-call. The manual viz endpoints (POST /api/patterns/detect,
+ * POST /api/patterns/promote, POST /api/graph-stats/compute) remain as Rule-3
+ * debug surfaces.
+ *
+ * Each helper:
+ *   1. Atomically compare-and-reset on its row (UPDATE ... RETURNING with
+ *      WHERE facts_since_compute >= threshold). If zero rows return, another
+ *      parallel inserter already crossed the threshold and reset — skip.
+ *   2. Fire the in-process compute fire-and-forget (void async IIFE so a
+ *      throw in the compute body becomes a logged warn, never an unhandled
+ *      rejection).
+ *   3. On compute success, stamp last_computed_at via markDerivedComputed().
+ *
+ * The dedicated kind-specific helpers (vs a single generic dispatcher) keep
+ * the compute-side type signatures explicit and let each helper log a kind-
+ * tagged line for ops triage.
+ * ============================================================ */
+
+/**
+ * Internal: atomic compare-and-reset for a single derived_kind row. Returns
+ * true if THIS caller crossed the threshold (owns the fire) and false
+ * otherwise (another caller won the race, or the threshold is not yet
+ * crossed). updated_at stamps NOW() for ops visibility; last_computed_at
+ * stays untouched until the compute itself finishes (markDerivedComputed).
+ */
+async function tryClaimThresholdReset(
+  kind: 'pattern_detection' | 'graph_stats',
+  threshold: number,
+): Promise<boolean> {
+  const reset = (await db.execute(sql`
+    UPDATE public.derived_freshness
+       SET facts_since_compute = 0,
+           updated_at          = NOW()
+     WHERE derived_kind = ${kind}
+       AND facts_since_compute >= ${threshold}
+    RETURNING derived_kind
+  `)) as unknown as Array<{ derived_kind: string }>;
+  return reset.length > 0;
+}
+
+/**
+ * Post-ingest counter trigger for pattern detection. When the threshold is
+ * crossed, runs detectCausalPatterns() + promotePatterns() sequentially. The
+ * two are paired because every staging row written by detect needs a promote
+ * pass to advance through the lifecycle on the same cadence — splitting them
+ * would let staging rows accumulate while promotion runs less often.
+ */
+export async function maybeFirePatternDetection(): Promise<void> {
+  const threshold = config.PATTERN_DETECTION_FACT_THRESHOLD;
+  try {
+    const claimed = await tryClaimThresholdReset('pattern_detection', threshold);
+    if (!claimed) return;
+
+    void (async () => {
+      try {
+        const { detectCausalPatterns, promotePatterns } = await import('./causal-patterns.js');
+        const detection = await detectCausalPatterns();
+        const promotion = await promotePatterns();
+        console.log(
+          `[derived-freshness] auto-trigger pattern_detection (>=${threshold}): ${detection.newStaging} new staging, ${promotion.promoted.length} promoted, ${promotion.demoted.length} demoted, ${promotion.rejected.length} rejected`,
+        );
+        await markDerivedComputed('pattern_detection');
+      } catch (err) {
+        console.warn(
+          '[derived-freshness] auto-trigger pattern_detection failed:',
+          err instanceof Error ? err.message : err,
+        );
+      }
+    })();
+  } catch (err) {
+    console.warn(
+      '[derived-freshness] maybeFirePatternDetection failed:',
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
+/**
+ * Post-ingest counter trigger for graph_stats. When the threshold is
+ * crossed, runs computeGraphStats() once. Cheap pure-SQL aggregate; the
+ * threshold is tuned low (default 20) so the viz `graph_stats` row stays
+ * close to live without ingest-path latency cost.
+ */
+export async function maybeFireGraphStats(): Promise<void> {
+  const threshold = config.GRAPH_STATS_FACT_THRESHOLD;
+  try {
+    const claimed = await tryClaimThresholdReset('graph_stats', threshold);
+    if (!claimed) return;
+
+    void (async () => {
+      try {
+        const { computeGraphStats } = await import('./graph-stats.js');
+        const stats = await computeGraphStats();
+        console.log(
+          `[derived-freshness] auto-trigger graph_stats (>=${threshold}): total_entities=${stats.totalEntities} active_facts=${stats.totalActiveFacts} duration=${stats.computedDurationMs}ms`,
+        );
+        await markDerivedComputed('graph_stats');
+      } catch (err) {
+        console.warn(
+          '[derived-freshness] auto-trigger graph_stats failed:',
+          err instanceof Error ? err.message : err,
+        );
+      }
+    })();
+  } catch (err) {
+    console.warn(
+      '[derived-freshness] maybeFireGraphStats failed:',
       err instanceof Error ? err.message : err,
     );
   }

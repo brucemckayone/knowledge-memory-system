@@ -51,7 +51,13 @@ export interface ReasoningAgentResult {
 export async function invokeReasoningAgent(params: ReasoningAgentParams): Promise<ReasoningAgentResult> {
   const mcpConfigPath = getMcpConfigPath('reasoning_agent');
 
-  const result = await agentFetch<ReasoningAgentResult>({
+  // Bead nmemo-2yv.72 decoupled pattern-detection + graph-stats cadences
+  // from the reasoning-patrol success edge. Both now react directly to fact
+  // inserts via public.derived_freshness counters + threshold helpers in
+  // src/services/derived-freshness.ts (post-insert hook in createFact).
+  // The wrapper no longer post-processes patrol success — the result is
+  // surfaced verbatim and the cadences run on their own DB-reactive schedule.
+  return await agentFetch<ReasoningAgentResult>({
     agent: 'reasoning_agent',
     url: `${config.ML_SERVICES_URL}/reasoning-agent`,
     body: {
@@ -62,20 +68,4 @@ export async function invokeReasoningAgent(params: ReasoningAgentParams): Promis
     },
     timeoutMs: config.REASONING_AGENT_TIMEOUT_MS,
   });
-
-  // Phase 6 (nmemo-d9v.13): bump the pattern-detection counter on patrol
-  // success. Every PATTERN_DETECTION_INTERVAL patrols runs detectCausalPatterns
-  // + promotePatterns. Wrapped in try/catch inside incrementPatrolCount —
-  // any failure logs but never surfaces.
-  //
-  // Phase 1 cluster-bridging (nmemo-a7f.1.1, doc 22 §3.3): bump the
-  // graph-stats counter on the same patrol-success edge. Independent counter
-  // and interval — both run sequentially; neither blocks the other.
-  if (params.mode === 'patrol') {
-    const { incrementPatrolCount, incrementGraphStatsCount } = await import('../pipeline.js');
-    await incrementPatrolCount();
-    await incrementGraphStatsCount();
-  }
-
-  return result;
 }

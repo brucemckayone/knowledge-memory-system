@@ -24,14 +24,14 @@
  *       app.request() against the Hono app, ml-services mocked. Covers:
  *       response shape on success, error on 500, 400 on missing
  *       body.question, F5 logging side effect via stdout capture.
- *   (4) Patrol → counter cascade — unit, exercises both increment helpers
- *       through `incrementPatrolCount` / `incrementGraphStatsCount` from
- *       pipeline.ts. The reasoning-agent module's call site is covered
- *       implicitly by (2); pattern-detection firing at the documented
- *       interval (PATTERN_DETECTION_INTERVAL=3) is covered by
- *       causal-patterns.test.ts at the equivalent line range — we don't
- *       re-litigate that here, but we DO assert that a query-mode call
- *       leaves the counter untouched (the cascade-skip invariant).
+ *   (4) Patrol cascade absence — regression guard for bead nmemo-2yv.72. The
+ *       pipeline.ts patrol counters (incrementPatrolCount,
+ *       incrementGraphStatsCount) have been deleted; pattern-detection +
+ *       graph-stats now react to derived_freshness counters on fact insert.
+ *       The test under (2) spies on detectCausalPatterns / promotePatterns /
+ *       computeGraphStats and asserts a successful patrol invocation does
+ *       NOT call any of them. Pattern-detection's own DB-reactive cadence is
+ *       covered by causal-patterns.test.ts (bead .72 block).
  *   (5) Adversarial fixture (T8 regression) — integration. Seed
  *       reasoning-injection.sql (a row whose .question + .report carry the
  *       canonical bead-79 injection payload), call get_reasoning_history
@@ -56,7 +56,7 @@
  * update here.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import {
   testDb,
   loadFixture,
@@ -66,12 +66,11 @@ import {
 import { app } from '../../index.js';
 import { GRAPH_TOOLS, handleToolCall } from '../../services/causal-agent.js';
 import { invokeReasoningAgent, AgentInvocationTimeoutError } from '../../services/reasoning-agent.js';
-import {
-  incrementPatrolCount,
-  incrementGraphStatsCount,
-  _resetReasoningPatrolCount,
-  _resetGraphStatsCount,
-} from '../../pipeline.js';
+// Bead nmemo-2yv.72 — incrementPatrolCount / incrementGraphStatsCount and
+// their _reset helpers have been deleted along with the pipeline.ts cadence
+// counters they served. Pattern-detection and graph-stats cadences now react
+// to derived_freshness counters via src/services/derived-freshness.ts; the
+// reasoning agent no longer touches them.
 
 // Marker used to scope the row-deletion sweep at end of suite — same pattern
 // as reasoning-reports-endpoints.test.ts (bead .81) so concurrent test files
@@ -249,16 +248,9 @@ describe('get_reasoning_history (nmemo-2yv.79)', () => {
 describe('invokeReasoningAgent (nmemo-2yv.79)', () => {
   let ml: MockMlServicesHandle | undefined;
 
-  beforeEach(() => {
-    _resetReasoningPatrolCount();
-    _resetGraphStatsCount();
-  });
-
   afterEach(() => {
     ml?.restore();
     ml = undefined;
-    _resetReasoningPatrolCount();
-    _resetGraphStatsCount();
   });
 
   it('patrol-mode success calls /reasoning-agent and surfaces { result }', async () => {
@@ -333,73 +325,21 @@ describe('invokeReasoningAgent (nmemo-2yv.79)', () => {
     }
   });
 
-  it('patrol success fires BOTH counters; query success fires NEITHER (the mode==="patrol" guard)', async () => {
-    // The cascade lives at src/services/reasoning-agent.ts:74 —
-    //   if (params.mode === 'patrol') { incrementPatrolCount + incrementGraphStatsCount }
-    // We spy on a fresh in-memory module by counting how many times the
-    // pattern-detection import target is hit. Easier: assert the counters'
-    // observable side-effect (the pattern-detect log line at interval 3).
-    //
-    // Cheaper approach: invoke the wrapper in both modes against a mock
-    // that succeeds, then count direct ml-services calls. The cascade
-    // increments live inside pipeline.ts and are hard to spy on without
-    // module-mocking; instead we assert the negative — query mode does
-    // NOT throw and DOES return the result. The cascade absence is then
-    // proven by the dedicated counter cascade tests below (which run
-    // incrementPatrolCount directly and observe the same module's state).
-    ml = mockMlServices({
-      responses: { '/reasoning-agent': { kind: 'ok', body: { result: 'ok' } } },
-    });
-    const patrolOut = await invokeReasoningAgent({ mode: 'patrol' });
-    const queryOut = await invokeReasoningAgent({ mode: 'query', question: 'q' });
-    expect(patrolOut.result).toBe('ok');
-    expect(queryOut.result).toBe('ok');
-    // Two calls to ml-services, one per mode.
-    expect(ml.calls.filter((c) => c.url.includes('/reasoning-agent')).length).toBe(2);
-  });
-});
-
-// ============================================================================
-// (3) Patrol → counter cascade — direct unit (mirrors causal-patterns.test.ts:1116)
-// ============================================================================
-
-describe('patrol → counter cascade (nmemo-2yv.79)', () => {
-  beforeEach(() => {
-    _resetReasoningPatrolCount();
-    _resetGraphStatsCount();
-  });
-
-  it('incrementPatrolCount fires pattern detection on the 3rd call (PATTERN_DETECTION_INTERVAL=3)', async () => {
-    // We can't easily intercept the dynamic import; instead we spy on
-    // detectCausalPatterns directly. If the cascade fires, the spy is
-    // called; if not, it isn't.
+  it('patrol mode does NOT cascade into pattern-detection or graph-stats (bead nmemo-2yv.72 regression guard)', async () => {
+    // Pre-.72 invokeReasoningAgent fired incrementPatrolCount +
+    // incrementGraphStatsCount inline on every successful patrol. Both
+    // cascades now react to derived_freshness counters on fact insert; the
+    // wrapper must NOT touch pattern_detection / graph_stats / causal_patterns.
+    // Spy on the in-process compute entry points; assert zero calls after
+    // a successful patrol invocation.
     const causalPatterns = await import('../../services/causal-patterns.js');
+    const graphStats = await import('../../services/graph-stats.js');
     const detectSpy = vi
       .spyOn(causalPatterns, 'detectCausalPatterns')
       .mockResolvedValue({ chainsExamined: 0, templatesFound: 0, newStaging: 0, updatedExisting: 0 });
     const promoteSpy = vi
       .spyOn(causalPatterns, 'promotePatterns')
       .mockResolvedValue({ promoted: [], demoted: [], rejected: [] });
-
-    try {
-      await incrementPatrolCount();
-      await incrementPatrolCount();
-      expect(detectSpy).not.toHaveBeenCalled();
-      await incrementPatrolCount(); // 3rd call → fires
-      expect(detectSpy).toHaveBeenCalled();
-      expect(promoteSpy).toHaveBeenCalled();
-    } finally {
-      detectSpy.mockRestore();
-      promoteSpy.mockRestore();
-    }
-  });
-
-  it('incrementGraphStatsCount fires computeGraphStats on the 5th call (GRAPH_STATS_INTERVAL=5)', async () => {
-    const graphStats = await import('../../services/graph-stats.js');
-    // GraphStats has many optional fields surfaced for the viz; we only need
-    // the cascade's logged fields (totalEntities, totalActiveFacts,
-    // computedDurationMs). Cast through unknown to satisfy the wider shape
-    // without enumerating every nullable column the real query returns.
     const computeSpy = vi
       .spyOn(graphStats, 'computeGraphStats')
       .mockResolvedValue({
@@ -409,26 +349,26 @@ describe('patrol → counter cascade (nmemo-2yv.79)', () => {
         totalMemories: 0,
         computedDurationMs: 1,
       } as unknown as Awaited<ReturnType<typeof graphStats.computeGraphStats>>);
-
     try {
-      for (let i = 0; i < 4; i++) await incrementGraphStatsCount();
+      ml = mockMlServices({
+        responses: { '/reasoning-agent': { kind: 'ok', body: { result: 'ok' } } },
+      });
+      const patrolOut = await invokeReasoningAgent({ mode: 'patrol' });
+      const queryOut = await invokeReasoningAgent({ mode: 'query', question: 'q' });
+      expect(patrolOut.result).toBe('ok');
+      expect(queryOut.result).toBe('ok');
+      // Two calls to ml-services, one per mode.
+      expect(ml.calls.filter((c) => c.url.includes('/reasoning-agent')).length).toBe(2);
+      // Allow any microtask the wrapper might have queued to drain — the
+      // assertion below is the load-bearing one.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(detectSpy).not.toHaveBeenCalled();
+      expect(promoteSpy).not.toHaveBeenCalled();
       expect(computeSpy).not.toHaveBeenCalled();
-      await incrementGraphStatsCount(); // 5th call → fires
-      expect(computeSpy).toHaveBeenCalled();
-    } finally {
-      computeSpy.mockRestore();
-    }
-  });
-
-  it('failure inside incrementPatrolCount does not throw to caller (cascade is fail-safe)', async () => {
-    const causalPatterns = await import('../../services/causal-patterns.js');
-    const detectSpy = vi.spyOn(causalPatterns, 'detectCausalPatterns').mockRejectedValue(new Error('cascade boom'));
-    try {
-      await incrementPatrolCount();
-      await incrementPatrolCount();
-      await expect(incrementPatrolCount()).resolves.toBeUndefined();
     } finally {
       detectSpy.mockRestore();
+      promoteSpy.mockRestore();
+      computeSpy.mockRestore();
     }
   });
 });
@@ -440,16 +380,9 @@ describe('patrol → counter cascade (nmemo-2yv.79)', () => {
 describe('POST /api/reason (nmemo-2yv.79)', () => {
   let ml: MockMlServicesHandle | undefined;
 
-  beforeEach(() => {
-    _resetReasoningPatrolCount();
-    _resetGraphStatsCount();
-  });
-
   afterEach(async () => {
     ml?.restore();
     ml = undefined;
-    _resetReasoningPatrolCount();
-    _resetGraphStatsCount();
     // The route uses app.request so any reasoning_reports rows written by the
     // mocked agent path would have to be cleaned. Our mocks never call
     // save_reasoning_report (it's an MCP tool path, not the HTTP route), so

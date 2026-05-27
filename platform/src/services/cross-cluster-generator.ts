@@ -780,8 +780,7 @@ export async function listCrossClusterRuns(limit = 20): Promise<Array<{
   }));
 }
 
-// Test-only reset helper if needed by the harness — not currently used but
-// kept here for symmetry with pipeline.ts._resetReasoningPatrolCount.
+// Test-only internal exports for direct exercise from the harness.
 export const _internal = { computePredicateSignature };
 
 /** ============================================================

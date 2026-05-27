@@ -346,15 +346,30 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     }
   }
 
-  // Bead nmemo-2yv.84 — post-ingest counter trigger. The 024 migration's
-  // AFTER INSERT trigger has already bumped facts_since_compute inside this
-  // transaction; here we read-and-fire if the threshold is crossed. Lazy
-  // import + outer try/catch so a missing/broken helper can't perturb the
-  // caller, and so the fact-insert success path stays the contract here.
+  // Bead nmemo-2yv.84 + .72 — post-ingest counter triggers. The 024 migration's
+  // AFTER INSERT trigger has already bumped facts_since_compute on every row in
+  // derived_freshness inside this transaction; here we read-and-fire each
+  // independent kind:
+  //   - topology + clustering (paired, ~100 facts via .84)
+  //   - pattern_detection (~50 facts via .72)
+  //   - graph_stats (~20 facts via .72)
+  // Each helper is its own atomic claim+fire; a slow kind never blocks the
+  // others, and no kind hitches a ride on a reasoning-agent run (Rule 2 fix —
+  // doc 34 §3.4). Lazy import + outer try/catch so a missing/broken helper
+  // can't perturb the caller, and so the fact-insert success path stays the
+  // contract here.
   void (async () => {
     try {
-      const { maybeFireFactThresholdCompute } = await import('./derived-freshness.js');
-      await maybeFireFactThresholdCompute();
+      const {
+        maybeFireFactThresholdCompute,
+        maybeFirePatternDetection,
+        maybeFireGraphStats,
+      } = await import('./derived-freshness.js');
+      await Promise.all([
+        maybeFireFactThresholdCompute(),
+        maybeFirePatternDetection(),
+        maybeFireGraphStats(),
+      ]);
     } catch (err) {
       console.warn('[createFact] post-ingest counter trigger failed:', err instanceof Error ? err.message : err);
     }

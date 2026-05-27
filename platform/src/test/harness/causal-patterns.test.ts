@@ -29,7 +29,8 @@ import {
 } from '../../services/causal-patterns.js';
 import { ml } from '../../services/ml-client.js';
 import { handleToolCall } from '../../services/causal-agent.js';
-import { incrementPatrolCount, _resetReasoningPatrolCount } from '../../pipeline.js';
+import { maybeFirePatternDetection } from '../../services/derived-freshness.js';
+import { config } from '../../config.js';
 import { app } from '../../index.js';
 
 async function cleanSlate(): Promise<void> {
@@ -1113,7 +1114,16 @@ describe('Phase 6 — G6: wiring (nmemo-d9v.11 + d9v.13 + d9v.14)', () => {
   beforeEach(async () => {
     await cleanSlate();
     await testDb`DELETE FROM public.fact_predicates WHERE predicate IN ('requires', 'prevents')`;
-    _resetReasoningPatrolCount();
+    // Bead nmemo-2yv.72 — reset the pattern_detection freshness counter so the
+    // DB-reactive auto-trigger test below starts from zero. The pipeline-level
+    // counters (incrementPatrolCount / _resetReasoningPatrolCount) no longer
+    // exist; the DB row owns the cadence now.
+    await testDb`
+      UPDATE public.derived_freshness
+         SET facts_since_compute = 0,
+             updated_at          = NOW()
+       WHERE derived_kind = 'pattern_detection'
+    `;
   });
 
   describe('MCP tools', () => {
@@ -1148,39 +1158,77 @@ describe('Phase 6 — G6: wiring (nmemo-d9v.11 + d9v.13 + d9v.14)', () => {
     });
   });
 
-  describe('pipeline auto-trigger', () => {
-    it('does NOT run detection on calls 1 and 2; runs on call 3', async () => {
-      const detectSpy = vi.fn();
-      const promoteSpy = vi.fn();
-
-      // Mock the dynamic import target by setting up a pattern that detection
-      // would discover. Use 3 identical chains so detection has something to do.
+  describe('DB-reactive auto-trigger (bead nmemo-2yv.72)', () => {
+    it('below the threshold, the helper is a no-op (detection does NOT fire)', async () => {
+      // Setup chains so detection WOULD find something if it ran.
       for (let i = 0; i < 3; i++) {
         await buildLinearChain(2, { predicates: ['g6_x', 'g6_y', 'g6_y'] });
       }
-
-      await incrementPatrolCount();
-      await incrementPatrolCount();
-      let patterns = await testDb`SELECT id FROM public.causal_patterns`;
+      // Counter starts at 0 (beforeEach reset), threshold is 50 by default —
+      // the helper should claim nothing and skip the in-process fire.
+      await maybeFirePatternDetection();
+      // Allow any (incorrectly fired) microtask to drain.
+      await new Promise((r) => setTimeout(r, 100));
+      const patterns = await testDb`SELECT id FROM public.causal_patterns`;
       expect(patterns).toHaveLength(0);
-
-      await incrementPatrolCount();
-      patterns = await testDb`SELECT id FROM public.causal_patterns`;
-      expect(patterns.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('failure inside detection does not throw to caller', async () => {
-      // Spy on detectCausalPatterns to throw
+    it('at-threshold: the helper claims, fires detection+promotion, and resets the counter', async () => {
+      // Same chain setup as the original test — detection picks the chains
+      // up once it runs.
+      for (let i = 0; i < 3; i++) {
+        await buildLinearChain(2, { predicates: ['g6_x', 'g6_y', 'g6_y'] });
+      }
+      // Drive the counter past the configured threshold so the next helper
+      // call wins the compare-and-reset.
+      await testDb`
+        UPDATE public.derived_freshness
+           SET facts_since_compute = ${config.PATTERN_DETECTION_FACT_THRESHOLD}
+         WHERE derived_kind = 'pattern_detection'
+      `;
+      await maybeFirePatternDetection();
+
+      // The compute is fire-and-forget inside the helper. Poll briefly for
+      // the row to appear rather than guessing at the microtask drain time.
+      const waitForPattern = async (): Promise<Array<{ id: string }>> => {
+        for (let attempt = 0; attempt < 30; attempt++) {
+          const rows = (await testDb`SELECT id FROM public.causal_patterns`) as unknown as Array<{ id: string }>;
+          if (rows.length >= 1) return rows;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        return (await testDb`SELECT id FROM public.causal_patterns`) as unknown as Array<{ id: string }>;
+      };
+      const patterns = await waitForPattern();
+      expect(patterns.length).toBeGreaterThanOrEqual(1);
+
+      // Counter reset to 0 (claim happens synchronously inside the helper).
+      const fresh = (await testDb`
+        SELECT facts_since_compute FROM public.derived_freshness
+         WHERE derived_kind = 'pattern_detection'
+      `) as unknown as Array<{ facts_since_compute: number }>;
+      expect(fresh[0]?.facts_since_compute).toBe(0);
+    });
+
+    it('failure inside in-process compute does not throw to caller (fire-and-forget)', async () => {
+      // Spy on detectCausalPatterns to throw — the helper logs + swallows.
       const causalPatterns = await import('../../services/causal-patterns.js');
-      const spy = vi.spyOn(causalPatterns, 'detectCausalPatterns').mockRejectedValue(new Error('boom'));
-
-      // Burn 2 ticks
-      await incrementPatrolCount();
-      await incrementPatrolCount();
-      // Third tick — should swallow the error
-      await expect(incrementPatrolCount()).resolves.toBeUndefined();
-
-      spy.mockRestore();
+      const spy = vi
+        .spyOn(causalPatterns, 'detectCausalPatterns')
+        .mockRejectedValue(new Error('boom'));
+      try {
+        await testDb`
+          UPDATE public.derived_freshness
+             SET facts_since_compute = ${config.PATTERN_DETECTION_FACT_THRESHOLD}
+           WHERE derived_kind = 'pattern_detection'
+        `;
+        await expect(maybeFirePatternDetection()).resolves.toBeUndefined();
+        // Drain the fire-and-forget microtask so the logged warn lands before
+        // the test exits (otherwise the spy could record after we've moved on).
+        await new Promise((r) => setTimeout(r, 100));
+        expect(spy).toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 

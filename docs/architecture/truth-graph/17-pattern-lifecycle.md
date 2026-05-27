@@ -305,30 +305,44 @@ Filters by status (default: `['provisional', 'canonical']`). If `entityId` provi
 
 ## Pipeline Integration
 
-Pattern detection runs periodically. Use a counter separate from gardener/decay to allow independent tuning:
+Pattern detection runs periodically on a DB-reactive cadence. The original
+design (this doc, pre-`nmemo-2yv.72`) hitched detection to a counter ticked
+inside `invokeReasoningAgent()` — a Rule 2 violation per doc 34 §3.4 because
+the cadence went dormant whenever the patrol was dormant. The current shape:
+
+- `public.derived_freshness` (migration 024 + 035) holds a `pattern_detection`
+  row with `facts_since_compute` ticked by the existing AFTER-INSERT trigger
+  on `public.facts`.
+- `services/derived-freshness.ts::maybeFirePatternDetection()` is called
+  from `createFact()`'s post-insert hook. When `facts_since_compute` crosses
+  `PATTERN_DETECTION_FACT_THRESHOLD` (default 50), the helper atomically
+  resets the row and fires `detectCausalPatterns()` + `promotePatterns()`
+  fire-and-forget in-process.
+- Manual debug surfaces (`POST /api/patterns/detect`, `POST /api/patterns/promote`)
+  remain as Rule-3 endpoints — no production trigger relies on them.
 
 ```typescript
-// platform/src/pipeline.ts
+// platform/src/services/derived-freshness.ts (simplified)
 
-const PATTERN_DETECTION_INTERVAL = 3;  // every 3 reasoning patrol runs
-let reasoningPatrolCount = 0;
-
-export async function incrementPatrolCount(): Promise<void> {
-  reasoningPatrolCount++;
-  if (reasoningPatrolCount >= PATTERN_DETECTION_INTERVAL) {
-    reasoningPatrolCount = 0;
-    try {
-      const detection = await detectCausalPatterns();
-      const promotion = await promotePatterns();
-      console.log(`[patterns] ${detection.newStaging} new, ${promotion.promoted.length} promoted`);
-    } catch (err) {
-      console.warn('[patterns] failed:', err instanceof Error ? err.message : err);
-    }
-  }
+export async function maybeFirePatternDetection(): Promise<void> {
+  const claimed = await tryClaimThresholdReset(
+    'pattern_detection',
+    config.PATTERN_DETECTION_FACT_THRESHOLD,
+  );
+  if (!claimed) return;
+  void (async () => {
+    const detection = await detectCausalPatterns();
+    const promotion = await promotePatterns();
+    console.log(`[patterns] ${detection.newStaging} new, ${promotion.promoted.length} promoted`);
+    await markDerivedComputed('pattern_detection');
+  })();
 }
 ```
 
-Called from `invokeReasoningAgent()` after each successful patrol run.
+The `tryClaimThresholdReset` step is an atomic `UPDATE ... RETURNING` against
+the `pattern_detection` row — concurrent inserts each call the helper, but
+only the inserter that crossed the threshold gets a returning row and owns
+the fire. Doc 32 §2 catalogues this trigger; doc 34 §3.4 records the cleanup.
 
 ## API + MCP
 

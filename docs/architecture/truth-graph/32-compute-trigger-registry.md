@@ -18,7 +18,7 @@ This doc is intentionally a single markdown table — no YAML/JSON manifest, no 
 
 | Compute | Service file | Trigger condition | Cadence / threshold | `*_runs` table | Trigger source (code) |
 |---|---|---|---|---|---|
-| `graph_stats` | `src/services/graph-stats.ts` | Threshold (patrol-cascade) | Every N patrol cycles via `incrementGraphStatsCount` | n/a (single-row materialised view) | `src/pipeline.ts` (patrol cascade) |
+| `graph_stats` | `src/services/graph-stats.ts` | Threshold-driven (post-ingest counter) | Fires when `derived_freshness.facts_since_compute` for `graph_stats` crosses `GRAPH_STATS_FACT_THRESHOLD` (default 20). Manual debug surface preserved. | n/a (single-row materialised view) | `src/services/derived-freshness.ts` (`maybeFireGraphStats`, bead `.72`); `POST /api/graph-stats/compute` still callable |
 | `entity_topology` | `ml-services/app/topology.py` | DB-reactive (post-merge) + threshold-driven (post-ingest counter) | Fires on every successful `merge_entities()`; also fires when `derived_freshness.facts_since_compute >= TOPOLOGY_CLUSTERING_FACT_THRESHOLD` (default 100). Manual debug surface preserved. | `topology_compute_runs` | `src/services/derived-freshness.ts` (`triggerTopologyAndClusteringAfterMerge`, `maybeFireFactThresholdCompute`); `POST /api/topology/compute` still callable (bead `.84`) |
 | `hdbscan_clustering` | `ml-services/app/semantic_clustering.py` | DB-reactive (post-merge) + threshold-driven (post-ingest counter) | Same anchors as `entity_topology` — both compute kinds fire together so the cross-cluster generator's BOTH-upstreams-fresh gate stays satisfied. Manual debug surface preserved. | `clustering_compute_runs` | `src/services/derived-freshness.ts`; `POST /api/clustering/compute` still callable (bead `.84`) |
 | `drift_detection` | `ml-services/app/drift.py` | Scheduled (time-driven) | `DRIFT_PATROL_INTERVAL_MIN` cadence (default 60min) via `node-cron` job registered in `src/scheduler.ts`. Manual debug surface preserved. | `entity_drift_events` | `src/scheduler.ts` (`drift-patrol` job); `POST /api/drift/compute` still callable (bead `.84`) |
@@ -26,7 +26,7 @@ This doc is intentionally a single markdown table — no YAML/JSON manifest, no 
 | `gardener` | `src/services/gardener.ts` | Threshold (patrol-cascade) | Every N patrols; gardener auto-trigger writes don't reach `gardening_reports`, see `nmemo-2yv.67` | `gardening_reports` (write gap) | `src/pipeline.ts` (patrol cascade) |
 | `reconciliation_agent` | `ml-services/app/reconciliation_agent.py` | **MANUAL ONLY — see `nmemo-2yv.61`** (state-driven trigger is the target) | — | `reconciliation_runs` | `POST /api/reconcile` only |
 | `reasoning_patrol` | `src/services/reasoning-agent.ts` (`invokeReasoningAgent`) | Scheduled (time-driven) + freshness-gated | `REASONING_PATROL_INTERVAL_MIN` cadence (default 30min) via `node-cron` job registered in `src/scheduler.ts`; runner skips the fire when `max(entity_meta.last_mentioned_at) <= max(entity_meta.last_reasoned_at, reasoning_reports.created_at)`. Manual debug surfaces (`POST /api/reason`, `POST /api/reason/query`) preserved. | `reasoning_reports` | `src/scheduler.ts` (`reasoning-patrol` job, bead `.71`); `POST /api/reason` + `POST /api/reason/query` still callable |
-| `pattern_detection` | `src/services/patterns.ts` | DB-reactive (target) — currently hitched to reasoning-patrol cadence (wrong cadence), see `nmemo-2yv.72` | n/a (cadence is a regression) | `causal_patterns` | `src/pipeline.ts` (patrol cascade) |
+| `pattern_detection` | `src/services/causal-patterns.ts` | Threshold-driven (post-ingest counter) | Fires when `derived_freshness.facts_since_compute` for `pattern_detection` crosses `PATTERN_DETECTION_FACT_THRESHOLD` (default 50). Runs `detectCausalPatterns()` + `promotePatterns()` in-process. Manual debug surface preserved. | `causal_patterns` | `src/services/derived-freshness.ts` (`maybeFirePatternDetection`, bead `.72`); `POST /api/patterns/detect` + `POST /api/patterns/promote` still callable |
 | `decay` | `src/services/decay.ts` | **MANUAL ONLY via `POST /api/decay`** (confirm during cycle whether intentional) | — | n/a (writes onto `facts.decay_score`) | `POST /api/decay` only |
 
 ## 3. Trigger taxonomy
@@ -72,7 +72,7 @@ Examples: graph_stats (every N patrols), gardener (every N patrols), proposed `d
 
 The compute fires only via an explicit HTTP call or viz button. **This is a deprecated trigger condition** — every compute should evolve to one of the four above. Manual remains valid as:
 - a debug surface for ad-hoc developer-driven runs (T12 rule 3: viz is a debug surface, not a primary trigger), AND
-- the MVP placeholder before the real auto-trigger lands. The P1 beads `.61 .72` remain in this category; `.71` (reasoning patrol) landed scheduled + freshness-gated, `.84` (topology/clustering/drift) landed event + threshold + scheduled.
+- the MVP placeholder before the real auto-trigger lands. The P1 bead `.61` remains in this category; `.71` (reasoning patrol) landed scheduled + freshness-gated, `.72` (pattern_detection + graph_stats) landed DB-reactive (threshold-driven via `derived_freshness`), `.84` (topology/clustering/drift) landed event + threshold + scheduled.
 
 Rows in §2 with `MANUAL ONLY — see <bead>` are explicit work-in-progress placeholders.
 

@@ -69,12 +69,13 @@ What this means concretely:
 
 ### 3.1 Rule 2 done right — derived-freshness post-merge + threshold fire
 
-`src/services/derived-freshness.ts` registers two trigger paths (per bead `nmemo-2yv.84`):
+`src/services/derived-freshness.ts` registers a family of trigger paths around the shared `public.derived_freshness` counter table, populated by an AFTER-INSERT trigger on `public.facts`:
 
-- `triggerTopologyAndClusteringAfterMerge()` — fires `/api/topology/compute` + `/api/clustering/compute` fire-and-forget after every successful `merge_entities()`. The anchor is "a merge happened", which is the DB state change those computes care about.
-- `maybeFireFactThresholdCompute()` — increments a `derived_freshness.facts_since_compute` counter on fact insert; fires the computes when the counter crosses `TOPOLOGY_CLUSTERING_FACT_THRESHOLD` (default 100). Atomic compare-and-reset deduplicates parallel-inserter races (see lesson `.84` in doc 33).
+- `triggerTopologyAndClusteringAfterMerge()` (bead `.84`) — fires `/api/topology/compute` + `/api/clustering/compute` fire-and-forget after every successful `merge_entities()`. The anchor is "a merge happened", which is the DB state change those computes care about.
+- `maybeFireFactThresholdCompute()` (bead `.84`) — claims-and-resets the `topology` row when its counter crosses `TOPOLOGY_CLUSTERING_FACT_THRESHOLD` (default 100), then fires both `/api/topology/compute` + `/api/clustering/compute` and resets the sibling `clustering` row in lockstep.
+- `maybeFirePatternDetection()` and `maybeFireGraphStats()` (bead `.72`) — same compare-and-reset shape on their own `derived_freshness` rows (`pattern_detection` threshold 50, `graph_stats` threshold 20 by default), but fire the compute *in-process* (no HTTP self-hop) because pattern detection and graph_stats are platform-side TS functions, not ml-services proxies.
 
-Both are DB-reactive. Neither hitches a ride on an agent's success edge. The manual viz buttons stay as Rule-3 debug surfaces.
+All five anchors are DB-reactive. None hitches a ride on an agent's success edge. The manual viz buttons (`/api/topology/compute`, `/api/clustering/compute`, `/api/patterns/detect`, `/api/patterns/promote`, `/api/graph-stats/compute`) stay as Rule-3 debug surfaces — production traffic flows through the `derived_freshness` helpers triggered from `createFact()`'s post-insert hook.
 
 ### 3.2 Rule 2 done right — drift patrol scheduled cadence
 
@@ -91,8 +92,8 @@ The same module is the canonical home for future scheduled cadences (e.g. `nmemo
 `pipeline.ts` historically had:
 
 - `incrementGraphAgentRunCount` → gardener every 5, decay every 10, contradiction detection every 10. **Borderline.** Reactive-by-counter, anchored on graph_agent runs (which DO touch the state these computes care about, so the anchor isn't wildly wrong) but the counter resets on every server restart. Closer to Rule 2 would be a `*_since_last_run` table the computes themselves consult, not a process-local `let`.
-- `incrementPatrolCount` → pattern-detection every 3. **Violation.** Pattern detection's anchor is "new causal events"; coupling it to reasoning patrol runs means it goes dormant whenever the patrol is dormant. Tracked by `nmemo-2yv.72`.
-- `incrementGraphStatsCount` → graph-stats every 5. **Violation, same shape.** Tracked by `nmemo-2yv.72`.
+- `incrementPatrolCount` → pattern-detection every 3. **Violation; resolved by `nmemo-2yv.72`.** Pattern detection's anchor is "new facts/causal events"; coupling it to reasoning-patrol runs meant the cadence went dormant whenever the patrol was dormant. The fix added a `pattern_detection` row to `derived_freshness` and wired `maybeFirePatternDetection()` into `createFact()`'s post-insert hook — same DB-reactive shape as topology + clustering (§3.1).
+- `incrementGraphStatsCount` → graph-stats every 5. **Violation, same shape; resolved by `nmemo-2yv.72`.** Now anchored on a `graph_stats` row in `derived_freshness` with a lower threshold (default 20) so health telemetry stays fresh.
 
 The post-`graphAgentRunCount` cadences (gardener, decay, contradictions) are the "borderline" case — close enough to the principle in spirit that they haven't been re-filed, but the right end-state is for each to be reactive-to-its-own-DB-anchor rather than counter-on-pipeline.
 
@@ -150,7 +151,7 @@ Corollary: when reviewing an agent's tool list, every tool whose implementation 
 
 - `nmemo-2yv.61` (CLOSED 2026-05-26) — Reconciliation agent had no auto-trigger; `merge_candidates` piled up until a user clicked Reconcile. Rule 1 + Rule 2 fix: pipeline-level wall-clock-gated auto-trigger.
 - `nmemo-2yv.71` (OPEN P1) — Reasoning patrol has no auto-trigger; only viz Reason button fires it. Rule 1 + Rule 2 fix: time-driven cadence via `entity_meta` freshness signals, registered in `src/scheduler.ts`.
-- `nmemo-2yv.72` (OPEN P1) — Pattern-detection + graph-stats cadences piggyback on reasoning-patrol success edge. Rule 2 violation; fix: decouple to DB-reactive anchors.
+- `nmemo-2yv.72` (CLOSED) — Pattern-detection + graph-stats cadences piggybacked on the reasoning-patrol success edge. Rule 2 violation; fix landed: both now react to per-kind `derived_freshness` counters (migration 035 + `maybeFirePatternDetection` / `maybeFireGraphStats` in `derived-freshness.ts`), wired into `createFact()`'s post-insert hook alongside the topology/clustering threshold helper.
 
 ### 5.2 Beads that codify the principle
 

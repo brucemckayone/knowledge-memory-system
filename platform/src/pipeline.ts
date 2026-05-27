@@ -125,72 +125,14 @@ export async function maybeTriggerReconciliation(
   }
 }
 
-// ============================================
-// Pattern-Detection Auto-Trigger Counter (Phase 6 — nmemo-d9v.13)
-// ============================================
-const PATTERN_DETECTION_INTERVAL = 3; // run pattern detect+promote every N reasoning patrols
-let reasoningPatrolCount = 0;
-
-/**
- * Called from invokeReasoningAgent() on patrol success. Every
- * PATTERN_DETECTION_INTERVAL invocations, runs detectCausalPatterns +
- * promotePatterns. Wrapped in try/catch so any failure logs but never
- * surfaces back into the patrol HTTP response.
- */
-export async function incrementPatrolCount(): Promise<void> {
-  reasoningPatrolCount++;
-  if (reasoningPatrolCount < PATTERN_DETECTION_INTERVAL) return;
-  reasoningPatrolCount = 0;
-
-  try {
-    const { detectCausalPatterns, promotePatterns } = await import('./services/causal-patterns.js');
-    const detection = await detectCausalPatterns();
-    const promotion = await promotePatterns();
-    console.log(
-      `[patterns] auto-trigger: ${detection.newStaging} new staging, ${promotion.promoted.length} promoted, ${promotion.demoted.length} demoted, ${promotion.rejected.length} rejected`,
-    );
-  } catch (err) {
-    console.warn('[patterns] auto-trigger failed:', err instanceof Error ? err.message : err);
-  }
-}
-
-/** Test-only — reset the counter so unit tests don't have to wait for natural cycles. */
-export function _resetReasoningPatrolCount(): void {
-  reasoningPatrolCount = 0;
-}
-
-// ============================================
-// Graph-Stats Auto-Trigger Counter (Phase 1 — nmemo-a7f.1.1, doc 22 §3.3)
-// ============================================
-const GRAPH_STATS_INTERVAL = 5; // run computeGraphStats every N reasoning patrols
-let graphStatsPatrolCount = 0;
-
-/**
- * Called from invokeReasoningAgent() on patrol success. Every
- * GRAPH_STATS_INTERVAL invocations, runs computeGraphStats. Wrapped in
- * try/catch so any failure logs but never surfaces back into the patrol
- * HTTP response (mirrors incrementPatrolCount above).
- */
-export async function incrementGraphStatsCount(): Promise<void> {
-  graphStatsPatrolCount++;
-  if (graphStatsPatrolCount < GRAPH_STATS_INTERVAL) return;
-  graphStatsPatrolCount = 0;
-
-  try {
-    const { computeGraphStats } = await import('./services/graph-stats.js');
-    const stats = await computeGraphStats();
-    console.log(
-      `[graph-stats] auto-trigger: total_entities=${stats.totalEntities} active_facts=${stats.totalActiveFacts} duration=${stats.computedDurationMs}ms`,
-    );
-  } catch (err) {
-    console.warn('[graph-stats] auto-trigger failed:', err instanceof Error ? err.message : err);
-  }
-}
-
-/** Test-only — reset the counter so unit tests don't have to wait for natural cycles. */
-export function _resetGraphStatsCount(): void {
-  graphStatsPatrolCount = 0;
-}
+// Bead nmemo-2yv.72 removed the pattern-detection and graph-stats patrol
+// counters that previously lived here (reasoningPatrolCount /
+// graphStatsPatrolCount, PATTERN_DETECTION_INTERVAL=3,
+// GRAPH_STATS_INTERVAL=5). Both cadences are now DB-reactive via the
+// derived_freshness table — fact inserts tick per-kind counters in
+// public.derived_freshness, and src/services/derived-freshness.ts owns the
+// threshold-fire helpers (maybeFirePatternDetection,
+// maybeFireGraphStats). See doc 32 §2 + doc 34 §3.4 for the principle.
 
 export interface IngestResult extends ExtractResult {}
 
