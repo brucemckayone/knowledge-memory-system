@@ -1,0 +1,58 @@
+{
+  "scenario": "two-entities-one-fact",
+  "phase": "phase1-graph-stats",
+  "data_set_level": 1,
+  "fixture_version": "v1.0",
+  "fixture": "phase1-graph-stats/fixtures/two-entities-one-fact.sql",
+  "description": "Minimal connected graph: 2 entities + 1 entity-to-literal fact. The fact's object is a literal (object_value set), so the second entity remains orphan per doc 22 §3.2.",
+  "assertions": [
+    {
+      "type": "graph_stats_columns",
+      "after": "computeGraphStats",
+      "expected": {
+        "total_entities": 2,
+        "total_facts": 1,
+        "total_active_facts": 1,
+        "total_memories": 0,
+        "fact_density": 0.5,
+        "orphan_rate": 0.5,
+        "predicate_diversity": 1,
+        "merge_candidates_pending": 0,
+        "embedding_cluster_count": null,
+        "mean_intra_cluster_distance": null,
+        "mean_inter_cluster_distance": null,
+        "cluster_columns_version": null
+      },
+      "because": "Doc 22 §4.2 case 3: two entities, one fact (entity-to-literal) → density=0.5, orphan_rate=0.5, diversity=1."
+    },
+    {
+      "type": "row_count",
+      "table": "entities",
+      "expected": 2,
+      "because": "Two entities seeded."
+    },
+    {
+      "type": "row_count",
+      "table": "facts",
+      "expected": 1,
+      "because": "One fact seeded."
+    },
+    {
+      "type": "column_values",
+      "table": "facts",
+      "filter": { "id": "50000000-1000-0000-0002-000000000001" },
+      "assertions": [
+        { "column": "predicate", "expected": "has_label" },
+        { "column": "object_entity_id", "expected": null },
+        { "column": "object_value", "expected": "literal" }
+      ],
+      "because": "Entity-to-literal fact shape pins the orphan-rate=0.5 interpretation."
+    }
+  ],
+  "benchmark_targets": {
+    "compute_p95_ms": 50,
+    "compute_hard_cap_ms": 200
+  },
+  "adversarial_variants": [],
+  "graduation_notes": "L1. Promote to L2 once a parallel entity-to-entity variant lands to compare orphan-rate=0 vs 0.5 interpretations."
+}

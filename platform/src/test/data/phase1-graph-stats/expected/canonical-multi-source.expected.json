@@ -1,0 +1,99 @@
+{
+  "scenario": "canonical-multi-source",
+  "phase": "phase1-graph-stats",
+  "data_set_level": 1,
+  "fixture_version": "v1.0",
+  "fixture": "phase1-graph-stats/fixtures/canonical-multi-source.sql",
+  "description": "Representative production-shape graph: 6 entities (4 types), 5 active + 1 expired fact (5 distinct predicates seeded; only 4 active), 6 entity_meta rows for centroid sampling, 3 merge_candidates (2 staging + 1 resolved). Exercises every graph_stats column with non-trivial values.",
+  "assertions": [
+    {
+      "type": "graph_stats_columns",
+      "after": "computeGraphStats",
+      "expected": {
+        "total_entities": 6,
+        "total_facts": 6,
+        "total_active_facts": 5,
+        "total_memories": 0,
+        "predicate_diversity": 4,
+        "merge_candidates_pending": 2,
+        "embedding_cluster_count": null,
+        "mean_intra_cluster_distance": null,
+        "mean_inter_cluster_distance": null,
+        "cluster_columns_version": null
+      },
+      "because": "Doc 22 §3.2 derived columns: 5/6 active facts → density~0.833 (asserted as range below); 1 orphan entity (Carol) → orphan_rate~0.167; 4 distinct active predicates; 2 staging merge_candidates."
+    },
+    {
+      "type": "graph_stats_columns_range",
+      "after": "computeGraphStats",
+      "ranges": {
+        "fact_density":  { "min": 0.83,  "max": 0.84 },
+        "orphan_rate":   { "min": 0.16,  "max": 0.17 },
+        "centroid_sample_size": { "min": 1, "max": 36 }
+      },
+      "because": "fact_density=5/6≈0.8333; orphan_rate=1/6≈0.1667; centroid sample bounded by 6×6 cross-join minus self-joins (max 30, well below the 10000 cap)."
+    },
+    {
+      "type": "graph_stats_columns_non_null",
+      "after": "computeGraphStats",
+      "columns": [
+        "centroid_sim_mean",
+        "centroid_sim_median",
+        "centroid_sim_p10",
+        "centroid_sim_p90"
+      ],
+      "because": "Every entity has a centroid → centroid_sim_* must be populated, not NULL."
+    },
+    {
+      "type": "row_count",
+      "table": "entities",
+      "expected": 6,
+      "because": "Six canonical entities seeded."
+    },
+    {
+      "type": "row_count",
+      "table": "entity_meta",
+      "expected": 6,
+      "because": "Every entity has a centroid."
+    },
+    {
+      "type": "row_count",
+      "table": "facts",
+      "expected": 6,
+      "because": "5 active + 1 expired = 6 total fact rows."
+    },
+    {
+      "type": "row_count",
+      "table": "facts",
+      "filter": { "expired_at_is_null": true },
+      "expected": 5,
+      "because": "Five active facts contribute to total_active_facts and predicate_diversity."
+    },
+    {
+      "type": "row_count",
+      "table": "merge_candidates",
+      "expected": 3,
+      "because": "2 staging + 1 resolved seeded."
+    },
+    {
+      "type": "row_count",
+      "table": "merge_candidates",
+      "filter": { "status": "staging" },
+      "expected": 2,
+      "because": "Only staging candidates contribute to merge_candidates_pending."
+    },
+    {
+      "type": "predicate_set",
+      "table": "facts",
+      "filter": { "expired_at_is_null": true },
+      "expected_set": ["works_at", "located_in", "leads", "collaborates_with"],
+      "because": "Four distinct active predicates → predicate_diversity=4."
+    }
+  ],
+  "benchmark_targets": {
+    "compute_p95_ms": 200,
+    "compute_hard_cap_ms": 1000
+  },
+  "adversarial_variants": [],
+  "graduation_notes": "L1 production-shape baseline. Promote to L2 when scaled to ~100 entities with a memory-attachment dimension exercised (total_memories > 0)."
+}

@@ -1,0 +1,58 @@
+{
+  "scenario": "expired-only",
+  "phase": "phase1-graph-stats",
+  "data_set_level": 1,
+  "fixture_version": "v1.0",
+  "fixture": "phase1-graph-stats/fixtures/expired-only.sql",
+  "description": "Expired fact excluded from active/diversity counts. Mirrors doc 22 §6 edge case 'Expired facts only'.",
+  "assertions": [
+    {
+      "type": "graph_stats_columns",
+      "after": "computeGraphStats",
+      "expected": {
+        "total_entities": 2,
+        "total_facts": 1,
+        "total_active_facts": 0,
+        "total_memories": 0,
+        "fact_density": 0,
+        "orphan_rate": 1.0,
+        "predicate_diversity": 0,
+        "merge_candidates_pending": 0,
+        "embedding_cluster_count": null,
+        "mean_intra_cluster_distance": null,
+        "mean_inter_cluster_distance": null,
+        "cluster_columns_version": null
+      },
+      "because": "Doc 22 §4.2 case 4: expired fact present but excluded from active/predicate counts."
+    },
+    {
+      "type": "row_count",
+      "table": "entities",
+      "expected": 2,
+      "because": "Two entities seeded."
+    },
+    {
+      "type": "row_count",
+      "table": "facts",
+      "filter": { "expired_at_is_null": true },
+      "expected": 0,
+      "because": "All seeded facts are expired."
+    },
+    {
+      "type": "column_values",
+      "table": "facts",
+      "filter": { "id": "50000000-1000-0000-0003-000000000001" },
+      "assertions": [
+        { "column": "predicate", "expected": "was_active" },
+        { "column": "expired_at_is_null", "expected": false }
+      ],
+      "because": "Expired-at must be set so the active-fact filter excludes it."
+    }
+  ],
+  "benchmark_targets": {
+    "compute_p95_ms": 50,
+    "compute_hard_cap_ms": 200
+  },
+  "adversarial_variants": [],
+  "graduation_notes": "L1. Promote to L2 when partially-expired sets (mixed active + expired predicates) need explicit coverage beyond canonical-multi-source."
+}

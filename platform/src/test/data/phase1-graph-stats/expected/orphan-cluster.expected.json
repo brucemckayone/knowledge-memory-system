@@ -1,0 +1,58 @@
+{
+  "scenario": "orphan-cluster",
+  "phase": "phase1-graph-stats",
+  "data_set_level": 1,
+  "fixture_version": "v1.0",
+  "fixture": "phase1-graph-stats/fixtures/orphan-cluster.sql",
+  "description": "Four entities with no centroids (no entity_meta rows) and no facts. Exercises the doc 22 §6 'no entity has centroid' + universal-orphan edge cases simultaneously.",
+  "assertions": [
+    {
+      "type": "graph_stats_columns",
+      "after": "computeGraphStats",
+      "expected": {
+        "total_entities": 4,
+        "total_facts": 0,
+        "total_active_facts": 0,
+        "total_memories": 0,
+        "fact_density": 0,
+        "orphan_rate": 1.0,
+        "predicate_diversity": 0,
+        "merge_candidates_pending": 0,
+        "centroid_sample_size": 0,
+        "centroid_sim_mean": null,
+        "centroid_sim_median": null,
+        "centroid_sim_p10": null,
+        "centroid_sim_p90": null,
+        "embedding_cluster_count": null,
+        "mean_intra_cluster_distance": null,
+        "mean_inter_cluster_distance": null,
+        "cluster_columns_version": null
+      },
+      "because": "Doc 22 §4.2 case 6 + §6 'no entity has centroid' edge case."
+    },
+    {
+      "type": "row_count",
+      "table": "entities",
+      "expected": 4,
+      "because": "Four orphan entities seeded."
+    },
+    {
+      "type": "row_count",
+      "table": "entity_meta",
+      "expected": 0,
+      "because": "No centroids — exercises the NULL-centroid path."
+    },
+    {
+      "type": "row_count",
+      "table": "facts",
+      "expected": 0,
+      "because": "No facts — orphan_rate=1.0."
+    }
+  ],
+  "benchmark_targets": {
+    "compute_p95_ms": 50,
+    "compute_hard_cap_ms": 200
+  },
+  "adversarial_variants": [],
+  "graduation_notes": "L1. Useful as a regression sentinel for the centroid-sampling NULL-safe path."
+}
