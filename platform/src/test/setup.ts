@@ -452,6 +452,13 @@ export async function deleteFromTables(opts: GlobalCleanupOptions): Promise<void
     // Phase 1 audit tables — must go before facts / causal_edges because of FK
     'causal_edge_history',
     'fact_history',
+    // reasoning_reports lives in canonical order as of bead nmemo-2yv.78 — its
+    // FK referrers (fact_history.reasoning_report_id,
+    // causal_edge_history.reasoning_report_id,
+    // contradictions.resolution_report_id) are now ON DELETE SET NULL, so
+    // wiping reasoning_reports either before or after the referrers is FK-safe.
+    // Placed after the audit tables so semantically-dependent rows clear first.
+    'reasoning_reports',
     'memory_chunks',
     'memory_entities',
     'entity_aliases',

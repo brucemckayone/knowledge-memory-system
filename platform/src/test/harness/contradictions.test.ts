@@ -55,6 +55,7 @@ async function cleanSlate(): Promise<void> {
       'causal_edge_history',
       'fact_history',
       'edge_source_refs',
+      'reasoning_reports',
       'causal_edges',
       'causal_events',
       'memory_entities',
@@ -65,9 +66,6 @@ async function cleanSlate(): Promise<void> {
     ],
     acknowledgeGlobal: true,
   });
-  // reasoning_reports is not in deleteFromTables's canonical order; clear it
-  // here because Phase 5 resolutions can link to it via resolution_report_id.
-  await testDb.unsafe('DELETE FROM public.reasoning_reports');
 }
 
 // ============================================
