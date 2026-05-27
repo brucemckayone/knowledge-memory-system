@@ -56,7 +56,7 @@ vi.mock('../../services/ml-client.js', () => ({
   ml: { embed: vi.fn(() => Promise.resolve({ vector: [] })) },
 }));
 
-import { getEntityProfile, formatEntityProfile, searchEntities, getEntityMemories, type EntityProfile } from '../../services/entity-profile.js';
+import { getEntityProfile, formatEntityProfile, searchEntities, getEntityMemories, categorize, type EntityProfile } from '../../services/entity-profile.js';
 import { getEntityById, findEntitiesByName } from '../../services/entities.js';
 import { getEntityFacts } from '../../services/facts.js';
 import { findConnectedEntities } from '../../services/graph.js';
@@ -327,5 +327,58 @@ describe('Entity Profile Service', () => {
       };
       expect(formatEntityProfile(companyProfile)).toMatch(/^🏢/);
     });
+  });
+
+  // bead nmemo-2yv.57 — categorize must cover the observed-predicate corpus.
+  // The grep that drives this is documented in the bead description:
+  //   git grep -nE "predicate: '[a-z_]+'" -- 'platform/src/' \
+  //     | awk -F"predicate: '" '{print $2}' | awk -F"'" '{print $1}' | sort -u
+  // If that command surfaces a predicate that isn't in PREDICATE_CATEGORIES,
+  // the "every observed predicate categorises to non-Other" test below will
+  // surface it.
+  describe('categorize (bead nmemo-2yv.57)', () => {
+    it('returns Identity for is_a', () => {
+      expect(categorize('is_a')).toBe('Identity');
+    });
+
+    it('returns Relationships for works_at', () => {
+      expect(categorize('works_at')).toBe('Relationships');
+    });
+
+    it('returns Attributes for has_role', () => {
+      expect(categorize('has_role')).toBe('Attributes');
+    });
+
+    it('returns Activities for works_on', () => {
+      expect(categorize('works_on')).toBe('Activities');
+    });
+
+    it('returns Other for an unknown predicate', () => {
+      expect(categorize('unknown_relationship_xyz')).toBe('Other');
+    });
+
+    // Acceptance bullet: every predicate observed in the source/test corpus
+    // (as of bead .57) categorises to something other than 'Other'.
+    //
+    // To extend this list when the LLM coins a new predicate, append it and
+    // ensure PREDICATE_CATEGORIES has a home for it. The list omits known
+    // non-predicate matches (single-letter test placeholders 'p', 'q',
+    // benchmark sentinels 'p_init', 'p_drift', and the explicit unknown
+    // 'unknown_relationship_xyz' which is asserted above to return 'Other').
+    const OBSERVED_PREDICATES = [
+      'amount', 'caused', 'employed_at', 'employs', 'experiences',
+      'finishes', 'has', 'has_label', 'has_role', 'has_status',
+      'knows', 'links', 'lives_in', 'located_in', 'manages',
+      'member_of', 'mentions', 'next', 'opens', 'reads',
+      'related', 'related_to', 'relocated_to', 'reports_to',
+      'scheduled_for', 'started_at', 'status', 'uses', 'visited',
+      'was_active', 'worked_at', 'works_at', 'works_on',
+    ];
+    it.each(OBSERVED_PREDICATES)(
+      'observed predicate %s does not fall to Other',
+      (predicate) => {
+        expect(categorize(predicate)).not.toBe('Other');
+      },
+    );
   });
 });

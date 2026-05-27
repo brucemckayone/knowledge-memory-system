@@ -112,15 +112,48 @@ export async function searchEntities(
   return findEntitiesByName(query, options);
 }
 
-// Predicate categories for grouping in the profile display
+/**
+ * Predicate categories for grouping in the profile display.
+ *
+ * The list is seeded from predicates observed in source/tests as of bead
+ * nmemo-2yv.57 (2026-05-27). The categorisation buckets — Identity,
+ * Relationships, Attributes, Activities, and the fallback "Other" — are
+ * deliberately coarse-grained so newly-coined predicates have a reasonable
+ * default home. Expect this list to need expansion as the LLM extracts
+ * new predicates; the test-harden skill is the canonical surface for
+ * discovering such drift.
+ *
+ * If the list grows past ~30 predicates, replace with a DB-driven
+ * predicate_categories(predicate, category) table seeded from this list,
+ * with a runtime cache loaded once at module init.
+ */
 const PREDICATE_CATEGORIES: Record<string, string[]> = {
-  'Identity': ['is_a', 'instance_of', 'type_of', 'alias_of'],
-  'Relationships': ['works_at', 'works_with', 'reports_to', 'manages', 'member_of', 'part_of', 'belongs_to'],
-  'Attributes': ['has_role', 'has_skill', 'has_title', 'located_in', 'lives_in', 'based_in'],
-  'Activities': ['works_on', 'contributes_to', 'created', 'owns', 'uses', 'interested_in'],
+  'Identity': ['is_a', 'instance_of', 'type_of', 'alias_of', 'has_label'],
+  'Relationships': [
+    'works_at', 'works_with', 'reports_to', 'manages', 'member_of',
+    'part_of', 'belongs_to', 'employed_at', 'employs', 'worked_at',
+    'links', 'knows', 'related', 'related_to',
+  ],
+  'Attributes': [
+    'has_role', 'has_skill', 'has_title', 'located_in', 'lives_in',
+    'based_in', 'has_status', 'status', 'started_at', 'scheduled_for',
+    'relocated_to', 'amount', 'was_active',
+  ],
+  'Activities': [
+    'works_on', 'contributes_to', 'created', 'owns', 'uses',
+    'interested_in', 'reads', 'experiences', 'caused', 'finishes',
+    'has', 'next', 'mentions', 'opens', 'visited',
+  ],
 };
 
-function categorize(predicate: string): string {
+/**
+ * Bucket a predicate string into a display category.
+ *
+ * Exported so tests (and future callers grouping facts elsewhere — e.g.
+ * the viz detail panel) can exercise the same categorisation logic
+ * without re-implementing it.
+ */
+export function categorize(predicate: string): string {
   for (const [category, predicates] of Object.entries(PREDICATE_CATEGORIES)) {
     if (predicates.includes(predicate)) return category;
   }
