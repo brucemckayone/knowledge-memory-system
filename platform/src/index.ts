@@ -1685,6 +1685,78 @@ app.get('/api/cross-cluster/runs', async (c) => {
   }
 });
 
+// ============================================
+// Reasoning reports — read-only views for the viz debug panel (bead .81).
+// The reasoning agent writes rows via save_reasoning_report (causal-agent.ts);
+// computeGraphStats (.49) writes patrol-mode rows from graph_stats sweeps;
+// .77 added invocation_id idempotency. The viz panel surfaces these for the
+// developer's debug surface (architectural principle from .73). No MCP tool
+// exposure — get_reasoning_history stays agent-internal.
+//
+// Route order matters: `/cadence` and `/by-entity/:id` are declared before
+// `/:id` so Hono's pattern matcher doesn't route them into the generic
+// single-report handler.
+// ============================================
+
+app.get('/api/reasoning-reports', async (c) => {
+  const limitRaw = c.req.query('limit');
+  const limit = limitRaw ? Math.max(1, Math.min(200, Number.parseInt(limitRaw, 10) || 20)) : 20;
+  const modeRaw = c.req.query('mode');
+  if (modeRaw && modeRaw !== 'patrol' && modeRaw !== 'query') {
+    return c.json({ error: `mode must be 'patrol' or 'query' (got '${modeRaw}')` }, 400);
+  }
+  const mode = modeRaw === 'patrol' || modeRaw === 'query' ? modeRaw : undefined;
+  try {
+    const { listReasoningReports } = await import('./services/reasoning-reports-query.js');
+    const reports = await listReasoningReports({ limit, mode });
+    return c.json({ count: reports.length, reports });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+app.get('/api/reasoning-reports/cadence', async (c) => {
+  try {
+    const { getReasoningReportCadence } = await import('./services/reasoning-reports-query.js');
+    const cadence = await getReasoningReportCadence();
+    return c.json(cadence);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+app.get('/api/reasoning-reports/by-entity/:entity_id', async (c) => {
+  const entityId = c.req.param('entity_id');
+  const limitRaw = c.req.query('limit');
+  const limit = limitRaw ? Math.max(1, Math.min(200, Number.parseInt(limitRaw, 10) || 20)) : 20;
+  // UUID shape guard — keeps the SQL cast from raising 22P02 on bad input.
+  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(entityId)) {
+    return c.json({ error: 'entity_id must be a UUID' }, 400);
+  }
+  try {
+    const { listReasoningReportsByEntity } = await import('./services/reasoning-reports-query.js');
+    const reports = await listReasoningReportsByEntity(entityId, { limit });
+    return c.json({ count: reports.length, reports });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+app.get('/api/reasoning-reports/:id', async (c) => {
+  const id = c.req.param('id');
+  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id)) {
+    return c.json({ error: 'id must be a UUID' }, 400);
+  }
+  try {
+    const { getReasoningReportById } = await import('./services/reasoning-reports-query.js');
+    const report = await getReasoningReportById(id);
+    if (!report) return c.json({ error: 'reasoning report not found' }, 404);
+    return c.json(report);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
 // MCP health probe — spawns the production graph MCP server (graph-mcp.ts),
 // asks for tools/list, returns the catalogue. The URL path stays `mcp-health`
 // because it's user-facing observability surface — the rename is internal.
