@@ -113,7 +113,7 @@ CREATE TABLE causal_edges (
   -- Causal properties
   strength            FLOAT NOT NULL DEFAULT 0.5,       -- 0-1 confidence
   temporal_span       INTERVAL,                          -- delay between cause and effect
-  extraction_method   VARCHAR(20) NOT NULL,              -- llm (Haiku agentic reasoning)
+  extraction_method   VARCHAR(20) NOT NULL,              -- 'llm' (Haiku agentic reasoning, decay-eligible) | 'user' (user-asserted, no decay)
   
   -- Reasoning & traceability (NON-NEGOTIABLE — every edge must be auditable)
   reasoning           TEXT NOT NULL,                      -- Detailed LLM justification for this causal assertion.
@@ -606,14 +606,14 @@ This cascading invalidation maintains Graph C's integrity when Graph S correctio
 
 ### 5.3 Confidence Decay
 
-Inferred causal edges that lack corroboration should decay over time:
+Agent-asserted causal edges (`extraction_method = 'llm'`) that lack corroboration should decay over time:
 
 ```sql
 -- Periodic decay job (nightly or weekly)
 UPDATE causal_edges
 SET strength = GREATEST(strength * 0.95, 0.1),  -- 5% decay per period, floor at 0.1
     decay_applied = true
-WHERE extraction_method = 'inferred'
+WHERE extraction_method = 'llm'
   AND corroboration_count <= 1
   AND last_corroborated < NOW() - INTERVAL '30 days'
   AND expired_at IS NULL
@@ -627,7 +627,7 @@ WHERE strength <= 0.1
   AND expired_at IS NULL;
 ```
 
-Explicitly stated causal links (`extraction_method = 'explicit'`) do not decay — they represent what the source actually said, regardless of subsequent corroboration.
+User-asserted causal links (`extraction_method = 'user'`) do not decay — they represent what a user explicitly asserted, regardless of subsequent corroboration.
 
 ---
 
