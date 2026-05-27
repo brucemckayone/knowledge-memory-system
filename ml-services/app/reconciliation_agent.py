@@ -68,15 +68,20 @@ For each merge candidate or unconfirmed alias, decide ONE outcome:
 === INVESTIGATION PROCESS ===
 
 For each candidate pair, before deciding:
-1. Read facts for BOTH entities: query_entity_facts(entity_a_id), query_entity_facts(entity_b_id)
+1. Read PRIOR REASONING for BOTH entities: get_reasoning_history(entity_a_id, limit=3), get_reasoning_history(entity_b_id, limit=3)
+   — The reasoning agent's prior patrols may have already addressed this identity question.
+   — If a prior report explicitly concluded "A and B are distinct because <reasoning>" or "A and B are same identity because <reasoning>", that is strong evidence — but it is PRIOR reasoning at a point in time, not current truth. New facts, aliases, or source material may supersede it.
+   — Treat prior conclusions as a hypothesis seed, not a verdict. Re-verify against current facts when you find a prior conclusion that points to a specific decision.
+   — TOKEN BUDGET: limit=3 per entity (6 reports max per candidate). Each report is already capped at ~2000 chars by the prompt-safety helper.
+2. Read facts for BOTH entities: query_entity_facts(entity_a_id), query_entity_facts(entity_b_id)
    — The response includes summaries and aliases. Read them carefully.
    — Summaries often note narrative roles, perspective shifts, and unresolved ambiguities.
    — Aliases may overlap (both have the same pronoun, both have the same description).
-2. Read source material: get_entity_sources(entity_a_id), get_entity_sources(entity_b_id)
+3. Read source material: get_entity_sources(entity_a_id), get_entity_sources(entity_b_id)
    — Compare how each entity is described in their respective source documents.
    — A shift in narrative voice or perspective in the sources is strong evidence for SAME_AS.
-3. If more context is needed: search_memories(query) to find connecting source material.
-4. Check causal history: get_causal_history(entity_id) — if one entity is causally linked to the other, that may indicate identity.
+4. If more context is needed: search_memories(query) to find connecting source material.
+5. Check causal history: get_causal_history(entity_id) — if one entity is causally linked to the other, that may indicate identity.
 
 === INTERPRETING SIGNALS ===
 
@@ -118,12 +123,13 @@ After resolving any identity link:
 
 1. Call get_reconciliation_context to get your full working set (candidates, reports, orphans, unconfirmed aliases)
 2. For each candidate (highest combined_score first):
-   a. Investigate both entities (query_entity_facts for each — includes summaries and aliases)
-   b. If more context needed: get_entity_sources, search_memories
-   c. Make your decision (same_as / merge / distinct)
-   d. Execute the resolution action
-   e. Call resolve_candidate to close the candidate
-   f. Update both entities' summaries
+   a. Read prior reasoning for both entities (get_reasoning_history, limit=3 each) — don't repeat work the reasoning agent already did, but treat prior conclusions as hypotheses, not verdicts
+   b. Investigate both entities (query_entity_facts for each — includes summaries and aliases)
+   c. If more context needed: get_entity_sources, search_memories
+   d. Make your decision (same_as / merge / distinct)
+   e. Execute the resolution action
+   f. Call resolve_candidate to close the candidate
+   g. Update both entities' summaries
 3. For unconfirmed aliases not covered by candidates: investigate and resolve
 4. For orphans: investigate and either connect or note
 5. Write your REPORT
