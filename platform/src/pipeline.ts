@@ -418,13 +418,20 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
       }
       timing.decay = Date.now() - tDecay;
 
-      // Phase 5: SQL contradiction detection sweep. Independent try/catch so
-      // a heuristic failure never masks decay results.
+      // Phase 5: SQL contradiction detection sweep. Per-heuristic isolation
+      // inside detectContradictions (nmemo-2yv.41) means the orchestrator no
+      // longer throws on a single-heuristic failure — surviving heuristics'
+      // counts land in byType, the failing heuristic's message lands in
+      // errors[type]. The defensive outer try/catch stays for unexpected
+      // non-heuristic faults (DB connection lost mid-orchestrator etc.).
       const tContra = Date.now();
       try {
         const contraResult = await detectContradictions();
+        const errorsPart = contraResult.errors
+          ? ` errors=${JSON.stringify(contraResult.errors)}`
+          : '';
         console.log(
-          `[contradictions] auto-detect complete detected=${contraResult.detected} byType=${JSON.stringify(contraResult.byType)}`,
+          `[contradictions] auto-detect complete detected=${contraResult.detected} byType=${JSON.stringify(contraResult.byType)}${errorsPart}`,
         );
       } catch (err) {
         console.warn('[contradictions] auto-detect failed:', err instanceof Error ? err.message : err);

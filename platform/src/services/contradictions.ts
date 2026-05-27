@@ -48,6 +48,14 @@ export type ContradictionSeverity = 'critical' | 'high' | 'medium' | 'low';
 export interface DetectionResult {
   detected: number;
   byType: Partial<Record<ContradictionType, number>>;
+  /**
+   * Per-heuristic error messages keyed by ContradictionType. Populated only
+   * for heuristics that threw during this sweep; absent on full success.
+   * Surfacing partial failure as data (rather than aborting the sweep) lets
+   * the orchestrator return successful counts while still emitting structured
+   * observability for the failing heuristic. See nmemo-2yv.41.
+   */
+  errors?: Partial<Record<ContradictionType, string>>;
 }
 
 export interface GetContradictionsOptions {
@@ -277,27 +285,60 @@ export async function detectTemporalImpossible(): Promise<number> {
 // ============================================
 
 /**
- * Run every detection heuristic in parallel. Each heuristic is INSERT-only
- * with `ON CONFLICT DO NOTHING` so they cannot conflict with each other.
+ * Run every detection heuristic in parallel under per-heuristic isolation.
+ * Each heuristic is INSERT-only with `ON CONFLICT DO NOTHING` so they cannot
+ * conflict with each other.
+ *
+ * Per-heuristic isolation (nmemo-2yv.41): each heuristic runs inside its own
+ * try/catch via `safeRun`. A failure in one heuristic (transient DB error,
+ * statement timeout, lock contention, future query bug) no longer aborts the
+ * other three — the surviving heuristics' counts land in `byType` and the
+ * failing heuristic's error message lands in `errors[type]`. The aggregate
+ * `detected` count is the sum of successful counts only.
  */
+async function safeRun(
+  type: ContradictionType,
+  fn: () => Promise<number>,
+): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  try {
+    return { ok: true, count: await fn() };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[contradictions] ${type} heuristic failed: ${message}`);
+    return { ok: false, error: message };
+  }
+}
+
 export async function detectContradictions(): Promise<DetectionResult> {
   const [opposing, expired, cyclic, temporal] = await Promise.all([
-    detectOpposingObjects(),
-    detectExpiredButCited(),
-    detectCyclicCausal(),
-    detectTemporalImpossible(),
+    safeRun('opposing_object',    detectOpposingObjects),
+    safeRun('expired_but_cited',  detectExpiredButCited),
+    safeRun('cyclic_causal',      detectCyclicCausal),
+    safeRun('temporal_impossible', detectTemporalImpossible),
   ]);
 
   const byType: Partial<Record<ContradictionType, number>> = {};
-  if (opposing > 0) byType.opposing_object = opposing;
-  if (expired > 0)  byType.expired_but_cited = expired;
-  if (cyclic > 0)   byType.cyclic_causal = cyclic;
-  if (temporal > 0) byType.temporal_impossible = temporal;
+  const errors: Partial<Record<ContradictionType, string>> = {};
+  let detected = 0;
 
-  return {
-    detected: opposing + expired + cyclic + temporal,
-    byType,
-  };
+  const outcomes: Array<{ type: ContradictionType; outcome: typeof opposing }> = [
+    { type: 'opposing_object',     outcome: opposing },
+    { type: 'expired_but_cited',   outcome: expired },
+    { type: 'cyclic_causal',       outcome: cyclic },
+    { type: 'temporal_impossible', outcome: temporal },
+  ];
+  for (const { type, outcome } of outcomes) {
+    if (outcome.ok) {
+      if (outcome.count > 0) byType[type] = outcome.count;
+      detected += outcome.count;
+    } else {
+      errors[type] = outcome.error;
+    }
+  }
+
+  const result: DetectionResult = { detected, byType };
+  if (Object.keys(errors).length > 0) result.errors = errors;
+  return result;
 }
 
 // ============================================

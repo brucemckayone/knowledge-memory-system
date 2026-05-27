@@ -603,15 +603,25 @@ app.post('/api/contradictions/detect', async (c) => {
 
   const { detectContradictions } = await import('./services/contradictions.js');
   try {
+    // Per-heuristic isolation inside detectContradictions (nmemo-2yv.41)
+    // means partial failure is surfaced via the result.errors field rather
+    // than a thrown exception. We return HTTP 200 with errors populated so
+    // the caller sees the surviving heuristics' counts; the outer try/catch
+    // remains for unexpected non-heuristic faults (DB connection lost
+    // mid-orchestrator, etc.) which still return 500.
     const result = await detectContradictions();
     const durationMs = Date.now() - tStart;
+    const errorsPart = result.errors
+      ? ` errors=${JSON.stringify(result.errors)}`
+      : '';
     console.log(
-      `[contradictions] detect complete detected=${result.detected} byType=${JSON.stringify(result.byType)} durationMs=${durationMs}`,
+      `[contradictions] detect complete detected=${result.detected} byType=${JSON.stringify(result.byType)}${errorsPart} durationMs=${durationMs}`,
     );
     return c.json({
       triggered: true,
       detected: result.detected,
       byType: result.byType,
+      ...(result.errors ? { errors: result.errors } : {}),
       durationMs,
     });
   } catch (err) {
