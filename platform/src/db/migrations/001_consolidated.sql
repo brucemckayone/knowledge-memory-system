@@ -415,7 +415,10 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Sync entity to AGE graph
+-- Sync entity to AGE graph.
+-- Bare-catch is intentional: AGE is a traversal index (canonical data lives in
+-- public.entities/facts), so we must not break ingest. Errors are surfaced as
+-- WARNINGs so AGE drift is observable in logs without losing data.
 CREATE OR REPLACE FUNCTION sync_entity_to_graph(
   p_entity_id UUID, p_entity_name VARCHAR, p_entity_type VARCHAR, p_entity_props JSONB
 ) RETURNS void AS $$
@@ -428,11 +431,15 @@ BEGIN
     $c$) as (v agtype)',
     p_entity_id::text, p_entity_name, p_entity_type
   );
-EXCEPTION WHEN OTHERS THEN NULL;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'AGE sync_entity_to_graph failed for entity %: % (SQLSTATE %)',
+    p_entity_id, SQLERRM, SQLSTATE;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create AGE edge between entities
+-- Create AGE edge between entities.
+-- Bare-catch is intentional (see sync_entity_to_graph comment); errors are
+-- surfaced as WARNINGs so caller and operator can see edge-sync drift.
 CREATE OR REPLACE FUNCTION create_entity_edge(
   p_from UUID, p_to UUID, p_rel VARCHAR, p_props JSONB DEFAULT '{}'
 ) RETURNS void AS $$
@@ -447,11 +454,15 @@ BEGIN
     $c$) as (v agtype)',
     p_from::text, p_to::text, rel_type
   );
-EXCEPTION WHEN OTHERS THEN NULL;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'AGE create_entity_edge failed (% -[%]-> %): % (SQLSTATE %)',
+    p_from, p_rel, p_to, SQLERRM, SQLSTATE;
 END;
 $$ LANGUAGE plpgsql;
 
--- Find paths between entities
+-- Find paths between entities.
+-- Bare-catch returns empty so callers degrade gracefully; the RAISE WARNING
+-- makes traversal failure distinguishable from a genuine empty result.
 CREATE OR REPLACE FUNCTION find_entity_paths(p_from UUID, p_to UUID, p_max_hops INT DEFAULT 3)
 RETURNS TABLE (path_info JSONB) AS $$
 BEGIN
@@ -464,11 +475,16 @@ BEGIN
     ) t',
     p_from::text, p_max_hops, p_to::text
   );
-EXCEPTION WHEN OTHERS THEN RETURN;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'AGE find_entity_paths failed (% -> %, %h): % (SQLSTATE %)',
+    p_from, p_to, p_max_hops, SQLERRM, SQLSTATE;
+  RETURN;
 END;
 $$ LANGUAGE plpgsql;
 
--- Get entity neighbors
+-- Get entity neighbors.
+-- Bare-catch returns empty so callers degrade gracefully; the RAISE WARNING
+-- makes traversal failure distinguishable from a genuine empty result.
 CREATE OR REPLACE FUNCTION get_entity_neighbors(p_entity_id UUID, p_max_depth INT DEFAULT 1)
 RETURNS TABLE (neighbor_id TEXT, neighbor_name TEXT, neighbor_type TEXT) AS $$
 BEGIN
@@ -480,7 +496,10 @@ BEGIN
      $c$) as (n agtype)',
     p_entity_id::text, p_max_depth
   );
-EXCEPTION WHEN OTHERS THEN RETURN;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'AGE get_entity_neighbors failed (% depth %): % (SQLSTATE %)',
+    p_entity_id, p_max_depth, SQLERRM, SQLSTATE;
+  RETURN;
 END;
 $$ LANGUAGE plpgsql;
 
