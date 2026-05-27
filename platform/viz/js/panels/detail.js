@@ -324,6 +324,20 @@ export function showEdgeDetail(d) {
   } else if (d._edgeType === 'causal') {
     html += `<h2>Causal Edge</h2>`;
     html += field('Strength', d.strength?.toFixed(3));
+    // Bead nmemo-e2i.9 — corroboration signal alongside strength. Hidden when
+    // the payload predates Phase 2 (count missing) to avoid noisy zeros.
+    if (d.corroborationCount != null) {
+      html += field('Corroborations', String(d.corroborationCount));
+    }
+    if (d.lastCorroborated) {
+      html += field('Last corroborated', d.lastCorroborated);
+    }
+    if (d.initialStrength != null) {
+      html += field('Initial strength', d.initialStrength.toFixed(3));
+    }
+    if (d.decayApplied) {
+      html += field('Decay applied', 'yes');
+    }
     if (d.reasoning) {
       html += `<div class="section-label">Reasoning</div>`;
       html += `<div class="source-block">${esc(d.reasoning)}</div>`;

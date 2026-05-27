@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { testDb, createTestEntity, createTestFact } from '../setup.js';
 import { GRAPH_TOOLS, handleToolCall } from '../../services/causal-agent.js';
+import { app } from '../../index.js';
 
 describe('B05: Causal agent — tool definitions', () => {
   // --- Schema validation ---
@@ -137,6 +138,44 @@ describe('B05: Causal agent — tool definitions', () => {
       expect(edge.initialStrength).toBeCloseTo(0.9, 5);
       expect(edge.decayApplied).toBe(true);
       expect(new Date(edge.lastCorroborated).toISOString()).toBe(knownLastCorroborated);
+    } finally {
+      await testDb.unsafe(`DELETE FROM causal_edges WHERE id = '${insertedEdgeId}'`).catch(() => {});
+    }
+  });
+
+  it('/api/viz/unified surfaces corroboration fields on causal edges (e2i.9)', async () => {
+    // Phase 2 (bead nmemo-e2i.9): the viz layer maps corroboration_count to
+    // edge stroke-width and shows count + last_corroborated in the tooltip.
+    // That mapping only works if the unified payload actually carries the
+    // fields — this test pins the payload contract.
+    const knownLastCorroborated = '2026-04-02T09:00:00.000Z';
+    const [edgeRow] = await testDb`
+      INSERT INTO causal_edges (
+        cause_event_id, effect_event_id, strength, extraction_method,
+        reasoning, source_references,
+        corroboration_count, last_corroborated, initial_strength, decay_applied
+      ) VALUES (
+        ${eventId}::uuid, ${eventId2}::uuid, 0.7, 'inference',
+        'e2i.9 viz unified field surfacing test', '[]'::jsonb,
+        5, ${knownLastCorroborated}::timestamptz, 0.85, false
+      )
+      RETURNING id
+    `;
+    const insertedEdgeId = edgeRow!.id as string;
+
+    try {
+      const res = await app.request('/api/viz/unified');
+      expect(res.status).toBe(200);
+      const body = await res.json() as { edges: Array<Record<string, unknown>> };
+
+      const edge = body.edges.find(e => e.id === insertedEdgeId);
+      expect(edge).toBeDefined();
+      expect(edge!._edgeType).toBe('causal');
+      expect(edge!.corroborationCount).toBe(5);
+      expect(edge!.initialStrength).toBeCloseTo(0.85, 5);
+      expect(edge!.decayApplied).toBe(false);
+      expect(new Date(edge!.lastCorroborated as string).toISOString())
+        .toBe(knownLastCorroborated);
     } finally {
       await testDb.unsafe(`DELETE FROM causal_edges WHERE id = '${insertedEdgeId}'`).catch(() => {});
     }

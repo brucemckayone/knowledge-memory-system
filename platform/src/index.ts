@@ -161,6 +161,12 @@ app.get('/api/viz/unified', async (c) => {
       reasoning: causalEdges.reasoning,
       sourceReferences: causalEdges.sourceReferences,
       createdAt: causalEdges.createdAt,
+      // Phase 2 corroboration (bead nmemo-e2i.9) — viz maps these to edge
+      // stroke-width + tooltip; same fields already surfaced via MCP in .5.
+      corroborationCount: causalEdges.corroborationCount,
+      lastCorroborated: causalEdges.lastCorroborated,
+      initialStrength: causalEdges.initialStrength,
+      decayApplied: causalEdges.decayApplied,
     }).from(causalEdges).where(isNull(causalEdges.expiredAt)).limit(500),
     db.select({
       entityId: entityMeta.entityId,
@@ -349,6 +355,13 @@ app.get('/api/viz/unified', async (c) => {
         reasoning: ce.reasoning,
         sourceReferences: ce.sourceReferences,
         createdAt: ce.createdAt,
+        // Phase 2 corroboration (bead nmemo-e2i.9). Width scales with
+        // corroborationCount in the canvas renderer; tooltip surfaces both
+        // count + last_corroborated.
+        corroborationCount: ce.corroborationCount,
+        lastCorroborated: ce.lastCorroborated,
+        initialStrength: ce.initialStrength,
+        decayApplied: ce.decayApplied,
       });
     }
   }

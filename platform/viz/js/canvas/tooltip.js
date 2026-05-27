@@ -10,7 +10,19 @@ export function showTooltip(e, d) {
     text = d.predicate || '';
     if (d.sourceText) text += '\n\n' + d.sourceText.slice(0, 200);
   } else if (d._edgeType === 'causal') {
-    text = `Strength: ${(d.strength || 0).toFixed(2)}\n${(d.reasoning || '').slice(0, 200)}`;
+    // Bead nmemo-e2i.9 — surface corroboration alongside strength so the
+    // hover signal matches the visual stroke-width (mapped from
+    // corroborationCount in render.js). Falls back to count=1 when the
+    // payload is missing the field (older endpoints / sample data).
+    const count = d.corroborationCount ?? 1;
+    let header = `Strength: ${(d.strength || 0).toFixed(2)}  •  Corroborations: ${count}`;
+    if (d.lastCorroborated) {
+      const last = new Date(d.lastCorroborated);
+      if (!Number.isNaN(last.getTime())) {
+        header += `\nLast corroborated: ${last.toISOString().replace('T', ' ').slice(0, 19)} UTC`;
+      }
+    }
+    text = `${header}\n\n${(d.reasoning || '').slice(0, 200)}`;
   } else if (d._edgeType === 'mergeCandidate') {
     text = `Score: ${(d.combinedScore || 0).toFixed(2)} [${d.status}]`;
   }

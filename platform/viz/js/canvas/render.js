@@ -82,10 +82,14 @@ export function renderAll() {
     stroke: '#21262d', width: 0.5, opacity: 0.15, dash: '2,4',
   });
 
-  // Causal edges
+  // Causal edges — width scales with corroborationCount (bead nmemo-e2i.9).
+  // Base width follows strength (legacy behaviour) and an extra log term
+  // thickens edges that have been corroborated multiple times. log2 keeps the
+  // visual readable even for the long tail (count=16 → +4px); a single-source
+  // edge (count=1) renders at exactly the previous stroke-width.
   renderEdges(groups.causalEdges, visibleEdges.filter(e => e._edgeType === 'causal'), {
     stroke: d => d3.interpolateReds(0.3 + (d.strength || 0.5) * 0.4),
-    width: d => 1 + (d.strength || 0.5) * 2,
+    width: d => 1 + (d.strength || 0.5) * 2 + Math.log2(Math.max(1, d.corroborationCount || 1)),
     opacity: 0.6, marker: 'url(#arrow-causal)',
   });
 
