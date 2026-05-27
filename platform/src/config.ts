@@ -87,6 +87,15 @@ const envSchema = z.object({
   // Set DISABLE_SCHEDULER=1 to skip startScheduler() registration.
   DISABLE_SCHEDULER: z.coerce.boolean().default(false),
 
+  // Orphan entity detection threshold (bead nmemo-yh2). An entity is "aged
+  // orphan" when entity_meta.fact_count = 0, mention_count > 0, and
+  // first_mentioned_at is older than this many minutes. The MVP surface is
+  // detection-only — resolution agent integration is deferred. Default 60min
+  // matches the spec's intent of "don't flag immediately — give later chunks
+  // a chance to add facts" while staying short enough for ops to observe in
+  // a typical dev session.
+  ORPHAN_AGE_THRESHOLD_MIN: z.coerce.number().int().nonnegative().default(60),
+
   // Agent-invocation fetch timeouts (bead nmemo-2yv.76). Each of the three
   // ml-services agent endpoints (/reasoning-agent, /graph-agent, /gardener-
   // agent) shells out to Claude Code subprocesses that drive 40-70 MCP tool

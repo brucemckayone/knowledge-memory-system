@@ -317,3 +317,108 @@ export async function getMergeCandidates(options: GetMergeCandidatesOptions = {}
     resolutionReasoning: (r.resolution_reasoning as string | null) ?? null,
   }));
 }
+
+// ============================================
+// Aged orphan detection (bead nmemo-yh2)
+// ============================================
+
+/** Default age threshold (minutes) when no explicit value is passed. */
+export const DEFAULT_ORPHAN_AGE_THRESHOLD_MIN = 60;
+
+/** Default page size for the orphan detection surface. */
+export const DEFAULT_ORPHAN_LIMIT = 200;
+
+export interface AgedOrphan {
+  entityId: string;
+  canonicalName: string;
+  entityType: string;
+  mentionCount: number;
+  sourceMemoryCount: number;
+  firstMentionedAt: Date;
+  lastMentionedAt: Date | null;
+  /** Age of the orphan in minutes (NOW() - first_mentioned_at). */
+  ageMinutes: number;
+}
+
+export interface DetectAgedOrphansOptions {
+  /** Minutes the entity must have existed (without gaining a fact) before flagging. */
+  thresholdMin?: number;
+  /** Max rows returned. Defaults to DEFAULT_ORPHAN_LIMIT (200). */
+  limit?: number;
+}
+
+/**
+ * Detect aged orphan entities — entities that have been mentioned but never
+ * gained any facts, and which have aged past the threshold.
+ *
+ * Detection query (matches the bead spec):
+ *   entity_meta
+ *   WHERE fact_count = 0
+ *     AND mention_count > 0
+ *     AND first_mentioned_at < NOW() - threshold
+ *
+ * The fact_count column is maintained by updateEntityMeta() above, so this
+ * function is read-only — no per-call recompute. Callers must ensure entity_meta
+ * is fresh (it is, on the pipeline hot path: ingest() invokes updateEntityMeta()
+ * after extraction).
+ *
+ * Returned rows are ordered by age DESC — oldest orphans first, so the
+ * detection log / UI surfaces the longest-standing problems before recent
+ * arrivals that may still gain facts on the next chunk.
+ *
+ * NOTE: This is the detection half of the bead. The resolution agent (run an
+ * agent against each orphan, find a relationship from source text, either
+ * promote to fact or terminate) is deferred — surface aged orphans here, build
+ * resolution behaviour in a follow-up.
+ */
+export async function detectAgedOrphans(
+  options: DetectAgedOrphansOptions = {},
+): Promise<AgedOrphan[]> {
+  const thresholdMin = options.thresholdMin ?? DEFAULT_ORPHAN_AGE_THRESHOLD_MIN;
+  const limit = options.limit ?? DEFAULT_ORPHAN_LIMIT;
+
+  // Inline the threshold in the WHERE clause via INTERVAL. Postgres folds the
+  // NOW() and the interval at planning time, so the partial index on
+  // (fact_count, first_mentioned_at) — if any — is still candidate-eligible.
+  const rows = await db.execute(sql`
+    SELECT
+      em.entity_id::text         AS entity_id,
+      em.mention_count           AS mention_count,
+      em.source_memory_count     AS source_memory_count,
+      em.first_mentioned_at      AS first_mentioned_at,
+      em.last_mentioned_at       AS last_mentioned_at,
+      EXTRACT(EPOCH FROM (NOW() - em.first_mentioned_at)) / 60 AS age_minutes,
+      e.canonical_name           AS canonical_name,
+      e.entity_type              AS entity_type
+    FROM public.entity_meta em
+    JOIN public.entities e ON e.id = em.entity_id
+    WHERE em.fact_count = 0
+      AND em.mention_count > 0
+      AND em.first_mentioned_at IS NOT NULL
+      AND em.first_mentioned_at < NOW() - (${thresholdMin}::int * INTERVAL '1 minute')
+    ORDER BY em.first_mentioned_at ASC
+    LIMIT ${limit}
+  `) as unknown as Array<{
+    entity_id: string;
+    mention_count: number;
+    source_memory_count: number;
+    first_mentioned_at: Date;
+    last_mentioned_at: Date | null;
+    age_minutes: number | string;
+    canonical_name: string;
+    entity_type: string;
+  }>;
+
+  return rows.map(r => ({
+    entityId: r.entity_id,
+    canonicalName: r.canonical_name,
+    entityType: r.entity_type,
+    mentionCount: r.mention_count,
+    sourceMemoryCount: r.source_memory_count,
+    firstMentionedAt: r.first_mentioned_at,
+    lastMentionedAt: r.last_mentioned_at,
+    // EXTRACT(EPOCH FROM …) is typed numeric, surfaces as string in some
+    // postgres drivers; coerce defensively.
+    ageMinutes: typeof r.age_minutes === 'string' ? parseFloat(r.age_minutes) : r.age_minutes,
+  }));
+}

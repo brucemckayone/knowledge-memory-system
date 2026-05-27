@@ -13,7 +13,7 @@ import { ingest, store, extract, enqueueIngest, getIngestQueueStatus } from './p
 import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports } from './db/index.js';
 import { isNull, sql, eq } from 'drizzle-orm';
-import { getMergeCandidates } from './services/graph-meta.js';
+import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
 import type { ReconciliationDriftInvoker } from './services/causal-agent.js';
@@ -423,6 +423,35 @@ app.get('/api/viz/merge-candidates', async (c) => {
   // large explicit cap (bead nmemo-2yv.45).
   const candidates = await getMergeCandidates({ includeResolved: true, limit: 10000 });
   return c.json(candidates);
+});
+
+app.get('/api/orphan-entities', async (c) => {
+  // Aged orphan detection surface (bead nmemo-yh2). Entities with mentions but
+  // zero facts, older than ORPHAN_AGE_THRESHOLD_MIN (config default 60min).
+  // Query params:
+  //   thresholdMin — override the config default (integer, minutes)
+  //   limit        — page size cap (default 200)
+  const url = new URL(c.req.url);
+  const thresholdRaw = url.searchParams.get('thresholdMin');
+  const limitRaw = url.searchParams.get('limit');
+  const thresholdMin = thresholdRaw != null && thresholdRaw !== ''
+    ? parseInt(thresholdRaw, 10)
+    : config.ORPHAN_AGE_THRESHOLD_MIN;
+  const limit = limitRaw != null && limitRaw !== '' ? parseInt(limitRaw, 10) : undefined;
+
+  if (Number.isNaN(thresholdMin) || thresholdMin < 0) {
+    return c.json({ error: 'thresholdMin must be a non-negative integer' }, 400);
+  }
+  if (limit !== undefined && (Number.isNaN(limit) || limit <= 0)) {
+    return c.json({ error: 'limit must be a positive integer' }, 400);
+  }
+
+  const orphans = await detectAgedOrphans({ thresholdMin, limit });
+  return c.json({
+    thresholdMin,
+    count: orphans.length,
+    orphans,
+  });
 });
 
 app.post('/api/reconcile', async (c) => {
