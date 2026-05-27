@@ -212,7 +212,6 @@ Causal agent runs **only when**:
 - `POST /ingest/queue` → Enqueue for serial processing (FIFO)
 - `GET /viz` → Graph visualization dashboard
 - `GET /api/viz/*` → Data endpoints for viz (entities, facts, events, edges, merge candidates)
-- `POST /api/viz/run-meta` → Compute entity meta + detect candidates (idempotent)
 - `POST /api/reset` → Clear PostgreSQL + Qdrant
 - `GET /api/viz/stats` → Entity/fact/event/edge counts
 
