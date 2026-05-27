@@ -440,8 +440,13 @@ $$ LANGUAGE plpgsql;
 -- Create AGE edge between entities.
 -- Bare-catch is intentional (see sync_entity_to_graph comment); errors are
 -- surfaced as WARNINGs so caller and operator can see edge-sync drift.
+-- AGE is a traversal index only — canonical edge data (fact_id, confidence,
+-- valid_at, etc.) lives in public.facts. Re-add edge properties at MERGE time
+-- (e.g. MERGE (a)-[r:REL {confidence: ...}]->(b)) if AGE-native filtered
+-- traversal is ever needed; post-MERGE SET r.prop is silently dropped by AGE
+-- in this version.
 CREATE OR REPLACE FUNCTION create_entity_edge(
-  p_from UUID, p_to UUID, p_rel VARCHAR, p_props JSONB DEFAULT '{}'
+  p_from UUID, p_to UUID, p_rel VARCHAR
 ) RETURNS void AS $$
 DECLARE rel_type VARCHAR;
 BEGIN
@@ -524,8 +529,7 @@ CREATE OR REPLACE FUNCTION trigger_sync_fact() RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
     IF NEW.object_entity_id IS NOT NULL AND NEW.expired_at IS NULL THEN
-      PERFORM create_entity_edge(NEW.subject_entity_id, NEW.object_entity_id, NEW.predicate,
-        jsonb_build_object('fact_id', NEW.id, 'confidence', NEW.confidence, 'valid_at', NEW.valid_at));
+      PERFORM create_entity_edge(NEW.subject_entity_id, NEW.object_entity_id, NEW.predicate);
     END IF;
   END IF;
   RETURN NEW;
