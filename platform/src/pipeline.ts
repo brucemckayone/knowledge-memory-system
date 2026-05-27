@@ -205,12 +205,35 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
     opts?.contentType ?? (memory.payload.content_type as ContentType | undefined) ?? 'prose';
 
   // 2. Invoke the unified graph agent
+  // Bead nmemo-upn: fetch the latest prior extraction report (any memory_id
+  // other than the current one) and thread it into the agent prompt as
+  // continuity context. Best-effort — a fetch failure logs but never blocks
+  // extraction. Excluding the current memory_id is defensive: the current
+  // chunk's own report is never persisted before this call (it's the
+  // fire-and-forget INSERT below), but a re-extract of the same memory_id
+  // could otherwise feed the agent its own prior report.
+  const tPrior = Date.now();
+  let previousReport: string | null = null;
+  try {
+    const priorRows = await db
+      .select({ reportText: extractionReports.reportText })
+      .from(extractionReports)
+      .where(sql`memory_id <> ${memoryId}::uuid`)
+      .orderBy(sql`created_at DESC`)
+      .limit(1);
+    previousReport = priorRows[0]?.reportText ?? null;
+  } catch (err) {
+    console.warn('[pipeline] failed to fetch prior extraction report (continuing without):', err instanceof Error ? err.message : err);
+  }
+  timing.priorReportFetch = Date.now() - tPrior;
+
   const t0 = Date.now();
   const agentResult = await invokeGraphAgent({
     sourceText: content,
     memoryId,
     source: memory.payload.source as string | undefined,
     contentType,
+    previousReport,
   });
   timing.graphAgent = Date.now() - t0;
   if (agentResult.result) {

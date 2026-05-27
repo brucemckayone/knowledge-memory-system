@@ -2793,6 +2793,17 @@ export interface ExtractionAgentParams {
   memoryId: string;
   source?: string;
   contentType?: ContentType;
+  /**
+   * Previous extraction session's PHASE 6 report text. Threaded into the next
+   * agent's prompt as continuity context — gives the agent the prior session's
+   * difficulties, unresolved references, and unconfirmed aliases without
+   * relying on graph state alone. Bead nmemo-upn.
+   *
+   * Optional — when omitted (first chunk, prior report missing), the prompt
+   * builder skips the prior-report block entirely. Sanitisation happens at the
+   * Python read-into-prompt boundary via `delimit_for_prompt(kind="report")`.
+   */
+  previousReport?: string | null;
 }
 
 export interface ExtractionAgentResult {
@@ -3064,6 +3075,10 @@ export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<G
       mcp_config_path: mcpConfigPath,
       source_name: params.source,
       content_type: params.contentType ?? 'prose',
+      // Bead nmemo-upn: thread the previous session's PHASE 6 report through
+      // as continuity context. Null / undefined is sent as null so the Python
+      // endpoint can branch on absence without a sentinel string.
+      previous_report: params.previousReport ?? null,
     },
     timeoutMs: config.GRAPH_AGENT_TIMEOUT_MS,
   });
