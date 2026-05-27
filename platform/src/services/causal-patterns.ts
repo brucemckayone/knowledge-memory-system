@@ -207,10 +207,51 @@ export async function collectChains(opts: DetectOptions = {}): Promise<Chain[]> 
  * so chains using uncatalogued predicates still cluster deterministically
  * (rather than collapsing every NULL category into the same bucket — the spec
  * fallback per Q2).
+ *
+ * Implemented in terms of `normaliseChainsBatch` so a single-chain call still
+ * costs only two SQL round-trips (the batch helper handles the bulk-detect
+ * path used by `detectCausalPatterns`).
  */
 export async function normaliseChain(chain: Chain): Promise<NormalisedChain> {
   if (chain.edgeIds.length === 0) {
     return { ...chain, template: [], templateHash: canonicalHash([]) };
+  }
+  const [normalised] = await normaliseChainsBatch([chain]);
+  return normalised!;
+}
+
+interface EdgeMeta {
+  causeEventId: string;
+  effectEventId: string;
+}
+
+interface EventMeta {
+  entityType: string | null;
+  predicate: string | null;
+  predicateCategory: string | null;
+}
+
+/**
+ * Batch variant of `normaliseChain` — fetches the edge and event metadata for
+ * the union of all chains' edge IDs in two SQL round-trips, then assembles
+ * each chain's template in JS. For N chains with M edges total, this replaces
+ * 2N round-trips (the per-chain implementation) with exactly 2.
+ *
+ * This is the hot path inside `detectCausalPatterns` at scale — see nmemo-oex
+ * (G8 benchmark @ 1000 chains went from ~5-6s to <2s with this batching).
+ */
+async function normaliseChainsBatch(chains: Chain[]): Promise<NormalisedChain[]> {
+  if (chains.length === 0) return [];
+
+  // Collect the union of edge IDs across all chains. Skip empty chains so they
+  // contribute an empty template downstream without a wasted query slot.
+  const allEdgeIds = new Set<string>();
+  for (const chain of chains) {
+    for (const id of chain.edgeIds) allEdgeIds.add(id);
+  }
+
+  if (allEdgeIds.size === 0) {
+    return chains.map((c) => ({ ...c, template: [], templateHash: canonicalHash([]) }));
   }
 
   type EdgeRow = {
@@ -219,26 +260,32 @@ export async function normaliseChain(chain: Chain): Promise<NormalisedChain> {
     effectEventId: string;
   };
 
-  const edgeIdsLiteral = `{${chain.edgeIds.join(',')}}`;
-
+  const edgeIdsLiteral = `{${Array.from(allEdgeIds).join(',')}}`;
   const edgeRows = await rawQuery<EdgeRow>(sql`
     SELECT id, cause_event_id, effect_event_id
     FROM public.causal_edges
     WHERE id = ANY(${edgeIdsLiteral}::uuid[])
   `);
+  const edgeById = new Map<string, EdgeMeta>(
+    edgeRows.map((e) => [e.id, { causeEventId: e.causeEventId, effectEventId: e.effectEventId }]),
+  );
 
-  const edgeById = new Map(edgeRows.map((e) => [e.id, e]));
-
-  // Walk the chain in order to recover the canonical event sequence
-  // [cause_of_edge_0, effect_of_edge_0, effect_of_edge_1, ...]
-  const eventIds: string[] = [];
-  for (let i = 0; i < chain.edgeIds.length; i++) {
-    const edge = edgeById.get(chain.edgeIds[i]!);
-    if (!edge) {
-      throw new Error(`normaliseChain: edge ${chain.edgeIds[i]} missing from causal_edges (was it expired?)`);
+  // Walk each chain in order to recover its canonical event sequence, then
+  // accumulate the union of event IDs for the second batched lookup.
+  const eventIdSequencesPerChain: string[][] = [];
+  const allEventIds = new Set<string>();
+  for (const chain of chains) {
+    const eventIds: string[] = [];
+    for (let i = 0; i < chain.edgeIds.length; i++) {
+      const edge = edgeById.get(chain.edgeIds[i]!);
+      if (!edge) {
+        throw new Error(`normaliseChainsBatch: edge ${chain.edgeIds[i]} missing from causal_edges (was it expired?)`);
+      }
+      if (i === 0) eventIds.push(edge.causeEventId);
+      eventIds.push(edge.effectEventId);
     }
-    if (i === 0) eventIds.push(edge.causeEventId);
-    eventIds.push(edge.effectEventId);
+    eventIdSequencesPerChain.push(eventIds);
+    for (const eid of eventIds) allEventIds.add(eid);
   }
 
   type EventRow = {
@@ -248,7 +295,7 @@ export async function normaliseChain(chain: Chain): Promise<NormalisedChain> {
     predicateCategory: string | null;
   };
 
-  const eventIdsLiteral = `{${eventIds.join(',')}}`;
+  const eventIdsLiteral = `{${Array.from(allEventIds).join(',')}}`;
   const eventRows = await rawQuery<EventRow>(sql`
     SELECT
       ce.id,
@@ -261,18 +308,29 @@ export async function normaliseChain(chain: Chain): Promise<NormalisedChain> {
     WHERE ce.id = ANY(${eventIdsLiteral}::uuid[])
   `);
 
-  const eventById = new Map(eventRows.map((e) => [e.id, e]));
+  const eventById = new Map<string, EventMeta>(
+    eventRows.map((e) => [
+      e.id,
+      {
+        entityType: e.entityType,
+        predicate: e.predicate,
+        predicateCategory: e.predicateCategory,
+      },
+    ]),
+  );
 
-  const template: TemplateNode[] = eventIds.map((eid) => {
-    const ev = eventById.get(eid);
-    return {
-      entity_type: ev?.entityType ?? null,
-      // Q2 fallback: literal predicate string when fact_predicates.category is NULL
-      predicate_category: ev?.predicateCategory ?? ev?.predicate ?? '',
-    };
+  return chains.map((chain, idx) => {
+    const eventIds = eventIdSequencesPerChain[idx]!;
+    const template: TemplateNode[] = eventIds.map((eid) => {
+      const ev = eventById.get(eid);
+      return {
+        entity_type: ev?.entityType ?? null,
+        // Q2 fallback: literal predicate string when fact_predicates.category is NULL
+        predicate_category: ev?.predicateCategory ?? ev?.predicate ?? '',
+      };
+    });
+    return { ...chain, template, templateHash: canonicalHash(template) };
   });
-
-  return { ...chain, template, templateHash: canonicalHash(template) };
 }
 
 /**
@@ -323,9 +381,15 @@ export async function detectCausalPatterns(
   const chains = await collectChains(opts);
 
   // 1+2: normalise + cluster
+  //
+  // Performance note (nmemo-oex): the per-chain SQL round-trip pattern that
+  // used to live here was O(N) round-trips and dominated detection cost
+  // (~5-6s @ 1000 chains on the klv.6 benchmark). `normaliseChainsBatch`
+  // collapses to two queries total regardless of N — cluster + upsert below
+  // is unaffected.
+  const normalisedChains = await normaliseChainsBatch(chains);
   const clusters = new Map<string, ClusterStats>();
-  for (const chain of chains) {
-    const normalised = await normaliseChain(chain);
+  for (const normalised of normalisedChains) {
     const existing = clusters.get(normalised.templateHash);
     if (existing) {
       existing.chains.push(normalised);
@@ -417,6 +481,10 @@ async function upsertPattern(cluster: ClusterStats): Promise<{ id: string; creat
  * chains gets the position of its FIRST appearance — this matches the
  * reasoning agent's expectation when traversing patterns from a starting
  * edge. Last-write-wins across detection passes.
+ *
+ * Performance note (nmemo-oex): updates all edges in a single round-trip via
+ * a VALUES join. The previous per-edge UPDATE loop dominated detect cost
+ * at scale (2000 edges → 2000 UPDATEs on the klv.6 benchmark).
  */
 async function linkEdgesToPattern(patternId: string, chains: NormalisedChain[]): Promise<void> {
   const positionByEdge = new Map<string, number>();
@@ -428,15 +496,25 @@ async function linkEdgesToPattern(patternId: string, chains: NormalisedChain[]):
     });
   }
 
+  if (positionByEdge.size === 0) return;
+
+  // Build a single UPDATE ... FROM (VALUES ...) keyed on edge_id. Building
+  // the VALUES list inline (rather than two parallel arrays) keeps the SQL
+  // planner-friendly and lets us cast both columns explicitly.
+  const valuesParts: string[] = [];
   for (const [edgeId, position] of positionByEdge) {
-    await rawQuery(sql`
-      UPDATE public.causal_edges
-      SET pattern_id       = ${patternId}::uuid,
-          pattern_position = ${position}::int
-      WHERE id = ${edgeId}::uuid
-        AND expired_at IS NULL
-    `);
+    valuesParts.push(`('${edgeId}'::uuid, ${position}::int)`);
   }
+  const valuesClause = valuesParts.join(',');
+
+  await rawQuery(sql.raw(`
+    UPDATE public.causal_edges AS e
+       SET pattern_id       = '${patternId}'::uuid,
+           pattern_position = v.pos
+      FROM (VALUES ${valuesClause}) AS v(edge_id, pos)
+     WHERE e.id = v.edge_id
+       AND e.expired_at IS NULL
+  `));
 }
 
 /**
