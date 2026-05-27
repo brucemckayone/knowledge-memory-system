@@ -361,6 +361,11 @@ export const entityMeta = pgTable('entity_meta', {
   // Note: centroid VECTOR(768) handled directly via SQL (pgvector), not in Drizzle
   spread: real('spread'),
   summary: text('summary'),
+  // nmemo-2yv.52 — summary-specific staleness signal. Separate from updated_at
+  // which is touched by every column writer (mention count, centroid, etc).
+  // Read by /api/viz/unified + the viz entity-detail panel; written by the
+  // causal agent's update_entity_summary tool alongside summary.
+  summaryUpdatedAt: timestamp('summary_updated_at', { withTimezone: true }),
   firstMentionedAt: timestamp('first_mentioned_at', { withTimezone: true }),
   lastMentionedAt: timestamp('last_mentioned_at', { withTimezone: true }),
   lastReasonedAt: timestamp('last_reasoned_at', { withTimezone: true }),

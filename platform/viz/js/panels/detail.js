@@ -4,6 +4,7 @@ import { impactSectionMarkup, triggerImpactFetch } from './impact.js';
 import { loadGhostsForEntity } from '../overlays/ghosts.js';
 import { loadHistoryInto } from './history.js';
 import { getDriftEventsForEntity, getDriftState } from '../api.js';
+import { renderEntitySummarySection } from './detail-helpers.js';
 
 // viz.7 — Drift section. Lazy-loaded when an entity is selected. Renders
 // observation_count + recent drift events.
@@ -160,9 +161,10 @@ export function showNodeDetail(d) {
     html += `<div class="meta-item"><b>${d.factCount || 0}</b> <span>facts</span></div>`;
     html += `<div class="meta-item"><b>${d.sourceMemoryCount || 0}</b> <span>sources</span></div>`;
     html += `</div>`;
-    if (d.summary) {
-      html += `<div class="source-block" style="margin-bottom:10px;color:#c9d1d9;max-height:160px">${esc(d.summary)}</div>`;
-    }
+    // nmemo-2yv.52 — agent-authored living summary (entity_meta.summary) with
+    // a per-summary freshness indicator. Empty-state hint when null.
+    // Pure renderer lives in detail-helpers.js for unit-testability.
+    html += renderEntitySummarySection(d.summary, d.summaryUpdatedAt, Date.now());
 
     html += field('Type', d.entityType);
     html += field('Confidence', d.confidence);

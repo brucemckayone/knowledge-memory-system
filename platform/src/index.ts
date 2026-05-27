@@ -169,6 +169,10 @@ app.get('/api/viz/unified', async (c) => {
       factCount: entityMeta.factCount,
       spread: entityMeta.spread,
       summary: entityMeta.summary,
+      // nmemo-2yv.52 — freshness signal for the viz detail panel's
+      // "Updated N hours/days ago" indicator. See doc 37 §8 for why this
+      // is separate from entity_meta.updated_at.
+      summaryUpdatedAt: entityMeta.summaryUpdatedAt,
     }).from(entityMeta),
     // Viz wants every candidate (resolved + unresolved) so the merge edges
     // remain visible after resolution. Large explicit limit replaces the
@@ -185,7 +189,7 @@ app.get('/api/viz/unified', async (c) => {
   ]);
 
   // Build meta lookup
-  const metaMap: Record<string, { mentionCount: number; sourceMemoryCount: number; factCount: number; spread: number | null; summary: string | null }> = {};
+  const metaMap: Record<string, { mentionCount: number; sourceMemoryCount: number; factCount: number; spread: number | null; summary: string | null; summaryUpdatedAt: Date | null }> = {};
   for (const m of metaRows) metaMap[m.entityId] = m;
 
   // Build source material map
@@ -219,6 +223,7 @@ app.get('/api/viz/unified', async (c) => {
       factCount: meta?.factCount ?? 0,
       spread: meta?.spread ?? null,
       summary: meta?.summary ?? null,
+      summaryUpdatedAt: meta?.summaryUpdatedAt ?? null,
       sources: sourcesMap[e.id] ?? [],
     });
   }

@@ -1694,12 +1694,16 @@ async function _handleToolCallInner(
       // newlines to 2, trim. capAndSanitize returns '' for null/undefined.
       const summary = capAndSanitize(rawSummary, { kind: 'summary' });
       const updatedAt = new Date();
+      // nmemo-2yv.52 — set summary_updated_at alongside updated_at so the viz
+      // panel's freshness indicator and any future staleness consumer see the
+      // summary-specific timestamp (see doc 37 §8). entity_meta.updated_at is
+      // multi-writer; summary_updated_at moves only when summary moves.
       await db
         .insert(entityMeta)
-        .values({ entityId, summary, updatedAt })
+        .values({ entityId, summary, summaryUpdatedAt: updatedAt, updatedAt })
         .onConflictDoUpdate({
           target: entityMeta.entityId,
-          set: { summary, updatedAt },
+          set: { summary, summaryUpdatedAt: updatedAt, updatedAt },
         });
       return JSON.stringify({ updated: true });
     }
