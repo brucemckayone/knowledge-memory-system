@@ -217,6 +217,94 @@ class TestRun:
             self.provider._run(["claude", "-p", "hi"])
         assert exc_info.value.status_code == 500
 
+    # ---- Bead nmemo-klv.10: enriched failure detail ---------------------
+    #
+    # The four tests below pin the structured-failure contract introduced
+    # in commit "nmemo-klv.10: capture Claude CLI stderr+stdout tails ...".
+    # Without these the next regression of the pre-fix behaviour (truncated
+    # stderr, str-wrapped detail, lost stdout, lost cmd) would re-collapse
+    # the diagnostic surface and reproduce the "Claude CLI failed (rc=1)"
+    # opacity that this bead was filed against.
+
+    @patch("app.core.llm.subprocess.run")
+    def test_nonzero_exit_detail_is_structured_dict(self, mock_run):
+        """``HTTPException.detail`` must be a dict with the diagnostic keys
+        the platform's ``agentFetch`` wrapper relies on. A string-shaped
+        detail would clip stdout/cmd and reintroduce the opacity."""
+        mock_run.return_value = _cli_result(returncode=2, stderr="auth failed")
+
+        with pytest.raises(HTTPException) as exc_info:
+            self.provider._run(["claude", "-p", "hi"])
+
+        detail = exc_info.value.detail
+        assert isinstance(detail, dict), f"expected dict detail, got {type(detail).__name__}"
+        assert detail["rc"] == 2
+        assert "auth failed" in detail["stderr_tail"]
+        assert detail["cmd_summary"].startswith("claude -p hi")
+        assert "stdout_tail" in detail
+        assert "error" in detail
+        # ``error`` is the single-line summary callers fall back to when
+        # they only render strings. It must include the rc and the stderr
+        # tail so an opaque consumer still gets actionable text.
+        assert "rc=2" in detail["error"]
+        assert "auth failed" in detail["error"]
+
+    @patch("app.core.llm.subprocess.run")
+    def test_nonzero_exit_preserves_long_stderr(self, mock_run):
+        """A 5 KB stderr (typical Claude CLI traceback or MCP bootstrap
+        log) must be tail-truncated at >= 1024 chars, not the legacy 200.
+        Pre-fix the cause was always clipped off the end of long
+        Python tracebacks; we assert the *tail* survives because that is
+        where the actual exception line lives."""
+        long_stderr = "noise line\n" * 400 + "FINAL_CAUSE: model unavailable"
+        assert len(long_stderr) > 4000  # sanity: sample exceeds old budget
+        mock_run.return_value = _cli_result(returncode=1, stderr=long_stderr)
+
+        with pytest.raises(HTTPException) as exc_info:
+            self.provider._run(["claude", "-p", "hi"])
+
+        tail = exc_info.value.detail["stderr_tail"]
+        assert len(tail) >= 1024
+        assert "FINAL_CAUSE: model unavailable" in tail, (
+            "tail must include the most recent stderr line, not the head"
+        )
+
+    @patch("app.core.llm.subprocess.run")
+    def test_nonzero_exit_captures_stdout_tail(self, mock_run):
+        """Claude CLI sometimes emits a partial JSON envelope on stdout
+        before exiting non-zero (e.g. mid-stream tool errors). That tail
+        must reach the caller so the platform can disambiguate
+        ``subprocess crashed`` from ``CLI rejected the request``."""
+        mock_run.return_value = _cli_result(
+            returncode=1,
+            stdout='{"partial": true, "error": "tool_use_failed"}',
+            stderr="see stdout for tool error envelope",
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            self.provider._run(["claude", "-p", "hi"])
+
+        assert "tool_use_failed" in exc_info.value.detail["stdout_tail"]
+
+    @patch("app.core.llm.subprocess.run")
+    def test_nonzero_exit_empty_stderr_is_handled(self, mock_run):
+        """Some CLI failure modes (immediate SIGSEGV, exec failure on
+        Windows) leave stderr blank. The detail must still be structured
+        and the ``error`` summary must annotate the empty-stderr case
+        rather than emit a misleading bare ``rc=N: `` string that looks
+        like a successful empty response."""
+        mock_run.return_value = _cli_result(returncode=139, stderr="")
+
+        with pytest.raises(HTTPException) as exc_info:
+            self.provider._run(["claude", "-p", "hi"])
+
+        detail = exc_info.value.detail
+        assert detail["rc"] == 139
+        assert detail["stderr_tail"] == ""
+        # Summary must still be actionable — surface the empty-stderr
+        # condition explicitly rather than emitting "rc=139: ".
+        assert "empty stderr" in detail["error"]
+
     @patch("app.core.llm.subprocess.run")
     def test_non_json_output_wrapped(self, mock_run):
         mock_run.return_value = _cli_result(stdout="plain text answer")
