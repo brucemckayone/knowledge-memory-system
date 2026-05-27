@@ -1,0 +1,57 @@
+{
+  "scenario": "emergence-corpus",
+  "description": "Mixed emergence corpus: 3 identical chains (staging-promotion path), 2 noisy chains (normalisation isolation), 1 partial chain against a pre-seeded canonical pattern (ghost source). Curated for the test-harden skill's L3 graduation cycle on Phase 6.",
+  "data_set_level": 3,
+  "fixture": "phase6-patterns/fixtures/emergence-corpus.sql",
+  "depends_on": ["nmemo-d9v"],
+
+  "driver": "service_call",
+  "service_call": "detectCausalPatterns + promotePatterns + findCausalGhosts",
+  "args": { "instanceThreshold": 3 },
+
+  "assertions": [
+    {
+      "type": "row_count",
+      "table": "causal_patterns",
+      "filter": { "status": "staging" },
+      "expected_min": 1,
+      "because": "Group A's 3 identical chains meet the staging threshold of 3 — emerges as at least one new staging template"
+    },
+    {
+      "type": "row_count",
+      "table": "causal_patterns",
+      "filter": { "status": "canonical" },
+      "expected_min": 1,
+      "because": "Group C's pre-seeded canonical pattern survives detection (lifecycle is monotonic without demotion triggers in this fixture)"
+    },
+    {
+      "type": "normalisation_isolation",
+      "rule": "groups_a_and_b_do_not_share_pattern_id",
+      "edges_group_a": [
+        "30000000-0000-0000-eeea-000000000a01",
+        "30000000-0000-0000-eeea-000000000a11",
+        "30000000-0000-0000-eeea-000000000a21"
+      ],
+      "edges_group_b": [
+        "30000000-0000-0000-eeeb-000000000b01",
+        "30000000-0000-0000-eeeb-000000000b11"
+      ],
+      "because": "Differing entity_type at pos 0 (standard_rule vs api_function) must produce distinct normalised templates — Group B's edges either get no pattern_id (below threshold of 3) or a different pattern_id from Group A's cluster"
+    },
+    {
+      "type": "ghost_returned",
+      "service_call": "findCausalGhosts",
+      "args": { "entityId": "00000000-0000-0000-eeec-000000000c00" },
+      "expected_min": 1,
+      "filter": { "pattern_id": "40000000-0000-0000-eeec-canonical000" },
+      "because": "Entity at pos 0 of partial chain covers N-1 of the 3-position canonical pattern → at least one missing position surfaces as a ghost"
+    }
+  ],
+
+  "benchmark_targets": {
+    "detect_duration_ms": { "max": 2000, "because": "Spec 17:733 budget; this fixture has 5 chains so should be well under cap. Note: full <2s @ 1000 chains is tracked under nmemo-oex." },
+    "match_per_edge_ms":  { "max": 200,  "because": "Spec 17:744 budget (verified in G8 inline benchmark)." }
+  },
+
+  "graduation_notes": "When this corpus exercises clean — identical chains cluster, noisy chains stay isolated, ghosts surface — the test-harden skill can mutate fixture contents (predicate substitutions, entity_type swaps, edge-strength jitter) without rewriting the test plan. Quality bar for graduation: identical chains always cluster to one template; noisy chains never collide; ghost detection precision (correct missing positions surfaced) stays ≥80% across mutated variants."
+}
