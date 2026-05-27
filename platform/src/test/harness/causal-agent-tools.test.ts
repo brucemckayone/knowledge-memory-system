@@ -291,4 +291,81 @@ describe('B05: Causal agent — tool definitions', () => {
     expect(parsed.reportId).toBeDefined();
     await testDb`DELETE FROM reasoning_reports WHERE id = ${parsed.reportId}::uuid`;
   });
+
+  // Regression: nmemo-2yv.77 — save_reasoning_report must UPSERT on
+  // invocation_id so a second call within the same /api/reason pass updates
+  // the existing row instead of inserting a duplicate. Prior behaviour was a
+  // plain INSERT enforced only by prompt guidance.
+  it('save_reasoning_report dedupes on invocation_id across duplicate calls', async () => {
+    const invocationId = crypto.randomUUID();
+
+    const first = await handleToolCall('save_reasoning_report', {
+      mode: 'patrol',
+      report: 'first save — initial findings',
+      entity_ids: [entityId],
+      fact_ids: [],
+      causal_edge_ids: [],
+      actions_taken: { phase: 'first' },
+      invocation_id: invocationId,
+    });
+    const firstParsed = JSON.parse(first);
+    expect(firstParsed.reportId).toBeDefined();
+
+    const second = await handleToolCall('save_reasoning_report', {
+      mode: 'patrol',
+      report: 'second save — overwrites the first',
+      entity_ids: [entityId],
+      fact_ids: [],
+      causal_edge_ids: [],
+      actions_taken: { phase: 'second' },
+      invocation_id: invocationId,
+    });
+    const secondParsed = JSON.parse(second);
+    expect(secondParsed.reportId).toBe(firstParsed.reportId);
+
+    // Confirm exactly one row exists for this invocation_id.
+    const rows = await testDb`
+      SELECT id, report, actions_taken
+      FROM reasoning_reports
+      WHERE invocation_id = ${invocationId}::uuid
+    `;
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.id).toBe(firstParsed.reportId);
+    expect(rows[0]?.report).toBe('second save — overwrites the first');
+    expect((rows[0]?.actions_taken as { phase?: string })?.phase).toBe('second');
+
+    await testDb`DELETE FROM reasoning_reports WHERE invocation_id = ${invocationId}::uuid`;
+  });
+
+  // Regression: nmemo-2yv.77 — legacy callers without an invocation_id must
+  // continue to INSERT (one row per call). The UPSERT branch only fires when
+  // the field is present, so back-compat with older python clients and
+  // ad-hoc fixtures is preserved.
+  it('save_reasoning_report without invocation_id still inserts a fresh row each call', async () => {
+    const first = await handleToolCall('save_reasoning_report', {
+      mode: 'patrol',
+      report: 'legacy save A',
+      entity_ids: [entityId],
+      fact_ids: [],
+      causal_edge_ids: [],
+      actions_taken: {},
+    });
+    const firstId = JSON.parse(first).reportId as string;
+
+    const second = await handleToolCall('save_reasoning_report', {
+      mode: 'patrol',
+      report: 'legacy save B',
+      entity_ids: [entityId],
+      fact_ids: [],
+      causal_edge_ids: [],
+      actions_taken: {},
+    });
+    const secondId = JSON.parse(second).reportId as string;
+
+    expect(firstId).toBeDefined();
+    expect(secondId).toBeDefined();
+    expect(firstId).not.toBe(secondId);
+
+    await testDb`DELETE FROM reasoning_reports WHERE id IN (${firstId}::uuid, ${secondId}::uuid)`;
+  });
 });

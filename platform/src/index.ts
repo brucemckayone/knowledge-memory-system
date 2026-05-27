@@ -5,6 +5,7 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve, sep } from 'node:path';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
@@ -904,10 +905,15 @@ app.post('/api/reason', async (c) => {
   // getMcpConfigPath('reasoning_agent') sets MNEMO_AGENT_ACTOR; every MCP
   // tool write inherits actor='reasoning_agent' via context.agent.
   logReasonRequest(c, 'patrol');
+  // Bead nmemo-2yv.77 — mint a single invocation_id per HTTP call. Threaded
+  // through invokeReasoningAgent → ml-services POST body → agent system
+  // prompt; the agent passes it back on save_reasoning_report so duplicate
+  // calls within the same pass UPSERT instead of inserting orphaned rows.
+  const invocationId = randomUUID();
   const { invokeReasoningAgent, AgentInvocationTimeoutError } = await import('./services/causal-agent.js');
   const start = Date.now();
   try {
-    const result = await invokeReasoningAgent({ mode: 'patrol' });
+    const result = await invokeReasoningAgent({ mode: 'patrol', invocationId });
     return c.json({ triggered: true, result: result.result, durationMs: Date.now() - start });
   } catch (err) {
     // Bead nmemo-2yv.76: distinguish client-side abort timeouts (504) from
@@ -928,10 +934,12 @@ app.post('/api/reason/query', async (c) => {
   const body = await c.req.json<{ question: string }>();
   if (!body.question) return c.json({ error: 'question is required' }, 400);
   logReasonRequest(c, 'query', body.question);
+  // Bead nmemo-2yv.77 — invocation_id idempotency key (see /api/reason).
+  const invocationId = randomUUID();
   const { invokeReasoningAgent, AgentInvocationTimeoutError } = await import('./services/causal-agent.js');
   const start = Date.now();
   try {
-    const result = await invokeReasoningAgent({ mode: 'query', question: body.question });
+    const result = await invokeReasoningAgent({ mode: 'query', question: body.question, invocationId });
     return c.json({ triggered: true, result: result.result, durationMs: Date.now() - start });
   } catch (err) {
     // Bead nmemo-2yv.76: 504 on timeout (see /api/reason for rationale).

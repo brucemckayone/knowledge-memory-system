@@ -776,7 +776,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
   {
     name: 'save_reasoning_report',
     description:
-      'Save a reasoning report ONCE at the very end of a reasoning pass. Call this exactly one time per /api/reason invocation — multiple calls create duplicate rows and break patrol cooldown. Aggregate findings across all phases first, then save with all entities/facts/edges deduplicated.',
+      'Save a reasoning report ONCE at the very end of a reasoning pass. Aggregate findings across all phases first, then save with all entities/facts/edges deduplicated. If invocation_id is supplied (the platform threads one through your system prompt for every /api/reason call), a second call within the same pass will UPSERT the existing row rather than insert a duplicate. Duplicate inserts (when no invocation_id is supplied) fragment provenance — fact_history and causal_edge_history rows written during the pass reference whichever save row was current at the time, leaving the second row orphaned — and pollute get_reasoning_history for subsequent patrols.',
     mutates: true,
     inputSchema: {
       type: 'object' as const,
@@ -812,6 +812,11 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         actions_taken: {
           type: 'object',
           description: 'Structured log of actions',
+        },
+        invocation_id: {
+          type: 'string',
+          description:
+            'UUID identifying this /api/reason invocation. The platform threads this into your system prompt at the start of every pass — pass it through verbatim. Server-side idempotency key: a second call with the same value overwrites the existing row rather than inserting a duplicate.',
         },
       },
       required: ['mode', 'report', 'entity_ids'],
@@ -2230,17 +2235,70 @@ async function _handleToolCallInner(
       const entityIds = (toolInput.entity_ids as string[]) ?? [];
       const factIds = (toolInput.fact_ids as string[]) ?? [];
       const causalEdgeIds = (toolInput.causal_edge_ids as string[]) ?? [];
+      // Bead nmemo-2yv.77 — server-side idempotency. When the platform
+      // supplies an invocation_id (one UUID per /api/reason call, threaded
+      // through invokeReasoningAgent → ml-services → the agent's system
+      // prompt), a second save call inside the same pass UPSERTs the
+      // existing row instead of inserting a duplicate. Legacy callers (older
+      // python clients, ad-hoc fixtures, direct handleToolCall consumers)
+      // omit the field and keep the unconditional INSERT path.
+      const invocationId = (toolInput.invocation_id as string | undefined) ?? null;
+      const mode = toolInput.mode as string;
+      const question = (toolInput.question as string | undefined) ?? null;
+      const report = toolInput.report as string;
+      const actionsTaken = (toolInput.actions_taken ?? {}) as object;
 
-      const result = await db
-        .insert(reasoningReports)
-        .values({
-          mode: toolInput.mode as string,
-          question: toolInput.question as string | undefined,
-          report: toolInput.report as string,
-          entityIds, factIds, causalEdgeIds,
-          actionsTaken: toolInput.actions_taken ?? {},
-        })
-        .returning({ id: reasoningReports.id });
+      let result: Array<{ id: string }>;
+      if (invocationId) {
+        // Raw SQL: drizzle 0.29 doesn't expose ON CONFLICT inference against
+        // a partial unique index (the `WHERE invocation_id IS NOT NULL`
+        // clause from migration 034 is needed in the conflict target to
+        // disambiguate the arbiter index). Postgres requires the predicate
+        // to match the index's WHERE clause exactly — see error 42P10.
+        // UUID[] arrays use the Postgres literal `{uuid,uuid,...}` form (the
+        // canonical pattern in this codebase — see causal-patterns.ts:639).
+        // Empty arrays serialise to `{}` which is legal Postgres array
+        // syntax, whereas `${[]}` flattens to nothing in drizzle's `sql`
+        // template and produces a syntax error.
+        const entityIdsLiteral = `{${entityIds.join(',')}}`;
+        const factIdsLiteral = `{${factIds.join(',')}}`;
+        const causalEdgeIdsLiteral = `{${causalEdgeIds.join(',')}}`;
+        result = (await db.execute(sql`
+          INSERT INTO public.reasoning_reports
+            (mode, question, report, entity_ids, fact_ids, causal_edge_ids, actions_taken, invocation_id)
+          VALUES (
+            ${mode},
+            ${question},
+            ${report},
+            ${entityIdsLiteral}::uuid[],
+            ${factIdsLiteral}::uuid[],
+            ${causalEdgeIdsLiteral}::uuid[],
+            ${actionsTaken}::jsonb,
+            ${invocationId}::uuid
+          )
+          ON CONFLICT (invocation_id) WHERE invocation_id IS NOT NULL
+          DO UPDATE SET
+            mode = EXCLUDED.mode,
+            question = EXCLUDED.question,
+            report = EXCLUDED.report,
+            entity_ids = EXCLUDED.entity_ids,
+            fact_ids = EXCLUDED.fact_ids,
+            causal_edge_ids = EXCLUDED.causal_edge_ids,
+            actions_taken = EXCLUDED.actions_taken
+          RETURNING id
+        `)) as unknown as Array<{ id: string }>;
+      } else {
+        result = await db
+          .insert(reasoningReports)
+          .values({
+            mode,
+            question: question ?? undefined,
+            report,
+            entityIds, factIds, causalEdgeIds,
+            actionsTaken,
+          })
+          .returning({ id: reasoningReports.id });
+      }
 
       if (entityIds.length > 0) {
         const updated = await db
@@ -2812,6 +2870,14 @@ export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<G
 export interface ReasoningAgentParams {
   mode: 'patrol' | 'query';
   question?: string;
+  /**
+   * Server-side idempotency key for save_reasoning_report (bead nmemo-2yv.77).
+   * Generated once per /api/reason invocation by the caller, forwarded to
+   * ml-services in the POST body, rendered into the agent's system prompt,
+   * and passed back on save_reasoning_report. A second save inside the same
+   * pass UPSERTs the existing row instead of inserting a duplicate.
+   */
+  invocationId?: string;
 }
 
 export interface ReasoningAgentResult {
@@ -2828,6 +2894,7 @@ export async function invokeReasoningAgent(params: ReasoningAgentParams): Promis
       mode: params.mode,
       question: params.question,
       mcp_config_path: mcpConfigPath,
+      invocation_id: params.invocationId,
     },
     timeoutMs: config.REASONING_AGENT_TIMEOUT_MS,
   });

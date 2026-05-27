@@ -32,6 +32,11 @@ class ReasoningRequest(BaseModel):
     mode: Literal["patrol", "query"] = "patrol"
     question: Optional[str] = None
     mcp_config_path: str
+    # Server-side idempotency key for save_reasoning_report (nmemo-2yv.77).
+    # Minted by the platform per /api/reason call, rendered into the agent's
+    # system prompt, passed back unchanged on save_reasoning_report so the TS
+    # handler can UPSERT instead of inserting duplicate rows.
+    invocation_id: Optional[str] = None
 
 
 class ReasoningResponse(BaseModel):
@@ -306,6 +311,7 @@ PHASE 4: REPORT (exactly 1 call)
   - mode: "patrol"
   - report: structured markdown with per-neighbourhood findings and actions
   - entity_ids: ALL entities you examined (deduplicated across neighbourhoods)
+  - invocation_id: the UUID provided in your invocation header (see top of this prompt) — pass it through verbatim so a second save UPSERTs instead of inserting a duplicate row
 
 ============================================================
 QUERY MODE — Answer a Question by Reasoning Over the Graph
@@ -342,6 +348,7 @@ PHASE 3: ANSWER (2-3 calls)
      - question: the user's question (verbatim)
      - report: your answer + reasoning
      - entity_ids, fact_ids, causal_edge_ids: everything you touched (deduplicated)
+     - invocation_id: the UUID provided in your invocation header (see top of this prompt) — pass it through verbatim so a second save UPSERTs instead of inserting a duplicate row
      Do NOT save intermediate checkpoints; one save per query mode invocation.
 
 ============================================================
@@ -368,18 +375,26 @@ REASONING PRINCIPLES
 
 8. CONSERVATIVE EXPIRY: Only expire facts when there's clear evidence they're wrong, redundant, or superseded. Uncertainty is not grounds for expiry.
 
-9. ALWAYS REPORT — EXACTLY ONCE: Every reasoning pass MUST end with save_reasoning_report, called once. Multiple saves per pass create duplicate rows and break patrol cooldown. Aggregate first, save once.
+9. ALWAYS REPORT — EXACTLY ONCE: Every reasoning pass MUST end with save_reasoning_report, called once. Pass through your invocation_id verbatim — if you do call save twice by mistake, the server will UPSERT on that key and you get one row instead of duplicates. Even with that safety net, aggregate first and save once: multiple saves still fragment provenance (fact_history and causal_edge_history rows written during the pass reference whichever save row was current at the time) and pollute get_reasoning_history for future patrols.
 
 10. READ HISTORY BEFORE YOU ACT: Before modifying, expiring, revising, or restoring a fact or edge, call get_fact_history or get_edge_history. Understanding how something became what it is prevents unwinding recent, justified changes. Every mutation you make will also appear in history — your reasoning should stand up to being read by a future patrol.
 
 """ + PROMPT_SAFETY_SYSTEM_CLAUSE + """"""
 
 
-def _build_reasoning_prompt(mode: str, question: str | None) -> str:
+def _build_reasoning_prompt(mode: str, question: str | None, invocation_id: str | None) -> str:
     lines = [
         "## Reasoning Agent Invocation\n",
         f"**Mode:** {mode}\n",
     ]
+    if invocation_id:
+        # Bead nmemo-2yv.77 — the platform mints one UUID per /api/reason call.
+        # Pass it through verbatim on save_reasoning_report so the TS handler
+        # UPSERTs on duplicate calls instead of inserting orphaned rows.
+        lines.append(
+            f"**invocation_id:** `{invocation_id}` — pass this verbatim "
+            "as the `invocation_id` argument when you call save_reasoning_report.\n"
+        )
     if question:
         lines.append(f"**Question:** {question}\n")
 
@@ -408,7 +423,7 @@ async def reasoning_agent(request: ReasoningRequest):
         request.question[:80] if request.question else None,
         request.mcp_config_path,
     )
-    prompt = _build_reasoning_prompt(request.mode, request.question)
+    prompt = _build_reasoning_prompt(request.mode, request.question, request.invocation_id)
 
     try:
         logger.info("[reasoning] submitting to llm_pool...")
