@@ -595,14 +595,9 @@ This gardener would operate on a fundamentally different timescale — it sees t
 
 ### 5.2 Cascading Invalidation
 
-When a fact in Graph S is expired (marked as wrong), the corresponding causal events and edges must be updated:
+**Superseded by [doc 13 Part C — Cascade Invalidation](13-edge-lifecycle.md#part-c--cascade-invalidation).**
 
-1. Mark the `causal_event` as expired
-2. Mark all `causal_edges` where this event is cause or effect as expired
-3. Re-evaluate downstream events that depended on the expired edge
-4. Update pattern instance counts
-
-This cascading invalidation maintains Graph C's integrity when Graph S corrections occur.
+The hardened cascade is citation-based and edge-only: when a fact expires, edges whose `source_references` cite that fact are weakened (if `corroboration_count > 1`) or expired (if `= 1`). Causal events are not touched, downstream re-evaluation is deferred to subsequent patrol reasoning, and pattern instance counts are not recomputed inline. See doc 13 Part C for the rationale, prerequisite (Phase 3 source-reference index), and implementation contract; the live code lives in `services/causal.ts:cascadeFactExpiry`.
 
 ### 5.3 Confidence Decay
 
