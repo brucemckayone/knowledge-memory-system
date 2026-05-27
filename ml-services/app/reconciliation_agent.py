@@ -259,6 +259,12 @@ async def reconciliation_agent(request: ReconciliationRequest):
         })
     except QueueFullError:
         raise HTTPException(status_code=503, detail="Service busy, retry later")
+    except HTTPException:
+        # Bead nmemo-klv.10: ``ClaudeCodeProvider._run`` raises ``HTTPException``
+        # with a structured detail dict (rc, stderr_tail, stdout_tail,
+        # cmd_summary). Re-raise unchanged so callers receive the diagnostic
+        # body instead of an opaque collapsed string.
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Reconciliation agent failed: {e}")
 

@@ -222,9 +222,22 @@ class ClaudeCodeProvider:
         return cmd
 
     def _run(self, cmd: list, options: Optional[Dict] = None) -> Dict[str, Any]:
-        """Execute CLI command and return the parsed JSON envelope."""
+        """Execute CLI command and return the parsed JSON envelope.
+
+        Bead nmemo-klv.10: when the CLI exits non-zero, surface a structured
+        detail dict containing rc, stderr_tail, stdout_tail, and cmd_summary
+        so callers (and the platform's ``agentFetch`` wrapper) get an
+        actionable failure body instead of a 200-char stderr fragment. The
+        ``error`` field carries a stable single-line summary for callers that
+        only render strings.
+        """
         timeout = (options or {}).get("timeout", 300)
-        logger.info("Claude CLI cmd: %s", " ".join(str(c) for c in cmd[:10]) + "...")
+        # Summarise the cmd up-front (first 10 tokens) so it can appear in
+        # both the log line and the failure detail without recomputing.
+        cmd_summary = " ".join(str(c) for c in cmd[:10])
+        if len(cmd) > 10:
+            cmd_summary += " ..."
+        logger.info("Claude CLI cmd: %s", cmd_summary)
 
         try:
             result = subprocess.run(
@@ -243,12 +256,31 @@ class ClaudeCodeProvider:
             logger.info("Claude CLI stderr: %s", result.stderr[:500])
 
         if result.returncode != 0:
+            # Capture diagnostic tails. stderr is the primary signal; stdout
+            # is included because Claude CLI sometimes emits partial JSON
+            # envelopes on stdout before exiting non-zero (auth prompts, MCP
+            # config errors). Tails are bounded so very large bodies don't
+            # explode the HTTP response.
+            stderr_tail = (result.stderr or "")[-2000:]
+            stdout_tail = (result.stdout or "")[-500:]
+            summary = (
+                f"Claude CLI failed (rc={result.returncode}): "
+                f"{stderr_tail.strip() or '<empty stderr>'}"
+            )
             logger.error(
-                "Claude CLI failed (rc=%d): %s", result.returncode, result.stderr[:500],
+                "Claude CLI failed (rc=%d) cmd=%s stderr=%s stdout=%s",
+                result.returncode, cmd_summary,
+                stderr_tail[:500], stdout_tail[:200],
             )
             raise HTTPException(
                 status_code=500,
-                detail=f"Claude CLI failed (rc={result.returncode}): {result.stderr[:200]}",
+                detail={
+                    "error": summary,
+                    "rc": result.returncode,
+                    "stderr_tail": stderr_tail,
+                    "stdout_tail": stdout_tail,
+                    "cmd_summary": cmd_summary,
+                },
             )
 
         try:

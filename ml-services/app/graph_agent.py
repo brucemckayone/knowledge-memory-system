@@ -614,6 +614,13 @@ async def graph_agent(request: GraphAgentRequest):
         })
     except QueueFullError:
         raise HTTPException(status_code=503, detail="Service busy, retry later")
+    except HTTPException:
+        # Bead nmemo-klv.10: ``ClaudeCodeProvider._run`` raises
+        # ``HTTPException`` with a structured detail dict (rc, stderr_tail,
+        # stdout_tail, cmd_summary). Re-raise unchanged so the platform sees
+        # the diagnostic body — wrapping it with ``str(e)`` here previously
+        # collapsed it to the opaque ``Claude CLI failed (rc=1)`` string.
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Graph agent failed: {e}")
 
