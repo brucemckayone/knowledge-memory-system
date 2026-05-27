@@ -2768,7 +2768,7 @@ export class AgentInvocationTimeoutError extends Error {
  * mutates the graph. A retry-on-timeout would compound the leak rather than
  * recover from it.
  */
-async function agentFetch<T>(opts: {
+export async function agentFetch<T>(opts: {
   agent: 'reasoning_agent' | 'graph_agent' | 'gardener_agent';
   url: string;
   body: unknown;
@@ -2866,55 +2866,18 @@ export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<G
 // ============================================
 // Reasoning Agent Invocation
 // ============================================
-
-export interface ReasoningAgentParams {
-  mode: 'patrol' | 'query';
-  question?: string;
-  /**
-   * Server-side idempotency key for save_reasoning_report (bead nmemo-2yv.77).
-   * Generated once per /api/reason invocation by the caller, forwarded to
-   * ml-services in the POST body, rendered into the agent's system prompt,
-   * and passed back on save_reasoning_report. A second save inside the same
-   * pass UPSERTs the existing row instead of inserting a duplicate.
-   */
-  invocationId?: string;
-}
-
-export interface ReasoningAgentResult {
-  result: string;
-}
-
-export async function invokeReasoningAgent(params: ReasoningAgentParams): Promise<ReasoningAgentResult> {
-  const mcpConfigPath = getMcpConfigPath('reasoning_agent');
-
-  const result = await agentFetch<ReasoningAgentResult>({
-    agent: 'reasoning_agent',
-    url: `${config.ML_SERVICES_URL}/reasoning-agent`,
-    body: {
-      mode: params.mode,
-      question: params.question,
-      mcp_config_path: mcpConfigPath,
-      invocation_id: params.invocationId,
-    },
-    timeoutMs: config.REASONING_AGENT_TIMEOUT_MS,
-  });
-
-  // Phase 6 (nmemo-d9v.13): bump the pattern-detection counter on patrol
-  // success. Every PATTERN_DETECTION_INTERVAL patrols runs detectCausalPatterns
-  // + promotePatterns. Wrapped in try/catch inside incrementPatrolCount —
-  // any failure logs but never surfaces.
-  //
-  // Phase 1 cluster-bridging (nmemo-a7f.1.1, doc 22 §3.3): bump the
-  // graph-stats counter on the same patrol-success edge. Independent counter
-  // and interval — both run sequentially; neither blocks the other.
-  if (params.mode === 'patrol') {
-    const { incrementPatrolCount, incrementGraphStatsCount } = await import('../pipeline.js');
-    await incrementPatrolCount();
-    await incrementGraphStatsCount();
-  }
-
-  return result;
-}
+//
+// The reasoning-agent invocation surface (invokeReasoningAgent, its parameter
+// shapes) was extracted to src/services/reasoning-agent.ts under bead
+// nmemo-2yv.80. Re-exported here so existing consumers
+// (src/index.ts, src/test/services/causal-agent-timeout.test.ts) keep working
+// without a separate import sweep. New code should import from
+// './reasoning-agent.js' directly.
+export {
+  invokeReasoningAgent,
+  type ReasoningAgentParams,
+  type ReasoningAgentResult,
+} from './reasoning-agent.js';
 
 // ============================================
 // MCP Health Check
