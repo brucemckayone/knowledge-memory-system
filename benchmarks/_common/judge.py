@@ -1,23 +1,30 @@
-"""LLM-as-judge scoring with a single Sonnet call per item.
+"""LLM-as-judge scoring via `claude -p` subprocess.
 
-Locked low-temperature / structured-output prompt so judge variance across
-runs stays small (the whole point of using Sonnet over Haiku here). If the
-judge prompt ever needs to change, that's a methodology-breaking event —
-bump the JUDGE_PROMPT_VERSION constant so prior results aren't compared
-against post-change ones silently.
+Reuses the local Claude Code authentication (same auth path the Mnemo
+reasoning agent uses), so no API key is needed in the benchmark process
+itself. Trade-off: subprocess startup cost per call (~1-2s) means a
+500-question run pays ~15 minutes of overhead on judging alone — but
+this is the canonical "no key management" surface for this machine.
+
+JUDGE_PROMPT_VERSION bumps anytime the prompt template or extraction
+logic changes. Prior-run scores are not comparable across versions; the
+field is stamped into the JSON envelope so a future reader can detect
+the boundary.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import shutil
+import subprocess
 from dataclasses import dataclass
 
-from anthropic import Anthropic
-
-from _common.config import ANTHROPIC_API_KEY, JUDGE_MODEL
+from _common.config import JUDGE_MODEL
 
 JUDGE_PROMPT_VERSION = "v1"
+CLAUDE_BINARY = "claude"
+SUBPROCESS_TIMEOUT_SECONDS = 120
 
 
 @dataclass
@@ -27,15 +34,11 @@ class JudgeVerdict:
     raw_response: str
 
 
-_SYSTEM = (
-    "You are a strict evaluator. Given a question, a candidate answer, and a "
-    "reference answer, score the candidate on a 0.0-1.0 scale and explain in "
-    "one or two sentences. 1.0 means substantively correct; 0.0 means wrong "
-    "or missing; intermediate values are allowed for partial answers. Do not "
-    "reward correct-sounding prose that misses the factual content."
-)
+_PROMPT_TEMPLATE = """You are a strict evaluator. Score the candidate on a 0.0-1.0 scale.
+1.0 = substantively correct. 0.0 = wrong or missing. Intermediate = partial.
+Do not reward correct-sounding prose that misses the factual content.
 
-_TEMPLATE = """Question:
+Question:
 {question}
 
 Reference answer:
@@ -54,15 +57,13 @@ class JudgeError(RuntimeError):
 
 
 class Judge:
-    """Sonnet-based scorer. One API call per item."""
+    """`claude -p` subprocess scorer. One invocation per item."""
 
-    def __init__(self, model: str = JUDGE_MODEL, api_key: str | None = None) -> None:
-        key = api_key or ANTHROPIC_API_KEY
-        if not key:
+    def __init__(self, model: str = JUDGE_MODEL) -> None:
+        if shutil.which(CLAUDE_BINARY) is None:
             raise JudgeError(
-                "ANTHROPIC_API_KEY is not set; required for the LLM-as-judge."
+                f"'{CLAUDE_BINARY}' not found on PATH; required for the LLM-as-judge."
             )
-        self._client = Anthropic(api_key=key)
         self._model = model
 
     @property
@@ -70,29 +71,60 @@ class Judge:
         return self._model
 
     def score(self, question: str, candidate: str, reference: str) -> JudgeVerdict:
-        prompt = _TEMPLATE.format(question=question, reference=reference, candidate=candidate)
-        msg = self._client.messages.create(
-            model=self._model,
-            max_tokens=400,
-            temperature=0.0,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
+        prompt = _PROMPT_TEMPLATE.format(
+            question=question, reference=reference, candidate=candidate
         )
-        raw = "".join(block.text for block in msg.content if block.type == "text")
+        # Pattern lifted from ml-services/app/core/llm.py:
+        # - --no-session-persistence so judge calls don't accumulate in the
+        #   shell's session history (each call is fully independent).
+        # - --effort low because judging is a simple structured-output task;
+        #   no thinking budget needed.
+        # - Default mode (no --bare) because --bare exits 1 on this machine.
+        try:
+            result = subprocess.run(
+                [
+                    CLAUDE_BINARY,
+                    "-p",
+                    "--model",
+                    self._model,
+                    "--effort",
+                    "low",
+                    "--no-session-persistence",
+                ],
+                input=prompt,
+                capture_output=True,
+                text=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except subprocess.TimeoutExpired as e:
+            raise JudgeError(
+                f"claude -p timed out after {SUBPROCESS_TIMEOUT_SECONDS}s"
+            ) from e
+        if result.returncode != 0:
+            raise JudgeError(
+                f"claude -p failed (code {result.returncode}): "
+                f"{(result.stderr or '')[:300]}"
+            )
+
+        raw = result.stdout.strip()
         verdict = _parse_verdict(raw)
-        return JudgeVerdict(score=verdict["score"], reasoning=verdict["reasoning"], raw_response=raw)
+        return JudgeVerdict(
+            score=verdict["score"],
+            reasoning=verdict["reasoning"],
+            raw_response=raw,
+        )
 
 
 def _parse_verdict(raw: str) -> dict[str, object]:
-    """Tolerant JSON extraction — Sonnet usually emits clean JSON but the
-    occasional trailing whitespace / leading comment shouldn't fail a run.
+    """Tolerant JSON extraction — model usually emits clean JSON but the
+    occasional trailing prose or leading explanation shouldn't fail a run.
     """
     text = raw.strip()
-    # Most common case: clean JSON.
     try:
         obj = json.loads(text)
     except json.JSONDecodeError:
-        # Fallback: extract the first {...} block.
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if not match:
             raise JudgeError(f"judge produced non-JSON response: {raw[:200]}")

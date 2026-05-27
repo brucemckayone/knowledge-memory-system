@@ -4,6 +4,8 @@ __pycache__/
 .uv-cache/
 .pytest_cache/
 .ruff_cache/
+.env
+.env.local
 
 # Dataset caches (large, redownloadable from upstream submodules)
 **/upstream/data/
