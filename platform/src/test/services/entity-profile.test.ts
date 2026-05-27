@@ -206,6 +206,73 @@ describe('Entity Profile Service', () => {
 
       warnSpy.mockRestore();
     });
+
+    // bead nmemo-2yv.56 — Qdrant retrieve→map happy path
+    //
+    // The error case (H6 above) and the empty-links short-circuit (the first
+    // test) bracket the unhappy paths, but the happy mapping of Qdrant
+    // payloads to EntityMemory shape was never asserted directly. Subtle
+    // changes to qdrant.retrieve's return shape (point.id type, payload key
+    // names like content vs text) would silently break consumers without a
+    // unit failure here. The fixture covers:
+    //   - point.id: numeric → coerced to string
+    //   - payload.content: present → preferred over payload.text
+    //   - payload.text fallback: when content is absent
+    //   - missing type: defaults to 'thought'
+    //   - missing created_at: defaults to ''
+    it('maps qdrant.retrieve points to EntityMemory shape on the happy path', async () => {
+      mockRawQuery.mockResolvedValueOnce([
+        { memoryId: 'mem-001' },
+        { memoryId: 'mem-002' },
+      ]);
+      mockQdrantRetrieve.mockResolvedValueOnce([
+        {
+          id: 'mem-001',
+          payload: {
+            content: 'Discussed onboarding with Bruce',
+            type: 'thought',
+            created_at: '2026-04-10T09:00:00Z',
+          },
+          vector: null,
+        },
+        {
+          // Numeric id (some Qdrant configurations) — must coerce to string.
+          // Falls back to payload.text when content is absent, and defaults
+          // type / createdAt when their keys are missing.
+          id: 42 as unknown as string,
+          payload: {
+            text: 'Followup conversation, no agenda',
+          },
+          vector: null,
+        },
+      ] as unknown as Awaited<ReturnType<typeof qdrant.retrieve>>);
+
+      const result = await getEntityMemories('ent-001');
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        memoryId: 'mem-001',
+        content: 'Discussed onboarding with Bruce',
+        type: 'thought',
+        createdAt: '2026-04-10T09:00:00Z',
+      });
+      expect(result[1]).toEqual({
+        memoryId: '42',
+        content: 'Followup conversation, no agenda',
+        type: 'thought',
+        createdAt: '',
+      });
+
+      // The service handed Qdrant the memory_ids it got from the dedup query,
+      // in the order they were returned. Order matters because the caller
+      // expects DESC-by-created_at semantics from the DB layer.
+      expect(mockQdrantRetrieve).toHaveBeenCalledTimes(1);
+      const [collection, params] = mockQdrantRetrieve.mock.calls[0]!;
+      expect(collection).toBe('memories');
+      expect((params as { ids: string[] }).ids).toEqual(['mem-001', 'mem-002']);
+      expect((params as { with_payload: boolean }).with_payload).toBe(true);
+      expect((params as { with_vector: boolean }).with_vector).toBe(false);
+    });
   });
 
   describe('formatEntityProfile', () => {
