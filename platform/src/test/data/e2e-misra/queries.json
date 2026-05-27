@@ -1,0 +1,139 @@
+{
+  "name": "e2e-misra-benchmark",
+  "version": "1.0",
+  "purpose": "End-to-end benchmark — bad C++ snippets paired with the MISRA C++:2023 rule(s) they violate. Scores the platform's ingest → reasoning path against ground truth via semantic similarity over rule-citation strings + answer text.",
+  "corpus_anchor": {
+    "live_db": "MISRA/AUTOSAR/C++ technical-standards corpus carries ~145 entities at benchmark time per the canonical-corpus benchmark setup (see platform/src/test/data/phase1-graph-stats/benchmark-reports/canonical-corpus.json).",
+    "fixture": "platform/src/test/data/phase4-blastradius/fixtures/misra-chapter-impact.sql (10 MISRA C++:2023 Chapter 22 rules + 4 supporting concept entities — used as the chapter-22 seed when the live DB is not loaded)."
+  },
+  "scoring_protocol": {
+    "rule_citation": {
+      "kind": "fuzzy-substring-then-semantic",
+      "exact_threshold": 1.0,
+      "fuzzy_threshold": 0.8,
+      "semantic_threshold": 0.7,
+      "fallback": "If the agent returns the canonical rule id (e.g. 'MISRA-CPP-2023-Rule-22.3' or 'Rule 22.3' or 'R22.3') in answer text, count as a hit. Else, embed expected vs actual answer and treat cosine >= semantic_threshold as a hit."
+    },
+    "answer_semantic": {
+      "kind": "cosine-on-nomic-embed",
+      "model": "nomic-embed-text",
+      "dimensions": 768,
+      "pass_threshold": 0.65,
+      "rationale": "0.65 is the canonical-corpus centroid_sim_p10 (see canonical-corpus.json) — anything below that is meaningfully off-topic for this corpus."
+    },
+    "aggregate": {
+      "rule_hit_rate_pass": 0.6,
+      "rule_hit_rate_target": 0.8,
+      "answer_mean_cosine_pass": 0.65,
+      "rationale": "60% rule-hit rate is the pass bar; 80% is the stretch target. answer_mean_cosine_pass mirrors the per-query threshold."
+    }
+  },
+  "queries": [
+    {
+      "id": "Q1",
+      "category": "chapter-22-rule-22.3",
+      "snippet": "void leaky() {\n  int* p = new int(42);\n  // forgot to delete p — leak\n}",
+      "question": "Which MISRA C++:2023 rule does this snippet violate? Briefly explain why.",
+      "expected_rule_citations": [
+        "MISRA-CPP-2023-Rule-22.3",
+        "MISRA-CPP-2023-Rule-22.2"
+      ],
+      "expected_rule_topics": [
+        "smart_pointer_usage",
+        "raii_required_when_dynamic"
+      ],
+      "ground_truth_answer": "The function allocates a raw pointer with `new` and never deletes it before returning. This violates MISRA C++:2023 Rule 22.3 (smart pointer usage) and Rule 22.2 (RAII required when dynamic allocation is used). A std::unique_ptr<int> or std::make_unique<int>(42) would tie the resource lifetime to scope and prevent the leak."
+    },
+    {
+      "id": "Q2",
+      "category": "chapter-22-rule-22.7",
+      "snippet": "void mismatched_delete() {\n  int* arr = new int[10];\n  delete arr;  // should be delete[]\n}",
+      "question": "Which MISRA C++:2023 rule does this snippet violate? Briefly explain.",
+      "expected_rule_citations": [
+        "MISRA-CPP-2023-Rule-22.7",
+        "MISRA-CPP-2023-Rule-22.8"
+      ],
+      "expected_rule_topics": [
+        "delete_must_match_new",
+        "array_new_must_match_array_delete"
+      ],
+      "ground_truth_answer": "The array was allocated with `new[]` but freed with plain `delete`. This violates MISRA C++:2023 Rule 22.8 (array new must match array delete) and the broader Rule 22.7 (delete must match new). The destructor for non-trivial element types will not run on elements [1..9], and many allocators will misbehave on the size header. Use `delete[] arr` (or, better, std::vector / std::unique_ptr<int[]>)."
+    },
+    {
+      "id": "Q3",
+      "category": "chapter-22-rule-22.9",
+      "snippet": "void double_free() {\n  int* p = new int(7);\n  delete p;\n  delete p;  // double free\n}",
+      "question": "What MISRA C++:2023 rule does this violate?",
+      "expected_rule_citations": [
+        "MISRA-CPP-2023-Rule-22.9",
+        "MISRA-CPP-2023-Rule-22.5"
+      ],
+      "expected_rule_topics": [
+        "no_double_free",
+        "no_dangling_pointer_dereference"
+      ],
+      "ground_truth_answer": "The same pointer is passed to `delete` twice. This violates MISRA C++:2023 Rule 22.9 (no double free) and Rule 22.5 (no dangling pointer dereference — the second delete dereferences freed memory). RAII via std::unique_ptr eliminates both classes of bug because ownership is transferred or destroyed exactly once."
+    },
+    {
+      "id": "Q4",
+      "category": "chapter-22-rule-22.5",
+      "snippet": "int* dangling() {\n  int x = 5;\n  return &x;  // returning address of local — dangling\n}",
+      "question": "Which MISRA rule does this violate?",
+      "expected_rule_citations": [
+        "MISRA-CPP-2023-Rule-22.5"
+      ],
+      "expected_rule_topics": [
+        "no_dangling_pointer_dereference"
+      ],
+      "ground_truth_answer": "The function returns a pointer to a local stack variable whose lifetime ends at the closing brace. Any subsequent dereference is undefined behaviour. This is the canonical MISRA C++:2023 Rule 22.5 (no dangling pointer dereference) violation. Return by value, or return a heap-owned smart pointer, instead."
+    },
+    {
+      "id": "Q5",
+      "category": "chapter-22-rule-22.6",
+      "snippet": "void pointer_arith(int* buf, std::size_t n) {\n  for (int* p = buf; p < buf + n; ++p) {\n    *p = 0;\n  }\n}",
+      "question": "Why is this not MISRA-compliant?",
+      "expected_rule_citations": [
+        "MISRA-CPP-2023-Rule-22.6"
+      ],
+      "expected_rule_topics": [
+        "raw_pointer_arithmetic_forbidden"
+      ],
+      "ground_truth_answer": "The loop performs raw pointer arithmetic (`p < buf + n`, `++p`) on a raw pointer. MISRA C++:2023 Rule 22.6 forbids raw pointer arithmetic in safety-critical code because it bypasses bounds enforcement and complicates static analysis. Use std::span<int>, std::array, or an iterator-based range-for over a container."
+    },
+    {
+      "id": "Q6",
+      "category": "chapter-22-rule-22.10",
+      "snippet": "void weak_use(std::weak_ptr<int> w) {\n  *w = 5;  // direct deref of weak_ptr — must lock first\n}",
+      "question": "Which MISRA C++:2023 rule does this break?",
+      "expected_rule_citations": [
+        "MISRA-CPP-2023-Rule-22.10"
+      ],
+      "expected_rule_topics": [
+        "weak_ptr_must_be_locked_before_use"
+      ],
+      "ground_truth_answer": "std::weak_ptr does not itself own the object; it must be promoted to a std::shared_ptr via `.lock()` and the result null-checked before dereferencing. The snippet violates MISRA C++:2023 Rule 22.10 (weak_ptr must be locked before use). Replace with `if (auto sp = w.lock()) { *sp = 5; }`."
+    },
+    {
+      "id": "Q7",
+      "category": "chapter-22-rule-22.1",
+      "snippet": "// Inside a hard real-time path:\nvoid in_isr() {\n  std::vector<int> tmp(1024);\n  tmp[0] = 0;\n}",
+      "question": "Why might MISRA C++:2023 flag this in safety-critical code?",
+      "expected_rule_citations": [
+        "MISRA-CPP-2023-Rule-22.1"
+      ],
+      "expected_rule_topics": [
+        "heap_allocation_forbidden_in_safety_critical"
+      ],
+      "ground_truth_answer": "std::vector<int>(1024) allocates on the heap. MISRA C++:2023 Rule 22.1 forbids heap allocation in hard real-time / safety-critical paths because it introduces non-deterministic latency (allocator behaviour) and out-of-memory failure modes that the rest of the rule chapter assumes are absent. Use a stack-allocated std::array<int, 1024>, a pool allocator, or pre-allocate outside the critical path."
+    },
+    {
+      "id": "Q8",
+      "category": "out-of-chapter-22-control",
+      "snippet": "void unused_warning() {\n  int x;\n  // 'x' is uninitialised and unused — separate MISRA territory.\n}",
+      "question": "Is this a Chapter 22 (Resource Management) MISRA violation?",
+      "expected_rule_citations": [],
+      "expected_rule_topics": [],
+      "ground_truth_answer": "No. This snippet touches uninitialised-variable rules (a different MISRA chapter, e.g. M.0.4 / M.8.x territory in 2023 numbering), not the Resource Management chapter. The platform should NOT cite a Chapter 22 rule here — citing one is a false positive that the rule-hit-rate scoring would penalise."
+    }
+  ]
+}
