@@ -1452,23 +1452,20 @@ describe('Phase 6 — G8: benchmarks (nmemo-klv.6)', () => {
       expect(result.newStaging).toBe(1);
 
       // Spec 17:733 target: <2000ms @ 1000 chains.
-      // Empirical (Windows + Docker, 2026-05-27): ~5000ms on the current
-      // implementation. The per-chain `normaliseChain` SQL round-trip is the
-      // dominant cost — see PERF-GAP findings in the klv.6 closure report.
       //
-      // The benchmark is recorded but not asserted as <2000ms here so the
-      // suite stays green while the perf gap is tracked separately under
-      // nmemo-oex (filed against the per-chain normaliseChain round-trip).
-      // This matches the klv.4 pattern where measurement-capture-not-cap was
-      // used for graduation criteria.
+      // History: the original measurement on this hardware was ~5-6s, well
+      // over the spec, dominated by the per-chain `normaliseChain` and
+      // per-edge `linkEdgesToPattern` SQL round-trips. nmemo-oex batched
+      // both paths and the benchmark now runs in ~120ms locally. The
+      // assertion below is the spec target — if a regression pushes
+      // detection back over 2s the test fails and we look at it.
       const SPEC_TARGET_MS = 2000;
-      const SOFT_CAP_MS = 10_000; // sanity bound: must finish within 10s
-      expect(elapsedMs).toBeLessThan(SOFT_CAP_MS);
+      expect(elapsedMs).toBeLessThan(SPEC_TARGET_MS);
 
       // eslint-disable-next-line no-console
       console.log(
         `[klv.6] detectCausalPatterns @ ${N} chains: ${elapsedMs}ms ` +
-          `(spec <${SPEC_TARGET_MS}ms; ${elapsedMs < SPEC_TARGET_MS ? 'PASS' : 'PERF-GAP, see closure report'})`,
+          `(spec <${SPEC_TARGET_MS}ms; ${elapsedMs < SPEC_TARGET_MS ? 'PASS' : 'PERF-GAP'})`,
       );
     }, 60_000);
   });
