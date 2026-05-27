@@ -158,7 +158,7 @@ save_reasoning_report(mode, report, entity_ids, fact_ids?, causal_edge_ids?, act
   - entity_ids: ALL entities you examined this pass (consolidated, deduplicated)
   - fact_ids: facts you examined, expired, or created
   - causal_edge_ids: edges you examined or created
-  - actions_taken: structured log of what you did across the whole pass
+  - actions_taken: optional freeform JSONB; consumer-defined, no canonical shape
 
 ============================================================
 PATROL MODE — Self-Targeting Graph Reasoning
@@ -306,7 +306,6 @@ PHASE 4: REPORT (exactly 1 call)
   - mode: "patrol"
   - report: structured markdown with per-neighbourhood findings and actions
   - entity_ids: ALL entities you examined (deduplicated across neighbourhoods)
-  - actions_taken: {expired: [...], created_facts: [...], created_edges: [...], updated_summaries: [...]}
 
 ============================================================
 QUERY MODE — Answer a Question by Reasoning Over the Graph
