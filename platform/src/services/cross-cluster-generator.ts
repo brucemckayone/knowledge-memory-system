@@ -48,6 +48,7 @@ import {
   type ScoredCandidate,
 } from './merge-scorer.js';
 import { getGraphStats } from './graph-stats.js';
+import { parsePredicateSignature } from './topology.js';
 
 // =============================================================================
 // Tunable knobs (env-overridable per doc 25 §3.x)
@@ -249,13 +250,6 @@ async function isUpstreamFresh(
   return new Date(computeTs).getTime() >= new Date(entityTs).getTime();
 }
 
-function parseVec(raw: unknown): number[] | null {
-  if (raw == null) return null;
-  const s = String(raw);
-  if (!s) return null;
-  return s.replace(/^\[|\]$/g, '').split(',').map((x) => Number.parseFloat(x));
-}
-
 /** Pull every entity that's eligible (k_core >= MIN_K_CORE_FOR_BRIDGE) along
  *  with the topology/cluster signals we need to score it. NULL signature is
  *  fine — role_similarity falls to 0 cleanly. */
@@ -283,7 +277,7 @@ async function loadCandidateEntities(runner: Runner): Promise<EntityRow[]> {
     k_core: (r.k_core as number) ?? null,
     is_articulation_point: Boolean(r.is_articulation_point),
     pagerank: (r.pagerank as number) ?? null,
-    predicate_signature: parseVec(r.predicate_signature),
+    predicate_signature: parsePredicateSignature(r.predicate_signature),
     cluster_id: (r.cluster_id as number) ?? null,
     cluster_probability: (r.cluster_probability as number) ?? null,
   }));
