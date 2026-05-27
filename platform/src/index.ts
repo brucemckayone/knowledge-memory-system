@@ -17,6 +17,7 @@ import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
 import type { ReconciliationDriftInvoker } from './services/causal-agent.js';
 import { markDerivedComputed as markDerivedFreshness } from './services/derived-freshness.js';
+import { getFactHistory, getEdgeHistory } from './services/audit.js';
 import { startScheduler, stopScheduler } from './scheduler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -750,59 +751,13 @@ app.get('/api/patterns/:id/instances', async (c) => {
 
 app.get('/api/facts/:id/history', async (c) => {
   const id = c.req.param('id');
-  type Row = {
-    id: string;
-    event_type: string;
-    previous_confidence: number | null;
-    new_confidence: number | null;
-    previous_valid_at: Date | null;
-    new_valid_at: Date | null;
-    previous_invalid_at: Date | null;
-    new_invalid_at: Date | null;
-    reasoning: string;
-    source_references: unknown;
-    reasoning_report_id: string | null;
-    causal_event_id: string | null;
-    actor: string;
-    occurred_at: Date;
-  };
+  const limitParam = c.req.query('limit');
+  const limit = limitParam ? Number(limitParam) : 100;
   try {
-    const rows = (await db.execute(sql`
-      SELECT
-        id::text,
-        event_type,
-        previous_confidence, new_confidence,
-        previous_valid_at, new_valid_at,
-        previous_invalid_at, new_invalid_at,
-        reasoning,
-        source_references,
-        reasoning_report_id::text,
-        causal_event_id::text,
-        actor,
-        occurred_at
-      FROM public.fact_history
-      WHERE fact_id = ${id}::uuid
-      ORDER BY occurred_at DESC
-      LIMIT 200
-    `)) as unknown as Row[];
-    return c.json({
-      history: rows.map((r) => ({
-        id: r.id,
-        eventType: r.event_type,
-        previousConfidence: r.previous_confidence,
-        newConfidence: r.new_confidence,
-        previousValidAt: r.previous_valid_at?.toISOString() ?? null,
-        newValidAt: r.new_valid_at?.toISOString() ?? null,
-        previousInvalidAt: r.previous_invalid_at?.toISOString() ?? null,
-        newInvalidAt: r.new_invalid_at?.toISOString() ?? null,
-        reasoning: r.reasoning,
-        sourceReferences: r.source_references,
-        reasoningReportId: r.reasoning_report_id,
-        causalEventId: r.causal_event_id,
-        actor: r.actor,
-        occurredAt: r.occurred_at instanceof Date ? r.occurred_at.toISOString() : String(r.occurred_at),
-      })),
-    });
+    // FactHistoryRow has Date fields; Hono's c.json runs JSON.stringify
+    // which serialises Date to ISO string at the JSON boundary.
+    const rows = await getFactHistory(id, limit);
+    return c.json({ history: rows });
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
@@ -810,51 +765,11 @@ app.get('/api/facts/:id/history', async (c) => {
 
 app.get('/api/causal-edges/:id/history', async (c) => {
   const id = c.req.param('id');
-  type Row = {
-    id: string;
-    event_type: string;
-    previous_strength: number | null;
-    new_strength: number | null;
-    previous_reasoning: string | null;
-    new_reasoning: string | null;
-    added_source_refs: unknown;
-    reasoning: string;
-    reasoning_report_id: string | null;
-    actor: string;
-    occurred_at: Date;
-  };
+  const limitParam = c.req.query('limit');
+  const limit = limitParam ? Number(limitParam) : 100;
   try {
-    const rows = (await db.execute(sql`
-      SELECT
-        id::text,
-        event_type,
-        previous_strength, new_strength,
-        previous_reasoning, new_reasoning,
-        added_source_refs,
-        reasoning,
-        reasoning_report_id::text,
-        actor,
-        occurred_at
-      FROM public.causal_edge_history
-      WHERE edge_id = ${id}::uuid
-      ORDER BY occurred_at DESC
-      LIMIT 200
-    `)) as unknown as Row[];
-    return c.json({
-      history: rows.map((r) => ({
-        id: r.id,
-        eventType: r.event_type,
-        previousStrength: r.previous_strength,
-        newStrength: r.new_strength,
-        previousReasoning: r.previous_reasoning,
-        newReasoning: r.new_reasoning,
-        addedSourceRefs: r.added_source_refs,
-        reasoning: r.reasoning,
-        reasoningReportId: r.reasoning_report_id,
-        actor: r.actor,
-        occurredAt: r.occurred_at instanceof Date ? r.occurred_at.toISOString() : String(r.occurred_at),
-      })),
-    });
+    const rows = await getEdgeHistory(id, limit);
+    return c.json({ history: rows });
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
