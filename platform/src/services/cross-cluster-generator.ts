@@ -789,3 +789,39 @@ export async function listCrossClusterRuns(limit = 20): Promise<Array<{
 // Test-only reset helper if needed by the harness — not currently used but
 // kept here for symmetry with pipeline.ts._resetReasoningPatrolCount.
 export const _internal = { computePredicateSignature };
+
+/** ============================================================
+ * Post-compute trigger (bead nmemo-2yv.85, relocated by .88).
+ *
+ * Fire-and-forget the cross-cluster candidate generator after a successful
+ * /api/{topology,clustering,drift}/compute. The generator's own freshness
+ * gate handles the "both upstreams fresh" precondition; the advisory lock
+ * inside generateCrossClusterCandidates() handles overlap.
+ *
+ * Was previously a top-level helper in index.ts. Moved here so the trigger
+ * lives next to the service it invokes — index.ts no longer needs to know
+ * about the dynamic-import shape. Caller signature is unchanged
+ * (void-returning, never throws) so existing route handlers keep
+ * `void triggerCrossClusterAfterCompute('topology')` semantics.
+ * ============================================================ */
+export async function triggerCrossClusterAfterCompute(
+  after: 'topology' | 'clustering' | 'drift',
+): Promise<void> {
+  try {
+    const result = await generateCrossClusterCandidates();
+    if (result.ran) {
+      console.log(
+        `[cross-cluster] auto-trigger after ${after}/compute: candidates=${result.candidatesInserted} ` +
+        `drift_driven=${result.driftDrivenCandidates} component_pairs=${result.componentPairsEvaluated} ` +
+        `duration=${result.durationMs}ms`,
+      );
+    } else {
+      console.log(`[cross-cluster] auto-trigger after ${after}/compute skipped: ${result.skippedReason}`);
+    }
+  } catch (err) {
+    console.warn(
+      `[cross-cluster] auto-trigger after ${after}/compute failed:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+}

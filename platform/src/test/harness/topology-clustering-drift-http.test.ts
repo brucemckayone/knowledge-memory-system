@@ -33,7 +33,9 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { testDb, createTestEntity, mockMlServices, type MockMlServicesHandle } from '../setup.js';
-import { app, triggerCrossClusterAfterCompute, triggerReconciliationDriftAfterCompute } from '../../index.js';
+import { app, triggerReconciliationDriftAfterCompute } from '../../index.js';
+// bead nmemo-2yv.88 — relocated from index.ts to the cross-cluster service.
+import { triggerCrossClusterAfterCompute } from '../../services/cross-cluster-generator.js';
 
 // ----------------------------------------------------------------------------
 // Helpers

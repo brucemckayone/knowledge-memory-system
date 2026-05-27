@@ -20,6 +20,10 @@ import type { ReconciliationDriftInvoker } from './services/causal-agent.js';
 import { markDerivedComputed as markDerivedFreshness } from './services/derived-freshness.js';
 import { getFactHistory, getEdgeHistory } from './services/audit.js';
 import { startScheduler, stopScheduler } from './scheduler.js';
+import { triggerCrossClusterAfterCompute } from './services/cross-cluster-generator.js';
+import { getTopologySnapshot, getComponentEntities } from './services/topology.js';
+import { getClustersSnapshot, getClusterEntities } from './services/clustering.js';
+import { getDriftEvents, getDriftState } from './services/drift.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const vizHtmlPath = join(__dirname, '../viz/index.html');
@@ -975,30 +979,6 @@ app.get('/api/graph-stats', async (c) => {
 });
 
 // ============================================
-// Phase 4 — Cross-cluster generator post-compute trigger (doc 25 §3.2)
-// Fire-and-forget; never blocks the HTTP response of /topology/compute or
-// /clustering/compute. The generator's freshness gate handles the "both
-// upstreams fresh" precondition; the advisory lock handles overlap.
-// ============================================
-export async function triggerCrossClusterAfterCompute(after: 'topology' | 'clustering' | 'drift'): Promise<void> {
-  try {
-    const { generateCrossClusterCandidates } = await import('./services/cross-cluster-generator.js');
-    const result = await generateCrossClusterCandidates();
-    if (result.ran) {
-      console.log(
-        `[cross-cluster] auto-trigger after ${after}/compute: candidates=${result.candidatesInserted} ` +
-        `drift_driven=${result.driftDrivenCandidates} component_pairs=${result.componentPairsEvaluated} ` +
-        `duration=${result.durationMs}ms`,
-      );
-    } else {
-      console.log(`[cross-cluster] auto-trigger after ${after}/compute skipped: ${result.skippedReason}`);
-    }
-  } catch (err) {
-    console.warn(`[cross-cluster] auto-trigger after ${after}/compute failed:`, err instanceof Error ? err.message : err);
-  }
-}
-
-// ============================================
 // Drift-reconciliation post-compute trigger (bead nmemo-2yv.83)
 // Fire-and-forget; never blocks the HTTP response of /api/drift/compute.
 // Selects ALL pending drift events (decoupled from "rows from this call")
@@ -1222,91 +1202,8 @@ app.post('/api/topology/compute', async (c) => {
 // articulation, community, centrality + predicate_signature) plus the global
 // bridges list. Cheap when pre-computed; on a 1k-entity graph it's a few ms.
 app.get('/api/topology', async (c) => {
-  const { db } = await import('./db/index.js');
-  const { sql } = await import('drizzle-orm');
-
-  type EntityRow = {
-    entity_id: string;
-    component_id: number | null;
-    component_size: number | null;
-    k_core: number | null;
-    is_articulation_point: boolean;
-    community_id: number | null;
-    participation_coef: number | null;
-    pagerank: number | null;
-    betweenness_sampled: number | null;
-    predicate_signature: string | null;
-    computed_at: Date | null;
-    computation_version: number | null;
-  };
-  type BridgeRow = {
-    source_entity_id: string;
-    target_entity_id: string;
-    fact_id: string | null;
-    same_as_link_id: string | null;
-    computed_at: Date;
-  };
-
-  const entityRows = (await db.execute(sql`
-    SELECT
-      entity_id::text             AS entity_id,
-      component_id,
-      component_size,
-      k_core,
-      is_articulation_point,
-      community_id,
-      participation_coef,
-      pagerank,
-      betweenness_sampled,
-      predicate_signature::text   AS predicate_signature,
-      computed_at,
-      computation_version
-    FROM public.entity_topology
-  `)) as unknown as EntityRow[];
-
-  const bridgeRows = (await db.execute(sql`
-    SELECT
-      source_entity_id::text  AS source_entity_id,
-      target_entity_id::text  AS target_entity_id,
-      fact_id::text           AS fact_id,
-      same_as_link_id::text   AS same_as_link_id,
-      computed_at
-    FROM public.topology_bridges
-  `)) as unknown as BridgeRow[];
-
-  // Parse pgvector text "[0.1,0.2,...]" to number[] so the client doesn't
-  // have to. Returns null when the signature is missing (zero-norm column).
-  function parseVector(s: string | null): number[] | null {
-    if (!s) return null;
-    const trimmed = s.replace(/^\[|\]$/g, '');
-    if (!trimmed) return null;
-    const parts = trimmed.split(',').map((x) => Number.parseFloat(x));
-    return parts.every((x) => Number.isFinite(x)) ? parts : null;
-  }
-
-  const entities = entityRows.map((r) => ({
-    id: r.entity_id,
-    componentId: r.component_id,
-    componentSize: r.component_size,
-    kCore: r.k_core,
-    isArticulationPoint: r.is_articulation_point,
-    communityId: r.community_id,
-    participationCoef: r.participation_coef,
-    pagerank: r.pagerank,
-    betweennessSampled: r.betweenness_sampled,
-    predicateSignature: parseVector(r.predicate_signature),
-    computedAt: r.computed_at instanceof Date ? r.computed_at.toISOString() : null,
-  }));
-
-  const bridges = bridgeRows.map((r) => ({
-    sourceEntityId: r.source_entity_id,
-    targetEntityId: r.target_entity_id,
-    factId: r.fact_id,
-    sameAsLinkId: r.same_as_link_id,
-    computedAt: r.computed_at instanceof Date ? r.computed_at.toISOString() : String(r.computed_at),
-  }));
-
-  return c.json({ entities, bridges });
+  const snapshot = await getTopologySnapshot();
+  return c.json(snapshot);
 });
 
 app.get('/api/components/:component_id', async (c) => {
@@ -1315,45 +1212,8 @@ app.get('/api/components/:component_id', async (c) => {
   if (!Number.isInteger(componentId)) {
     return c.json({ error: `component_id must be an integer, got "${idStr}"` }, 400);
   }
-  const { db } = await import('./db/index.js');
-  const { sql } = await import('drizzle-orm');
-  const rows = (await db.execute(sql`
-    SELECT
-      e.id::text          AS entity_id,
-      e.canonical_name    AS canonical_name,
-      e.entity_type       AS entity_type,
-      et.component_id     AS component_id,
-      et.component_size   AS component_size,
-      et.computed_at      AS computed_at,
-      et.computation_version AS computation_version
-    FROM public.entity_topology et
-    JOIN public.entities e ON e.id = et.entity_id
-    WHERE et.component_id = ${componentId}
-    ORDER BY e.canonical_name ASC
-  `)) as unknown as Array<{
-    entity_id: string;
-    canonical_name: string;
-    entity_type: string;
-    component_id: number;
-    component_size: number;
-    computed_at: Date;
-    computation_version: number;
-  }>;
-  if (rows.length === 0) {
-    return c.json({ component_id: componentId, size: 0, entities: [] });
-  }
-  const head = rows[0]!;
-  return c.json({
-    component_id: head.component_id,
-    size: head.component_size,
-    computed_at: head.computed_at instanceof Date ? head.computed_at.toISOString() : String(head.computed_at),
-    computation_version: head.computation_version,
-    entities: rows.map((r) => ({
-      id: r.entity_id,
-      canonical_name: r.canonical_name,
-      entity_type: r.entity_type,
-    })),
-  });
+  const details = await getComponentEntities(componentId);
+  return c.json(details);
 });
 
 // ============================================
@@ -1389,62 +1249,8 @@ app.post('/api/clustering/compute', async (c) => {
 // Skips centroid_snapshot in the main list (768 floats × N is too heavy for
 // a polled endpoint); GET /api/clusters/:cluster_id returns it on demand.
 app.get('/api/clusters', async (c) => {
-  const { db } = await import('./db/index.js');
-  const { sql } = await import('drizzle-orm');
-
-  type EntityRow = {
-    entity_id: string;
-    cluster_id: number;
-    cluster_probability: number | null;
-    cluster_size: number | null;
-    computed_at: Date;
-  };
-  type SummaryRow = { cluster_id: number; size: number };
-
-  const [entityRows, summaryRows] = await Promise.all([
-    db.execute(sql`
-      SELECT
-        entity_id::text       AS entity_id,
-        cluster_id,
-        cluster_probability,
-        cluster_size,
-        computed_at
-      FROM public.entity_clusters
-    `) as unknown as Promise<EntityRow[]>,
-    db.execute(sql`
-      SELECT cluster_id, COUNT(*)::int AS size
-      FROM public.entity_clusters
-      GROUP BY cluster_id
-      ORDER BY cluster_id
-    `) as unknown as Promise<SummaryRow[]>,
-  ]);
-
-  const summary: Record<string, number> = {};
-  let noiseCount = 0;
-  let clusterCount = 0;
-  for (const r of summaryRows) {
-    summary[String(r.cluster_id)] = r.size;
-    if (r.cluster_id === -1) noiseCount = r.size;
-    else clusterCount += 1;
-  }
-
-  let computedAt: string | null = null;
-  if (entityRows.length > 0 && entityRows[0]!.computed_at instanceof Date) {
-    computedAt = entityRows[0]!.computed_at.toISOString();
-  }
-
-  return c.json({
-    entities: entityRows.map((r) => ({
-      id: r.entity_id,
-      clusterId: r.cluster_id,
-      clusterProbability: r.cluster_probability,
-      clusterSize: r.cluster_size,
-    })),
-    summary,
-    noiseCount,
-    clusterCount,
-    computedAt,
-  });
+  const snapshot = await getClustersSnapshot();
+  return c.json(snapshot);
 });
 
 app.get('/api/clusters/:cluster_id', async (c) => {
@@ -1453,48 +1259,8 @@ app.get('/api/clusters/:cluster_id', async (c) => {
   if (!Number.isInteger(clusterId)) {
     return c.json({ error: `cluster_id must be an integer (use -1 for noise), got "${idStr}"` }, 400);
   }
-  const { db } = await import('./db/index.js');
-  const { sql } = await import('drizzle-orm');
-  const rows = (await db.execute(sql`
-    SELECT
-      e.id::text             AS entity_id,
-      e.canonical_name       AS canonical_name,
-      e.entity_type          AS entity_type,
-      ec.cluster_id          AS cluster_id,
-      ec.cluster_size        AS cluster_size,
-      ec.cluster_probability AS cluster_probability,
-      ec.computed_at         AS computed_at,
-      ec.computation_version AS computation_version
-    FROM public.entity_clusters ec
-    JOIN public.entities e ON e.id = ec.entity_id
-    WHERE ec.cluster_id = ${clusterId}
-    ORDER BY ec.cluster_probability DESC NULLS LAST, e.canonical_name ASC
-  `)) as unknown as Array<{
-    entity_id: string;
-    canonical_name: string;
-    entity_type: string;
-    cluster_id: number;
-    cluster_size: number | null;
-    cluster_probability: number | null;
-    computed_at: Date;
-    computation_version: number;
-  }>;
-  if (rows.length === 0) {
-    return c.json({ cluster_id: clusterId, size: 0, entities: [] });
-  }
-  const head = rows[0]!;
-  return c.json({
-    cluster_id: head.cluster_id,
-    size: head.cluster_size,
-    computed_at: head.computed_at instanceof Date ? head.computed_at.toISOString() : String(head.computed_at),
-    computation_version: head.computation_version,
-    entities: rows.map((r) => ({
-      id: r.entity_id,
-      canonical_name: r.canonical_name,
-      entity_type: r.entity_type,
-      cluster_probability: r.cluster_probability,
-    })),
-  });
+  const details = await getClusterEntities(clusterId);
+  return c.json(details);
 });
 
 // ============================================
@@ -1544,76 +1310,16 @@ app.get('/api/drift/events', async (c) => {
   const limitRaw = c.req.query('limit');
   const defaultLimit = entityId ? 10 : 200;
   const limit = limitRaw ? Math.max(1, Math.min(500, Number.parseInt(limitRaw, 10) || defaultLimit)) : defaultLimit;
-  const { db } = await import('./db/index.js');
-  const { sql } = await import('drizzle-orm');
-  const rows = (await db.execute(sql`
-    SELECT
-      id::text                  AS event_id,
-      entity_id::text           AS entity_id,
-      detected_at,
-      drift_magnitude,
-      cluster_id_at_detection,
-      target_cluster_id,
-      triggered_action,
-      reconciliation_run_id,
-      error_detail,
-      computation_version
-    FROM public.entity_drift_events
-    WHERE (${entityId ?? null}::text IS NULL OR entity_id = ${entityId ?? null}::uuid)
-    ORDER BY detected_at DESC
-    LIMIT ${limit}
-  `)) as unknown as Array<{
-    event_id: string;
-    entity_id: string;
-    detected_at: Date;
-    drift_magnitude: number;
-    cluster_id_at_detection: number | null;
-    target_cluster_id: number | null;
-    triggered_action: string;
-    reconciliation_run_id: string | null;
-    error_detail: string | null;
-    computation_version: number;
-  }>;
-  return c.json({
-    entity_id: entityId ?? null,
-    count: rows.length,
-    events: rows.map((r) => ({
-      ...r,
-      detected_at: r.detected_at instanceof Date ? r.detected_at.toISOString() : String(r.detected_at),
-    })),
-  });
+  const result = await getDriftEvents({ entityId, limit });
+  return c.json(result);
 });
 
 // viz.7 — per-entity drift state (observation_count, last_cluster_id,
 // last_updated_at) for the Drift section in the entity detail panel.
 app.get('/api/drift/state/:entityId', async (c) => {
   const entityId = c.req.param('entityId');
-  const { db } = await import('./db/index.js');
-  const { sql } = await import('drizzle-orm');
-  const rows = (await db.execute(sql`
-    SELECT
-      observation_count,
-      last_cluster_id,
-      river_version,
-      last_updated_at
-    FROM public.entity_drift_state
-    WHERE entity_id = ${entityId}::uuid
-  `)) as unknown as Array<{
-    observation_count: number;
-    last_cluster_id: number | null;
-    river_version: string;
-    last_updated_at: Date;
-  }>;
-  if (rows.length === 0) return c.json({ state: null });
-  const r = rows[0]!;
-  return c.json({
-    state: {
-      observationCount: r.observation_count,
-      lastClusterId: r.last_cluster_id,
-      riverVersion: r.river_version,
-      lastUpdatedAt: r.last_updated_at instanceof Date ? r.last_updated_at.toISOString() : String(r.last_updated_at),
-    },
-  });
+  const state = await getDriftState(entityId);
+  return c.json({ state });
 });
 
 // ============================================
