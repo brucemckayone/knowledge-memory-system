@@ -106,6 +106,37 @@ function extractDurationMs(actionsTaken: unknown): number | null {
   return null;
 }
 
+/**
+ * Shared SELECT clause for the list + by-entity summary endpoints — both
+ * return the same row shape. array_length on an empty array yields NULL in
+ * Postgres; the row-mapper coerces to 0.
+ */
+const SUMMARY_SELECT = sql`
+  id::text          AS id,
+  mode              AS mode,
+  question          AS question,
+  array_length(entity_ids, 1)      AS entity_count,
+  array_length(fact_ids, 1)        AS fact_count,
+  array_length(causal_edge_ids, 1) AS causal_edge_count,
+  actions_taken     AS actions_taken,
+  created_at        AS created_at,
+  invocation_id::text AS invocation_id
+`;
+
+function rowToSummary(r: Record<string, unknown>): ReasoningReportSummary {
+  return {
+    id: r.id as string,
+    mode: r.mode as 'patrol' | 'query',
+    question: (r.question as string | null) ?? null,
+    entityCount: (r.entity_count as number | null) ?? 0,
+    factCount: (r.fact_count as number | null) ?? 0,
+    causalEdgeCount: (r.causal_edge_count as number | null) ?? 0,
+    durationMs: extractDurationMs(r.actions_taken),
+    createdAt: toIso(r.created_at),
+    invocationId: (r.invocation_id as string | null) ?? null,
+  };
+}
+
 // ============================================
 // List endpoint
 // ============================================
@@ -120,34 +151,13 @@ export async function listReasoningReports(opts: {
   const modeFilter = opts.mode === 'patrol' || opts.mode === 'query' ? opts.mode : null;
 
   const rows = (await db.execute(sql`
-    SELECT
-      id::text          AS id,
-      mode              AS mode,
-      question          AS question,
-      array_length(entity_ids, 1)      AS entity_count,
-      array_length(fact_ids, 1)        AS fact_count,
-      array_length(causal_edge_ids, 1) AS causal_edge_count,
-      actions_taken     AS actions_taken,
-      created_at        AS created_at,
-      invocation_id::text AS invocation_id
+    SELECT ${SUMMARY_SELECT}
     FROM public.reasoning_reports
     ${modeFilter ? sql`WHERE mode = ${modeFilter}` : sql``}
     ORDER BY created_at DESC
     LIMIT ${limit}
   `)) as unknown as Array<Record<string, unknown>>;
-
-  return rows.map((r) => ({
-    id: r.id as string,
-    mode: r.mode as 'patrol' | 'query',
-    question: (r.question as string | null) ?? null,
-    // array_length on an empty array returns NULL in Postgres — coerce to 0.
-    entityCount: (r.entity_count as number | null) ?? 0,
-    factCount: (r.fact_count as number | null) ?? 0,
-    causalEdgeCount: (r.causal_edge_count as number | null) ?? 0,
-    durationMs: extractDurationMs(r.actions_taken),
-    createdAt: toIso(r.created_at),
-    invocationId: (r.invocation_id as string | null) ?? null,
-  }));
+  return rows.map(rowToSummary);
 }
 
 // ============================================
@@ -210,32 +220,13 @@ export async function listReasoningReportsByEntity(
 ): Promise<ReasoningReportSummary[]> {
   const limit = Math.max(1, Math.min(200, opts.limit ?? 20));
   const rows = (await db.execute(sql`
-    SELECT
-      id::text          AS id,
-      mode              AS mode,
-      question          AS question,
-      array_length(entity_ids, 1)      AS entity_count,
-      array_length(fact_ids, 1)        AS fact_count,
-      array_length(causal_edge_ids, 1) AS causal_edge_count,
-      actions_taken     AS actions_taken,
-      created_at        AS created_at,
-      invocation_id::text AS invocation_id
+    SELECT ${SUMMARY_SELECT}
     FROM public.reasoning_reports
     WHERE entity_ids @> ARRAY[${entityId}::uuid]
     ORDER BY created_at DESC
     LIMIT ${limit}
   `)) as unknown as Array<Record<string, unknown>>;
-  return rows.map((r) => ({
-    id: r.id as string,
-    mode: r.mode as 'patrol' | 'query',
-    question: (r.question as string | null) ?? null,
-    entityCount: (r.entity_count as number | null) ?? 0,
-    factCount: (r.fact_count as number | null) ?? 0,
-    causalEdgeCount: (r.causal_edge_count as number | null) ?? 0,
-    durationMs: extractDurationMs(r.actions_taken),
-    createdAt: toIso(r.created_at),
-    invocationId: (r.invocation_id as string | null) ?? null,
-  }));
+  return rows.map(rowToSummary);
 }
 
 // ============================================

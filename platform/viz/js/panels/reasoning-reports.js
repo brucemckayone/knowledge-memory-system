@@ -145,6 +145,12 @@ async function toggleDetail(reportId) {
   try {
     const body = await getReasoningReportById(reportId);
     const actions = JSON.stringify(body.actionsTaken || {}, null, 2);
+    const idSection = (label, ids) => (ids || []).length === 0 ? '' : `
+      <div class="rr-detail-section">
+        <div class="field-label">${label} (${ids.length})</div>
+        <div class="rr-id-list">${ids.map(id => `<code>${esc(id)}</code>`).join(' ')}</div>
+      </div>
+    `;
     drawer.innerHTML = `
       <div class="rr-detail-section">
         <div class="field-label">Report</div>
@@ -154,24 +160,9 @@ async function toggleDetail(reportId) {
         <div class="field-label">actions_taken</div>
         <pre class="rr-actions-body">${esc(actions)}</pre>
       </div>
-      ${(body.entityIds || []).length > 0 ? `
-        <div class="rr-detail-section">
-          <div class="field-label">entity_ids (${body.entityIds.length})</div>
-          <div class="rr-id-list">${body.entityIds.map(id => `<code>${esc(id)}</code>`).join(' ')}</div>
-        </div>
-      ` : ''}
-      ${(body.factIds || []).length > 0 ? `
-        <div class="rr-detail-section">
-          <div class="field-label">fact_ids (${body.factIds.length})</div>
-          <div class="rr-id-list">${body.factIds.map(id => `<code>${esc(id)}</code>`).join(' ')}</div>
-        </div>
-      ` : ''}
-      ${(body.causalEdgeIds || []).length > 0 ? `
-        <div class="rr-detail-section">
-          <div class="field-label">causal_edge_ids (${body.causalEdgeIds.length})</div>
-          <div class="rr-id-list">${body.causalEdgeIds.map(id => `<code>${esc(id)}</code>`).join(' ')}</div>
-        </div>
-      ` : ''}
+      ${idSection('entity_ids', body.entityIds)}
+      ${idSection('fact_ids', body.factIds)}
+      ${idSection('causal_edge_ids', body.causalEdgeIds)}
     `;
   } catch (err) {
     drawer.innerHTML = `<div class="cc-signals-empty">Failed: ${esc(err.message)}</div>`;

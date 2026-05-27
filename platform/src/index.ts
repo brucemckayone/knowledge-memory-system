@@ -1725,12 +1725,15 @@ app.get('/api/reasoning-reports/cadence', async (c) => {
   }
 });
 
+// UUID shape guard — keeps SQL casts from raising 22P02 on malformed path
+// params for the reasoning-reports routes below.
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
 app.get('/api/reasoning-reports/by-entity/:entity_id', async (c) => {
   const entityId = c.req.param('entity_id');
   const limitRaw = c.req.query('limit');
   const limit = limitRaw ? Math.max(1, Math.min(200, Number.parseInt(limitRaw, 10) || 20)) : 20;
-  // UUID shape guard — keeps the SQL cast from raising 22P02 on bad input.
-  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(entityId)) {
+  if (!UUID_RE.test(entityId)) {
     return c.json({ error: 'entity_id must be a UUID' }, 400);
   }
   try {
@@ -1744,7 +1747,7 @@ app.get('/api/reasoning-reports/by-entity/:entity_id', async (c) => {
 
 app.get('/api/reasoning-reports/:id', async (c) => {
   const id = c.req.param('id');
-  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id)) {
+  if (!UUID_RE.test(id)) {
     return c.json({ error: 'id must be a UUID' }, 400);
   }
   try {
