@@ -497,7 +497,9 @@ app.post('/api/decay', async (c) => {
 
   const { applyConfidenceDecay } = await import('./services/causal.js');
   try {
-    const result = await applyConfidenceDecay();
+    // nmemo-2yv.33 — manual REST trigger writes actor='user' so audit rows
+    // are distinguishable from pipeline.ts auto-trigger ('system_trigger').
+    const result = await applyConfidenceDecay({ actor: 'user' });
     const durationMs = Date.now() - tStart;
     console.log(
       `[decay] manual complete decayed=${result.decayed} expired=${result.expired} durationMs=${durationMs}`,
