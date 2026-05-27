@@ -497,6 +497,7 @@ export const reasoningReports = pgTable('reasoning_reports', {
   mode: varchar('mode', { length: 20 }).notNull(),
   question: text('question'),
   report: text('report').notNull(),
+  // Freeform JSONB — consumer-defined, no canonical shape enforced anywhere.
   actionsTaken: jsonb('actions_taken').notNull().default({}),
   entityIds: uuid('entity_ids').array().notNull().default([]),
   factIds: uuid('fact_ids').array().notNull().default([]),

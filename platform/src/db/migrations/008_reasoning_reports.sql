@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.reasoning_reports (
 
   -- The report itself
   report            TEXT NOT NULL,            -- structured markdown: findings, actions, confidence
-  actions_taken     JSONB NOT NULL DEFAULT '{}',  -- {expired: [], created_facts: [], created_edges: [], updated_summaries: []}
+  actions_taken     JSONB NOT NULL DEFAULT '{}',  -- freeform structured log; consumer-defined, no canonical shape
 
   -- Linked graph objects (what this report touched)
   entity_ids        UUID[] NOT NULL DEFAULT '{}',
