@@ -25,7 +25,7 @@ This doc is intentionally a single markdown table — no YAML/JSON manifest, no 
 | `cross_cluster_generator` | `src/services/cross-cluster-generator.ts` | Post-compute fire-and-forget (chained off topology + clustering) | Inline after each `/api/{topology,clustering}/compute` success | `cross_cluster_runs` (bead `.92`) | `triggerCrossClusterAfterCompute` in `src/index.ts` |
 | `gardener` | `src/services/gardener.ts` | Threshold (patrol-cascade) | Every N patrols; gardener auto-trigger writes don't reach `gardening_reports`, see `nmemo-2yv.67` | `gardening_reports` (write gap) | `src/pipeline.ts` (patrol cascade) |
 | `reconciliation_agent` | `ml-services/app/reconciliation_agent.py` | **MANUAL ONLY — see `nmemo-2yv.61`** (state-driven trigger is the target) | — | `reconciliation_runs` | `POST /api/reconcile` only |
-| `reasoning_patrol` | `src/services/causal-agent.ts` (`invokeReasoningAgent`) | **MANUAL ONLY — see `nmemo-2yv.71`** (time-driven trigger is the target) | — | `reasoning_reports` | `POST /api/reason` only |
+| `reasoning_patrol` | `src/services/reasoning-agent.ts` (`invokeReasoningAgent`) | Scheduled (time-driven) + freshness-gated | `REASONING_PATROL_INTERVAL_MIN` cadence (default 30min) via `node-cron` job registered in `src/scheduler.ts`; runner skips the fire when `max(entity_meta.last_mentioned_at) <= max(entity_meta.last_reasoned_at, reasoning_reports.created_at)`. Manual debug surfaces (`POST /api/reason`, `POST /api/reason/query`) preserved. | `reasoning_reports` | `src/scheduler.ts` (`reasoning-patrol` job, bead `.71`); `POST /api/reason` + `POST /api/reason/query` still callable |
 | `pattern_detection` | `src/services/patterns.ts` | DB-reactive (target) — currently hitched to reasoning-patrol cadence (wrong cadence), see `nmemo-2yv.72` | n/a (cadence is a regression) | `causal_patterns` | `src/pipeline.ts` (patrol cascade) |
 | `decay` | `src/services/decay.ts` | **MANUAL ONLY via `POST /api/decay`** (confirm during cycle whether intentional) | — | n/a (writes onto `facts.decay_score`) | `POST /api/decay` only |
 
@@ -60,7 +60,7 @@ The compute fires on a cron-like cadence, regardless of DB state. Use when:
 - the compute is checking for "no activity" conditions (silence is the signal), OR
 - the compute has no natural DB anchor at all.
 
-Examples: drift detection (target — `.84`), reasoning patrol (target — `.71`, time-aware via `entity_meta` freshness).
+Examples: drift detection (`.84`), reasoning patrol (`.71`, time-driven cadence with an `entity_meta` freshness gate so the Claude Code subprocess only spawns when the graph has moved since the last pass).
 
 ### Threshold-driven (counter)
 
@@ -72,7 +72,7 @@ Examples: graph_stats (every N patrols), gardener (every N patrols), proposed `d
 
 The compute fires only via an explicit HTTP call or viz button. **This is a deprecated trigger condition** — every compute should evolve to one of the four above. Manual remains valid as:
 - a debug surface for ad-hoc developer-driven runs (T12 rule 3: viz is a debug surface, not a primary trigger), AND
-- the MVP placeholder before the real auto-trigger lands (the four P1 beads `.61 .71 .72 .84` are all in this category today).
+- the MVP placeholder before the real auto-trigger lands. The P1 beads `.61 .72` remain in this category; `.71` (reasoning patrol) landed scheduled + freshness-gated, `.84` (topology/clustering/drift) landed event + threshold + scheduled.
 
 Rows in §2 with `MANUAL ONLY — see <bead>` are explicit work-in-progress placeholders.
 

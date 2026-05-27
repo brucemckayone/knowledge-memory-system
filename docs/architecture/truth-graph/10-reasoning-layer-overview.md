@@ -567,6 +567,33 @@ Yes. Phase 5 is parallel to Phase 2, 3; only Phase 4 (blast radius) and Phase 6 
 
 Phase 0 + 1 + (2 OR 3) is the smallest useful deliverable. Phase 1 alone gives audit trail. Adding Phase 2 gives the lifecycle story. Adding Phase 3 enables Phase 4 later. Phase 5 and 6 are valuable but not critical for the first milestone.
 
+## Auto-trigger for the reasoning patrol (bead nmemo-2yv.71)
+
+The reasoning patrol is **scheduled (time-driven) with a freshness gate**. The decision space and the choice are:
+
+| Anchor | Why rejected |
+|---|---|
+| Post-ingest counter (mirror gardener) | Patrol is ~minutes wall-clock (Claude Code subprocess, 40-70 MCP calls). Cheap signals like "facts since last patrol" don't capture whether the graph has actually moved in a way that matters for reasoning. |
+| Contradiction-detection event | Reactive, but misses the broader "graph has gained mass; look for new structure" case that patrol is for. Useful as a future targeted-query trigger (see open question below); not the right primary anchor. |
+| Composite | Multiplies moving parts before evidence of need. |
+| **Scheduled + freshness-gated (chosen)** | Reuses the existing `src/scheduler.ts` (bead `.84`) infrastructure. The cadence is the spawn-storm guard. The freshness gate (entity_meta + reasoning_reports) prevents wasted spawns when the graph is quiet. |
+
+**Cadence and cooldown.** `REASONING_PATROL_INTERVAL_MIN` (default 30 minutes) is both the cadence and the cooldown — node-cron only fires the next tick after the interval elapses. `REASONING_PATROL_CRON` (raw 5-field expression) overrides the convenience knob when set. Both knobs follow the same precedence as `DRIFT_PATROL_CRON` / `DRIFT_PATROL_INTERVAL_MIN`.
+
+**Freshness gate.** `src/scheduler.ts:checkReasoningFreshness()` reads three rollups and skips the fire when nothing has moved:
+
+- `max(entity_meta.last_mentioned_at)` — bumped by extraction
+- `max(entity_meta.last_reasoned_at)` — bumped by `save_reasoning_report`
+- `max(reasoning_reports.created_at)` — bumped by every patrol or query pass
+
+Fire iff `max_mentioned > max(max_reasoned, last_report_at)`. Strict `>` so a patrol that touches the same entity doesn't self-retrigger. Cold-start (no mentions yet) → skip. First-ever patrol (mentions exist, no prior reasoning anchor) → fire. DB failure on the gate → fail-open (fire) — better to over-spend on patrol than to silently stop running it.
+
+**Retention of manual paths.** `POST /api/reason` and `POST /api/reason/query` remain functional as debug surfaces (per the architectural principle that viz is a debug surface — doc 34 §3). The scheduler invokes the same `/api/reason` endpoint over the in-process port, so manual and scheduled fires share the same logging, invocation_id minting, and timeout-to-504 path.
+
+**Open question deferred to a follow-up bead.** Whether a newly-detected contradiction should fire a *targeted* `mode='query'` pass on the implicated entities (in addition to contributing to the patrol cadence) is not decided here. The contradiction-detection path remains untouched by `.71`. See `nmemo-2yv.72` for the related decoupling work on pattern-detection cadence.
+
+**Cross-reference.** Doc 32 §2 reasoning_patrol row reflects this decision; doc 32 §3 lists it under the Scheduled taxonomy.
+
 ## Related Documents
 
 - `03-graph-c-technical-design.md` — original causal layer design (this series hardens it)

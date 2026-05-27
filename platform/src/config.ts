@@ -43,6 +43,17 @@ const envSchema = z.object({
   // Convenience knob for the common "every N minutes" cadence. Honoured only
   // when DRIFT_PATROL_CRON is unset. Default 60 minutes per the bead spec.
   DRIFT_PATROL_INTERVAL_MIN: z.coerce.number().int().positive().default(60),
+  // Cron cadence for the reasoning patrol (bead nmemo-2yv.71). Same precedence
+  // shape as DRIFT_PATROL_CRON: raw cron expression takes precedence over the
+  // minutes-interval convenience knob.
+  REASONING_PATROL_CRON: z.string().optional(),
+  // Convenience knob for the reasoning-patrol cadence. Default 30 minutes —
+  // patrol is more expensive than drift (Claude Code subprocess, 40-70 MCP
+  // tool calls per pass), so it ticks half as often. A freshness gate
+  // suppresses the actual fire when no entity has been mentioned since the
+  // last patrol, so the effective cadence is "every 30 min IF the graph
+  // moved" rather than "every 30 min unconditionally".
+  REASONING_PATROL_INTERVAL_MIN: z.coerce.number().int().positive().default(30),
   // Threshold for the post-ingest counter trigger. Once derived_freshness's
   // facts_since_compute crosses this value, topology + clustering compute
   // are fired together (fire-and-forget) and both rows reset.
