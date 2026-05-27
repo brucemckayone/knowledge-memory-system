@@ -160,6 +160,7 @@ export type MockMlRoute =
   | '/clustering/compute'
   | '/drift/compute'
   | '/reconciliation-agent/drift'
+  | '/reasoning-agent'
   | '/health';
 
 /**
@@ -261,6 +262,7 @@ export function mockMlServices(initial: MockMlServicesConfig = {}): MockMlServic
       '/topology/compute',
       '/clustering/compute',
       '/drift/compute',
+      '/reasoning-agent',
       '/health',
     ];
     for (const r of routeList) {
