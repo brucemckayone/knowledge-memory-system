@@ -212,7 +212,9 @@ svg { flex: 1; }
 .contradictions-panel .ctrad-row .ctrad-resolve-btn:hover { border-color: #58a6ff; color: #58a6ff; }
 .contradictions-panel .ctrad-empty { text-align: center; color: #484f58; font-style: italic; padding: 20px; font-size: 12px; }
 
-/* Cross-cluster panel (viz.4) — reuses .contradictions-panel skeleton */
+/* Merge-candidates panel (bead nmemo-2yv.47, subsumes legacy cross-cluster
+   panel) — reuses .contradictions-panel skeleton. Class prefix `cc-` retained
+   for CSS-rule continuity even though "cc" no longer maps 1:1 to cross-cluster. */
 .cc-row { cursor: pointer; }
 .cc-row:hover { border-color: #9b59b6 !important; }
 .cc-signals { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; padding: 6px 8px; background: #0d1117; border-radius: 3px; }
@@ -222,6 +224,14 @@ svg { flex: 1; }
 .cc-signals .bar-fill { height: 100%; border-radius: 3px; }
 .cc-signals .bar-value { width: 40px; text-align: right; color: #c9d1d9; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; }
 .cc-signals-empty { font-style: italic; color: #484f58; font-size: 11px; padding: 4px 0; }
+.cc-signals .signal-bar-null .bar-value-null { color: #484f58; font-style: italic; }
+.cc-source-tag { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.4px; margin-left: 4px; }
+.cc-source-cross { background: rgba(155,89,182,0.18); color: #d2a8ff; }
+.cc-source-three { background: rgba(31,111,235,0.18); color: #58a6ff; }
+.cc-row-actions { display: flex; gap: 6px; margin-top: 6px; }
+.cc-reconcile-row { font-size: 10px; padding: 3px 10px; border: 1px solid #d29922; background: rgba(210,153,34,0.1); color: #d29922; cursor: pointer; border-radius: 3px; }
+.cc-reconcile-row:hover { background: rgba(210,153,34,0.2); }
+.cc-reconcile-row:disabled { opacity: 0.5; cursor: not-allowed; }
 .cc-actions { padding: 8px 0; display: flex; gap: 8px; }
 .cc-generate-btn { font-size: 11px; padding: 4px 12px; border: 1px solid #9b59b6; background: rgba(155,89,182,0.12); color: #d2a8ff; cursor: pointer; border-radius: 4px; font-weight: 600; }
 .cc-generate-btn:hover { background: rgba(155,89,182,0.2); }
@@ -317,7 +327,7 @@ svg { flex: 1; }
     <button class="action-btn" id="btnReconcile" title="Trigger reconciliation agent to resolve entity identity questions">Reconcile</button>
     <button class="action-btn" id="btnTopology" title="Recompute topology (component, k-core, articulation, community, centrality, predicate signature) — Phase 2">Topology</button>
     <button class="action-btn" id="btnCluster" title="Recompute HDBSCAN clusters from entity_meta centroids — Phase 3.1">Cluster</button>
-    <button class="action-btn" id="btnCrossCluster" title="Browse Phase 4 cross-cluster candidates with signal-vector breakdown">Cross-cluster<span class="badge zero" id="crossClusterBadge">0</span></button>
+    <button class="action-btn" id="btnMergeCandidates" title="Browse unresolved merge candidates from every source — signal bars, per-row reconcile">Candidates<span class="badge zero" id="mergeCandidatesBadge">0</span></button>
     <button class="action-btn" id="btnContradictions" title="View flagged contradictions in the graph">Contradictions<span class="badge zero" id="contradictionsBadge">0</span></button>
     <button class="action-btn" id="btnPatterns" title="View active causal patterns (provisional + canonical)">Patterns<span class="badge zero" id="patternsBadge">0</span></button>
   </div>
@@ -364,19 +374,22 @@ svg { flex: 1; }
   </div>
   <div id="ctradList"></div>
 </div>
-<div class="contradictions-panel" id="crossClusterPanel">
+<div class="contradictions-panel" id="mergeCandidatesPanel">
   <div class="ctrad-header">
-    <h3 style="color:#d2a8ff">Cross-cluster candidates</h3>
+    <h3 style="color:#d2a8ff">Merge candidates</h3>
     <div class="ctrad-meta">
-      <span id="crossClusterMeta">Loading…</span>
-      <button class="ctrad-close" id="crossClusterClose">&times;</button>
+      <span id="mergeCandidatesMeta">Loading…</span>
+      <button class="ctrad-close" id="mergeCandidatesClose">&times;</button>
     </div>
   </div>
-  <div class="cc-actions">
-    <button class="cc-generate-btn" id="btnCrossClusterGenerate" title="Run the Phase 4 generator (requires fresh topology + clustering)">Generate candidates</button>
+  <div class="patterns-controls">
+    <div id="mergeCandidatesSourceFilter" class="pf-chips"></div>
+    <div class="cc-actions" style="padding:0">
+      <button class="cc-generate-btn" id="btnCrossClusterGenerate" title="Run the Phase 4 cross-cluster generator (visible when filtering by cross-cluster source)">Generate candidates</button>
+    </div>
   </div>
-  <div id="crossClusterLastRun"></div>
-  <div id="crossClusterList"></div>
+  <div id="mergeCandidatesLastRun"></div>
+  <div id="mergeCandidatesList"></div>
 </div>
 <div class="contradictions-panel" id="patternsPanel">
   <div class="ctrad-header">

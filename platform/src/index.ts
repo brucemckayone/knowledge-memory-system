@@ -450,6 +450,41 @@ app.post('/api/reconcile', async (c) => {
   });
 });
 
+app.post('/api/reconcile/:id', async (c) => {
+  // Per-pair reconcile (bead nmemo-2yv.47 — unified candidates panel fine-grained
+  // action). Same agent path as the bulk /api/reconcile, but the agent is
+  // invoked with exactly one candidate so its decision is scoped to that pair.
+  // Audit attribution mirrors the bulk path (nmemo-2yv.35 sweep): the agent's
+  // MCP context inherits actor='reconciliation_agent' via getMcpConfigPath.
+  const candidateId = c.req.param('id');
+  if (!candidateId) return c.json({ error: 'candidate id required' }, 400);
+
+  // Fetch every unresolved candidate then pick the requested one — preserves
+  // the SQL-filter contract from nmemo-2yv.45 (no in-memory dedup) and stays a
+  // single function call. At default LIMIT=50 this is bounded; for very large
+  // queues a future targeted SELECT could replace it.
+  const unresolved = await getMergeCandidates({ includeResolved: true, limit: 10000 });
+  const target = unresolved.find((row) => row.id === candidateId);
+  if (!target) {
+    return c.json({ error: `merge candidate ${candidateId} not found` }, 404);
+  }
+  if (target.status === 'resolved') {
+    return c.json({ triggered: false, message: 'candidate already resolved' });
+  }
+
+  const { invokeReconciliationAgent } = await import('./services/causal-agent.js');
+  const result = await invokeReconciliationAgent({
+    candidates: [target] as Array<Record<string, unknown>>,
+    recentReports: [],
+  });
+
+  return c.json({
+    triggered: true,
+    candidateId,
+    report: result.result,
+  });
+});
+
 app.post('/api/garden', async (c) => {
   // Manually trigger the graph gardener to explore and maintain the knowledge graph.
   // Audit attribution (nmemo-2yv.35 sweep): invokeGardenerAgent →

@@ -36,8 +36,11 @@ export const state = {
     loaded: false,
   },
   showClusterHulls: false,
-  // viz.4 — cross-cluster candidates (Phase 4)
-  crossClusterCandidates: [],
+  // viz.4 — unified merge candidates (bead nmemo-2yv.47 — subsumes legacy
+  // cross-cluster panel). mergeCandidatesSourceFilter is one of the keys in
+  // panels/merge-candidates.js:SOURCE_FILTERS ('all' default).
+  mergeCandidates: [],
+  mergeCandidatesSourceFilter: 'all',
   // viz.5 — pattern lifecycle filter + per-entity ghosts
   patternStatusFilter: ['staging', 'candidate', 'provisional', 'canonical'], // 'rejected' off by default
   ghostsByEntity: {}, // entityId → Ghost[]   (lazy-loaded on detail open)

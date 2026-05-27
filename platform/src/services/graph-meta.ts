@@ -275,6 +275,10 @@ export async function getMergeCandidates(options: GetMergeCandidatesOptions = {}
   resolution: string | null;
   // mig 017 — distinguishes 'three_signal_scoring' from 'cross_cluster_generator'
   candidateSource: string;
+  // Raw JSON-encoded reasoning blob — `{ signals: {...}, combined_score, ... }`
+  // post-F1a (bead nmemo-2yv.42). Surfaced for viz consumers that render the
+  // full 9-signal bar set per row (bead nmemo-2yv.47 — unified candidates panel).
+  resolutionReasoning: string | null;
 }>> {
   const statuses: readonly string[] = options.statuses
     ?? (options.includeResolved ? ALL_STATUSES : DEFAULT_UNRESOLVED_STATUSES);
@@ -310,5 +314,6 @@ export async function getMergeCandidates(options: GetMergeCandidatesOptions = {}
     detectionCount: r.detection_count as number,
     resolution: r.resolution as string | null,
     candidateSource: (r.candidate_source as string) ?? 'three_signal_scoring',
+    resolutionReasoning: (r.resolution_reasoning as string | null) ?? null,
   }));
 }

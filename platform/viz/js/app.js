@@ -23,7 +23,7 @@ import { bindReason } from './agents/reason.js';
 import { bindReset } from './agents/reset.js';
 import { loadTopology, bindColorModeDropdown, bindCentralityToggle, bindTopologyButton } from './layers/topology.js';
 import { loadClusters, bindClusterButton, bindHullsToggle } from './layers/clusters.js';
-import { bindCrossClusterPanel, refreshCrossCluster } from './panels/cross-cluster.js';
+import { bindMergeCandidatesPanel, refreshMergeCandidates } from './panels/merge-candidates.js';
 import { bindDriftStrip, refreshDrift } from './panels/drift.js';
 
 export async function fetchData() {
@@ -111,7 +111,7 @@ bindCentralityToggle();
 bindTopologyButton();
 bindClusterButton();
 bindHullsToggle();
-bindCrossClusterPanel();
+bindMergeCandidatesPanel();
 bindDriftStrip();
 
 // Polling registry — runs every poller once on start, then on its interval.
@@ -125,7 +125,7 @@ register('patterns', refreshPatterns, 5000);
 // Topology button or the backend's auto-trigger after gardener / clustering.
 register('topology', loadTopology, 15000);
 register('clusters', loadClusters, 15000);
-register('crossCluster', refreshCrossCluster, 15000);
+register('mergeCandidates', refreshMergeCandidates, 15000);
 register('drift', refreshDrift, 15000);
 
 if (document.getElementById('autoRefresh').checked) startAll();
@@ -138,6 +138,6 @@ else {
   refreshPatterns();
   loadTopology();
   loadClusters();
-  refreshCrossCluster();
+  refreshMergeCandidates();
   refreshDrift();
 }

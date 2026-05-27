@@ -34,9 +34,18 @@ export const computeTopology = () => postJson('/api/topology/compute');
 export const getClusters = () => getJson('/api/clusters');
 export const computeClustering = () => postJson('/api/clustering/compute');
 
-// ---- Cross-cluster candidates (Phase 4 — viz.4) ----
-export const getCrossClusterCandidates = (limit = 200) =>
-  getJson(`/api/cross-cluster/candidates?limit=${limit}`);
+// ---- Merge candidates (unified — bead nmemo-2yv.47) ----
+// /api/viz/merge-candidates returns rows from every candidate_source under a
+// large explicit cap, including resolved (the panel filters in-render). The
+// per-pair reconcile endpoint targets a single candidate by id; bulk reconcile
+// stays on /api/reconcile.
+export const getMergeCandidatesViz = () => getJson('/api/viz/merge-candidates');
+export const reconcileCandidate = (id) =>
+  postJson(`/api/reconcile/${encodeURIComponent(id)}`);
+
+// ---- Cross-cluster generator (Phase 4 — viz.4; subsumed by candidates panel) ----
+// The generator's run-trigger + per-run telemetry remain operationally useful
+// when viewing through the candidates panel's cross-cluster source filter.
 export const generateCrossCluster = () => postJson('/api/cross-cluster/generate');
 // Cross-cluster generator runs (bead nmemo-2yv.92). Most recent first.
 export const getCrossClusterRuns = (limit = 20) =>
