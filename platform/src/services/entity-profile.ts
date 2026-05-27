@@ -5,13 +5,14 @@
  * by combining data from entities, facts, graph, and memories.
  */
 
+import { db } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getEntityById, findEntitiesByName, type EntityType } from './entities.js';
 import { getEntityFacts } from './facts.js';
 import { findConnectedEntities, type GraphEntity } from './graph.js';
 import { qdrant, COLLECTIONS } from './qdrant.js';
-import type { Entity, Fact } from '../db/schema.js';
+import { entityMeta, type Entity, type Fact } from '../db/schema.js';
 
 export interface EntityMemory {
   memoryId: string;
@@ -25,22 +26,62 @@ export interface EntityProfile {
   facts: Fact[];
   relatedEntities: GraphEntity[];
   recentMemories: EntityMemory[];
+  // nmemo-2yv.51 — surface the agent-authored summary alongside the structured
+  // facts/relations. Written by causal-agent.ts via update_entity_summary
+  // (see doc 06 §entity-summary; bead .55 covers optimistic locking).
+  summary: string | null;
+  summaryUpdatedAt: Date | null;
 }
 
 /**
- * Assemble a full entity profile from multiple data sources
+ * Assemble a full entity profile from multiple data sources.
+ *
+ * Reads in parallel:
+ *  - getEntityFacts (facts table)
+ *  - findConnectedEntities (graph traversal)
+ *  - getEntityMemories (memory_entities -> Qdrant)
+ *  - getEntitySummary (entity_meta.summary + summary_updated_at)
  */
 export async function getEntityProfile(entityId: string): Promise<EntityProfile | null> {
   const entity = await getEntityById(entityId);
   if (!entity) return null;
 
-  const [facts, relatedEntities, recentMemories] = await Promise.all([
+  const [facts, relatedEntities, recentMemories, summaryRow] = await Promise.all([
     getEntityFacts(entityId),
     findConnectedEntities(entityId),
     getEntityMemories(entityId),
+    getEntitySummary(entityId),
   ]);
 
-  return { entity, facts, relatedEntities, recentMemories };
+  return {
+    entity,
+    facts,
+    relatedEntities,
+    recentMemories,
+    summary: summaryRow?.summary ?? null,
+    summaryUpdatedAt: summaryRow?.summaryUpdatedAt ?? null,
+  };
+}
+
+/**
+ * Read the agent-authored summary + freshness timestamp for an entity.
+ *
+ * Returns null when no entity_meta row exists yet (entity newer than the
+ * causal agent's first patrol over it). Callers must treat the absence
+ * indistinguishably from {summary:null, summaryUpdatedAt:null}.
+ */
+async function getEntitySummary(
+  entityId: string,
+): Promise<{ summary: string | null; summaryUpdatedAt: Date | null } | null> {
+  const rows = await db
+    .select({
+      summary: entityMeta.summary,
+      summaryUpdatedAt: entityMeta.summaryUpdatedAt,
+    })
+    .from(entityMeta)
+    .where(eq(entityMeta.entityId, entityId))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 /**
@@ -164,9 +205,13 @@ export function categorize(predicate: string): string {
  * Format an entity profile for Telegram display (4096 char limit)
  */
 export function formatEntityProfile(profile: EntityProfile): string {
-  const { entity, facts, relatedEntities, recentMemories } = profile;
+  const { entity, facts, relatedEntities, recentMemories, summary } = profile;
   const parts: string[] = [];
   const MAX_LENGTH = 4000; // Leave margin for safety
+  // Summary is agent-authored prose and can run long. Cap it before downstream
+  // truncation eats the structured facts/relations sections — those are more
+  // useful per byte than the tail of a narrative paragraph.
+  const SUMMARY_BUDGET = 1200;
 
   // Header
   const typeEmoji: Record<string, string> = {
@@ -179,6 +224,16 @@ export function formatEntityProfile(profile: EntityProfile): string {
     header += `\n_aka: ${entity.aliases.join(', ')}_`;
   }
   parts.push(header);
+
+  // Agent-authored summary, rendered above facts. Omitted when null so the
+  // header sits flush against the facts section for entities with no summary
+  // yet (causal agent hasn't patrolled them, or summary was cleared).
+  if (summary !== null && summary.length > 0) {
+    const trimmedSummary = summary.length > SUMMARY_BUDGET
+      ? summary.slice(0, SUMMARY_BUDGET - 1) + '…'
+      : summary;
+    parts.push(`\n**Summary:**\n${trimmedSummary}`);
+  }
 
   // Facts grouped by category
   if (facts.length > 0) {

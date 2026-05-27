@@ -848,6 +848,25 @@ app.get('/api/ghosts/:entityId', async (c) => {
   }
 });
 
+// nmemo-2yv.51 — canonical read endpoint for entity profiles. Assembles entity
+// + facts + connected entities + recent memories + agent-authored summary via
+// entity-profile.ts. Becomes the shared shape for MCP tools, the Telegram bot
+// (when it returns to HEAD), and future panels. Returns 404 on missing entity;
+// 500 on assembly error.
+app.get('/api/entity/:id/profile', async (c) => {
+  const entityId = c.req.param('id');
+  const { getEntityProfile } = await import('./services/entity-profile.js');
+  try {
+    const profile = await getEntityProfile(entityId);
+    if (!profile) {
+      return c.json({ error: `Entity ${entityId} not found` }, 404);
+    }
+    return c.json(profile);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
   'reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports',

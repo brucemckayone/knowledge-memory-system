@@ -8,13 +8,10 @@
  *   2. Write path. handleToolCall('update_entity_summary', ...) overwrites the
  *      seeded summary with a new one — exercises causal-agent.ts:1679 (the
  *      .53 write-side cap + sanitise) and the .52 timestamp write.
- *   3. Read path. getEntityProfile (and its sibling helpers) is the canonical
- *      read assembler per bead .51's design. Until .51's GET endpoint and
- *      summary fields land, this test exercises the underlying SQL read
- *      directly via entity_meta plus the assembler's other slices; once
- *      .51 closes it should be promoted to assert profile.summary +
- *      profile.summaryUpdatedAt and (when the route lands) hit
- *      app.request('/api/entity/:id/profile').
+ *   3. Read path (bead .51). getEntityProfile is the canonical read assembler;
+ *      it joins entity_meta and surfaces profile.summary + profile.summaryUpdatedAt.
+ *      GET /api/entity/:id/profile is the HTTP entry point that wraps the
+ *      assembler for external consumers (MCP, bot, future panels).
  *   4. Viz path. /api/viz/unified emits entity nodes with .summary — this
  *      test asserts the freshly-written summary surfaces on the unified
  *      payload so the .52 detail panel reads the same value the agent wrote.
@@ -138,32 +135,47 @@ describe('Entity-summary feature — end-to-end (bead nmemo-2yv.56)', () => {
     expect(after[0]!.updatedAt.getTime()).toBeGreaterThan(preTimestamp);
   });
 
-  // Until bead .51 lands, getEntityProfile returns the entity + facts +
-  // related + memories shape WITHOUT summary fields. We exercise the
-  // assembler here so the test stays green pre-.51 and asserts the
-  // canonical read path is at least reachable; once .51 closes, the
-  // expect() below graduates to assert profile.summary + profile.summaryUpdatedAt.
-  //
-  // Acceptance hook: when .51 lands, change the it() title from
-  // "(pre-.51)" → "(post-.51)" and add the two assertions noted below.
-  it('getEntityProfile returns the baseline entity (pre-.51 — summary slice still on entity_meta directly)', async () => {
+  // Graduated by bead .51: getEntityProfile now joins entity_meta and surfaces
+  // summary + summaryUpdatedAt on the assembled EntityProfile shape. Previously
+  // (pre-.51) this test only verified the entity slice; the agent-authored
+  // summary was only readable by querying entity_meta directly. Post-.51 the
+  // assembler is the canonical read path.
+  it('getEntityProfile returns the baseline entity with agent-authored summary (post-.51)', async () => {
     const profile = await getEntityProfile(BASELINE_ENTITY_ID);
     expect(profile).not.toBeNull();
     expect(profile!.entity.id).toBe(BASELINE_ENTITY_ID);
     expect(profile!.entity.canonicalName).toContain('Baseline Person');
+    expect(profile!.summary).toMatch(/rewritten by \.56 e2e/);
+    expect(profile!.summaryUpdatedAt).toBeInstanceOf(Date);
+  });
 
-    // Post-.51 (uncomment when the assembler joins entity_meta):
-    //   expect(profile!.summary).toMatch(/rewritten by \.56 e2e/);
-    //   expect(profile!.summaryUpdatedAt).toBeInstanceOf(Date);
-    //
-    // For now read entity_meta directly to validate the agent write
-    // surfaces through the canonical row even if the assembler ignores
-    // the column.
-    const meta = await testDb<{ summary: string }[]>`
-      SELECT summary FROM public.entity_meta
-      WHERE entity_id = ${BASELINE_ENTITY_ID}::uuid
-    `;
-    expect(meta[0]!.summary).toMatch(/rewritten by \.56 e2e/);
+  // bead .51 — GET /api/entity/:id/profile is the canonical read endpoint for
+  // external consumers (MCP, bot, future panels). Mirrors the assembler shape
+  // over HTTP; timestamps land as ISO strings.
+  it('GET /api/entity/:id/profile returns the same payload over HTTP (bead .51)', async () => {
+    const res = await app.request(`/api/entity/${BASELINE_ENTITY_ID}/profile`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      entity: { id: string; canonicalName: string };
+      summary: string | null;
+      summaryUpdatedAt: string | null;
+      facts: unknown[];
+      relatedEntities: unknown[];
+      recentMemories: unknown[];
+    };
+    expect(body.entity.id).toBe(BASELINE_ENTITY_ID);
+    expect(body.entity.canonicalName).toContain('Baseline Person');
+    expect(body.summary).toMatch(/rewritten by \.56 e2e/);
+    expect(typeof body.summaryUpdatedAt).toBe('string');
+    expect(new Date(body.summaryUpdatedAt as string).getTime()).toBeGreaterThan(0);
+  });
+
+  // bead .51 — 404 on unknown entity. Distinguishes "no entity" from
+  // "entity exists but has no summary yet" (the latter returns 200 with
+  // summary:null per the assembler contract).
+  it('GET /api/entity/:id/profile returns 404 for an unknown entity id (bead .51)', async () => {
+    const res = await app.request('/api/entity/00000000-0000-0000-0000-000000000000/profile');
+    expect(res.status).toBe(404);
   });
 
   // /api/viz/unified emits entity nodes with .summary and .summaryUpdatedAt

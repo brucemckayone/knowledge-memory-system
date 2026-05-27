@@ -8,7 +8,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Entity, Fact } from '../../db/schema.js';
 
-// Mock dependencies before importing the module under test
+// Mock dependencies before importing the module under test.
+//
+// db.select() is consumed by getEntitySummary's chained drizzle call:
+//   db.select(...).from(entityMeta).where(eq(...)).limit(1)
+// We stage a single Promise.resolve([...]) at the .limit() leaf — tests
+// override the leaf per-case with vi.mocked(db.select)... where needed.
+const mockSummaryLimit = vi.fn(() => Promise.resolve([] as Array<{ summary: string | null; summaryUpdatedAt: Date | null }>));
 vi.mock('../../db/index.js', () => ({
   db: {
     select: vi.fn(() => ({
@@ -17,7 +23,7 @@ vi.mock('../../db/index.js', () => ({
           orderBy: vi.fn(() => ({
             limit: vi.fn(() => Promise.resolve([])),
           })),
-          limit: vi.fn(() => Promise.resolve([])),
+          limit: mockSummaryLimit,
         })),
       })),
     })),
@@ -111,6 +117,9 @@ function makeFact(overrides: Partial<Fact> = {}): Fact {
 describe('Entity Profile Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: no entity_meta row exists for the test entity. Individual
+    // tests staging a summary override via mockSummaryLimit.mockResolvedValueOnce.
+    mockSummaryLimit.mockResolvedValue([]);
   });
 
   describe('getEntityProfile', () => {
@@ -149,6 +158,41 @@ describe('Entity Profile Service', () => {
       expect(mockGetEntityById).toHaveBeenCalledWith('ent-001');
       expect(mockGetEntityFacts).toHaveBeenCalledWith('ent-001');
       expect(mockFindConnected).toHaveBeenCalledWith('ent-001');
+    });
+
+    // bead nmemo-2yv.51 — surface entity_meta.summary on the assembled profile
+    it('should surface summary + summaryUpdatedAt from entity_meta when present', async () => {
+      const summaryUpdatedAt = new Date('2026-05-20T10:00:00Z');
+      mockGetEntityById.mockResolvedValue(makeEntity());
+      mockGetEntityFacts.mockResolvedValue([]);
+      mockFindConnected.mockResolvedValue([]);
+      mockSummaryLimit.mockResolvedValueOnce([{
+        summary: 'Bruce is a staff engineer at Hexagon focused on the Mnemo platform.',
+        summaryUpdatedAt,
+      }]);
+
+      const result = await getEntityProfile('ent-001');
+
+      expect(result).not.toBeNull();
+      expect(result!.summary).toBe(
+        'Bruce is a staff engineer at Hexagon focused on the Mnemo platform.',
+      );
+      expect(result!.summaryUpdatedAt).toBe(summaryUpdatedAt);
+    });
+
+    // bead nmemo-2yv.51 — null fields when no entity_meta row exists yet
+    it('should return null summary + summaryUpdatedAt when entity_meta has no row', async () => {
+      mockGetEntityById.mockResolvedValue(makeEntity());
+      mockGetEntityFacts.mockResolvedValue([]);
+      mockFindConnected.mockResolvedValue([]);
+      // Default beforeEach already stages [] — leaving it explicit for clarity.
+      mockSummaryLimit.mockResolvedValueOnce([]);
+
+      const result = await getEntityProfile('ent-001');
+
+      expect(result).not.toBeNull();
+      expect(result!.summary).toBeNull();
+      expect(result!.summaryUpdatedAt).toBeNull();
     });
   });
 
@@ -276,15 +320,22 @@ describe('Entity Profile Service', () => {
   });
 
   describe('formatEntityProfile', () => {
-    it('should include entity name, type, and aliases', () => {
-      const profile: EntityProfile = {
+    // Test fixtures default to a profile with no summary so prior assertions
+    // still pass. Summary-specific tests below override summary explicitly.
+    function makeProfile(overrides: Partial<EntityProfile> = {}): EntityProfile {
+      return {
         entity: makeEntity(),
         facts: [],
         relatedEntities: [],
         recentMemories: [],
+        summary: null,
+        summaryUpdatedAt: null,
+        ...overrides,
       };
+    }
 
-      const text = formatEntityProfile(profile);
+    it('should include entity name, type, and aliases', () => {
+      const text = formatEntityProfile(makeProfile());
 
       expect(text).toContain('Bruce McKay');
       expect(text).toContain('person');
@@ -292,17 +343,12 @@ describe('Entity Profile Service', () => {
     });
 
     it('should include facts grouped by category', () => {
-      const profile: EntityProfile = {
-        entity: makeEntity(),
+      const text = formatEntityProfile(makeProfile({
         facts: [
           makeFact({ predicate: 'works_at', objectValue: 'Acme Corp' }),
           makeFact({ id: 'fact-002', predicate: 'has_role', objectValue: 'Engineer' }),
         ],
-        relatedEntities: [],
-        recentMemories: [],
-      };
-
-      const text = formatEntityProfile(profile);
+      }));
 
       expect(text).toContain('Relationships');
       expect(text).toContain('works_at: Acme Corp');
@@ -311,17 +357,12 @@ describe('Entity Profile Service', () => {
     });
 
     it('should include related entities', () => {
-      const profile: EntityProfile = {
-        entity: makeEntity(),
-        facts: [],
+      const text = formatEntityProfile(makeProfile({
         relatedEntities: [
           { entityId: 'ent-002', name: 'Acme Corp', type: 'company' },
           { entityId: 'ent-003', name: 'Project X', type: 'project' },
         ],
-        recentMemories: [],
-      };
-
-      const text = formatEntityProfile(profile);
+      }));
 
       expect(text).toContain('Connected');
       expect(text).toContain('Acme Corp');
@@ -329,16 +370,11 @@ describe('Entity Profile Service', () => {
     });
 
     it('should include recent memories', () => {
-      const profile: EntityProfile = {
-        entity: makeEntity(),
-        facts: [],
-        relatedEntities: [],
+      const text = formatEntityProfile(makeProfile({
         recentMemories: [
           { memoryId: 'm1', content: 'Discussed the new architecture with Bruce', type: 'thought', createdAt: '2026-03-10T12:00:00Z' },
         ],
-      };
-
-      const text = formatEntityProfile(profile);
+      }));
 
       expect(text).toContain('Recent mentions');
       expect(text).toContain('Discussed the new architecture');
@@ -349,14 +385,7 @@ describe('Entity Profile Service', () => {
         makeFact({ id: `fact-${i}`, predicate: 'related_to', objectValue: `A very long value entry number ${i} with lots of detail to fill space` })
       );
 
-      const profile: EntityProfile = {
-        entity: makeEntity(),
-        facts: longFacts,
-        relatedEntities: [],
-        recentMemories: [],
-      };
-
-      const text = formatEntityProfile(profile);
+      const text = formatEntityProfile(makeProfile({ facts: longFacts }));
 
       expect(text.length).toBeLessThanOrEqual(4020); // 4000 + "...truncated" margin
     });
@@ -364,35 +393,64 @@ describe('Entity Profile Service', () => {
     it('should handle entity with no aliases', () => {
       const entityWithNoAliases = { ...makeEntity(), aliases: [] as string[] };
 
-      const profile: EntityProfile = {
-        entity: entityWithNoAliases,
-        facts: [],
-        relatedEntities: [],
-        recentMemories: [],
-      };
-
-      const text = formatEntityProfile(profile);
+      const text = formatEntityProfile(makeProfile({ entity: entityWithNoAliases }));
 
       expect(text).toContain('Bruce McKay');
       expect(text).not.toContain('aka:');
     });
 
     it('should use appropriate emoji for entity type', () => {
-      const personProfile: EntityProfile = {
+      expect(formatEntityProfile(makeProfile({
         entity: makeEntity({ entityType: 'person' }),
-        facts: [],
-        relatedEntities: [],
-        recentMemories: [],
-      };
-      expect(formatEntityProfile(personProfile)).toMatch(/^👤/);
+      }))).toMatch(/^👤/);
 
-      const companyProfile: EntityProfile = {
+      expect(formatEntityProfile(makeProfile({
         entity: makeEntity({ entityType: 'company' }),
-        facts: [],
-        relatedEntities: [],
-        recentMemories: [],
-      };
-      expect(formatEntityProfile(companyProfile)).toMatch(/^🏢/);
+      }))).toMatch(/^🏢/);
+    });
+
+    // bead nmemo-2yv.51 — summary rendering
+    describe('summary block (bead nmemo-2yv.51)', () => {
+      it('renders summary section above facts when present', () => {
+        const text = formatEntityProfile(makeProfile({
+          summary: 'Bruce is a staff engineer at Hexagon focused on the Mnemo platform.',
+          summaryUpdatedAt: new Date('2026-05-20T10:00:00Z'),
+          facts: [makeFact({ predicate: 'works_at', objectValue: 'Hexagon' })],
+        }));
+
+        expect(text).toContain('Summary');
+        expect(text).toContain('Bruce is a staff engineer at Hexagon');
+
+        const summaryIdx = text.indexOf('Summary');
+        const factsIdx = text.indexOf('Relationships');
+        expect(summaryIdx).toBeGreaterThan(-1);
+        expect(factsIdx).toBeGreaterThan(-1);
+        expect(summaryIdx).toBeLessThan(factsIdx);
+      });
+
+      it('omits the summary section when summary is null', () => {
+        const text = formatEntityProfile(makeProfile({ summary: null }));
+        expect(text).not.toContain('Summary');
+      });
+
+      it('omits the summary section when summary is an empty string', () => {
+        const text = formatEntityProfile(makeProfile({ summary: '' }));
+        expect(text).not.toContain('Summary');
+      });
+
+      it('respects the 4000-char budget even when summary is long', () => {
+        // 5000-char summary alone would blow the budget. The formatter caps
+        // the summary internally; total output stays under MAX_LENGTH + margin.
+        const longSummary = 'word '.repeat(1000); // 5000 chars
+        const text = formatEntityProfile(makeProfile({
+          summary: longSummary,
+          facts: [makeFact({ predicate: 'works_at', objectValue: 'Acme' })],
+        }));
+
+        expect(text.length).toBeLessThanOrEqual(4020);
+        // Facts section still rendered — summary cap protects structured content
+        expect(text).toContain('works_at');
+      });
     });
   });
 
