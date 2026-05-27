@@ -85,3 +85,14 @@ class MnemoClient:
         r = self._http.get("/api/viz/stats")
         r.raise_for_status()
         return r.json()
+
+    def reset(self) -> dict[str, Any]:
+        """POST /api/reset — clears Postgres + Qdrant.
+
+        Required between LongMemEval questions (each item has its own
+        independent haystack; contamination breaks the abstention category).
+        """
+        r = self._http.post("/api/reset", json={})
+        if r.status_code != 200:
+            raise MnemoClientError(f"reset failed: {r.status_code} {r.text[:200]}")
+        return r.json()

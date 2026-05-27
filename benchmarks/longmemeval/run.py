@@ -32,7 +32,9 @@ import yaml
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from _common.config import JUDGE_MODEL, MODEL_UNDER_TEST  # noqa: E402
+from _common.client import MnemoClient, MnemoClientError  # noqa: E402
+from _common.config import JUDGE_MODEL, MODEL_UNDER_TEST, PLATFORM_BASE_URL  # noqa: E402
+from _common.judge import JUDGE_PROMPT_VERSION, Judge, JudgeError  # noqa: E402
 from _common.results import (  # noqa: E402
     regenerate_dashboard,
     regenerate_markdown,
@@ -183,15 +185,137 @@ def run_dry(config: RunConfig, notes: str) -> int:
     return 0
 
 
-def run_real(_config: RunConfig, _notes: str) -> int:
+def format_session(session: Session) -> str:
+    """Concatenate a session's turns into a single text blob.
+
+    LongMemEval sessions are coherent user/assistant dialogues; treating
+    each session as ONE memory (rather than one-memory-per-turn) keeps
+    cross-turn entity references resolvable inside Mnemo's extraction.
+    """
+    lines: list[str] = []
+    if session.date:
+        lines.append(f"[Session date: {session.date}]")
+    for turn in session.turns:
+        lines.append(f"{turn.role.upper()}: {turn.content}")
+    return "\n\n".join(lines)
+
+
+def run_real(config: RunConfig, notes: str) -> int:
+    questions = load_dataset(config.dataset_local, config.dataset_url, config.expected_size)
+    total_loaded = len(questions)
+    if config.sample_size is not None:
+        questions = questions[: config.sample_size]
+        print(
+            f"[longmemeval] sample mode: {len(questions)} of {total_loaded} questions",
+            flush=True,
+        )
     print(
-        "[longmemeval] real-mode runner NOT YET WIRED — next session.\n"
-        "  TODO: per-question loop with MnemoClient.ingest (session-level),\n"
-        "        MnemoClient.query, Judge.score, /api/reset between questions.\n"
-        "  For now run with --dry-run to validate the harness shape.",
-        file=sys.stderr,
+        f"[longmemeval] running {len(questions)} questions against {PLATFORM_BASE_URL}",
+        flush=True,
     )
-    return 2
+
+    try:
+        judge = Judge()
+    except JudgeError as e:
+        print(f"FAIL: {e}", file=sys.stderr)
+        return 1
+
+    results: list[QuestionResult] = []
+    errors: list[tuple[str, str]] = []
+
+    with MnemoClient() as client:
+        try:
+            health = client.health()
+        except Exception as e:
+            print(
+                f"FAIL: platform health check at {PLATFORM_BASE_URL} did not respond: {e}",
+                file=sys.stderr,
+            )
+            return 1
+        if health.get("status") != "ok":
+            print(
+                f"WARN: platform health is '{health.get('status')}' — proceeding but "
+                f"results may be unreliable. Detail: {health}",
+                flush=True,
+            )
+
+        for idx, q in enumerate(questions):
+            progress = f"[{idx + 1}/{len(questions)}]"
+            try:
+                if config.reset_between_questions:
+                    client.reset()
+
+                for session in q.sessions:
+                    text = format_session(session)
+                    source = f"longmemeval/{q.question_id}/{session.session_id}"
+                    client.ingest(text, source=source)
+
+                response = client.query(q.question)
+                candidate = str(response.get("result") or "")
+
+                verdict = judge.score(q.question, candidate, q.answer)
+
+                results.append(
+                    QuestionResult(
+                        question_id=q.question_id,
+                        category=q.category,
+                        score=verdict.score,
+                        judge_reasoning=verdict.reasoning,
+                    )
+                )
+                print(
+                    f"{progress} {q.question_id} {q.category} "
+                    f"score={verdict.score:.2f} sessions={len(q.sessions)}",
+                    flush=True,
+                )
+            except (MnemoClientError, JudgeError, Exception) as e:
+                # Don't abort the whole run on one question failure. Record
+                # as score=0 with the error message in judge_reasoning so the
+                # JSON envelope tells the full story.
+                msg = f"{type(e).__name__}: {e}"
+                print(f"{progress} {q.question_id} ERROR: {msg}", file=sys.stderr, flush=True)
+                errors.append((q.question_id, msg))
+                results.append(
+                    QuestionResult(
+                        question_id=q.question_id,
+                        category=q.category,
+                        score=0.0,
+                        judge_reasoning=f"ERROR: {msg}",
+                    )
+                )
+
+    scores = aggregate(results)
+    scores["errors"] = len(errors)
+
+    json_path = write_run(
+        benchmark=config.benchmark,
+        cut=config.cut,
+        config_path=CONFIG_PATH.relative_to(REPO_ROOT).as_posix(),
+        model_under_test=MODEL_UNDER_TEST,
+        judge_model=JUDGE_MODEL,
+        dataset_size=len(results),
+        scores=scores,
+        notes=notes,
+        harness_commit=submodule_sha(UPSTREAM_DIR),
+        judge_prompt_version=JUDGE_PROMPT_VERSION,
+    )
+    md_path = regenerate_markdown(config.benchmark)
+    dash_path = regenerate_dashboard()
+
+    print()
+    print(f"[longmemeval] run complete")
+    print(f"  json:      {json_path}")
+    print(f"  markdown:  {md_path}")
+    print(f"  dashboard: {dash_path}")
+    print(f"  overall:   {scores['overall_accuracy']:.3f}")
+    print(f"  correct:   {scores['correct']}/{scores['n']}")
+    print(f"  errors:    {len(errors)}")
+    print(
+        f"  sanity:    "
+        f"{'PASS' if scores['sanity_pass'] else 'FAIL'} "
+        f"(abstention_rate={scores['abstention_rate']})"
+    )
+    return 0 if scores["sanity_pass"] else 1
 
 
 def parse_args() -> argparse.Namespace:
