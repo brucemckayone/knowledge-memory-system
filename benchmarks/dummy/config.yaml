@@ -1,0 +1,7 @@
+# Dummy benchmark — self-test for the _common pipeline.
+# Not a real benchmark. Exercises write_run + regenerate_markdown +
+# regenerate_dashboard end-to-end with synthetic scores so nmemo-ko0
+# can prove the harness shape works before any real benchmark lands.
+benchmark: dummy
+cut: smoke-test
+dataset_size: 3

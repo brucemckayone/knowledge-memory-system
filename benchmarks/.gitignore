@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.uv-cache/
+.pytest_cache/
+.ruff_cache/
+
+# Dataset caches (large, redownloadable from upstream submodules)
+**/upstream/data/
+**/upstream/datasets/
+**/.cache/
+
+# Dummy self-test outputs — regenerated locally, not part of the historical
+# baseline trail. Real benchmark results ARE committed (one JSON per run).
+results/dummy/
