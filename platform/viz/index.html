@@ -325,6 +325,7 @@ svg { flex: 1; }
     <button class="action-btn" id="btnIngestToggle" title="Paste text to ingest into the graph">Ingest</button>
     <button class="action-btn" id="btnGarden" title="Trigger the graph gardener to explore topology, find islands, and consolidate entities">Garden</button>
     <button class="action-btn" id="btnReconcile" title="Trigger reconciliation agent to resolve entity identity questions">Reconcile</button>
+    <button class="action-btn" id="btnDecay" title="Run confidence decay over causal edges — prune stale edges (peer of garden/reconcile)">Decay</button>
     <button class="action-btn" id="btnTopology" title="Recompute topology (component, k-core, articulation, community, centrality, predicate signature) — Phase 2">Topology</button>
     <button class="action-btn" id="btnCluster" title="Recompute HDBSCAN clusters from entity_meta centroids — Phase 3.1">Cluster</button>
     <button class="action-btn" id="btnMergeCandidates" title="Browse unresolved merge candidates from every source — signal bars, per-row reconcile">Candidates<span class="badge zero" id="mergeCandidatesBadge">0</span></button>

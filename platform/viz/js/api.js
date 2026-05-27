@@ -100,6 +100,10 @@ export const triggerGarden = () => postJson('/api/garden');
 export const triggerReconcile = () => postJson('/api/reconcile');
 export const triggerReason = () => postJson('/api/reason');
 export const triggerReasonQuery = (question) => postJson('/api/reason/query', { question });
+// Manual confidence-decay sweep over causal edges (peer of garden/reconcile).
+// Returns { triggered, decayed, expired, decayedEdgeIds, expiredEdgeIds, durationMs }.
+// Audit rows carry actor='user' (nmemo-2yv.33).
+export const triggerDecay = () => postJson('/api/decay');
 
 // ---- Reset / clear ----
 export const clearGraph = () => postJson('/api/viz/clear');
