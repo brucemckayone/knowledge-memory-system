@@ -44,6 +44,11 @@ export const state = {
   // viz.5 — pattern lifecycle filter + per-entity ghosts
   patternStatusFilter: ['staging', 'candidate', 'provisional', 'canonical'], // 'rejected' off by default
   ghostsByEntity: {}, // entityId → Ghost[]   (lazy-loaded on detail open)
+  // Reasoning reports debug panel (bead nmemo-2yv.81). Mode filter chip ID,
+  // and a toggle for the per-entity filter that activates when the canvas
+  // has a focused entity.
+  reasoningReportsModeFilter: 'all',
+  reasoningReportsEntityFilterEnabled: false,
   refs: {
     svg: null,
     g: null,

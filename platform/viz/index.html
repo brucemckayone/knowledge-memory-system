@@ -267,6 +267,26 @@ svg { flex: 1; }
 .drift-compute-btn { font-size: 10px; padding: 2px 8px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; border-radius: 4px; }
 .drift-compute-btn:hover { border-color: #58a6ff; color: #58a6ff; }
 
+/* Reasoning reports panel (bead nmemo-2yv.81) */
+.rr-cadence { display: flex; flex-wrap: wrap; gap: 12px; padding: 6px 10px; background: #0d1117; border-radius: 3px; margin-bottom: 8px; font-size: 11px; color: #8b949e; }
+.rr-cad-item b { color: #c9d1d9; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; }
+.rr-row { cursor: pointer; outline: none; }
+.rr-row:hover { border-color: #9b59b6 !important; }
+.rr-row:focus { border-color: #58a6ff !important; box-shadow: 0 0 0 1px #58a6ff; }
+.rr-mode { font-size: 9px; padding: 1px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; }
+.rr-mode-patrol { background: rgba(31,111,235,0.18); color: #58a6ff; }
+.rr-mode-query  { background: rgba(155,89,182,0.18); color: #d2a8ff; }
+.rr-time { color: #6e7681; font-size: 10px; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; }
+.rr-question { font-size: 11px; color: #c9d1d9; margin: 4px 0; font-style: italic; }
+.rr-entity-hint { font-size: 10px; color: #6e7681; font-style: italic; padding: 2px 0; }
+.rr-detail { margin-top: 8px; padding: 8px; background: #0d1117; border-radius: 3px; border: 1px solid #21262d; }
+.rr-detail-section { margin-bottom: 8px; }
+.rr-detail-section:last-child { margin-bottom: 0; }
+.rr-report-body { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: 11px; color: #c9d1d9; white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow-y: auto; margin: 4px 0 0; padding: 6px; background: #161b22; border-radius: 3px; line-height: 1.4; }
+.rr-actions-body { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: 10px; color: #8b949e; white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow-y: auto; margin: 4px 0 0; padding: 6px; background: #161b22; border-radius: 3px; line-height: 1.4; }
+.rr-id-list { display: flex; flex-wrap: wrap; gap: 4px; font-size: 10px; }
+.rr-id-list code { background: #161b22; padding: 1px 5px; border-radius: 2px; color: #8b949e; }
+
 /* History timeline (viz.6) — fact_history + causal_edge_history */
 .hist-mount { margin-top: 4px; }
 .hist-timeline { display: flex; flex-direction: column; gap: 6px; padding-left: 12px; border-left: 2px solid #21262d; }
@@ -331,6 +351,7 @@ svg { flex: 1; }
     <button class="action-btn" id="btnMergeCandidates" title="Browse unresolved merge candidates from every source — signal bars, per-row reconcile">Candidates<span class="badge zero" id="mergeCandidatesBadge">0</span></button>
     <button class="action-btn" id="btnContradictions" title="View flagged contradictions in the graph">Contradictions<span class="badge zero" id="contradictionsBadge">0</span></button>
     <button class="action-btn" id="btnPatterns" title="View active causal patterns (provisional + canonical)">Patterns<span class="badge zero" id="patternsBadge">0</span></button>
+    <button class="action-btn" id="btnReasoningReports" title="Debug surface for the reasoning agent — recent reports, cadence, per-entity filter">Reports<span class="badge zero" id="reasoningReportsBadge">0</span></button>
   </div>
   <div class="reset-actions">
     <button class="reset-btn" id="btnClearGraph" title="Delete all graph data (keeps Qdrant)">Clear Graph</button>
@@ -408,6 +429,21 @@ svg { flex: 1; }
     </div>
   </div>
   <div id="patternsList"></div>
+</div>
+<div class="contradictions-panel" id="reasoningReportsPanel">
+  <div class="ctrad-header">
+    <h3 style="color:#9b59b6">Reasoning reports</h3>
+    <div class="ctrad-meta">
+      <span id="reasoningReportsMeta">Loading…</span>
+      <button class="ctrad-close" id="reasoningReportsClose">&times;</button>
+    </div>
+  </div>
+  <div id="reasoningReportsCadence"></div>
+  <div class="patterns-controls">
+    <div id="reasoningReportsModeFilter" class="pf-chips"></div>
+    <div id="reasoningReportsEntityFilter" class="pf-chips"></div>
+  </div>
+  <div id="reasoningReportsList"></div>
 </div>
 <div class="main">
   <svg id="graph"></svg>

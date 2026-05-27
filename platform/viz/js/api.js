@@ -74,6 +74,23 @@ export const getFactHistory = (id) =>
 export const getCausalEdgeHistory = (id) =>
   getJson(`/api/causal-edges/${encodeURIComponent(id)}/history`);
 
+// ---- Reasoning reports (bead nmemo-2yv.81 — viz debug panel) ----
+// Read-only views over public.reasoning_reports (written by save_reasoning_report
+// in causal-agent.ts and computeGraphStats in .49). The panel surfaces these
+// for the developer's debug surface — get_reasoning_history MCP tool stays
+// agent-internal.
+export const getReasoningReports = (limit = 20, mode = null) => {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (mode === 'patrol' || mode === 'query') qs.set('mode', mode);
+  return getJson(`/api/reasoning-reports?${qs.toString()}`);
+};
+export const getReasoningReportById = (id) =>
+  getJson(`/api/reasoning-reports/${encodeURIComponent(id)}`);
+export const getReasoningReportsByEntity = (entityId, limit = 20) =>
+  getJson(`/api/reasoning-reports/by-entity/${encodeURIComponent(entityId)}?limit=${limit}`);
+export const getReasoningReportCadence = () =>
+  getJson('/api/reasoning-reports/cadence');
+
 // ---- Drift (Phase 3.2 — viz.7) ----
 export const getDriftEvents = (limit = 200) =>
   getJson(`/api/drift/events?limit=${limit}`);

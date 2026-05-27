@@ -26,6 +26,7 @@ import { loadTopology, bindColorModeDropdown, bindCentralityToggle, bindTopology
 import { loadClusters, bindClusterButton, bindHullsToggle } from './layers/clusters.js';
 import { bindMergeCandidatesPanel, refreshMergeCandidates } from './panels/merge-candidates.js';
 import { bindDriftStrip, refreshDrift } from './panels/drift.js';
+import { bindReasoningReportsPanel, refreshReasoningReports } from './panels/reasoning-reports.js';
 
 export async function fetchData() {
   try {
@@ -115,6 +116,7 @@ bindClusterButton();
 bindHullsToggle();
 bindMergeCandidatesPanel();
 bindDriftStrip();
+bindReasoningReportsPanel();
 
 // Polling registry — runs every poller once on start, then on its interval.
 register('graph', async () => {
@@ -129,6 +131,7 @@ register('topology', loadTopology, 15000);
 register('clusters', loadClusters, 15000);
 register('mergeCandidates', refreshMergeCandidates, 15000);
 register('drift', refreshDrift, 15000);
+register('reasoningReports', refreshReasoningReports, 15000);
 
 if (document.getElementById('autoRefresh').checked) startAll();
 else {
@@ -142,4 +145,5 @@ else {
   loadClusters();
   refreshMergeCandidates();
   refreshDrift();
+  refreshReasoningReports();
 }
