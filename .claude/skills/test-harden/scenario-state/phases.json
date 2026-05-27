@@ -11,6 +11,11 @@
       "phase_doc": "docs/architecture/truth-graph/12-audit-trail-foundation.md",
       "name": "Audit Trail Foundation"
     },
+    "phase1-graph-stats": {
+      "parent_bead": "nmemo-a7f.1.1",
+      "phase_doc": "docs/architecture/truth-graph/22-graph-stats-foundation.md",
+      "name": "Graph Stats Foundation"
+    },
     "phase2": {
       "parent_bead": "nmemo-e2i",
       "phase_doc": "docs/architecture/truth-graph/13-edge-lifecycle.md",

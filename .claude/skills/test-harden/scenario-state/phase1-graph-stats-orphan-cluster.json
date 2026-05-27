@@ -1,0 +1,34 @@
+{
+  "phase": "phase1-graph-stats",
+  "scenario": "orphan-cluster",
+  "fixture_path": "platform/src/test/data/phase1-graph-stats/fixtures/orphan-cluster.sql",
+  "expected_path": "platform/src/test/data/phase1-graph-stats/expected/orphan-cluster.expected.json",
+  "test_file": "platform/src/test/harness/graph-stats.test.ts",
+
+  "fixture_version": "v1.0",
+
+  "last_run": null,
+  "last_result": null,
+  "consecutive_fails": 0,
+  "consecutive_passes": 0,
+  "total_runs": 0,
+
+  "stressors_applied": [
+    "no-entity-meta-rows",
+    "universal-orphan",
+    "centroid-sample-null-safe"
+  ],
+  "complexity_score": 4,
+
+  "status": "active",
+
+  "filed_beads": [],
+
+  "benchmarks": {
+    "latest": null,
+    "baseline": null,
+    "history": []
+  },
+
+  "notes": "Initialised via nmemo-2yv.50 (doc 22 §7.1 fixture interface). Regression sentinel for the centroid-sampling NULL-safe path."
+}

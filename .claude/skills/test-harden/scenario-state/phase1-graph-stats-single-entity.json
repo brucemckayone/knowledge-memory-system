@@ -1,0 +1,30 @@
+{
+  "phase": "phase1-graph-stats",
+  "scenario": "single-entity",
+  "fixture_path": "platform/src/test/data/phase1-graph-stats/fixtures/single-entity.sql",
+  "expected_path": "platform/src/test/data/phase1-graph-stats/expected/single-entity.expected.json",
+  "test_file": "platform/src/test/harness/graph-stats.test.ts",
+
+  "fixture_version": "v1.0",
+
+  "last_run": null,
+  "last_result": null,
+  "consecutive_fails": 0,
+  "consecutive_passes": 0,
+  "total_runs": 0,
+
+  "stressors_applied": ["orphan-rate=1.0"],
+  "complexity_score": 1,
+
+  "status": "active",
+
+  "filed_beads": [],
+
+  "benchmarks": {
+    "latest": null,
+    "baseline": null,
+    "history": []
+  },
+
+  "notes": "Initialised via nmemo-2yv.50 (doc 22 §7.1 fixture interface)."
+}

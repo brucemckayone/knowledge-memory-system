@@ -13,6 +13,7 @@ import {
   createTestEntity,
   createTestFact,
   deleteFromTables,
+  loadFixture,
   randomEmbedding,
   normalizeVector,
   hasVectorExtension,
@@ -463,5 +464,113 @@ describe('graph-stats §22 — foundation', () => {
     expect(after!.predicateDiversity).toBe(before.predicateDiversity);
     expect(after!.computedDurationMs).toBe(before.computedDurationMs);
     expect(after!.computedAt.getTime()).toBe(before.computedAt.getTime());
+  });
+
+  // ============================================
+  // Bead nmemo-2yv.50 — doc 22 §7.1 fixture interface (test-harden)
+  // ============================================
+  //
+  // Six SQL fixtures under platform/src/test/data/phase1-graph-stats/fixtures/
+  // form the contract the test-harden skill's data-evolver subagent mutates.
+  // Existing programmatic-seeding cases above remain authoritative for their
+  // specific assertions; these tests prove that loadFixture() loads each
+  // fixture cleanly and that the canonical-multi-source fixture matches the
+  // expected.json contract end-to-end.
+
+  describe('doc 22 §7.1 — fixture interface (test-harden)', () => {
+    it('loads empty-db.sql cleanly (no entities, no facts)', async () => {
+      const { durationMs } = await loadFixture('phase1-graph-stats/fixtures/empty-db.sql');
+      expect(durationMs).toBeGreaterThanOrEqual(0);
+      const [{ entities }] = await testDb<{ entities: string }[]>`
+        SELECT COUNT(*)::text AS entities FROM public.entities
+      `;
+      expect(entities).toBe('0');
+    });
+
+    it('loads single-entity.sql cleanly (1 entity, 0 facts)', async () => {
+      await loadFixture('phase1-graph-stats/fixtures/single-entity.sql');
+      const [{ entities, facts }] = await testDb<{ entities: string; facts: string }[]>`
+        SELECT
+          (SELECT COUNT(*)::text FROM public.entities) AS entities,
+          (SELECT COUNT(*)::text FROM public.facts)    AS facts
+      `;
+      expect(entities).toBe('1');
+      expect(facts).toBe('0');
+    });
+
+    it('loads two-entities-one-fact.sql cleanly (entity-to-literal shape)', async () => {
+      await loadFixture('phase1-graph-stats/fixtures/two-entities-one-fact.sql');
+      const rows = await testDb<{ entities: string; facts: string; literal_facts: string }[]>`
+        SELECT
+          (SELECT COUNT(*)::text FROM public.entities) AS entities,
+          (SELECT COUNT(*)::text FROM public.facts)    AS facts,
+          (SELECT COUNT(*)::text FROM public.facts WHERE object_value IS NOT NULL AND object_entity_id IS NULL)
+                                                       AS literal_facts
+      `;
+      expect(rows[0]!.entities).toBe('2');
+      expect(rows[0]!.facts).toBe('1');
+      // Pins doc 22 §3.2 orphan-rate interpretation: literal-shaped fact.
+      expect(rows[0]!.literal_facts).toBe('1');
+    });
+
+    it('loads expired-only.sql cleanly (1 expired fact, 0 active)', async () => {
+      await loadFixture('phase1-graph-stats/fixtures/expired-only.sql');
+      const rows = await testDb<{ facts: string; active: string }[]>`
+        SELECT
+          (SELECT COUNT(*)::text FROM public.facts)                                AS facts,
+          (SELECT COUNT(*)::text FROM public.facts WHERE expired_at IS NULL)       AS active
+      `;
+      expect(rows[0]!.facts).toBe('1');
+      expect(rows[0]!.active).toBe('0');
+    });
+
+    it('loads orphan-cluster.sql cleanly (4 entities, 0 facts, 0 entity_meta)', async () => {
+      await loadFixture('phase1-graph-stats/fixtures/orphan-cluster.sql');
+      const rows = await testDb<{ entities: string; meta: string }[]>`
+        SELECT
+          (SELECT COUNT(*)::text FROM public.entities)    AS entities,
+          (SELECT COUNT(*)::text FROM public.entity_meta) AS meta
+      `;
+      expect(rows[0]!.entities).toBe('4');
+      expect(rows[0]!.meta).toBe('0');
+    });
+
+    it('loads canonical-multi-source.sql and computeGraphStats matches expected.json', async (ctx) => {
+      if (!hasVectorExtension) return skipCtx(ctx);
+      await loadFixture('phase1-graph-stats/fixtures/canonical-multi-source.sql');
+
+      const stats = await computeGraphStats();
+
+      // Counts (exact)
+      expect(stats.totalEntities).toBe(6);
+      expect(stats.totalFacts).toBe(6);          // 5 active + 1 expired
+      expect(stats.totalActiveFacts).toBe(5);
+      expect(stats.predicateDiversity).toBe(4);
+      expect(stats.mergeCandidatesPending).toBe(2);
+
+      // Derived columns (range; FP-safe per bd memory js-fp-gotcha-for-strict-less-than-threshold)
+      expect(stats.factDensity).not.toBeNull();
+      expect(stats.factDensity!).toBeGreaterThan(0.83);
+      expect(stats.factDensity!).toBeLessThan(0.84);
+
+      expect(stats.orphanRate).not.toBeNull();
+      expect(stats.orphanRate!).toBeGreaterThan(0.16);
+      expect(stats.orphanRate!).toBeLessThan(0.17);
+
+      // Centroid sampling — every entity has a centroid, sample bounded
+      expect(stats.centroidSampleSize).not.toBeNull();
+      expect(stats.centroidSampleSize!).toBeGreaterThan(0);
+      expect(stats.centroidSampleSize!).toBeLessThanOrEqual(36);
+      expect(stats.centroidSimMean).not.toBeNull();
+      expect(stats.centroidSimMedian).not.toBeNull();
+      expect(stats.centroidSimP10).not.toBeNull();
+      expect(stats.centroidSimP90).not.toBeNull();
+
+      // Phase 3 columns stay NULL
+      expect(stats.embeddingClusterCount).toBeNull();
+      expect(stats.meanIntraClusterDistance).toBeNull();
+      expect(stats.meanInterClusterDistance).toBeNull();
+      expect(stats.clusterColumnsVersion).toBeNull();
+    });
   });
 });
