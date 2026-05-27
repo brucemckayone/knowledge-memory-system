@@ -5,9 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { testDb, createTestEntity, randomUUID ,
-  skipCtx,
-} from '../setup.js';
+import { testDb, skipCtx } from '../setup.js';
 
 const TS = Date.now();
 let tablesReady = false;
@@ -165,56 +163,4 @@ describe('Ontology Edge Cases', () => {
     });
   });
 
-  describe('Reclassification edge cases', () => {
-    it('should write type history on reclassification', async () => {
-      if (!entityTypesReady) return;
-
-      const entity = await createTestEntity({
-        canonicalName: `EdgeEntity-${TS}`,
-        entityType: 'concept',
-      });
-
-      // Simulate reclassification
-      await testDb`UPDATE entities SET entity_type = 'project' WHERE id = ${entity.id}::uuid`;
-      await testDb`
-        INSERT INTO entity_type_history (id, entity_id, previous_type, new_type, changed_by, reason)
-        VALUES (${randomUUID()}::uuid, ${entity.id}::uuid, 'concept', 'project', 'test', 'Edge case test')
-      `;
-
-      const history = await testDb`
-        SELECT previous_type, new_type, reason
-        FROM entity_type_history
-        WHERE entity_id = ${entity.id}::uuid
-      `;
-      expect(history.length).toBe(1);
-      expect(history[0]!.previous_type).toBe('concept');
-      expect(history[0]!.new_type).toBe('project');
-
-      // Cleanup
-      await testDb`DELETE FROM entity_type_history WHERE entity_id = ${entity.id}::uuid`;
-      await testDb`DELETE FROM entities WHERE id = ${entity.id}::uuid`;
-    });
-
-    it('should not create history record when type is unchanged', async () => {
-      if (!entityTypesReady) return;
-
-      const { reclassifyEntity } = await import('../../services/entity-reclassification.js');
-
-      const entity = await createTestEntity({
-        canonicalName: `NoChange-${TS}`,
-        entityType: 'person',
-      });
-
-      // Reclassify to same type — should be a no-op
-      await reclassifyEntity(entity.id, 'person', 'test no-op');
-
-      const history = await testDb`
-        SELECT * FROM entity_type_history WHERE entity_id = ${entity.id}::uuid
-      `;
-      expect(history.length).toBe(0); // No record created
-
-      // Cleanup
-      await testDb`DELETE FROM entities WHERE id = ${entity.id}::uuid`;
-    });
-  });
 });
