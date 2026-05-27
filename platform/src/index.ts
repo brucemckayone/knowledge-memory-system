@@ -904,12 +904,20 @@ app.post('/api/reason', async (c) => {
   // getMcpConfigPath('reasoning_agent') sets MNEMO_AGENT_ACTOR; every MCP
   // tool write inherits actor='reasoning_agent' via context.agent.
   logReasonRequest(c, 'patrol');
-  const { invokeReasoningAgent } = await import('./services/causal-agent.js');
+  const { invokeReasoningAgent, AgentInvocationTimeoutError } = await import('./services/causal-agent.js');
   const start = Date.now();
   try {
     const result = await invokeReasoningAgent({ mode: 'patrol' });
     return c.json({ triggered: true, result: result.result, durationMs: Date.now() - start });
   } catch (err) {
+    // Bead nmemo-2yv.76: distinguish client-side abort timeouts (504) from
+    // upstream non-OK responses (500). A hung Claude Code subprocess inside
+    // ml-services produces no HTTP response at all — without the 504, the viz
+    // "Reason" button would spin and then report a generic 500 with no hint
+    // that the timeout fired.
+    if (err instanceof AgentInvocationTimeoutError) {
+      return c.json({ triggered: false, error: err.message, durationMs: Date.now() - start }, 504);
+    }
     return c.json({ triggered: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 500);
   }
 });
@@ -920,12 +928,16 @@ app.post('/api/reason/query', async (c) => {
   const body = await c.req.json<{ question: string }>();
   if (!body.question) return c.json({ error: 'question is required' }, 400);
   logReasonRequest(c, 'query', body.question);
-  const { invokeReasoningAgent } = await import('./services/causal-agent.js');
+  const { invokeReasoningAgent, AgentInvocationTimeoutError } = await import('./services/causal-agent.js');
   const start = Date.now();
   try {
     const result = await invokeReasoningAgent({ mode: 'query', question: body.question });
     return c.json({ triggered: true, result: result.result, durationMs: Date.now() - start });
   } catch (err) {
+    // Bead nmemo-2yv.76: 504 on timeout (see /api/reason for rationale).
+    if (err instanceof AgentInvocationTimeoutError) {
+      return c.json({ triggered: false, error: err.message, durationMs: Date.now() - start }, 504);
+    }
     return c.json({ triggered: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 500);
   }
 });

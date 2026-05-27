@@ -2674,6 +2674,75 @@ export async function invokeReconciliationDriftAgent(
 }
 
 // ============================================
+// Agent Invocation Timeout (bead nmemo-2yv.76)
+// ============================================
+
+/**
+ * Distinguished error thrown when an agent-invocation fetch is aborted by the
+ * timeout watchdog (AbortController.abort fired). Lets the HTTP handlers in
+ * src/index.ts respond with a 504 instead of the generic 500 used for
+ * upstream non-OK responses. Bead nmemo-2yv.76.
+ */
+export class AgentInvocationTimeoutError extends Error {
+  constructor(
+    public readonly agent: 'reasoning_agent' | 'graph_agent' | 'gardener_agent',
+    public readonly timeoutMs: number,
+  ) {
+    super(`${agent} timed out after ${timeoutMs}ms`);
+    this.name = 'AgentInvocationTimeoutError';
+  }
+}
+
+/**
+ * Fetch wrapper for the three Claude-Code-spawning ml-services agent endpoints.
+ * Adds an AbortController + setTimeout watchdog so a hung subprocess (stuck
+ * LLM call, network black-hole, frozen MCP server) cannot leak the platform-
+ * side fetch indefinitely. Mirrors the canonical pattern from
+ * src/services/ml-client.ts:96-104. Bead nmemo-2yv.76.
+ *
+ * On timeout: throws AgentInvocationTimeoutError so /api/reason can return 504.
+ * On non-OK response: throws a generic Error (caller decides status mapping).
+ * On other network errors: propagates the underlying error unchanged.
+ *
+ * Distinct from mlFetch (which retries 429/502/503/504 and uses a single
+ * fixed timeout): agent invocations are long-running by design and not safe
+ * to retry — each subprocess pass writes audit rows, increments counters, and
+ * mutates the graph. A retry-on-timeout would compound the leak rather than
+ * recover from it.
+ */
+async function agentFetch<T>(opts: {
+  agent: 'reasoning_agent' | 'graph_agent' | 'gardener_agent';
+  url: string;
+  body: unknown;
+  timeoutMs: number;
+}): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
+  try {
+    const response = await fetch(opts.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts.body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => response.statusText);
+      throw new Error(`${opts.agent} failed (${response.status}): ${detail}`);
+    }
+
+    return (await response.json()) as T;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new AgentInvocationTimeoutError(opts.agent, opts.timeoutMs);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ============================================
 // Gardener Agent Invocation
 // ============================================
 
@@ -2694,49 +2763,46 @@ export async function invokeGardenerAgent(params: {
 }): Promise<GardenerAgentResult> {
   const mcpConfigPath = getMcpConfigPath('gardener_agent');
   const url = `${config.ML_SERVICES_URL}/gardener-agent`;
-  console.log(`[gardener] POST ${url} trigger=${params.trigger} mcp=${mcpConfigPath}`);
+  console.log(`[gardener] POST ${url} trigger=${params.trigger} mcp=${mcpConfigPath} timeout=${config.GARDENER_AGENT_TIMEOUT_MS}ms`);
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      mcp_config_path: mcpConfigPath,
-      trigger: params.trigger,
-      graph_agent_runs_since_last: params.graphAgentRunsSinceLast ?? 0,
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => response.statusText);
-    console.error(`[gardener] ML service responded ${response.status}: ${detail.slice(0, 200)}`);
-    throw new Error(`Gardener agent failed (${response.status}): ${detail}`);
+  try {
+    const result = await agentFetch<GardenerAgentResult>({
+      agent: 'gardener_agent',
+      url,
+      body: {
+        mcp_config_path: mcpConfigPath,
+        trigger: params.trigger,
+        graph_agent_runs_since_last: params.graphAgentRunsSinceLast ?? 0,
+      },
+      timeoutMs: config.GARDENER_AGENT_TIMEOUT_MS,
+    });
+    console.log(`[gardener] ML service responded OK`);
+    return result;
+  } catch (err) {
+    if (err instanceof AgentInvocationTimeoutError) {
+      console.error(`[gardener] timed out after ${err.timeoutMs}ms`);
+    } else if (err instanceof Error) {
+      console.error(`[gardener] ML service error: ${err.message.slice(0, 200)}`);
+    }
+    throw err;
   }
-
-  console.log(`[gardener] ML service responded OK`);
-  return response.json() as Promise<GardenerAgentResult>;
 }
 
 export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<GraphAgentResult> {
   const mcpConfigPath = getMcpConfigPath('graph_agent');
 
-  const response = await fetch(`${config.ML_SERVICES_URL}/graph-agent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  return agentFetch<GraphAgentResult>({
+    agent: 'graph_agent',
+    url: `${config.ML_SERVICES_URL}/graph-agent`,
+    body: {
       source_text: params.sourceText,
       memory_id: params.memoryId,
       mcp_config_path: mcpConfigPath,
       source_name: params.source,
       content_type: params.contentType ?? 'prose',
-    }),
+    },
+    timeoutMs: config.GRAPH_AGENT_TIMEOUT_MS,
   });
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => response.statusText);
-    throw new Error(`Graph agent failed (${response.status}): ${detail}`);
-  }
-
-  return response.json() as Promise<GraphAgentResult>;
 }
 
 // ============================================
@@ -2755,22 +2821,16 @@ export interface ReasoningAgentResult {
 export async function invokeReasoningAgent(params: ReasoningAgentParams): Promise<ReasoningAgentResult> {
   const mcpConfigPath = getMcpConfigPath('reasoning_agent');
 
-  const response = await fetch(`${config.ML_SERVICES_URL}/reasoning-agent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const result = await agentFetch<ReasoningAgentResult>({
+    agent: 'reasoning_agent',
+    url: `${config.ML_SERVICES_URL}/reasoning-agent`,
+    body: {
       mode: params.mode,
       question: params.question,
       mcp_config_path: mcpConfigPath,
-    }),
+    },
+    timeoutMs: config.REASONING_AGENT_TIMEOUT_MS,
   });
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => response.statusText);
-    throw new Error(`Reasoning agent failed (${response.status}): ${detail}`);
-  }
-
-  const result = (await response.json()) as ReasoningAgentResult;
 
   // Phase 6 (nmemo-d9v.13): bump the pattern-detection counter on patrol
   // success. Every PATTERN_DETECTION_INTERVAL patrols runs detectCausalPatterns

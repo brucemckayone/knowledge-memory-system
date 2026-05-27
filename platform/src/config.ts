@@ -50,6 +50,20 @@ const envSchema = z.object({
   // Suppress the scheduler at startup (tests, scripts, one-off CLIs).
   // Set DISABLE_SCHEDULER=1 to skip startScheduler() registration.
   DISABLE_SCHEDULER: z.coerce.boolean().default(false),
+
+  // Agent-invocation fetch timeouts (bead nmemo-2yv.76). Each of the three
+  // ml-services agent endpoints (/reasoning-agent, /graph-agent, /gardener-
+  // agent) shells out to Claude Code subprocesses that drive 40-70 MCP tool
+  // calls per patrol. Without an AbortController-driven timeout, a hung
+  // subprocess (stuck LLM call, network black-hole, frozen MCP server) leaks
+  // the platform-side fetch indefinitely — viz buttons spin forever, success
+  // counters never increment, and request context piles up until the OS-level
+  // socket timeout (hours/days). Defaults match the observed upper bound for
+  // a successful patrol pass (~10 min); ops can lengthen for unusually deep
+  // reasoning or shorten for a tighter SLA.
+  REASONING_AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
+  GRAPH_AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
+  GARDENER_AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
 });
 
 /**
