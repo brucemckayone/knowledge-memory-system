@@ -4,6 +4,8 @@
 **Prerequisite for:** Graph C (Perpendicular Causal Graph)
 **Reference:** [Truth Graph Findings](../../handoff/truth-graph-findings.md) — 10-chunk Frankenstein test, 2026-03-31
 
+> **Architecture evolution (nmemo-2yv.22, 2026-05-27):** The original `platform/src/gardener/agents/*.agent.ts` files referenced throughout this doc were superseded by Claude-CLI agents (graph agent + reconciliation agent + gardener agent, all defined in `ml-services/app/*.py` and invoked from `platform/src/services/causal-agent.ts` via `invokeGraphAgent` / `invokeReconciliationAgent` / `invokeGardenerAgent`) plus the MCP tool handlers in `platform/src/services/graph-mcp.ts`. Entity / relationship / fact writes flow through the MCP tools (`resolve_entity`, `create_fact`); conflict and contradiction logic lives in `platform/src/services/contradictions.ts`; predicate evolution is deferred (see §6 banner + bead `nmemo-2yv.23`). The canonical references for the two graph-maintenance agents are docs `35-reconciliation-agent.md` and `36-gardener-agent.md`. File paths in this doc have been corrected to point at the current consumers; behaviour intent is preserved.
+
 ---
 
 ## 1. Why These Fixes Matter Beyond Graph S
@@ -78,7 +80,7 @@ clean_s -> clean_c: "clean in"
 
 **But the pipeline has three execution bugs:**
 
-**Bug 1a — Context not utilised effectively.** The `context` parameter defaults to empty string (`context = ''` at line 348). The entity extraction agent *does* pass `payload.content` (line 41 of `entity-extraction.agent.ts`), so context reaches `resolveEntity()`. However, the combined text for embedding generation is `mention + context.slice(0, 200)` — for short mentions like "Margaret", the 200-char context window may not capture enough disambiguating signal. The context window should be centred on the mention position, not taken from the start of the document.
+**Bug 1a — Context not utilised effectively.** The `context` parameter defaults to empty string (`context = ''` at line 348). The graph agent's `resolve_entity` MCP call (handler in `platform/src/services/graph-mcp.ts`) forwards the source memory text as `context`, so context reaches `resolveEntity()`. However, the combined text for embedding generation is `mention + context.slice(0, 200)` — for short mentions like "Margaret", the 200-char context window may not capture enough disambiguating signal. The context window should be centred on the mention position, not taken from the start of the document.
 
 **Bug 1b — No concurrency protection.** When multiple chunks mention the same new entity concurrently, parallel workers both call `createEntity()` before either's result is visible. No advisory lock or `ON CONFLICT` clause prevents this. This is the primary cause of the 15 duplicate rows across 7 entity names in the Frankenstein test.
 
@@ -97,7 +99,7 @@ clean_s -> clean_c: "clean in"
 | File | Change |
 |------|--------|
 | `platform/src/services/entities.ts` | `resolveEntity()` — context-windowed embedding. `createEntity()` — advisory lock or ON CONFLICT. `addAliasIfNew()` — targeted catch. |
-| `platform/src/gardener/agents/entity-extraction.agent.ts` | Pass mention positions to `linkEntitiesToMemory()` (already available from ML extraction) |
+| `platform/src/services/graph-mcp.ts` (`resolve_entity` handler) and `ml-services/app/extract_entities.py` | Pass mention positions through the graph agent's `resolve_entity` MCP tool call into `linkEntitiesToMemory()` (positions already available from ML extraction) |
 
 ### Graph C Prerequisite
 
@@ -109,15 +111,13 @@ Clean entity graph = clean causal node anchoring. Every entity in Graph S maps t
 
 ### The Bug
 
-The relationship agent (`platform/src/gardener/agents/relationship.agent.ts:120-125`) resolves subjects and objects via exact case-insensitive string matching:
+Relationship extraction historically lived in a TS agent that resolved subjects and objects via exact case-insensitive string matching. The equivalent logic in the current architecture spans three sites:
 
-```typescript
-const subjectEntity = entities.find(
-  e => e.name.toLowerCase() === rel.subject.toLowerCase()
-);
-```
+1. `ml-services/app/relationships.py` — the `EXTRACT_RELATIONSHIPS_PROMPT` and `/extract-relationships` endpoint that emits the raw subject/predicate/object triples.
+2. The graph agent's system prompt (`ml-services/app/graph_agent.py`) — instructs the agent to RELATE only between entities it has already resolved via `resolve_entity`.
+3. `platform/src/services/graph-mcp.ts` — the `create_fact` MCP tool handler that the graph agent calls to persist a relationship, resolving subject/object to canonical entity ids.
 
-The ML relationship extraction returns generic references ("narrator", "I", "lieutenant", "the captain") that don't match the entity names extracted in the previous step ("R. Walton", "Captain Walton"). The entity extraction and relationship extraction prompts operate independently — they each decide what to call characters.
+The match-by-name pattern still surfaces inside the graph agent's reasoning: the ML relationship extraction returns generic references ("narrator", "I", "lieutenant", "the captain") that don't match the entity names extracted in the previous step ("R. Walton", "Captain Walton"). The entity extraction and relationship extraction prompts operate independently — they each decide what to call characters.
 
 **Result:** 36 of 75 extracted relationships (48%) discarded. Two chunks produced zero facts. First-person narrated text is especially affected.
 
@@ -139,8 +139,9 @@ The ML relationship extraction returns generic references ("narrator", "I", "lie
 
 | File | Change |
 |------|--------|
-| `platform/src/gardener/agents/relationship.agent.ts` | Replace exact match (line 120-125) with multi-tier fuzzy matching. Pass entity list with constraint instructions to ML service. |
-| `ml-services/app/` (relationship extraction prompt) | Add constraint: "Use ONLY the provided entity names as subjects/objects." Add coreference instruction for first-person text. |
+| `platform/src/services/graph-mcp.ts` (`create_fact` handler) | Replace exact subject/object match with multi-tier fuzzy matching (exact → case-insensitive substring → embedding similarity → skip-with-warning). |
+| `ml-services/app/relationships.py` (`EXTRACT_RELATIONSHIPS_PROMPT`) | Add constraint: "Use ONLY the provided entity names as subjects/objects." Add coreference instruction for first-person text. |
+| `ml-services/app/graph_agent.py` (graph agent system prompt) | Reinforce that subjects/objects must reference entities resolved via `resolve_entity` in the current session. |
 
 ### Graph C Prerequisite
 
@@ -180,8 +181,8 @@ The entity extraction ML prompt accepts too many types and doesn't filter for sp
 
 | File | Change |
 |------|--------|
-| `ml-services/app/` (entity extraction prompt) | Specificity instructions, proper noun emphasis |
-| `platform/src/services/entities.ts` or `entity-extraction.agent.ts` | Post-extraction filter before `linkEntitiesToMemory()` |
+| `ml-services/app/extract_entities.py` (entity extraction prompt) | Specificity instructions, proper noun emphasis |
+| `platform/src/services/entities.ts` (or the `resolve_entity` MCP handler in `platform/src/services/graph-mcp.ts`) | Post-extraction filter before `linkEntitiesToMemory()` / before `createEntity()` writes |
 
 ### Graph C Prerequisite
 
@@ -208,7 +209,7 @@ Clean entities = reliable causal attribution. A causal edge pointing to "dauntle
 | File | Change |
 |------|--------|
 | `platform/src/services/facts.ts` | `createFact()` — pre-insert check for existing matching triple. Upsert logic for confidence and provenance. |
-| `platform/src/gardener/agents/conflict-resolution.agent.ts` | Enhance to detect semantic duplicates via embedding similarity on `object_value` |
+| `platform/src/services/contradictions.ts` (or a new sibling `semantic-duplicates.ts`) | Detect semantic duplicates via embedding similarity on `object_value`. The standalone TS conflict-resolution agent file referenced previously was superseded by SQL-heuristic detection here plus reasoning-agent `expire_fact` / `invalidate_fact` MCP calls; semantic dedup belongs alongside the contradiction heuristics. |
 
 ### Graph C Prerequisite
 
@@ -247,7 +248,7 @@ The living ontology system is the most thoroughly designed subsystem that isn't 
 
 3. **Layer 3 (LLM Gate):** LLM verifies merge candidates, batch review of 3-5 predicates per call. **Designed** but **not called** — the `/compare-predicates` ML endpoint exists but the agent doesn't invoke it.
 
-The database infrastructure is ready: migration 025 added staging lifecycle columns (`status`, `first_seen_at`, `distinct_memory_count`, `usage_count`, `promoted_at`, `rejected_at`). Valid status transitions are defined. The `ontologyEvolutionAgent` in `platform/src/gardener/agents/ontology-evolution.agent.ts` has the three-layer structure but Layers 2 and 3 aren't connected.
+The database infrastructure is ready: migration 025 added staging lifecycle columns (`status`, `first_seen_at`, `distinct_memory_count`, `usage_count`, `promoted_at`, `rejected_at`). Valid status transitions are defined. The intended `ontologyEvolutionAgent` (orchestrator that would walk the predicate lifecycle) was never built — see the Status banner above. The three-layer structure described below is the design intent; only Layer 1 (`normalizePredicate()` in `platform/src/services/predicates.ts`) is live.
 
 ### The Fix (deferred — see Status banner above)
 
@@ -267,9 +268,9 @@ The database infrastructure is ready: migration 025 added staging lifecycle colu
 
 | File | Change |
 |------|--------|
-| `platform/src/gardener/agents/ontology-evolution.agent.ts` | Wire embedding similarity scoring (Layer 2) and ML comparison call (Layer 3). Apply promotion lifecycle logic. |
+| New orchestrator (TBD by revive bead — likely `platform/src/services/ontology-evolution.ts` invoked from `platform/src/scheduler.ts`, mirroring the `35-reconciliation-agent.md` / `36-gardener-agent.md` shape) | Wire embedding similarity scoring (Layer 2) and ML `/compare-predicates` call (Layer 3). Apply promotion lifecycle logic. |
 | `platform/src/services/predicates.ts` | Add `getPredicateEmbedding()`, `findSimilarPredicates()` functions; un-deprecate `syncOntologyToDb` / `findNonCanonicalPredicates` / `normalizeFactPredicates` / `transitionPredicateStatus`. |
-| `platform/src/gardener/controller.ts` | Re-enable nightly ontology evolution schedule |
+| `platform/src/scheduler.ts` | Register a nightly ontology evolution job alongside the existing `node-cron` jobs. |
 
 ### Graph C Prerequisite
 
