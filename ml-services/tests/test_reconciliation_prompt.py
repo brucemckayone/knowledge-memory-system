@@ -201,6 +201,122 @@ def test_no_candidates_renders_empty_marker():
     assert "Merge Candidates (" not in prompt
 
 
+# ---------------------------------------------------------------------------
+# Bead nmemo-e8k: extraction-report references as a primary work source.
+#
+# The graph agent's PHASE 6 report carries ### PRONOUNS RESOLVED and
+# ### ALIASES CREATED sections — cross-entity references the agent recorded
+# but generic-noun rules prevent it from materialising as entities. The
+# reconciliation agent must mine those sections and convert resolved
+# references into same_as links (or create missing entities + link them).
+# These tests lock that contract: system-prompt section exists and is
+# ordered correctly, workflow includes the report-mining step, report
+# format includes the processed-references section, and the prompt
+# builder renders a per-prompt nudge when reports are present.
+# ---------------------------------------------------------------------------
+
+
+def test_system_prompt_has_extraction_report_references_section():
+    """The new EXTRACTION REPORT REFERENCES section must exist between
+    ORPHAN ENTITIES and SUMMARY UPDATES — it sits at the same level as
+    HANDLING UNCONFIRMED ALIASES and ORPHAN ENTITIES (the other
+    secondary-work sections) so the agent treats it as a primary pass."""
+    p = RECONCILIATION_AGENT_SYSTEM_PROMPT
+    orphan_idx = p.index("=== ORPHAN ENTITIES ===")
+    references_idx = p.index("=== EXTRACTION REPORT REFERENCES ===")
+    summary_idx = p.index("=== SUMMARY UPDATES ===")
+    assert orphan_idx < references_idx < summary_idx, (
+        "EXTRACTION REPORT REFERENCES must sit between ORPHAN ENTITIES and SUMMARY UPDATES"
+    )
+
+
+def test_extraction_references_section_names_the_phase6_headers():
+    """The section must name the exact graph-agent PHASE 6 headers it
+    expects to find — `### PRONOUNS RESOLVED` and `### ALIASES CREATED`.
+    Without these literal strings the agent has to guess which sections
+    contain the work."""
+    p = RECONCILIATION_AGENT_SYSTEM_PROMPT
+    start = p.index("=== EXTRACTION REPORT REFERENCES ===")
+    end = p.index("=== SUMMARY UPDATES ===")
+    section = p[start:end]
+    assert "### PRONOUNS RESOLVED" in section
+    assert "### ALIASES CREATED" in section
+    # Must explicitly name create_same_as_link as the primary action.
+    assert "create_same_as_link" in section
+    # Must name the missing-entity path (resolve_entity then same_as link).
+    assert "resolve_entity" in section
+
+
+def test_workflow_includes_extraction_reports_pass():
+    """The WORKFLOW section must include a step that mines the recent
+    extraction reports for reference observations the candidate list did
+    not already cover. Without this step the agent might skip the reports
+    when the candidate list is non-empty."""
+    p = RECONCILIATION_AGENT_SYSTEM_PROMPT
+    workflow_idx = p.index("=== WORKFLOW ===")
+    report_format_idx = p.index("=== REPORT FORMAT ===")
+    workflow = p[workflow_idx:report_format_idx]
+    # The workflow must reference the extraction-report mining step.
+    assert "extraction report" in workflow.lower()
+    # The phase-6 section names must be cited so the agent grep-finds them.
+    assert "### PRONOUNS RESOLVED" in workflow
+    assert "### ALIASES CREATED" in workflow
+
+
+def test_report_format_includes_extraction_report_references_processed():
+    """The REPORT FORMAT must include a section for the
+    reference-processing outcomes so the per-observation actions are
+    visible in the report log (and downstream readers can audit them)."""
+    p = RECONCILIATION_AGENT_SYSTEM_PROMPT
+    assert "### EXTRACTION REPORT REFERENCES PROCESSED" in p
+
+
+def test_rules_block_forbids_same_as_from_report_alone():
+    """The hard rule: the agent must cross-check both entities' facts
+    before creating a same_as link sourced from an extraction report.
+    This guards against the report being wrong and silently propagating
+    a bad identity link into the graph."""
+    p = RECONCILIATION_AGENT_SYSTEM_PROMPT
+    rules_idx = p.rindex("=== RULES ===")
+    rules = p[rules_idx:]
+    # The exact rule must mention "extraction report" and "cross-check"
+    # (or equivalent) so it's clearly a same-as guardrail.
+    assert "extraction report" in rules.lower()
+    assert "cross-check" in rules.lower() or "facts" in rules.lower()
+
+
+def test_prompt_builder_nudges_agent_to_mine_phase6_sections():
+    """When recent_reports is non-empty the prompt builder must render a
+    leading nudge that tells the agent to scan PRONOUNS RESOLVED and
+    ALIASES CREATED. This puts the work in front of the agent at the
+    point where the reports appear — the system-prompt EXTRACTION REPORT
+    REFERENCES section is the procedure; this nudge is the trigger."""
+    sample_report = (
+        "### ENTITIES FOUND\n- 'R. Walton' (person) — EXISTING, id=aaa\n"
+        "- 'the stranger' (person) — NEW, id=bbb\n\n"
+        "### PRONOUNS RESOLVED\n- 'he' / 'him' → the stranger\n"
+        "- 'I' / 'my' → R. Walton\n"
+    )
+    prompt = _build_reconciliation_prompt(
+        candidates=[], recent_reports=[sample_report]
+    )
+    # The nudge must reference both PHASE 6 sections by name.
+    assert "### PRONOUNS RESOLVED" in prompt
+    assert "### ALIASES CREATED" in prompt
+    # And point at the system-prompt section name.
+    assert "EXTRACTION REPORT REFERENCES" in prompt
+
+
+def test_prompt_builder_omits_nudge_when_no_reports():
+    """Empty recent_reports — no Recent Extraction Reports header AND no
+    nudge. The nudge is gated on the reports actually being present so
+    the prompt stays clean for callers that don't pass reports."""
+    prompt = _build_reconciliation_prompt(candidates=[], recent_reports=[])
+    assert "Recent Extraction Reports" not in prompt
+    # The nudge string is only emitted when reports are present.
+    assert "Mine each report" not in prompt
+
+
 # Standalone runner — matches the existing ml-services/tests/* convention
 # (no pytest in the venv; tests are invoked via `py -m tests.<name>` per
 # their docstrings). Each test_* function above is a self-contained
@@ -215,6 +331,14 @@ TESTS = [
     test_reasoning_seed_propagates_through_prompt,
     test_missing_resolution_reasoning_renders_placeholder,
     test_no_candidates_renders_empty_marker,
+    # Bead nmemo-e8k — extraction-report references lock-in
+    test_system_prompt_has_extraction_report_references_section,
+    test_extraction_references_section_names_the_phase6_headers,
+    test_workflow_includes_extraction_reports_pass,
+    test_report_format_includes_extraction_report_references_processed,
+    test_rules_block_forbids_same_as_from_report_alone,
+    test_prompt_builder_nudges_agent_to_mine_phase6_sections,
+    test_prompt_builder_omits_nudge_when_no_reports,
 ]
 
 
