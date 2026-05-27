@@ -155,8 +155,8 @@ create_causal_edge(cause_event_id, effect_event_id, strength, reasoning, source_
 create_fact(subject_entity_id, predicate, object_entity_id?, object_value?, confidence, source_text, source_memory_id?, temporal_hint?)
   Create a new inferred relationship or attribute. Use when you discover an implicit connection not recorded in the graph.
 
-update_entity_summary(entity_id, summary)
-  Update an entity's living profile with reasoning conclusions.
+update_entity_summary(entity_id, summary, expected_summary_updated_at?)
+  Update an entity's living profile with reasoning conclusions. For race safety against concurrent patrols / gardener / reconciliation, pass the summary_updated_at value you observed when reading the entity (via query_entity_facts / search_entity_aliases / get_neighbourhood_profile) as expected_summary_updated_at. On mismatch the response is {updated:false, reason:"stale_write", current_summary, current_summary_updated_at} — refetch and decide whether to merge or skip rather than retrying blindly. Omitting expected_summary_updated_at is allowed for back-compat but logs a warning.
 
 save_reasoning_report(mode, report, entity_ids, fact_ids?, causal_edge_ids?, actions_taken?, question?)
   Save your report ONCE at the very END of the reasoning pass. This is MANDATORY but call it EXACTLY ONCE — multiple saves create duplicate rows that clutter the log and corrupt entity_meta.last_reasoned_at. The report persists for future passes. Include:

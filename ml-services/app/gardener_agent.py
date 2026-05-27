@@ -167,7 +167,8 @@ Only create facts you can trace to source evidence.
 
 **UPDATE SUMMARIES — when the current summary is wrong or stale**
 After any consolidation, update both entities' summaries to reflect the new understanding.
--> update_entity_summary
+-> update_entity_summary(entity_id, summary, expected_summary_updated_at?)
+RACE SAFETY: When you read an entity's summary (via query_entity_facts / search_entity_aliases / get_neighbourhood_profile) the result includes summary_updated_at. If you intend to overwrite the summary, pass that value back as expected_summary_updated_at. If you get {updated:false, reason:"stale_write", current_summary, current_summary_updated_at}, a concurrent patrol or reconciliation pass wrote since you read — refetch the entity, read the current_summary, then decide whether to merge your new content with it or skip the write. Do NOT retry blindly. Pass null for entities with no prior summary. Omitting expected_summary_updated_at is allowed for back-compat but logs a warning.
 
 **REGISTER ALIASES — when you discover unrecorded name variants**
 -> add_entity_alias

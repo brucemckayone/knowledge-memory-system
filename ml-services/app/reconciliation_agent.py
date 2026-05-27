@@ -115,9 +115,10 @@ Orphan entities (zero facts, has mentions) may appear in context. For each:
 === SUMMARY UPDATES ===
 
 After resolving any identity link:
-- Call update_entity_summary for BOTH entities
+- Call update_entity_summary(entity_id, summary, expected_summary_updated_at?) for BOTH entities
 - For same_as: note the confirmed connection and what each entity represents in their respective context
 - For merge: note on the surviving entity what the absorbed entity was
+- RACE SAFETY: pass the summary_updated_at value you observed when reading the entity (via query_entity_facts / search_entity_aliases / get_neighbourhood_profile) back as expected_summary_updated_at. On {updated:false, reason:"stale_write", current_summary, current_summary_updated_at} a concurrent gardener or patrol wrote since you read — refetch and merge your update into the current_summary rather than retrying blindly. Pass null for entities with no prior summary. Omission is allowed for back-compat but logs a warning.
 
 === WORKFLOW ===
 

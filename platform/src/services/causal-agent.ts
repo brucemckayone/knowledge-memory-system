@@ -510,7 +510,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
   {
     name: 'update_entity_summary',
     description:
-      'Update the living summary for an entity. Call this after creating facts to keep the entity profile current. The summary should describe who/what the entity is, their current state, narrative role, known aliases/references, and any unresolved ambiguities. Keep summary under 2000 characters; inputs over 3000 characters are rejected.',
+      'Update the living summary for an entity. Call this after creating facts to keep the entity profile current. The summary should describe who/what the entity is, their current state, narrative role, known aliases/references, and any unresolved ambiguities. Keep summary under 2000 characters; inputs over 3000 characters are rejected. For race safety, pass the summary_updated_at value you observed in a prior read (query_entity_facts / search_entity_aliases / get_neighbourhood_profile) as expected_summary_updated_at — if a concurrent writer has updated the row since you read it, the handler returns {updated:false, reason:"stale_write", current_summary, current_summary_updated_at} so you can refetch and decide whether to merge or skip.',
     mutates: true,
     inputSchema: {
       type: 'object' as const,
@@ -522,6 +522,10 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         summary: {
           type: 'string',
           description: 'Natural language summary. Include: current state, narrative role, known references/aliases (e.g. "referred to as the stranger, he, my friend"), temporal context, and any ambiguities (e.g. "may be the same person as..."). Keep under 2000 characters; the handler rejects inputs over 3000 characters.',
+        },
+        expected_summary_updated_at: {
+          type: ['string', 'null'],
+          description: 'Optional ISO 8601 timestamp matching the summary_updated_at value you read prior to deciding on this update. The handler matches it against the row\'s current summary_updated_at; if they differ, the write is rejected with {updated:false, reason:"stale_write"}. Pass null for first-ever writes (row has no summary_updated_at yet). Omit entirely for back-compat unconditional write (logs a race-unsafe warning).',
         },
       },
       required: ['entity_id', 'summary'],
@@ -1275,11 +1279,17 @@ async function _handleToolCallInner(
       const facts = await getEntityFacts(entityId);
       // Include entity summary and aliases
       const metaRows = await db
-        .select({ summary: entityMeta.summary })
+        .select({ summary: entityMeta.summary, summaryUpdatedAt: entityMeta.summaryUpdatedAt })
         .from(entityMeta)
         .where(eq(entityMeta.entityId, entityId))
         .limit(1);
       const summary = metaRows[0]?.summary ?? null;
+      // nmemo-2yv.55 — surface summary_updated_at so the agent can thread it
+      // back through expected_summary_updated_at on a subsequent
+      // update_entity_summary call (optimistic locking).
+      const summaryUpdatedAt = metaRows[0]?.summaryUpdatedAt
+        ? metaRows[0]!.summaryUpdatedAt!.toISOString()
+        : null;
       const aliases = await db
         .select({ alias: entityAliases.alias, aliasType: entityAliases.aliasType })
         .from(entityAliases)
@@ -1289,6 +1299,7 @@ async function _handleToolCallInner(
       // delimited block so the agent treats it as data.
       return JSON.stringify({
         summary: delimitForPrompt(summary, { kind: 'summary', attrs: { entity_id: entityId } }),
+        summary_updated_at: summaryUpdatedAt,
         aliases: aliases.map(a => ({ alias: a.alias, type: a.aliasType })),
         facts: facts.map(f => ({
           id: f.id,
@@ -1654,12 +1665,25 @@ async function _handleToolCallInner(
 
       const entityIds = [...new Set(matches.map(m => m.entityId))];
       const summaries: Record<string, string | null> = {};
+      // nmemo-2yv.55 — also surface summary_updated_at so the agent can
+      // thread it back through expected_summary_updated_at on a subsequent
+      // update_entity_summary call.
+      const summaryUpdatedAts: Record<string, string | null> = {};
       if (entityIds.length > 0) {
         const metaRows = await db
-          .select({ entityId: entityMeta.entityId, summary: entityMeta.summary })
+          .select({
+            entityId: entityMeta.entityId,
+            summary: entityMeta.summary,
+            summaryUpdatedAt: entityMeta.summaryUpdatedAt,
+          })
           .from(entityMeta)
           .where(inArray(entityMeta.entityId, entityIds));
-        for (const row of metaRows) summaries[row.entityId] = row.summary ?? null;
+        for (const row of metaRows) {
+          summaries[row.entityId] = row.summary ?? null;
+          summaryUpdatedAts[row.entityId] = row.summaryUpdatedAt
+            ? row.summaryUpdatedAt.toISOString()
+            : null;
+        }
       }
 
       // nmemo-2yv.62 — wrap each persisted summary in a delimited block.
@@ -1673,6 +1697,7 @@ async function _handleToolCallInner(
           kind: 'summary',
           attrs: { entity_id: m.entityId },
         }),
+        summary_updated_at: summaryUpdatedAts[m.entityId] ?? null,
       })));
     }
 
@@ -1694,18 +1719,183 @@ async function _handleToolCallInner(
       // newlines to 2, trim. capAndSanitize returns '' for null/undefined.
       const summary = capAndSanitize(rawSummary, { kind: 'summary' });
       const updatedAt = new Date();
+
+      // nmemo-2yv.55 — optimistic locking via summary_updated_at precondition.
+      // The agent reads summary (and its summary_updated_at) via
+      // query_entity_facts / search_entity_aliases / get_neighbourhood_profile,
+      // thinks, then writes. Without a precondition, two concurrent writers
+      // both succeed and the later commit silently overwrites the earlier
+      // one's content. We accept an optional expected_summary_updated_at and
+      // match it against the row's current summary_updated_at as part of an
+      // atomic conditional UPDATE; if they differ, no row is touched and we
+      // return a structured stale_write response so the caller can refetch
+      // and decide whether to merge or skip.
+      //
+      // The matching predicate is part of the UPDATE's WHERE clause (not a
+      // separate SELECT-then-UPDATE) so two racers with the same expected
+      // ts cannot both succeed — Postgres serialises the row writes and
+      // only one matches `summary_updated_at = $expected` after the other
+      // commits.
+      //
+      // Critical implementation note: drizzle's pg timestamp column drops
+      // sub-second precision when serialising JS Date values, so two writes
+      // within the same wall-clock second would otherwise produce equal
+      // post-write timestamps and the precondition would fail to
+      // distinguish them. We work around this by running the UPDATE in raw
+      // SQL and computing the new summary_updated_at server-side as
+      // `GREATEST(clock_timestamp(), summary_updated_at + interval '1
+      // microsecond')` — strictly monotonic per row, sub-second precise.
+      //
+      // Back-compat: if expected_summary_updated_at is omitted entirely
+      // (undefined), fall through to an unconditional UPSERT and log a
+      // race-unsafe warning. After a stabilisation period a follow-up bead
+      // will tighten this to required.
+      //
+      // First-ever write: a row may not exist yet (INSERT path) or may exist
+      // with summary_updated_at IS NULL (legacy rows pre-.52). Both are
+      // treated as the "no prior summary" case and accept any value of
+      // expected_summary_updated_at (including null) — the precondition
+      // only fires when the row already has a real prior timestamp.
+      const hasExpected = 'expected_summary_updated_at' in toolInput;
+      const expectedRaw = toolInput.expected_summary_updated_at as string | null | undefined;
+
+      if (!hasExpected) {
+        console.warn(
+          `[update_entity_summary] called without expected_summary_updated_at — race-unsafe (entity_id=${entityId}). See bead nmemo-2yv.55.`,
+        );
+      }
+
       // nmemo-2yv.52 — set summary_updated_at alongside updated_at so the viz
       // panel's freshness indicator and any future staleness consumer see the
       // summary-specific timestamp (see doc 37 §8). entity_meta.updated_at is
       // multi-writer; summary_updated_at moves only when summary moves.
-      await db
-        .insert(entityMeta)
-        .values({ entityId, summary, summaryUpdatedAt: updatedAt, updatedAt })
-        .onConflictDoUpdate({
-          target: entityMeta.entityId,
-          set: { summary, summaryUpdatedAt: updatedAt, updatedAt },
+
+      if (!hasExpected) {
+        // Back-compat: unconditional UPSERT. The warning above flags this
+        // to operators; the contract is unchanged from the pre-.55 behaviour.
+        await db
+          .insert(entityMeta)
+          .values({ entityId, summary, summaryUpdatedAt: updatedAt, updatedAt })
+          .onConflictDoUpdate({
+            target: entityMeta.entityId,
+            set: { summary, summaryUpdatedAt: updatedAt, updatedAt },
+          });
+        return JSON.stringify({ updated: true });
+      }
+
+      // Race-safe path. Raw SQL conditional UPDATE: precondition + new
+      // timestamp computation both happen server-side in one atomic
+      // statement. ::timestamptz cast on the expected param so the
+      // comparison works whether the caller sent ISO with or without ms.
+      // The new summary_updated_at is GREATEST(clock_timestamp(), old + 1µs)
+      // so it is strictly greater than the previous value for this row —
+      // which is what makes the precondition self-distinguishing under
+      // sub-second contention.
+      const expectedSql = expectedRaw === null || expectedRaw === undefined ? null : expectedRaw;
+      // The precondition: row's summary_updated_at must equal the caller's
+      // expected value, OR both must be NULL (first-write case). Encoded
+      // as: (expected IS NULL AND col IS NULL) OR col = expected. The
+      // ::timestamptz cast lets PostgreSQL parse the ISO string with
+      // whatever precision was sent (drizzle truncates Date → second on
+      // write, but a caller may also pass through the raw read-side
+      // value unchanged).
+      const updateRes = await db.execute(
+        sql`
+          UPDATE public.entity_meta
+             SET summary = ${summary},
+                 summary_updated_at = GREATEST(
+                   clock_timestamp(),
+                   summary_updated_at + interval '1 microsecond'
+                 ),
+                 updated_at = clock_timestamp()
+           WHERE entity_id = ${entityId}::uuid
+             AND (
+                  (${expectedSql}::timestamptz IS NULL AND summary_updated_at IS NULL)
+               OR summary_updated_at = ${expectedSql}::timestamptz
+             )
+           RETURNING entity_id
+        `,
+      );
+      // db.execute returns the underlying postgres-js result; rows live on
+      // the array itself.
+      const updatedRows = updateRes as unknown as Array<{ entity_id: string }>;
+
+      if (updatedRows.length === 1) {
+        return JSON.stringify({ updated: true });
+      }
+
+      // No row matched the precondition. Helper: refetch the row and
+      // format the stale_write response. Used by all three lost-race
+      // branches below.
+      const staleWriteResponse = async (): Promise<string> => {
+        const rows = await db
+          .select({
+            summary: entityMeta.summary,
+            summaryUpdatedAt: entityMeta.summaryUpdatedAt,
+          })
+          .from(entityMeta)
+          .where(eq(entityMeta.entityId, entityId))
+          .limit(1);
+        const r = rows[0];
+        return JSON.stringify({
+          updated: false,
+          reason: 'stale_write',
+          current_summary: r?.summary ?? null,
+          current_summary_updated_at: r?.summaryUpdatedAt
+            ? r.summaryUpdatedAt.toISOString()
+            : null,
         });
-      return JSON.stringify({ updated: true });
+      };
+
+      // No row matched. Could be (i) row absent entirely → first-write path,
+      // or (ii) row present with mismatched / non-NULL summary_updated_at →
+      // stale_write. Fetch the current row to decide which.
+      const currentRows = await db
+        .select({ summaryUpdatedAt: entityMeta.summaryUpdatedAt })
+        .from(entityMeta)
+        .where(eq(entityMeta.entityId, entityId))
+        .limit(1);
+      const current = currentRows[0];
+
+      if (!current) {
+        // Row absent — first-ever write. Insert; if a concurrent insert
+        // beat us to it, ON CONFLICT DO NOTHING leaves us with no
+        // returned row, and we report stale_write so the caller refetches.
+        const inserted = await db
+          .insert(entityMeta)
+          .values({ entityId, summary, summaryUpdatedAt: updatedAt, updatedAt })
+          .onConflictDoNothing({ target: entityMeta.entityId })
+          .returning({ entityId: entityMeta.entityId });
+        if (inserted.length === 1) {
+          return JSON.stringify({ updated: true });
+        }
+        return staleWriteResponse();
+      }
+
+      if (current.summaryUpdatedAt === null) {
+        // Legacy row (summary_updated_at IS NULL). Accept any expected
+        // value. Conditional UPDATE only fires while summary_updated_at
+        // is still NULL — so a concurrent first-writer races to claim it.
+        const legacyRes = await db.execute(
+          sql`
+            UPDATE public.entity_meta
+               SET summary = ${summary},
+                   summary_updated_at = clock_timestamp(),
+                   updated_at = clock_timestamp()
+             WHERE entity_id = ${entityId}::uuid
+               AND summary_updated_at IS NULL
+             RETURNING entity_id
+          `,
+        );
+        const legacy = legacyRes as unknown as Array<{ entity_id: string }>;
+        if (legacy.length === 1) {
+          return JSON.stringify({ updated: true });
+        }
+        return staleWriteResponse();
+      }
+
+      // Row present with a real summary_updated_at that didn't match expected.
+      return staleWriteResponse();
     }
 
     // --- Reconciliation tool handlers ---
@@ -2148,12 +2338,15 @@ async function _handleToolCallInner(
       const meta = metaRows[0];
 
       // nmemo-2yv.62 — wrap persisted summary in a delimited block.
+      // nmemo-2yv.55 — surface summary_updated_at so the agent can thread it
+      // back through expected_summary_updated_at on update_entity_summary.
       return JSON.stringify({
         entity: entity ? { id: entity.id, canonicalName: entity.canonicalName, entityType: entity.entityType } : null,
         summary: delimitForPrompt(meta?.summary ?? null, {
           kind: 'summary',
           attrs: { entity_id: entityId },
         }),
+        summary_updated_at: meta?.summaryUpdatedAt ? meta.summaryUpdatedAt.toISOString() : null,
         meta: meta ? {
           mentionCount: meta.mentionCount, sourceMemoryCount: meta.sourceMemoryCount,
           factCount: meta.factCount, spread: meta.spread,

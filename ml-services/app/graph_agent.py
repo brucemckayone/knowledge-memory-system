@@ -205,11 +205,12 @@ search_entity_aliases(query)
   Returns: Array of {entityId, canonicalName, entityType, matchedAlias, aliasType, summary}.
   When multiple entities match the same reference (e.g. two entities both have "I" as alias), read the alias text and summaries to determine which one applies in the current context.
 
-update_entity_summary(entity_id, summary)
+update_entity_summary(entity_id, summary, expected_summary_updated_at?)
   Update the living profile for an entity. The summary persists across agent invocations — the next chunk's agent will read it during ORIENT.
   - entity_id: UUID of the entity
   - summary: Natural language description (see PHASE 3b for what to include)
-  Returns: {updated: true}
+  - expected_summary_updated_at: OPTIONAL ISO 8601 timestamp for race safety. When you read a summary via search_entity_aliases, query_entity_facts, or get_neighbourhood_profile, the result includes summary_updated_at. If you intend to overwrite the summary, pass that value back here. The handler matches it against the row's current value; if they differ (another agent wrote in between), the response is {updated:false, reason:"stale_write", current_summary, current_summary_updated_at} — DO NOT retry blindly. Refetch the entity, read the current_summary, decide whether to merge your new content with it or skip this write. Pass null for first-ever writes. Omitting this argument is currently allowed for back-compat but logs a race-unsafe warning and will become an error in a future release.
+  Returns: {updated: true} on success, {updated:false, reason:"stale_write", ...} on precondition failure.
 
 create_causal_edge(cause_event_id, effect_event_id, strength, reasoning, source_references, temporal_span?)
   Assert a cause-effect relationship between two causal events.
