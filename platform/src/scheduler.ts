@@ -80,6 +80,28 @@ function resolveReasoningCron(): string {
 }
 
 /**
+ * Source-refs drift patrol (bead nmemo-d1r.7). Default cadence is monthly —
+ * "0 3 1 * *" = 03:00 on day-1 of every month. Drift accumulates slowly and
+ * the patrol is a watchdog, not a hot-path check, so a coarse cadence is
+ * appropriate. The raw cron knob lets ops change the cadence (e.g. weekly
+ * during a feature rollout); the minutes-interval knob exists for
+ * integration tests + ad-hoc shorter cadences. resolveCron caps minutes
+ * intervals at the hourly form ("0 step-N hours" syntax), so anything >= 60
+ * minutes lands on an hour boundary — sub-daily cadences work fine,
+ * sub-monthly is the natural reach of the convenience knob.
+ */
+const SOURCE_REFS_DRIFT_DEFAULT_CRON = '0 3 1 * *';
+function resolveSourceRefsDriftCron(): string {
+  if (config.SOURCE_REFS_DRIFT_PATROL_CRON && config.SOURCE_REFS_DRIFT_PATROL_CRON.trim().length > 0) {
+    return config.SOURCE_REFS_DRIFT_PATROL_CRON.trim();
+  }
+  if (config.SOURCE_REFS_DRIFT_PATROL_INTERVAL_MIN !== undefined) {
+    return resolveCron(undefined, config.SOURCE_REFS_DRIFT_PATROL_INTERVAL_MIN);
+  }
+  return SOURCE_REFS_DRIFT_DEFAULT_CRON;
+}
+
+/**
  * The drift patrol job. Fires POST /api/drift/compute against the in-process
  * platform port. Fire-and-forget; never throws out. A failure on a single
  * tick lands as a console.warn and the next tick proceeds normally.
@@ -102,6 +124,88 @@ async function runDriftPatrol(): Promise<void> {
     }
   } catch (err) {
     console.warn('[scheduler] drift-patrol failed:', err instanceof Error ? err.message : err);
+  }
+}
+
+/**
+ * Source-refs drift detector (bead nmemo-d1r.7).
+ *
+ * Phase 3 (doc 14) introduced edge_source_refs as a reverse-lookup index
+ * over causal_edges.source_references (JSONB authoritative). All wired
+ * mutation paths keep them in step today; the index is the only thing
+ * findEdgesCitingReference() reads. The failure mode the patrol exists
+ * to surface: a future un-instrumented edge-mutation path could write
+ * JSONB without writing the index row, and findEdgesCitingReference would
+ * silently return [] for the drifted ref (see the adversarial fixture
+ * src/test/data/phase3-source-refs/fixtures/drift-detected.sql, which
+ * encodes exactly this shape — JSONB cites a ref the index doesn't carry).
+ *
+ * The query mirrors the canonical drift expression in
+ * src/test/harness/source-refs-index.test.ts driftCount(): for every
+ * JSONB-side ref of every edge, assert a matching edge_source_refs row
+ * exists. Normalises legacy string-encoded JSONB the same way to avoid
+ * false positives on rows written before the array-shape contract landed.
+ *
+ * The returned `driftCount` is the number of JSONB refs without a
+ * corresponding index row — drift > 0 is an alert condition.
+ */
+export interface SourceRefsDriftSignal {
+  driftCount: number;
+  durationMs: number;
+}
+
+export async function checkSourceRefsDrift(): Promise<SourceRefsDriftSignal> {
+  const start = Date.now();
+  const rows = (await db.execute(sql`
+    WITH normalized AS (
+      SELECT
+        e.id AS edge_id,
+        CASE
+          WHEN jsonb_typeof(e.source_references) = 'array'  THEN e.source_references
+          WHEN jsonb_typeof(e.source_references) = 'string' THEN (e.source_references #>> '{}')::jsonb
+          ELSE '[]'::jsonb
+        END AS refs
+      FROM public.causal_edges e
+    )
+    SELECT COUNT(*)::int AS drift
+    FROM normalized n
+    CROSS JOIN LATERAL jsonb_array_elements(n.refs) ref
+    WHERE ref->>'type' IN ('memory','fact','entity')
+      AND ref->>'id' IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.edge_source_refs r
+        WHERE r.edge_id = n.edge_id
+          AND r.ref_type = (ref->>'type')
+          AND r.ref_id   = (ref->>'id')::uuid
+      )
+  `)) as unknown as Array<{ drift: number }>;
+  const driftCount = rows[0]?.drift ?? 0;
+  return { driftCount, durationMs: Date.now() - start };
+}
+
+/**
+ * The source-refs drift patrol job (bead nmemo-d1r.7).
+ *
+ * DB-only — no HTTP fire. Counts JSONB refs without a matching
+ * edge_source_refs row and surfaces drift via a structured warn log.
+ * drift=0 lands as a quiet info log on the same prefix so ops can confirm
+ * the patrol is actually ticking.
+ *
+ * Fire-and-forget; never throws out. A DB failure on a single tick lands
+ * as a console.warn and the next tick proceeds normally.
+ */
+export async function runSourceRefsDriftPatrol(): Promise<void> {
+  try {
+    const signal = await checkSourceRefsDrift();
+    if (signal.driftCount > 0) {
+      console.warn(
+        `[scheduler] source-refs-drift-patrol: DRIFT DETECTED — ${signal.driftCount} JSONB ref(s) without a matching edge_source_refs row (${signal.durationMs}ms). findEdgesCitingReference will silently miss these refs; investigate which mutation path is writing JSONB without the index.`,
+      );
+    } else {
+      console.log(`[scheduler] source-refs-drift-patrol: ok (drift=0, ${signal.durationMs}ms)`);
+    }
+  } catch (err) {
+    console.warn('[scheduler] source-refs-drift-patrol failed:', err instanceof Error ? err.message : err);
   }
 }
 
@@ -295,6 +399,12 @@ export function startScheduler(): void {
   // actually moved since the last pass.
   const reasoningCron = resolveReasoningCron();
   registerJob('reasoning-patrol', reasoningCron, runReasoningPatrol);
+  // Bead nmemo-d1r.7 — monthly source-refs drift patrol. Watchdog that
+  // surfaces JSONB-vs-index drift on causal_edges.source_references so the
+  // silent false-negative mode of findEdgesCitingReference does not go
+  // unnoticed.
+  const sourceRefsDriftCron = resolveSourceRefsDriftCron();
+  registerJob('source-refs-drift-patrol', sourceRefsDriftCron, runSourceRefsDriftPatrol);
 }
 
 /**

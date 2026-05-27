@@ -54,6 +54,19 @@ const envSchema = z.object({
   // last patrol, so the effective cadence is "every 30 min IF the graph
   // moved" rather than "every 30 min unconditionally".
   REASONING_PATROL_INTERVAL_MIN: z.coerce.number().int().positive().default(30),
+  // Source-references drift patrol (bead nmemo-d1r.7). Phase 3 carries the
+  // edge_source_refs reverse-lookup index alongside causal_edges.source_references
+  // (JSONB authoritative). Every wired mutation path keeps them in step today,
+  // but a future un-instrumented path could silently desync the index — at
+  // which point findEdgesCitingReference() returns false negatives without
+  // any user-visible failure. The patrol is a low-cost background check that
+  // surfaces drift as a warn log so ops + the reasoning agent see it. Default
+  // cadence is monthly (drift accumulates slowly; ADR notes hourly would be
+  // overkill); raw cron expression overrides the monthly default. The
+  // minutes-interval knob exists for integration tests + ad-hoc shorter
+  // cadences and is honoured only when SOURCE_REFS_DRIFT_PATROL_CRON is unset.
+  SOURCE_REFS_DRIFT_PATROL_CRON: z.string().optional(),
+  SOURCE_REFS_DRIFT_PATROL_INTERVAL_MIN: z.coerce.number().int().positive().optional(),
   // Threshold for the post-ingest counter trigger. Once derived_freshness's
   // facts_since_compute crosses this value, topology + clustering compute
   // are fired together (fire-and-forget) and both rows reset.
