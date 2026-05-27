@@ -403,7 +403,10 @@ app.get('/api/viz/merge-candidates', async (c) => {
 });
 
 app.post('/api/reconcile', async (c) => {
-  // Manually trigger the reconciliation agent to resolve identity questions
+  // Manually trigger the reconciliation agent to resolve identity questions.
+  // Audit attribution (nmemo-2yv.35 sweep): invokeReconciliationAgent →
+  // getMcpConfigPath('reconciliation_agent') sets MNEMO_AGENT_ACTOR; every
+  // MCP tool write inherits actor='reconciliation_agent' via context.agent.
   const body: { include_reports?: boolean; max_reports?: number } =
     await c.req.json<{ include_reports?: boolean; max_reports?: number }>().catch(() => ({}));
   const includeReports = body.include_reports !== false; // default true
@@ -448,7 +451,10 @@ app.post('/api/reconcile', async (c) => {
 });
 
 app.post('/api/garden', async (c) => {
-  // Manually trigger the graph gardener to explore and maintain the knowledge graph
+  // Manually trigger the graph gardener to explore and maintain the knowledge graph.
+  // Audit attribution (nmemo-2yv.35 sweep): invokeGardenerAgent →
+  // getMcpConfigPath('gardener_agent') sets MNEMO_AGENT_ACTOR; every MCP
+  // tool write inherits actor='gardener_agent' via context.agent.
   const tStart = Date.now();
   console.log('[garden] manual trigger received');
 
@@ -599,6 +605,9 @@ app.post('/api/contradictions/detect', async (c) => {
   // Manual trigger for the SQL detection sweep. Same shape as the per-pipeline
   // auto-trigger in `pipeline.ts` so the viz / reasoning agent can drive it
   // explicitly without reaching into the pipeline counter.
+  // Audit attribution (nmemo-2yv.35 sweep): detectContradictions writes only
+  // to public.contradictions (uses its own detector_agent column, not the
+  // fact/edge audit tables). No actor required at this layer.
   const tStart = Date.now();
   console.log('[contradictions] manual detect trigger received');
 
@@ -654,6 +663,10 @@ app.post('/api/contradictions/:id/resolve', async (c) => {
 
   const { resolveContradiction } = await import('./services/contradictions.js');
   try {
+    // Audit attribution (nmemo-2yv.35 sweep): actor='user' threads through
+    // resolveContradiction → expireFact/invalidateFact/expireCausalEdge,
+    // landing on fact_history / causal_edge_history rows for every mutation
+    // in the resolution path.
     await resolveContradiction({
       contradictionId: id,
       resolutionType: body.resolution_type as
@@ -679,6 +692,8 @@ app.post('/api/contradictions/:id/resolve', async (c) => {
 // ============================================
 
 app.post('/api/patterns/detect', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): detectCausalPatterns writes only
+  // to causal_patterns + causal_edges.pattern_id; no fact/edge audit rows.
   const body = await c.req.json().catch(() => ({}));
   const { detectCausalPatterns } = await import('./services/causal-patterns.js');
   try {
@@ -697,6 +712,8 @@ app.post('/api/patterns/detect', async (c) => {
 });
 
 app.post('/api/patterns/promote', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): promotePatterns mutates only
+  // causal_patterns status columns; no fact/edge audit rows.
   const { promotePatterns } = await import('./services/causal-patterns.js');
   try {
     const result = await promotePatterns();
@@ -803,11 +820,16 @@ async function clearGraphTables(): Promise<void> {
 }
 
 app.post('/api/viz/clear', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): DELETE-only across CLEARABLE_TABLES;
+  // no INSERT into fact_history / causal_edge_history. The history tables are
+  // themselves cleared (no orphan rows), so attribution does not apply.
   await clearGraphTables();
   return c.json({ cleared: true });
 });
 
 app.post('/api/reset', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): DELETE-only across CLEARABLE_TABLES
+  // + Qdrant collection clear. No fact/edge audit rows produced.
   await clearGraphTables();
   const { clearMemories } = await import('./services/qdrant.js');
   await clearMemories();
@@ -843,6 +865,9 @@ function logReasonRequest(c: { req: { header: (name: string) => string | undefin
 }
 
 app.post('/api/reason', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): invokeReasoningAgent →
+  // getMcpConfigPath('reasoning_agent') sets MNEMO_AGENT_ACTOR; every MCP
+  // tool write inherits actor='reasoning_agent' via context.agent.
   logReasonRequest(c, 'patrol');
   const { invokeReasoningAgent } = await import('./services/causal-agent.js');
   const start = Date.now();
@@ -855,6 +880,8 @@ app.post('/api/reason', async (c) => {
 });
 
 app.post('/api/reason/query', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): same dispatch as /api/reason —
+  // invokeReasoningAgent threads MNEMO_AGENT_ACTOR='reasoning_agent'.
   const body = await c.req.json<{ question: string }>();
   if (!body.question) return c.json({ error: 'question is required' }, 400);
   logReasonRequest(c, 'query', body.question);
@@ -874,6 +901,8 @@ app.post('/api/reason/query', async (c) => {
 // ============================================
 
 app.post('/api/graph-stats/compute', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): computeGraphStats writes only to
+  // public.graph_stats (singleton aggregate row); no fact/edge audit rows.
   const { computeGraphStats } = await import('./services/graph-stats.js');
   const start = Date.now();
   try {
@@ -1103,6 +1132,10 @@ export async function triggerReconciliationDriftAfterCompute(
 // ============================================
 
 app.post('/api/topology/compute', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): proxies to ml-services topology
+  // compute which writes public.entity_topology + topology_bridges (derived
+  // tables); no fact/edge audit rows. Fire-and-forget cross-cluster trigger
+  // likewise only writes public.cross_cluster_runs.
   const start = Date.now();
   try {
     const response = await fetch(`${config.ML_SERVICES_URL}/topology/compute`, { method: 'POST' });
@@ -1275,6 +1308,9 @@ app.get('/api/components/:component_id', async (c) => {
 // ============================================
 
 app.post('/api/clustering/compute', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): proxies to ml-services clustering
+  // compute writing public.entity_clusters (derived table); no fact/edge
+  // audit rows.
   const start = Date.now();
   try {
     const response = await fetch(`${config.ML_SERVICES_URL}/clustering/compute`, { method: 'POST' });
@@ -1413,6 +1449,11 @@ app.get('/api/clusters/:cluster_id', async (c) => {
 // ============================================
 
 app.post('/api/drift/compute', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): proxies to ml-services drift
+  // compute writing public.entity_drift_events / entity_drift_state; no
+  // fact/edge audit rows. The fire-and-forget reconciliation trigger uses
+  // invokeReconciliationDriftAgent which sets MNEMO_AGENT_ACTOR=
+  // 'reconciliation_agent' on any downstream MCP tool calls.
   const start = Date.now();
   try {
     const response = await fetch(`${config.ML_SERVICES_URL}/drift/compute`, { method: 'POST' });
@@ -1522,6 +1563,10 @@ app.get('/api/drift/state/:entityId', async (c) => {
 // ============================================
 
 app.post('/api/cross-cluster/generate', async (c) => {
+  // Audit attribution (nmemo-2yv.35 sweep): generateCrossClusterCandidates
+  // writes public.cross_cluster_runs + merge_candidates rows (candidate-source
+  // attribution lives on merge_candidates.candidate_source, not the fact/edge
+  // audit tables). No fact/edge audit rows.
   const start = Date.now();
   try {
     const { generateCrossClusterCandidates } = await import('./services/cross-cluster-generator.js');
