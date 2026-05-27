@@ -30,7 +30,7 @@ import {
   type AgentSessionEvent,
 } from '@mariozechner/pi-coding-agent';
 import { Type } from '@sinclair/typebox';
-import { GRAPH_TOOLS, handleToolCall, type ToolCallContext } from './causal-agent.js';
+import { GRAPH_TOOLS, handleToolCall, VALID_ACTORS, type ToolCallContext } from './causal-agent.js';
 
 // ============================================
 // Config
@@ -38,6 +38,22 @@ import { GRAPH_TOOLS, handleToolCall, type ToolCallContext } from './causal-agen
 
 const PORT = parseInt(process.env.PI_BRIDGE_PORT || '3099', 10);
 const REQUEST_TIMEOUT_MS = 10_000; // time to wait for bridge startup
+
+/**
+ * Bead nmemo-2yv.117: cap request body to 1 MB. The bridge listens on all
+ * interfaces with CORS `*`, so unbounded `readBody` is a local-DoS vector
+ * (a 1 GB POST otherwise eats heap before parsing fails).
+ */
+const MAX_BODY_BYTES = 1_000_000;
+
+/**
+ * Bead nmemo-2yv.117: clamp `timeout` (seconds) into a safe range at the
+ * `/run` boundary. Non-numeric / null / NaN / out-of-range values otherwise
+ * short-circuit the agent — e.g. `timeout: null` coerces to 0 and fires the
+ * setTimeout at t=0 with `error: "Agent timed out after 0s"` before any work.
+ */
+const TIMEOUT_MIN_SEC = 10;
+const TIMEOUT_MAX_SEC = 600;
 
 // ============================================
 // Tool Conversion: GRAPH_TOOLS → Pi defineTool
@@ -153,6 +169,28 @@ async function runAgent(req: BridgeRequest): Promise<BridgeResponse> {
     timeout = 300,
   } = req;
 
+  // Bead nmemo-2yv.117 — validate `actor` against the shared runtime
+  // allow-list. The destructure cast is TypeScript-only and lets any string
+  // through at runtime, which would propagate into audit `created_by` columns.
+  if (!VALID_ACTORS.has(actor as ToolCallContext['agent'])) {
+    return {
+      result: '',
+      error: `Invalid actor "${actor}" — must be one of: ${[...VALID_ACTORS].join(', ')}`,
+    };
+  }
+
+  // Bead nmemo-2yv.117 — clamp `timeout`. `Number(null)` is 0, `Number(undefined)`
+  // is NaN; either would mis-fire the setTimeout below. Reject anything outside
+  // [TIMEOUT_MIN_SEC, TIMEOUT_MAX_SEC] explicitly so the caller sees the misconfig
+  // rather than getting a 0-second agent run.
+  const timeoutNum = Number(timeout);
+  if (!Number.isFinite(timeoutNum) || timeoutNum < TIMEOUT_MIN_SEC || timeoutNum > TIMEOUT_MAX_SEC) {
+    return {
+      result: '',
+      error: `Invalid timeout: must be a number in [${TIMEOUT_MIN_SEC}, ${TIMEOUT_MAX_SEC}] seconds; got ${timeout}`,
+    };
+  }
+
   const tools = buildPiTools(actor);
   const resourceLoader = makeResourceLoader(system_prompt);
   const authStorage = AuthStorage.create();
@@ -210,6 +248,7 @@ async function runAgent(req: BridgeRequest): Promise<BridgeResponse> {
   let timeoutHandle: NodeJS.Timeout | undefined;
 
   // Timeout guard — on expiry, abort the in-flight prompt then dispose (best-effort).
+  // Bead nmemo-2yv.117 — uses the validated `timeoutNum` (finite, in-range).
   const timeoutPromise = new Promise<BridgeResponse>((resolve) => {
     timeoutHandle = setTimeout(() => {
       timedOut = true;
@@ -218,11 +257,11 @@ async function runAgent(req: BridgeRequest): Promise<BridgeResponse> {
       resolve({
         result: result || '',
         cost,
-        error: `Agent timed out after ${timeout}s`,
+        error: `Agent timed out after ${timeoutNum}s`,
         tool_calls: toolCallCount,
         turns: turnCount,
       });
-    }, timeout * 1000);
+    }, timeoutNum * 1000);
   });
 
   const agentPromise = (async (): Promise<BridgeResponse> => {
@@ -301,10 +340,27 @@ async function runAgent(req: BridgeRequest): Promise<BridgeResponse> {
 // HTTP Server
 // ============================================
 
+/**
+ * Bead nmemo-2yv.117: cap incoming body at `MAX_BODY_BYTES`. The previous
+ * implementation looped `body += chunk` unbounded — a 1 GB POST would eat the
+ * heap before JSON parsing failed. We track raw byte length (chunks come in as
+ * Buffers) and reject as soon as the running total exceeds the cap; the caller
+ * surfaces this as HTTP 413.
+ */
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', (chunk) => { body += chunk; });
+    let size = 0;
+    req.on('data', (chunk: Buffer | string) => {
+      const len = Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk);
+      size += len;
+      if (size > MAX_BODY_BYTES) {
+        req.destroy();
+        reject(new Error(`Request body exceeds ${MAX_BODY_BYTES} bytes`));
+        return;
+      }
+      body += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : chunk;
+    });
     req.on('end', () => resolve(body));
     req.on('error', reject);
   });
@@ -398,9 +454,13 @@ const server = createServer(async (req, res) => {
         });
       }
     } catch (err) {
-      sendJson(res, 500, {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      // Bead nmemo-2yv.117 — same 413 surface as /run for body cap rejection.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.startsWith('Request body exceeds')) {
+        sendJson(res, 413, { error: msg });
+        return;
+      }
+      sendJson(res, 500, { error: msg });
     }
     return;
   }
@@ -426,10 +486,20 @@ const server = createServer(async (req, res) => {
 
       sendJson(res, result.error ? 500 : 200, result);
     } catch (err) {
+      // Bead nmemo-2yv.117 — surface readBody size-cap rejection as HTTP 413
+      // (Payload Too Large) so the caller sees the right status. Without this
+      // branch the error lands in the generic 500 catch and looks like a bridge
+      // bug.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.startsWith('Request body exceeds')) {
+        console.error(`[bridge] POST /run 413: ${msg}`);
+        sendJson(res, 413, { error: msg });
+        return;
+      }
       console.error('[bridge] POST /run error:', err);
       sendJson(res, 500, {
         result: '',
-        error: err instanceof Error ? err.message : String(err),
+        error: msg,
       });
     }
     return;

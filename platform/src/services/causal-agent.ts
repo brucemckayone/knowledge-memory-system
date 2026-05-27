@@ -1196,8 +1196,17 @@ export interface ToolCallContext {
   reasoningReportId?: string | null;
 }
 
-/** Seven-actor allow-list mirrors the DB CHECK in migration 009. */
-const VALID_ACTORS = new Set<Actor>([
+/**
+ * Seven-actor allow-list mirrors the DB CHECK in migration 009.
+ *
+ * Exported so the pi-agent-bridge `/run` boundary can reject untrusted
+ * actor strings at the HTTP edge (bead nmemo-2yv.117) — without this the
+ * cast at the bridge is TypeScript-only and any string would propagate
+ * into audit columns. The `Actor` type stays 7-wide (graph_agent,
+ * reasoning_agent, gardener_agent, reconciliation_agent, user,
+ * system_trigger, cascade); the bridge only cares about the runtime check.
+ */
+export const VALID_ACTORS = new Set<Actor>([
   'graph_agent', 'reasoning_agent', 'gardener_agent',
   'reconciliation_agent', 'user', 'system_trigger', 'cascade',
 ]);

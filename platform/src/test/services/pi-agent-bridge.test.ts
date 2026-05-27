@@ -19,6 +19,7 @@ import {
   GRAPH_TOOLS,
   handleToolCall,
   getMcpConfigPath,
+  VALID_ACTORS,
   type ToolCallContext,
 } from '../../services/causal-agent.js';
 
@@ -161,6 +162,81 @@ describe('Pi Agent Bridge: bridge module structure', () => {
     );
     const source = fs.readFileSync(bridgePath, 'utf8');
     expect(source).toContain('Type.Unsafe');
+  });
+
+  it('bridge validates actor / clamps timeout / caps readBody at /run boundary (bead .117)', () => {
+    // Bead nmemo-2yv.117: three input-validation gaps at /run.
+    //
+    //   1. `actor` cast was TypeScript-only — any string flowed into audit
+    //      `created_by` columns.  Fix: runtime check against the shared
+    //      VALID_ACTORS set re-used from causal-agent.ts (no KnownActor narrow
+    //      — the Actor type is correctly 7-wide; the re-lock skips the
+    //      original spec's Step 1 type-narrow, see bead halt notes).
+    //   2. `timeout` accepted any value — `null` coerced to 0 and short-circuited
+    //      the agent.  Fix: clamp to [10, 600] seconds, return error response
+    //      otherwise.
+    //   3. `readBody` unbounded — a 1 GB POST eats heap.  Fix: 1 MB cap, surface
+    //      as HTTP 413 (Payload Too Large) on exceed.
+    const bridgePath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../../services/pi-agent-bridge.ts',
+    );
+    const source = fs.readFileSync(bridgePath, 'utf8');
+
+    // (1) Actor validation: imports + uses the shared VALID_ACTORS set; no
+    //     local KNOWN_ACTORS / KnownActor introduction (the re-lock explicitly
+    //     skipped that since Actor is already 7-wide).
+    expect(source).toContain('VALID_ACTORS');
+    expect(source).toMatch(/from\s+['"]\.\/causal-agent\.js['"]/);
+    expect(source).toContain('VALID_ACTORS.has(');
+    expect(source).toContain('Invalid actor');
+    expect(source).not.toContain('KNOWN_ACTORS');
+    expect(source).not.toContain('KnownActor');
+
+    // (2) Timeout clamp: rejects non-finite / out-of-range values BEFORE the
+    //     setTimeout, and uses the validated timeoutNum downstream (not the
+    //     raw `timeout` from the request body).
+    expect(source).toContain('TIMEOUT_MIN_SEC');
+    expect(source).toContain('TIMEOUT_MAX_SEC');
+    expect(source).toContain('Number.isFinite(timeoutNum)');
+    expect(source).toContain('Invalid timeout');
+    expect(source).toMatch(/timeoutNum\s*\*\s*1000/);
+    // The error message + setTimeout MUST use the validated value, not the
+    // raw input.  This regex catches accidental `timeout * 1000` regressions.
+    expect(source).not.toMatch(/\bsetTimeout\([^)]*,\s*timeout\s*\*\s*1000\)/);
+
+    // (3) readBody size cap: 1 MB constant + 413 response surface in both
+    //     POST handlers (/run and /tools/call).
+    expect(source).toContain('MAX_BODY_BYTES');
+    expect(source).toContain('1_000_000');
+    expect(source).toContain('Request body exceeds');
+    expect(source).toContain('413');
+    expect(source).toContain('req.destroy()');
+  });
+
+  it('VALID_ACTORS is exported from causal-agent.ts and covers all 7 Actor values', () => {
+    // Bead nmemo-2yv.117 re-lock: the bridge re-uses the existing
+    // VALID_ACTORS set rather than introducing a narrower KNOWN_ACTORS.  This
+    // test pins the contract so a future caller of `handleToolCall` adding a
+    // new agent type touches one place (causal-agent.ts) and the bridge picks
+    // it up automatically.
+    expect(VALID_ACTORS).toBeInstanceOf(Set);
+    expect(VALID_ACTORS.size).toBe(7);
+
+    const expected: ToolCallContext['agent'][] = [
+      'graph_agent', 'reasoning_agent', 'gardener_agent',
+      'reconciliation_agent', 'user', 'system_trigger', 'cascade',
+    ];
+    for (const actor of expected) {
+      expect(VALID_ACTORS.has(actor), `expected VALID_ACTORS to include ${actor}`).toBe(true);
+    }
+
+    // Negative case: arbitrary strings from a malformed /run caller must NOT
+    // satisfy the set's runtime check.  This is the falsifying test from the
+    // bead Premise (`actor: "hacker"` previously flowed into audit rows).
+    expect(VALID_ACTORS.has('hacker' as ToolCallContext['agent'])).toBe(false);
+    expect(VALID_ACTORS.has('' as ToolCallContext['agent'])).toBe(false);
+    expect(VALID_ACTORS.has('GRAPH_AGENT' as ToolCallContext['agent'])).toBe(false);
   });
 
   it('bridge fails fast on (provider, modelId) miss — no silent fallback', () => {
