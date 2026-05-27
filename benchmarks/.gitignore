@@ -9,6 +9,12 @@ __pycache__/
 **/upstream/data/
 **/upstream/datasets/
 **/.cache/
+longmemeval/data/
+locomo/data/
+graphrag/data/
+corr2cause/data/
+cladder/data/
+cronqa/data/
 
 # Dummy self-test outputs — regenerated locally, not part of the historical
 # baseline trail. Real benchmark results ARE committed (one JSON per run).

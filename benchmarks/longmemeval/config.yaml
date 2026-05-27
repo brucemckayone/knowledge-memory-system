@@ -1,0 +1,28 @@
+# LongMemEval baseline config (nmemo-eue).
+#
+# Pre-registered cut: LongMemEval_S — the harder of the two cleaned tracks
+# per landscape.md §1. Locked by the methodology hygiene rule "name the
+# metric variant" (plan.md §1.5 rule 3).
+#
+# Upstream is pinned via the git submodule at upstream/. Run
+# `git submodule status` to read the exact commit.
+
+benchmark: longmemeval
+cut: LongMemEval_S
+
+# HuggingFace dataset URLs. The "cleaned" variant (2025/09 release) is the
+# current canonical form per the upstream README ⚠️ News section.
+dataset:
+  url: https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned/resolve/main/longmemeval_s_cleaned.json
+  local_path: data/longmemeval_s_cleaned.json
+  expected_size: 500  # number of questions, used as a sanity check
+
+# Optional subsampling. When non-null, run.py picks the first N questions
+# in dataset order for smoke-testing without burning a full baseline run.
+# Null = full 500-question run.
+sample_size: null
+
+# Reset Mnemo's graph between questions. Each LongMemEval question has its
+# own independent haystack of chat sessions; without reset, sessions
+# contaminate across questions and the abstention category is meaningless.
+reset_between_questions: true
