@@ -980,7 +980,7 @@ app.get('/api/graph-stats', async (c) => {
 // /clustering/compute. The generator's freshness gate handles the "both
 // upstreams fresh" precondition; the advisory lock handles overlap.
 // ============================================
-export async function triggerCrossClusterAfterCompute(after: 'topology' | 'clustering'): Promise<void> {
+export async function triggerCrossClusterAfterCompute(after: 'topology' | 'clustering' | 'drift'): Promise<void> {
   try {
     const { generateCrossClusterCandidates } = await import('./services/cross-cluster-generator.js');
     const result = await generateCrossClusterCandidates();
@@ -1521,6 +1521,14 @@ app.post('/api/drift/compute', async (c) => {
     // 'reconciliation_invoked' AND reconciliation_run_id IS NULL) and any
     // stragglers from previous cycles still under MAX_RECONCILIATION_ATTEMPTS.
     void triggerReconciliationDriftAfterCompute();
+    // Bead nmemo-2yv.85 — fire-and-forget the cross-cluster generator. Drift
+    // events feed the generator (doc 25 §2.2, W2/W3 = 25% of combined score);
+    // without this hook, fresh drift events sit unconsumed until the next
+    // topology/clustering compute. The generator's freshness gate is keyed on
+    // topology+clustering recency (not drift), so this trigger correctly
+    // short-circuits with skippedReason='stale_upstream' when those upstreams
+    // are stale — drift alone never starves the gate.
+    void triggerCrossClusterAfterCompute('drift');
     return c.json({ ok: true, result: body, durationMs: Date.now() - start });
   } catch (err) {
     return c.json({ ok: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start }, 502);

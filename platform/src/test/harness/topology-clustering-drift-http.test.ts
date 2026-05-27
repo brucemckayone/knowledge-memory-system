@@ -484,6 +484,19 @@ describe('bead nmemo-2yv.86 — fire-and-forget chain failure paths (T13)', () =
     await testDb`DELETE FROM public.entity_drift_events WHERE entity_id = ${e.id}::uuid`;
     await testDb`DELETE FROM public.entities WHERE id = ${e.id}::uuid`;
   });
+
+  it('triggerCrossClusterAfterCompute(\'drift\'): freshness-gate skip → ran=false / no throw', async () => {
+    // Bead nmemo-2yv.85 — drift trigger goes through the same helper as the
+    // topology/clustering siblings. The freshness gate keys on topology+
+    // clustering recency (NOT drift), so when both upstreams are stale the
+    // helper logs skippedReason='stale_upstream' and never throws. Drift
+    // alone never starves the gate; this asserts the new 'drift' literal
+    // shares the existing fail-safe semantics.
+    await testDb`DELETE FROM public.topology_compute_runs`;
+    await testDb`DELETE FROM public.clustering_compute_runs`;
+    await expect(triggerCrossClusterAfterCompute('drift')).resolves.toBeUndefined();
+    expect(unhandledRejections).toHaveLength(0);
+  });
 });
 
 // ============================================================================
@@ -619,5 +632,25 @@ const RUN_SMOKE = process.env.RUN_HTTP_SMOKE === '1';
       await testDb`DELETE FROM public.entity_drift_events WHERE entity_id = ${e.id}::uuid`;
       await testDb`DELETE FROM public.entities WHERE id = ${e.id}::uuid`;
     }
+  });
+
+  it('POST /api/drift/compute → triggerCrossClusterAfterCompute(\'drift\') fires (cross_cluster_runs lands or skips)', async () => {
+    // Bead nmemo-2yv.85 — assert the drift compute success path kicks the
+    // cross-cluster generator just like topology/clustering. The generator's
+    // freshness gate may legitimately short-circuit (skippedReason=
+    // 'stale_upstream') depending on the platform's recent compute history,
+    // but it ALWAYS writes a cross_cluster_runs row (the row is inserted in
+    // a separate short tx before the advisory-lock work — see
+    // cross-cluster-generator.ts line ~321). So a fresh row landing within
+    // the drain window proves the helper ran end-to-end.
+    const before = (await testDb`SELECT COUNT(*)::int AS n FROM public.cross_cluster_runs`) as unknown as Array<{ n: number }>;
+    const baseline = before[0]?.n ?? 0;
+    const res = await fetch(`${PLATFORM}/api/drift/compute`, { method: 'POST' });
+    expect(res.ok).toBe(true);
+    // Generous drain — drift compute itself can be slow on a populated graph,
+    // and the cross-cluster generator runs after it.
+    await drainAsync(5000);
+    const after = (await testDb`SELECT COUNT(*)::int AS n FROM public.cross_cluster_runs`) as unknown as Array<{ n: number }>;
+    expect(after[0]?.n ?? 0).toBeGreaterThan(baseline);
   });
 });
