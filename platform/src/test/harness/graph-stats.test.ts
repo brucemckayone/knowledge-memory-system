@@ -18,7 +18,7 @@ import {
   hasVectorExtension,
   skipCtx,
 } from '../setup.js';
-import { computeGraphStats, getGraphStats } from '../../services/graph-stats.js';
+import { computeGraphStats, getGraphStats, classifyAnomaly } from '../../services/graph-stats.js';
 
 /**
  * Wipe everything graph-stats touches and reseed the singleton. The default
@@ -26,24 +26,32 @@ import { computeGraphStats, getGraphStats } from '../../services/graph-stats.js'
  * `entity_meta`, so we handle those explicitly here.
  */
 async function cleanSlate(): Promise<void> {
-  await deleteFromTables({
-    tables: [
-      'fact_history',
-      'memory_entities',
-      'facts',
-      'merge_candidates',
-      'entities',
-    ],
-    acknowledgeGlobal: true,
-  });
-  // entity_meta is FK'd to entities ON DELETE CASCADE — the entities wipe takes
-  // care of it, but we DELETE again to be defensive against test ordering.
-  await testDb`DELETE FROM public.entity_meta`;
+  // TRUNCATE ... CASCADE wipes downstream FK refs unconditionally, which is
+  // necessary because the `entities` table is referenced from tables that
+  // deleteFromTables's orderedTables doesn't enumerate (e.g. entity_aliases,
+  // same_as_links, contradictions, reasoning_reports.entity_ids). DELETE
+  // FROM entities on a polluted DB would FK-violate; TRUNCATE CASCADE doesn't.
+  // bd memory 'deletefromtables-in-src-test-setup-ts-silently-filters'
+  // documents the whitelist pitfall; TRUNCATE is the escape hatch when the
+  // test needs a true known-empty baseline.
+  await testDb.unsafe(`
+    TRUNCATE TABLE
+      public.fact_history,
+      public.facts,
+      public.memory_entities,
+      public.entity_meta,
+      public.merge_candidates,
+      public.entities
+    CASCADE
+  `);
   // Reset the singleton to the seeded zero-state. Migration 013's
   // INSERT ... ON CONFLICT DO NOTHING means we can't re-seed via re-running
   // the migration; we DELETE + INSERT here.
   await testDb`DELETE FROM public.graph_stats`;
   await testDb`INSERT INTO public.graph_stats (id) VALUES (1)`;
+  // bead nmemo-2yv.49 — computeGraphStats now appends a reasoning_reports row
+  // per compute. Wipe so the assertion "exactly one new row" is reliable.
+  await testDb`DELETE FROM public.reasoning_reports WHERE actions_taken->>'actor' = 'graph-stats'`;
 }
 
 /** Insert an entity_meta row with a unit-normalised random centroid. */
@@ -236,6 +244,168 @@ describe('graph-stats §22 — foundation', () => {
     await expect(
       testDb`INSERT INTO public.graph_stats (id) VALUES (2)`,
     ).rejects.toThrow(/graph_stats_singleton/);
+  });
+
+  // ============================================
+  // Bead nmemo-2yv.49 — reasoning_reports row per compute (doc 22 §7.5)
+  // ============================================
+
+  it('49a. every compute writes one reasoning_reports row tagged actor=graph-stats', async () => {
+    await createTestEntity({ canonicalName: 'rr1', entityType: 'thing' });
+    await computeGraphStats();
+
+    const reports = await testDb<{
+      mode: string;
+      report: string;
+      actions_taken: unknown;
+    }[]>`
+      SELECT mode, report, actions_taken
+      FROM public.reasoning_reports
+      WHERE actions_taken->>'actor' = 'graph-stats'
+      ORDER BY created_at DESC
+    `;
+    expect(reports.length).toBe(1);
+    expect(reports[0]!.mode).toBe('patrol');
+    // Headline matches the pipeline.ts console.log shape so existing grep
+    // targets keep working — guards against silently breaking observability.
+    expect(reports[0]!.report).toMatch(/\[graph-stats\] total_entities=1/);
+    // Fenced JSON snapshot for machine consumers.
+    expect(reports[0]!.report).toContain('```json');
+
+    const actions = typeof reports[0]!.actions_taken === 'string'
+      ? JSON.parse(reports[0]!.actions_taken as string)
+      : (reports[0]!.actions_taken as Record<string, unknown>);
+    expect(actions.actor).toBe('graph-stats');
+    expect(actions.context_type).toBe('graph_stats_compute');
+    expect(actions.anomaly).toBe('normal');
+    expect(actions.anomaly_reason).toBe('no_prior_compute');
+  });
+
+  it('49b. single-entity orphan_rate=1.0 with no prior compute classifies normal', async () => {
+    await createTestEntity({ canonicalName: 'solo49', entityType: 'person' });
+    const stats = await computeGraphStats();
+    expect(stats.orphanRate).toBe(1.0);
+
+    const rows = await testDb<{ actions_taken: unknown }[]>`
+      SELECT actions_taken FROM public.reasoning_reports
+      WHERE actions_taken->>'actor' = 'graph-stats'
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    const actions = typeof rows[0]!.actions_taken === 'string'
+      ? JSON.parse(rows[0]!.actions_taken as string)
+      : (rows[0]!.actions_taken as Record<string, unknown>);
+    expect(actions.anomaly).toBe('normal');
+  });
+
+  it('49c. orphan_rate jump > 0.3 vs prior row classifies anomaly', async () => {
+    // Prior compute: 2 entities connected by one entity-entity fact —
+    // orphan_rate = 0.0 (both entities appear in the fact's subject/object).
+    const e1 = await createTestEntity({ canonicalName: 'anom-a', entityType: 'thing' });
+    const e2 = await createTestEntity({ canonicalName: 'anom-b', entityType: 'thing' });
+    await createTestFact({ subjectEntityId: e1.id, predicate: 'links', objectEntityId: e2.id });
+    const before = await computeGraphStats();
+    expect(before.orphanRate).toBe(0);
+
+    // Add 5 orphan entities; recompute. New orphan_rate = 5/7 ≈ 0.714,
+    // delta = 0.714 vs threshold 0.3 → anomaly.
+    for (let i = 0; i < 5; i++) {
+      await createTestEntity({ canonicalName: `orphan${i}`, entityType: 'thing' });
+    }
+    const after = await computeGraphStats();
+    expect(after.orphanRate!).toBeGreaterThan(0.3);
+
+    const rows = await testDb<{ actions_taken: unknown }[]>`
+      SELECT actions_taken FROM public.reasoning_reports
+      WHERE actions_taken->>'actor' = 'graph-stats'
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    const actions = typeof rows[0]!.actions_taken === 'string'
+      ? JSON.parse(rows[0]!.actions_taken as string)
+      : (rows[0]!.actions_taken as Record<string, unknown>);
+    expect(actions.anomaly).toBe('anomaly');
+    const signals = actions.anomaly_signals as Array<{ signal: string }>;
+    expect(signals.some((s) => s.signal === 'orphan_rate')).toBe(true);
+  });
+
+  it('49d. classifier is a pure function pinning normal/anomaly thresholds', () => {
+    // Unit-test the pure classifier directly so the threshold logic is
+    // exercised without DB round-trips.
+    const base: Parameters<typeof classifyAnomaly>[1] = {
+      id: 1,
+      totalEntities: 10,
+      totalFacts: 5,
+      totalActiveFacts: 5,
+      totalMemories: 3,
+      embeddingClusterCount: null,
+      meanIntraClusterDistance: null,
+      meanInterClusterDistance: null,
+      centroidSimMean: null,
+      centroidSimMedian: null,
+      centroidSimP10: null,
+      centroidSimP90: null,
+      centroidSampleSize: null,
+      factDensity: 0.5,
+      orphanRate: 0.2,
+      predicateDiversity: 3,
+      mergeCandidatesPending: 0,
+      computedAt: new Date(),
+      computedDurationMs: 12,
+      computationVersion: 1,
+      clusterColumnsVersion: null,
+    };
+    // null prior → normal/no_prior_compute
+    expect(classifyAnomaly(null, base).reason).toBe('no_prior_compute');
+    // prior with computed_duration_ms = null (seed row) → normal/no_prior_compute
+    expect(classifyAnomaly({ ...base, computedDurationMs: null }, base).reason).toBe('no_prior_compute');
+    // identical → normal/all_within_threshold
+    expect(classifyAnomaly(base, base).tag).toBe('normal');
+    // orphan_rate delta exactly 0.3 → NOT anomaly (strict >, matches the bead
+    // acceptance bullet "synthetic orphan_rate jump > 0.3 vs the prior row")
+    expect(classifyAnomaly(base, { ...base, orphanRate: 0.5 }).tag).toBe('normal');
+    // orphan_rate delta 0.4 → anomaly
+    const out = classifyAnomaly(base, { ...base, orphanRate: 0.6 });
+    expect(out.tag).toBe('anomaly');
+    expect(out.signals[0]!.signal).toBe('orphan_rate');
+  });
+
+  it('49e. reasoning_reports insert failure does NOT propagate to compute', async () => {
+    // Inject a fault on reasoning_reports INSERT — the compute upsert must
+    // still succeed (report writing is observability, not authoritative).
+    const e1 = await createTestEntity({ canonicalName: 'rr-fault', entityType: 'thing' });
+    await createTestFact({ subjectEntityId: e1.id, predicate: 'has_label', objectValue: 'v' });
+
+    try {
+      await testDb.unsafe(`
+        CREATE OR REPLACE FUNCTION pg_temp.rr_49_fault() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        BEGIN
+          RAISE EXCEPTION 'nmemo-2yv.49 simulated reasoning_reports write fault';
+        END;
+        $$;
+      `);
+      await testDb.unsafe(`
+        CREATE TRIGGER rr_49_fault
+        BEFORE INSERT ON public.reasoning_reports
+        FOR EACH ROW EXECUTE FUNCTION pg_temp.rr_49_fault();
+      `);
+
+      // Compute must NOT throw — the report-write failure is swallowed and
+      // logged via console.warn.
+      const stats = await computeGraphStats();
+      expect(stats.totalEntities).toBe(1);
+      expect(stats.computedDurationMs).not.toBeNull();
+    } finally {
+      await testDb.unsafe(`DROP TRIGGER IF EXISTS rr_49_fault ON public.reasoning_reports`);
+    }
+
+    // And no graph-stats reasoning_reports row landed (the insert was
+    // rejected by the fault trigger).
+    const rows = await testDb<{ count: string }[]>`
+      SELECT COUNT(*)::text AS count
+      FROM public.reasoning_reports
+      WHERE actions_taken->>'actor' = 'graph-stats'
+    `;
+    expect(rows[0]!.count).toBe('0');
   });
 
   it('11. atomicity (nmemo-2yv.48): pre-commit failure leaves aggregates AND duration unchanged', async () => {
