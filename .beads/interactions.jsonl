@@ -391,3 +391,6 @@
 {"id":"int-3d999007","kind":"field_change","created_at":"2026-05-26T23:20:44.6025926Z","actor":"unknown","issue_id":"nmemo-2yv.94","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-afbdcd08","kind":"field_change","created_at":"2026-05-26T23:28:02.8216026Z","actor":"unknown","issue_id":"nmemo-2yv.93","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-b1524479","kind":"field_change","created_at":"2026-05-26T23:43:23.0704482Z","actor":"unknown","issue_id":"nmemo-2yv.107","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
+{"id":"int-6c9dc4fd","kind":"field_change","created_at":"2026-05-26T23:52:39.0413746Z","actor":"unknown","issue_id":"nmemo-2yv.69","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
+{"id":"int-aef27c7f","kind":"field_change","created_at":"2026-05-26T23:59:33.25409Z","actor":"unknown","issue_id":"nmemo-2yv.58","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
+{"id":"int-07d38fbe","kind":"field_change","created_at":"2026-05-27T00:01:42.0303733Z","actor":"unknown","issue_id":"nmemo-2yv.28","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
