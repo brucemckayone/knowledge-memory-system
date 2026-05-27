@@ -416,3 +416,6 @@
 {"id":"int-2fe734b3","kind":"field_change","created_at":"2026-05-27T02:21:30.9055256Z","actor":"unknown","issue_id":"nmemo-2yv.78","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Migration 033 + regression test landed; see notes."}}
 {"id":"int-0bc1f43d","kind":"field_change","created_at":"2026-05-27T02:24:20.8022551Z","actor":"unknown","issue_id":"nmemo-2yv.75","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
 {"id":"int-6ecb8006","kind":"field_change","created_at":"2026-05-27T02:37:23.7247502Z","actor":"unknown","issue_id":"nmemo-2yv.77","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+{"id":"int-edd5df80","kind":"field_change","created_at":"2026-05-27T02:38:38.9741955Z","actor":"unknown","issue_id":"nmemo-2yv.81","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-3178d362","kind":"field_change","created_at":"2026-05-27T02:52:43.3654563Z","actor":"unknown","issue_id":"nmemo-2yv.81","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+{"id":"int-ce4bacb5","kind":"field_change","created_at":"2026-05-27T02:57:04.3276998Z","actor":"unknown","issue_id":"nmemo-2yv.85","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
