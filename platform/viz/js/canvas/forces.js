@@ -83,7 +83,13 @@ export function bindForcesPanel() {
       wrap.classList.toggle('active', input.checked);
       saveForcesToStorage();
       const sim = state.refs.simulation;
-      if (sim) sim.alpha(0.3).restart();
+      if (sim) {
+        // d3 evaluates link distance/strength accessors only when set via
+        // .distance(fn) or .links(); re-call applyForces so the new flag
+        // takes effect before alpha.restart triggers re-settle.
+        applyForces(sim);
+        sim.alpha(0.3).restart();
+      }
     });
 
     wrap.appendChild(input);
@@ -93,8 +99,38 @@ export function bindForcesPanel() {
 }
 
 // Hook called from renderAll() after simulation.nodes(...) and before
-// simulation.alpha(0.3).restart(). Subsequent beads in the epic extend this
-// with their per-force logic, each guarded by state.forces.X. No-op for
-// scaffolding (bead nmemo-pd5.1).
-export function applyForces(_simulation) {
+// simulation.alpha(0.3).restart(). Each force module reads its flag from
+// state.forces and either modifies the simulation or leaves it untouched.
+//
+// Link distance/strength defaults below mirror simulation.js — they have to
+// be respecified in full whenever this overrides one branch (sameAs), since
+// d3's link force replaces the accessor wholesale, not per-key.
+export function applyForces(simulation) {
+  const linkForce = simulation.force('link');
+  if (!linkForce) return;
+
+  // sameAs fusion (bead nmemo-pd5.2): collapse sameAs link distance from
+  // 120→10 and ramp strength from 0.08→0.9 so unresolved-but-likely-identical
+  // entity pairs visually fuse into a stacked pair, making merge candidates a
+  // visible decision rather than an abstract list. All other edge branches
+  // keep simulation.js's defaults.
+  linkForce
+    .distance(d => {
+      if (d._edgeType === 'sameAs' && state.forces.sameAsFusion) return 10;
+      if (d._edgeType === 'causalAnchor') return 80;
+      if (d._edgeType === 'causal') return 60;
+      if (d._edgeType === 'sourceLink') return 140;
+      if (d._edgeType === 'mergeCandidate') return 100;
+      if (d._edgeType === 'sameAs') return 120;
+      return 140;
+    })
+    .strength(d => {
+      if (d._edgeType === 'sameAs' && state.forces.sameAsFusion) return 0.9;
+      if (d._edgeType === 'sourceLink') return 0.03;
+      if (d._edgeType === 'causalAnchor') return 0.15;
+      if (d._edgeType === 'causal') return 0.2;
+      if (d._edgeType === 'mergeCandidate') return 0.05;
+      if (d._edgeType === 'sameAs') return 0.08;
+      return 0.2;
+    });
 }
