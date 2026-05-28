@@ -130,6 +130,20 @@ export function applyForces(simulation) {
     state.forces.clusterCentroid ? clusterCentroidForce : null,
   );
 
+  // Centrality-radial pull (bead nmemo-pd5.5): high-centrality entities are
+  // pulled toward the canvas centre, low-centrality entities to the periphery
+  // — surfaces the visual spine of the graph. Strength returns 0 for
+  // non-entity nodes and entities missing topology data, keeping the force
+  // scoped without filtering the simulation's node list. The radius accessor
+  // re-evaluates at force.initialize, so rebuilding the force on each
+  // applyForces() picks up any metric switch automatically.
+  simulation.force(
+    'centralityRadial',
+    (state.forces.centralityRadial && state.topology.loaded)
+      ? buildCentralityRadialForce(simulation)
+      : null,
+  );
+
   // Articulation-point hard pin on a central ring (bead nmemo-ywe, evolving
   // smr's pin-at-current-position into a deliberate geometry): cut-vertex
   // entities get evenly-spaced positions on a circle around the simulation
@@ -234,3 +248,57 @@ function clusterCentroidForce(alpha) {
 clusterCentroidForce.initialize = function (nodes) {
   clusterCentroidForce.nodes = nodes;
 };
+
+// Bead nmemo-pd5.5 specced strength 0.05 as the starting probe value;
+// /verify measured ratio 0.987 (bottom-decile mean dist vs top-decile mean
+// dist) at 0.05 across the live 311-entity graph — too weak to overcome
+// charge (-400). Bumped to 0.3 to mirror the pd5.3 precedent
+// (cluster-centroid pull walked through the same probe → bump cycle).
+const CENTRALITY_RADIAL_STRENGTH = 0.3;
+
+// maxRadius ~ min(canvasW, canvasH) / 2.5 (bead spec). 2.5 leaves margin so
+// the periphery ring doesn't clip the viewport edge under typical zoom.
+const CENTRALITY_RADIAL_DIVISOR = 2.5;
+
+// Build a configured d3.forceRadial for centrality-radial pull. Returns a
+// fresh force each time applyForces() is called so a centralityMetric switch
+// (which triggers renderAll → applyForces) picks up the new metric's
+// normalisation range without needing a separate re-init step.
+function buildCentralityRadialForce(simulation) {
+  const metric = state.centralityMetric === 'betweenness' ? 'betweennessSampled' : 'pagerank';
+  // Min/max across the topology population for [0,1] normalisation. Only
+  // numeric values count — entities created since the last topology compute
+  // have no entry / no metric value and are excluded from the range AND from
+  // the force (strength 0 below).
+  let min = Infinity;
+  let max = -Infinity;
+  for (const t of Object.values(state.topology.entities)) {
+    const v = t[metric];
+    if (typeof v === 'number') {
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+  const range = max - min;
+  const svgNode = state.refs.svg && state.refs.svg.node();
+  const viewportMin = svgNode ? Math.min(svgNode.clientWidth, svgNode.clientHeight) : 600;
+  const maxRadius = viewportMin / CENTRALITY_RADIAL_DIVISOR;
+  const center = simulation.force('center');
+  const cx = center ? center.x() : 0;
+  const cy = center ? center.y() : 0;
+  // Shared gate so radius + strength can never disagree about which nodes
+  // participate — non-entity nodes and entities missing topology data are
+  // excluded from both, neutralising the force for those nodes.
+  const eligible = (d) => d._nodeType === 'entity'
+    && typeof state.topology.entities[d.id]?.[metric] === 'number';
+  const radiusFn = (d) => {
+    if (!eligible(d)) return 0;
+    // range === 0 means every entity has the same centrality (degenerate
+    // topology, e.g. an empty graph) — park them at the midpoint rather
+    // than div-by-zero.
+    const norm = range > 0 ? (state.topology.entities[d.id][metric] - min) / range : 0.5;
+    return (1 - norm) * maxRadius;
+  };
+  const strengthFn = (d) => eligible(d) ? CENTRALITY_RADIAL_STRENGTH : 0;
+  return d3.forceRadial(radiusFn, cx, cy).strength(strengthFn);
+}
