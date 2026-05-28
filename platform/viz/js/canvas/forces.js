@@ -5,7 +5,7 @@
 // plug their force logic here, each guarded by the matching state.forces flag.
 
 import { state } from '../state.js';
-import { defaultLinkDistance, defaultLinkStrength } from './simulation.js';
+import { defaultLinkDistance, defaultLinkStrength, nodeRadius } from './simulation.js';
 
 const STORAGE_KEY = 'mnemo.viz.forces';
 
@@ -159,6 +159,21 @@ export function applyForces(simulation) {
       ? buildCentralityRadialForce(simulation)
       : null,
   );
+
+  // Causal-event radial decoration (bead nmemo-pd5.7): replace the force-driven
+  // "porcupine" of causal events with geometric placement — each entity's
+  // anchored events sit on an evenly-spaced ring around it. The force runs every
+  // tick (so events follow their anchor as it drifts) and rebuilds membership on
+  // every nodes() reset (i.e. every fetchData/renderAll) via its initialize.
+  // When OFF, events are released (fx/fy cleared) so they rejoin the force layout.
+  if (state.forces.causalRadial) {
+    simulation.force('causalRadial', causalRadialForce);
+  } else {
+    simulation.force('causalRadial', null);
+    for (const node of simulation.nodes()) {
+      if (node._nodeType === 'causalEvent') { node.fx = null; node.fy = null; }
+    }
+  }
 
   // Articulation-point hard pin on a central ring (bead nmemo-ywe, evolving
   // smr's pin-at-current-position into a deliberate geometry): cut-vertex
@@ -358,6 +373,61 @@ function mergePredicateAffinityLinks(simulation, linkForce) {
     .map(l => ({ ...l }));
   linkForce.links(kept.concat(pseudo));
 }
+
+// --- Causal-event radial decoration (bead nmemo-pd5.7) ---
+
+// Per-tick force: hard-place each entity's anchored causal events on an
+// evenly-spaced ring around the entity's CURRENT position, so the ring follows
+// the anchor as it drifts. Geometric (fx/fy) rather than velocity-based — the
+// porcupine this replaces came from letting the link force drag events around,
+// so we pin instead of nudge. alpha is unused (placement is absolute, not
+// energy-scaled). Membership + ring sizing come from initialize() below.
+function causalRadialForce() {
+  const groups = causalRadialForce.groups;
+  if (!groups) return;
+  for (const { entity, events } of groups) {
+    const count = events.length;
+    // radius grows with event count but caps so a busy entity's ring doesn't
+    // balloon: base entity radius + 20px gap + up to 30px of fan-out.
+    const radius = nodeRadius(entity) + 20 + Math.min(count * 2, 30);
+    const step = (2 * Math.PI) / count;
+    for (let i = 0; i < count; i++) {
+      const angle = step * i;
+      events[i].fx = entity.x + radius * Math.cos(angle);
+      events[i].fy = entity.y + radius * Math.sin(angle);
+    }
+  }
+}
+
+// d3 calls initialize(nodes) whenever the node set is (re)assigned — i.e. on
+// every renderAll/fetchData — so membership recomputes when events appear or
+// move between anchors. Anchor is the event node's own entityId (== the causal
+// event's subjectEntityId, per src/index.ts), resolved against the live node
+// set; events whose anchor entity isn't currently in the simulation are left
+// force-driven. Events are id-sorted so angle assignment is stable across
+// re-inits (a given event keeps its slot when membership is unchanged).
+causalRadialForce.initialize = function (nodes) {
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const groups = new Map(); // anchorEntityId → { entity, events: [] }
+  for (const n of nodes) {
+    if (n._nodeType !== 'causalEvent' || n.entityId == null) continue;
+    const entity = byId.get(n.entityId);
+    if (!entity || entity._nodeType !== 'entity') {
+      // Anchor entity is no longer in the simulation (filtered out, merged,
+      // or deleted) but the event still is. Release any stale ring pin so the
+      // event rejoins the force layout instead of freezing at its last
+      // geometric position — mirrors the articulation force's release sweep.
+      n.fx = null;
+      n.fy = null;
+      continue;
+    }
+    let g = groups.get(n.entityId);
+    if (!g) { g = { entity, events: [] }; groups.set(n.entityId, g); }
+    g.events.push(n);
+  }
+  for (const g of groups.values()) g.events.sort((a, b) => a.id.localeCompare(b.id));
+  causalRadialForce.groups = [...groups.values()];
+};
 
 // Bead nmemo-pd5.5 specced strength 0.05 as the starting probe value;
 // /verify measured ratio 0.987 (bottom-decile mean dist vs top-decile mean
