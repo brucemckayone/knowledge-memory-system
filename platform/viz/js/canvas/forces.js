@@ -171,7 +171,14 @@ export function applyForces(simulation) {
   } else {
     simulation.force('causalRadial', null);
     for (const node of simulation.nodes()) {
-      if (node._nodeType === 'causalEvent') { node.fx = null; node.fy = null; }
+      // Reset all radial state for causal events: release the pin and the
+      // drag-handover flag (bead pd5.8) so a fresh ON toggle re-rings cleanly
+      // rather than treating a previously-dragged event as still released.
+      if (node._nodeType === 'causalEvent') {
+        node.fx = null;
+        node.fy = null;
+        node._radialReleased = false;
+      }
     }
   }
 
@@ -229,6 +236,14 @@ export function isPinnedArticulationNode(node) {
     && state.topology.loaded
     && node._nodeType === 'entity'
     && !!state.topology.entities[node.id]?.isArticulationPoint;
+}
+
+// Sibling of isPinnedArticulationNode for the causal-radial force: true when a
+// node is a causal event that causalRadialForce currently ring-pins. Shared
+// with render.js's drag handler (bead pd5.8) so the "is this drag a ring-pin
+// handover" gate stays defined in one place, exactly as the articulation gate.
+export function isRingPinnedCausalEvent(node) {
+  return state.forces.causalRadial && node._nodeType === 'causalEvent';
 }
 
 // Pull strength applied via velocity each tick. Bead nmemo-pd5.3 specified
@@ -392,6 +407,10 @@ function causalRadialForce() {
     const radius = nodeRadius(entity) + 20 + Math.min(count * 2, 30);
     const step = (2 * Math.PI) / count;
     for (let i = 0; i < count; i++) {
+      // Skip an event the user has dragged out of its ring slot (bead pd5.8):
+      // leave its fx/fy at the dropped position. The slot is still counted, so
+      // its siblings keep their angles instead of re-spacing mid-drag.
+      if (events[i]._radialReleased) continue;
       const angle = step * i;
       events[i].fx = entity.x + radius * Math.cos(angle);
       events[i].fy = entity.y + radius * Math.sin(angle);

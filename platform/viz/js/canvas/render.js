@@ -9,7 +9,7 @@ import { renderContradictionsOverlay } from '../overlays/contradictions.js';
 import { resolveEntityColor, resolveEntityStrokeOpacity, renderTopologyOverlay } from '../layers/topology.js';
 import { renderClusterHulls } from '../layers/clusters.js';
 import { renderGhostMarkers } from '../overlays/ghosts.js';
-import { applyForces, isPinnedArticulationNode } from './forces.js';
+import { applyForces, isPinnedArticulationNode, isRingPinnedCausalEvent } from './forces.js';
 
 export function renderAll() {
   const { nodes, edges } = state.data;
@@ -259,13 +259,28 @@ export function renderNodes(group, nodeData, opts) {
   // entity, preserve the drop position as the new pin (bead nmemo-smr) —
   // otherwise the user's manual placement would be wiped immediately and
   // applyForces() on the next renderAll would re-pin to whatever the sim
-  // had drifted to. Non-pinned nodes clear as before.
+  // had drifted to. Non-pinned nodes clear as before. Causal events are
+  // re-pinned to their ring every tick by causalRadialForce (bead pd5.7), so
+  // dragging one needs a release handover (bead pd5.8): _radialReleased tells
+  // the force to stop re-pinning this event so the drag (and the drop) stick.
   merged.call(d3.drag()
-    .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+    .on('start', (e, d) => {
+      if (!e.active) simulation.alphaTarget(0.3).restart();
+      if (isRingPinnedCausalEvent(d)) d._radialReleased = true;
+      d.fx = d.x;
+      d.fy = d.y;
+    })
     .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
     .on('end', (e, d) => {
       if (!e.active) simulation.alphaTarget(0);
-      if (isPinnedArticulationNode(d)) {
+      if (isRingPinnedCausalEvent(d)) {
+        // Stays where dropped — _radialReleased keeps causalRadialForce off it
+        // until the next fetchData() (fresh node objects) re-rings it. Only
+        // when the force is ON; with it OFF the event is a normal force node
+        // and falls through to the clear-on-drop branch below.
+        d.fx = e.x;
+        d.fy = e.y;
+      } else if (isPinnedArticulationNode(d)) {
         d.fx = e.x;
         d.fy = e.y;
       } else {
