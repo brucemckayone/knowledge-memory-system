@@ -87,9 +87,11 @@ export function bindForcesPanel() {
       if (sim) {
         // d3 evaluates link distance/strength accessors only when set via
         // .distance(fn) or .links(); re-call applyForces so the new flag
-        // takes effect before alpha.restart triggers re-settle.
+        // takes effect before alpha.restart triggers re-settle. alpha=1.0
+        // (was 0.3) gives the layout enough energy to reorganise around
+        // any new pin geometry in a single cooldown pass (bead nmemo-ywe).
         applyForces(sim);
-        sim.alpha(0.3).restart();
+        sim.alpha(1.0).restart();
       }
     });
 
@@ -128,27 +130,42 @@ export function applyForces(simulation) {
     state.forces.clusterCentroid ? clusterCentroidForce : null,
   );
 
-  // Articulation-point hard pin (bead nmemo-smr, replacing pd5.4's 5x charge
-  // soft pin which proved visually unconvincing): topology compute flags
-  // cut-vertex entities — those whose removal would disconnect the graph.
-  // When on, lock their fx/fy to current x/y so the layout stops pivoting
-  // around them between alpha.restart cycles. When off (or when an entity
-  // is no longer articulation), release any fx/fy this force set so the
-  // node rejoins the simulation. Non-entity nodes are never touched —
-  // sourceMemory and causalEvent layouts are owned by other forces and
-  // any future hard-pin behaviour there would belong on its own toggle.
+  // Articulation-point hard pin on a central ring (bead nmemo-ywe, evolving
+  // smr's pin-at-current-position into a deliberate geometry): cut-vertex
+  // entities get evenly-spaced positions on a circle around the simulation
+  // center. Clusters then drape around the ring of bridges instead of the
+  // bridges floating wherever the layout happened to settle. Non-entity
+  // nodes are never touched. Non-articulation entities (and previously-
+  // pinned-now-non-articulation) get fx/fy cleared.
+  const articulationToRing = [];
   for (const node of simulation.nodes()) {
     if (node._nodeType !== 'entity') continue;
     if (isPinnedArticulationNode(node)) {
-      node.fx = node.x;
-      node.fy = node.y;
+      articulationToRing.push(node);
     } else {
-      // Clear unconditionally on the else branch — covers (a) toggle just
-      // flipped OFF, (b) topology refresh re-classified this entity as
-      // non-articulation, (c) prior re-pin from a hand-drag should not
-      // survive the toggle going OFF.
+      // Clear covers (a) toggle just flipped OFF, (b) topology refresh
+      // re-classified this entity as non-articulation, (c) prior re-pin
+      // from a hand-drag should not survive the toggle going OFF.
       node.fx = null;
       node.fy = null;
+    }
+  }
+  if (articulationToRing.length > 0) {
+    // Stable id sort so re-toggling OFF/ON deterministically lands every
+    // entity on the same angle — predictability matters for orientation.
+    articulationToRing.sort((a, b) => a.id.localeCompare(b.id));
+    const center = simulation.force('center');
+    const cx = center ? center.x() : 0;
+    const cy = center ? center.y() : 0;
+    const svgNode = state.refs.svg && state.refs.svg.node();
+    // Radius scales with viewport so the ring sits proportional on any
+    // window size; 0.35 leaves room for cluster blobs to spread outside.
+    const viewportMin = svgNode ? Math.min(svgNode.clientWidth, svgNode.clientHeight) : 600;
+    const radius = viewportMin * 0.35;
+    const step = (2 * Math.PI) / articulationToRing.length;
+    for (let i = 0; i < articulationToRing.length; i++) {
+      articulationToRing[i].fx = cx + radius * Math.cos(i * step);
+      articulationToRing[i].fy = cy + radius * Math.sin(i * step);
     }
   }
 }
