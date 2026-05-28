@@ -15,6 +15,27 @@ export function nodeRadius(d) {
   return 6;
 }
 
+// Canonical link distance/strength accessors. Exported so canvas/forces.js
+// can compose per-flag overrides against the defaults instead of restating
+// the full branch table on every force module (epic nmemo-pd5).
+export function defaultLinkDistance(d) {
+  if (d._edgeType === 'causalAnchor') return 80;
+  if (d._edgeType === 'causal') return 60;
+  if (d._edgeType === 'sourceLink') return 140;
+  if (d._edgeType === 'mergeCandidate') return 100;
+  if (d._edgeType === 'sameAs') return 120;
+  return 140;
+}
+
+export function defaultLinkStrength(d) {
+  if (d._edgeType === 'sourceLink') return 0.03;
+  if (d._edgeType === 'causalAnchor') return 0.15;
+  if (d._edgeType === 'causal') return 0.2;
+  if (d._edgeType === 'mergeCandidate') return 0.05;
+  if (d._edgeType === 'sameAs') return 0.08;
+  return 0.2;
+}
+
 export function initSvg(updatePinnedTooltipPosition) {
   const svg = d3.select('#graph');
   const width = svg.node().clientWidth;
@@ -58,21 +79,7 @@ export function initSvg(updatePinnedTooltipPosition) {
   }));
 
   const simulation = d3.forceSimulation()
-    .force('link', d3.forceLink().id(d => d.id).distance(d => {
-      if (d._edgeType === 'causalAnchor') return 80;
-      if (d._edgeType === 'causal') return 60;
-      if (d._edgeType === 'sourceLink') return 140;
-      if (d._edgeType === 'mergeCandidate') return 100;
-      if (d._edgeType === 'sameAs') return 120;
-      return 140;
-    }).strength(d => {
-      if (d._edgeType === 'sourceLink') return 0.03;
-      if (d._edgeType === 'causalAnchor') return 0.15;
-      if (d._edgeType === 'causal') return 0.2;
-      if (d._edgeType === 'mergeCandidate') return 0.05;
-      if (d._edgeType === 'sameAs') return 0.08;
-      return 0.2;
-    }))
+    .force('link', d3.forceLink().id(d => d.id).distance(defaultLinkDistance).strength(defaultLinkStrength))
     .force('charge', d3.forceManyBody().strength(chargeStrength))
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collision', d3.forceCollide().radius(d => nodeRadius(d) + 6));

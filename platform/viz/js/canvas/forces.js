@@ -5,6 +5,7 @@
 // plug their force logic here, each guarded by the matching state.forces flag.
 
 import { state } from '../state.js';
+import { defaultLinkDistance, defaultLinkStrength } from './simulation.js';
 
 const STORAGE_KEY = 'mnemo.viz.forces';
 
@@ -100,11 +101,10 @@ export function bindForcesPanel() {
 
 // Hook called from renderAll() after simulation.nodes(...) and before
 // simulation.alpha(0.3).restart(). Each force module reads its flag from
-// state.forces and either modifies the simulation or leaves it untouched.
-//
-// Link distance/strength defaults below mirror simulation.js — they have to
-// be respecified in full whenever this overrides one branch (sameAs), since
-// d3's link force replaces the accessor wholesale, not per-key.
+// state.forces and composes its override against defaultLinkDistance /
+// defaultLinkStrength from simulation.js — the canonical accessor tables
+// live there and are imported here, so adding a new force only adds one
+// ternary, not a full restatement.
 export function applyForces(simulation) {
   const linkForce = simulation.force('link');
   if (!linkForce) return;
@@ -112,25 +112,8 @@ export function applyForces(simulation) {
   // sameAs fusion (bead nmemo-pd5.2): collapse sameAs link distance from
   // 120→10 and ramp strength from 0.08→0.9 so unresolved-but-likely-identical
   // entity pairs visually fuse into a stacked pair, making merge candidates a
-  // visible decision rather than an abstract list. All other edge branches
-  // keep simulation.js's defaults.
+  // visible decision rather than an abstract list.
   linkForce
-    .distance(d => {
-      if (d._edgeType === 'sameAs' && state.forces.sameAsFusion) return 10;
-      if (d._edgeType === 'causalAnchor') return 80;
-      if (d._edgeType === 'causal') return 60;
-      if (d._edgeType === 'sourceLink') return 140;
-      if (d._edgeType === 'mergeCandidate') return 100;
-      if (d._edgeType === 'sameAs') return 120;
-      return 140;
-    })
-    .strength(d => {
-      if (d._edgeType === 'sameAs' && state.forces.sameAsFusion) return 0.9;
-      if (d._edgeType === 'sourceLink') return 0.03;
-      if (d._edgeType === 'causalAnchor') return 0.15;
-      if (d._edgeType === 'causal') return 0.2;
-      if (d._edgeType === 'mergeCandidate') return 0.05;
-      if (d._edgeType === 'sameAs') return 0.08;
-      return 0.2;
-    });
+    .distance(d => (d._edgeType === 'sameAs' && state.forces.sameAsFusion) ? 10 : defaultLinkDistance(d))
+    .strength(d => (d._edgeType === 'sameAs' && state.forces.sameAsFusion) ? 0.9 : defaultLinkStrength(d));
 }
