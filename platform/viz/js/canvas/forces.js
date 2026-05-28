@@ -5,7 +5,7 @@
 // plug their force logic here, each guarded by the matching state.forces flag.
 
 import { state } from '../state.js';
-import { defaultLinkDistance, defaultLinkStrength } from './simulation.js';
+import { chargeStrength, defaultLinkDistance, defaultLinkStrength } from './simulation.js';
 
 const STORAGE_KEY = 'mnemo.viz.forces';
 
@@ -127,6 +127,23 @@ export function applyForces(simulation) {
     'clusterCentroid',
     state.forces.clusterCentroid ? clusterCentroidForce : null,
   );
+
+  // Articulation-point soft pin (bead nmemo-pd5.4): topology compute flags
+  // cut-vertex entities — entities whose removal would disconnect the graph.
+  // When on, multiply their charge by 5x so they sit deeper in the potential
+  // well; the layout stops pivoting around them between alpha.restart cycles.
+  // Soft pin only — hard fx/fy pinning was specced as a follow-up if soft
+  // proves visually unconvincing.
+  const chargeForce = simulation.force('charge');
+  if (chargeForce) {
+    chargeForce.strength(d => {
+      const base = chargeStrength(d);
+      if (!state.forces.articulationPins) return base;
+      if (d._nodeType !== 'entity') return base;
+      if (!state.topology.entities[d.id]?.isArticulationPoint) return base;
+      return base * 5;
+    });
+  }
 }
 
 // Pull strength applied via velocity each tick. Bead nmemo-pd5.3 specified
