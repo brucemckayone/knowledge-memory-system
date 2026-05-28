@@ -5,7 +5,7 @@
 // plug their force logic here, each guarded by the matching state.forces flag.
 
 import { state } from '../state.js';
-import { chargeStrength, defaultLinkDistance, defaultLinkStrength } from './simulation.js';
+import { defaultLinkDistance, defaultLinkStrength } from './simulation.js';
 
 const STORAGE_KEY = 'mnemo.viz.forces';
 
@@ -128,22 +128,39 @@ export function applyForces(simulation) {
     state.forces.clusterCentroid ? clusterCentroidForce : null,
   );
 
-  // Articulation-point soft pin (bead nmemo-pd5.4): topology compute flags
-  // cut-vertex entities — entities whose removal would disconnect the graph.
-  // When on, multiply their charge by 5x so they sit deeper in the potential
-  // well; the layout stops pivoting around them between alpha.restart cycles.
-  // Soft pin only — hard fx/fy pinning was specced as a follow-up if soft
-  // proves visually unconvincing.
-  const chargeForce = simulation.force('charge');
-  if (chargeForce) {
-    chargeForce.strength(d => {
-      const base = chargeStrength(d);
-      if (!state.forces.articulationPins) return base;
-      if (d._nodeType !== 'entity') return base;
-      if (!state.topology.entities[d.id]?.isArticulationPoint) return base;
-      return base * 5;
-    });
+  // Articulation-point hard pin (bead nmemo-smr, replacing pd5.4's 5x charge
+  // soft pin which proved visually unconvincing): topology compute flags
+  // cut-vertex entities — those whose removal would disconnect the graph.
+  // When on, lock their fx/fy to current x/y so the layout stops pivoting
+  // around them between alpha.restart cycles. When off (or when an entity
+  // is no longer articulation), release any fx/fy this force set so the
+  // node rejoins the simulation. Non-entity nodes are never touched —
+  // sourceMemory and causalEvent layouts are owned by other forces and
+  // any future hard-pin behaviour there would belong on its own toggle.
+  for (const node of simulation.nodes()) {
+    if (node._nodeType !== 'entity') continue;
+    if (isPinnedArticulationNode(node)) {
+      node.fx = node.x;
+      node.fy = node.y;
+    } else {
+      // Clear unconditionally on the else branch — covers (a) toggle just
+      // flipped OFF, (b) topology refresh re-classified this entity as
+      // non-articulation, (c) prior re-pin from a hand-drag should not
+      // survive the toggle going OFF.
+      node.fx = null;
+      node.fy = null;
+    }
   }
+}
+
+// Predicate shared with the drag handler in render.js so the four-condition
+// hard-pin gate stays defined in one place. Returns true when the node is
+// an entity that the articulationPins force currently considers pinned.
+export function isPinnedArticulationNode(node) {
+  return state.forces.articulationPins
+    && state.topology.loaded
+    && node._nodeType === 'entity'
+    && !!state.topology.entities[node.id]?.isArticulationPoint;
 }
 
 // Pull strength applied via velocity each tick. Bead nmemo-pd5.3 specified

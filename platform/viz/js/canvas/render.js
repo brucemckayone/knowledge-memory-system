@@ -9,7 +9,7 @@ import { renderContradictionsOverlay } from '../overlays/contradictions.js';
 import { resolveEntityColor, resolveEntityStrokeOpacity, renderTopologyOverlay } from '../layers/topology.js';
 import { renderClusterHulls } from '../layers/clusters.js';
 import { renderGhostMarkers } from '../overlays/ghosts.js';
-import { applyForces } from './forces.js';
+import { applyForces, isPinnedArticulationNode } from './forces.js';
 
 export function renderAll() {
   const { nodes, edges } = state.data;
@@ -254,10 +254,25 @@ export function renderNodes(group, nodeData, opts) {
       .on('mouseout', () => { if (!state.tooltipPinned) hideTooltip(); });
   }
 
+  // Drag end normally clears fx/fy so the node rejoins the simulation. When
+  // articulationPins is on and the dropped node is a pinned articulation
+  // entity, preserve the drop position as the new pin (bead nmemo-smr) —
+  // otherwise the user's manual placement would be wiped immediately and
+  // applyForces() on the next renderAll would re-pin to whatever the sim
+  // had drifted to. Non-pinned nodes clear as before.
   merged.call(d3.drag()
     .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
     .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-    .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+    .on('end', (e, d) => {
+      if (!e.active) simulation.alphaTarget(0);
+      if (isPinnedArticulationNode(d)) {
+        d.fx = e.x;
+        d.fy = e.y;
+      } else {
+        d.fx = null;
+        d.fy = null;
+      }
+    })
   );
 
   const isHideLabel = opts.hideLabel;
