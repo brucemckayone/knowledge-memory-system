@@ -63,6 +63,14 @@ export const state = {
     predicateAffinity: false,
     causalRadial: true,
   },
+  // Precomputed predicate-affinity pseudo-links (bead nmemo-pd5.6). Rebuilt
+  // once per fetchData() (O(N²) Jaccard over fact-predicate signatures — too
+  // expensive per tick), cached here, and merged into the link force by
+  // applyForces() when state.forces.predicateAffinity is ON. Entries are
+  // { source, target, similarity, _edgeType:'predicateAffinity', id } with
+  // string-id endpoints — never handed to d3 directly (applyForces clones
+  // them first, since d3.forceLink rewrites source/target to node objects).
+  predicateAffinityLinks: [],
   refs: {
     svg: null,
     g: null,

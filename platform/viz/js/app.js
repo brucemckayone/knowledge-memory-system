@@ -27,7 +27,7 @@ import { loadClusters, bindClusterButton, bindHullsToggle } from './layers/clust
 import { bindMergeCandidatesPanel, refreshMergeCandidates } from './panels/merge-candidates.js';
 import { bindDriftStrip, refreshDrift } from './panels/drift.js';
 import { bindReasoningReportsPanel, refreshReasoningReports } from './panels/reasoning-reports.js';
-import { bindForcesPanel } from './canvas/forces.js';
+import { bindForcesPanel, computePredicateAffinityLinks } from './canvas/forces.js';
 
 export async function fetchData() {
   try {
@@ -43,6 +43,10 @@ export async function fetchData() {
     }
 
     state.data = unified;
+    // Precompute predicate-affinity pseudo-links once per fetch (bead
+    // nmemo-pd5.6) — the O(N²) Jaccard pass is too expensive per tick, so the
+    // result is cached on state and merged into the link force by applyForces.
+    computePredicateAffinityLinks();
     recomputeTimeRange();
     renderAll();
   } catch (err) {

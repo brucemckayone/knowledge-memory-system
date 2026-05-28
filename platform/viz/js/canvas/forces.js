@@ -111,13 +111,29 @@ export function applyForces(simulation) {
   const linkForce = simulation.force('link');
   if (!linkForce) return;
 
+  // Predicate-affinity pseudo-links (bead nmemo-pd5.6): merge the precomputed
+  // cache into / strip it from the link force BEFORE the distance/strength
+  // accessors are set, so the accessors below apply to the full link list.
+  mergePredicateAffinityLinks(simulation, linkForce);
+
   // sameAs fusion (bead nmemo-pd5.2): collapse sameAs link distance from
   // 120→10 and ramp strength from 0.08→0.9 so unresolved-but-likely-identical
   // entity pairs visually fuse into a stacked pair, making merge candidates a
   // visible decision rather than an abstract list.
+  // Predicate affinity (pd5.6): pseudo-links get a long, weak spring —
+  // distance 200, strength 0.01*similarity — so shared-predicate entities feel
+  // a gentle attraction without overpowering the real fact/causal topology.
   linkForce
-    .distance(d => (d._edgeType === 'sameAs' && state.forces.sameAsFusion) ? 10 : defaultLinkDistance(d))
-    .strength(d => (d._edgeType === 'sameAs' && state.forces.sameAsFusion) ? 0.9 : defaultLinkStrength(d));
+    .distance(d => {
+      if (d._edgeType === 'predicateAffinity') return PREDICATE_AFFINITY_DISTANCE;
+      if (d._edgeType === 'sameAs' && state.forces.sameAsFusion) return 10;
+      return defaultLinkDistance(d);
+    })
+    .strength(d => {
+      if (d._edgeType === 'predicateAffinity') return PREDICATE_AFFINITY_STRENGTH_SCALE * (d.similarity ?? 0);
+      if (d._edgeType === 'sameAs' && state.forces.sameAsFusion) return 0.9;
+      return defaultLinkStrength(d);
+    });
 
   // Cluster-centroid pull (bead nmemo-pd5.3): when on, each entity that has
   // a clusterId in state.clusters.entities gets pulled toward its cluster's
@@ -248,6 +264,100 @@ function clusterCentroidForce(alpha) {
 clusterCentroidForce.initialize = function (nodes) {
   clusterCentroidForce.nodes = nodes;
 };
+
+// --- Predicate affinity (bead nmemo-pd5.6) ---
+
+// Jaccard threshold above which a pair of entities earns a pseudo-link.
+const PREDICATE_AFFINITY_THRESHOLD = 0.3;
+// Pseudo-links are long + weak so they nudge shared-predicate entities together
+// without competing with the real fact/causal springs.
+const PREDICATE_AFFINITY_DISTANCE = 200;
+const PREDICATE_AFFINITY_STRENGTH_SCALE = 0.01; // strength = scale * similarity
+
+// Precompute predicate-affinity pseudo-links from state.data and cache them on
+// state.predicateAffinityLinks. Called once per fetchData() (NOT per tick) —
+// the pairwise Jaccard is O(N²) over entities-that-are-fact-subjects. The
+// signature of an entity is the SET of distinct predicates on fact edges where
+// it is the subject (source); multiplicity is dropped because shared predicate
+// *types* (works-at, located-in) are the semantic-grouping signal, not how
+// many times each fires. Pairs scoring ≥ threshold become pseudo-links with
+// string-id endpoints; applyForces() clones + node-filters them before handing
+// them to d3.
+export function computePredicateAffinityLinks() {
+  const { nodes, edges } = state.data;
+  const entityIds = new Set(
+    nodes.filter(n => n._nodeType === 'entity').map(n => n.id),
+  );
+  // Endpoint id whether the edge is fresh (string) or d3-resolved (object).
+  const epId = (v) => (v && typeof v === 'object') ? v.id : v;
+
+  // entityId → Set<predicate>
+  const signatures = new Map();
+  for (const e of edges) {
+    if (e._edgeType !== 'fact') continue;
+    const subject = epId(e.source);
+    if (!entityIds.has(subject)) continue;
+    const predicate = e.predicate;
+    if (!predicate) continue;
+    let set = signatures.get(subject);
+    if (!set) { set = new Set(); signatures.set(subject, set); }
+    set.add(predicate);
+  }
+
+  const ids = [...signatures.keys()];
+  const links = [];
+  for (let i = 0; i < ids.length; i++) {
+    const a = signatures.get(ids[i]);
+    for (let j = i + 1; j < ids.length; j++) {
+      const b = signatures.get(ids[j]);
+      // |A ∩ B| via the smaller set, then Jaccard = inter / (|A|+|B|-inter).
+      const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+      let inter = 0;
+      for (const p of small) if (large.has(p)) inter++;
+      const union = a.size + b.size - inter;
+      const similarity = union > 0 ? inter / union : 0;
+      if (similarity >= PREDICATE_AFFINITY_THRESHOLD) {
+        links.push({
+          id: `pa:${ids[i]}:${ids[j]}`,
+          source: ids[i],
+          target: ids[j],
+          similarity,
+          _edgeType: 'predicateAffinity',
+        });
+      }
+    }
+  }
+  state.predicateAffinityLinks = links;
+  return links;
+}
+
+// Idempotent merge of the cached pseudo-links into the live link force. Always
+// strips any prior predicateAffinity links first (so repeated applyForces calls
+// — e.g. a toggle flip that doesn't go through renderAll — don't double-add),
+// then re-adds fresh CLONES when the flag is on. Cloning is mandatory: d3
+// rewrites link.source/target from string ids to node objects on .links(), so
+// handing the cache directly would corrupt it for the next merge. Pseudo-links
+// referencing nodes absent from the current simulation are dropped — d3.forceLink
+// throws "missing: <id>" otherwise.
+function mergePredicateAffinityLinks(simulation, linkForce) {
+  const current = linkForce.links();
+  const hadPseudo = current.some(l => l._edgeType === 'predicateAffinity');
+  // Feature off: only re-set (a full force re-init) if there are stale
+  // pseudo-links to strip. The common default-OFF render stays free — render.js
+  // already re-set .links(visibleEdges), which never contains pseudo-links.
+  if (!state.forces.predicateAffinity) {
+    if (hadPseudo) {
+      linkForce.links(current.filter(l => l._edgeType !== 'predicateAffinity'));
+    }
+    return;
+  }
+  const kept = current.filter(l => l._edgeType !== 'predicateAffinity');
+  const nodeIds = new Set(simulation.nodes().map(n => n.id));
+  const pseudo = (state.predicateAffinityLinks || [])
+    .filter(l => nodeIds.has(l.source) && nodeIds.has(l.target))
+    .map(l => ({ ...l }));
+  linkForce.links(kept.concat(pseudo));
+}
 
 // Bead nmemo-pd5.5 specced strength 0.05 as the starting probe value;
 // /verify measured ratio 0.987 (bottom-decile mean dist vs top-decile mean
