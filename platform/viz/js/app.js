@@ -27,6 +27,7 @@ import { loadClusters, bindClusterButton, bindHullsToggle } from './layers/clust
 import { bindMergeCandidatesPanel, refreshMergeCandidates } from './panels/merge-candidates.js';
 import { bindDriftStrip, refreshDrift } from './panels/drift.js';
 import { bindReasoningReportsPanel, refreshReasoningReports } from './panels/reasoning-reports.js';
+import { bindForcesPanel } from './canvas/forces.js';
 
 export async function fetchData() {
   try {
@@ -117,6 +118,7 @@ bindHullsToggle();
 bindMergeCandidatesPanel();
 bindDriftStrip();
 bindReasoningReportsPanel();
+bindForcesPanel();
 
 // Polling registry — runs every poller once on start, then on its interval.
 register('graph', async () => {

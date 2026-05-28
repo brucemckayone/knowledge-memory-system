@@ -49,6 +49,20 @@ export const state = {
   // has a focused entity.
   reasoningReportsModeFilter: 'all',
   reasoningReportsEntityFilterEnabled: false,
+  // Force-layout experimentation flags (epic nmemo-pd5). Each flag toggles a
+  // single force module in canvas/forces.js. Defaults: clear visual wins ON
+  // (sameAsFusion fuses unresolved identity pairs; causalRadial replaces the
+  // porcupine layout with geometric placement); experimental ones OFF until
+  // confirmed visually. Subsequent beads in the epic plug their force into
+  // applyForces() keyed on the matching flag.
+  forces: {
+    sameAsFusion: true,
+    clusterCentroid: false,
+    articulationPins: false,
+    centralityRadial: false,
+    predicateAffinity: false,
+    causalRadial: true,
+  },
   refs: {
     svg: null,
     g: null,

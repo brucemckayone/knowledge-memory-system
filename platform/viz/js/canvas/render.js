@@ -9,6 +9,7 @@ import { renderContradictionsOverlay } from '../overlays/contradictions.js';
 import { resolveEntityColor, resolveEntityStrokeOpacity, renderTopologyOverlay } from '../layers/topology.js';
 import { renderClusterHulls } from '../layers/clusters.js';
 import { renderGhostMarkers } from '../overlays/ghosts.js';
+import { applyForces } from './forces.js';
 
 export function renderAll() {
   const { nodes, edges } = state.data;
@@ -145,6 +146,7 @@ export function renderAll() {
     simulation.force('charge').strength(chargeStrength);
     simulation.nodes(visibleNodes);
     simulation.force('link').links(visibleEdges);
+    applyForces(simulation);
     simulation.alpha(0.3).restart();
   }
 
