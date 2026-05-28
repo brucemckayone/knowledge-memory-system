@@ -158,10 +158,16 @@ export function applyForces(simulation) {
     const cx = center ? center.x() : 0;
     const cy = center ? center.y() : 0;
     const svgNode = state.refs.svg && state.refs.svg.node();
-    // Radius scales with viewport so the ring sits proportional on any
-    // window size; 0.35 leaves room for cluster blobs to spread outside.
     const viewportMin = svgNode ? Math.min(svgNode.clientWidth, svgNode.clientHeight) : 600;
-    const radius = viewportMin * 0.35;
+    // Radius scales with N so each articulation slot gets a target arc
+    // length (~60px) regardless of how many bridges the graph has (bead
+    // nmemo-739). Clamp to viewport bounds so small N doesn't shrink the
+    // ring absurdly and large N doesn't blow it past the visible area.
+    const ARC_PER_NODE = 60;
+    const idealRadius = articulationToRing.length * ARC_PER_NODE / (2 * Math.PI);
+    const minRadius = viewportMin * 0.2;
+    const maxRadius = viewportMin * 0.5;
+    const radius = Math.max(minRadius, Math.min(maxRadius, idealRadius));
     const step = (2 * Math.PI) / articulationToRing.length;
     for (let i = 0; i < articulationToRing.length; i++) {
       articulationToRing[i].fx = cx + radius * Math.cos(i * step);
