@@ -116,4 +116,64 @@ export function applyForces(simulation) {
   linkForce
     .distance(d => (d._edgeType === 'sameAs' && state.forces.sameAsFusion) ? 10 : defaultLinkDistance(d))
     .strength(d => (d._edgeType === 'sameAs' && state.forces.sameAsFusion) ? 0.9 : defaultLinkStrength(d));
+
+  // Cluster-centroid pull (bead nmemo-pd5.3): when on, each entity that has
+  // a clusterId in state.clusters.entities gets pulled toward its cluster's
+  // running centroid. Single-pass-per-tick caching: build centroid map once,
+  // then apply velocity nudges — avoids the O(N²) trap of computing centroid
+  // inside a per-node accessor. Noise (clusterId === -1) and unclustered
+  // nodes (no entry / null) are skipped.
+  simulation.force(
+    'clusterCentroid',
+    state.forces.clusterCentroid ? clusterCentroidForce : null,
+  );
 }
+
+// Pull strength applied via velocity each tick. Bead nmemo-pd5.3 specified
+// 0.05 as the initial probe value but tagged it tweakable; /verify
+// measured a 1.2% intra-cluster shrinkage at that strength — directionally
+// correct but overwhelmed by charge (-400) and the dense fact/causal link
+// graph. 0.3 gives visible blobs while still leaving room for the other
+// forces to organise within each cluster.
+const CLUSTER_PULL = 0.3;
+
+// Custom d3 force: one pass to accumulate centroids, second pass to apply
+// the velocity nudge. d3 calls force(alpha) once per tick; alpha decays as
+// the simulation cools so the nudge naturally softens over time.
+function clusterCentroidForce(alpha) {
+  const nodes = clusterCentroidForce.nodes;
+  if (!nodes) return;
+  const clusterOf = (id) => state.clusters.entities[id]?.clusterId;
+
+  // Pass 1: accumulate sum(x), sum(y), count per cluster.
+  const sums = {};
+  for (const n of nodes) {
+    const cid = clusterOf(n.id);
+    if (cid == null || cid === -1) continue;
+    let bucket = sums[cid];
+    if (!bucket) { bucket = { sx: 0, sy: 0, count: 0 }; sums[cid] = bucket; }
+    bucket.sx += n.x;
+    bucket.sy += n.y;
+    bucket.count += 1;
+  }
+
+  // Pass 2: nudge each clustered node toward its centroid. Single-member
+  // clusters are skipped — a node would just pull toward itself.
+  const k = CLUSTER_PULL * alpha;
+  for (const n of nodes) {
+    const cid = clusterOf(n.id);
+    if (cid == null || cid === -1) continue;
+    const bucket = sums[cid];
+    if (!bucket || bucket.count < 2) continue;
+    const cx = bucket.sx / bucket.count;
+    const cy = bucket.sy / bucket.count;
+    n.vx += (cx - n.x) * k;
+    n.vy += (cy - n.y) * k;
+  }
+}
+
+// d3 calls initialize(nodes) when the force is added to / linked with the
+// simulation — capture the live node list so force(alpha) can iterate.
+clusterCentroidForce.initialize = function (nodes) {
+  clusterCentroidForce.nodes = nodes;
+};
