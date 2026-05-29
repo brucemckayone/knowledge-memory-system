@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { edgeEndpoint } from './edge-utils.js';
 
 export function toggleFocus(entityId) {
   const { svg, g } = state.refs;
@@ -14,21 +15,21 @@ export function toggleFocus(entityId) {
 
   const connected = new Set([entityId]);
   for (const e of state.data.edges) {
-    const srcId = typeof e.source === 'object' ? e.source.id : e.source;
-    const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
+    const srcId = edgeEndpoint(e.source);
+    const tgtId = edgeEndpoint(e.target);
     if (srcId === entityId) connected.add(tgtId);
     if (tgtId === entityId) connected.add(srcId);
   }
 
   g.selectAll('g.node').classed('faded', d => !connected.has(d.id));
   g.selectAll('line.edge').classed('faded', d => {
-    const srcId = typeof d.source === 'object' ? d.source.id : d.source;
-    const tgtId = typeof d.target === 'object' ? d.target.id : d.target;
+    const srcId = edgeEndpoint(d.source);
+    const tgtId = edgeEndpoint(d.target);
     return !connected.has(srcId) || !connected.has(tgtId);
   });
   g.selectAll('text.edge-label').classed('faded', d => {
-    const srcId = typeof d.source === 'object' ? d.source.id : d.source;
-    const tgtId = typeof d.target === 'object' ? d.target.id : d.target;
+    const srcId = edgeEndpoint(d.source);
+    const tgtId = edgeEndpoint(d.target);
     return !connected.has(srcId) || !connected.has(tgtId);
   });
 }

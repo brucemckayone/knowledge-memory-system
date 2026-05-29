@@ -6,6 +6,7 @@
 
 import { state } from '../state.js';
 import { defaultLinkDistance, defaultLinkStrength, nodeRadius } from './simulation.js';
+import { edgeEndpoint } from './edge-utils.js';
 
 const STORAGE_KEY = 'mnemo.viz.forces';
 
@@ -323,8 +324,6 @@ let lastPredicateAffinityFingerprint = null;
 // them to d3.
 export function computePredicateAffinityLinks() {
   const { nodes, edges } = state.data;
-  // Endpoint id whether the edge is fresh (string) or d3-resolved (object).
-  const epId = (v) => (v && typeof v === 'object') ? v.id : v;
 
   // Dirty check (bead nmemo-pd5.9): the Jaccard result depends only on the
   // fact-edge (subject, predicate) pairs — every fact edge's source is an
@@ -338,7 +337,7 @@ export function computePredicateAffinityLinks() {
   for (const e of edges) {
     if (e._edgeType !== 'fact' || !e.predicate) continue;
     factCount++;
-    const key = epId(e.source) + '\x1f' + e.predicate;
+    const key = edgeEndpoint(e.source) + '\x1f' + e.predicate;
     for (let k = 0; k < key.length; k++) hash = (hash * 31 + key.charCodeAt(k)) | 0;
   }
   const fingerprint = factCount + ':' + hash;
@@ -354,7 +353,7 @@ export function computePredicateAffinityLinks() {
   const signatures = new Map();
   for (const e of edges) {
     if (e._edgeType !== 'fact') continue;
-    const subject = epId(e.source);
+    const subject = edgeEndpoint(e.source);
     if (!entityIds.has(subject)) continue;
     const predicate = e.predicate;
     if (!predicate) continue;

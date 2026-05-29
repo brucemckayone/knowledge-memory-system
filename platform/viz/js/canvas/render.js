@@ -10,6 +10,7 @@ import { resolveEntityColor, resolveEntityStrokeOpacity, renderTopologyOverlay }
 import { renderClusterHulls } from '../layers/clusters.js';
 import { renderGhostMarkers } from '../overlays/ghosts.js';
 import { applyForces, isPinnedArticulationNode, isRingPinnedCausalEvent } from './forces.js';
+import { edgeEndpoint } from './edge-utils.js';
 
 export function renderAll() {
   const { nodes, edges } = state.data;
@@ -32,7 +33,6 @@ export function renderAll() {
   if (el) el.remove();
 
   const nodeIdSet = new Set(nodes.map(n => n.id));
-  const edgeEndpoint = (v) => typeof v === 'object' ? v.id : v;
   const visibleEdges = edges.filter(e =>
     isEdgeVisible(e) &&
     nodeIdSet.has(edgeEndpoint(e.source)) &&
@@ -312,8 +312,8 @@ export function renderNodes(group, nodeData, opts) {
     const nodeId = d.id;
     g.selectAll('line.edge')
       .attr('stroke-opacity', ed => {
-        const srcId = typeof ed.source === 'object' ? ed.source.id : ed.source;
-        const tgtId = typeof ed.target === 'object' ? ed.target.id : ed.target;
+        const srcId = edgeEndpoint(ed.source);
+        const tgtId = edgeEndpoint(ed.target);
         return (srcId === nodeId || tgtId === nodeId) ? 0.9 : 0.1;
       });
     if (opts.hideLabel && d.label && !state.tooltipPinned) {
