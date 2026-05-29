@@ -304,9 +304,17 @@ const PREDICATE_AFFINITY_THRESHOLD = 0.3;
 const PREDICATE_AFFINITY_DISTANCE = 200;
 const PREDICATE_AFFINITY_STRENGTH_SCALE = 0.01; // strength = scale * similarity
 
+// Fingerprint of the fact-edge (subject, predicate) input from the last
+// computePredicateAffinityLinks() run (bead nmemo-pd5.9). Lets the eager
+// per-fetch recompute skip its O(N²) pass when the poller returns unchanged
+// data. Module-level, mirroring how the custom forces stash per-run state.
+let lastPredicateAffinityFingerprint = null;
+
 // Precompute predicate-affinity pseudo-links from state.data and cache them on
-// state.predicateAffinityLinks. Called once per fetchData() (NOT per tick) —
-// the pairwise Jaccard is O(N²) over entities-that-are-fact-subjects. The
+// state.predicateAffinityLinks. Called once per fetchData() (NOT per tick), but
+// a linear fingerprint dirty-check (bead nmemo-pd5.9) skips the O(N²) pairwise
+// Jaccard when the poller returns unchanged data — so the quadratic cost is
+// paid only when the fact-edge (subject, predicate) input actually changes. The
 // signature of an entity is the SET of distinct predicates on fact edges where
 // it is the subject (source); multiplicity is dropped because shared predicate
 // *types* (works-at, located-in) are the semantic-grouping signal, not how
@@ -315,11 +323,32 @@ const PREDICATE_AFFINITY_STRENGTH_SCALE = 0.01; // strength = scale * similarity
 // them to d3.
 export function computePredicateAffinityLinks() {
   const { nodes, edges } = state.data;
+  // Endpoint id whether the edge is fresh (string) or d3-resolved (object).
+  const epId = (v) => (v && typeof v === 'object') ? v.id : v;
+
+  // Dirty check (bead nmemo-pd5.9): the Jaccard result depends only on the
+  // fact-edge (subject, predicate) pairs — every fact edge's source is an
+  // entity, so those pairs fully determine the signatures below. Fingerprint
+  // them in one linear pass and skip the O(N²) recompute when the poller
+  // returns unchanged data, returning the cached array reference unchanged.
+  // A phantom non-entity-subject fact edge would at worst force a harmless
+  // recompute (false-dirty); a hash collision (false-clean) is negligible.
+  let factCount = 0;
+  let hash = 0;
+  for (const e of edges) {
+    if (e._edgeType !== 'fact' || !e.predicate) continue;
+    factCount++;
+    const key = epId(e.source) + '\x1f' + e.predicate;
+    for (let k = 0; k < key.length; k++) hash = (hash * 31 + key.charCodeAt(k)) | 0;
+  }
+  const fingerprint = factCount + ':' + hash;
+  if (fingerprint === lastPredicateAffinityFingerprint) {
+    return state.predicateAffinityLinks;
+  }
+
   const entityIds = new Set(
     nodes.filter(n => n._nodeType === 'entity').map(n => n.id),
   );
-  // Endpoint id whether the edge is fresh (string) or d3-resolved (object).
-  const epId = (v) => (v && typeof v === 'object') ? v.id : v;
 
   // entityId → Set<predicate>
   const signatures = new Map();
@@ -358,6 +387,7 @@ export function computePredicateAffinityLinks() {
     }
   }
   state.predicateAffinityLinks = links;
+  lastPredicateAffinityFingerprint = fingerprint;
   return links;
 }
 
