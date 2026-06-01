@@ -171,60 +171,45 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     }
   }
 
-  // Dedup: check for existing active fact with matching triple
-  const existingMatch = await db
-    .select({ id: facts.id, confidence: facts.confidence })
-    .from(facts)
-    .where(and(
-      eq(facts.subjectEntityId, subjectEntityId),
-      eq(facts.predicate, predicate),
-      objectEntityId
-        ? eq(facts.objectEntityId, objectEntityId)
-        : eq(facts.objectValue, objectValue ?? ''),
-      isNull(facts.expiredAt),
-    ))
-    .limit(1);
+  // Find the active fact for this triple (the dedup key). Used by the fast
+  // path below AND the P1 race-recovery path (doc 38).
+  const findActiveTriple = async (): Promise<{ id: string; confidence: number | null } | undefined> =>
+    (
+      await db
+        .select({ id: facts.id, confidence: facts.confidence })
+        .from(facts)
+        .where(and(
+          eq(facts.subjectEntityId, subjectEntityId),
+          eq(facts.predicate, predicate),
+          objectEntityId
+            ? eq(facts.objectEntityId, objectEntityId)
+            : eq(facts.objectValue, objectValue ?? ''),
+          isNull(facts.expiredAt),
+        ))
+        .limit(1)
+    )[0];
 
-  if (existingMatch[0]) {
-    // Exact match exists — corroborating observation. Don't overwrite the
-    // singleton sourceMemoryId (bead nmemo-2yv.32): instead append to the
-    // fact_sources one-to-many table, then emit an audit row when either
-    // (a) a brand-new source memory was added, OR (b) confidence rose.
-    //
-    // Audit semantics:
-    //   - confidence rose only           → 'confidence_raised'
-    //   - new source added, no Δconf     → 'revised' (evidence widened)
-    //   - both                           → 'confidence_raised' (the higher
-    //                                       signal — the new source is
-    //                                       captured in source_references)
-    //   - same source, same confidence   → fact_sources observation_count
-    //                                       bumps; no fact_history row
-    //                                       (no semantic change)
-    //
-    // Bead nmemo-2yv.29 atomicity property is preserved: a failed audit
-    // insert (e.g. CHECK violation on actor) rolls back the entire branch
-    // — both the confidence UPDATE and the fact_sources upsert.
-    const existing = existingMatch[0];
+  // Corroborate an existing active fact: append the source (fact_sources),
+  // raise confidence if higher, and emit one audit row.
+  //
+  // Audit semantics:
+  //   - confidence rose only           → 'confidence_raised'
+  //   - new source added, no Δconf     → 'revised' (evidence widened)
+  //   - both                           → 'confidence_raised'
+  //   - same source, same confidence   → observation_count bumps, no audit row
+  //
+  // Atomic — a failed audit insert rolls back the whole branch (bead
+  // nmemo-2yv.29). Extracted so the dedup fast path AND the unique-violation
+  // race-recovery path (P1) share one implementation.
+  const corroborate = async (existing: { id: string; confidence: number | null }): Promise<string> => {
     const prevConfidence = existing.confidence ?? 0;
     const nextConfidence = Math.max(prevConfidence, confidence);
-
     await db.transaction(async (tx) => {
-      const { added: sourceAdded } = await recordFactSource(
-        tx,
-        existing.id,
-        sourceMemoryId,
-        sourceText,
-        confidence,
-      );
-
+      const { added: sourceAdded } = await recordFactSource(tx, existing.id, sourceMemoryId, sourceText, confidence);
       const confidenceChanged = nextConfidence > prevConfidence;
       if (confidenceChanged) {
-        await tx
-          .update(facts)
-          .set({ confidence: nextConfidence })
-          .where(eq(facts.id, existing.id));
+        await tx.update(facts).set({ confidence: nextConfidence }).where(eq(facts.id, existing.id));
       }
-
       if (sourceAdded || confidenceChanged) {
         const eventType = confidenceChanged ? 'confidence_raised' : 'revised';
         const defaultReasoning = confidenceChanged
@@ -246,6 +231,12 @@ export async function createFact(params: CreateFactParams): Promise<string> {
       }
     });
     return existing.id;
+  };
+
+  // Dedup fast path: corroborate an existing active triple instead of inserting.
+  const existingMatch = await findActiveTriple();
+  if (existingMatch) {
+    return corroborate(existingMatch);
   }
 
   // Generate embedding for fact text
@@ -262,44 +253,57 @@ export async function createFact(params: CreateFactParams): Promise<string> {
   // source memory; the fact_sources row exists to support subsequent
   // corroborations (where source_memory_id would have been overwritten
   // under the old singleton schema).
-  const factId = await db.transaction(async (tx) => {
-    const [row] = await tx
-      .insert(facts)
-      .values({
-        subjectEntityId,
-        predicate,
-        objectEntityId,
-        objectValue,
-        validAt,
-        invalidAt,
-        sourceMemoryId,
-        sourceText,
-        extractionMethod,
-        confidence,
-      })
-      .returning({ id: facts.id });
+  let factId: string;
+  try {
+    factId = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(facts)
+        .values({
+          subjectEntityId,
+          predicate,
+          objectEntityId,
+          objectValue,
+          validAt,
+          invalidAt,
+          sourceMemoryId,
+          sourceText,
+          extractionMethod,
+          confidence,
+        })
+        .returning({ id: facts.id });
 
-    if (!row) throw new Error('Failed to create fact');
+      if (!row) throw new Error('Failed to create fact');
 
-    await recordFactSource(tx, row.id, sourceMemoryId, sourceText, confidence);
+      await recordFactSource(tx, row.id, sourceMemoryId, sourceText, confidence);
 
-    await recordFactChange({
-      factId: row.id,
-      eventType: 'created',
-      newConfidence: confidence,
-      newValidAt: validAt,
-      newInvalidAt: invalidAt ?? null,
-      reasoning: reasoning ?? `Fact created by ${actor}`,
-      sourceReferences: sourceMemoryId
-        ? [{ type: 'memory', id: sourceMemoryId, relevance: sourceText ?? '' }]
-        : [],
-      actor,
-      reasoningReportId,
-      tx,
+      await recordFactChange({
+        factId: row.id,
+        eventType: 'created',
+        newConfidence: confidence,
+        newValidAt: validAt,
+        newInvalidAt: invalidAt ?? null,
+        reasoning: reasoning ?? `Fact created by ${actor}`,
+        sourceReferences: sourceMemoryId
+          ? [{ type: 'memory', id: sourceMemoryId, relevance: sourceText ?? '' }]
+          : [],
+        actor,
+        reasoningReportId,
+        tx,
+      });
+
+      return row.id;
     });
-
-    return row.id;
-  });
+  } catch (err) {
+    // P1 (doc 38): a concurrent writer inserted the same active triple between
+    // our dedup SELECT and this INSERT; the partial unique index
+    // uniq_facts_active_triple (mig 037) rejected the duplicate. Recover by
+    // corroborating the winning row instead of surfacing the error.
+    if ((err as { code?: string })?.code === '23505') {
+      const winner = await findActiveTriple();
+      if (winner) return corroborate(winner);
+    }
+    throw err;
+  }
 
   // Store embedding if generated (skip if vector extension not available)
   if (embedding && embedding.length > 0) {

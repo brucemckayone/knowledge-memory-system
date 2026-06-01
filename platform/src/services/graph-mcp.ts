@@ -15,6 +15,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { GRAPH_TOOLS, handleToolCall } from './causal-agent.js';
+import { toActionableMcpError } from './mcp-errors.js';
 
 const server = new Server(
   {
@@ -51,8 +52,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       content: [{ type: 'text' as const, text: result }],
     };
   } catch (error) {
+    // P2 (doc 38): map known SQLSTATEs to an actionable message so the agent
+    // can recover (re-resolve / skip / retry) under optimistic concurrency.
     return {
-      content: [{ type: 'text' as const, text: `Error: ${error instanceof Error ? error.message : error}` }],
+      content: [{ type: 'text' as const, text: toActionableMcpError(error) }],
       isError: true,
     };
   }

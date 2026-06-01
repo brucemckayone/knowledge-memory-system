@@ -10,6 +10,8 @@ import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
 import { invokeGraphAgent, invokeGardenerAgent, type ContentType } from './services/causal-agent.js';
+import { prepareBatch, type BatchItem, type IngestMode } from './services/batch.js';
+import { mapWithConcurrency, withRetry, isQueueFull } from './services/concurrency.js';
 import { recordGardeningRun } from './services/gardening.js';
 import { applyConfidenceDecay } from './services/causal.js';
 import { detectContradictions } from './services/contradictions.js';
@@ -165,21 +167,23 @@ export interface SkippedRelationship {
  */
 export async function store(
   text: string,
-  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType }
+  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; sourceId?: string; chunkIndex?: number }
 ): Promise<string> {
   const memoryId = randomUUID();
   const { vector } = await ml.embed(text);
-  await storeMemory({
-    id: memoryId,
-    vector,
-    payload: {
-      content: text,
-      source: metadata?.source ?? 'cli',
-      created_at: (metadata?.timestamp ?? new Date()).toISOString(),
-      status: 'stored',
-      content_type: metadata?.contentType ?? 'prose',
-    },
-  });
+  const payload: Record<string, unknown> = {
+    content: text,
+    source: metadata?.source ?? 'cli',
+    created_at: (metadata?.timestamp ?? new Date()).toISOString(),
+    status: 'stored',
+    content_type: metadata?.contentType ?? 'prose',
+  };
+  // Batch provenance (doc 38 S1). source_id groups all chunks of one batched
+  // source; chunk_index is the narration-order key the reconcile step uses for
+  // temporal alignment. Omitted for single-chunk ingest (backward compatible).
+  if (metadata?.sourceId !== undefined) payload.source_id = metadata.sourceId;
+  if (metadata?.chunkIndex !== undefined) payload.chunk_index = metadata.chunkIndex;
+  await storeMemory({ id: memoryId, vector, payload });
   return memoryId;
 }
 
@@ -430,6 +434,200 @@ export async function ingest(
   extractResult.timing.total = Date.now() - totalStart;
   console.log(`${tag} done total=${extractResult.timing.total}ms`);
   return extractResult;
+}
+
+// ============================================
+// Batch ingestion (doc 38 — parallel ingestion)
+// ============================================
+
+export interface BatchIngestOptions {
+  source?: string;
+  /** Reuse an existing source id (e.g. re-ingest); otherwise one is generated. */
+  sourceId?: string;
+  contentType?: ContentType;
+  /** Which pipeline arm to run. Default 'serial' (the baseline control). */
+  mode?: IngestMode;
+}
+
+export interface BatchIngestResult {
+  sourceId: string;
+  mode: IngestMode;
+  chunkCount: number;
+  results: ExtractResult[];
+  timing: { total: number };
+}
+
+/**
+ * Baseline / control arm: store + extract each chunk strictly in chunk_index
+ * order. This is the serial FIFO behaviour the parallel arms are measured
+ * against (doc 38 §7) — deterministic, correct, slow.
+ */
+async function runSerialBatch(items: BatchItem[]): Promise<ExtractResult[]> {
+  const results: ExtractResult[] = [];
+  for (const item of items) {
+    const memoryId = await store(item.text, {
+      source: item.source,
+      sourceId: item.sourceId,
+      chunkIndex: item.chunkIndex,
+      contentType: item.contentType,
+    });
+    results.push(await extract(memoryId, { contentType: item.contentType }));
+  }
+  return results;
+}
+
+/** Max concurrent agent extractions per batch — keep ≈ ML_LLM_WORKERS so the
+ *  pool absorbs the fan-out; excess returns 503 and we back off + retry. */
+const EPOCH_CONCURRENCY = Number.parseInt(process.env.EPOCH_CONCURRENCY ?? '6', 10);
+
+/**
+ * Approach A — epoch / barrier. Store every chunk, fan extraction out in
+ * parallel (bounded + 503-retry) so the agents write the live graph
+ * concurrently, then run one barrier reconcile over everything the epoch
+ * touched. Duplicate active facts are already prevented at write time by P1
+ * (uniq_facts_active_triple); the barrier handles entity-identity dedup.
+ *
+ * NOTE (doc 38, deferred): explicit chunk_index temporal re-alignment is not
+ * yet applied — exclusive-predicate supersession is valid_at-based in
+ * createFact (order-independent when valid_at is extracted). chunk_index is
+ * persisted on each memory for a future realign pass; behavioural correctness
+ * of this arm is established at the benchmark/litmus stage.
+ */
+async function runEpochBatch(items: BatchItem[]): Promise<ExtractResult[]> {
+  // Phase 1: store all chunks (bounded — embeddings hit the Ollama pool too).
+  const stored = await mapWithConcurrency(items, EPOCH_CONCURRENCY, async (item) => ({
+    memoryId: await store(item.text, {
+      source: item.source,
+      sourceId: item.sourceId,
+      chunkIndex: item.chunkIndex,
+      contentType: item.contentType,
+    }),
+    item,
+  }));
+
+  // Phase 2: parallel agent extraction (the free-for-all writes).
+  const results = await mapWithConcurrency(stored, EPOCH_CONCURRENCY, ({ memoryId, item }) =>
+    withRetry(() => extract(memoryId, { contentType: item.contentType }), {
+      retries: 4,
+      isRetryable: isQueueFull,
+      baseDelayMs: 500,
+    }),
+  );
+
+  // Phase 3: barrier reconcile over every entity the epoch touched.
+  const entityIds = [...new Set(results.flatMap((r) => r.entities.map((e) => e.id)))];
+  if (entityIds.length > 0) {
+    try {
+      await updateEntityMeta(entityIds);
+      await detectMergeCandidates(entityIds);
+      _resetReconciliationCooldown(); // the barrier always fires, regardless of cooldown
+      await maybeTriggerReconciliation();
+    } catch (err) {
+      console.warn('[epoch] barrier reconcile failed:', err instanceof Error ? err.message : err);
+    }
+  }
+  return results;
+}
+
+const OPTIMISTIC_CONCURRENCY = Number.parseInt(process.env.OPTIMISTIC_CONCURRENCY ?? '6', 10);
+const OPTIMISTIC_RECONCILE_INTERVAL_MS = Number.parseInt(
+  process.env.OPTIMISTIC_RECONCILE_INTERVAL_MS ?? '3000',
+  10,
+);
+
+/**
+ * Approach B — continuous optimistic concurrency. Agents write the live graph
+ * in parallel (bounded + 503-retry) with NO barrier; a reconcile loop runs
+ * concurrently alongside them. Safe against in-flight writes via P1
+ * (uniq_facts_active_triple prevents duplicate facts; the racing INSERT is
+ * caught + corroborated in createFact) and P3 (facts.subject_entity_id
+ * RESTRICT — a merge racing a write rolls back instead of cascade-deleting,
+ * doc 05 Bug C). The agent recovers from a stale-entity write via the P2
+ * actionable MCP error ([entity_missing] → re-resolve).
+ */
+async function runOptimisticBatch(items: BatchItem[]): Promise<ExtractResult[]> {
+  // Phase 1: store all chunks (bounded).
+  const stored = await mapWithConcurrency(items, OPTIMISTIC_CONCURRENCY, async (item) => ({
+    memoryId: await store(item.text, {
+      source: item.source,
+      sourceId: item.sourceId,
+      chunkIndex: item.chunkIndex,
+      contentType: item.contentType,
+    }),
+    item,
+  }));
+
+  // Concurrent reconcile loop — runs alongside extraction (no barrier).
+  let extracting = true;
+  const reconcileLoop = (async () => {
+    while (extracting) {
+      await new Promise((r) => setTimeout(r, OPTIMISTIC_RECONCILE_INTERVAL_MS));
+      if (!extracting) break;
+      try {
+        _resetReconciliationCooldown();
+        await maybeTriggerReconciliation();
+      } catch (err) {
+        console.warn('[optimistic] concurrent reconcile tick failed:', err instanceof Error ? err.message : err);
+      }
+    }
+  })();
+
+  // Phase 2: parallel agent extraction (continuous optimistic writes).
+  // try/finally guarantees the reconcile loop is stopped + awaited even if
+  // extraction throws — otherwise the loop (and this call) would hang.
+  let results: ExtractResult[];
+  try {
+    results = await mapWithConcurrency(stored, OPTIMISTIC_CONCURRENCY, ({ memoryId, item }) =>
+      withRetry(() => extract(memoryId, { contentType: item.contentType }), {
+        retries: 4,
+        isRetryable: isQueueFull,
+        baseDelayMs: 500,
+      }),
+    );
+  } finally {
+    extracting = false;
+    await reconcileLoop;
+  }
+
+  // Final reconcile sweep over every touched entity.
+  const entityIds = [...new Set(results.flatMap((r) => r.entities.map((e) => e.id)))];
+  if (entityIds.length > 0) {
+    try {
+      await updateEntityMeta(entityIds);
+      await detectMergeCandidates(entityIds);
+      _resetReconciliationCooldown();
+      await maybeTriggerReconciliation();
+    } catch (err) {
+      console.warn('[optimistic] final reconcile failed:', err instanceof Error ? err.message : err);
+    }
+  }
+  return results;
+}
+
+/**
+ * Ingest a batch of chunks belonging to one source. Stores every chunk tagged
+ * with a shared `sourceId` + its `chunkIndex`, then runs the selected pipeline
+ * arm. `serial` is the comparison baseline; `epoch`/`optimistic` are the two
+ * candidate architectures under evaluation.
+ */
+export async function ingestBatch(
+  chunks: string[],
+  opts: BatchIngestOptions = {},
+): Promise<BatchIngestResult> {
+  const mode: IngestMode = opts.mode ?? 'serial';
+  const sourceId = opts.sourceId ?? randomUUID();
+  const tag = `[ingestBatch:${sourceId.slice(0, 8)}:${mode}]`;
+  const start = Date.now();
+  console.log(`${tag} start chunks=${chunks.length} source=${opts.source ?? 'unknown'}`);
+
+  const items = prepareBatch(chunks, { source: opts.source, sourceId, contentType: opts.contentType });
+  const runner =
+    mode === 'serial' ? runSerialBatch : mode === 'epoch' ? runEpochBatch : runOptimisticBatch;
+  const results = await runner(items);
+
+  const total = Date.now() - start;
+  console.log(`${tag} done chunks=${chunks.length} results=${results.length} +${total}ms`);
+  return { sourceId, mode, chunkCount: chunks.length, results, timing: { total } };
 }
 
 // ============================================

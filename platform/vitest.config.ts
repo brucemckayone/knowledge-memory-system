@@ -7,7 +7,7 @@ export default defineConfig({
 
     // Exclude node_modules, dist, and snapshot-suffix tests (those run in
     // vitest.snapshot.config.ts — serial, single-fork, see doc 28 §3.6).
-    exclude: ['node_modules', 'dist', '**/*.snapshot.test.ts'],
+    exclude: ['node_modules', 'dist', '**/*.snapshot.test.ts', '**/*.unit.test.ts'],
 
     // Global setup/teardown
     globalSetup: './src/test/global-setup.ts',

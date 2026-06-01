@@ -8,8 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve, sep } from 'node:path';
 import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
-import { ingest, store, extract, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
+import { Hono, type Context } from 'hono';
+import { ingest, store, extract, ingestBatch, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
+import type { IngestMode } from './services/batch.js';
 import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports } from './db/index.js';
 import { isNull, sql, eq } from 'drizzle-orm';
@@ -24,6 +25,7 @@ import { triggerCrossClusterAfterCompute } from './services/cross-cluster-genera
 import { getTopologySnapshot, getComponentEntities } from './services/topology.js';
 import { getClustersSnapshot, getClusterEntities } from './services/clustering.js';
 import { getDriftEvents, getDriftState } from './services/drift.js';
+import { exportCanonicalGraph } from './services/graph-canonical-query.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const vizHtmlPath = join(__dirname, '../viz/index.html');
@@ -88,6 +90,33 @@ app.get('/ingest/queue/status', (c) => {
   // generator polls this to know when a queued chunk has finished ingesting.
   return c.json(getIngestQueueStatus());
 });
+
+// Batch ingestion (doc 38) — one batched source, chunks tagged with source_id +
+// chunk_index. `mode` selects the pipeline arm under comparison: serial (the
+// baseline control), epoch (Approach A), optimistic (Approach B). epoch and
+// optimistic return 501 until their orchestrators land (Stage 3/4).
+async function handleBatch(c: Context, mode: IngestMode) {
+  const body = await c.req.json<{ chunks?: string[]; source?: string; contentType?: string }>();
+  if (!Array.isArray(body.chunks) || body.chunks.length === 0) {
+    return c.json({ error: 'chunks (non-empty array) is required' }, 400);
+  }
+  try {
+    const result = await ingestBatch(body.chunks, {
+      source: body.source,
+      contentType: parseContentType(body.contentType),
+      mode,
+    });
+    return c.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/not implemented/i.test(msg)) return c.json({ error: msg }, 501);
+    throw err;
+  }
+}
+
+app.post('/ingest/batch/serial', (c) => handleBatch(c, 'serial'));
+app.post('/ingest/batch/epoch', (c) => handleBatch(c, 'epoch'));
+app.post('/ingest/batch/optimistic', (c) => handleBatch(c, 'optimistic'));
 
 // ============================================
 // Viz routes
@@ -416,6 +445,13 @@ app.get('/api/viz/unified', async (c) => {
   }
 
   return c.json({ nodes, edges });
+});
+
+// Content-addressed canonical graph (doc 38) — the parallel-ingestion harness
+// fetches this after each run to diff structure (determinism/litmus) + counts.
+// UUID/timestamp-free, so two runs of the same corpus are comparable.
+app.get('/api/graph/canonical', async (c) => {
+  return c.json(await exportCanonicalGraph());
 });
 
 app.get('/api/viz/merge-candidates', async (c) => {
