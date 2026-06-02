@@ -116,10 +116,35 @@ async function ensureUpstreamFresh() {
   `;
 }
 
+/** Register an entity as a stream speaker by inserting its stream_participants
+ *  row (nmemo-3f9.1 marker). This is the signal the 3f9.6 guard keys on —
+ *  membership here excludes the entity from the generic auto-merge candidate
+ *  set. (stream_id, speaker_key) is the PK; we vary both per call so distinct
+ *  speakers across streams coexist. */
+async function registerStreamSpeaker(entityId: string, opts: {
+  streamId: string;
+  speakerKey?: string;
+  role?: string;
+}) {
+  await testDb`
+    INSERT INTO public.stream_participants (stream_id, speaker_key, entity_id, role)
+    VALUES (
+      ${opts.streamId},
+      ${opts.speakerKey ?? 'user'},
+      ${entityId}::uuid,
+      ${opts.role ?? 'user'}
+    )
+  `;
+}
+
 async function fullReset() {
   // Wipe every table that could leak between tests. entity_topology /
-  // entity_clusters / entity_drift_events / *_compute_runs aren't in the
-  // central deleteFromTables list, so we wipe them explicitly.
+  // entity_clusters / entity_drift_events / *_compute_runs / stream_participants
+  // aren't in the central deleteFromTables list, so we wipe them explicitly.
+  // stream_participants FKs entities ON DELETE CASCADE, so deleteFromTables'
+  // entities wipe would clear it too — but we delete it FIRST and explicitly so
+  // the intent is visible and ordering is independent of the central list.
+  await testDb`DELETE FROM public.stream_participants`;
   await deleteFromTables({ acknowledgeGlobal: true });
   await testDb`DELETE FROM public.entity_topology`;
   await testDb`DELETE FROM public.entity_clusters`;
@@ -895,5 +920,146 @@ describe('cross-cluster candidate generator', () => {
     } finally {
       console.warn = origWarn;
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Stream-speaker guard (bead nmemo-3f9.6)
+  //
+  // Anonymous stream-speaker entities (3f9.1) share identical fact shapes
+  // across streams, so the topology + predicate-signature merge loop would
+  // FALSELY converge two distinct users on structural similarity alone — a null
+  // embedding does NOT gate this path. The guard excludes any entity with a
+  // stream_participants row from the candidate set, on BOTH the topology path
+  // and the drift-driven path.
+  // ---------------------------------------------------------------------------
+
+  it('guard: two anonymous stream speakers in different streams are never proposed as a merge candidate (topology path)', async () => {
+    await ensureUpstreamFresh();
+    // Two anonymous "User" entities, one per stream, with IDENTICAL structural
+    // signals (same cluster, k_core, pagerank) — the exact false-convergence
+    // case. Without the guard the shared-cluster cross-component pair would
+    // score high and be proposed.
+    const userA = await createTestEntity({
+      canonicalName: 'User (stream alpha)',
+      entityType: 'person',
+      properties: { streamId: 'alpha', speakerKey: 'user', role: 'user', anonymousSpeaker: true },
+    });
+    const userB = await createTestEntity({
+      canonicalName: 'User (stream beta)',
+      entityType: 'person',
+      properties: { streamId: 'beta', speakerKey: 'user', role: 'user', anonymousSpeaker: true },
+    });
+    await seedTopology(userA.id, { componentId: 0, pagerank: 0.5 });
+    await seedTopology(userB.id, { componentId: 1, pagerank: 0.5 });
+    await seedCluster(userA.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(userB.id, { clusterId: 7, probability: 0.95 });
+    await registerStreamSpeaker(userA.id, { streamId: 'alpha' });
+    await registerStreamSpeaker(userB.id, { streamId: 'beta' });
+
+    const r = await generateCrossClusterCandidates();
+    // Both speakers are filtered out of the candidate set → no cross-component
+    // pair exists → nothing evaluated, nothing inserted.
+    expect(r.ran).toBe(true);
+    expect(r.componentPairsEvaluated).toBe(0);
+    expect(r.candidatesInserted).toBe(0);
+
+    const list = await listCrossClusterCandidates();
+    const speakerPair = list.find((c) => {
+      const ids = new Set([c.entityA.id, c.entityB.id]);
+      return ids.has(userA.id) && ids.has(userB.id);
+    });
+    expect(speakerPair).toBeUndefined();
+  });
+
+  it('guard: a stream speaker is never proposed via the drift-driven path either', async () => {
+    await ensureUpstreamFresh();
+    // A drifted stream speaker heading toward a cross-component cluster. The
+    // drift path pairs the drifted entity with target-cluster members; the
+    // guard must exclude the speaker from BOTH the driver set (loadActionable-
+    // DriftEvents) and the target/candidate set (loadCandidateEntities).
+    const speaker = await createTestEntity({
+      canonicalName: 'User (stream gamma)',
+      entityType: 'person',
+      properties: { streamId: 'gamma', anonymousSpeaker: true },
+    });
+    const target = await createTestEntity({ canonicalName: 'Target', entityType: 'person' });
+    const padTarget = await createTestEntity({ canonicalName: 'PadTarget', entityType: 'person' });
+    await seedTopology(speaker.id, { componentId: 0 });
+    await seedTopology(target.id, { componentId: 1 });
+    await seedTopology(padTarget.id, { componentId: 1 });
+    await seedCluster(speaker.id, { clusterId: 1, probability: 0.6 });
+    await seedCluster(target.id, { clusterId: 9, probability: 0.9 });
+    await seedCluster(padTarget.id, { clusterId: 9, probability: 0.9 });
+    await seedDriftEvent(speaker.id, { targetClusterId: 9, triggeredAction: 'reconciliation_invoked' });
+    await registerStreamSpeaker(speaker.id, { streamId: 'gamma' });
+
+    const r = await generateCrossClusterCandidates();
+    expect(r.driftDrivenCandidates).toBe(0);
+
+    const list = await listCrossClusterCandidates();
+    const involvingSpeaker = list.find((c) =>
+      c.entityA.id === speaker.id || c.entityB.id === speaker.id
+    );
+    expect(involvingSpeaker).toBeUndefined();
+  });
+
+  it('guard does not over-exclude: a normal non-speaker pair is still proposed; only the speaker side is removed', async () => {
+    await ensureUpstreamFresh();
+    // Component 0: one normal entity + one speaker. Component 1: one normal
+    // entity. The normal↔normal cross-component pair must still surface; the
+    // speaker must not appear in any candidate. This proves the NOT EXISTS
+    // predicate filters ONLY the speaker, not the whole component.
+    const normalA = await createTestEntity({ canonicalName: 'NormalA', entityType: 'person' });
+    const speaker = await createTestEntity({
+      canonicalName: 'User (stream delta)',
+      entityType: 'person',
+      properties: { streamId: 'delta', anonymousSpeaker: true },
+    });
+    const normalB = await createTestEntity({ canonicalName: 'NormalB', entityType: 'person' });
+    await seedTopology(normalA.id, { componentId: 0, pagerank: 0.5 });
+    await seedTopology(speaker.id, { componentId: 0, pagerank: 0.5 });
+    await seedTopology(normalB.id, { componentId: 1, pagerank: 0.5 });
+    await seedCluster(normalA.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(speaker.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(normalB.id, { clusterId: 7, probability: 0.95 });
+    await registerStreamSpeaker(speaker.id, { streamId: 'delta' });
+
+    const r = await generateCrossClusterCandidates();
+    expect(r.ran).toBe(true);
+    // The component pair (0,1) is still evaluated — component 0 retains normalA.
+    expect(r.componentPairsEvaluated).toBe(1);
+    expect(r.candidatesInserted).toBeGreaterThanOrEqual(1);
+
+    const list = await listCrossClusterCandidates();
+    // The normal↔normal pair surfaces.
+    const normalPair = list.find((c) => {
+      const ids = new Set([c.entityA.id, c.entityB.id]);
+      return ids.has(normalA.id) && ids.has(normalB.id);
+    });
+    expect(normalPair).toBeDefined();
+    // No candidate touches the speaker.
+    const touchingSpeaker = list.find((c) =>
+      c.entityA.id === speaker.id || c.entityB.id === speaker.id
+    );
+    expect(touchingSpeaker).toBeUndefined();
+  });
+
+  it('guard is exact: an ordinary pair with no stream_participants rows still merges as before (baseline unchanged)', async () => {
+    await ensureUpstreamFresh();
+    // Identical shape to the original "shared cluster across components" test
+    // but asserted in the guard suite: with NO stream_participants rows the
+    // guard's NOT EXISTS is always true, so behaviour is unchanged.
+    const a = await createTestEntity({ canonicalName: 'A', entityType: 'person' });
+    const b = await createTestEntity({ canonicalName: 'B', entityType: 'person' });
+    await seedTopology(a.id, { componentId: 0 });
+    await seedTopology(b.id, { componentId: 1 });
+    await seedCluster(a.id, { clusterId: 7, probability: 0.95 });
+    await seedCluster(b.id, { clusterId: 7, probability: 0.95 });
+
+    const r = await generateCrossClusterCandidates();
+    expect(r.componentPairsEvaluated).toBe(1);
+    expect(r.candidatesInserted).toBeGreaterThanOrEqual(1);
+    const list = await listCrossClusterCandidates();
+    expect(list.length).toBeGreaterThanOrEqual(1);
   });
 });

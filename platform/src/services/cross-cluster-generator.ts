@@ -269,6 +269,16 @@ async function loadCandidateEntities(runner: Runner): Promise<EntityRow[]> {
     LEFT JOIN public.entity_clusters ec ON ec.entity_id = et.entity_id
     WHERE et.component_id IS NOT NULL
       AND COALESCE(et.k_core, 0) >= ${minKCoreForBridge()}
+      -- Stream-speaker guard (bead nmemo-3f9.6). Anonymous speaker entities
+      -- (3f9.1) share identical fact shapes across streams, so the topology +
+      -- predicate-signature loop would FALSELY converge two distinct users on
+      -- structural similarity alone (no embedding gate on this path). Exclude
+      -- any entity that owns a stream_participants row from the candidate set.
+      -- This covers the §2.2 sweep AND the §2.5 drift target/driver scans,
+      -- which both iterate this loaded set.
+      AND NOT EXISTS (
+        SELECT 1 FROM public.stream_participants sp WHERE sp.entity_id = et.entity_id
+      )
   `)) as unknown as Array<Record<string, unknown>>;
   return rows.map((r) => ({
     entity_id: r.entity_id as string,
@@ -289,10 +299,18 @@ async function loadActionableDriftEvents(runner: Runner): Promise<DriftRow[]> {
   const cutoff = new Date(Date.now() - driftRecencyDays() * 24 * 60 * 60 * 1000);
   const rows = (await runner.execute(sql`
     SELECT entity_id::text AS entity_id, target_cluster_id, detected_at
-    FROM public.entity_drift_events
+    FROM public.entity_drift_events ede
     WHERE detected_at >= ${cutoff}
       AND triggered_action IN ('reconciliation_invoked', 'reconciliation_failed')
       AND target_cluster_id IS NOT NULL
+      -- Stream-speaker guard (bead nmemo-3f9.6). A drifted speaker must not
+      -- become a drift-driven candidate driver. loadCandidateEntities already
+      -- removes speakers from the target/driver pool, but the DESIGN locks the
+      -- guard at BOTH loaders so neither path can introduce a speaker even if
+      -- one loader's filter were later weakened.
+      AND NOT EXISTS (
+        SELECT 1 FROM public.stream_participants sp WHERE sp.entity_id = ede.entity_id
+      )
     ORDER BY detected_at DESC
   `)) as unknown as Array<Record<string, unknown>>;
   return rows.map((r) => ({
