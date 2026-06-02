@@ -203,6 +203,56 @@ def test_client_ingest_builds_stream_id_and_content_type_in_body() -> None:
     assert body["stream_id"] == "q-xyz"
 
 
+def test_chunk_session_windows_and_defers_unit_split_to_store() -> None:
+    """nmemo-yxj.4 convergence: chunk_session windows at the shared agent-window
+    size and feeds WHOLE windows to store() — it does NOT carve small embed
+    units. A window well above the embed-unit width (EMBED_UNIT_CHARS=128) must
+    still pass through as ONE window (store() owns the 128/64 satellite split),
+    and oversized sessions split at the WINDOW size, not the unit size."""
+    # A single ~3000-char turn: far above the 128-char embed-unit width but well
+    # under the 6000-char window — must stay ONE window (no embed-unit carving).
+    one = Session(
+        session_id="s-one",
+        date="2026-01-01",
+        turns=[Turn(role="user", content="W" * 3000)],
+    )
+    blobs = chunk_session(one, max_chars=6000)
+    assert len(blobs) == 1, "a sub-window session must ingest as one window, not embed units"
+    assert len(blobs[0]) > 128, "the window is whole, not split to the embed-unit width"
+
+    # An oversized session splits at the WINDOW boundary (6000), not 128.
+    big = Session(
+        session_id="s-big",
+        date="2026-01-01",
+        turns=[Turn(role="user", content="A" * 5000), Turn(role="assistant", content="B" * 5000)],
+    )
+    win = chunk_session(big, max_chars=6000)
+    assert len(win) > 1, "an oversized session must split into multiple windows"
+    # Each window respects the window cap; none is chopped down to the unit size.
+    for b in win:
+        assert len(b) <= 6000 + 100, "windows respect the shared window cap (+header slack)"
+        assert len(b) > 128, "windows are not carved to the embed-unit width"
+
+
+def test_window_default_matches_shared_policy() -> None:
+    """The harness window default agrees with the ONE shared policy value
+    (config.yaml max_ingest_chars). yxj.5 tunes the number; both sites must
+    read the SAME number — no private per-site cap."""
+    import yaml
+
+    cfg_path = Path(__file__).resolve().parent / "config.yaml"
+    cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    yaml_window = int(cfg["max_ingest_chars"])
+
+    # The run.py default fallback must match the config.yaml value.
+    rc = RunConfig(
+        benchmark="b", cut="c", dataset_url="u", dataset_local=Path("x"),
+        expected_size=None, sample_size=None, reset_between_questions=True,
+        max_ingest_chars=yaml_window,
+    )
+    assert rc.max_ingest_chars == yaml_window == 6000
+
+
 def test_client_ingest_omits_unset_optionals() -> None:
     """Back-compat: when stream_id/content_type are not supplied, the body omits
     them (prose path / existing callers unaffected)."""

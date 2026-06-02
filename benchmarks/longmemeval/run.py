@@ -207,11 +207,14 @@ def format_session(session: Session) -> str:
 
 
 def chunk_session(session: Session, max_chars: int) -> list[str]:
-    """Split a session into text blobs each <= max_chars, breaking at turn
-    boundaries. nomic-embed-text (the embedder behind /ingest) caps at ~2048
-    tokens; sessions above ~10-13K chars make the embed step 500 (measured).
-    Most sessions fit in one chunk and pass through unchanged; only the large
-    ones split. The session-date header is repeated on every chunk so each
+    """Split a session into agent-processing WINDOWS each <= max_chars, breaking
+    at turn boundaries (nmemo-yxj.4). This is WINDOW-level chunking only — the
+    platform's store() owns the embed-unit split underneath each window (the
+    small overlapping satellites that get embedded for retrieval), so the window
+    is NO LONGER bound by the nomic ~2048-token embed limit; max_chars is the
+    one shared window policy (extraction-quality / Haiku-call-count choice, tuned
+    by yxj.5). Most sessions fit in one window and pass through unchanged; only
+    large ones split. The session-date header is repeated on every window so each
     memory stays independently dated."""
     header = f"[Session date: {session.date}]" if session.date else ""
     head_len = len(header) + (2 if header else 0)

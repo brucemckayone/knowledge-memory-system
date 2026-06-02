@@ -27,9 +27,14 @@ sample_size: null
 # contaminate across questions and the abstention category is meaningless.
 reset_between_questions: true
 
-# Max chars per ingest call. nomic-embed-text (the embedder behind /ingest)
-# caps at ~2048 tokens; sessions above ~10-13K chars make the embed step 500.
-# Sessions larger than this are split at turn boundaries into multiple
-# memories. 6000 chars ~= 1500 tokens, safe margin under the limit for dense
-# real text. Most sessions fit in one chunk and pass through unchanged.
+# Agent-processing WINDOW size, in chars (nmemo-yxj.4). This is ONE shared
+# policy across the three ingest sites (this harness, platform store(), and the
+# capture-turn hook): each windows text at this size and DEFERS embed-unit
+# splitting to store(), which carves the small overlapping satellites
+# (EMBED_UNIT_CHARS/OVERLAP) that actually get embedded for retrieval. After
+# yxj.2 the window is NO LONGER bound by the nomic ~2048-token embed limit —
+# that limit only constrains the small unit now. Window size is a pure
+# extraction-quality / Haiku-call-count choice (the NUMBER is tuned by
+# yxj.5; same Haiku-call count is the floor). Sessions larger than this split at
+# turn boundaries into multiple windows; most fit in one and pass through.
 max_ingest_chars: 6000

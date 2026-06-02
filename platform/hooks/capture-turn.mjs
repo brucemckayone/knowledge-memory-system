@@ -15,9 +15,21 @@ import { request } from 'node:http';
 const PORT = process.env.NMEMO_PORT || '3001';
 const INGEST_URL = `http://127.0.0.1:${PORT}/ingest/queue`;
 const MIN_TEXT_LENGTH = 30;
-const MAX_CHUNK_LENGTH = 5000; // stay under nomic-embed-text context limit
+// Agent-processing WINDOW size (nmemo-yxj.4). One shared policy across the three
+// ingest sites: this hook and the LongMemEval harness (max_ingest_chars) window
+// text at this size and DEFER embed-unit splitting to store(), which carves the
+// small overlapping satellites (EMBED_UNIT_CHARS/OVERLAP) that actually get
+// embedded for retrieval. The window is no longer bound by the nomic
+// ~2048-token embed limit (that limit now only constrains the small unit) — it
+// is a pure extraction-quality / Haiku-call-count choice. The NUMBER is tuned
+// by nmemo-yxj.5; keep it in sync with benchmarks/longmemeval/config.yaml.
+const MAX_WINDOW_LENGTH = 6000;
 
 async function main() {
+  // BENCHMARK PAUSE (2026-06-01): capture-turn disabled so LongMemEval runs
+  // ingest into a clean, uncontaminated graph and don't compete with this
+  // hook for the ML worker pool. Re-enable by deleting the next line.
+  return;
   // 1. Read hook context from stdin
   const stdinBufs = [];
   for await (const buf of process.stdin) stdinBufs.push(buf);
@@ -107,17 +119,19 @@ async function main() {
   // 5. Skip trivially short turns
   if (text.length < MIN_TEXT_LENGTH) return;
 
-  // 6. Split into chunks if text exceeds embedding model context limit.
-  //    Split on paragraph boundaries to keep semantic coherence.
+  // 6. Window the turn at the shared agent-processing window size if it is
+  //    large (nmemo-yxj.4). This is WINDOW-level chunking only — store() owns
+  //    the embed-unit split underneath each window. Split on paragraph
+  //    boundaries to keep each window semantically coherent for extraction.
   const chunks = [];
-  if (text.length <= MAX_CHUNK_LENGTH) {
+  if (text.length <= MAX_WINDOW_LENGTH) {
     chunks.push(text);
   } else {
     const paragraphs = text.split(/\n\n+/);
     let current = '';
-    let lastPara = ''; // overlap: carry last paragraph into next chunk
+    let lastPara = ''; // overlap: carry last paragraph into next window
     for (const para of paragraphs) {
-      if (current && (current.length + para.length + 2) > MAX_CHUNK_LENGTH) {
+      if (current && (current.length + para.length + 2) > MAX_WINDOW_LENGTH) {
         chunks.push(current);
         current = lastPara ? lastPara + '\n\n' + para : para;
       } else {
