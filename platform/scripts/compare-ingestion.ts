@@ -30,6 +30,7 @@ import { buildScorecard, type ArmRun, type CanonicalGraph } from '../src/service
 import { semanticDiff, type SemanticDiff } from '../src/services/graph-canonical-semantic.js';
 import { runInvariants, type InvariantReport } from '../src/services/graph-invariants.js';
 import { scoreAgainstGold, type GoldGraph, type CorrectnessReport } from '../src/services/graph-correctness.js';
+import { deriveInstrumentation, contradictionGap } from '../src/services/graph-instrumentation.js';
 import type { RichGraph } from '../src/services/graph-canonical-query.js';
 import {
   writeRunSnapshot,
@@ -115,7 +116,7 @@ async function captureRich(): Promise<unknown> {
 async function ingestAndCapture(
   mode: string,
   orderedChunks: string[],
-): Promise<{ graph: CanonicalGraph; rich: unknown; wallClockMs: number }> {
+): Promise<{ graph: CanonicalGraph; rich: unknown; runtimeStats: unknown; wallClockMs: number }> {
   const resetRes = await post('/api/reset');
   if (!resetRes.ok) throw new Error(`reset failed (${resetRes.status})`);
   const t0 = Date.now();
@@ -124,9 +125,15 @@ async function ingestAndCapture(
     const detail = await res.text().catch(() => res.statusText);
     throw new Error(`ingest ${mode} failed (${res.status}): ${detail}`);
   }
+  // Capture the batch ingest RESPONSE BODY for per-step instrumentation
+  // (doc 39 section 2.B, nmemo-hm4.5): the BatchIngestResult carries each
+  // chunk's per-phase `timing` + entity/fact results. Parsed defensively —
+  // an older running platform may return a different/empty shape, so a failed
+  // parse degrades to undefined rather than aborting the run.
+  const runtimeStats: unknown = await res.json().catch(() => undefined);
   const graph = await captureCanonical();
   const rich = await captureRich();
-  return { graph, rich, wallClockMs: Date.now() - t0 };
+  return { graph, rich, runtimeStats, wallClockMs: Date.now() - t0 };
 }
 
 async function main(): Promise<void> {
@@ -134,22 +141,29 @@ async function main(): Promise<void> {
   const runs: ArmRun[] = [];
   const determinismGraph: Record<string, CanonicalGraph> = {};
   const artifacts: ArmArtifact[] = [];
+  // Batch ingest response bodies (per-phase timing etc.) keyed by `<mode>.<order>`,
+  // kept parallel to `artifacts` so the on-disk ArmArtifact shape (persisted
+  // verbatim) is unchanged. Folded into metrics.perStep below (nmemo-hm4.5).
+  const runtimeStatsByArm: Record<string, unknown> = {};
   for (const mode of modes) {
     console.log(`\n[compare] === ${mode} (forward) ===`);
     const fwd = await ingestAndCapture(mode, corpus);
     artifacts.push({ mode, order: 'forward', canonical: fwd.graph, rich: fwd.rich });
+    runtimeStatsByArm[`${mode}.forward`] = fwd.runtimeStats;
     const run: ArmRun = { mode, graph: fwd.graph, wallClockMs: fwd.wallClockMs };
     if (doDeterminism) {
       console.log(`[compare] === ${mode} (forward #2 — determinism) ===`);
       const fwd2 = await ingestAndCapture(mode, corpus);
       determinismGraph[mode] = fwd2.graph;
       artifacts.push({ mode, order: 'forward2', canonical: fwd2.graph, rich: fwd2.rich });
+      runtimeStatsByArm[`${mode}.forward2`] = fwd2.runtimeStats;
     }
     if (doLitmus) {
       console.log(`[compare] === ${mode} (reverse — litmus) ===`);
       const rev = await ingestAndCapture(mode, [...corpus].reverse());
       run.reverseGraph = rev.graph;
       artifacts.push({ mode, order: 'reverse', canonical: rev.graph, rich: rev.rich });
+      runtimeStatsByArm[`${mode}.reverse`] = rev.runtimeStats;
     }
     runs.push(run);
   }
@@ -174,6 +188,36 @@ async function main(): Promise<void> {
   }
   if (gold) {
     for (const a of artifacts) correctness[`${a.mode}.${a.order}`] = scoreAgainstGold(a.rich as RichGraph, gold);
+  }
+
+  // Per-step instrumentation (doc 39 section 2.B, nmemo-hm4.5), keyed by
+  // `<mode>.<order>`. `runtimeStats` is the batch ingest response body the driver
+  // captured (per-phase timing + tool-call-adjacent counts); `snapshot` is the
+  // pure, snapshot-derived contradiction/supersession/edge/merge tally.
+  const perStep: Record<string, unknown> = {};
+  for (const a of artifacts) {
+    const key = `${a.mode}.${a.order}`;
+    const snapshot = deriveInstrumentation(a.rich as RichGraph);
+    // Sum contradictionsDetected across the batch's per-chunk results, then pair
+    // it with the snapshot's reflected total → the doc 39 §2.B detected-vs-
+    // reflected gap (nmemo-hm4.5). runtimeStats is `unknown` (an older platform
+    // may omit `results` or `contradictionsDetected`), so destructure
+    // defensively: a missing/old shape yields detected=0, gap = -reflected.
+    const stats = runtimeStatsByArm[key] as { results?: unknown } | undefined;
+    const detectedDuringIngest = Array.isArray(stats?.results)
+      ? stats.results.reduce(
+          (sum: number, r: unknown) =>
+            sum + (typeof (r as { contradictionsDetected?: unknown })?.contradictionsDetected === 'number'
+              ? (r as { contradictionsDetected: number }).contradictionsDetected
+              : 0),
+          0,
+        )
+      : 0;
+    perStep[key] = {
+      runtimeStats: runtimeStatsByArm[key],
+      snapshot,
+      contradictions: contradictionGap(detectedDuringIngest, snapshot),
+    };
   }
 
   const baselineMode = modes.includes('serial') ? 'serial' : modes[0]!;
@@ -233,7 +277,7 @@ async function main(): Promise<void> {
     },
     model: process.env.LLM_PROVIDER ?? 'pi',
   });
-  const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode, invariants, correctness };
+  const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode, invariants, correctness, perStep };
   const reportMd = buildReportMd(manifest, scorecard, semanticByMode);
   const runDir = writeRunSnapshot(outRoot, { manifest, metrics, reportMd, arms: artifacts });
   appendHistoryLine(outRoot, buildHistoryLine({ runId, timestamp, gitCommit: commit, corpus: manifest.corpus }, scorecard, semanticByMode));

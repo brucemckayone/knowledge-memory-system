@@ -29,6 +29,15 @@ export interface ExtractResult {
   timing: Record<string, number>;
   gardener?: { triggered: boolean; report?: string };
   reconciliation?: { triggered: boolean; candidateCount?: number; report?: string; skippedReason?: string };
+  /**
+   * Contradictions newly DETECTED during this chunk's SQL sweep (the `detected`
+   * count from {@link detectContradictions}). 0 when the sweep did not run on
+   * this chunk (it fires only every DECAY_RUN_INTERVAL graph-agent runs) or
+   * threw. Summed across chunks by the comparison harness and compared against
+   * the contradictions REFLECTED in the final table — the doc 39 §2.B
+   * detected-vs-reflected gap (nmemo-hm4.5).
+   */
+  contradictionsDetected: number;
 }
 
 // ============================================
@@ -308,6 +317,10 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
   // 4. Update graph meta (entity stats + merge candidate detection)
   let gardenerResult: { triggered: boolean; report?: string } | undefined;
   let reconciliationResult: ExtractResult['reconciliation'];
+  // Contradictions detected on this chunk's SQL sweep; stays 0 unless the
+  // periodic sweep runs below (and succeeds). Surfaced on ExtractResult so the
+  // harness can compute the detected-vs-reflected gap (nmemo-hm4.5).
+  let contradictionsDetected = 0;
   if (entityIds.length > 0) {
     const tMeta = Date.now();
     try {
@@ -396,6 +409,7 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
       const tContra = Date.now();
       try {
         const contraResult = await detectContradictions();
+        contradictionsDetected = contraResult.detected;
         const errorsPart = contraResult.errors
           ? ` errors=${JSON.stringify(contraResult.errors)}`
           : '';
@@ -409,7 +423,7 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
     }
   }
 
-  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing, gardener: gardenerResult, reconciliation: reconciliationResult };
+  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing, gardener: gardenerResult, reconciliation: reconciliationResult, contradictionsDetected };
 }
 
 /**

@@ -111,6 +111,15 @@ export interface RunMetrics {
    * the corpus.
    */
   correctness: Record<string, CorrectnessReport>;
+  /**
+   * Per-step instrumentation per `<mode>.<order>` (doc 39 section 2.B,
+   * nmemo-hm4.5). Each value carries `{ runtimeStats, snapshot }`:
+   * `runtimeStats` is the batch ingest RESPONSE BODY the driver captured
+   * (per-chunk `timing` etc. - shape-agnostic, may be absent on old servers);
+   * `snapshot` is the pure {@link SnapshotInstrumentation} derived from the rich
+   * dump. Kept `unknown`-valued so the schema doesn't couple to either source.
+   */
+  perStep: Record<string, unknown>;
 }
 
 /** Per-arm trend summary persisted to one history.jsonl line. */

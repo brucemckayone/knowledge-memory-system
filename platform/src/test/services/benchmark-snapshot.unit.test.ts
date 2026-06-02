@@ -76,7 +76,7 @@ describe('benchmark snapshot store', () => {
       modes: ['serial', 'epoch'],
       orders: ['forward', 'reverse'],
     });
-    const metrics: RunMetrics = { exact: scorecard, semantic, invariants: {}, correctness: {} };
+    const metrics: RunMetrics = { exact: scorecard, semantic, invariants: {}, correctness: {}, perStep: {} };
     const arms: ArmArtifact[] = [
       { mode: 'serial', order: 'forward', canonical: { structuralHash: 's-fwd' }, rich: { entities: [], facts: [] } },
       { mode: 'serial', order: 'reverse', canonical: { structuralHash: 's-rev' }, rich: { entities: [], facts: [] } },
