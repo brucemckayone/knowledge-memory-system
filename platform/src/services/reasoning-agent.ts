@@ -42,6 +42,15 @@ export interface ReasoningAgentParams {
    * pass UPSERTs the existing row instead of inserting a duplicate.
    */
   invocationId?: string;
+  /**
+   * Bead nmemo-0wq.3 — graph-anchored fallback evidence (doc 38 §6.2.1).
+   * Populated by the /api/reason/query boundary ONLY when the pre-flight flat
+   * retrieval failed the §6.1 confidence bar and the fallback recovered ranked
+   * unit-grained evidence. Forwarded to ml-services so the reasoning agent can
+   * reason over flat + fallback evidence together. Undefined (omitted) when flat
+   * retrieval succeeded or nothing anchored — the no-regression / no-anchor cases.
+   */
+  fallbackEvidence?: unknown[];
 }
 
 export interface ReasoningAgentResult {
@@ -65,6 +74,8 @@ export async function invokeReasoningAgent(params: ReasoningAgentParams): Promis
       question: params.question,
       mcp_config_path: mcpConfigPath,
       invocation_id: params.invocationId,
+      // Bead nmemo-0wq.3 — omitted unless the boundary recovered fallback evidence.
+      fallback_evidence: params.fallbackEvidence,
     },
     timeoutMs: config.REASONING_AGENT_TIMEOUT_MS,
   });

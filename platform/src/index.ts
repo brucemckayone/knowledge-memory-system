@@ -1002,6 +1002,55 @@ app.post('/api/reason', async (c) => {
   }
 });
 
+/**
+ * Bead nmemo-0wq.3 — the /api/reason/query fallback boundary (doc 38 §6.2.1).
+ *
+ * Pre-flight flat retrieval on the question; if it fails the §6.1 confidence
+ * bar, seed anchors (entities in the weak flat hits + a query-side entity
+ * match, §4.1), expand the fact graph, and re-rank the fetched UNIT-grained
+ * evidence against the query (§5). Returns the ranked units (capped) for the
+ * agent's context, or undefined when flat retrieval SUCCEEDED (no trigger, no
+ * extra work — the §6 no-regression constraint) or nothing anchored (§4.2).
+ * Single fire per query (§6.3). Lazy imports keep the hot module graph lean.
+ */
+async function computeQueryFallbackEvidence(question: string): Promise<unknown[] | undefined> {
+  const { searchMemoriesByUnit } = await import('./services/qdrant.js');
+  const { flatRetrievalFailed, recallViaGraph } = await import('./services/graph-fallback.js');
+  const { findSimilarEntities } = await import('./services/entities.js');
+
+  const queryVector = (await ml.embedQuery(question)).vector;
+  const flat = await searchMemoriesByUnit(queryVector, { limit: 5 });
+  const flatHits = flat.map((m) => ({ id: m.id, score: m.score }));
+
+  // §6.1 trigger: only proceed on flat-retrieval FAILURE. Success returns early
+  // — no graph walk, no re-rank, no extra Qdrant reads.
+  if (!flatRetrievalFailed(flatHits)) return undefined;
+
+  // §4.1.2 query-side entity seed (entity-similarity over the query text).
+  const seedEntities = await findSimilarEntities((await ml.embed(question)).vector, {
+    threshold: 0.5,
+    limit: 5,
+  });
+  const ranked = await recallViaGraph(queryVector, flatHits, {
+    seedEntityIds: seedEntities.map((e) => e.id),
+  });
+  if (ranked.length === 0) {
+    // §4.2 no-anchor / no-evidence: surface the original flat result unchanged.
+    console.log('[reason/query] fallback_skipped_no_anchor');
+    return undefined;
+  }
+  return ranked.map((r) => ({
+    unitText: r.unitText,
+    parentWindowId: r.parentWindowId,
+    factId: r.factId,
+    predicate: r.predicate,
+    neighbourEntityId: r.neighbourEntityId,
+    hop: r.hop,
+    rerankScore: r.rerankScore,
+    source: 'graph_fallback',
+  }));
+}
+
 app.post('/api/reason/query', async (c) => {
   // Audit attribution (nmemo-2yv.35 sweep): same dispatch as /api/reason —
   // invokeReasoningAgent threads MNEMO_AGENT_ACTOR='reasoning_agent'.
@@ -1012,8 +1061,18 @@ app.post('/api/reason/query', async (c) => {
   const invocationId = randomUUID();
   const { invokeReasoningAgent, AgentInvocationTimeoutError } = await import('./services/causal-agent.js');
   const start = Date.now();
+  // Bead nmemo-0wq.3 — query-failure fallback boundary check (doc 38 §6.2.1).
+  // Pre-flight flat retrieval; if it FAILS the confidence bar (§6.1), run the
+  // graph-anchored fallback and hand its ranked unit-grained evidence to the
+  // agent alongside the question. Single fire per query (§6.3): the boundary
+  // evaluates the trigger at most once and never re-anchors its own hits.
+  // Fails open — any error here must not block the normal query path.
+  const fallbackEvidence = await computeQueryFallbackEvidence(body.question).catch((err) => {
+    console.error(`[reason/query] fallback boundary check failed (continuing without): ${err}`);
+    return undefined;
+  });
   try {
-    const result = await invokeReasoningAgent({ mode: 'query', question: body.question, invocationId });
+    const result = await invokeReasoningAgent({ mode: 'query', question: body.question, invocationId, fallbackEvidence });
     return c.json({ triggered: true, result: result.result, durationMs: Date.now() - start });
   } catch (err) {
     // Bead nmemo-2yv.76: 504 on timeout (see /api/reason for rationale).

@@ -21,6 +21,7 @@ import { getEntityFacts, createFact, expireFact, invalidateFact, updateFactConfi
 import { findConnectedEntities } from './graph.js';
 import { findSimilarEntities, resolveEntity, linkMemoryToEntity, mergeEntities } from './entities.js';
 import { searchMemoriesByUnit, getMemory } from './qdrant.js';
+import { recallViaGraph, flatRetrievalFailed, type FlatHit } from './graph-fallback.js';
 import { db } from '../db/index.js';
 import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports } from '../db/schema.js';
 import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
@@ -54,6 +55,9 @@ import { RESOLUTION_VALUES } from './enums.js';
 import { capAndSanitize, delimitForPrompt } from './prompt-safety.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** Query-side entity seeds gathered for the recall_via_graph tool (doc 38 §4.1.2). */
+const MAX_QUERY_SEED_ENTITIES = 5;
 
 // ============================================
 // Tool Schemas (MCP-compatible)
@@ -164,6 +168,26 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         limit: {
           type: 'number',
           description: 'Maximum number of results (default: 5)',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'recall_via_graph',
+    description:
+      'Graph-anchored fallback retrieval (recall booster). Use this ONLY when search_memories came back thin — empty, or with a top score below ~0.5 — meaning flat vector search did not find the answer passage. Given the query and the weak flat hits, it anchors on entities the system already knows, walks the fact graph to their neighbours, fetches the UNIT-grained evidence behind those neighbours, and re-ranks it against the query. Returns ranked fallback evidence (unit text + provenance), or empty when nothing anchors. Surfaces answers that sit one reasoning hop away from the query — the shape flat search structurally misses.',
+    mutates: false,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The question/query text — re-embedded and used both to seed anchors and to re-rank fetched evidence.',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of ranked fallback units to return (default: 5).',
         },
       },
       required: ['query'],
@@ -1364,6 +1388,43 @@ async function _handleToolCallInner(
         metadata: m.payload?.metadata,
         createdAt: m.payload?.created_at,
       })));
+    }
+
+    case 'recall_via_graph': {
+      // bead nmemo-0wq.3 — graph-anchored fallback retrieval (doc 38 §4/§5/§6.2.2).
+      // The agent reaches for this when its own search_memories came back thin.
+      // We re-run the flat search to (a) get the query embedding to re-rank with
+      // and (b) compute the same FlatHit scores the trigger reads (§6.1) — so the
+      // tool is self-contained: it decides failure, seeds anchors from the weak
+      // flat hits + a query-side entity match (§4.1), expands, and re-ranks.
+      const query = toolInput.query as string;
+      const embedResult = await ml.embedQuery(query);
+      const flat = await searchMemoriesByUnit(embedResult.vector, { limit: 5 });
+      const flatHits: FlatHit[] = flat.map((m) => ({ id: m.id, score: m.score }));
+      // Query-side entity seed (§4.1.2): search_similar_entities over the query.
+      const seedEntities = await findSimilarEntities(
+        (await ml.embed(query)).vector,
+        { threshold: 0.5, limit: MAX_QUERY_SEED_ENTITIES },
+      );
+      const ranked = await recallViaGraph(embedResult.vector, flatHits, {
+        seedEntityIds: seedEntities.map((e) => e.id),
+        limit: (toolInput.limit as number) ?? 5,
+      });
+      return JSON.stringify({
+        triggered: flatRetrievalFailed(flatHits),
+        anchored: ranked.length > 0,
+        units: ranked.map((r) => ({
+          unitText: r.unitText,
+          parentWindowId: r.parentWindowId,
+          factId: r.factId,
+          predicate: r.predicate,
+          neighbourEntityId: r.neighbourEntityId,
+          hop: r.hop,
+          rerankScore: r.rerankScore,
+          windowFallback: r.windowFallback,
+          source: 'graph_fallback',
+        })),
+      });
     }
 
     case 'get_memory_text': {

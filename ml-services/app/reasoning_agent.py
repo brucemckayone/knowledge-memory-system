@@ -88,6 +88,16 @@ search_similar_entities(query, threshold?, limit?, entity_type?)
 search_memories(query, limit?)
   Semantic search over source texts in the vector store.
 
+recall_via_graph(query, limit?)
+  Graph-anchored fallback retrieval (recall booster). Reach for this ONLY when
+  search_memories came back thin — empty, or with a top score below ~0.5 —
+  meaning flat vector search did not find the answer passage. It anchors on
+  entities already in the graph, walks fact edges to their neighbours, fetches
+  the UNIT-grained evidence behind those neighbours, and re-ranks it against
+  your query. Surfaces answers that sit one reasoning hop away from the query
+  (the multi-session shape flat search structurally misses). Returns ranked
+  fallback units, or empty when nothing anchors.
+
 get_memory_text(memory_id)
   Retrieve the full source text of a specific memory.
 
@@ -321,6 +331,12 @@ PHASE 1: SCOPE (5-10 calls)
   Parse the user's question to identify relevant entities and concepts.
   1. search_similar_entities — find entities related to the question
   2. search_memories — find source texts related to the question
+  2a. If search_memories comes back THIN (empty, or nothing scoring above ~0.5),
+      call recall_via_graph(question) before giving up — the answer may live one
+      reasoning hop away from an entity you already found, where flat vector
+      search structurally cannot reach it. Treat any recovered units as evidence
+      and trace from their neighbour entities. (If fallback evidence was already
+      supplied to you in the question context, fold it in here too.)
   3. get_reasoning_history — check if related questions have been answered before
   4. get_neighbourhood_profile — for the key entities identified
 
