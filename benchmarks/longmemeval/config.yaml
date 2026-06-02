@@ -26,3 +26,10 @@ sample_size: null
 # own independent haystack of chat sessions; without reset, sessions
 # contaminate across questions and the abstention category is meaningless.
 reset_between_questions: true
+
+# Max chars per ingest call. nomic-embed-text (the embedder behind /ingest)
+# caps at ~2048 tokens; sessions above ~10-13K chars make the embed step 500.
+# Sessions larger than this are split at turn boundaries into multiple
+# memories. 6000 chars ~= 1500 tokens, safe margin under the limit for dense
+# real text. Most sessions fit in one chunk and pass through unchanged.
+max_ingest_chars: 6000

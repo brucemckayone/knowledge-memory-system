@@ -66,6 +66,11 @@ class RunConfig:
     expected_size: int | None
     sample_size: int | None
     reset_between_questions: bool
+    max_ingest_chars: int
+    # Resume support: skip the reset and the first N chunks (already ingested
+    # in a prior interrupted run). 0 = normal run from scratch. Only meaningful
+    # for a single-question (--sample 1) resume.
+    resume_from: int = 0
 
 
 def load_config(path: Path) -> RunConfig:
@@ -78,6 +83,7 @@ def load_config(path: Path) -> RunConfig:
         expected_size=data["dataset"].get("expected_size"),
         sample_size=data.get("sample_size"),
         reset_between_questions=bool(data.get("reset_between_questions", True)),
+        max_ingest_chars=int(data.get("max_ingest_chars", 6000)),
     )
 
 
@@ -200,6 +206,46 @@ def format_session(session: Session) -> str:
     return "\n\n".join(lines)
 
 
+def chunk_session(session: Session, max_chars: int) -> list[str]:
+    """Split a session into text blobs each <= max_chars, breaking at turn
+    boundaries. nomic-embed-text (the embedder behind /ingest) caps at ~2048
+    tokens; sessions above ~10-13K chars make the embed step 500 (measured).
+    Most sessions fit in one chunk and pass through unchanged; only the large
+    ones split. The session-date header is repeated on every chunk so each
+    memory stays independently dated."""
+    header = f"[Session date: {session.date}]" if session.date else ""
+    head_len = len(header) + (2 if header else 0)
+    blobs: list[str] = []
+    cur: list[str] = []
+    cur_len = head_len
+
+    def flush() -> None:
+        nonlocal cur, cur_len
+        if cur:
+            body = "\n\n".join(cur)
+            blobs.append(f"{header}\n\n{body}" if header else body)
+        cur = []
+        cur_len = head_len
+
+    for turn in session.turns:
+        line = f"{turn.role.upper()}: {turn.content}"
+        # A single turn larger than the budget: flush, then hard char-split it.
+        if head_len + len(line) > max_chars:
+            flush()
+            budget = max(1, max_chars - head_len)
+            for i in range(0, len(line), budget):
+                piece = line[i : i + budget]
+                blobs.append(f"{header}\n\n{piece}" if header else piece)
+            continue
+        if cur and cur_len + len(line) + 2 > max_chars:
+            flush()
+        cur.append(line)
+        cur_len += len(line) + 2
+
+    flush()
+    return blobs
+
+
 def run_real(config: RunConfig, notes: str) -> int:
     questions = load_dataset(config.dataset_local, config.dataset_url, config.expected_size)
     total_loaded = len(questions)
@@ -242,13 +288,33 @@ def run_real(config: RunConfig, notes: str) -> int:
         for idx, q in enumerate(questions):
             progress = f"[{idx + 1}/{len(questions)}]"
             try:
-                if config.reset_between_questions:
+                # On resume, keep the graph (it holds the already-ingested
+                # chunks) and skip the reset. Otherwise reset to isolate the
+                # question's haystack.
+                if config.reset_between_questions and config.resume_from == 0:
                     client.reset()
 
+                ingest_calls = 0
+                skipped = 0
+                flat_idx = 0
                 for session in q.sessions:
-                    text = format_session(session)
-                    source = f"longmemeval/{q.question_id}/{session.session_id}"
-                    client.ingest(text, source=source)
+                    chunks = chunk_session(session, config.max_ingest_chars)
+                    for ci, chunk in enumerate(chunks):
+                        if flat_idx < config.resume_from:
+                            flat_idx += 1
+                            skipped += 1
+                            continue
+                        suffix = f"/c{ci}" if len(chunks) > 1 else ""
+                        source = f"longmemeval/{q.question_id}/{session.session_id}{suffix}"
+                        client.ingest(chunk, source=source)
+                        ingest_calls += 1
+                        flat_idx += 1
+                if config.resume_from:
+                    print(
+                        f"{progress} resume: skipped {skipped} prior chunks, "
+                        f"ingested {ingest_calls} new (total {flat_idx})",
+                        flush=True,
+                    )
 
                 response = client.query(q.question)
                 candidate = str(response.get("result") or "")
@@ -265,7 +331,8 @@ def run_real(config: RunConfig, notes: str) -> int:
                 )
                 print(
                     f"{progress} {q.question_id} {q.category} "
-                    f"score={verdict.score:.2f} sessions={len(q.sessions)}",
+                    f"score={verdict.score:.2f} sessions={len(q.sessions)} "
+                    f"ingests={ingest_calls}",
                     flush=True,
                 )
             except (MnemoClientError, JudgeError, Exception) as e:
@@ -326,6 +393,10 @@ def parse_args() -> argparse.Namespace:
                    help="Real mode: subsample to first N questions. Override config.sample_size.")
     p.add_argument("--notes", default="",
                    help="Free text recorded in the JSON envelope's notes field.")
+    p.add_argument("--resume-from", type=int, default=0,
+                   help="Resume an interrupted single-question run: skip the reset "
+                        "and the first N already-ingested chunks (N = current "
+                        "memory count), then finish the rest + query/judge.")
     return p.parse_args()
 
 
@@ -334,6 +405,8 @@ def main() -> int:
     config = load_config(CONFIG_PATH)
     if args.sample is not None:
         config.sample_size = args.sample
+    if args.resume_from:
+        config.resume_from = args.resume_from
     if args.dry_run:
         return run_dry(config, args.notes)
     return run_real(config, args.notes)

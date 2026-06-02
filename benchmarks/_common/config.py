@@ -29,6 +29,8 @@ REPO_ROOT = BENCHMARKS_ROOT.parent
 RESULTS_DIR = BENCHMARKS_ROOT / "results"
 DOCS_RESULTS_DIR = REPO_ROOT / "docs" / "benchmarks" / "results"
 
-# HTTP client defaults. Reasoning agent queries can take minutes; pick a
-# generous timeout so a benchmark doesn't fail mid-run.
-HTTP_TIMEOUT_SECONDS = float(os.environ.get("MNEMO_BENCH_HTTP_TIMEOUT", "300"))
+# HTTP client defaults. /ingest runs the full extraction agent — measured at
+# ~80-180s for a 6K-char chunk, and longer under ml-pool contention. The
+# reasoning query can also take minutes. 600s leaves margin so a slow-but-
+# healthy extraction doesn't get cut off as a false timeout.
+HTTP_TIMEOUT_SECONDS = float(os.environ.get("MNEMO_BENCH_HTTP_TIMEOUT", "600"))
