@@ -74,6 +74,19 @@ export const CANONICAL_ONTOLOGY: Record<string, {
     category: 'professional',
     aliases: ['chief_executive_of', 'runs', 'heads'],
   },
+  // Current job title/role. Exclusive: a person holds one current title at a
+  // time, so a newer assertion supersedes the prior one. This canonical folds
+  // the title/role sprawl (`title`/`role`/`role_at`/`current_title`/…) onto a
+  // single predicate string so createFact's exact-predicate supersession fires
+  // (bead nmemo-hm4.10). Kept distinct from `ceo_of` — that stays a separate
+  // exclusive predicate per its own object semantics.
+  job_title: {
+    description: 'Current job title/role held by a person',
+    type: 'role',
+    exclusive: true,
+    category: 'professional',
+    aliases: ['title', 'role', 'position', 'job', 'occupation', 'role_at', 'current_title', 'job_role', 'current_role', 'designation'],
+  },
   member_of: {
     description: 'Member of organization/group',
     inverse: 'has_member',
@@ -151,6 +164,20 @@ export const CANONICAL_ONTOLOGY: Record<string, {
     exclusive: false,
     category: 'location',
     aliases: ['traveled_to', 'went_to', 'been_to'],
+  },
+  // Headquarters location of an organization. Exclusive: an org has one current
+  // HQ, so a newer HQ assertion supersedes the prior one. Folds the HQ sprawl
+  // (`hq`/`headquarters`/`head_office`/…) onto a single predicate string so
+  // createFact's exact-predicate supersession fires (bead nmemo-hm4.10).
+  // NOTE: deliberately does NOT alias `based_in`/`located_in` — those belong to
+  // `lives_in` and `located_in` respectively; folding them here would change a
+  // person's residence onto an org-HQ predicate.
+  headquartered_in: {
+    description: 'Headquarters location of an organization',
+    type: 'location',
+    exclusive: true,
+    category: 'location',
+    aliases: ['hq', 'headquarters', 'head_office', 'headquartered', 'hq_in', 'head_office_in'],
   },
 
   // Education
