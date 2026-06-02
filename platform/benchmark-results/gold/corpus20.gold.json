@@ -1,0 +1,56 @@
+{
+  "corpus": "corpus20.json",
+  "_comment": "Hand-authored gold reference for corpus20.json (doc 39 §2.A), mirroring corpus10.gold.json. corpus20 extends the Helix Robotics narrative across 20 chunks (Jan 2019 → mid 2024). CURRENT truth as of the last chunk (mid 2024): Elena Vasquez is CTO (not junior/senior/lead) and still at Helix; Helix HQ is Austin (not Boston) with a SECOND office in Toronto (a second office, NOT an HQ move, so org_hq stays Austin); Marcus Chen left Helix in early 2021 to found his own venture (former head of engineering); Priya Anand was VP of Product but left in late 2023 to become a startup CEO (current role startup CEO; her Helix VP-of-Product title and Helix employment are expired); Daniel Okoro is the current VP of Product (internal hire, late 2023); Sofia Reyes is a Northwind Capital partner who joined the Helix board (Sept 2023). Project Atlas v1 was deprecated Feb 2024 and customers migrated to Atlas v2; Project Helios (announced Mar 2024) is the current flagship effort, positioned as Atlas's successor; Atlas v2 is in maintenance. Latest-stated value wins for each exclusive attribute; currentFacts = non-superseded, expiredFacts = explicitly superseded/ended.",
+  "entities": [
+    { "name": "Elena Vasquez", "type": "person" },
+    { "name": "Marcus Chen", "type": "person" },
+    { "name": "Priya Anand", "type": "person" },
+    { "name": "Sofia Reyes", "type": "person" },
+    { "name": "Daniel Okoro", "type": "person" },
+    { "name": "Helix Robotics", "type": "company" },
+    { "name": "Northwind Capital", "type": "company" },
+    { "name": "Brightway Stores", "type": "company" },
+    { "name": "Cargolux Systems", "type": "company" },
+    { "name": "Boston", "type": "place" },
+    { "name": "Austin", "type": "place" },
+    { "name": "Toronto", "type": "place" },
+    { "name": "Ohio", "type": "place" },
+    { "name": "Project Atlas", "type": "project" },
+    { "name": "Atlas v2", "type": "project" },
+    { "name": "Project Helios", "type": "project" }
+  ],
+  "currentFacts": [
+    { "subject": "Elena Vasquez", "predicate": "works_at", "object": "Helix Robotics" },
+    { "subject": "Elena Vasquez", "predicate": "job_title", "object": "chief technology officer" },
+    { "subject": "Helix Robotics", "predicate": "headquartered_in", "object": "Austin" },
+    { "subject": "Helix Robotics", "predicate": "raised_funding_from", "object": "Northwind Capital" },
+    { "subject": "Helix Robotics", "predicate": "flagship_project", "object": "Project Helios" },
+    { "subject": "Daniel Okoro", "predicate": "works_at", "object": "Helix Robotics" },
+    { "subject": "Daniel Okoro", "predicate": "job_title", "object": "vp of product" },
+    { "subject": "Sofia Reyes", "predicate": "works_at", "object": "Northwind Capital" },
+    { "subject": "Sofia Reyes", "predicate": "job_title", "object": "partner" },
+    { "subject": "Priya Anand", "predicate": "job_title", "object": "startup ceo" }
+  ],
+  "expiredFacts": [
+    { "subject": "Elena Vasquez", "predicate": "job_title", "object": "junior software engineer" },
+    { "subject": "Elena Vasquez", "predicate": "job_title", "object": "senior engineer" },
+    { "subject": "Elena Vasquez", "predicate": "job_title", "object": "engineering lead" },
+    { "subject": "Helix Robotics", "predicate": "headquartered_in", "object": "Boston" },
+    { "subject": "Marcus Chen", "predicate": "job_title", "object": "head of engineering" },
+    { "subject": "Marcus Chen", "predicate": "works_at", "object": "Helix Robotics" },
+    { "subject": "Elena Vasquez", "predicate": "reports_to", "object": "Marcus Chen" },
+    { "subject": "Priya Anand", "predicate": "works_at", "object": "Helix Robotics" },
+    { "subject": "Priya Anand", "predicate": "job_title", "object": "vp of product" },
+    { "subject": "Priya Anand", "predicate": "works_at", "object": "Cargolux Systems" }
+  ],
+  "exclusiveExpectations": [
+    { "subject": "Elena Vasquez", "group": "role_title", "expectedObject": "chief technology officer" },
+    { "subject": "Elena Vasquez", "group": "works_at", "expectedObject": "Helix Robotics" },
+    { "subject": "Daniel Okoro", "group": "role_title", "expectedObject": "vp of product" },
+    { "subject": "Daniel Okoro", "group": "works_at", "expectedObject": "Helix Robotics" },
+    { "subject": "Sofia Reyes", "group": "role_title", "expectedObject": "partner" },
+    { "subject": "Sofia Reyes", "group": "works_at", "expectedObject": "Northwind Capital" },
+    { "subject": "Priya Anand", "group": "role_title", "expectedObject": "startup ceo" },
+    { "subject": "Helix Robotics", "group": "org_hq", "expectedObject": "Austin" }
+  ]
+}
