@@ -26,6 +26,17 @@ import { getTopologySnapshot, getComponentEntities } from './services/topology.j
 import { getClustersSnapshot, getClusterEntities } from './services/clustering.js';
 import { getDriftEvents, getDriftState } from './services/drift.js';
 import { exportCanonicalGraph, exportRichGraph } from './services/graph-canonical-query.js';
+import { Agent, setGlobalDispatcher } from 'undici';
+
+// The platform makes long synchronous fetches to the ml-services agent endpoints
+// (graph / reconciliation / gardener — each a `claude -p` subprocess that can run
+// minutes). undici's default 300s headersTimeout fires before our per-call
+// AbortController watchdog, surfacing as UND_ERR_HEADERS_TIMEOUT ("fetch failed")
+// and aborting batch post-processing (e.g. the optimistic arm's reconcile/gardener
+// auto-trigger -> 500). Disable the client response timeouts process-wide; the
+// AbortController in agentFetch/mlFetch still bounds each call. Mirrors the
+// comparison driver's dispatcher. See nmemo-1tc.
+setGlobalDispatcher(new Agent({ headersTimeout: 0, bodyTimeout: 0 }));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const vizHtmlPath = join(__dirname, '../viz/index.html');
