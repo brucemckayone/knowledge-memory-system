@@ -64,3 +64,10 @@ test-data/
 
 # Snapshot cache (per-machine; manifest is the source of truth)
 platform/test-snapshots/
+
+# Benchmark harness scratch — throwaway venv, generated dashboards, one-off
+# analysis scripts. doc 39's snapshot store (benchmark-results/runs, gold) can
+# be carved out as tracked when that lands.
+platform/benchmark-results/.venv/
+platform/benchmark-results/*.png
+platform/benchmark-results/*.py

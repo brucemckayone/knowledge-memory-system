@@ -20,6 +20,7 @@
 import { readFileSync } from 'node:fs';
 import { Agent, setGlobalDispatcher } from 'undici';
 import { buildScorecard, type ArmRun, type CanonicalGraph } from '../src/services/graph-canonical.js';
+import { semanticDiff, type SemanticDiff } from '../src/services/graph-canonical-semantic.js';
 
 // A synchronous batch ingest holds one HTTP request open until the server has
 // processed every chunk — a 10-chunk serial run is ~970s. That exceeds undici's
@@ -43,6 +44,7 @@ const modes = arg('modes', 'serial,epoch,optimistic')!
   .map((m) => m.trim())
   .filter(Boolean);
 const doLitmus = !has('no-litmus');
+const doDeterminism = has('determinism'); // run each mode forward twice → the LLM noise floor
 
 if (!chunksFile) {
   console.error('Missing --chunks <file.json> (a JSON array of chunk strings).');
@@ -85,12 +87,18 @@ async function ingestAndCapture(
 }
 
 async function main(): Promise<void> {
-  console.log(`[compare] url=${URL} chunks=${corpus.length} modes=${modes.join(',')} litmus=${doLitmus}`);
+  console.log(`[compare] url=${URL} chunks=${corpus.length} modes=${modes.join(',')} litmus=${doLitmus} determinism=${doDeterminism}`);
   const runs: ArmRun[] = [];
+  const determinismGraph: Record<string, CanonicalGraph> = {};
   for (const mode of modes) {
     console.log(`\n[compare] === ${mode} (forward) ===`);
     const fwd = await ingestAndCapture(mode, corpus);
     const run: ArmRun = { mode, graph: fwd.graph, wallClockMs: fwd.wallClockMs };
+    if (doDeterminism) {
+      console.log(`[compare] === ${mode} (forward #2 — determinism) ===`);
+      const fwd2 = await ingestAndCapture(mode, corpus);
+      determinismGraph[mode] = fwd2.graph;
+    }
     if (doLitmus) {
       console.log(`[compare] === ${mode} (reverse — litmus) ===`);
       const rev = await ingestAndCapture(mode, [...corpus].reverse());
@@ -112,6 +120,25 @@ async function main(): Promise<void> {
     console.log(
       `${a.mode.padEnd(11)} | ${String(a.wallClockMs).padStart(6)} | ${String(a.counts.entities).padStart(4)} | ${String(a.counts.activeFacts).padStart(5)} | ${String(a.duplicateEntities).padStart(6)} | ${String(a.duplicateFacts).padStart(7)} | ${String(a.litmusPass).padStart(6)} | ${vb}`,
     );
+  }
+
+  // Semantic (tolerance) scorecard — fuzzy entity + normalised-predicate fact
+  // overlap (F1), robust to the LLM phrasing non-determinism that makes the
+  // exact structural hash above fail even on two same-order runs. Read it as:
+  //   litmus F1 ≈ determinism F1  → order-independent up to extraction noise
+  //   litmus F1 ≪ determinism F1  → a real order / parallelism effect
+  const baseRun = runs.find((r) => r.mode === baselineMode);
+  const f2 = (x: number): string => x.toFixed(2);
+  const fmt = (d: SemanticDiff | null): string => (d ? `${f2(d.entity.f1)}/${f2(d.fact.f1)}` : '    -    ');
+  console.log('\n===== SEMANTIC SCORECARD (entityF1/factF1) =====');
+  console.log('mode        | determinism | litmus(fwd|rev) | vsBaseline');
+  for (const run of runs) {
+    const detG = determinismGraph[run.mode];
+    const det = detG ? semanticDiff(run.graph, detG) : null;
+    const lit = run.reverseGraph ? semanticDiff(run.graph, run.reverseGraph) : null;
+    const vsb = baseRun && run.mode !== baselineMode ? semanticDiff(run.graph, baseRun.graph) : null;
+    const vsbStr = run.mode === baselineMode ? 'baseline' : fmt(vsb);
+    console.log(`${run.mode.padEnd(11)} | ${fmt(det).padStart(11)} | ${fmt(lit).padStart(15)} | ${vsbStr}`);
   }
 }
 
