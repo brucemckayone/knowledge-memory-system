@@ -14,15 +14,16 @@
  *     <arm>.<order>.canonical.json   diffable (doc 38)            [raw dump — gitignored]
  *     <arm>.<order>.rich.json        full dump (doc 39 §3.1)      [raw dump — gitignored]
  *     metrics.json                   exact + semantic scorecards  [tracked]
- *     report.md                      concise scorecard (full report = nmemo-hm4.6) [tracked]
+ *     report.md                      human-readable report (benchmark-report.ts)  [tracked]
  *   history.jsonl                    one line per run → trend     [tracked]
  * ```
  * Retention (nmemo-hm4.2 decision): the curated artifacts are tracked; the bulky
  * regenerable per-run graph dumps are gitignored.
  *
- * Pure shaping ({@link buildManifest} / {@link buildHistoryLine} / {@link buildReportMd})
- * is split from the `node:fs` writers so the shaping is unit-testable without
- * touching disk; the writers are exercised against a temp dir.
+ * Pure shaping ({@link buildManifest} / {@link buildHistoryLine}) is split from
+ * the `node:fs` writers so the shaping is unit-testable without touching disk;
+ * the writers are exercised against a temp dir. The human-readable `report.md`
+ * itself is shaped by `benchmark-report.ts` ({@link buildRunReport}/`buildTrend`).
  */
 
 import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
@@ -135,6 +136,17 @@ export interface ArmHistory {
   determinismF1: F1Pair | null;
   litmusF1: F1Pair | null;
   vsBaselineF1: F1Pair | null;
+  // Quality fields for the trend (doc 39 §3.3), from this arm's `${mode}.forward`
+  // entry of the correctness / invariants maps. null when that data is absent
+  // (no gold authored, or no forward invariant report).
+  /** Fraction (0..1) of gold exclusive expectations that pass; null without gold. */
+  currentStateCorrectness: number | null;
+  /** Current-fact F1 vs gold.currentFacts; null without gold. */
+  factF1VsGold: number | null;
+  /** Passed error-invariants / total error-invariants for the forward order; null without a report. */
+  invariantPassRate: number | null;
+  /** Max distinct-predicate count across sprawled exclusive groups (0 = no sprawl); null without gold. */
+  predicateSprawlMax: number | null;
 }
 
 export interface HistoryLine {
@@ -146,15 +158,33 @@ export interface HistoryLine {
   arms: ArmHistory[];
 }
 
+/** Passed error-invariants / total error-invariants (the forward-order quality rate). */
+function errorInvariantPassRate(report: InvariantReport | undefined): number | null {
+  if (report == null) return null;
+  const errors = report.results.filter((r) => r.severity === 'error');
+  if (errors.length === 0) return 1;
+  return errors.filter((r) => r.pass).length / errors.length;
+}
+
+/** Max distinct-predicate count across sprawled exclusive groups (0 when none). */
+function predicateSprawlMax(report: CorrectnessReport | undefined): number | null {
+  if (report == null) return null;
+  return report.predicateSprawl.reduce((max, s) => Math.max(max, s.predicateCount), 0);
+}
+
 /**
- * Assemble one history.jsonl line by merging the exact scorecard with the
- * per-mode semantic summaries. Pure. Later beads append correctness /
- * invariant-pass-rate / predicate-sprawl fields per doc 39 §3.3.
+ * Assemble one history.jsonl line by merging the exact scorecard, the per-mode
+ * semantic summaries, and the per-arm quality fields (doc 39 §3.3). Pure. The
+ * quality fields (current-state-correctness, fact F1 vs gold, invariant
+ * pass-rate, predicate-sprawl) come from each arm's `${mode}.forward` entry of
+ * `metrics.correctness` / `metrics.invariants` — forward is the canonical trend
+ * axis. They stay null when that data is absent (no gold authored / no report).
  */
 export function buildHistoryLine(
   meta: { runId: string; timestamp: string; gitCommit: string; corpus: string },
   scorecard: Scorecard,
   semanticByMode: Record<string, SemanticSummary>,
+  metrics: Pick<RunMetrics, 'invariants' | 'correctness'>,
 ): HistoryLine {
   return {
     runId: meta.runId,
@@ -162,66 +192,26 @@ export function buildHistoryLine(
     gitCommit: meta.gitCommit,
     corpus: meta.corpus,
     baselineMode: scorecard.baselineMode,
-    arms: scorecard.arms.map((a) => ({
-      mode: a.mode,
-      wallClockMs: a.wallClockMs,
-      entities: a.counts.entities,
-      activeFacts: a.counts.activeFacts,
-      duplicateEntities: a.duplicateEntities,
-      duplicateFacts: a.duplicateFacts,
-      litmusExact: a.litmusPass,
-      determinismF1: semanticByMode[a.mode]?.determinismF1 ?? null,
-      litmusF1: semanticByMode[a.mode]?.litmusF1 ?? null,
-      vsBaselineF1: semanticByMode[a.mode]?.vsBaselineF1 ?? null,
-    })),
+    arms: scorecard.arms.map((a) => {
+      const correctness = metrics.correctness[`${a.mode}.forward`];
+      return {
+        mode: a.mode,
+        wallClockMs: a.wallClockMs,
+        entities: a.counts.entities,
+        activeFacts: a.counts.activeFacts,
+        duplicateEntities: a.duplicateEntities,
+        duplicateFacts: a.duplicateFacts,
+        litmusExact: a.litmusPass,
+        determinismF1: semanticByMode[a.mode]?.determinismF1 ?? null,
+        litmusF1: semanticByMode[a.mode]?.litmusF1 ?? null,
+        vsBaselineF1: semanticByMode[a.mode]?.vsBaselineF1 ?? null,
+        currentStateCorrectness: correctness?.currentStateCorrectness ?? null,
+        factF1VsGold: correctness?.currentFacts.f1 ?? null,
+        invariantPassRate: errorInvariantPassRate(metrics.invariants[`${a.mode}.forward`]),
+        predicateSprawlMax: predicateSprawlMax(correctness),
+      };
+    }),
   };
-}
-
-/**
- * A concise per-run report. The full validity/correctness report (invariants,
- * gold correctness, agent review, cross-run trend) is nmemo-hm4.6 — this exists
- * so report.md is present in the run dir per the bead's file list.
- */
-export function buildReportMd(
-  manifest: Manifest,
-  scorecard: Scorecard,
-  semanticByMode: Record<string, SemanticSummary>,
-): string {
-  const f1 = (p: F1Pair | null): string => (p ? `${p.entity.toFixed(2)}/${p.fact.toFixed(2)}` : '-');
-  const lines: string[] = [];
-  lines.push(`# Comparison run ${manifest.runId}`);
-  lines.push('');
-  lines.push(`- commit: \`${manifest.gitCommit}\``);
-  lines.push(`- corpus: ${manifest.corpus} (${manifest.chunkCount} chunks)`);
-  lines.push(`- modes: ${manifest.modes.join(', ')} | orders: ${manifest.orders.join(', ')}`);
-  lines.push(`- model: ${manifest.model}`);
-  lines.push('');
-  lines.push('> Concise scorecard only. Full validity/correctness report is nmemo-hm4.6.');
-  lines.push('');
-  lines.push('## Structural scorecard (exact)');
-  lines.push('');
-  lines.push('| mode | wallMs | ents | facts | dupEnt | dupFact | litmus | vsBaseline(match/extraF/missF) |');
-  lines.push('|---|---|---|---|---|---|---|---|');
-  for (const a of scorecard.arms) {
-    const vb = a.vsBaseline
-      ? `${a.vsBaseline.structuralMatch}/${a.vsBaseline.factsExtra}/${a.vsBaseline.factsMissing}`
-      : 'baseline';
-    lines.push(
-      `| ${a.mode} | ${a.wallClockMs} | ${a.counts.entities} | ${a.counts.activeFacts} | ${a.duplicateEntities} | ${a.duplicateFacts} | ${a.litmusPass} | ${vb} |`,
-    );
-  }
-  lines.push('');
-  lines.push('## Semantic scorecard (entityF1/factF1)');
-  lines.push('');
-  lines.push('| mode | determinism | litmus | vsBaseline |');
-  lines.push('|---|---|---|---|');
-  for (const a of scorecard.arms) {
-    const sm = semanticByMode[a.mode];
-    const vsb = a.mode === scorecard.baselineMode ? 'baseline' : f1(sm?.vsBaselineF1 ?? null);
-    lines.push(`| ${a.mode} | ${f1(sm?.determinismF1 ?? null)} | ${f1(sm?.litmusF1 ?? null)} | ${vsb} |`);
-  }
-  lines.push('');
-  return lines.join('\n');
 }
 
 /** One captured graph for an (arm, order) pair. `canonical`/`rich` are persisted verbatim. */

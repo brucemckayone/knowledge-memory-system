@@ -14,7 +14,6 @@ import { join } from 'node:path';
 import {
   buildManifest,
   buildHistoryLine,
-  buildReportMd,
   writeRunSnapshot,
   appendHistoryLine,
   RICH_SCHEMA_VERSION,
@@ -22,6 +21,7 @@ import {
   type ArmArtifact,
   type SemanticSummary,
 } from '../../services/benchmark-snapshot.js';
+import { buildRunReport } from '../../services/benchmark-report.js';
 import type { Scorecard } from '../../services/graph-canonical.js';
 
 function fakeScorecard(): Scorecard {
@@ -83,11 +83,11 @@ describe('benchmark snapshot store', () => {
       { mode: 'epoch', order: 'forward', canonical: { structuralHash: 'e-fwd' }, rich: { entities: [], facts: [] } },
       { mode: 'epoch', order: 'reverse', canonical: { structuralHash: 'e-rev' }, rich: { entities: [], facts: [] } },
     ];
-    const reportMd = buildReportMd(manifest, scorecard, semantic);
+    const reportMd = buildRunReport(manifest, metrics);
     writeRunSnapshot(root, { manifest, metrics, reportMd, arms });
     appendHistoryLine(
       root,
-      buildHistoryLine({ runId, timestamp: manifest.timestamp, gitCommit: 'abc1234', corpus: 'corpus10.json' }, scorecard, semantic),
+      buildHistoryLine({ runId, timestamp: manifest.timestamp, gitCommit: 'abc1234', corpus: 'corpus10.json' }, scorecard, semantic, metrics),
     );
   }
 

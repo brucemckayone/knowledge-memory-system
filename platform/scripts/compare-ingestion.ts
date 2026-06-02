@@ -17,11 +17,11 @@
  *
  * Requires the full stack (Postgres/Qdrant + ML services + Ollama). This is the
  * benchmark driver, not a unit test — the pure logic it uses (buildScorecard;
- * buildManifest / buildHistoryLine / buildReportMd / writeRunSnapshot) is
- * unit-tested under src/test/services/.
+ * buildManifest / buildHistoryLine / writeRunSnapshot; buildRunReport / buildTrend)
+ * is unit-tested under src/test/services/.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,12 +37,13 @@ import {
   appendHistoryLine,
   buildManifest,
   buildHistoryLine,
-  buildReportMd,
   type ArmArtifact,
   type RunOrder,
   type RunMetrics,
   type SemanticSummary,
+  type HistoryLine,
 } from '../src/services/benchmark-snapshot.js';
+import { buildRunReport, buildTrend } from '../src/services/benchmark-report.js';
 
 // A synchronous batch ingest holds one HTTP request open until the server has
 // processed every chunk — a 10-chunk serial run is ~970s. That exceeds undici's
@@ -278,11 +279,36 @@ async function main(): Promise<void> {
     model: process.env.LLM_PROVIDER ?? 'pi',
   });
   const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode, invariants, correctness, perStep };
-  const reportMd = buildReportMd(manifest, scorecard, semanticByMode);
+
+  // The current run's enriched history line (now needs the metrics maps for the
+  // per-arm quality fields — current-state-correctness, fact F1, invariant
+  // pass-rate, predicate-sprawl — that give the trend signal).
+  const currentLine = buildHistoryLine({ runId, timestamp, gitCommit: commit, corpus: manifest.corpus }, scorecard, semanticByMode, metrics);
+
+  // Read the prior run's history line (the last line of history.jsonl, one JSON
+  // object per line) so the trend can diff run N vs N-1. Missing file / empty /
+  // unparsable last line → null (first-run message). Done BEFORE appending so we
+  // compare against the previous run, not this one.
+  const historyPath = join(outRoot, 'history.jsonl');
+  let previousLine: HistoryLine | null = null;
+  if (existsSync(historyPath)) {
+    const prevLines = readFileSync(historyPath, 'utf-8').trim().split('\n').filter(Boolean);
+    const last = prevLines.at(-1);
+    if (last) {
+      try {
+        previousLine = JSON.parse(last) as HistoryLine;
+      } catch {
+        previousLine = null;
+      }
+    }
+  }
+  const trend = buildTrend(currentLine, previousLine);
+  const reportMd = buildRunReport(manifest, metrics, { trend });
+
   const runDir = writeRunSnapshot(outRoot, { manifest, metrics, reportMd, arms: artifacts });
-  appendHistoryLine(outRoot, buildHistoryLine({ runId, timestamp, gitCommit: commit, corpus: manifest.corpus }, scorecard, semanticByMode));
+  appendHistoryLine(outRoot, currentLine);
   console.log(`\n[compare] snapshot written → ${runDir}`);
-  console.log(`[compare] history appended → ${join(outRoot, 'history.jsonl')}`);
+  console.log(`[compare] history appended → ${historyPath}`);
 }
 
 main().catch((err) => {
