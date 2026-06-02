@@ -276,7 +276,7 @@ Read the source text. Identify all NAMED ENTITIES — PROPER NOUNS ONLY.
 - Abstract concepts: prudence, safety, enterprise, considerateness, paradise, ambition
 - Generic roles or descriptions: the narrator, your poor brother, the captain, the stranger's friend
 - Seasons, weather, body parts, emotions: frost, snow, ice, fear, joy, sorrow
-- Pronouns or anaphoric references: he, she, they, I, the old man, a lady
+- A pronoun or anaphoric reference AS ITS OWN ENTITY: never create an entity literally named "he", "she", "they", "I", "the old man", "a lady". Pronouns are RESOLVED to the speaker or the referent entity (see WORKFLOW 2/3 and the REMINDERS), never created as a standalone entity. This does NOT mean you skip first-person facts — once "I" is resolved to a speaker/narrator entity, its self-facts ARE extracted in RELATE.
 - Anything that is not a specific named entity with a proper noun
 
 === ENTITY RESOLUTION PROCESS ===
@@ -567,6 +567,85 @@ EXTRACTION GUIDANCE:
 - CAUSE phase: skip — schema migrations are not causal events in the Graph C sense."""
 
 
+CONVERSATIONAL_ADDENDUM = """
+
+=== CONTENT TYPE: FIRST-PERSON CONVERSATIONAL MEMORY ===
+
+The source text above is a first-person conversation (chat), not third-person
+narrative prose. This is the real product domain: a user talking about their own
+life. The DEFAULT subject is the user, who usually has NO proper name. Your job
+is to extract the USER'S LIFE FACTS — education, jobs, relationships,
+preferences, locations, events, plans — anchored to the right speaker entity.
+Do NOT drop a statement just because its subject is an unnamed "I".
+
+--- WHO IS SPEAKING: USE THE PARTICIPANTS BLOCK ---
+
+The EXTRACTION CONTEXT above contains a "## Participants" block (injected by the
+platform). It names the deterministically-resolved speaker entity ids — the USER
+entity always, and an ASSISTANT entity when assistant turns are present. These
+ids are AUTHORITATIVE.
+
+- When the Participants block is present, anchor first-person references
+  ("I", "my", "me", "myself") in a USER turn to the USER entity id GIVEN in the
+  block. Do NOT search_similar_entities / search_entity_aliases to "discover"
+  who the speaker is, and do NOT create a new entity for the speaker — the id is
+  already resolved for you. (The narrator-inference WORKFLOW 3 is the fallback
+  for prose with no Participants block; here it does not apply.)
+- First-person references in an ASSISTANT turn anchor to the ASSISTANT entity id.
+- Turn labels: a line beginning "USER:" / "Name:" marks a user turn;
+  "ASSISTANT:" / "AI:" / "Bot:" marks an assistant turn.
+
+--- SUBJECT-ANCHORING: ANCHOR THE FACT TO WHO IT IS ABOUT, NOT WHO SAID IT ---
+
+Every fact is anchored to its SUBJECT (the entity the fact is ABOUT), never to
+its speaker. The speaker is provenance only (source_text records who said it).
+
+- "I graduated with a degree in Business Administration" (USER turn)
+    → subject = USER entity (the user is the subject AND the speaker).
+- "you mentioned you graduated in Business Administration" (ASSISTANT turn,
+  about the user) → subject = USER entity. "you"/"your" resolve to the
+  ADDRESSEE — i.e. the OTHER participant in the conversation (the user, when the
+  assistant is speaking). This corroborates the user's fact; anchor it to the
+  user, NOT the assistant.
+- "I recommend trying the new framework" (ASSISTANT turn, about itself)
+    → subject = ASSISTANT entity.
+
+--- ASSISTANT POLICY: NO SELF-PROFILE ---
+
+The ASSISTANT entity exists ONLY to (a) keep assistant first-person statements
+from mis-anchoring to the user and (b) serve as speaker/provenance. Do NOT build
+an assistant self-profile. Keep assistant utterances ONLY insofar as they
+pertain to the user (corroborations, observations about the user). DROP pure
+assistant-life opinions / self-descriptions ("I think framework X is elegant",
+"as an AI I don't sleep") — they are not user facts and not worth a node.
+
+--- EXAMPLES (mirror the narrative RELATE examples, chat-shaped) ---
+
+Participants: USER = entity <user_id>. ASSISTANT = entity <assistant_id>.
+
+USER turn: "I graduated with a degree in Business Administration in 2015."
+  → create_fact(subject=<user_id>, predicate="graduated_with",
+      object_value="degree in Business Administration", confidence=0.9,
+      temporal_hint="past", source_text="I graduated with a degree in Business Administration in 2015")
+
+USER turn: "I work at Hexagon as a software engineer."
+  → resolve_entity("Hexagon", entity_type="company", ...) then
+    create_fact(subject=<user_id>, predicate="works_at", object_entity_id=<hexagon_id>, ...)
+    create_fact(subject=<user_id>, predicate="role_at", object_value="software engineer", ...)
+
+ASSISTANT turn: "You said you live in Geneva — is that still right?"
+  → subject = <user_id> (you → the user), predicate="lives_in",
+    object = Geneva. Anchored to the USER, not the assistant.
+
+ASSISTANT turn: "Honestly, I find that framework overengineered."
+  → DROP. Pure assistant self-opinion; not a user fact.
+
+All other phases (ORIENT, EXTRACT for NAMED entities like companies/places,
+CAUSE, VERIFY, REPORT) run exactly as in the base workflow. This addendum only
+changes WHO first/second-person references anchor to and that first-person
+self-facts are first-class output."""
+
+
 def _system_prompt_for(content_type: Optional[str]) -> str:
     """Pick the base prompt + optional content-type addendum."""
     ct = (content_type or "prose").lower()
@@ -574,6 +653,8 @@ def _system_prompt_for(content_type: Optional[str]) -> str:
         return GRAPH_AGENT_SYSTEM_PROMPT + CODE_TS_ADDENDUM
     if ct == "code-sql":
         return GRAPH_AGENT_SYSTEM_PROMPT + CODE_SQL_ADDENDUM
+    if ct == "conversational":
+        return GRAPH_AGENT_SYSTEM_PROMPT + CONVERSATIONAL_ADDENDUM
     return GRAPH_AGENT_SYSTEM_PROMPT
 
 
