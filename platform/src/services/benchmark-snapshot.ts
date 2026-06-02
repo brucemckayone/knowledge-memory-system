@@ -32,6 +32,7 @@ import type { Scorecard } from './graph-canonical.js';
 import type { InvariantReport } from './graph-invariants.js';
 import type { CorrectnessReport } from './graph-correctness.js';
 import type { GraphReview } from './graph-review.js';
+import type { ReportsReview } from './reports-review.js';
 
 /** Chunk-order a graph was built in: forward, a second forward (determinism), reverse (litmus). */
 export type RunOrder = 'forward' | 'forward2' | 'reverse';
@@ -129,6 +130,15 @@ export interface RunMetrics {
    * never set it stay valid.
    */
   agentReview?: Record<string, GraphReview>;
+  /**
+   * Reports review per `<mode>.<order>` (doc 39 §2.E, nmemo-hm4.8): the agents'
+   * self-reported actions cross-checked against the graph (dangling references,
+   * gardening over-claims) plus a characterization of the reports themselves
+   * (the thin/patrol-only reasoning reports observed today). DETERMINISTIC +
+   * DB-free, so the driver computes it on every run. Optional so existing
+   * runs/snapshots/tests that never set it stay valid.
+   */
+  reportsReview?: Record<string, ReportsReview>;
 }
 
 /** Per-arm trend summary persisted to one history.jsonl line. */

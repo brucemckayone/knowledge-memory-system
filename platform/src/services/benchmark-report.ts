@@ -26,6 +26,7 @@ import type { InvariantReport } from './graph-invariants.js';
 import type { CorrectnessReport } from './graph-correctness.js';
 import type { SnapshotInstrumentation, ContradictionGap } from './graph-instrumentation.js';
 import type { GraphReview, ReviewSeverity } from './graph-review.js';
+import type { ReportsReview } from './reports-review.js';
 
 /** Per-invariant cap on the offending rows we render (keeps report.md readable). */
 const MAX_VIOLATIONS_PER_INVARIANT = 20;
@@ -183,6 +184,39 @@ function agentReviewForArm(key: string, review: GraphReview, lines: string[]): v
   lines.push('');
 }
 
+/** Per-arm cap on rendered report-review discrepancies (keeps report.md readable). */
+const MAX_DISCREPANCIES_PER_ARM = 20;
+
+/**
+ * One arm's reports review (doc 39 §2.E): the self-report-vs-graph discrepancies
+ * plus the report characterization (incl. the thin/patrol-only reasoning reports).
+ */
+function reportsReviewForArm(key: string, review: ReportsReview, lines: string[]): void {
+  const { discrepancies, characterization: c } = review;
+  lines.push(`### ${key} (${discrepancies.length} discrepanc${discrepancies.length === 1 ? 'y' : 'ies'})`);
+  lines.push('');
+  const modes = Object.entries(c.reasoningByMode)
+    .map(([m, n]) => `${m}=${n}`)
+    .join(', ');
+  lines.push(
+    `- reports: ${c.extractionCount} extraction / ${c.gardeningCount} gardening / ${c.reasoningCount} reasoning`,
+  );
+  lines.push(
+    `- reasoning by mode: ${modes || 'none'}; thin/patrol-only: ${c.thinReasoningReports}/${c.reasoningCount}`,
+  );
+  lines.push(`- gardening actions total: ${c.gardeningActionsTotal}`);
+  if (discrepancies.length === 0) {
+    lines.push('- no report-vs-graph discrepancies.');
+  } else {
+    lines.push('- discrepancies:');
+    const shown = discrepancies.slice(0, MAX_DISCREPANCIES_PER_ARM);
+    for (const d of shown) lines.push(`  - [${d.kind}/${d.reportType}] ${d.detail}`);
+    const hidden = discrepancies.length - shown.length;
+    if (hidden > 0) lines.push(`  - … and ${hidden} more`);
+  }
+  lines.push('');
+}
+
 /**
  * Build the human-readable per-run report (doc 39 §3.4). Pure. `opts.trend`, if
  * provided, is inserted verbatim as the trend section (built by
@@ -250,6 +284,17 @@ export function buildRunReport(
     lines.push('');
     for (const key of Object.keys(metrics.agentReview).sort()) {
       agentReviewForArm(key, metrics.agentReview[key]!, lines);
+    }
+  }
+
+  // Reports review (per <mode>.<order>) — self-report-vs-graph discrepancies +
+  // report characterization (doc 39 §2.E, nmemo-hm4.8). DETERMINISTIC, so it's
+  // present on every run; older snapshots without it are skipped.
+  if (metrics.reportsReview && Object.keys(metrics.reportsReview).length > 0) {
+    lines.push('## Reports review');
+    lines.push('');
+    for (const key of Object.keys(metrics.reportsReview).sort()) {
+      reportsReviewForArm(key, metrics.reportsReview[key]!, lines);
     }
   }
 

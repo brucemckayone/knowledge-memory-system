@@ -32,6 +32,7 @@ import { runInvariants, type InvariantReport } from '../src/services/graph-invar
 import { scoreAgainstGold, type GoldGraph, type CorrectnessReport } from '../src/services/graph-correctness.js';
 import { deriveInstrumentation, contradictionGap } from '../src/services/graph-instrumentation.js';
 import { reviewGraph, type GraphReview } from '../src/services/graph-review.js';
+import { reviewReports, type ReportsReview } from '../src/services/reports-review.js';
 import type { RichGraph } from '../src/services/graph-canonical-query.js';
 import {
   writeRunSnapshot,
@@ -180,6 +181,12 @@ async function main(): Promise<void> {
   const invariants: Record<string, InvariantReport> = {};
   for (const a of artifacts) invariants[`${a.mode}.${a.order}`] = runInvariants(a.rich as RichGraph);
 
+  // Reports review (doc 39 §2.E, nmemo-hm4.8): cross-check each captured rich
+  // graph's agent self-reports (extraction/gardening/reasoning) against the
+  // graph + characterize them. Pure + DB-free, so always-on; keyed `<mode>.<order>`.
+  const reportsReview: Record<string, ReportsReview> = {};
+  for (const a of artifacts) reportsReview[`${a.mode}.${a.order}`] = reviewReports(a.rich as RichGraph);
+
   // Ground-truth correctness vs the authored gold reference, keyed by
   // `<mode>.<order>` (doc 39 section 2.A, nmemo-hm4.4). The gold file is keyed
   // off the corpus basename; absent gold leaves correctness empty (no throw) so
@@ -309,7 +316,7 @@ async function main(): Promise<void> {
     },
     model: process.env.LLM_PROVIDER ?? 'pi',
   });
-  const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode, invariants, correctness, perStep };
+  const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode, invariants, correctness, perStep, reportsReview };
   // Only attach agentReview when --review ran (keep it OFF the metrics on a plain run).
   if (agentReview) metrics.agentReview = agentReview;
 
