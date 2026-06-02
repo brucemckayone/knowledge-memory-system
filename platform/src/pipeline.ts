@@ -6,7 +6,7 @@
  * ingest(text)  → store + extract (the default entry point)
  */
 
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemory, storeMemoryWithUnits, getMemory } from './services/qdrant.js';
 import { config } from './config.js';
@@ -17,7 +17,7 @@ import { applyConfidenceDecay } from './services/causal.js';
 import { detectContradictions } from './services/contradictions.js';
 import { updateEntityMeta, detectMergeCandidates } from './services/graph-meta.js';
 import { db } from './db/index.js';
-import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports, mergeCandidates, entityAliases } from './db/schema.js';
+import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports, mergeCandidates, entityAliases, factUnits } from './db/schema.js';
 import { eq, inArray, sql } from 'drizzle-orm';
 
 export interface ExtractResult {
@@ -268,6 +268,101 @@ export function splitIntoUnits(
   return units;
 }
 
+// The RFC-4122 v5 URL namespace, used as the fixed namespace for unit point
+// ids. Any stable UUID works as the namespace — the per-window uniqueness comes
+// from feeding the memoryId into the name. Constant here so the scheme is
+// reproducible across processes.
+const UNIT_ID_NAMESPACE = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
+
+/**
+ * Deterministic unit satellite point id (nmemo-yxj.6 enabler).
+ *
+ * yxj.2 originally minted unit ids with randomUUID(), so they lived ONLY in the
+ * Qdrant payload and could not be reconstructed offline. extract() needs the
+ * real unit ids to write fact_units links, which would otherwise force a read
+ * of the shared Qdrant 'memories' collection. Deriving the id as
+ * uuidv5(memoryId, unitIndex) instead makes it a pure function of
+ * (memoryId, index): store() writes the same payload under this id, and
+ * extract() recomputes the identical id from the window text + splitIntoUnits
+ * index with ZERO Qdrant reads. Re-storing/re-extracting the same window is now
+ * idempotent at the id level.
+ *
+ * Implemented as a hand-rolled RFC-4122 v5 (SHA-1 of namespace||name) so we add
+ * no dependency — the `uuid` package is not installed and CLAUDE.md sanctions
+ * `crypto`. Output is a canonical lowercase UUID string, matching the TEXT
+ * shape Qdrant accepts and fact_units.unit_point_id stores.
+ */
+export function unitPointId(memoryId: string, unitIndex: number): string {
+  const nsBytes = Buffer.from(UNIT_ID_NAMESPACE.replace(/-/g, ''), 'hex');
+  const nameBytes = Buffer.from(`${memoryId}:${unitIndex}`, 'utf8');
+  const hash = createHash('sha1').update(nsBytes).update(nameBytes).digest();
+  const bytes = hash.subarray(0, 16);
+  // Set version (5) and RFC-4122 variant bits.
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+/** A computed fact->unit evidentiary link (pre-persist shape for fact_units). */
+export interface FactUnitLink {
+  unitPointId: string;
+  charStart: number | null;
+  charEnd: number | null;
+  matchKind: 'offset_overlap' | 'window_fallback';
+}
+
+/**
+ * Map a fact's source_text span to the embedding unit(s) that evidence it
+ * (nmemo-yxj.6). PURE: given the parent window content, the fact's verbatim
+ * source_text, and the window's memoryId, it locates the span and returns one
+ * link per overlapping unit — no Qdrant, no embedding, no DB.
+ *
+ * - Units come from the same splitIntoUnits the writer used, so their indices
+ *   (and thus deterministic unitPointId) line up with what store() persisted.
+ * - A span overlaps a unit when [spanStart,spanEnd) intersects
+ *   [unit.charStart,unit.charEnd) (half-open; touching-at-a-boundary does NOT
+ *   overlap). A span straddling a boundary maps to BOTH units — overlap in
+ *   splitIntoUnits guarantees at least one unit contains it whole, but we keep
+ *   every overlapping unit so the fallback can rank them.
+ * - Fallback to a single window_fallback row (keyed on the window's own point
+ *   id = memoryId) when source_text is empty/null, is not found verbatim, or
+ *   repeats (indexOf vs lastIndexOf disagree → ambiguous offset).
+ */
+export function mapFactToUnits(
+  memoryId: string,
+  windowContent: string,
+  sourceText: string | null | undefined,
+  units: EmbeddingUnit[],
+): FactUnitLink[] {
+  const windowFallback = (): FactUnitLink[] => [
+    { unitPointId: memoryId, charStart: null, charEnd: null, matchKind: 'window_fallback' },
+  ];
+
+  if (!sourceText) return windowFallback();
+  const first = windowContent.indexOf(sourceText);
+  if (first === -1) return windowFallback();
+  // Repeats are ambiguous — we cannot say which occurrence the fact meant.
+  if (windowContent.lastIndexOf(sourceText) !== first) return windowFallback();
+
+  const spanStart = first;
+  const spanEnd = first + sourceText.length;
+  const links: FactUnitLink[] = [];
+  units.forEach((u, i) => {
+    // Half-open overlap: spanStart < unit.charEnd AND unit.charStart < spanEnd.
+    if (spanStart < u.charEnd && u.charStart < spanEnd) {
+      links.push({
+        unitPointId: unitPointId(memoryId, i),
+        charStart: u.charStart,
+        charEnd: u.charEnd,
+        matchKind: 'offset_overlap',
+      });
+    }
+  });
+  // A zero-length unit set (e.g. empty window) degrades to window fallback.
+  return links.length > 0 ? links : windowFallback();
+}
+
 /**
  * Store raw text in Qdrant with embedding. Fast — just embed + store.
  * Returns the memoryId which can be used for later extraction.
@@ -326,7 +421,10 @@ export async function store(
       },
     },
     units: units.map((u, i) => ({
-      id: randomUUID(),
+      // Deterministic id (nmemo-yxj.6 enabler): uuidv5(memoryId, unitIndex)
+      // instead of randomUUID() so extract() can recompute the same id from the
+      // window text alone and write fact_units links with ZERO Qdrant reads.
+      id: unitPointId(memoryId, i),
       vector: unitEmbeds[i]!.vector,
       payload: {
         point_type: 'unit',
@@ -446,7 +544,7 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
       }))
     : [];
 
-  const createdFacts: CreatedFact[] = (await db
+  const factRows = await db
     .select({
       id: factsTable.id,
       subjectEntityId: factsTable.subjectEntityId,
@@ -454,10 +552,42 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
       objectEntityId: factsTable.objectEntityId,
       objectValue: factsTable.objectValue,
       confidence: factsTable.confidence,
+      sourceText: factsTable.sourceText,
     })
     .from(factsTable)
-    .where(eq(factsTable.sourceMemoryId, memoryId))
-  ).map(f => {
+    .where(eq(factsTable.sourceMemoryId, memoryId));
+
+  // nmemo-yxj.6: write the ADDITIVE fact->unit evidentiary links. Pure offset
+  // mapping of each fact's verbatim source_text span onto the window's units
+  // (recomputed from `content` via the SAME splitIntoUnits the writer used, so
+  // unit indices — and thus the deterministic unitPointId — line up with what
+  // store() persisted). Zero Qdrant reads, zero embeddings. Best-effort: a
+  // failure here logs but never blocks extraction, and never touches the
+  // canonical facts.source_memory_id (satellite invariant). Idempotent
+  // re-writes via ON CONFLICT DO NOTHING (stable ids make re-extract a no-op).
+  if (factRows.length > 0) {
+    const tUnits = Date.now();
+    try {
+      const units = splitIntoUnits(content);
+      const linkRows = factRows.flatMap((f) =>
+        mapFactToUnits(memoryId, content, f.sourceText, units).map((l) => ({
+          factId: f.id,
+          unitPointId: l.unitPointId,
+          charStart: l.charStart,
+          charEnd: l.charEnd,
+          matchKind: l.matchKind,
+        })),
+      );
+      if (linkRows.length > 0) {
+        await db.insert(factUnits).values(linkRows).onConflictDoNothing();
+      }
+    } catch (err) {
+      console.warn('[pipeline] failed to write fact_units links (continuing):', err instanceof Error ? err.message : err);
+    }
+    timing.factUnits = Date.now() - tUnits;
+  }
+
+  const createdFacts: CreatedFact[] = factRows.map(f => {
     const subjectName = resolvedEntities.find(e => e.id === f.subjectEntityId)?.canonicalName ?? f.subjectEntityId;
     const objectName = f.objectEntityId
       ? resolvedEntities.find(e => e.id === f.objectEntityId)?.canonicalName ?? f.objectEntityId

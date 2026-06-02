@@ -181,6 +181,44 @@ export type FactSource = typeof factSources.$inferSelect;
 export type NewFactSource = typeof factSources.$inferInsert;
 
 /**
+ * Fact Units (nmemo-yxj.6)
+ *
+ * ADDITIVE evidentiary index: links a fact to the small embedding unit(s)
+ * (epic nmemo-yxj / yxj.2) whose char offsets cover the fact's source_text
+ * span within its parent window. A SECOND, finer grain on top of the canonical
+ * provenance — facts.source_memory_id STAYS the parent window and is never
+ * moved onto units (the satellite invariant). Resolved persistence target per
+ * design doc 38 §7 (graph-anchored fallback retrieval).
+ *
+ * unit_point_id is a STORED REFERENCE to a Qdrant unit satellite point id, NOT
+ * an FK — units live in the Qdrant 'memories' collection, not Postgres. The
+ * fallback join is fact_units -> unit_point_id -> Qdrant retrieve. Unit ids are
+ * deterministic (uuidv5(memoryId, unitIndex) — see unitPointId in pipeline.ts)
+ * so extract() reconstructs them from the window text alone (zero Qdrant reads).
+ *
+ * match_kind: 'offset_overlap' when the source_text span was located verbatim
+ * in the window and mapped to overlapping unit(s); 'window_fallback' (a single
+ * row keyed on the parent window id) when the span is not verbatim or repeats.
+ *
+ * Defined in mig 038_fact_units.sql.
+ */
+export const factUnits = pgTable('fact_units', {
+  factId: uuid('fact_id').notNull().references(() => facts.id, { onDelete: 'cascade' }),
+  unitPointId: text('unit_point_id').notNull(),
+  charStart: integer('char_start'),
+  charEnd: integer('char_end'),
+  matchKind: varchar('match_kind', { length: 20 }).default('offset_overlap').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.factId, t.unitPointId] }),
+  byFact: index('idx_fact_units_fact').on(t.factId),
+  byUnit: index('idx_fact_units_unit').on(t.unitPointId),
+}));
+
+export type FactUnit = typeof factUnits.$inferSelect;
+export type NewFactUnit = typeof factUnits.$inferInsert;
+
+/**
  * Fact Predicates
  *
  * Ontology of relationship types
