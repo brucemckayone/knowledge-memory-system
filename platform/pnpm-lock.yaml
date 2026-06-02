@@ -50,6 +50,9 @@ importers:
       postgres:
         specifier: ^3.4.3
         version: 3.4.8
+      undici:
+        specifier: ^7.24.4
+        version: 7.24.4
       ws:
         specifier: ^8.16.0
         version: 8.19.0
@@ -2848,8 +2851,8 @@ packages:
     resolution: {integrity: sha512-VfQPToRA5FZs/qJxLIinmU59u0r7LXqoJkCzinq3ckNJp3vKEh7jTWN589YQ5+aoAC/TGRLyJLCPKcLQbM8r9g==}
     engines: {node: '>=18.17'}
 
-  undici@7.25.0:
-    resolution: {integrity: sha512-xXnp4kTyor2Zq+J1FfPI6Eq3ew5h6Vl0F/8d9XU5zZQf1tX9s2Su1/3PiMmUANFULpmksxkClamIZcaUqryHsQ==}
+  undici@7.24.4:
+    resolution: {integrity: sha512-BM/JzwwaRXxrLdElV2Uo6cTLEjhSb3WXboncJamZ15NgUURmvlXvxa6xkwIOILIjPNo9i8ku136ZvWV0Uly8+w==}
     engines: {node: '>=20.18.1'}
 
   unpipe@1.0.0:
@@ -3840,7 +3843,7 @@ snapshots:
       partial-json: 0.1.7
       proxy-agent: 6.5.0
       typebox: 1.1.38
-      undici: 7.25.0
+      undici: 7.24.4
       zod-to-json-schema: 3.25.2(zod@3.25.76)
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
@@ -3871,7 +3874,7 @@ snapshots:
       proper-lockfile: 4.1.2
       strip-ansi: 7.2.0
       typebox: 1.1.38
-      undici: 7.25.0
+      undici: 7.24.4
       uuid: 14.0.0
       yaml: 2.9.0
     optionalDependencies:
@@ -6080,7 +6083,7 @@ snapshots:
 
   undici@6.23.0: {}
 
-  undici@7.25.0: {}
+  undici@7.24.4: {}
 
   unpipe@1.0.0: {}
 

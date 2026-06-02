@@ -16,6 +16,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { writeFileSync } from 'node:fs';
 import { spawn } from 'child_process';
+import { Agent } from 'undici';
 import dotenv from 'dotenv';
 import { getEntityFacts, createFact, expireFact, invalidateFact, updateFactConfidence, restoreFact, getFactSources } from './facts.js';
 import { findConnectedEntities } from './graph.js';
@@ -3074,6 +3075,35 @@ export class AgentInvocationTimeoutError extends Error {
  * mutates the graph. A retry-on-timeout would compound the leak rather than
  * recover from it.
  */
+/**
+ * Build a per-request undici dispatcher whose header/body read timeouts are
+ * widened to cover the full agent timeout budget. Without this, Node's global
+ * fetch (undici) applies its DEFAULT headersTimeout (~300s) which fires
+ * INDEPENDENTLY of the AbortController below. The /graph-agent endpoint runs
+ * the whole Haiku tool-use agent synchronously before emitting response
+ * headers, so a large chunk (~6000 chars) can take >5min and the fetch would
+ * die with UND_ERR_HEADERS_TIMEOUT long before our AbortController fires.
+ *
+ * We pin undici to match Node's bundled version (process.versions.undici);
+ * a mismatched major (e.g. standalone 8.x vs bundled 7.x) makes global fetch
+ * reject the dispatcher with UND_ERR_INVALID_ARG. See bead nmemo-8w5 and
+ * doc 33 implementation lessons.
+ *
+ * Memoized per timeoutMs so we reuse connection pools across agent calls
+ * without constructing a fresh Agent each time. The AbortController remains the
+ * authoritative hard timeout; these dispatcher timeouts are deliberately set
+ * equal to it so undici never pre-empts the app-level deadline.
+ */
+const agentDispatchers = new Map<number, Agent>();
+export function makeAgentDispatcher(timeoutMs: number): Agent {
+  let dispatcher = agentDispatchers.get(timeoutMs);
+  if (!dispatcher) {
+    dispatcher = new Agent({ headersTimeout: timeoutMs, bodyTimeout: timeoutMs });
+    agentDispatchers.set(timeoutMs, dispatcher);
+  }
+  return dispatcher;
+}
+
 export async function agentFetch<T>(opts: {
   agent: 'reasoning_agent' | 'graph_agent' | 'gardener_agent';
   url: string;
@@ -3088,7 +3118,11 @@ export async function agentFetch<T>(opts: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(opts.body),
       signal: controller.signal,
-    });
+      // Per-request dispatcher only — never setGlobalDispatcher (would also
+      // widen timeouts on health checks, mlFetch, etc.). Cast: `dispatcher`
+      // is a valid undici RequestInit field but absent from the DOM fetch lib types.
+      dispatcher: makeAgentDispatcher(opts.timeoutMs),
+    } as RequestInit & { dispatcher: Agent });
 
     if (!response.ok) {
       const detail = await response.text().catch(() => response.statusText);
