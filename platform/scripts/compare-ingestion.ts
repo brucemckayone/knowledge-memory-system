@@ -1,26 +1,44 @@
 #!/usr/bin/env tsx
 /**
- * compare-ingestion.ts — drive the parallel-ingestion comparison (doc 38).
+ * compare-ingestion.ts — drive the parallel-ingestion comparison (doc 38) and
+ * persist each run for the validity & quality harness (doc 39 §3.2).
  *
  * Runs one corpus (a JSON array of chunk strings — e.g. one longmemeval
  * question's sessions) through each pipeline arm against a LIVE platform,
- * captures the canonical graph after each, and prints the scorecard:
- * determinism/litmus (forward vs reverse), structural diff vs the serial
- * baseline, duplicate-entity/fact counts, and wall-clock throughput.
+ * captures the canonical + rich graph after each arm/order, prints the
+ * scorecard (determinism/litmus forward-vs-reverse, structural diff vs the
+ * serial baseline, dup counts, wall-clock), and writes a snapshot under
+ * benchmark-results/runs/<runId>/ plus one history.jsonl trend line.
  *
  * Usage:
  *   tsx scripts/compare-ingestion.ts --chunks corpus.json \
- *     [--url http://127.0.0.1:3000] [--modes serial,epoch,optimistic] [--no-litmus]
+ *     [--url http://127.0.0.1:3000] [--modes serial,epoch,optimistic] \
+ *     [--no-litmus] [--determinism] [--out <dir>] [--run-id <id>]
  *
  * Requires the full stack (Postgres/Qdrant + ML services + Ollama). This is the
- * benchmark driver, not a unit test — the pure scorecard logic it uses
- * (buildScorecard) is unit-tested in src/test/services/harness.unit.test.ts.
+ * benchmark driver, not a unit test — the pure logic it uses (buildScorecard;
+ * buildManifest / buildHistoryLine / buildReportMd / writeRunSnapshot) is
+ * unit-tested under src/test/services/.
  */
 
 import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { basename, dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Agent, setGlobalDispatcher } from 'undici';
 import { buildScorecard, type ArmRun, type CanonicalGraph } from '../src/services/graph-canonical.js';
 import { semanticDiff, type SemanticDiff } from '../src/services/graph-canonical-semantic.js';
+import {
+  writeRunSnapshot,
+  appendHistoryLine,
+  buildManifest,
+  buildHistoryLine,
+  buildReportMd,
+  type ArmArtifact,
+  type RunOrder,
+  type RunMetrics,
+  type SemanticSummary,
+} from '../src/services/benchmark-snapshot.js';
 
 // A synchronous batch ingest holds one HTTP request open until the server has
 // processed every chunk — a 10-chunk serial run is ~970s. That exceeds undici's
@@ -45,6 +63,9 @@ const modes = arg('modes', 'serial,epoch,optimistic')!
   .filter(Boolean);
 const doLitmus = !has('no-litmus');
 const doDeterminism = has('determinism'); // run each mode forward twice → the LLM noise floor
+const outRoot = arg('out', join(dirname(fileURLToPath(import.meta.url)), '..', 'benchmark-results'))!;
+// Filesystem-safe timestamp runId; --run-id overrides (doc 39 §3.2: driver-stamped).
+const runId = arg('run-id', new Date().toISOString().replace(/[:.]/g, '-'))!;
 
 if (!chunksFile) {
   console.error('Missing --chunks <file.json> (a JSON array of chunk strings).');
@@ -56,6 +77,14 @@ if (!Array.isArray(chunks) || chunks.some((c) => typeof c !== 'string')) {
   process.exit(1);
 }
 const corpus = chunks as string[];
+
+function gitCommit(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
 
 async function post(path: string, body?: unknown): Promise<Response> {
   return fetch(`${URL}${path}`, {
@@ -71,10 +100,19 @@ async function captureCanonical(): Promise<CanonicalGraph> {
   return (await res.json()) as CanonicalGraph;
 }
 
+// Rich dump (doc 39 §3.1) — persisted verbatim; the driver doesn't interpret it
+// (kept as unknown to avoid pulling the DB-backed graph-canonical-query module
+// into the script).
+async function captureRich(): Promise<unknown> {
+  const res = await fetch(`${URL}/api/graph/full`);
+  if (!res.ok) throw new Error(`rich capture failed (${res.status})`);
+  return await res.json();
+}
+
 async function ingestAndCapture(
   mode: string,
   orderedChunks: string[],
-): Promise<{ graph: CanonicalGraph; wallClockMs: number }> {
+): Promise<{ graph: CanonicalGraph; rich: unknown; wallClockMs: number }> {
   const resetRes = await post('/api/reset');
   if (!resetRes.ok) throw new Error(`reset failed (${resetRes.status})`);
   const t0 = Date.now();
@@ -83,26 +121,32 @@ async function ingestAndCapture(
     const detail = await res.text().catch(() => res.statusText);
     throw new Error(`ingest ${mode} failed (${res.status}): ${detail}`);
   }
-  return { graph: await captureCanonical(), wallClockMs: Date.now() - t0 };
+  const graph = await captureCanonical();
+  const rich = await captureRich();
+  return { graph, rich, wallClockMs: Date.now() - t0 };
 }
 
 async function main(): Promise<void> {
-  console.log(`[compare] url=${URL} chunks=${corpus.length} modes=${modes.join(',')} litmus=${doLitmus} determinism=${doDeterminism}`);
+  console.log(`[compare] url=${URL} chunks=${corpus.length} modes=${modes.join(',')} litmus=${doLitmus} determinism=${doDeterminism} runId=${runId}`);
   const runs: ArmRun[] = [];
   const determinismGraph: Record<string, CanonicalGraph> = {};
+  const artifacts: ArmArtifact[] = [];
   for (const mode of modes) {
     console.log(`\n[compare] === ${mode} (forward) ===`);
     const fwd = await ingestAndCapture(mode, corpus);
+    artifacts.push({ mode, order: 'forward', canonical: fwd.graph, rich: fwd.rich });
     const run: ArmRun = { mode, graph: fwd.graph, wallClockMs: fwd.wallClockMs };
     if (doDeterminism) {
       console.log(`[compare] === ${mode} (forward #2 — determinism) ===`);
       const fwd2 = await ingestAndCapture(mode, corpus);
       determinismGraph[mode] = fwd2.graph;
+      artifacts.push({ mode, order: 'forward2', canonical: fwd2.graph, rich: fwd2.rich });
     }
     if (doLitmus) {
       console.log(`[compare] === ${mode} (reverse — litmus) ===`);
       const rev = await ingestAndCapture(mode, [...corpus].reverse());
       run.reverseGraph = rev.graph;
+      artifacts.push({ mode, order: 'reverse', canonical: rev.graph, rich: rev.rich });
     }
     runs.push(run);
   }
@@ -132,14 +176,44 @@ async function main(): Promise<void> {
   const fmt = (d: SemanticDiff | null): string => (d ? `${f2(d.entity.f1)}/${f2(d.fact.f1)}` : '    -    ');
   console.log('\n===== SEMANTIC SCORECARD (entityF1/factF1) =====');
   console.log('mode        | determinism | litmus(fwd|rev) | vsBaseline');
+  const semanticByMode: Record<string, SemanticSummary> = {};
   for (const run of runs) {
     const detG = determinismGraph[run.mode];
     const det = detG ? semanticDiff(run.graph, detG) : null;
     const lit = run.reverseGraph ? semanticDiff(run.graph, run.reverseGraph) : null;
     const vsb = baseRun && run.mode !== baselineMode ? semanticDiff(run.graph, baseRun.graph) : null;
+    const toF1 = (d: SemanticDiff | null) => (d ? { entity: d.entity.f1, fact: d.fact.f1 } : null);
+    semanticByMode[run.mode] = { determinismF1: toF1(det), litmusF1: toF1(lit), vsBaselineF1: toF1(vsb) };
     const vsbStr = run.mode === baselineMode ? 'baseline' : fmt(vsb);
     console.log(`${run.mode.padEnd(11)} | ${fmt(det).padStart(11)} | ${fmt(lit).padStart(15)} | ${vsbStr}`);
   }
+
+  // --- persist the run (doc 39 §3.2) ---
+  const orders: RunOrder[] = ['forward'];
+  if (doDeterminism) orders.push('forward2');
+  if (doLitmus) orders.push('reverse');
+  const timestamp = new Date().toISOString();
+  const commit = gitCommit();
+  const manifest = buildManifest({
+    runId,
+    timestamp,
+    gitCommit: commit,
+    corpus: basename(chunksFile),
+    chunkCount: corpus.length,
+    modes,
+    orders,
+    concurrency: {
+      epoch: process.env.EPOCH_CONCURRENCY ?? '6',
+      optimistic: process.env.OPTIMISTIC_CONCURRENCY ?? '6',
+    },
+    model: process.env.LLM_PROVIDER ?? 'pi',
+  });
+  const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode };
+  const reportMd = buildReportMd(manifest, scorecard, semanticByMode);
+  const runDir = writeRunSnapshot(outRoot, { manifest, metrics, reportMd, arms: artifacts });
+  appendHistoryLine(outRoot, buildHistoryLine({ runId, timestamp, gitCommit: commit, corpus: manifest.corpus }, scorecard, semanticByMode));
+  console.log(`\n[compare] snapshot written → ${runDir}`);
+  console.log(`[compare] history appended → ${join(outRoot, 'history.jsonl')}`);
 }
 
 main().catch((err) => {

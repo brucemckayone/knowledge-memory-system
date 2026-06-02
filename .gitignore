@@ -66,8 +66,12 @@ test-data/
 platform/test-snapshots/
 
 # Benchmark harness scratch — throwaway venv, generated dashboards, one-off
-# analysis scripts. doc 39's snapshot store (benchmark-results/runs, gold) can
-# be carved out as tracked when that lands.
+# analysis scripts. doc 39's snapshot store (nmemo-hm4.2 retention decision):
+# history.jsonl + gold/ + per-run manifest.json/metrics.json/report.md are
+# TRACKED (trend over commits, §3.3); the bulky regenerable per-run graph dumps
+# (*.canonical.json / *.rich.json) are ignored.
 platform/benchmark-results/.venv/
 platform/benchmark-results/*.png
 platform/benchmark-results/*.py
+platform/benchmark-results/runs/**/*.canonical.json
+platform/benchmark-results/runs/**/*.rich.json
