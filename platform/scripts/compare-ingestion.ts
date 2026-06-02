@@ -78,9 +78,12 @@ const doDeterminism = has('determinism'); // run each mode forward twice → the
 const repeats = Math.max(1, Math.trunc(Number(arg('repeats', '1'))) || 1);
 // Agent review (doc 39 §2.D, nmemo-hm4.7) — OFF by default. When on, a STRONG
 // judge model reviews each forward arm AFTER the artifacts are captured. A plain
-// run never calls the judge. --judge-model overrides the model (provider/model).
+// run never calls the judge. --judge-model overrides the model (provider/model,
+// default anthropic/claude-opus-4-8); --judge-thinking overrides the effort level
+// (off|minimal|low|medium|high, default high).
 const doReview = has('review');
 const judgeModel = arg('judge-model');
+const judgeThinking = arg('judge-thinking');
 const outRoot = arg('out', join(dirname(fileURLToPath(import.meta.url)), '..', 'benchmark-results'))!;
 // Filesystem-safe timestamp runId; --run-id overrides (doc 39 §3.2: driver-stamped).
 const runId = arg('run-id', new Date().toISOString().replace(/[:.]/g, '-'))!;
@@ -296,7 +299,10 @@ async function main(): Promise<void> {
       try {
         agentReview[key] = await reviewGraph(
           { corpus, graph: a.rich as RichGraph, invariants: invariants[key]! },
-          judgeModel ? { model: judgeModel } : {},
+          {
+            ...(judgeModel ? { model: judgeModel } : {}),
+            ...(judgeThinking ? { thinking: judgeThinking } : {}),
+          },
         );
         console.log(`[compare]   verdict=${agentReview[key]!.verdict} issues=${agentReview[key]!.issues.length}`);
       } catch (err) {

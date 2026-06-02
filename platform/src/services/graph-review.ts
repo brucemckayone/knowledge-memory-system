@@ -75,19 +75,29 @@ export interface ReviewInput {
 }
 
 export interface ReviewOptions {
-  /** `provider/model` (e.g. "anthropic/claude-sonnet-4-20250514"); falls back to JUDGE_MODEL then {@link DEFAULT_JUDGE_MODEL}. */
+  /** `provider/model` (e.g. "anthropic/claude-opus-4-8"); falls back to JUDGE_MODEL then {@link DEFAULT_JUDGE_MODEL}. */
   model?: string;
+  /** Pi thinking/effort level: "off"|"minimal"|"low"|"medium"|"high"; falls back to JUDGE_THINKING then {@link DEFAULT_JUDGE_THINKING}. */
+  thinking?: string;
   /** Override the model call — the unit-test seam (inject a fake; the real default hits the Pi bridge). */
-  invoke?: (prompt: string, model: string) => Promise<string>;
+  invoke?: (prompt: string, model: string, thinking: string) => Promise<string>;
 }
 
 /**
- * Default judge model. A STRONG model, NOT the Haiku/GLM the pipeline runs under:
- * Haiku-first is a *pipeline* rule, the judge should be less noisy than what it
- * grades (doc 39 §6 #2). `provider/model` form so a single JUDGE_MODEL env var
- * carries both; the default routes to Anthropic Sonnet via the Pi bridge.
+ * Default judge model. The STRONGEST model available, NOT the Haiku/GLM the
+ * pipeline runs under: Haiku-first is a *pipeline* rule, and a judge must be less
+ * noisy than what it grades (doc 39 §6 #2). `provider/model` form so a single
+ * JUDGE_MODEL env var carries both; routes to Anthropic Opus 4.8 via the Pi bridge.
  */
-export const DEFAULT_JUDGE_MODEL = 'anthropic/claude-sonnet-4-20250514';
+export const DEFAULT_JUDGE_MODEL = 'anthropic/claude-opus-4-8';
+
+/**
+ * Default thinking/effort for the judge: "high" — the Pi bridge's MAX level
+ * (the ladder is "off"|"minimal"|"low"|"medium"|"high"). A judge grading the
+ * pipeline reasons at maximum effort. Override via JUDGE_THINKING or
+ * {@link ReviewOptions.thinking}.
+ */
+export const DEFAULT_JUDGE_THINKING = 'high';
 
 // ============================================
 // Prompt assembly (pure)
@@ -404,7 +414,7 @@ export function parseReviewResponse(raw: string): GraphReview {
  * and the remainder is the model id. A bare model (no `/`) defaults to provider
  * `anthropic`.
  */
-async function defaultInvoke(prompt: string, model: string): Promise<string> {
+async function defaultInvoke(prompt: string, model: string, thinking: string): Promise<string> {
   const { config } = await import('../config.js');
   const slash = model.indexOf('/');
   const provider = slash > 0 ? model.slice(0, slash) : 'anthropic';
@@ -422,7 +432,7 @@ async function defaultInvoke(prompt: string, model: string): Promise<string> {
         system_prompt: 'You are a strict knowledge-graph reviewer. Return strict JSON only.',
         provider,
         model: modelId,
-        thinking: 'off',
+        thinking,
         actor: 'reasoning_agent',
         timeout: Math.floor(config.REASONING_AGENT_TIMEOUT_MS / 1000),
       }),
@@ -443,13 +453,15 @@ async function defaultInvoke(prompt: string, model: string): Promise<string> {
 /**
  * Run the agent review over a graph + invariants (+ optional corpus/reports).
  * Resolves the judge model (opts.model → JUDGE_MODEL env → {@link DEFAULT_JUDGE_MODEL},
- * a STRONG model) and the invoker (opts.invoke → {@link defaultInvoke}), then
- * returns `parseReviewResponse(await invoke(buildReviewPrompt(input), model))`.
- * Inject `opts.invoke` to test without a live judge.
+ * Opus 4.8) and thinking level (opts.thinking → JUDGE_THINKING env →
+ * {@link DEFAULT_JUDGE_THINKING}, "high") and the invoker (opts.invoke →
+ * {@link defaultInvoke}), then returns the parsed verdict + issue list. Inject
+ * `opts.invoke` to test without a live judge.
  */
 export async function reviewGraph(input: ReviewInput, opts: ReviewOptions = {}): Promise<GraphReview> {
   const model = opts.model ?? process.env.JUDGE_MODEL ?? DEFAULT_JUDGE_MODEL;
+  const thinking = opts.thinking ?? process.env.JUDGE_THINKING ?? DEFAULT_JUDGE_THINKING;
   const invoke = opts.invoke ?? defaultInvoke;
-  const raw = await invoke(buildReviewPrompt(input), model);
+  const raw = await invoke(buildReviewPrompt(input), model, thinking);
   return parseReviewResponse(raw);
 }

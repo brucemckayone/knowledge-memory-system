@@ -296,22 +296,30 @@ describe('reviewGraph', () => {
     expect(review.verdict).toBe('pass');
   });
 
-  it('defaults to a STRONG judge model when none is given', async () => {
+  it('defaults to the strongest judge model (Opus 4.8) at max thinking when none is given', async () => {
     let seenModel = '';
-    const prevEnv = process.env.JUDGE_MODEL;
+    let seenThinking = '';
+    const prevModel = process.env.JUDGE_MODEL;
+    const prevThinking = process.env.JUDGE_THINKING;
     delete process.env.JUDGE_MODEL;
+    delete process.env.JUDGE_THINKING;
     try {
-      const fakeInvoke = async (_prompt: string, model: string): Promise<string> => {
+      const fakeInvoke = async (_prompt: string, model: string, thinking: string): Promise<string> => {
         seenModel = model;
+        seenThinking = thinking;
         return '{"verdict":"pass","issues":[]}';
       };
       await reviewGraph({ graph: brokenGraph(), invariants: PASS_INVARIANTS }, { invoke: fakeInvoke });
       expect(seenModel).toBe(DEFAULT_JUDGE_MODEL);
-      // The default must be a strong model, not Haiku/GLM (doc 39 §6 #2).
+      expect(seenModel).toBe('anthropic/claude-opus-4-8');
+      // The default must be the strong model, not Haiku/GLM (doc 39 §6 #2)...
       expect(seenModel.toLowerCase()).not.toContain('haiku');
       expect(seenModel.toLowerCase()).not.toContain('glm');
+      // ...reasoning at the bridge's max thinking level.
+      expect(seenThinking).toBe('high');
     } finally {
-      if (prevEnv !== undefined) process.env.JUDGE_MODEL = prevEnv;
+      if (prevModel !== undefined) process.env.JUDGE_MODEL = prevModel;
+      if (prevThinking !== undefined) process.env.JUDGE_THINKING = prevThinking;
     }
   });
 
