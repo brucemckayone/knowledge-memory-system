@@ -14,7 +14,7 @@ import httpx
 
 from _common.config import HTTP_TIMEOUT_SECONDS, PLATFORM_BASE_URL
 
-ContentType = Literal["prose", "code-ts", "code-sql"]
+ContentType = Literal["prose", "code-ts", "code-sql", "conversational"]
 
 
 class MnemoClientError(RuntimeError):
@@ -52,14 +52,24 @@ class MnemoClient:
         text: str,
         source: str | None = None,
         content_type: ContentType | None = None,
+        stream_id: str | None = None,
     ) -> dict[str, Any]:
         """POST /ingest — runs the synchronous pipeline (store + extract +
-        optional causal agent) and returns the full IngestResult."""
+        optional causal agent) and returns the full IngestResult.
+
+        `stream_id` (snake_case in the body, per the platform /ingest handler
+        wired in nmemo-3f9.2) scopes speaker identity: speakers are resolved
+        and deduped within a stream. Omit it for the implicit single stream
+        (back-compat). `content_type='conversational'` makes the graph agent
+        apply the first-person conversational addendum (nmemo-3f9.3).
+        """
         payload: dict[str, Any] = {"text": text}
         if source is not None:
             payload["source"] = source
         if content_type is not None:
             payload["contentType"] = content_type
+        if stream_id is not None:
+            payload["stream_id"] = stream_id
         r = self._http.post("/ingest", json=payload)
         if r.status_code != 200:
             raise MnemoClientError(f"ingest failed: {r.status_code} {r.text[:200]}")

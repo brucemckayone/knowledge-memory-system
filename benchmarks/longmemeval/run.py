@@ -306,7 +306,20 @@ def run_real(config: RunConfig, notes: str) -> int:
                             continue
                         suffix = f"/c{ci}" if len(chunks) > 1 else ""
                         source = f"longmemeval/{q.question_id}/{session.session_id}{suffix}"
-                        client.ingest(chunk, source=source)
+                        # nmemo-3f9.4: LongMemEval is first-person chat, so ingest
+                        # conversationally. content_type=conversational fires the
+                        # graph agent's speaker-aware addendum (3f9.3); stream_id
+                        # = the question id scopes speaker identity to this
+                        # question (one stream per question). The USER:/ASSISTANT:
+                        # role labels ride in `chunk` (rendered by chunk_session);
+                        # the prompt maps them — no structured per-turn role on a
+                        # multi-turn blob.
+                        client.ingest(
+                            chunk,
+                            source=source,
+                            content_type="conversational",
+                            stream_id=q.question_id,
+                        )
                         ingest_calls += 1
                         flat_idx += 1
                 if config.resume_from:
