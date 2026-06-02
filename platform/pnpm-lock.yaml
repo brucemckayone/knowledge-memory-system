@@ -84,6 +84,9 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
+      undici:
+        specifier: ^8.3.0
+        version: 8.3.0
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@20.19.30)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)
@@ -2851,6 +2854,10 @@ packages:
   undici@7.25.0:
     resolution: {integrity: sha512-xXnp4kTyor2Zq+J1FfPI6Eq3ew5h6Vl0F/8d9XU5zZQf1tX9s2Su1/3PiMmUANFULpmksxkClamIZcaUqryHsQ==}
     engines: {node: '>=20.18.1'}
+
+  undici@8.3.0:
+    resolution: {integrity: sha512-TkUDgb6tl7KOGZ+7e8E3d2FYgUQgF6z5YypqjWmixVQSQERFcVrVg0ySADm2LVLRh5ljAaHTCR5Fmz3Q34rB7Q==}
+    engines: {node: '>=22.19.0'}
 
   unpipe@1.0.0:
     resolution: {integrity: sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==}
@@ -6081,6 +6088,8 @@ snapshots:
   undici@6.23.0: {}
 
   undici@7.25.0: {}
+
+  undici@8.3.0: {}
 
   unpipe@1.0.0: {}
 

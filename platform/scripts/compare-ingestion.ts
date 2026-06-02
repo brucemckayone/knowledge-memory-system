@@ -18,7 +18,17 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { Agent, setGlobalDispatcher } from 'undici';
 import { buildScorecard, type ArmRun, type CanonicalGraph } from '../src/services/graph-canonical.js';
+
+// A synchronous batch ingest holds one HTTP request open until the server has
+// processed every chunk — a 10-chunk serial run is ~970s. That exceeds undici's
+// default 300s `headersTimeout`, so global fetch aborts with "fetch failed"
+// long before the platform responds (the 3-chunk smoke at ~290s squeaked under).
+// Node's server has no response-time limit (requestTimeout bounds *receiving*
+// the request, not the handler), so this is purely a client-side cap. Disable
+// the client response timeouts so the harness waits as long as the run needs.
+setGlobalDispatcher(new Agent({ headersTimeout: 0, bodyTimeout: 0 }));
 
 function arg(name: string, fallback?: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
