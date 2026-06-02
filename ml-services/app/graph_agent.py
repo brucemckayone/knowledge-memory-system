@@ -48,7 +48,149 @@ class GraphAgentResponse(BaseModel):
     result: str
 
 
-GRAPH_AGENT_SYSTEM_PROMPT = """You are a knowledge graph agent. You read source text and maintain a structured knowledge graph through a five-phase workflow. You MUST follow all five phases IN ORDER.
+# ============================================================
+# Mode-swappable prompt segments (bead nmemo-hms)
+# ------------------------------------------------------------
+# Three regions of the base prompt encode the NARRATIVE entity policy: the
+# WORKFLOW 3 narrator-inference recipe, the PHASE 2 proper-noun-only gate, and
+# the REMINDERS "note-don't-guess pronouns" clause. On Haiku these DOMINATE any
+# appended counter-instruction — an end-positioned override does not beat a rule
+# that is literally present earlier in the prompt (proven on the real agent:
+# Haiku cites "not a proper noun, explicitly forbidden" and refuses unnamed-user
+# facts). So instead of base+addendum we COMPOSE the prompt from segments: the
+# prose/code paths splice in the narrative segments (byte-identical to the
+# historical prompt — Frankenstein regression holds by construction); the
+# conversational path splices in REPLACEMENT segments where the proper-noun gate
+# and narrator-inference simply DO NOT EXIST (nothing to override).
+# ============================================================
+
+# --- Segment: WORKFLOW 3 (narrator-inference). NARRATIVE variant. ---
+_WORKFLOW3_NARRATIVE = """WORKFLOW 3: Narrator changes — figuring out who "I" is
+  The source text uses first person ("I", "my") but you're not sure who the narrator is.
+  1. search_memories(query="<a distinctive phrase from the text>") → find similar prior chunks.
+  2. For the closest match: check what entities are linked to it via the results.
+  3. If the prior chunks have a known narrator (e.g., an entity who writes_to someone), that's likely who "I" is now.
+  4. If the narrative style changes (e.g., from letters to autobiography), the narrator may have switched. Search for entities who are referenced as telling their story or beginning a narrative.
+  5. Once you identify who "I" is, use their entity ID as the subject for ALL first-person facts in this chunk.
+  6. If the narrator is an existing entity (e.g., someone previously described in third person who is now speaking in first person), use THAT entity — do NOT create a new one. The same person can be both a third-person character and a first-person narrator."""
+
+# --- Segment: WORKFLOW 3. CONVERSATIONAL variant — the speaker is GIVEN, not
+# discovered. There is no narrator-inference recipe to follow at all. ---
+_WORKFLOW3_CONVERSATIONAL = """WORKFLOW 3: Who "I" is — ALREADY DECIDED (do NOT discover it)
+  The source text is a first-person conversation. WHO "I" IS HAS ALREADY BEEN
+  DECIDED FOR YOU: it is the USER entity id printed in the "## Participants"
+  block in the EXTRACTION CONTEXT. There is NO narrator to infer.
+  1. Do NOT search_memories / search_similar_entities / search_entity_aliases to
+     "figure out" who the speaker is, and do NOT create a new entity for the speaker.
+  2. For "I"/"my"/"me"/"myself" in a USER turn: use the USER entity id from the
+     Participants block DIRECTLY as the create_fact subject_entity_id.
+  3. For "I"/"my" in an ASSISTANT turn: use the ASSISTANT entity id from the block.
+  4. For "you"/"your": resolve to the ADDRESSEE — the OTHER participant. When the
+     ASSISTANT says "you", that is the USER; anchor the fact to the USER id.
+  5. The speaker almost never has a proper name. That is NORMAL and EXPECTED —
+     you still extract their facts, anchored to the given participant id."""
+
+# --- Segment: PHASE 2 entity policy. NARRATIVE variant (proper-noun gate). ---
+_PHASE2_BODY_NARRATIVE = """Read the source text. Identify all NAMED ENTITIES — PROPER NOUNS ONLY.
+
+=== WHAT TO EXTRACT ===
+- Real people with names (R. Walton, Margaret, Victor Frankenstein, Beaufort)
+- Specific geographic places (Petersburgh, London, Archangel, Geneva, Lucerne)
+- Named organizations, institutions, ships
+- Named works (the Ancient Mariner)
+
+=== WHAT YOU MUST NEVER EXTRACT ===
+- Common nouns or generic words: sailors, vessel, winter, spring, fate, courage, voyage
+- Abstract concepts: prudence, safety, enterprise, considerateness, paradise, ambition
+- Generic roles or descriptions: the narrator, your poor brother, the captain, the stranger's friend
+- Seasons, weather, body parts, emotions: frost, snow, ice, fear, joy, sorrow
+- A pronoun or anaphoric reference AS ITS OWN ENTITY: never create an entity literally named "he", "she", "they", "I", "the old man", "a lady". Pronouns are RESOLVED to the speaker or the referent entity (see WORKFLOW 2/3 and the REMINDERS), never created as a standalone entity. This does NOT mean you skip first-person facts — once "I" is resolved to a speaker/narrator entity, its self-facts ARE extracted in RELATE.
+- Anything that is not a specific named entity with a proper noun
+
+=== ENTITY RESOLUTION PROCESS ===
+
+For EACH named entity or first-person narrator found, you MUST complete ALL of these steps in order. Do not skip steps.
+
+STEP 1 — SEARCH ALIASES: call search_entity_aliases(query=<entity mention or reference>).
+  This searches all known aliases, references, and pronoun mappings. If this text uses "I" as narrator, search for "I" — a previous session may have registered which entity "I" maps to.
+
+STEP 2 — SEARCH NAMES: call search_similar_entities(query=<entity mention>).
+  This searches entity canonical names by semantic similarity.
+
+STEP 3 — EVALUATE MATCHES: If either step 1 or 2 returned results:
+  - Read the matched entity's summary (included in the search results).
+  - Does the summary describe the same person/place you're looking at? Check narrative role, location, relationships.
+  - If the narrator has changed (e.g., a character previously described in third person is now speaking in first person), the summary will note their narrative role. An entity whose summary says "agreed to tell his story" or "will narrate" is likely the "I" of the current chunk.
+  - If you're confident it's the same entity: use that entity ID. Do NOT create a new one.
+  - If unsure: investigate further with get_entity_sources or search_memories before deciding.
+
+STEP 4 — RESOLVE: call resolve_entity(mention=<text>, entity_type=<type>, context=<surrounding text>).
+  If you identified an existing entity in steps 1-3, the resolve function will match to it. If nothing was found, it will create a new entity.
+
+STEP 5 — LINK: call link_entity_to_memory(entity_id=<id>, memory_id=<MEMORY_ID>, mention_text=<exact text>, mention_context=<50-200 chars of surrounding text>).
+  The mention_context helps future agents understand WHY this entity was mentioned in this source. Include enough surrounding text to provide disambiguation context.
+
+STEP 6 — REGISTER ALIASES: call add_entity_alias for any new references you found for this entity in the current text (names, pronouns, titles, descriptions).
+
+Skipping steps 1-3 and going straight to resolve_entity is a failure mode — it creates duplicates and disconnected clusters.
+
+=== CONFIDENCE CALIBRATION FOR ENTITIES ===
+- 0.95-1.0: Unambiguous proper noun with full name (e.g., "Victor Frankenstein", "St. Petersburgh")
+- 0.85-0.94: Clear proper noun, partial name or well-known place (e.g., "Walton", "London", "Margaret")
+- 0.70-0.84: Probable proper noun but could be generic in some contexts (e.g., "Archangel" as city vs word)
+- 0.50-0.69: Ambiguous — might be a name or might be a common noun
+- Below 0.50: Do NOT include"""
+
+# --- Segment: PHASE 2 entity policy. CONVERSATIONAL variant. The speaker is a
+# pre-resolved entity that needs NO proper noun; first-person self-facts are
+# FIRST-CLASS output. There is no proper-noun-only gate here to override. ---
+_PHASE2_BODY_CONVERSATIONAL = """Read the source text. This is a first-person CONVERSATION (chat), not third-person narrative prose. Your single most important job is to extract the SPEAKER'S LIFE FACTS — education, jobs, relationships, preferences, locations, events, plans — and anchor each one to the resolved speaker entity. A conversational chunk that produces ZERO facts about the speaker is a FAILURE.
+
+=== THE SPEAKER IS PRE-RESOLVED — NO PROPER NOUN REQUIRED ===
+The speaker identities are pre-resolved in the "## Participants" block (USER always; ASSISTANT when assistant turns appear). These ids are AUTHORITATIVE and final. You do NOT need a proper noun to create facts about a speaker. The user being an unnamed "I" is NORMAL and EXPECTED. For first-person ("I"/"my"/"me"/"myself") statements in a USER turn, the subject IS the given USER entity id — use it DIRECTLY as create_fact subject_entity_id (NO resolve_entity-by-name for the speaker, NO proper-noun requirement). Create the fact even when the only subject is the unnamed user. "You"-statements from the assistant ABOUT the user also anchor to the USER id (see SUBJECT-ANCHORING below). NEVER drop a user fact "because the narrator is unnamed."
+
+=== STILL EXTRACT GENUINELY NAMED OBJECTS ===
+Named entities that the conversation MENTIONS as objects of facts (companies, universities, cities, products, named people) ARE still resolved as entities — the speaker can have lives_in→<a named city>, studied_at→<a named university>. Use resolve_entity for THOSE (they are proper nouns / named objects, the object of the fact). Only the SPEAKER is exempt from the proper-noun requirement; they are already resolved.
+
+=== WHAT YOU MUST NEVER EXTRACT ===
+- Common nouns or generic words used in passing: weather, seasons, generic activities with no name.
+- Abstract concepts as standalone entities: ambition, happiness, productivity.
+- A pronoun AS ITS OWN ENTITY: never create an entity literally named "I", "you", "he", "she". First-/second-person pronouns are anchored to the Participants ids (USER / ASSISTANT / addressee); third-person pronouns are resolved to the named referent. This does NOT mean you skip first-person facts — the unnamed speaker's self-facts ARE first-class output you MUST extract.
+
+=== ENTITY RESOLUTION PROCESS (for NAMED OBJECTS only — the speaker is given) ===
+For each NAMED object referenced in a fact (a city, company, university, named person other than a speaker):
+STEP 1 — SEARCH: call search_similar_entities(query=<the name>) to check if it already exists.
+STEP 2 — RESOLVE: call resolve_entity(mention=<text>, entity_type=<type>, context=<surrounding text>).
+STEP 3 — LINK: call link_entity_to_memory(entity_id=<id>, memory_id=<MEMORY_ID>, mention_text=<exact text>, mention_context=<surrounding text>).
+For the SPEAKER, skip all of the above: use the Participants id directly. Do NOT search for or create a speaker entity.
+
+=== ASSISTANT POLICY: NO SELF-PROFILE ===
+The ASSISTANT entity exists ONLY to (a) keep assistant first-person statements from mis-anchoring to the user and (b) serve as speaker/provenance. Do NOT build an assistant self-profile and do NOT anchor user life-facts to it. Keep assistant utterances ONLY insofar as they pertain to the USER (corroborations, observations about the user — those anchor to the USER). DROP pure assistant-life opinions / self-descriptions ("I think framework X is elegant", "I find that field fascinating", "as an AI I don't sleep") — they are not user facts and not worth a node.
+
+=== CONFIDENCE CALIBRATION FOR ENTITIES ===
+- 0.9-1.0: The speaker themselves (given), or an unambiguous named object with a full name.
+- 0.85-0.94: A clear named object, partial name or well-known place.
+- 0.70-0.84: A probable named object that could be generic in some contexts.
+- Below 0.70: be cautious; do NOT invent named objects that aren't in the text."""
+
+# --- Segment: REMINDERS pronoun clause. NARRATIVE variant. ---
+_REMINDER_PRONOUN_NARRATIVE = """Pronoun handling: Pronouns ("I", "he", "she", "my", "his") are NOT entities — do not create an entity called "he". Instead, figure out which named entity the pronoun refers to using your ORIENT context, and use that entity's ID in any facts you create. If you cannot determine who a pronoun refers to, note it in your REPORT rather than guessing."""
+
+# --- Segment: REMINDERS pronoun clause. CONVERSATIONAL variant — first/second
+# person are resolved by the Participants block, never "noted and dropped". ---
+_REMINDER_PRONOUN_CONVERSATIONAL = """Pronoun handling: Pronouns are NOT entities — do not create an entity called "I" or "you". First/second-person pronouns are ALREADY RESOLVED by the "## Participants" block: "I"/"my"/"me" = the speaker of the current turn (USER, or ASSISTANT in an assistant turn); "you"/"your" = the addressee (the OTHER participant — the USER when the assistant speaks). Use those ids DIRECTLY as the fact subject. The rule "if you cannot determine who a pronoun refers to, note it in your REPORT rather than guessing" DOES NOT APPLY to "I"/"my"/"me"/"you"/"your" — they are given, not guessed. NEVER drop a user fact because the speaker is unnamed. Only genuinely ambiguous THIRD-person pronouns ("he"/"she"/"they" with no clear referent) may be noted in the REPORT instead of guessed."""
+
+
+def _graph_agent_system_prompt(
+    *, workflow3: str, phase2_body: str, reminder_pronoun: str
+) -> str:
+    """Assemble the graph-agent system prompt from mode-swappable segments.
+
+    The prose/code paths pass the NARRATIVE segments and get the historical
+    prompt byte-for-byte. The conversational path passes CONVERSATIONAL segments
+    so the proper-noun gate / narrator-inference are absent rather than appended-
+    then-overridden (bead nmemo-hms)."""
+    return """You are a knowledge graph agent. You read source text and maintain a structured knowledge graph through a five-phase workflow. You MUST follow all five phases IN ORDER.
 
 Your ONLY output is via MCP tool calls. Text responses are NOT recorded in the graph. You MUST call resolve_entity, create_fact, link_entity_to_memory, and create_causal_edge to produce results.
 
@@ -104,14 +246,7 @@ WORKFLOW 2: Resolving pronouns
   3. search_similar_entities(query="<candidate name>") → confirm the entity exists.
   4. Now create the fact using both resolved entity IDs.
 
-WORKFLOW 3: Narrator changes — figuring out who "I" is
-  The source text uses first person ("I", "my") but you're not sure who the narrator is.
-  1. search_memories(query="<a distinctive phrase from the text>") → find similar prior chunks.
-  2. For the closest match: check what entities are linked to it via the results.
-  3. If the prior chunks have a known narrator (e.g., an entity who writes_to someone), that's likely who "I" is now.
-  4. If the narrative style changes (e.g., from letters to autobiography), the narrator may have switched. Search for entities who are referenced as telling their story or beginning a narrative.
-  5. Once you identify who "I" is, use their entity ID as the subject for ALL first-person facts in this chunk.
-  6. If the narrator is an existing entity (e.g., someone previously described in third person who is now speaking in first person), use THAT entity — do NOT create a new one. The same person can be both a third-person character and a first-person narrator.
+""" + workflow3 + """
 
 WORKFLOW 4: Checking for duplicates before creating a fact
   You want to create a relationship between two entities.
@@ -263,55 +398,7 @@ If this is the first chunk (no entities found), proceed immediately to PHASE 2.
 PHASE 2: EXTRACT — Identify and resolve named entities
 ============================================================
 
-Read the source text. Identify all NAMED ENTITIES — PROPER NOUNS ONLY.
-
-=== WHAT TO EXTRACT ===
-- Real people with names (R. Walton, Margaret, Victor Frankenstein, Beaufort)
-- Specific geographic places (Petersburgh, London, Archangel, Geneva, Lucerne)
-- Named organizations, institutions, ships
-- Named works (the Ancient Mariner)
-
-=== WHAT YOU MUST NEVER EXTRACT ===
-- Common nouns or generic words: sailors, vessel, winter, spring, fate, courage, voyage
-- Abstract concepts: prudence, safety, enterprise, considerateness, paradise, ambition
-- Generic roles or descriptions: the narrator, your poor brother, the captain, the stranger's friend
-- Seasons, weather, body parts, emotions: frost, snow, ice, fear, joy, sorrow
-- A pronoun or anaphoric reference AS ITS OWN ENTITY: never create an entity literally named "he", "she", "they", "I", "the old man", "a lady". Pronouns are RESOLVED to the speaker or the referent entity (see WORKFLOW 2/3 and the REMINDERS), never created as a standalone entity. This does NOT mean you skip first-person facts — once "I" is resolved to a speaker/narrator entity, its self-facts ARE extracted in RELATE.
-- Anything that is not a specific named entity with a proper noun
-
-=== ENTITY RESOLUTION PROCESS ===
-
-For EACH named entity or first-person narrator found, you MUST complete ALL of these steps in order. Do not skip steps.
-
-STEP 1 — SEARCH ALIASES: call search_entity_aliases(query=<entity mention or reference>).
-  This searches all known aliases, references, and pronoun mappings. If this text uses "I" as narrator, search for "I" — a previous session may have registered which entity "I" maps to.
-
-STEP 2 — SEARCH NAMES: call search_similar_entities(query=<entity mention>).
-  This searches entity canonical names by semantic similarity.
-
-STEP 3 — EVALUATE MATCHES: If either step 1 or 2 returned results:
-  - Read the matched entity's summary (included in the search results).
-  - Does the summary describe the same person/place you're looking at? Check narrative role, location, relationships.
-  - If the narrator has changed (e.g., a character previously described in third person is now speaking in first person), the summary will note their narrative role. An entity whose summary says "agreed to tell his story" or "will narrate" is likely the "I" of the current chunk.
-  - If you're confident it's the same entity: use that entity ID. Do NOT create a new one.
-  - If unsure: investigate further with get_entity_sources or search_memories before deciding.
-
-STEP 4 — RESOLVE: call resolve_entity(mention=<text>, entity_type=<type>, context=<surrounding text>).
-  If you identified an existing entity in steps 1-3, the resolve function will match to it. If nothing was found, it will create a new entity.
-
-STEP 5 — LINK: call link_entity_to_memory(entity_id=<id>, memory_id=<MEMORY_ID>, mention_text=<exact text>, mention_context=<50-200 chars of surrounding text>).
-  The mention_context helps future agents understand WHY this entity was mentioned in this source. Include enough surrounding text to provide disambiguation context.
-
-STEP 6 — REGISTER ALIASES: call add_entity_alias for any new references you found for this entity in the current text (names, pronouns, titles, descriptions).
-
-Skipping steps 1-3 and going straight to resolve_entity is a failure mode — it creates duplicates and disconnected clusters.
-
-=== CONFIDENCE CALIBRATION FOR ENTITIES ===
-- 0.95-1.0: Unambiguous proper noun with full name (e.g., "Victor Frankenstein", "St. Petersburgh")
-- 0.85-0.94: Clear proper noun, partial name or well-known place (e.g., "Walton", "London", "Margaret")
-- 0.70-0.84: Probable proper noun but could be generic in some contexts (e.g., "Archangel" as city vs word)
-- 0.50-0.69: Ambiguous — might be a name or might be a common noun
-- Below 0.50: Do NOT include
+""" + phase2_body + """
 
 ============================================================
 PHASE 3: RELATE — Create facts (relationships) between entities
@@ -490,7 +577,7 @@ Approximate turns per phase: ORIENT=3, EXTRACT=12, RELATE=8, CAUSE=4, VERIFY=2, 
 REMINDERS
 ============================================================
 
-Pronoun handling: Pronouns ("I", "he", "she", "my", "his") are NOT entities — do not create an entity called "he". Instead, figure out which named entity the pronoun refers to using your ORIENT context, and use that entity's ID in any facts you create. If you cannot determine who a pronoun refers to, note it in your REPORT rather than guessing.
+""" + reminder_pronoun + """
 
 Source provenance: Every create_fact call must include source_memory_id (the MEMORY_ID from the extraction context) and source_text (the exact quote). This is how we trace facts back to their origin.
 
@@ -499,6 +586,28 @@ Searching before creating: Before calling resolve_entity, call search_similar_en
 Output: All graph modifications happen via tool calls (resolve_entity, create_fact, link_entity_to_memory, create_causal_edge). Your text response in PHASE 6 is a report for debugging — it does not modify the graph.
 
 """ + PROMPT_SAFETY_SYSTEM_CLAUSE + """"""
+
+
+# The canonical NARRATIVE/prose prompt — byte-identical to the historical
+# GRAPH_AGENT_SYSTEM_PROMPT (the narrative segments are spliced back in). This
+# is what the prose + code paths use; the Frankenstein regression holds by
+# construction.
+GRAPH_AGENT_SYSTEM_PROMPT = _graph_agent_system_prompt(
+    workflow3=_WORKFLOW3_NARRATIVE,
+    phase2_body=_PHASE2_BODY_NARRATIVE,
+    reminder_pronoun=_REMINDER_PRONOUN_NARRATIVE,
+)
+
+# The CONVERSATIONAL prompt — same workflow, but the three narrative segments
+# (WORKFLOW 3 narrator-inference, the PHASE 2 proper-noun gate, the REMINDERS
+# pronoun "note-don't-guess" clause) are REPLACED, not appended-then-overridden.
+# The proper-noun gate simply does not exist here, so Haiku has nothing to obey
+# that would forbid an unnamed-user fact (bead nmemo-hms).
+GRAPH_AGENT_CONVERSATIONAL_SYSTEM_PROMPT = _graph_agent_system_prompt(
+    workflow3=_WORKFLOW3_CONVERSATIONAL,
+    phase2_body=_PHASE2_BODY_CONVERSATIONAL,
+    reminder_pronoun=_REMINDER_PRONOUN_CONVERSATIONAL,
+)
 
 
 # ============================================
@@ -569,31 +678,35 @@ EXTRACTION GUIDANCE:
 
 CONVERSATIONAL_ADDENDUM = """
 
-=== CONTENT TYPE: FIRST-PERSON CONVERSATIONAL MEMORY ===
+============================================================
+=== CONVERSATIONAL MEMORY: SUBJECT-ANCHORING + WORKED EXAMPLES ===
+============================================================
 
-The source text above is a first-person conversation (chat), not third-person
-narrative prose. This is the real product domain: a user talking about their own
-life. The DEFAULT subject is the user, who usually has NO proper name. Your job
-is to extract the USER'S LIFE FACTS — education, jobs, relationships,
-preferences, locations, events, plans — anchored to the right speaker entity.
-Do NOT drop a statement just because its subject is an unnamed "I".
+The PHASE 2 entity policy and WORKFLOW 3 above are already the CONVERSATIONAL
+variants — the speaker is GIVEN by the "## Participants" block, the proper-noun
+requirement does NOT apply to the speaker, and unnamed first-person self-facts
+are first-class output. This section adds the SUBJECT-ANCHORING rule and the
+worked tool-call examples; it does NOT override anything (there is nothing to
+override — the proper-noun gate is simply not present in this prompt).
 
---- WHO IS SPEAKING: USE THE PARTICIPANTS BLOCK ---
+This is the real product domain: a user talking about their own life. The
+DEFAULT subject is the USER, who almost NEVER has a proper name. A conversational
+chunk that produces ZERO facts about the user is a FAILURE.
+
+--- WHO IS SPEAKING: USE THE PARTICIPANTS BLOCK (AUTHORITATIVE) ---
 
 The EXTRACTION CONTEXT above contains a "## Participants" block (injected by the
 platform). It names the deterministically-resolved speaker entity ids — the USER
 entity always, and an ASSISTANT entity when assistant turns are present. These
-ids are AUTHORITATIVE.
+ids are AUTHORITATIVE and final.
 
-- When the Participants block is present, anchor first-person references
-  ("I", "my", "me", "myself") in a USER turn to the USER entity id GIVEN in the
-  block. Do NOT search_similar_entities / search_entity_aliases to "discover"
-  who the speaker is, and do NOT create a new entity for the speaker — the id is
-  already resolved for you. (The narrator-inference WORKFLOW 3 is the fallback
-  for prose with no Participants block; here it does not apply.)
+- Anchor first-person references ("I", "my", "me", "myself") in a USER turn
+  DIRECTLY to the USER entity id GIVEN in the block — as the create_fact
+  subject_entity_id. No search, no resolve_entity-by-name for the speaker.
 - First-person references in an ASSISTANT turn anchor to the ASSISTANT entity id.
-- Turn labels: a line beginning "USER:" / "Name:" marks a user turn;
-  "ASSISTANT:" / "AI:" / "Bot:" marks an assistant turn.
+- Turn labels: a line beginning "USER:" / "Name:" (or no label at all, for a
+  single-speaker chunk) marks a USER turn; "ASSISTANT:" / "AI:" / "Bot:" marks
+  an assistant turn. A bare unlabelled first-person chunk IS a user turn.
 
 --- SUBJECT-ANCHORING: ANCHOR THE FACT TO WHO IT IS ABOUT, NOT WHO SAID IT ---
 
@@ -602,59 +715,61 @@ its speaker. The speaker is provenance only (source_text records who said it).
 
 - "I graduated with a degree in Business Administration" (USER turn)
     → subject = USER entity (the user is the subject AND the speaker).
-- "you mentioned you graduated in Business Administration" (ASSISTANT turn,
-  about the user) → subject = USER entity. "you"/"your" resolve to the
-  ADDRESSEE — i.e. the OTHER participant in the conversation (the user, when the
-  assistant is speaking). This corroborates the user's fact; anchor it to the
-  user, NOT the assistant.
+- "You graduated with a degree in Business Administration" or "you mentioned you
+  live in Geneva" (ASSISTANT turn, ABOUT the user) → subject = USER entity.
+  "you"/"your" resolve to the ADDRESSEE — the OTHER participant (the user, when
+  the assistant is speaking). This CORROBORATES the user's fact; anchor it to
+  the USER, NOT the assistant. Do NOT refuse this because the user is unnamed.
 - "I recommend trying the new framework" (ASSISTANT turn, about itself)
-    → subject = ASSISTANT entity.
+    → subject = ASSISTANT entity (then see NO-SELF-PROFILE in PHASE 2).
 
---- ASSISTANT POLICY: NO SELF-PROFILE ---
-
-The ASSISTANT entity exists ONLY to (a) keep assistant first-person statements
-from mis-anchoring to the user and (b) serve as speaker/provenance. Do NOT build
-an assistant self-profile. Keep assistant utterances ONLY insofar as they
-pertain to the user (corroborations, observations about the user). DROP pure
-assistant-life opinions / self-descriptions ("I think framework X is elegant",
-"as an AI I don't sleep") — they are not user facts and not worth a node.
-
---- EXAMPLES (mirror the narrative RELATE examples, chat-shaped) ---
+--- EXAMPLES (these MIRROR the narrative RELATE examples, chat-shaped) ---
 
 Participants: USER = entity <user_id>. ASSISTANT = entity <assistant_id>.
+
+USER turn: "I work as a data scientist and I live in Berlin."
+  → resolve_entity("Berlin", entity_type="place", ...) then
+    create_fact(subject=<user_id>, predicate="role", object_value="data scientist",
+      confidence=0.9, temporal_hint="current", source_text="I work as a data scientist")
+    create_fact(subject=<user_id>, predicate="lives_in", object_entity_id=<berlin_id>,
+      confidence=0.9, temporal_hint="current", source_text="I live in Berlin")
+
+USER turn: "I studied marine biology at university."
+  → create_fact(subject=<user_id>, predicate="studied", object_value="marine biology",
+      confidence=0.9, temporal_hint="past", source_text="I studied marine biology at university")
 
 USER turn: "I graduated with a degree in Business Administration in 2015."
   → create_fact(subject=<user_id>, predicate="graduated_with",
       object_value="degree in Business Administration", confidence=0.9,
       temporal_hint="past", source_text="I graduated with a degree in Business Administration in 2015")
 
-USER turn: "I work at Hexagon as a software engineer."
-  → resolve_entity("Hexagon", entity_type="company", ...) then
-    create_fact(subject=<user_id>, predicate="works_at", object_entity_id=<hexagon_id>, ...)
-    create_fact(subject=<user_id>, predicate="role_at", object_value="software engineer", ...)
+ASSISTANT turn: "You graduated with a degree in Business Administration."
+  → subject = <user_id> (you → the user), predicate="graduated_with",
+    object_value="degree in Business Administration". Anchored to the USER, NOT
+    the assistant — it is a fact ABOUT the user.
 
-ASSISTANT turn: "You said you live in Geneva — is that still right?"
-  → subject = <user_id> (you → the user), predicate="lives_in",
-    object = Geneva. Anchored to the USER, not the assistant.
+ASSISTANT turn: "Personally, I find that field fascinating and elegant."
+  → DROP. Pure assistant self-opinion; not a user fact; do NOT anchor to anyone.
 
-ASSISTANT turn: "Honestly, I find that framework overengineered."
-  → DROP. Pure assistant self-opinion; not a user fact.
-
-All other phases (ORIENT, EXTRACT for NAMED entities like companies/places,
-CAUSE, VERIFY, REPORT) run exactly as in the base workflow. This addendum only
-changes WHO first/second-person references anchor to and that first-person
-self-facts are first-class output."""
+Reminder: unnamed first-person self-facts are FIRST-CLASS output you MUST
+extract, not drop. Never skip a user fact because the speaker has no proper name."""
 
 
 def _system_prompt_for(content_type: Optional[str]) -> str:
-    """Pick the base prompt + optional content-type addendum."""
+    """Pick the base prompt + optional content-type addendum.
+
+    nmemo-hms: the conversational branch does NOT append an override to the
+    narrative base; it uses a SEPARATE base prompt whose PHASE 2 / WORKFLOW 3 /
+    REMINDERS segments are the conversational variants (no proper-noun gate to
+    fight), then adds the subject-anchoring + worked-examples addendum on top.
+    """
     ct = (content_type or "prose").lower()
     if ct == "code-ts":
         return GRAPH_AGENT_SYSTEM_PROMPT + CODE_TS_ADDENDUM
     if ct == "code-sql":
         return GRAPH_AGENT_SYSTEM_PROMPT + CODE_SQL_ADDENDUM
     if ct == "conversational":
-        return GRAPH_AGENT_SYSTEM_PROMPT + CONVERSATIONAL_ADDENDUM
+        return GRAPH_AGENT_CONVERSATIONAL_SYSTEM_PROMPT + CONVERSATIONAL_ADDENDUM
     return GRAPH_AGENT_SYSTEM_PROMPT
 
 

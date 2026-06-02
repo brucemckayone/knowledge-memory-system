@@ -36,21 +36,19 @@
  * by src/test/integration/q0-degree-retest.test.ts. Both are referenced here so
  * a reader sees the full acceptance map in one place.
  *
- * !!! KNOWN GAP (nmemo-3f9.5 HALT, 2026-06-02) !!!
- * The first real-agent run proved that the conversational addendum (graph_agent
- * CONVERSATIONAL_ADDENDUM, 3f9.3) is WIRED end-to-end but NOT EFFECTIVE: Haiku
- * keeps applying the base prompt's narrative narrator-inference (WORKFLOW 3) +
- * proper-noun-only gate and IGNORES the authoritative Participants block. So
- * first-person self-facts (a), the user side of multi-speaker (b), and the
- * about-user corroboration (c) are DROPPED or mis-anchored to an assistant
- * self-profile — the exact structural bug epic 3f9 exists to fix. Fixing it is
- * 3f9.3 prompt surgery (override the narrative rules on the conversational
- * path), out of scope for this tests+regression bead. The three assertions that
- * encode that NOT-YET-WORKING behaviour are therefore `it.fails(...)`: they pass
- * GREEN while the gap exists and FLIP RED the moment the prompt is fixed,
- * forcing them back to plain `it`. The prose-regression (d) + assistant-type +
- * no-leak assertions are plain `it` (they hold today). See doc 33
- * "nmemo-3f9.5 ... HALTED" for the full agent-report evidence.
+ * STATUS (nmemo-hms, 2026-06-02): all 7 assertions PASS on the real Haiku
+ * agent. The 3f9.5 HALT (Haiku ignored the appended conversational override and
+ * kept applying the base prompt's proper-noun gate + WORKFLOW 3 narrator-
+ * inference, dropping/mis-anchoring user facts) was fixed by RESTRUCTURING the
+ * graph-agent prompt: instead of base+appended-override, the conversational
+ * content_type now COMPOSES from a separate base whose PHASE 2 / WORKFLOW 3 /
+ * REMINDERS segments are conversational variants — the proper-noun gate is
+ * ABSENT, so there is nothing for Haiku to disobey (graph_agent.py
+ * GRAPH_AGENT_CONVERSATIONAL_SYSTEM_PROMPT). The prose path is byte-identical
+ * (Frankenstein regression holds by construction). All four blocks (a) first-
+ * person self-fact, (b) multi-speaker distinct subjects, (c) about-user
+ * subject-anchoring, (d) prose regression are therefore plain `it(...)`. See
+ * doc 33 "nmemo-hms" for the agent-reasoning evidence and the prompt structure.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -135,10 +133,10 @@ describe('(a) first-person self-fact anchors to the stream USER speaker', () => 
 
   afterAll(() => cleanupStream(STREAM, createdEntityIds));
 
-  // it.fails: encodes the TARGET behaviour (3f9 acceptance) that does NOT hold
-  // yet — the agent drops the unnamed-narrator self-fact. Flips red when 3f9.3
-  // makes the conversational addendum override the narrative rule.
-  it.fails('produces at least one fact whose subject is the resolved USER entity', async () => {
+  // nmemo-hms: the conversational addendum now OVERRIDES the narrative
+  // narrator-inference + proper-noun gate, so Haiku anchors the unnamed-narrator
+  // self-fact to the resolved USER entity. Verified on the real Haiku agent.
+  it('produces at least one fact whose subject is the resolved USER entity', async () => {
     const userFacts = await factsForSubjects([userId]);
     if (userFacts.length === 0) {
       console.error('[3f9.5-a] no facts on USER. all facts =',
@@ -192,11 +190,10 @@ describe('(b) multi-speaker facts land on distinct user vs assistant subjects', 
     expect(rows[0]?.entity_type).toBe('assistant');
   });
 
-  // it.fails: the TARGET is "the user self-fact anchors to the USER and never to
-  // the assistant". Today the agent builds an assistant self-profile and anchors
-  // the user fact there (zero user facts), so this fails. Flips red when 3f9.3
-  // lands. The assistant-entity-type check above is a plain `it` (holds today).
-  it.fails('user facts and assistant facts never share a subject entity', async () => {
+  // nmemo-hms: with the override the agent anchors the user self-fact to the
+  // USER (not an assistant self-profile) and keeps user vs assistant subjects
+  // distinct. Verified on the real Haiku agent.
+  it('user facts and assistant facts never share a subject entity', async () => {
     const userFacts = await factsForSubjects([userId]);
     const assistantFacts = await factsForSubjects([assistantId]);
     console.log(
@@ -253,13 +250,10 @@ describe('(c) subject-anchoring: about-user -> user; assistant self-opinion -> n
 
   afterAll(() => cleanupStream(STREAM, createdEntityIds));
 
-  // it.fails: the TARGET is subject-anchoring the assistant's "you graduated…"
-  // corroboration to the USER. Today the agent refuses to anchor "you" to an
-  // unnamed entity and drops it (zero user facts), so this fails. Flips red when
-  // 3f9.3 lands. The companion "self-opinion NOT on user" check below is a plain
-  // `it` — it holds today (vacuously, since zero user facts exist) AND remains
-  // correct after the fix, so it is the stable half of the subject-anchoring pair.
-  it.fails('the about-user corroboration anchors to the USER entity', async () => {
+  // nmemo-hms: with the override the agent resolves "you" to the addressee
+  // (the user) and subject-anchors the assistant's "you graduated…"
+  // corroboration to the USER. Verified on the real Haiku agent.
+  it('the about-user corroboration anchors to the USER entity', async () => {
     const userFacts = await factsForSubjects([userId]);
     const degreeOnUser = userFacts.filter((f) =>
       /business|administration|graduat|degree/i.test(

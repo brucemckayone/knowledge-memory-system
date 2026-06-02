@@ -35,22 +35,50 @@ if str(ML_SERVICES_ROOT) not in sys.path:
 
 from app.graph_agent import (  # noqa: E402
     CONVERSATIONAL_ADDENDUM,
+    GRAPH_AGENT_CONVERSATIONAL_SYSTEM_PROMPT,
     GRAPH_AGENT_SYSTEM_PROMPT,
     _system_prompt_for,
 )
 
 
 # --------------------------------------------------------------------------
-# Item (8) — the conversational addendum is applied for content_type values
-# that name the conversational stream, and ONLY then.
+# Item (8) / nmemo-hms — the conversational content_type uses a SEPARATE base
+# prompt (the conversational segment variants), NOT base+appended-override.
+# The append-then-override structure was proven ineffective on Haiku (it obeyed
+# the proper-noun gate that physically preceded the override), so the gate is
+# now ABSENT from the conversational base and the addendum only adds positive
+# subject-anchoring guidance + worked examples.
 # --------------------------------------------------------------------------
 
-def test_conversational_content_type_appends_addendum():
-    """content_type='conversational' → base prompt + conversational addendum."""
+def test_conversational_uses_conversational_base_plus_addendum():
+    """content_type='conversational' → conversational base + addendum (NOT the
+    narrative base + an override)."""
     prompt = _system_prompt_for("conversational")
-    assert prompt.startswith(GRAPH_AGENT_SYSTEM_PROMPT)
+    assert prompt == GRAPH_AGENT_CONVERSATIONAL_SYSTEM_PROMPT + CONVERSATIONAL_ADDENDUM
+    # It must NOT be built from the narrative base.
+    assert not prompt.startswith(GRAPH_AGENT_SYSTEM_PROMPT)
     assert CONVERSATIONAL_ADDENDUM in prompt
-    assert prompt == GRAPH_AGENT_SYSTEM_PROMPT + CONVERSATIONAL_ADDENDUM
+
+
+def test_conversational_base_omits_the_proper_noun_gate():
+    """The whole point of nmemo-hms: the conversational base has NOTHING to
+    override — the PHASE 2 proper-noun-only gate and the WORKFLOW 3 narrator-
+    inference recipe are simply NOT PRESENT."""
+    conv = GRAPH_AGENT_CONVERSATIONAL_SYSTEM_PROMPT
+    # The narrative base gates entity creation on proper nouns; the
+    # conversational base must not.
+    assert "PROPER NOUNS ONLY" in GRAPH_AGENT_SYSTEM_PROMPT
+    assert "PROPER NOUNS ONLY" not in conv
+    # The narrator-inference recipe ("figuring out who 'I' is" by searching) is
+    # gone — the speaker is given by the Participants block.
+    assert "figuring out who" in GRAPH_AGENT_SYSTEM_PROMPT
+    assert "figuring out who" not in conv
+    # The conversational base still mentions the Participants block + forbids
+    # dropping unnamed-user facts.
+    assert "Participants" in conv
+    low = conv.lower()
+    assert "unnamed" in low
+    assert "do not need a proper noun" in low or "no proper-noun requirement" in low
 
 
 def test_conversational_content_type_is_case_insensitive():
@@ -128,6 +156,58 @@ def test_addendum_carries_a_self_fact_example():
     pattern for emitting first-person life facts instead of dropping them."""
     low = CONVERSATIONAL_ADDENDUM.lower()
     assert "graduated_with" in low or "create_fact" in low
+
+
+# --------------------------------------------------------------------------
+# nmemo-hms — the FIX that worked on the real Haiku agent: stop fighting the
+# proper-noun gate with an end-positioned override (Haiku obeyed the gate that
+# physically preceded the override and refused unnamed-user facts). Instead the
+# conversational prompt is COMPOSED from segment variants where the gate and
+# the narrator-inference recipe DO NOT EXIST. These assertions lock in that
+# compose-not-override structure so a future regression to base+addendum is
+# caught at the prompt-shape level.
+# --------------------------------------------------------------------------
+
+def test_conversational_phase2_replaced_not_appended_with_override():
+    """The conversational base REPLACES the PHASE 2 entity policy rather than
+    leaving the narrative gate in place and appending a counter-instruction.
+    There must be exactly one PHASE 2 EXTRACT header and it must not contain the
+    proper-noun-only gate."""
+    conv = GRAPH_AGENT_CONVERSATIONAL_SYSTEM_PROMPT
+    # The narrative 'NEVER EXTRACT ... the narrator' line is the gate that made
+    # Haiku refuse unnamed-user facts — it must be gone from the conv base.
+    assert "Generic roles or descriptions: the narrator" not in conv
+    # And the positive replacement is present: the speaker is pre-resolved and
+    # needs no proper noun.
+    low = conv.lower()
+    assert "pre-resolved" in low
+    assert "do not need a proper noun" in low
+
+
+def test_conversational_base_workflow3_is_given_not_discovered():
+    """WORKFLOW 3 in the conversational base says the speaker is ALREADY DECIDED
+    (given by the Participants block), not discovered by searching."""
+    conv = GRAPH_AGENT_CONVERSATIONAL_SYSTEM_PROMPT
+    low = conv.lower()
+    assert "already been decided" in low or "already decided" in low
+    # The narrative recipe to search prior chunks to discover the narrator is
+    # gone.
+    assert "find similar prior chunks" not in conv
+
+
+def test_conversational_base_forbids_dropping_unnamed_user_facts():
+    """The core failure mode (drop user facts because the speaker is unnamed) is
+    explicitly forbidden IN THE BASE, so Haiku stops citing 'narrator unnamed'."""
+    low = GRAPH_AGENT_CONVERSATIONAL_SYSTEM_PROMPT.lower()
+    assert "unnamed" in low
+    assert "zero facts" in low or "never drop" in low or "do not drop" in low
+
+
+def test_addendum_no_longer_needs_override_framing():
+    """The addendum is now positive guidance only — it explicitly says it does
+    NOT override (there is nothing to override; the gate is absent)."""
+    low = CONVERSATIONAL_ADDENDUM.lower()
+    assert "does not override" in low or "nothing to override" in low
 
 
 # --------------------------------------------------------------------------
