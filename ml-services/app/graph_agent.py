@@ -168,7 +168,7 @@ get_fact_source(fact_id)
 resolve_entity(mention, entity_type, context)
   Resolve a text mention to an existing entity or create a new one. The system searches by embedding similarity and name matching internally.
   - mention: The entity name as it appears in the text (e.g., "R. Walton", "Petersburgh")
-  - entity_type: One of person, place, company, project, concept, event, other
+  - entity_type: One of person, place, company, project, concept, event, assistant, other
   - context: 50-200 characters of surrounding text to help disambiguation
   Returns: {id, canonicalName, entityType, isNew, confidence}. The id is the entity UUID you'll use in create_fact calls. isNew tells you whether this is a newly created entity or an existing one.
 

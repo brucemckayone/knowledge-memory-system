@@ -236,6 +236,26 @@ export const entityTypeHistory = pgTable('entity_type_history', {
   reason: text('reason'),
 });
 
+/**
+ * Stream Participants (nmemo-3f9.1)
+ *
+ * Stream-scoped speaker identity: maps a (stream_id, speaker_key) to a single
+ * entity deterministically, WITHOUT names or embeddings. Lets two streams that
+ * both call their speaker "User" resolve to distinct entities — findOrCreateSpeaker
+ * keys only on (stream_id, speaker_key), bypassing resolveEntity auto-merge and
+ * createEntity name dedup. entity_id is an FK (a future merge re-points it).
+ */
+export const streamParticipants = pgTable('stream_participants', {
+  streamId: text('stream_id').notNull(),
+  speakerKey: text('speaker_key').notNull(),
+  entityId: uuid('entity_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  role: text('role'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.streamId, t.speakerKey] }),
+  entityIdx: index('idx_stream_participants_entity').on(t.entityId),
+}));
+
 // ============================================
 // Graph C: Causal Graph Tables
 // ============================================

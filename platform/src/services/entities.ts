@@ -10,7 +10,7 @@
 
 import { db, type Tx } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
-import { entities, entityAliases, memoryEntities, entityTypes, type Entity } from '../db/schema.js';
+import { entities, entityAliases, memoryEntities, entityTypes, streamParticipants, type Entity } from '../db/schema.js';
 import { eq, ilike, sql, and, or } from 'drizzle-orm';
 import { ml } from './ml-client.js';
 import { recordFactChange, unwrapRows, type Actor } from './audit.js';
@@ -55,6 +55,78 @@ export async function getValidEntityTypes(): Promise<string[]> {
 export function invalidateEntityTypeCache(): void {
   _cachedEntityTypes = null;
   _cacheTime = 0;
+}
+
+/**
+ * Resolve a stream-scoped speaker to a stable entity (nmemo-3f9.1).
+ *
+ * Deterministic identity keyed ONLY on (streamId, speakerKey). On a miss it
+ * creates an anonymous entity directly — NO embedding, NO name dedup — so it
+ * BYPASSES resolveEntity's 0.92-cosine auto-merge and createEntity's
+ * (canonical_name, entity_type) dedup. That bypass is the whole point: two
+ * streams that both label their speaker "User" must never collapse onto one
+ * entity. The display name is stream-labelled and identity-irrelevant — the
+ * speaker is never looked up by name; names accrete from the stream later.
+ *
+ * Auto-seeded from data, never caller-declared: `user` is always present;
+ * `assistant` only when assistant-role labels appear in the source.
+ *
+ * @param streamId   Opaque stream/conversation id.
+ * @param speakerKey Stable key for the speaker within the stream (e.g. role).
+ * @param role       Optional role label ('user' | 'assistant' | ...). Drives
+ *                   the entity type (assistant -> 'assistant', else 'person').
+ */
+export async function findOrCreateSpeaker(
+  streamId: string,
+  speakerKey: string,
+  role?: string,
+): Promise<{ id: string; isNew: boolean }> {
+  // One transaction so the advisory lock spans the find-or-create and no
+  // orphan entity is created if a concurrent caller wins the (stream, speaker)
+  // PK race.
+  return db.transaction(async (tx: Tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${'speaker||' + streamId + '||' + speakerKey}))`,
+    );
+
+    const existing = await tx
+      .select({ entityId: streamParticipants.entityId })
+      .from(streamParticipants)
+      .where(and(
+        eq(streamParticipants.streamId, streamId),
+        eq(streamParticipants.speakerKey, speakerKey),
+      ))
+      .limit(1);
+    if (existing[0]) {
+      return { id: existing[0].entityId, isNew: false };
+    }
+
+    const entityType = role === 'assistant' ? 'assistant' : 'person';
+    const label = role ? role.charAt(0).toUpperCase() + role.slice(1) : speakerKey;
+    const displayName = `${label} (stream ${streamId})`;
+
+    const inserted = await tx
+      .insert(entities)
+      .values({
+        canonicalName: displayName,
+        entityType,
+        properties: { streamId, speakerKey, role: role ?? null, anonymousSpeaker: true },
+        confidence: 1.0,
+      })
+      .returning({ id: entities.id });
+    const entity = inserted[0];
+    if (!entity) {
+      throw new Error('Failed to create speaker entity');
+    }
+
+    await tx.insert(streamParticipants).values({
+      streamId,
+      speakerKey,
+      entityId: entity.id,
+      role: role ?? null,
+    });
+    return { id: entity.id, isNew: true };
+  });
 }
 
 export interface CreateEntityParams {
