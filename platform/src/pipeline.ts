@@ -481,6 +481,26 @@ async function runSerialBatch(items: BatchItem[]): Promise<ExtractResult[]> {
 const EPOCH_CONCURRENCY = Number.parseInt(process.env.EPOCH_CONCURRENCY ?? '6', 10);
 
 /**
+ * Narrow a set of touched entity ids to those that STILL EXIST. The parallel
+ * arms harvest entity ids from the extraction results, but concurrent per-chunk
+ * reconciliation can merge (and delete) some of those entities before the
+ * barrier/final reconcile runs. Feeding a dead id into updateEntityMeta /
+ * detectMergeCandidates FK-violates (entity_meta / merge_candidates reference
+ * public.entities) and aborts the whole reconcile pass. A merged entity's data
+ * already lives on its survivor, which is itself in the touched set when it was
+ * extracted — so the survivor's meta is still refreshed; only the dead
+ * tombstone id is dropped.
+ */
+async function filterLiveEntityIds(entityIds: string[]): Promise<string[]> {
+  if (entityIds.length === 0) return [];
+  const rows = await db
+    .select({ id: entitiesTable.id })
+    .from(entitiesTable)
+    .where(inArray(entitiesTable.id, entityIds));
+  return rows.map((r) => r.id);
+}
+
+/**
  * Approach A — epoch / barrier. Store every chunk, fan extraction out in
  * parallel (bounded + 503-retry) so the agents write the live graph
  * concurrently, then run one barrier reconcile over everything the epoch
@@ -514,8 +534,10 @@ async function runEpochBatch(items: BatchItem[]): Promise<ExtractResult[]> {
     }),
   );
 
-  // Phase 3: barrier reconcile over every entity the epoch touched.
-  const entityIds = [...new Set(results.flatMap((r) => r.entities.map((e) => e.id)))];
+  // Phase 3: barrier reconcile over every entity the epoch touched (filtered to
+  // entities that survived any concurrent merge — see filterLiveEntityIds).
+  const touchedIds = [...new Set(results.flatMap((r) => r.entities.map((e) => e.id)))];
+  const entityIds = await filterLiveEntityIds(touchedIds);
   if (entityIds.length > 0) {
     try {
       await updateEntityMeta(entityIds);
@@ -589,8 +611,10 @@ async function runOptimisticBatch(items: BatchItem[]): Promise<ExtractResult[]> 
     await reconcileLoop;
   }
 
-  // Final reconcile sweep over every touched entity.
-  const entityIds = [...new Set(results.flatMap((r) => r.entities.map((e) => e.id)))];
+  // Final reconcile sweep over every touched entity (filtered to survivors of
+  // any concurrent merge — see filterLiveEntityIds).
+  const touchedIds = [...new Set(results.flatMap((r) => r.entities.map((e) => e.id)))];
+  const entityIds = await filterLiveEntityIds(touchedIds);
   if (entityIds.length > 0) {
     try {
       await updateEntityMeta(entityIds);
