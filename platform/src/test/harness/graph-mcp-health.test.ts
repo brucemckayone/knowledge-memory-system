@@ -250,12 +250,17 @@ describe('B.graph-mcp-health: getMcpEnv shared builder (nmemo-2yv.126)', () => {
     try {
       process.env.DATABASE_URL = 'postgres://localhost:5433/test';
       process.env.QDRANT_URL = 'http://localhost:6335';
+      process.env.QDRANT_COLLECTION = 'memories_test';
       process.env.ML_SERVICES_URL = 'http://localhost:8000';
       process.env.EMBED_MODEL = 'nomic-embed-text';
       process.env.NODE_ENV = 'test';
       const env = getMcpEnv('graph_agent');
       expect(env.DATABASE_URL).toBe('postgres://localhost:5433/test');
       expect(env.QDRANT_URL).toBe('http://localhost:6335');
+      // nmemo-agf: QDRANT_COLLECTION must be forwarded so the spawned MCP
+      // server's qdrant.ts targets the same (test) collection as the platform
+      // — without it the real agent's Qdrant ops leak to production 'memories'.
+      expect(env.QDRANT_COLLECTION).toBe('memories_test');
       expect(env.ML_SERVICES_URL).toBe('http://localhost:8000');
       expect(env.EMBED_MODEL).toBe('nomic-embed-text');
       expect(env.NODE_ENV).toBe('test');

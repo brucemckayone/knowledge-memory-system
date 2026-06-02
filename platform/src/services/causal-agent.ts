@@ -2812,7 +2812,7 @@ export function getMcpEnv(actor: Actor): Record<string, string> {
   const platformRoot = path.resolve(__dirname, '..', '..');
   const envFile = dotenv.config({ path: path.resolve(platformRoot, '.env') });
   const env: Record<string, string> = { MNEMO_AGENT_ACTOR: actor };
-  for (const key of ['DATABASE_URL', 'QDRANT_URL', 'ML_SERVICES_URL', 'EMBED_MODEL', 'NODE_ENV']) {
+  for (const key of ['DATABASE_URL', 'QDRANT_URL', 'QDRANT_COLLECTION', 'ML_SERVICES_URL', 'EMBED_MODEL', 'NODE_ENV']) {
     const val = process.env[key] || envFile.parsed?.[key];
     if (val) env[key] = val;
   }
