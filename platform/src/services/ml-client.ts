@@ -52,6 +52,27 @@ export interface ExtractRelationshipsResponse {
   used_fallback: boolean;
 }
 
+// --- nomic-embed task prefixes (bead nmemo-1cp) ---
+//
+// nomic-embed-text is an ASYMMETRIC retrieval model: it is trained to embed
+// stored passages behind a `search_document: ` prefix and queries behind a
+// `search_query: ` prefix. Omitting them (or mixing prefixed/unprefixed across
+// the store and query sides) degrades top-1 retrieval. A prefix side-test on the
+// LongMemEval needle set (yxj.1, unit_size=256/overlap=64) lifted recall@1
+// 0.38 -> 0.75 with the score band flat — so we ADOPT, platform-side.
+//
+// Applied ONLY to the MEMORIES retrieval embeddings (store() window+unit text,
+// and the search_memories query). NOT to entity-name or fact embeddings: those
+// are a SYMMETRIC name<->name / fact<->fact similarity where the asymmetric
+// query/document scheme does not apply, so they keep using ml.embed() raw.
+//
+// Coordinated change: stored documents and queries must BOTH be prefixed (a
+// prefixed query against unprefixed stored docs degrades). Assumes a clean-slate
+// / re-embedded memories collection — there is no backfill of existing vectors
+// (project decision 2026-06-02: clean slate, no legacy vectors).
+export const SEARCH_DOCUMENT_PREFIX = 'search_document: ';
+export const SEARCH_QUERY_PREFIX = 'search_query: ';
+
 // --- Core fetch wrapper with timeout + retry ---
 
 const RETRY_STATUS_CODES = new Set([429, 502, 503, 504]);
@@ -157,6 +178,25 @@ function sleep(ms: number): Promise<void> {
 export const ml = {
   embed(text: string, model = config.EMBED_MODEL) {
     return mlFetch<EmbedResponse>('/embed', { text, model }, 600_000);
+  },
+
+  /**
+   * Embed a STORED memory passage (window or unit text) for the memories
+   * collection, prepending the nomic `search_document: ` prefix (bead nmemo-1cp).
+   * Use at store() time. Pairs with embedQuery() at search time — both sides
+   * must use their prefix for the asymmetric model to rank correctly.
+   */
+  embedDocument(text: string, model = config.EMBED_MODEL) {
+    return this.embed(SEARCH_DOCUMENT_PREFIX + text, model);
+  },
+
+  /**
+   * Embed a memories-retrieval QUERY, prepending the nomic `search_query: `
+   * prefix (bead nmemo-1cp). Use only for the memories search path
+   * (search_memories). Entity/fact similarity searches stay on embed() raw.
+   */
+  embedQuery(text: string, model = config.EMBED_MODEL) {
+    return this.embed(SEARCH_QUERY_PREFIX + text, model);
   },
 
   extractEntities(

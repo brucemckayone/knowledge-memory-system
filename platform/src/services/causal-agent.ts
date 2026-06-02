@@ -1342,7 +1342,11 @@ async function _handleToolCallInner(
     }
 
     case 'search_memories': {
-      const embedResult = await ml.embed(toolInput.query as string);
+      // nmemo-1cp: memories-query embed uses the nomic `search_query: ` prefix
+      // (stored passages use `search_document: ` at store() time). This is the
+      // memories retrieval path; entity search (search_similar_entities above)
+      // stays on ml.embed() raw — that similarity is symmetric.
+      const embedResult = await ml.embedQuery(toolInput.query as string);
       // nmemo-yxj.3: unit-grained read path. store() (yxj.2) writes small
       // overlapping unit satellites (point_type=unit) carrying the undiluted
       // vectors alongside the diluted whole-window vector. searchMemoriesByUnit

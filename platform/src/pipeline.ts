@@ -398,9 +398,12 @@ export async function store(
   // parallel. nomic caps at ~2048 tokens; units are far below the cap by
   // construction, and the parent window is already chunked upstream to fit.
   const units = splitIntoUnits(text);
+  // nmemo-1cp: stored memory passages embed behind the nomic `search_document: `
+  // prefix (queries use `search_query: `). Memories retrieval only — entity/fact
+  // embeds stay raw.
   const [{ vector: windowVector }, unitEmbeds] = await Promise.all([
-    ml.embed(text),
-    Promise.all(units.map((u) => ml.embed(u.text))),
+    ml.embedDocument(text),
+    Promise.all(units.map((u) => ml.embedDocument(u.text))),
   ]);
 
   await storeMemoryWithUnits({
