@@ -152,6 +152,144 @@ export async function searchMemories(
   return results;
 }
 
+/** One deduped parent-window result from unit-grained retrieval. */
+export interface UnitGroupedHit {
+  /** Parent window id (the canonical memory id). */
+  id: string;
+  /** Best (max) unit score among this parent's matching units. */
+  score: number;
+  /** How many of this parent's units matched the query (before dedup). */
+  matchedUnits: number;
+  /** The parent window's full payload (content lives here, not on units). */
+  payload: Record<string, unknown> | null | undefined;
+  /** The unit_text of the single best-scoring unit for this parent. */
+  bestUnitText?: string;
+}
+
+/**
+ * Unit-grained retrieval read path (epic nmemo-yxj, Decision 1b / bead yxj.3).
+ *
+ * store() (nmemo-yxj.2) writes one parent `window` point plus N small
+ * overlapping `unit` satellites. The window vector is the whole-window
+ * embedding — diluted, so a single needle fact averages into noise (the
+ * 0.809→0.472 collapse this epic exists to fix). The units are the undiluted
+ * vectors. So we SEARCH units, then collapse back to the parent for context:
+ *
+ *  1. Vector-search with a point_type=unit filter (+ optional stream_id scope)
+ *     so ranking happens on the undiluted unit vectors. Over-fetch candidates
+ *     (limit × overFetch) because several candidate units can share a parent
+ *     and collapse to one result — without over-fetching, k distinct parents
+ *     could need more than k raw hits.
+ *  2. Group hits by parent_window_id; keep the BEST (max) unit score per
+ *     parent — a parent whose multiple units match surfaces ONCE, scored by its
+ *     strongest unit (not summed: aggregation that rewards parents merely for
+ *     having more units would re-introduce the length bias this epic removes).
+ *  3. Return the top-k DISTINCT parents, each with the parent WINDOW payload
+ *     (content) fetched via getMemory — never the unit fragment. Window points
+ *     are excluded from the search itself, so a window and its units never both
+ *     surface as separate results.
+ *
+ * Pre-yxj.2 fallback: memories stored before unit satellites existed have only
+ * a window point and no units, so a unit-filtered search misses them entirely.
+ * When the unit search yields zero hits we fall back to a window-filtered
+ * search so old data stays retrievable. Mixed corpora are handled naturally:
+ * any window WITH units is found via its units; only unit-less windows need the
+ * fallback, and the fallback only fires when units found nothing at all.
+ */
+export async function searchMemoriesByUnit(
+  vector: number[],
+  options: {
+    limit?: number;
+    streamId?: string;
+    /** Candidate over-fetch multiplier before dedup. Default 5. */
+    overFetch?: number;
+  } = {},
+): Promise<UnitGroupedHit[]> {
+  const { limit = 5, streamId, overFetch = 5 } = options;
+
+  const must: Array<Record<string, unknown>> = [
+    { key: 'point_type', match: { value: 'unit' } },
+  ];
+  if (streamId) must.push({ key: 'stream_id', match: { value: streamId } });
+
+  const candidates = await qdrant.search(COLLECTIONS.MEMORIES, {
+    vector,
+    limit: Math.max(limit * overFetch, limit),
+    with_payload: true,
+    filter: { must } as any,
+  });
+
+  // Group by parent, keeping the best unit score (and its text) per parent.
+  // Insertion order follows descending score (Qdrant returns sorted), so the
+  // first time we see a parent is already its best hit.
+  const byParent = new Map<string, { score: number; matchedUnits: number; bestUnitText?: string }>();
+  for (const c of candidates) {
+    const pl = (c.payload ?? {}) as Record<string, unknown>;
+    const parentId = pl.parent_window_id as string | undefined;
+    if (!parentId) continue;
+    const existing = byParent.get(parentId);
+    if (existing) {
+      existing.matchedUnits += 1;
+      if ((c.score ?? 0) > existing.score) {
+        existing.score = c.score ?? 0;
+        existing.bestUnitText = pl.unit_text as string | undefined;
+      }
+    } else {
+      byParent.set(parentId, {
+        score: c.score ?? 0,
+        matchedUnits: 1,
+        bestUnitText: pl.unit_text as string | undefined,
+      });
+    }
+  }
+
+  // Top-k DISTINCT parents by best unit score.
+  const ranked = [...byParent.entries()]
+    .sort((a, b) => b[1].score - a[1].score)
+    .slice(0, limit);
+
+  if (ranked.length === 0) {
+    // Pre-yxj.2 fallback: no units matched (old window-only data). Search
+    // windows directly and return them as parents so old memories stay
+    // retrievable. matchedUnits=0 flags the fallback path to callers.
+    const windowMust: Array<Record<string, unknown>> = [
+      { key: 'point_type', match: { value: 'window' } },
+    ];
+    if (streamId) windowMust.push({ key: 'stream_id', match: { value: streamId } });
+    const windows = await qdrant.search(COLLECTIONS.MEMORIES, {
+      vector,
+      limit,
+      with_payload: true,
+      filter: { must: windowMust } as any,
+    });
+    return windows.map((w) => ({
+      id: String(w.id),
+      score: w.score ?? 0,
+      matchedUnits: 0,
+      payload: w.payload as Record<string, unknown> | null | undefined,
+    }));
+  }
+
+  // Fetch parent window payloads (content lives on the parent, not the unit).
+  const parents = await qdrant.retrieve(COLLECTIONS.MEMORIES, {
+    ids: ranked.map(([id]) => id),
+    with_payload: true,
+    with_vector: false,
+  });
+  const parentPayloads = new Map<string, Record<string, unknown> | null | undefined>();
+  for (const p of parents) {
+    parentPayloads.set(String(p.id), p.payload as Record<string, unknown> | null | undefined);
+  }
+
+  return ranked.map(([id, agg]) => ({
+    id,
+    score: agg.score,
+    matchedUnits: agg.matchedUnits,
+    payload: parentPayloads.get(id) ?? null,
+    bestUnitText: agg.bestUnitText,
+  }));
+}
+
 /**
  * Update point payload
  */

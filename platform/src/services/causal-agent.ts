@@ -20,7 +20,7 @@ import dotenv from 'dotenv';
 import { getEntityFacts, createFact, expireFact, invalidateFact, updateFactConfidence, restoreFact, getFactSources } from './facts.js';
 import { findConnectedEntities } from './graph.js';
 import { findSimilarEntities, resolveEntity, linkMemoryToEntity, mergeEntities } from './entities.js';
-import { searchMemories, getMemory } from './qdrant.js';
+import { searchMemoriesByUnit, getMemory } from './qdrant.js';
 import { db } from '../db/index.js';
 import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports } from '../db/schema.js';
 import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
@@ -1343,18 +1343,17 @@ async function _handleToolCallInner(
 
     case 'search_memories': {
       const embedResult = await ml.embed(toolInput.query as string);
-      // nmemo-yxj.2: store() now writes unit satellites (point_type=unit)
-      // alongside the canonical window point (point_type=window). Those units
-      // carry unit_text, NOT content, so an unfiltered search would surface
-      // blank-content hits to the agent. Keep this tool on window points only
-      // — the same canonical points it saw before unit satellites existed. The
-      // proper unit-grained read path (search units, dedup by parent_window_id,
-      // return the parent) is bead nmemo-yxj.3's scope, not this one.
-      const memories = await searchMemories(embedResult.vector, {
+      // nmemo-yxj.3: unit-grained read path. store() (yxj.2) writes small
+      // overlapping unit satellites (point_type=unit) carrying the undiluted
+      // vectors alongside the diluted whole-window vector. searchMemoriesByUnit
+      // ranks on the units (better needle recall), dedups hits by
+      // parent_window_id, and returns the PARENT window content — never the raw
+      // unit fragment, and a parent surfaces once even if several of its units
+      // match. Pre-yxj.2 window-only data is handled by the function's fallback.
+      const memories = await searchMemoriesByUnit(embedResult.vector, {
         limit: (toolInput.limit as number) ?? 5,
-        filter: { must: [{ key: 'point_type', match: { value: 'window' } }] },
       });
-      return JSON.stringify(memories.map((m: any) => ({
+      return JSON.stringify(memories.map((m) => ({
         id: m.id,
         score: m.score,
         content: m.payload?.content,
