@@ -7,9 +7,23 @@ export const qdrant = new QdrantClient({
   checkCompatibility: false,
 });
 
-// Collection names
+// Collection names.
+//
+// MEMORIES is env-driven via a LAZY getter (bead nmemo-wow): it reads
+// process.env.QDRANT_COLLECTION at *access* time, not at module-import time.
+// This matters because the vitest setupFile (src/test/setup.ts) sets
+// QDRANT_COLLECTION='memories_test' before any test imports this module, but a
+// plain `as const` literal — or even `process.env.QDRANT_COLLECTION ?? 'memories'`
+// evaluated once at import — would bind the name too early and tests would still
+// hit the production 'memories' collection (the exact contamination bug this
+// fixes). With the getter, every consumer that reads COLLECTIONS.MEMORIES
+// resolves the current env value:
+//   - production / benchmark (no env var) → 'memories' (unchanged behaviour)
+//   - under vitest                        → 'memories_test' (isolated)
 export const COLLECTIONS = {
-  MEMORIES: 'memories',
+  get MEMORIES(): string {
+    return process.env.QDRANT_COLLECTION ?? 'memories';
+  },
 } as const;
 
 /**

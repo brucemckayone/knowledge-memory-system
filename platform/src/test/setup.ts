@@ -14,6 +14,11 @@ process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://cognitive:cognitive@127.0.0.1:5433/cognitive_test';
 process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://127.0.0.1:8000';
 process.env.QDRANT_URL = process.env.QDRANT_URL || 'http://127.0.0.1:6335';
+// Route ALL Qdrant ops to an isolated collection under test (bead nmemo-wow).
+// qdrant.ts reads this lazily via COLLECTIONS.MEMORIES, so setting it here —
+// before any test imports qdrant.ts — keeps tests off the production 'memories'
+// collection. Production (no env var) still resolves to 'memories' verbatim.
+process.env.QDRANT_COLLECTION = process.env.QDRANT_COLLECTION || 'memories_test';
 // Provide test defaults for required config values
 process.env.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'test-bot-token-for-testing';
 

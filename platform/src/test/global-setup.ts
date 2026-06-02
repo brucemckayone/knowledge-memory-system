@@ -30,6 +30,50 @@ import { join } from 'path';
 
 const TEST_DB_NAME = 'cognitive_test';
 
+// Isolated Qdrant collection for the test suite (bead nmemo-wow). MUST match
+// the QDRANT_COLLECTION default set in src/test/setup.ts. Hard-coded here (this
+// global-setup runs in a separate process from the per-file setupFile, so it
+// can't read that env var) with a hard guard below that it is NEVER the
+// production 'memories' collection.
+const TEST_QDRANT_COLLECTION = 'memories_test';
+const TEST_EMBED_DIM = 768; // nomic-embed-text — matches config default + setup.ts TEST_EMBED_DIMENSIONS
+
+/**
+ * Create (or reset) the isolated test Qdrant collection so suites that call
+ * store()/upsert without their own ensureCollections() (e.g. store-units) have
+ * a 768-dim Cosine collection waiting. No-op if Qdrant is unreachable — those
+ * suites self-gate on isQdrantAvailable(). NEVER touches production 'memories'.
+ */
+async function setupTestQdrantCollection(): Promise<void> {
+  if (TEST_QDRANT_COLLECTION === 'memories') {
+    throw new Error('Refusing to set up the production Qdrant collection "memories" in tests');
+  }
+  const qdrantUrl = process.env.QDRANT_URL || 'http://127.0.0.1:6335';
+  const base = `${qdrantUrl}/collections/${TEST_QDRANT_COLLECTION}`;
+  try {
+    // Reachability probe — skip cleanly if Qdrant is down (suites self-gate).
+    const health = await fetch(`${qdrantUrl}/collections`, { signal: AbortSignal.timeout(2000) });
+    if (!health.ok) {
+      console.warn('⚠️  Qdrant not reachable — skipping test-collection setup');
+      return;
+    }
+    // Drop + recreate for a clean slate at the right dim/distance.
+    await fetch(base, { method: 'DELETE' }).catch(() => undefined);
+    const res = await fetch(base, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vectors: { size: TEST_EMBED_DIM, distance: 'Cosine' } }),
+    });
+    if (res.ok) {
+      console.log(`✅ Qdrant test collection ready: ${TEST_QDRANT_COLLECTION} (size=${TEST_EMBED_DIM}, Cosine)`);
+    } else {
+      console.warn(`⚠️  Could not create Qdrant test collection (status ${res.status}) — Qdrant suites may skip`);
+    }
+  } catch {
+    console.warn('⚠️  Qdrant setup skipped (unreachable) — Qdrant-touching suites self-gate');
+  }
+}
+
 // Extension availability tracking
 export interface ExtensionAvailability {
   vector: boolean;
@@ -137,6 +181,9 @@ export async function setup() {
   } finally {
     await testSql.end();
   }
+
+  // ── 5. Set up isolated Qdrant test collection (bead nmemo-wow) ──
+  await setupTestQdrantCollection();
 
   console.log('\n🎉 Test environment ready!\n');
 }
