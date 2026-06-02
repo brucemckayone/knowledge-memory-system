@@ -2857,8 +2857,11 @@ export function getMcpConfigPath(actor: Actor = 'graph_agent'): string {
  *    imports, calls, references, implements, depends_on.
  *  - 'code-sql': constrained predicate set for SQL migrations — defines_table,
  *    defines_column, references_table, creates_index.
+ *  - 'conversational': prose extraction with a conversational addendum that
+ *    anchors first-person to the resolved speaker (graph_agent 3f9.3). Plumbed
+ *    end-to-end via nmemo-awi so the HTTP /ingest path reaches this branch.
  */
-export type ContentType = 'prose' | 'code-ts' | 'code-sql';
+export type ContentType = 'prose' | 'code-ts' | 'code-sql' | 'conversational';
 
 export interface ExtractionAgentParams {
   sourceText: string;

@@ -40,12 +40,15 @@ app.get('/health', async (c) => {
   return c.json({ status, db, ml: mlOk, qdrant: qdrantOk });
 });
 
-// `contentType` (optional) hints the graph agent: 'prose' | 'code-ts' | 'code-sql'.
+// `contentType` (optional) hints the graph agent:
+// 'prose' | 'code-ts' | 'code-sql' | 'conversational'.
 // Defaults to 'prose' when omitted — backward compatible with all existing callers.
-type ContentTypeBody = 'prose' | 'code-ts' | 'code-sql';
+// nmemo-awi: 'conversational' must pass through (not downgrade to prose) so the
+// graph agent's conversational system-prompt addendum (3f9.3) fires over HTTP.
+type ContentTypeBody = 'prose' | 'code-ts' | 'code-sql' | 'conversational';
 
-function parseContentType(v: unknown): ContentTypeBody | undefined {
-  if (v === 'prose' || v === 'code-ts' || v === 'code-sql') return v;
+export function parseContentType(v: unknown): ContentTypeBody | undefined {
+  if (v === 'prose' || v === 'code-ts' || v === 'code-sql' || v === 'conversational') return v;
   return undefined;
 }
 
