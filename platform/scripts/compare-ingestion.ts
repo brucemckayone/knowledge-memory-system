@@ -31,6 +31,7 @@ import { semanticDiff, type SemanticDiff } from '../src/services/graph-canonical
 import { runInvariants, type InvariantReport } from '../src/services/graph-invariants.js';
 import { scoreAgainstGold, type GoldGraph, type CorrectnessReport } from '../src/services/graph-correctness.js';
 import { deriveInstrumentation, contradictionGap } from '../src/services/graph-instrumentation.js';
+import { reviewGraph, type GraphReview } from '../src/services/graph-review.js';
 import type { RichGraph } from '../src/services/graph-canonical-query.js';
 import {
   writeRunSnapshot,
@@ -68,6 +69,11 @@ const modes = arg('modes', 'serial,epoch,optimistic')!
   .filter(Boolean);
 const doLitmus = !has('no-litmus');
 const doDeterminism = has('determinism'); // run each mode forward twice → the LLM noise floor
+// Agent review (doc 39 §2.D, nmemo-hm4.7) — OFF by default. When on, a STRONG
+// judge model reviews each forward arm AFTER the artifacts are captured. A plain
+// run never calls the judge. --judge-model overrides the model (provider/model).
+const doReview = has('review');
+const judgeModel = arg('judge-model');
 const outRoot = arg('out', join(dirname(fileURLToPath(import.meta.url)), '..', 'benchmark-results'))!;
 // Filesystem-safe timestamp runId; --run-id overrides (doc 39 §3.2: driver-stamped).
 const runId = arg('run-id', new Date().toISOString().replace(/[:.]/g, '-'))!;
@@ -221,6 +227,31 @@ async function main(): Promise<void> {
     };
   }
 
+  // Agent review (doc 39 §2.D, nmemo-hm4.7) — opt-in via --review. Runs a STRONG
+  // judge over each FORWARD arm (the canonical axis, matching the trend), feeding
+  // it the corpus + rich graph + this arm's invariant findings. OFF by default,
+  // so a plain run makes no LLM call and leaves agentReview undefined. Reviews
+  // run serially; a single arm's judge failure is logged and skipped rather than
+  // aborting the whole run.
+  let agentReview: Record<string, GraphReview> | undefined;
+  if (doReview) {
+    agentReview = {};
+    for (const a of artifacts) {
+      if (a.order !== 'forward') continue;
+      const key = `${a.mode}.forward`;
+      console.log(`[compare] agent review → ${key}${judgeModel ? ` (model ${judgeModel})` : ''}`);
+      try {
+        agentReview[key] = await reviewGraph(
+          { corpus, graph: a.rich as RichGraph, invariants: invariants[key]! },
+          judgeModel ? { model: judgeModel } : {},
+        );
+        console.log(`[compare]   verdict=${agentReview[key]!.verdict} issues=${agentReview[key]!.issues.length}`);
+      } catch (err) {
+        console.error(`[compare]   review ${key} failed: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+
   const baselineMode = modes.includes('serial') ? 'serial' : modes[0]!;
   const scorecard = buildScorecard(runs, baselineMode);
 
@@ -279,6 +310,8 @@ async function main(): Promise<void> {
     model: process.env.LLM_PROVIDER ?? 'pi',
   });
   const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode, invariants, correctness, perStep };
+  // Only attach agentReview when --review ran (keep it OFF the metrics on a plain run).
+  if (agentReview) metrics.agentReview = agentReview;
 
   // The current run's enriched history line (now needs the metrics maps for the
   // per-arm quality fields — current-state-correctness, fact F1, invariant

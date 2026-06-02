@@ -25,6 +25,7 @@ import type {
 import type { InvariantReport } from './graph-invariants.js';
 import type { CorrectnessReport } from './graph-correctness.js';
 import type { SnapshotInstrumentation, ContradictionGap } from './graph-instrumentation.js';
+import type { GraphReview, ReviewSeverity } from './graph-review.js';
 
 /** Per-invariant cap on the offending rows we render (keeps report.md readable). */
 const MAX_VIOLATIONS_PER_INVARIANT = 20;
@@ -145,6 +146,43 @@ function perStepForArm(key: string, entry: PerStepEntry, lines: string[]): void 
   lines.push('');
 }
 
+/** Severity render order — high-impact issues first. */
+const REVIEW_SEVERITY_ORDER: ReviewSeverity[] = ['high', 'medium', 'low'];
+/** Per-arm cap on rendered review issues (keeps report.md readable). */
+const MAX_REVIEW_ISSUES_PER_ARM = 20;
+
+/** One arm's agent-review verdict + its issues grouped by severity (doc 39 §2.D). */
+function agentReviewForArm(key: string, review: GraphReview, lines: string[]): void {
+  lines.push(`### ${key} — verdict: ${review.verdict} (${review.issues.length} issue${review.issues.length === 1 ? '' : 's'})`);
+  lines.push('');
+  if (review.parseError) {
+    lines.push(`- judge reply could not be parsed: ${review.parseError}`);
+    lines.push('');
+    return;
+  }
+  if (review.issues.length === 0) {
+    lines.push('- no issues raised.');
+    lines.push('');
+    return;
+  }
+  let shown = 0;
+  for (const severity of REVIEW_SEVERITY_ORDER) {
+    const group = review.issues.filter((i) => i.severity === severity);
+    if (group.length === 0) continue;
+    lines.push(`- ${severity}:`);
+    for (const issue of group) {
+      if (shown >= MAX_REVIEW_ISSUES_PER_ARM) break;
+      const subject = issue.subject ? `${issue.subject}: ` : '';
+      lines.push(`  - [${issue.category}] ${subject}${issue.detail}`);
+      shown += 1;
+    }
+    if (shown >= MAX_REVIEW_ISSUES_PER_ARM) break;
+  }
+  const hidden = review.issues.length - shown;
+  if (hidden > 0) lines.push(`  - … and ${hidden} more`);
+  lines.push('');
+}
+
 /**
  * Build the human-readable per-run report (doc 39 §3.4). Pure. `opts.trend`, if
  * provided, is inserted verbatim as the trend section (built by
@@ -203,6 +241,16 @@ export function buildRunReport(
     lines.push('');
   } else {
     for (const key of perStepKeys) perStepForArm(key, metrics.perStep[key] as PerStepEntry, lines);
+  }
+
+  // Agent review (per <mode>.<order>) — only present when the driver ran with
+  // --review (doc 39 §2.D, nmemo-hm4.7). Omitted entirely on a plain run.
+  if (metrics.agentReview && Object.keys(metrics.agentReview).length > 0) {
+    lines.push('## Agent review');
+    lines.push('');
+    for (const key of Object.keys(metrics.agentReview).sort()) {
+      agentReviewForArm(key, metrics.agentReview[key]!, lines);
+    }
   }
 
   // Snapshot links (relative — siblings of report.md in runs/<runId>/).

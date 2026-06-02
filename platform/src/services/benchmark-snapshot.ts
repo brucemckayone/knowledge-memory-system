@@ -31,6 +31,7 @@ import { join } from 'node:path';
 import type { Scorecard } from './graph-canonical.js';
 import type { InvariantReport } from './graph-invariants.js';
 import type { CorrectnessReport } from './graph-correctness.js';
+import type { GraphReview } from './graph-review.js';
 
 /** Chunk-order a graph was built in: forward, a second forward (determinism), reverse (litmus). */
 export type RunOrder = 'forward' | 'forward2' | 'reverse';
@@ -121,6 +122,13 @@ export interface RunMetrics {
    * dump. Kept `unknown`-valued so the schema doesn't couple to either source.
    */
   perStep: Record<string, unknown>;
+  /**
+   * OPTIONAL LLM-as-judge review per `<mode>.<order>` (doc 39 §2.D, nmemo-hm4.7).
+   * Present only when the comparison driver ran with `--review`; a plain run
+   * omits it (no judge call). Optional so existing runs/snapshots/tests that
+   * never set it stay valid.
+   */
+  agentReview?: Record<string, GraphReview>;
 }
 
 /** Per-arm trend summary persisted to one history.jsonl line. */
