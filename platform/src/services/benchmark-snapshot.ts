@@ -29,6 +29,7 @@ import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Scorecard } from './graph-canonical.js';
 import type { InvariantReport } from './graph-invariants.js';
+import type { CorrectnessReport } from './graph-correctness.js';
 
 /** Chunk-order a graph was built in: forward, a second forward (determinism), reverse (litmus). */
 export type RunOrder = 'forward' | 'forward2' | 'reverse';
@@ -96,7 +97,7 @@ export interface SemanticSummary {
   vsBaselineF1: F1Pair | null;
 }
 
-/** What metrics.json holds today. Later beads extend it (correctness .4, per-step .5). */
+/** What metrics.json holds today. Later beads extend it (per-step .5). */
 export interface RunMetrics {
   /** Exact structural scorecard (doc 38). */
   exact: Scorecard;
@@ -104,6 +105,12 @@ export interface RunMetrics {
   semantic: Record<string, SemanticSummary>;
   /** Deterministic graph-integrity invariants per `<mode>.<order>` (doc 39 section 2.C, nmemo-hm4.3). */
   invariants: Record<string, InvariantReport>;
+  /**
+   * Ground-truth correctness vs the authored gold reference per `<mode>.<order>`
+   * (doc 39 section 2.A, nmemo-hm4.4). Empty `{}` when no gold file exists for
+   * the corpus.
+   */
+  correctness: Record<string, CorrectnessReport>;
 }
 
 /** Per-arm trend summary persisted to one history.jsonl line. */

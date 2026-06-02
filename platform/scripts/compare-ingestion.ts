@@ -29,6 +29,7 @@ import { Agent, setGlobalDispatcher } from 'undici';
 import { buildScorecard, type ArmRun, type CanonicalGraph } from '../src/services/graph-canonical.js';
 import { semanticDiff, type SemanticDiff } from '../src/services/graph-canonical-semantic.js';
 import { runInvariants, type InvariantReport } from '../src/services/graph-invariants.js';
+import { scoreAgainstGold, type GoldGraph, type CorrectnessReport } from '../src/services/graph-correctness.js';
 import type { RichGraph } from '../src/services/graph-canonical-query.js';
 import {
   writeRunSnapshot,
@@ -158,6 +159,23 @@ async function main(): Promise<void> {
   const invariants: Record<string, InvariantReport> = {};
   for (const a of artifacts) invariants[`${a.mode}.${a.order}`] = runInvariants(a.rich as RichGraph);
 
+  // Ground-truth correctness vs the authored gold reference, keyed by
+  // `<mode>.<order>` (doc 39 section 2.A, nmemo-hm4.4). The gold file is keyed
+  // off the corpus basename; absent gold leaves correctness empty (no throw) so
+  // the harness still runs for un-authored corpora.
+  const correctness: Record<string, CorrectnessReport> = {};
+  const goldPath = join(outRoot, 'gold', `${basename(chunksFile, '.json')}.gold.json`);
+  let gold: GoldGraph | null = null;
+  try {
+    gold = JSON.parse(readFileSync(goldPath, 'utf-8')) as GoldGraph;
+    console.log(`[compare] gold reference loaded → ${goldPath}`);
+  } catch {
+    console.log(`[compare] no gold reference at ${goldPath}; skipping correctness.`);
+  }
+  if (gold) {
+    for (const a of artifacts) correctness[`${a.mode}.${a.order}`] = scoreAgainstGold(a.rich as RichGraph, gold);
+  }
+
   const baselineMode = modes.includes('serial') ? 'serial' : modes[0]!;
   const scorecard = buildScorecard(runs, baselineMode);
 
@@ -215,7 +233,7 @@ async function main(): Promise<void> {
     },
     model: process.env.LLM_PROVIDER ?? 'pi',
   });
-  const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode, invariants };
+  const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode, invariants, correctness };
   const reportMd = buildReportMd(manifest, scorecard, semanticByMode);
   const runDir = writeRunSnapshot(outRoot, { manifest, metrics, reportMd, arms: artifacts });
   appendHistoryLine(outRoot, buildHistoryLine({ runId, timestamp, gitCommit: commit, corpus: manifest.corpus }, scorecard, semanticByMode));
