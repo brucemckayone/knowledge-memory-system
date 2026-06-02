@@ -8,7 +8,8 @@
 
 import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
-import { storeMemory, getMemory } from './services/qdrant.js';
+import { storeMemory, storeMemoryWithUnits, getMemory } from './services/qdrant.js';
+import { config } from './config.js';
 import { invokeGraphAgent, invokeGardenerAgent, type ContentType } from './services/causal-agent.js';
 import { findOrCreateSpeaker } from './services/entities.js';
 import { recordGardeningRun } from './services/gardening.js';
@@ -212,30 +213,132 @@ export interface SkippedRelationship {
   reason: string;
 }
 
+/** A single small overlapping embedding unit carved out of a parent window. */
+export interface EmbeddingUnit {
+  /** Unit text — a `unitChars`-wide window of the parent text. */
+  text: string;
+  /** Inclusive char start offset into the parent window. */
+  charStart: number;
+  /** Exclusive char end offset into the parent window. */
+  charEnd: number;
+}
+
+/**
+ * Split a window into small OVERLAPPING units (epic nmemo-yxj, Decision 1).
+ *
+ * Each unit is `unitChars` wide and the next unit starts `unitChars - overlap`
+ * chars later, so adjacent units share an `overlap`-char tail/head — a fact
+ * straddling a unit boundary survives in at least one whole unit. The returned
+ * char offsets index into `text` and form the SAME coordinate system as
+ * memory_entities.mention_start/end and facts.source_text spans, which future
+ * fact->unit linkage (yxj.6) and centroid de-dilution rely on — do NOT treat
+ * the offsets as throwaway.
+ *
+ * Pure + synchronous so it is unit-testable without infra. Callers embed each
+ * returned unit; the splitter itself never touches the embedder. Empty text
+ * (length 0) yields zero units (nothing to retrieve). Text at or below one unit
+ * width yields exactly one unit spanning the whole window (no degenerate
+ * trailing duplicate).
+ *
+ * Precondition: `overlap < unitChars` (enforced at config load). With a
+ * non-positive stride the loop would never advance — we assert rather than
+ * silently clamp so a misconfiguration surfaces loudly.
+ */
+export function splitIntoUnits(
+  text: string,
+  unitChars: number = config.EMBED_UNIT_CHARS,
+  overlap: number = config.EMBED_UNIT_OVERLAP,
+): EmbeddingUnit[] {
+  const stride = unitChars - overlap;
+  if (stride <= 0) {
+    throw new Error(
+      `splitIntoUnits: overlap (${overlap}) must be < unitChars (${unitChars}); stride=${stride} would not advance`,
+    );
+  }
+  if (text.length === 0) return [];
+
+  const units: EmbeddingUnit[] = [];
+  for (let start = 0; start < text.length; start += stride) {
+    const end = Math.min(start + unitChars, text.length);
+    units.push({ text: text.slice(start, end), charStart: start, charEnd: end });
+    // The final unit reaches the end of the text; stop so a short trailing
+    // remainder smaller than `overlap` does not spawn a duplicate sub-unit.
+    if (end === text.length) break;
+  }
+  return units;
+}
+
 /**
  * Store raw text in Qdrant with embedding. Fast — just embed + store.
  * Returns the memoryId which can be used for later extraction.
+ *
+ * Storage shape (epic nmemo-yxj, Decision 1 — parent-as-point + unit satellites):
+ *   - PARENT point: id=memoryId, vector=whole-window embedding,
+ *     payload {content=full window, point_type=window, source, created_at,
+ *     status, content_type, stream_id}. This stays the canonical memory point:
+ *     extract() reads getMemory(memoryId).content, facts.source_memory_id
+ *     anchors here, and entity_meta centroids are computed from window vectors
+ *     via getMemoryVectors over memory_entities (graph-meta.ts). Keeping the
+ *     parent a real vectored point preserves all three — relocating the window
+ *     vector onto a unit would silently null every centroid.
+ *   - UNIT points: one per small overlapping unit; id=fresh uuid;
+ *     vector=unit embedding; payload {point_type=unit, parent_window_id=memoryId,
+ *     unit_text, char_start, char_end, stream_id}. Units carry ONLY their own
+ *     text + offsets, NOT a copy of the window and NOT fact provenance. They are
+ *     a retrieval index that points back to the parent window for context.
+ *
+ * The collection stays single-vector 768-dim Cosine (more points, NOT named/
+ * multi-vectors). Extraction is unchanged: extract() still runs ONCE over the
+ * whole parent window, so the Haiku call count is identical to the pre-unit
+ * baseline — only the embedding/retrieval granularity changes underneath.
  */
 export async function store(
   text: string,
   metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string }
 ): Promise<string> {
   const memoryId = randomUUID();
-  const { vector } = await ml.embed(text);
-  await storeMemory({
-    id: memoryId,
-    vector,
-    payload: {
-      content: text,
-      source: metadata?.source ?? 'cli',
-      created_at: (metadata?.timestamp ?? new Date()).toISOString(),
-      status: 'stored',
-      content_type: metadata?.contentType ?? 'prose',
-      // nmemo-3f9.2: stream scope for speaker identity. Persisted beside
-      // source/content_type so standalone re-extraction (extract(memoryId))
-      // recovers it, and so query-time metadata-scoped retrieval can filter.
-      stream_id: metadata?.streamId ?? DEFAULT_STREAM_ID,
+  const streamId = metadata?.streamId ?? DEFAULT_STREAM_ID;
+
+  // Embed the whole window (parent point) and each small unit (satellites) in
+  // parallel. nomic caps at ~2048 tokens; units are far below the cap by
+  // construction, and the parent window is already chunked upstream to fit.
+  const units = splitIntoUnits(text);
+  const [{ vector: windowVector }, unitEmbeds] = await Promise.all([
+    ml.embed(text),
+    Promise.all(units.map((u) => ml.embed(u.text))),
+  ]);
+
+  await storeMemoryWithUnits({
+    parent: {
+      id: memoryId,
+      vector: windowVector,
+      payload: {
+        content: text,
+        point_type: 'window',
+        source: metadata?.source ?? 'cli',
+        created_at: (metadata?.timestamp ?? new Date()).toISOString(),
+        status: 'stored',
+        content_type: metadata?.contentType ?? 'prose',
+        // nmemo-3f9.2: stream scope for speaker identity. Persisted beside
+        // source/content_type so standalone re-extraction (extract(memoryId))
+        // recovers it, and so query-time metadata-scoped retrieval can filter.
+        stream_id: streamId,
+      },
     },
+    units: units.map((u, i) => ({
+      id: randomUUID(),
+      vector: unitEmbeds[i]!.vector,
+      payload: {
+        point_type: 'unit',
+        parent_window_id: memoryId,
+        unit_text: u.text,
+        char_start: u.charStart,
+        char_end: u.charEnd,
+        // Carry stream_id so unit-grained retrieval can apply the same
+        // metadata scope filter as the parent without a join back.
+        stream_id: streamId,
+      },
+    })),
   });
   return memoryId;
 }

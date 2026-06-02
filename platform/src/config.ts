@@ -26,6 +26,21 @@ const envSchema = z.object({
   // Anthropic API (Phase B: causal agent)
   ANTHROPIC_API_KEY: z.string().optional(),
 
+  // Embedding-unit splitter knobs (epic nmemo-yxj). store() embeds the whole
+  // window as the canonical PARENT point AND also splits the window into small
+  // OVERLAPPING units, each its own satellite Qdrant point, so retrieval hits a
+  // topically-focused vector instead of a fact averaged into 6000 chars of
+  // noise. Units are a RETRIEVAL index only — they never become the
+  // agent-extraction unit (same Haiku call count) and never carry fact
+  // provenance (that stays on the parent memoryId). Defaults come from the
+  // yxj.1 micro-benchmark sweep (benchmarks/results/yxj1_embedding_unit_sweep.md):
+  // unit_size=128/overlap=64 gave the best mean-needle score (0.771) and lifted
+  // the degree needle from 0.471 (whole-window) into the 0.7+ band.
+  // EMBED_UNIT_OVERLAP MUST be < EMBED_UNIT_CHARS (a stride of <=0 would loop
+  // forever); loadConfig() enforces this below.
+  EMBED_UNIT_CHARS: z.coerce.number().int().positive().default(128),
+  EMBED_UNIT_OVERLAP: z.coerce.number().int().nonnegative().default(64),
+
   // Drift-reconciliation retry cap (bead nmemo-2yv.83). After N transient
   // failures, the helper transitions triggered_action='reconciliation_failed'
   // and stops retrying. Default 3 mirrors the bead's locked spec.
@@ -151,6 +166,16 @@ function loadConfig(): Config {
   if (raw.EMBED_DIMENSIONS !== undefined && mappedDims !== undefined && raw.EMBED_DIMENSIONS !== mappedDims) {
     console.error(
       `EMBED_DIMENSIONS=${raw.EMBED_DIMENSIONS} does not match known dimensions for "${raw.EMBED_MODEL}" (${mappedDims}). Fix .env or update EMBED_MODEL_DIMENSIONS in config.ts`
+    );
+    process.exit(1);
+  }
+
+  // The unit splitter advances by (chars - overlap) each step; an overlap >=
+  // chars yields a stride <= 0 and the splitter would never terminate. Reject
+  // it at startup rather than hang at the first store().
+  if (raw.EMBED_UNIT_OVERLAP >= raw.EMBED_UNIT_CHARS) {
+    console.error(
+      `EMBED_UNIT_OVERLAP=${raw.EMBED_UNIT_OVERLAP} must be < EMBED_UNIT_CHARS=${raw.EMBED_UNIT_CHARS} (overlap >= unit size gives a non-positive stride and the splitter would loop forever)`
     );
     process.exit(1);
   }

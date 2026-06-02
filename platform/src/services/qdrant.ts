@@ -67,6 +67,35 @@ export async function storeMemory(memory: {
   });
 }
 
+/** A Qdrant point: id + vector + payload. */
+export interface QdrantPoint {
+  id: string;
+  vector: number[];
+  payload: Record<string, unknown>;
+}
+
+/**
+ * Store a parent window point plus its small overlapping unit satellites in a
+ * SINGLE upsert (epic nmemo-yxj, Decision 1). The collection stays single-vector
+ * 768-dim Cosine — this writes MORE points (1 parent + N units), not named or
+ * multi-vectors. The parent keeps id=memoryId and the whole-window vector so it
+ * remains the canonical memory point (extract/getMemory, facts.source_memory_id,
+ * entity_meta centroids all key on the parent id); units are separate-id
+ * retrieval-only satellites carrying parent_window_id back to the parent.
+ *
+ * One upsert (parent first, units after) so a window and its units land
+ * atomically from Qdrant's perspective — no partial-window state where a unit
+ * is searchable before its parent exists.
+ */
+export async function storeMemoryWithUnits(args: {
+  parent: QdrantPoint;
+  units: QdrantPoint[];
+}): Promise<void> {
+  await qdrant.upsert(COLLECTIONS.MEMORIES, {
+    points: [args.parent, ...args.units],
+  });
+}
+
 /**
  * Update vector and payload for a point
  */

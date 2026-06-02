@@ -1343,8 +1343,16 @@ async function _handleToolCallInner(
 
     case 'search_memories': {
       const embedResult = await ml.embed(toolInput.query as string);
+      // nmemo-yxj.2: store() now writes unit satellites (point_type=unit)
+      // alongside the canonical window point (point_type=window). Those units
+      // carry unit_text, NOT content, so an unfiltered search would surface
+      // blank-content hits to the agent. Keep this tool on window points only
+      // — the same canonical points it saw before unit satellites existed. The
+      // proper unit-grained read path (search units, dedup by parent_window_id,
+      // return the parent) is bead nmemo-yxj.3's scope, not this one.
       const memories = await searchMemories(embedResult.vector, {
         limit: (toolInput.limit as number) ?? 5,
+        filter: { must: [{ key: 'point_type', match: { value: 'window' } }] },
       });
       return JSON.stringify(memories.map((m: any) => ({
         id: m.id,
