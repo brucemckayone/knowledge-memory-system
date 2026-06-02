@@ -31,6 +31,17 @@ class GraphAgentRequest(BaseModel):
     # difficulties, unresolved pronouns, and unconfirmed aliases.
     # Optional / nullable — first chunks and missing-prior cases pass None.
     previous_report: Optional[str] = None
+    # Bead nmemo-3f9.2 — stream scope for speaker identity. Resolution stays in
+    # the prompt; this is the scope key only. Defaults to the implicit single
+    # stream when absent (back-compat).
+    stream_id: Optional[str] = None
+    # Bead nmemo-3f9.2 — pre-resolved Participants block. Built platform-side by
+    # resolveStreamParticipants: it names the deterministically resolved speaker
+    # entity ids (USER always; ASSISTANT only when assistant-role labels appear
+    # in the source). Rendered verbatim into the EXTRACTION CONTEXT so the agent
+    # anchors first-person references to the known ids instead of fuzzy-resolving
+    # them. Optional / nullable — absent means no pre-resolved speakers.
+    participants: Optional[str] = None
 
 
 class GraphAgentResponse(BaseModel):
@@ -575,6 +586,16 @@ async def graph_agent(request: GraphAgentRequest):
     )
     if request.source_name:
         prompt += f"## Source\n{request.source_name}\n\n"
+
+    # Bead nmemo-3f9.2 — render the pre-resolved Participants block. This is
+    # platform-generated trusted metadata (resolved entity ids + fixed role
+    # labels), NOT adversarial source text, so it is injected verbatim without
+    # delimit_for_prompt wrapping. It tells the agent the deterministically
+    # resolved speaker ids so it anchors first-person references rather than
+    # fuzzy-resolving them. Skip when absent (implicit single-stream / no
+    # pre-resolved speakers).
+    if request.participants:
+        prompt += request.participants.strip() + "\n\n"
 
     # Bead nmemo-upn — render the prior session's PHASE 6 report as a
     # delimited <extraction_report> block (T8 prompt-safety: the report was

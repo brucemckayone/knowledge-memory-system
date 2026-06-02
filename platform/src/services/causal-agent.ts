@@ -2804,6 +2804,20 @@ export interface ExtractionAgentParams {
    * Python read-into-prompt boundary via `delimit_for_prompt(kind="report")`.
    */
   previousReport?: string | null;
+  /**
+   * Stream scope for speaker identity (nmemo-3f9.2). Threaded through so the
+   * agent endpoint can scope query-time retrieval / logging. Optional —
+   * absent means the implicit single stream.
+   */
+  streamId?: string;
+  /**
+   * Pre-resolved Participants block injected into the EXTRACTION CONTEXT
+   * (nmemo-3f9.2). Built platform-side by resolveStreamParticipants; contains
+   * the deterministically resolved speaker entity ids so the agent does NOT
+   * fuzzy-resolve first-person references for the stream defaults. Optional —
+   * absent means no pre-resolved speakers to announce.
+   */
+  participants?: string;
 }
 
 export interface ExtractionAgentResult {
@@ -3079,6 +3093,10 @@ export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<G
       // as continuity context. Null / undefined is sent as null so the Python
       // endpoint can branch on absence without a sentinel string.
       previous_report: params.previousReport ?? null,
+      // nmemo-3f9.2: stream scope + pre-resolved Participants block. Null when
+      // absent so the Python endpoint branches on absence without a sentinel.
+      stream_id: params.streamId ?? null,
+      participants: params.participants ?? null,
     },
     timeoutMs: config.GRAPH_AGENT_TIMEOUT_MS,
   });

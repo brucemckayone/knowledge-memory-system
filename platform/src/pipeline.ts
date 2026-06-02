@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
 import { invokeGraphAgent, invokeGardenerAgent, type ContentType } from './services/causal-agent.js';
+import { findOrCreateSpeaker } from './services/entities.js';
 import { recordGardeningRun } from './services/gardening.js';
 import { applyConfidenceDecay } from './services/causal.js';
 import { detectContradictions } from './services/contradictions.js';
@@ -27,6 +28,58 @@ export interface ExtractResult {
   timing: Record<string, number>;
   gardener?: { triggered: boolean; report?: string };
   reconciliation?: { triggered: boolean; candidateCount?: number; report?: string; skippedReason?: string };
+}
+
+// ============================================
+// Stream / speaker plumbing (nmemo-3f9.2)
+// ============================================
+// stream_id scopes speaker identity (see findOrCreateSpeaker / stream_participants).
+// When a caller omits it, every memory lands in one implicit stream so the
+// pre-3f9 single-user behaviour is preserved (back-compat).
+const DEFAULT_STREAM_ID = 'default';
+
+// Assistant-role labels ride in the source text (e.g. "ASSISTANT: ..."), they
+// are never declared on /ingest. We only seed an assistant speaker when such a
+// label actually appears — the Frankenstein narrative path (no role labels)
+// therefore seeds only the user, leaving the narrator path untouched.
+const ASSISTANT_LABEL_RE = /^\s*(assistant|ai|bot)\s*:/im;
+
+export function textHasAssistantTurns(text: string): boolean {
+  return ASSISTANT_LABEL_RE.test(text);
+}
+
+/**
+ * Pre-resolve the default stream speakers and render the Participants block
+ * injected into the graph agent's EXTRACTION CONTEXT (nmemo-3f9.2).
+ *
+ * Resolution is DETERMINISTIC via findOrCreateSpeaker (keyed on
+ * (streamId, speakerKey)) — it never name/embedding-resolves the anonymous
+ * user. The user speaker is always seeded; the assistant only when the source
+ * text carries assistant-role labels. Named third parties are NOT pre-resolved
+ * — they emerge through normal entity extraction.
+ *
+ * Returns the prompt block plus the resolved entity ids (for assertions).
+ */
+export async function resolveStreamParticipants(
+  streamId: string,
+  text: string,
+): Promise<{ block: string; userEntityId: string; assistantEntityId?: string }> {
+  const user = await findOrCreateSpeaker(streamId, 'user', 'user');
+  const lines = [
+    '## Participants in this stream',
+    `- USER -> entity ${user.id} (anonymous): anchor first-person I/my/me here`,
+  ];
+
+  let assistantEntityId: string | undefined;
+  if (textHasAssistantTurns(text)) {
+    const assistant = await findOrCreateSpeaker(streamId, 'assistant', 'assistant');
+    assistantEntityId = assistant.id;
+    lines.push(
+      `- ASSISTANT -> entity ${assistant.id} (type assistant): assistant turns; do NOT anchor to the user`,
+    );
+  }
+
+  return { block: lines.join('\n'), userEntityId: user.id, assistantEntityId };
 }
 
 // ============================================
@@ -165,7 +218,7 @@ export interface SkippedRelationship {
  */
 export async function store(
   text: string,
-  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType }
+  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string }
 ): Promise<string> {
   const memoryId = randomUUID();
   const { vector } = await ml.embed(text);
@@ -178,6 +231,10 @@ export async function store(
       created_at: (metadata?.timestamp ?? new Date()).toISOString(),
       status: 'stored',
       content_type: metadata?.contentType ?? 'prose',
+      // nmemo-3f9.2: stream scope for speaker identity. Persisted beside
+      // source/content_type so standalone re-extraction (extract(memoryId))
+      // recovers it, and so query-time metadata-scoped retrieval can filter.
+      stream_id: metadata?.streamId ?? DEFAULT_STREAM_ID,
     },
   });
   return memoryId;
@@ -203,6 +260,14 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
   // contentType resolution order: explicit opts > stored Qdrant payload > 'prose'
   const contentType: ContentType =
     opts?.contentType ?? (memory.payload.content_type as ContentType | undefined) ?? 'prose';
+
+  // nmemo-3f9.2: recover the stream scope from the stored payload (so standalone
+  // re-extraction still resolves the right speakers) and pre-resolve the default
+  // stream participants. Resolution is platform-side + deterministic; the agent
+  // is TOLD the speaker ids in the EXTRACTION CONTEXT and does not fuzzy-resolve
+  // first-person references for these defaults.
+  const streamId = (memory.payload.stream_id as string | undefined) ?? DEFAULT_STREAM_ID;
+  const participants = await resolveStreamParticipants(streamId, content);
 
   // 2. Invoke the unified graph agent
   // Bead nmemo-upn: fetch the latest prior extraction report (any memory_id
@@ -234,6 +299,8 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
     source: memory.payload.source as string | undefined,
     contentType,
     previousReport,
+    streamId,
+    participants: participants.block,
   });
   timing.graphAgent = Date.now() - t0;
   if (agentResult.result) {
@@ -414,7 +481,7 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
  */
 export async function ingest(
   text: string,
-  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType }
+  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string }
 ): Promise<IngestResult> {
   const rid = randomUUID().slice(0, 8);
   const tag = `[ingest:${rid}]`;

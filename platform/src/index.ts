@@ -50,11 +50,15 @@ function parseContentType(v: unknown): ContentTypeBody | undefined {
 }
 
 app.post('/ingest', async (c) => {
-  const body = await c.req.json<{ text: string; source?: string; contentType?: string }>();
+  const body = await c.req.json<{ text: string; source?: string; contentType?: string; stream_id?: string }>();
   if (!body.text) return c.json({ error: 'text is required' }, 400);
   const result = await ingest(body.text, {
     source: body.source,
     contentType: parseContentType(body.contentType),
+    // nmemo-3f9.2: optional stream scope for speaker identity. Absent ->
+    // implicit single stream (back-compat). No participants array is accepted;
+    // speakers are discovered from data, never declared.
+    streamId: body.stream_id,
   });
   return c.json(result);
 });
