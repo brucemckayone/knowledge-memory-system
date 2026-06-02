@@ -28,6 +28,7 @@
 import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Scorecard } from './graph-canonical.js';
+import type { InvariantReport } from './graph-invariants.js';
 
 /** Chunk-order a graph was built in: forward, a second forward (determinism), reverse (litmus). */
 export type RunOrder = 'forward' | 'forward2' | 'reverse';
@@ -95,12 +96,14 @@ export interface SemanticSummary {
   vsBaselineF1: F1Pair | null;
 }
 
-/** What metrics.json holds today. Later beads extend it (invariants .3, correctness .4, per-step .5). */
+/** What metrics.json holds today. Later beads extend it (correctness .4, per-step .5). */
 export interface RunMetrics {
   /** Exact structural scorecard (doc 38). */
   exact: Scorecard;
   /** Per-mode semantic F1 summaries. */
   semantic: Record<string, SemanticSummary>;
+  /** Deterministic graph-integrity invariants per `<mode>.<order>` (doc 39 section 2.C, nmemo-hm4.3). */
+  invariants: Record<string, InvariantReport>;
 }
 
 /** Per-arm trend summary persisted to one history.jsonl line. */

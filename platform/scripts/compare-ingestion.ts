@@ -28,6 +28,8 @@ import { fileURLToPath } from 'node:url';
 import { Agent, setGlobalDispatcher } from 'undici';
 import { buildScorecard, type ArmRun, type CanonicalGraph } from '../src/services/graph-canonical.js';
 import { semanticDiff, type SemanticDiff } from '../src/services/graph-canonical-semantic.js';
+import { runInvariants, type InvariantReport } from '../src/services/graph-invariants.js';
+import type { RichGraph } from '../src/services/graph-canonical-query.js';
 import {
   writeRunSnapshot,
   appendHistoryLine,
@@ -151,6 +153,11 @@ async function main(): Promise<void> {
     runs.push(run);
   }
 
+  // Deterministic graph-integrity invariants over each captured rich graph
+  // (doc 39 section 2.C, nmemo-hm4.3). Pure + LLM-free; keyed by `<mode>.<order>`.
+  const invariants: Record<string, InvariantReport> = {};
+  for (const a of artifacts) invariants[`${a.mode}.${a.order}`] = runInvariants(a.rich as RichGraph);
+
   const baselineMode = modes.includes('serial') ? 'serial' : modes[0]!;
   const scorecard = buildScorecard(runs, baselineMode);
 
@@ -208,7 +215,7 @@ async function main(): Promise<void> {
     },
     model: process.env.LLM_PROVIDER ?? 'pi',
   });
-  const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode };
+  const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode, invariants };
   const reportMd = buildReportMd(manifest, scorecard, semanticByMode);
   const runDir = writeRunSnapshot(outRoot, { manifest, metrics, reportMd, arms: artifacts });
   appendHistoryLine(outRoot, buildHistoryLine({ runId, timestamp, gitCommit: commit, corpus: manifest.corpus }, scorecard, semanticByMode));
