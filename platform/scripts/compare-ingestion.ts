@@ -30,6 +30,7 @@ import { buildScorecard, type ArmRun, type CanonicalGraph } from '../src/service
 import { semanticDiff, type SemanticDiff } from '../src/services/graph-canonical-semantic.js';
 import { runInvariants, type InvariantReport } from '../src/services/graph-invariants.js';
 import { scoreAgainstGold, type GoldGraph, type CorrectnessReport } from '../src/services/graph-correctness.js';
+import { aggregateRepeats, type RepeatSample, type Aggregate } from '../src/services/benchmark-aggregate.js';
 import { deriveInstrumentation, contradictionGap } from '../src/services/graph-instrumentation.js';
 import { reviewGraph, type GraphReview } from '../src/services/graph-review.js';
 import { reviewReports, type ReportsReview } from '../src/services/reports-review.js';
@@ -70,6 +71,11 @@ const modes = arg('modes', 'serial,epoch,optimistic')!
   .filter(Boolean);
 const doLitmus = !has('no-litmus');
 const doDeterminism = has('determinism'); // run each mode forward twice → the LLM noise floor
+// Repeats (doc 39 §2.F / §5 phase 6, nmemo-hm4.9): run each mode's FORWARD ingest
+// N times and report mean/stddev/min/max/n per metric — variance bands, not a
+// single point. Default 1 (the existing single-forward path, unchanged). Invalid
+// / <1 values clamp to 1.
+const repeats = Math.max(1, Math.trunc(Number(arg('repeats', '1'))) || 1);
 // Agent review (doc 39 §2.D, nmemo-hm4.7) — OFF by default. When on, a STRONG
 // judge model reviews each forward arm AFTER the artifacts are captured. A plain
 // run never calls the judge. --judge-model overrides the model (provider/model).
@@ -145,20 +151,67 @@ async function ingestAndCapture(
 }
 
 async function main(): Promise<void> {
-  console.log(`[compare] url=${URL} chunks=${corpus.length} modes=${modes.join(',')} litmus=${doLitmus} determinism=${doDeterminism} runId=${runId}`);
+  console.log(`[compare] url=${URL} chunks=${corpus.length} modes=${modes.join(',')} litmus=${doLitmus} determinism=${doDeterminism} repeats=${repeats} runId=${runId}`);
+
+  // Gold reference (doc 39 §2.A) — loaded up front so each forward repeat can be
+  // scored for its correctness/sprawl sample (nmemo-hm4.9), not just the
+  // representative run. Keyed off the corpus basename; absent gold leaves
+  // correctness null per repeat + empty `correctness` (no throw).
+  const goldPath = join(outRoot, 'gold', `${basename(chunksFile, '.json')}.gold.json`);
+  let gold: GoldGraph | null = null;
+  try {
+    gold = JSON.parse(readFileSync(goldPath, 'utf-8')) as GoldGraph;
+    console.log(`[compare] gold reference loaded → ${goldPath}`);
+  } catch {
+    console.log(`[compare] no gold reference at ${goldPath}; skipping correctness.`);
+  }
+
+  /** Derive one repeat's variance sample (doc 39 §2.F) from its rich graph. */
+  function sampleFromRich(rich: RichGraph, wallClockMs: number): RepeatSample {
+    const c = gold ? scoreAgainstGold(rich, gold) : null;
+    return {
+      wallClockMs,
+      entities: rich.counts.entities,
+      activeFacts: rich.counts.activeFacts,
+      currentStateCorrectness: c ? c.currentStateCorrectness : null,
+      invariantErrorViolations: runInvariants(rich).summary.errorViolations,
+      factF1VsGold: c ? c.currentFacts.f1 : null,
+      predicateSprawlMax: c
+        ? c.predicateSprawl.reduce((max, s) => Math.max(max, s.predicateCount), 0)
+        : null,
+    };
+  }
+
   const runs: ArmRun[] = [];
   const determinismGraph: Record<string, CanonicalGraph> = {};
   const artifacts: ArmArtifact[] = [];
+  // Per-mode variance bands across the N forward repeats (nmemo-hm4.9). Populated
+  // only when repeats > 1; folded into metrics.distributions below.
+  const distributions: Record<string, Record<string, Aggregate>> = {};
   // Batch ingest response bodies (per-phase timing etc.) keyed by `<mode>.<order>`,
   // kept parallel to `artifacts` so the on-disk ArmArtifact shape (persisted
   // verbatim) is unchanged. Folded into metrics.perStep below (nmemo-hm4.5).
   const runtimeStatsByArm: Record<string, unknown> = {};
   for (const mode of modes) {
-    console.log(`\n[compare] === ${mode} (forward) ===`);
+    // Forward ingest, run `repeats` times (default 1). Repeat #1 is the
+    // REPRESENTATIVE graph for the scorecard/artifacts/invariants/etc.
+    // (preserving the single-forward path exactly when repeats === 1); every
+    // repeat contributes one variance sample (nmemo-hm4.9).
+    const samples: RepeatSample[] = [];
+    console.log(`\n[compare] === ${mode} (forward${repeats > 1 ? ` ×${repeats}` : ''}) ===`);
     const fwd = await ingestAndCapture(mode, corpus);
+    samples.push(sampleFromRich(fwd.rich as RichGraph, fwd.wallClockMs));
     artifacts.push({ mode, order: 'forward', canonical: fwd.graph, rich: fwd.rich });
     runtimeStatsByArm[`${mode}.forward`] = fwd.runtimeStats;
     const run: ArmRun = { mode, graph: fwd.graph, wallClockMs: fwd.wallClockMs };
+    // Extra forward repeats (#2..N) — sampled only; not persisted as artifacts
+    // and not fed into the representative scorecard.
+    for (let i = 2; i <= repeats; i++) {
+      console.log(`[compare] === ${mode} (forward #${i}/${repeats} — repeat) ===`);
+      const rep = await ingestAndCapture(mode, corpus);
+      samples.push(sampleFromRich(rep.rich as RichGraph, rep.wallClockMs));
+    }
+    if (repeats > 1) distributions[mode] = aggregateRepeats(samples);
     if (doDeterminism) {
       console.log(`[compare] === ${mode} (forward #2 — determinism) ===`);
       const fwd2 = await ingestAndCapture(mode, corpus);
@@ -188,18 +241,11 @@ async function main(): Promise<void> {
   for (const a of artifacts) reportsReview[`${a.mode}.${a.order}`] = reviewReports(a.rich as RichGraph);
 
   // Ground-truth correctness vs the authored gold reference, keyed by
-  // `<mode>.<order>` (doc 39 section 2.A, nmemo-hm4.4). The gold file is keyed
-  // off the corpus basename; absent gold leaves correctness empty (no throw) so
-  // the harness still runs for un-authored corpora.
+  // `<mode>.<order>` (doc 39 section 2.A, nmemo-hm4.4). `gold` was loaded up
+  // front (so each forward repeat could be scored); absent gold leaves
+  // correctness empty (no throw) so the harness still runs for un-authored
+  // corpora.
   const correctness: Record<string, CorrectnessReport> = {};
-  const goldPath = join(outRoot, 'gold', `${basename(chunksFile, '.json')}.gold.json`);
-  let gold: GoldGraph | null = null;
-  try {
-    gold = JSON.parse(readFileSync(goldPath, 'utf-8')) as GoldGraph;
-    console.log(`[compare] gold reference loaded → ${goldPath}`);
-  } catch {
-    console.log(`[compare] no gold reference at ${goldPath}; skipping correctness.`);
-  }
   if (gold) {
     for (const a of artifacts) correctness[`${a.mode}.${a.order}`] = scoreAgainstGold(a.rich as RichGraph, gold);
   }
@@ -296,6 +342,20 @@ async function main(): Promise<void> {
     console.log(`${run.mode.padEnd(11)} | ${fmt(det).padStart(11)} | ${fmt(lit).padStart(15)} | ${vsbStr}`);
   }
 
+  // Distributions (variance across N forward repeats) — only when repeats > 1
+  // (doc 39 §2.F, nmemo-hm4.9). mean ± stddev [min, max] (n) per metric.
+  if (repeats > 1) {
+    console.log(`\n===== DISTRIBUTIONS (${repeats} forward repeats: mean ± stddev [min, max] n) =====`);
+    for (const mode of Object.keys(distributions).sort()) {
+      console.log(`--- ${mode} ---`);
+      for (const [metric, a] of Object.entries(distributions[mode]!)) {
+        console.log(
+          `  ${metric.padEnd(24)} ${a.mean.toFixed(2)} ± ${a.stddev.toFixed(2)} [${a.min.toFixed(2)}, ${a.max.toFixed(2)}] n=${a.n}`,
+        );
+      }
+    }
+  }
+
   // --- persist the run (doc 39 §3.2) ---
   const orders: RunOrder[] = ['forward'];
   if (doDeterminism) orders.push('forward2');
@@ -315,15 +375,19 @@ async function main(): Promise<void> {
       optimistic: process.env.OPTIMISTIC_CONCURRENCY ?? '6',
     },
     model: process.env.LLM_PROVIDER ?? 'pi',
+    repeats,
   });
   const metrics: RunMetrics = { exact: scorecard, semantic: semanticByMode, invariants, correctness, perStep, reportsReview };
   // Only attach agentReview when --review ran (keep it OFF the metrics on a plain run).
   if (agentReview) metrics.agentReview = agentReview;
+  // Variance bands only when the run repeated (>1) — keep them OFF the metrics on
+  // the default single-forward run (nmemo-hm4.9).
+  if (repeats > 1) metrics.distributions = distributions;
 
   // The current run's enriched history line (now needs the metrics maps for the
   // per-arm quality fields — current-state-correctness, fact F1, invariant
   // pass-rate, predicate-sprawl — that give the trend signal).
-  const currentLine = buildHistoryLine({ runId, timestamp, gitCommit: commit, corpus: manifest.corpus }, scorecard, semanticByMode, metrics);
+  const currentLine = buildHistoryLine({ runId, timestamp, gitCommit: commit, corpus: manifest.corpus, repeats }, scorecard, semanticByMode, metrics);
 
   // Read the prior run's history line (the last line of history.jsonl, one JSON
   // object per line) so the trend can diff run N vs N-1. Missing file / empty /

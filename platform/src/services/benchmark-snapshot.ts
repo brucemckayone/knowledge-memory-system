@@ -33,6 +33,7 @@ import type { InvariantReport } from './graph-invariants.js';
 import type { CorrectnessReport } from './graph-correctness.js';
 import type { GraphReview } from './graph-review.js';
 import type { ReportsReview } from './reports-review.js';
+import type { Aggregate } from './benchmark-aggregate.js';
 
 /** Chunk-order a graph was built in: forward, a second forward (determinism), reverse (litmus). */
 export type RunOrder = 'forward' | 'forward2' | 'reverse';
@@ -53,6 +54,12 @@ export interface Manifest {
   concurrency: Record<string, string>;
   /** LLM provider/model the pipeline ran under (GLM via the Pi bridge by default). */
   model: string;
+  /**
+   * OPTIONAL forward-repeat count per arm (doc 39 §2.F, nmemo-hm4.9). Present
+   * only when the run repeated (`--repeats > 1`); omitted on the default
+   * single-forward path so existing manifests are unchanged.
+   */
+  repeats?: number;
   richSchemaVersion: number;
 }
 
@@ -66,6 +73,7 @@ export interface ManifestInput {
   orders: RunOrder[];
   concurrency?: Record<string, string>;
   model?: string;
+  repeats?: number;
 }
 
 /** Shape the run manifest. Pure. */
@@ -80,6 +88,9 @@ export function buildManifest(input: ManifestInput): Manifest {
     orders: input.orders,
     concurrency: input.concurrency ?? {},
     model: input.model ?? 'unknown',
+    // Only stamp `repeats` when the run repeated (>1) — keep the default
+    // single-forward manifest shape unchanged.
+    ...(input.repeats != null && input.repeats > 1 ? { repeats: input.repeats } : {}),
     richSchemaVersion: RICH_SCHEMA_VERSION,
   };
 }
@@ -139,6 +150,15 @@ export interface RunMetrics {
    * runs/snapshots/tests that never set it stay valid.
    */
   reportsReview?: Record<string, ReportsReview>;
+  /**
+   * OPTIONAL per-mode variance bands across `--repeats N` forward runs (doc 39
+   * §2.F / §5 phase 6, nmemo-hm4.9): `distributions[mode][metric]` is an
+   * {@link Aggregate} (mean/stddev/min/max/n) over the N {@link RepeatSample}s.
+   * Present only when the driver ran with `--repeats > 1`; a plain run (repeats
+   * 1, the default) omits it. Optional so existing runs/snapshots/tests that
+   * never set it stay valid.
+   */
+  distributions?: Record<string, Record<string, Aggregate>>;
 }
 
 /** Per-arm trend summary persisted to one history.jsonl line. */
@@ -174,6 +194,12 @@ export interface HistoryLine {
   corpus: string;
   baselineMode: string;
   arms: ArmHistory[];
+  /**
+   * OPTIONAL count of forward repeats per arm this run used (doc 39 §2.F,
+   * nmemo-hm4.9). Present only when the driver ran with `--repeats > 1`; omitted
+   * on the default single-forward path so existing lines/tests are unchanged.
+   */
+  repeats?: number;
 }
 
 /** Passed error-invariants / total error-invariants (the forward-order quality rate). */
@@ -199,7 +225,7 @@ function predicateSprawlMax(report: CorrectnessReport | undefined): number | nul
  * axis. They stay null when that data is absent (no gold authored / no report).
  */
 export function buildHistoryLine(
-  meta: { runId: string; timestamp: string; gitCommit: string; corpus: string },
+  meta: { runId: string; timestamp: string; gitCommit: string; corpus: string; repeats?: number },
   scorecard: Scorecard,
   semanticByMode: Record<string, SemanticSummary>,
   metrics: Pick<RunMetrics, 'invariants' | 'correctness'>,
@@ -210,6 +236,9 @@ export function buildHistoryLine(
     gitCommit: meta.gitCommit,
     corpus: meta.corpus,
     baselineMode: scorecard.baselineMode,
+    // Only stamp `repeats` when the run actually repeated (>1) — keep the
+    // default single-forward line shape unchanged.
+    ...(meta.repeats != null && meta.repeats > 1 ? { repeats: meta.repeats } : {}),
     arms: scorecard.arms.map((a) => {
       const correctness = metrics.correctness[`${a.mode}.forward`];
       return {

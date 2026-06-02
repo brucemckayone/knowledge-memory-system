@@ -185,6 +185,28 @@ describe('buildRunReport', () => {
     const r = buildRunReport(manifest(), { ...metrics(), correctness: {} });
     expect(r).toContain('No gold reference for this corpus — correctness skipped.');
   });
+
+  it('omits the distributions section on a single-forward run (no distributions)', () => {
+    expect(report).not.toContain('## Distributions');
+  });
+
+  it('renders a per-mode distributions table when metrics.distributions is present', () => {
+    const m: RunMetrics = {
+      ...metrics(),
+      distributions: {
+        optimistic: {
+          wallClockMs: { mean: 1850, stddev: 70.71, min: 1800, max: 1900, n: 2 },
+          currentStateCorrectness: { mean: 0.5, stddev: 0.25, min: 0.25, max: 0.75, n: 2 },
+        },
+      },
+    };
+    const r = buildRunReport({ ...manifest(), repeats: 2 }, m, { trend: 'T' });
+    expect(r).toContain('## Distributions (variance across 2 repeats)');
+    expect(r).toContain('### optimistic');
+    expect(r).toContain('| metric | mean | stddev | min | max | n |');
+    expect(r).toContain('| wallClockMs | 1850.00 | 70.71 | 1800.00 | 1900.00 | 2 |');
+    expect(r).toContain('| currentStateCorrectness | 0.50 | 0.25 | 0.25 | 0.75 | 2 |');
+  });
 });
 
 function armHistory(overrides: Partial<ArmHistory> = {}): ArmHistory {

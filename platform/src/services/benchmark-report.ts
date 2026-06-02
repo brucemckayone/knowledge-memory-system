@@ -27,6 +27,7 @@ import type { CorrectnessReport } from './graph-correctness.js';
 import type { SnapshotInstrumentation, ContradictionGap } from './graph-instrumentation.js';
 import type { GraphReview, ReviewSeverity } from './graph-review.js';
 import type { ReportsReview } from './reports-review.js';
+import type { Aggregate } from './benchmark-aggregate.js';
 
 /** Per-invariant cap on the offending rows we render (keeps report.md readable). */
 const MAX_VIOLATIONS_PER_INVARIANT = 20;
@@ -218,6 +219,25 @@ function reportsReviewForArm(key: string, review: ReportsReview, lines: string[]
 }
 
 /**
+ * One mode's variance bands across the N forward repeats (doc 39 §2.F,
+ * nmemo-hm4.9): a metric | mean | stddev | min | max | n table. Metric rows are
+ * rendered in the distribution's own insertion order (the {@link Aggregate}
+ * field order the aggregator emits).
+ */
+function distributionsForMode(mode: string, dist: Record<string, Aggregate>, lines: string[]): void {
+  lines.push(`### ${mode}`);
+  lines.push('');
+  lines.push('| metric | mean | stddev | min | max | n |');
+  lines.push('|---|---|---|---|---|---|');
+  for (const [metric, a] of Object.entries(dist)) {
+    lines.push(
+      `| ${metric} | ${a.mean.toFixed(2)} | ${a.stddev.toFixed(2)} | ${a.min.toFixed(2)} | ${a.max.toFixed(2)} | ${a.n} |`,
+    );
+  }
+  lines.push('');
+}
+
+/**
  * Build the human-readable per-run report (doc 39 §3.4). Pure. `opts.trend`, if
  * provided, is inserted verbatim as the trend section (built by
  * {@link buildTrend} in the driver, which has the prior history line). Sections
@@ -295,6 +315,17 @@ export function buildRunReport(
     lines.push('');
     for (const key of Object.keys(metrics.reportsReview).sort()) {
       reportsReviewForArm(key, metrics.reportsReview[key]!, lines);
+    }
+  }
+
+  // Distributions (variance across N repeats) per mode — only present when the
+  // driver ran with --repeats > 1 (doc 39 §2.F, nmemo-hm4.9). Omitted on the
+  // default single-forward run.
+  if (metrics.distributions && Object.keys(metrics.distributions).length > 0) {
+    lines.push(`## Distributions (variance across ${manifest.repeats ?? 'N'} repeats)`);
+    lines.push('');
+    for (const mode of Object.keys(metrics.distributions).sort()) {
+      distributionsForMode(mode, metrics.distributions[mode]!, lines);
     }
   }
 
