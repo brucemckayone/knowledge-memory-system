@@ -25,7 +25,7 @@ import { triggerCrossClusterAfterCompute } from './services/cross-cluster-genera
 import { getTopologySnapshot, getComponentEntities } from './services/topology.js';
 import { getClustersSnapshot, getClusterEntities } from './services/clustering.js';
 import { getDriftEvents, getDriftState } from './services/drift.js';
-import { exportCanonicalGraph } from './services/graph-canonical-query.js';
+import { exportCanonicalGraph, exportRichGraph } from './services/graph-canonical-query.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const vizHtmlPath = join(__dirname, '../viz/index.html');
@@ -452,6 +452,14 @@ app.get('/api/viz/unified', async (c) => {
 // UUID/timestamp-free, so two runs of the same corpus are comparable.
 app.get('/api/graph/canonical', async (c) => {
   return c.json(await exportCanonicalGraph());
+});
+
+// Rich graph dump (doc 39 §3.1) — the validity & quality harness fetches this:
+// expired facts (supersession audit), causal edge reasoning + source_references,
+// contradictions, same_as, and the agents' reports. A superset of
+// /api/graph/canonical, which intentionally strips those for byte-comparability.
+app.get('/api/graph/full', async (c) => {
+  return c.json(await exportRichGraph());
 });
 
 app.get('/api/viz/merge-candidates', async (c) => {
