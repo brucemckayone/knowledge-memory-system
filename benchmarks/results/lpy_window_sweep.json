@@ -1,0 +1,77 @@
+{
+  "generated": "2026-06-02T23:08:20.392Z",
+  "bead": "nmemo-lpy",
+  "axis": "agent-processing window size (chars); embedding unit fixed 128/64",
+  "corpus": {
+    "source": "q0-degree-session.json first 5 turns (through degree turn)",
+    "turns": 5,
+    "chars": 6333
+  },
+  "goldSet": [
+    "degree: Business Administration",
+    "started a new job / new role",
+    "works a 9-to-5 schedule",
+    "will use Todoist",
+    "will use Trello",
+    "used a planner"
+  ],
+  "windowSizes": [
+    3000,
+    6000
+  ],
+  "results": [
+    {
+      "windowSize": 3000,
+      "windows": 4,
+      "windowLens": [
+        2972,
+        324,
+        2885,
+        306
+      ],
+      "totalFacts": 13,
+      "goldHit": 4,
+      "goldTotal": 6,
+      "completeness": 0.6666666666666666,
+      "hits": [
+        "degree: Business Administration",
+        "started a new job / new role",
+        "works a 9-to-5 schedule",
+        "used a planner"
+      ],
+      "misses": [
+        "will use Todoist",
+        "will use Trello"
+      ],
+      "degreeFactFound": true
+    },
+    {
+      "windowSize": 6000,
+      "windows": 2,
+      "windowLens": [
+        3258,
+        3153
+      ],
+      "totalFacts": 5,
+      "goldHit": 3,
+      "goldTotal": 6,
+      "completeness": 0.5,
+      "hits": [
+        "degree: Business Administration",
+        "started a new job / new role",
+        "works a 9-to-5 schedule"
+      ],
+      "misses": [
+        "will use Todoist",
+        "will use Trello",
+        "used a planner"
+      ],
+      "degreeFactFound": true
+    }
+  ],
+  "recommended": {
+    "windowSize": 6000,
+    "rationale": "default 6000 validated — best alternative (3000) gains only +0.17 completeness for 4/2x the Haiku-call cost, below the +0.25 margin worth a 2x cost change on a single small corpus"
+  },
+  "currentDefault": 6000
+}
