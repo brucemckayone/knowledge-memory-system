@@ -55,7 +55,8 @@ import { buildRunReport, buildTrend } from '../src/services/benchmark-report.js'
 // Node's server has no response-time limit (requestTimeout bounds *receiving*
 // the request, not the handler), so this is purely a client-side cap. Disable
 // the client response timeouts so the harness waits as long as the run needs.
-setGlobalDispatcher(new Agent({ headersTimeout: 0, bodyTimeout: 0 }));
+const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
+setGlobalDispatcher(dispatcher);
 
 function arg(name: string, fallback?: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -139,7 +140,10 @@ async function ingestAndCapture(
   const t0 = Date.now();
   const res = await post(`/ingest/batch/${mode}`, { chunks: orderedChunks, source: `compare-${mode}` });
   if (!res.ok) {
-    const detail = await res.text().catch(() => res.statusText);
+    // Read + surface the error body (capped) so the actual platform failure is
+    // visible in the driver log. Previously the process crashed on exit (see the
+    // graceful-exit block at the bottom) before this detail ever flushed.
+    const detail = (await res.text().catch(() => res.statusText)).slice(0, 2000);
     throw new Error(`ingest ${mode} failed (${res.status}): ${detail}`);
   }
   // Capture the batch ingest RESPONSE BODY for per-step instrumentation
@@ -421,7 +425,20 @@ async function main(): Promise<void> {
   console.log(`[compare] history appended → ${historyPath}`);
 }
 
-main().catch((err) => {
-  console.error('[compare] failed:', err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+// Exit cleanly. Forcing process.exit() while undici's keep-alive sockets are
+// mid-teardown trips Node's `UV_HANDLE_CLOSING` assertion (exit 9) — which on a
+// failed arm crashed the driver *before* the error detail flushed (nmemo-1tc).
+// Set exitCode + close the dispatcher so the event loop drains and Node exits on
+// its own, with the error fully printed.
+main()
+  .catch((err) => {
+    console.error('[compare] failed:', err instanceof Error ? (err.stack ?? err.message) : err);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    try {
+      await dispatcher.close();
+    } catch {
+      await dispatcher.destroy();
+    }
+  });
