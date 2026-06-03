@@ -475,6 +475,15 @@ export interface BatchIngestResult {
  * Baseline / control arm: store + extract each chunk strictly in chunk_index
  * order. This is the serial FIFO behaviour the parallel arms are measured
  * against (doc 38 §7) — deterministic, correct, slow.
+ *
+ * Extraction gets the SAME 503-backpressure retry as the epoch/optimistic arms
+ * (withRetry + isQueueFull). Without it the baseline was the only arm that turned
+ * a transient ML-service 503 into a hard 500 of the whole batch — even "serial"
+ * isn't single-flight against the ml-services pool (the gardener fires its own
+ * agent mid-run via extract()'s run counter), so the pool can momentarily
+ * saturate. That failure mode is an unfair-baseline artifact, not a property of
+ * the serial strategy. A non-retryable error still propagates (parity with the
+ * parallel arms).
  */
 async function runSerialBatch(items: BatchItem[]): Promise<ExtractResult[]> {
   const results: ExtractResult[] = [];
@@ -485,7 +494,13 @@ async function runSerialBatch(items: BatchItem[]): Promise<ExtractResult[]> {
       chunkIndex: item.chunkIndex,
       contentType: item.contentType,
     });
-    results.push(await extract(memoryId, { contentType: item.contentType }));
+    results.push(
+      await withRetry(() => extract(memoryId, { contentType: item.contentType }), {
+        retries: 4,
+        isRetryable: isQueueFull,
+        baseDelayMs: 500,
+      }),
+    );
   }
   return results;
 }
