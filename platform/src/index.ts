@@ -107,15 +107,22 @@ app.get('/ingest/queue/status', (c) => {
 // baseline control), epoch (Approach A), optimistic (Approach B). epoch and
 // optimistic return 501 until their orchestrators land (Stage 3/4).
 async function handleBatch(c: Context, mode: IngestMode) {
-  const body = await c.req.json<{ chunks?: string[]; source?: string; contentType?: string }>();
+  const body = await c.req.json<{ chunks?: string[]; source?: string; contentType?: string; concurrency?: number }>();
   if (!Array.isArray(body.chunks) || body.chunks.length === 0) {
     return c.json({ error: 'chunks (non-empty array) is required' }, 400);
   }
+  // Per-run concurrency override for the parallel arms (epoch/optimistic); only a
+  // positive integer is honoured, else the arm falls back to its env default.
+  const concurrency =
+    typeof body.concurrency === 'number' && Number.isInteger(body.concurrency) && body.concurrency > 0
+      ? body.concurrency
+      : undefined;
   try {
     const result = await ingestBatch(body.chunks, {
       source: body.source,
       contentType: parseContentType(body.contentType),
       mode,
+      concurrency,
     });
     return c.json(result);
   } catch (err) {

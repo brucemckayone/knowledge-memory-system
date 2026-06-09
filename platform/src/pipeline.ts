@@ -11,7 +11,7 @@ import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
 import { invokeGraphAgent, invokeGardenerAgent, type ContentType } from './services/causal-agent.js';
 import { prepareBatch, type BatchItem, type IngestMode } from './services/batch.js';
-import { mapWithConcurrency, withRetry, isQueueFull } from './services/concurrency.js';
+import { mapWithConcurrency, withRetry, isRetryableAgentError } from './services/concurrency.js';
 import { recordGardeningRun } from './services/gardening.js';
 import { applyConfidenceDecay } from './services/causal.js';
 import { detectContradictions } from './services/contradictions.js';
@@ -461,6 +461,14 @@ export interface BatchIngestOptions {
   contentType?: ContentType;
   /** Which pipeline arm to run. Default 'serial' (the baseline control). */
   mode?: IngestMode;
+  /**
+   * Max concurrent agent extractions for the parallel arms (epoch/optimistic).
+   * Per-run override; falls back to EPOCH_CONCURRENCY / OPTIMISTIC_CONCURRENCY
+   * env (default 6). Ignored by the serial arm. Lets the benchmark driver tune
+   * fan-out per run without a platform restart (e.g. throttle a rate-limited
+   * upstream model).
+   */
+  concurrency?: number;
 }
 
 export interface BatchIngestResult {
@@ -485,7 +493,7 @@ export interface BatchIngestResult {
  * the serial strategy. A non-retryable error still propagates (parity with the
  * parallel arms).
  */
-async function runSerialBatch(items: BatchItem[]): Promise<ExtractResult[]> {
+async function runSerialBatch(items: BatchItem[], _concurrency?: number): Promise<ExtractResult[]> {
   const results: ExtractResult[] = [];
   for (const item of items) {
     const memoryId = await store(item.text, {
@@ -497,7 +505,7 @@ async function runSerialBatch(items: BatchItem[]): Promise<ExtractResult[]> {
     results.push(
       await withRetry(() => extract(memoryId, { contentType: item.contentType }), {
         retries: 4,
-        isRetryable: isQueueFull,
+        isRetryable: isRetryableAgentError,
         baseDelayMs: 500,
       }),
     );
@@ -542,9 +550,10 @@ async function filterLiveEntityIds(entityIds: string[]): Promise<string[]> {
  * persisted on each memory for a future realign pass; behavioural correctness
  * of this arm is established at the benchmark/litmus stage.
  */
-async function runEpochBatch(items: BatchItem[]): Promise<ExtractResult[]> {
+async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<ExtractResult[]> {
+  const limit = concurrency ?? EPOCH_CONCURRENCY;
   // Phase 1: store all chunks (bounded — embeddings hit the Ollama pool too).
-  const stored = await mapWithConcurrency(items, EPOCH_CONCURRENCY, async (item) => ({
+  const stored = await mapWithConcurrency(items, limit, async (item) => ({
     memoryId: await store(item.text, {
       source: item.source,
       sourceId: item.sourceId,
@@ -555,10 +564,10 @@ async function runEpochBatch(items: BatchItem[]): Promise<ExtractResult[]> {
   }));
 
   // Phase 2: parallel agent extraction (the free-for-all writes).
-  const results = await mapWithConcurrency(stored, EPOCH_CONCURRENCY, ({ memoryId, item }) =>
+  const results = await mapWithConcurrency(stored, limit, ({ memoryId, item }) =>
     withRetry(() => extract(memoryId, { contentType: item.contentType }), {
       retries: 4,
-      isRetryable: isQueueFull,
+      isRetryable: isRetryableAgentError,
       baseDelayMs: 500,
     }),
   );
@@ -596,9 +605,10 @@ const OPTIMISTIC_RECONCILE_INTERVAL_MS = Number.parseInt(
  * doc 05 Bug C). The agent recovers from a stale-entity write via the P2
  * actionable MCP error ([entity_missing] → re-resolve).
  */
-async function runOptimisticBatch(items: BatchItem[]): Promise<ExtractResult[]> {
+async function runOptimisticBatch(items: BatchItem[], concurrency?: number): Promise<ExtractResult[]> {
+  const limit = concurrency ?? OPTIMISTIC_CONCURRENCY;
   // Phase 1: store all chunks (bounded).
-  const stored = await mapWithConcurrency(items, OPTIMISTIC_CONCURRENCY, async (item) => ({
+  const stored = await mapWithConcurrency(items, limit, async (item) => ({
     memoryId: await store(item.text, {
       source: item.source,
       sourceId: item.sourceId,
@@ -628,10 +638,10 @@ async function runOptimisticBatch(items: BatchItem[]): Promise<ExtractResult[]> 
   // extraction throws — otherwise the loop (and this call) would hang.
   let results: ExtractResult[];
   try {
-    results = await mapWithConcurrency(stored, OPTIMISTIC_CONCURRENCY, ({ memoryId, item }) =>
+    results = await mapWithConcurrency(stored, limit, ({ memoryId, item }) =>
       withRetry(() => extract(memoryId, { contentType: item.contentType }), {
         retries: 4,
-        isRetryable: isQueueFull,
+        isRetryable: isRetryableAgentError,
         baseDelayMs: 500,
       }),
     );
@@ -676,7 +686,7 @@ export async function ingestBatch(
   const items = prepareBatch(chunks, { source: opts.source, sourceId, contentType: opts.contentType });
   const runner =
     mode === 'serial' ? runSerialBatch : mode === 'epoch' ? runEpochBatch : runOptimisticBatch;
-  const results = await runner(items);
+  const results = await runner(items, opts.concurrency);
 
   const total = Date.now() - start;
   console.log(`${tag} done chunks=${chunks.length} results=${results.length} +${total}ms`);

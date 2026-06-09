@@ -72,3 +72,20 @@ export function isQueueFull(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   return /\b503\b/.test(msg) || /queue ?full/i.test(msg);
 }
+
+/**
+ * A transient graph-agent failure worth retrying. Extends isQueueFull with the
+ * flaky-subprocess signature: ml-services surfaces a failed `claude -p` spawn as
+ * `<agent> failed (500): {... "Claude CLI failed (rc=1)" ...}` (causal-agent.ts
+ * `agentFetch`). The agent subprocess is inherently flaky — LLM non-determinism,
+ * a model that wanders off the MCP-tool rails (e.g. trying a disallowed Bash
+ * tool), or an upstream hiccup — and a single such failure should not abort a
+ * whole batch. Re-extraction is idempotent by design (entity advisory locks + the
+ * P1 fact-triple unique constraint dedup a re-run), and withRetry bounds the
+ * attempts, so a genuinely deterministic failure still surfaces after the cap.
+ */
+export function isRetryableAgentError(err: unknown): boolean {
+  if (isQueueFull(err)) return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /claude cli failed/i.test(msg) || /\brc=1\b/.test(msg);
+}

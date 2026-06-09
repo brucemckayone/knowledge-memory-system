@@ -13,7 +13,7 @@
  * Usage:
  *   tsx scripts/compare-ingestion.ts --chunks corpus.json \
  *     [--url http://127.0.0.1:3000] [--modes serial,epoch,optimistic] \
- *     [--no-litmus] [--determinism] [--out <dir>] [--run-id <id>]
+ *     [--no-litmus] [--determinism] [--concurrency N] [--out <dir>] [--run-id <id>]
  *
  * Requires the full stack (Postgres/Qdrant + ML services + Ollama). This is the
  * benchmark driver, not a unit test — the pure logic it uses (buildScorecard;
@@ -77,6 +77,12 @@ const doDeterminism = has('determinism'); // run each mode forward twice → the
 // single point. Default 1 (the existing single-forward path, unchanged). Invalid
 // / <1 values clamp to 1.
 const repeats = Math.max(1, Math.trunc(Number(arg('repeats', '1'))) || 1);
+// --concurrency N: per-run fan-out for the parallel arms (epoch/optimistic), sent
+// in the batch request. The platform falls back to its env default (EPOCH_/
+// OPTIMISTIC_CONCURRENCY, 6) when unset or invalid. Lets us throttle a
+// rate-limited upstream model without a platform restart.
+const concurrencyArg = Number(arg('concurrency'));
+const concurrency = Number.isInteger(concurrencyArg) && concurrencyArg > 0 ? concurrencyArg : undefined;
 // Agent review (doc 39 §2.D, nmemo-hm4.7) — OFF by default. When on, a STRONG
 // judge model reviews each forward arm AFTER the artifacts are captured. A plain
 // run never calls the judge. --judge-model overrides the model (provider/model,
@@ -138,7 +144,11 @@ async function ingestAndCapture(
   const resetRes = await post('/api/reset');
   if (!resetRes.ok) throw new Error(`reset failed (${resetRes.status})`);
   const t0 = Date.now();
-  const res = await post(`/ingest/batch/${mode}`, { chunks: orderedChunks, source: `compare-${mode}` });
+  const res = await post(`/ingest/batch/${mode}`, {
+    chunks: orderedChunks,
+    source: `compare-${mode}`,
+    ...(concurrency !== undefined ? { concurrency } : {}),
+  });
   if (!res.ok) {
     // Read + surface the error body (capped) so the actual platform failure is
     // visible in the driver log. Previously the process crashed on exit (see the
@@ -381,8 +391,8 @@ async function main(): Promise<void> {
     modes,
     orders,
     concurrency: {
-      epoch: process.env.EPOCH_CONCURRENCY ?? '6',
-      optimistic: process.env.OPTIMISTIC_CONCURRENCY ?? '6',
+      epoch: concurrency !== undefined ? String(concurrency) : (process.env.EPOCH_CONCURRENCY ?? '6'),
+      optimistic: concurrency !== undefined ? String(concurrency) : (process.env.OPTIMISTIC_CONCURRENCY ?? '6'),
     },
     model: process.env.LLM_PROVIDER ?? 'pi',
     repeats,
