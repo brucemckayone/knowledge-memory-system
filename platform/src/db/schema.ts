@@ -707,6 +707,58 @@ export const graphStats = pgTable('graph_stats', {
 export type GraphStats = typeof graphStats.$inferSelect;
 export type NewGraphStats = typeof graphStats.$inferInsert;
 
+// ============================================
+// Epoch v2: Propose/Promote staging buffer (doc 41 §3, §8a.4)
+// ============================================
+
+/**
+ * Staging — proposed entities.
+ *
+ * Candidate entities written by extraction proposers (Phase 2) in per-epoch
+ * isolation. NOT canonical: no AGE sync, no audit. `handle` is the server-minted
+ * epoch-local id that proposedFacts reference; `anchorCanonicalId` is set when
+ * the proposer anchored to a known entity (doc 41 §4). Promotion (E3) reads one
+ * epoch's rows, resolves handles → canonical ids, and writes canonical once.
+ * See migration 040_staging_proposals.sql.
+ */
+export const stagingProposedEntities = pgTable('staging_proposed_entities', {
+  handle: uuid('handle').primaryKey().defaultRandom(),
+  epochId: uuid('epoch_id').notNull(),
+  sourceId: uuid('source_id'),
+  name: text('name').notNull(),
+  entityType: text('entity_type').notNull(),
+  summary: text('summary'),
+  anchorCanonicalId: uuid('anchor_canonical_id'),
+  mentionText: text('mention_text'),
+  proposedBy: varchar('proposed_by', { length: 32 }).default('extraction_proposer').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Staging — proposed facts.
+ *
+ * Entity refs are HANDLES, not canonical ids (doc 41 §3) — promotion rewrites
+ * them after identity settles. `exclusiveGroup` is resolved at propose time from
+ * the E1 shared ontology so promotion's group-aware supersession reuses it.
+ * `undated` true ⟺ `validAt` null (DB CHECK). See migration 040.
+ */
+export const stagingProposedFacts = pgTable('staging_proposed_facts', {
+  stagedFactId: uuid('staged_fact_id').primaryKey().defaultRandom(),
+  epochId: uuid('epoch_id').notNull(),
+  sourceId: uuid('source_id'),
+  subjectHandle: uuid('subject_handle').notNull(),
+  predicate: text('predicate').notNull(),
+  objectHandle: uuid('object_handle'),
+  objectValue: text('object_value'),
+  validAt: timestamp('valid_at', { withTimezone: true }),
+  undated: boolean('undated').default(false).notNull(),
+  chunkIndex: integer('chunk_index'),
+  confidence: real('confidence'),
+  reasoning: text('reasoning'),
+  exclusiveGroup: text('exclusive_group'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
@@ -732,3 +784,7 @@ export type FactHistory = typeof factHistory.$inferSelect;
 export type NewFactHistory = typeof factHistory.$inferInsert;
 export type CausalEdgeHistory = typeof causalEdgeHistory.$inferSelect;
 export type NewCausalEdgeHistory = typeof causalEdgeHistory.$inferInsert;
+export type StagingProposedEntity = typeof stagingProposedEntities.$inferSelect;
+export type NewStagingProposedEntity = typeof stagingProposedEntities.$inferInsert;
+export type StagingProposedFact = typeof stagingProposedFacts.$inferSelect;
+export type NewStagingProposedFact = typeof stagingProposedFacts.$inferInsert;

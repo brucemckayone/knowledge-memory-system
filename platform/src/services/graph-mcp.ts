@@ -14,8 +14,17 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { GRAPH_TOOLS, handleToolCall } from './causal-agent.js';
+import { GRAPH_TOOLS, handleToolCall, allowlistFor, resolveActorFromEnv } from './causal-agent.js';
 import { toActionableMcpError } from './mcp-errors.js';
+
+// Per-actor tool surface (doc 41 §8a, §9.5). This server process is spawned
+// once per actor with MNEMO_AGENT_ACTOR fixed in its env, so the actor — and
+// thus the advertised tool set — is constant for the process lifetime.
+// Advertising only the permitted tools means the client's wildcard
+// `--allowedTools mcp__mnemo-graph__*` resolves to exactly this actor's surface;
+// handleToolCall enforces the same list as defence-in-depth on CallTool.
+const MCP_ACTOR = resolveActorFromEnv();
+const ALLOWED_TOOLS = allowlistFor(MCP_ACTOR);
 
 const server = new Server(
   {
@@ -31,7 +40,7 @@ const server = new Server(
 
 // List available tools
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: GRAPH_TOOLS.map(t => ({
+  tools: GRAPH_TOOLS.filter(t => ALLOWED_TOOLS.has(t.name)).map(t => ({
     name: t.name,
     description: t.description,
     inputSchema: {

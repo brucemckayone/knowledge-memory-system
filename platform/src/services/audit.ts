@@ -80,7 +80,13 @@ export type Actor =
   | 'reconciliation_agent'
   | 'user'
   | 'system_trigger'
-  | 'cascade';
+  | 'cascade'
+  // Epoch v2 (doc 41 §8, §8a.4): the Phase-2 extraction proposer. An MCP actor
+  // for tool-allow-list scoping ONLY — it writes staging, never canonical, so it
+  // never appears in fact_history/causal_edge_history. Deliberately NOT added to
+  // migration 009's actor CHECK: if this value ever reaches an audit column it is
+  // a bug (a proposer wrote canonical), and the CHECK should reject it.
+  | 'extraction_proposer';
 
 export interface SourceReference {
   type: 'memory' | 'fact' | 'entity';

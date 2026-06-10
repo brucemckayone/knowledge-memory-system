@@ -214,18 +214,23 @@ describe('Pi Agent Bridge: bridge module structure', () => {
     expect(source).toContain('req.destroy()');
   });
 
-  it('VALID_ACTORS is exported from causal-agent.ts and covers all 7 Actor values', () => {
+  it('VALID_ACTORS is exported from causal-agent.ts and covers all 8 Actor values', () => {
     // Bead nmemo-2yv.117 re-lock: the bridge re-uses the existing
     // VALID_ACTORS set rather than introducing a narrower KNOWN_ACTORS.  This
     // test pins the contract so a future caller of `handleToolCall` adding a
     // new agent type touches one place (causal-agent.ts) and the bridge picks
     // it up automatically.
+    //
+    // Epoch v2 (doc 41 §8a.4) added the 8th actor `extraction_proposer` — a
+    // valid MCP actor for tool-scoping that writes staging only (deliberately
+    // absent from migration 009's audit CHECK).
     expect(VALID_ACTORS).toBeInstanceOf(Set);
-    expect(VALID_ACTORS.size).toBe(7);
+    expect(VALID_ACTORS.size).toBe(8);
 
     const expected: ToolCallContext['agent'][] = [
       'graph_agent', 'reasoning_agent', 'gardener_agent',
       'reconciliation_agent', 'user', 'system_trigger', 'cascade',
+      'extraction_proposer',
     ];
     for (const actor of expected) {
       expect(VALID_ACTORS.has(actor), `expected VALID_ACTORS to include ${actor}`).toBe(true);
