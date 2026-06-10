@@ -21,46 +21,13 @@
  */
 
 import type { RichGraph } from './graph-canonical-query.js';
-import { normalizePredicate, getPredicateInfo } from './predicate-ontology.js';
-
-// ============================================
-// Exclusive-group resolution
-// ============================================
-
-/**
- * Cross-predicate exclusivity groups the canonical ontology does NOT model -
- * the role/title and HQ sprawl behind the headline bug. Members are matched
- * against the raw lowercased predicate OR its canonical normalisation.
- */
-const AUGMENTATION_GROUPS: Record<string, Set<string>> = {
-  role_title: new Set([
-    'job_title', 'title', 'role_at', 'role', 'position', 'job', 'occupation',
-    'works_as', 'serves_as', 'holds_title', 'has_title', 'has_role',
-    'cto_at', 'cto_of', 'ceo_of', 'cfo_of', 'coo_of',
-    'chief_technology_officer', 'chief_executive_officer',
-  ]),
-  org_hq: new Set([
-    'headquartered_in', 'headquarters', 'hq', 'hq_in', 'head_office_in', 'head_office',
-  ]),
-};
-
-/**
- * Resolve the exclusivity group a predicate belongs to, or null when it is not
- * exclusive (and so not checked by {@link singleActivePerExclusiveGroup}).
- *
- * Order matters: augmentation groups win first (they fold several
- * ontology-exclusive predicates like `ceo_of` into a broader role group), then
- * any ontology-exclusive predicate is its own group keyed by its canonical form.
- */
-export function resolveExclusiveGroup(predicate: string): string | null {
-  const raw = predicate.toLowerCase();
-  const norm = normalizePredicate(predicate);
-  for (const [group, members] of Object.entries(AUGMENTATION_GROUPS)) {
-    if (members.has(raw) || members.has(norm)) return group;
-  }
-  if (getPredicateInfo(norm)?.isExclusive) return norm;
-  return null;
-}
+// The exclusive-group ontology (AUGMENTATION_GROUPS + resolveExclusiveGroup)
+// moved to the shared, DB-free `exclusive-groups.ts` (bead nmemo-vpz.1 / doc 41
+// §9.1) so BOTH this detection layer AND createFact's prevention/supersession
+// path consume ONE definition of "exclusive group". Re-exported here so existing
+// importers (graph-correctness.ts, the invariant unit tests) are unaffected.
+import { resolveExclusiveGroup } from './exclusive-groups.js';
+export { resolveExclusiveGroup };
 
 // ============================================
 // Result shapes

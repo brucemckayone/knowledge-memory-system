@@ -106,20 +106,27 @@ function graph(parts: Partial<RichGraph>): RichGraph {
 
 describe('resolveExclusiveGroup', () => {
   it('folds title/role predicates into the role_title augmentation group', () => {
-    for (const p of ['job_title', 'title', 'role_at', 'cto_at', 'ceo_of', 'works_as']) {
+    for (const p of ['job_title', 'title', 'role_at', 'cto_at', 'ceo_of', 'works_as', 'has_role', 'has_job_title']) {
       expect(resolveExclusiveGroup(p)).toBe('role_title');
     }
   });
 
-  it('folds HQ predicates into the org_hq augmentation group', () => {
-    for (const p of ['headquartered_in', 'headquarters', 'hq', 'head_office_in']) {
-      expect(resolveExclusiveGroup(p)).toBe('org_hq');
+  it('folds HQ, residence AND relocation predicates into one location group (nmemo-vpz.1)', () => {
+    // doc 41 §9.1 + benchmark §7: lives_in / relocated_to / headquartered_in are
+    // one logical attribute (a subject's current location) and must contend for
+    // a single active slot — the headline cross-predicate coexistence fix.
+    for (const p of [
+      'headquartered_in', 'headquarters', 'hq', 'head_office_in',
+      'lives_in', 'resides_in', 'based_in', 'lived_in',
+      'relocated_to', 'moved_to', 'relocated',
+    ]) {
+      expect(resolveExclusiveGroup(p)).toBe('location');
     }
   });
 
-  it('returns the canonical predicate for an ontology-exclusive predicate', () => {
+  it('returns the canonical predicate for an ontology-exclusive predicate not in an augmentation group', () => {
     expect(resolveExclusiveGroup('works_at')).toBe('works_at');
-    expect(resolveExclusiveGroup('lives_in')).toBe('lives_in');
+    expect(resolveExclusiveGroup('born_in')).toBe('born_in');
     // alias normalises to its canonical exclusive form
     expect(resolveExclusiveGroup('spouse_of')).toBe('married_to');
   });
@@ -158,20 +165,25 @@ describe('singleActivePerExclusiveGroup', () => {
     expect(new Set(v.factIds)).toEqual(new Set(facts.map((f) => f.id)));
   });
 
-  it('FAILS on Helix headquartered_in both boston and austin', () => {
+  it('FAILS on Helix split across headquartered_in, lives_in and relocated_to (cross-predicate, nmemo-vpz.1)', () => {
     const helix = 'helix';
+    // The exact benchmark failure: one subject's location under three predicates.
+    // All resolve to the 'location' group, so the invariant must see them as one
+    // group with three distinct objects — a single conflict, not three.
     const boston = fact({ subjectEntityId: helix, predicate: 'headquartered_in', objectValue: 'boston' });
-    const austin = fact({ subjectEntityId: helix, predicate: 'headquartered_in', objectValue: 'austin' });
-    const g = graph({ entities: [entity(helix, 'Helix')], facts: [boston, austin] });
+    const austin = fact({ subjectEntityId: helix, predicate: 'relocated_to', objectValue: 'austin' });
+    const denver = fact({ subjectEntityId: helix, predicate: 'lives_in', objectValue: 'denver' });
+    const g = graph({ entities: [entity(helix, 'Helix')], facts: [boston, austin, denver] });
 
     const res = singleActivePerExclusiveGroup(g);
     expect(res.pass).toBe(false);
     expect(res.violations).toHaveLength(1);
     const v = res.violations[0]!;
-    expect(v.detail).toContain('org_hq');
-    expect(new Set(v.factIds)).toEqual(new Set([boston.id, austin.id]));
+    expect(v.detail).toContain('location');
+    expect(new Set(v.factIds)).toEqual(new Set([boston.id, austin.id, denver.id]));
     expect(v.detail).toMatch(/boston/);
     expect(v.detail).toMatch(/austin/);
+    expect(v.detail).toMatch(/denver/);
   });
 
   it('passes when a single subject has one active fact per exclusive group', () => {
