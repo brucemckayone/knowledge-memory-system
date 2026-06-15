@@ -77,6 +77,41 @@ async function stageFact(
   return id;
 }
 
+/**
+ * Value-normalised canonical snapshot of this test's facts (E8). id-AGNOSTIC:
+ * subject/object are joined to canonical NAMES, not ids, so two promotions of the
+ * same staged set compare equal despite each minting fresh UUIDs. Sorted for a
+ * stable string compare.
+ */
+async function canonicalValueSnapshot(): Promise<string> {
+  const rows = await testDb`
+    SELECT e.canonical_name AS subj, f.predicate AS pred,
+           COALESCE(oe.canonical_name, f.object_value) AS obj,
+           (f.expired_at IS NULL) AS active,
+           to_char(f.valid_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS valid_at
+    FROM facts f
+    JOIN entities e ON e.id = f.subject_entity_id
+    LEFT JOIN entities oe ON oe.id = f.object_entity_id
+    WHERE f.source_text LIKE ${TAG + '%'}
+    ORDER BY subj, pred, obj, active, valid_at
+  `;
+  return JSON.stringify(rows.map((r) => [r.subj, r.pred, r.obj, r.active, r.valid_at]));
+}
+
+/**
+ * Delete this test's CANONICAL rows (facts + audit + minted entities) while
+ * LEAVING the staged proposals intact, so promote() can replay the same staging
+ * into a clean canonical (E8 criterion 2). Facts before entities (subject FK is
+ * RESTRICT, mig 038).
+ */
+async function wipeCanonical(): Promise<void> {
+  await testDb.unsafe(
+    `DELETE FROM fact_history WHERE fact_id IN (SELECT id FROM facts WHERE source_text LIKE '${TAG}%')`,
+  );
+  await testDb.unsafe(`DELETE FROM facts WHERE source_text LIKE '${TAG}%'`);
+  await testDb.unsafe(`DELETE FROM entities WHERE canonical_name LIKE '${TAG}%'`);
+}
+
 describe('promotion against testDb (nmemo-vpz.3 / E3)', () => {
   beforeEach(clean);
   afterAll(clean);
@@ -225,5 +260,85 @@ describe('promotion against testDb (nmemo-vpz.3 / E3)', () => {
 
     const ghost = await testDb`SELECT id FROM entities WHERE canonical_name = ${bogusName}`;
     expect(ghost).toHaveLength(0); // rolled back — nothing persisted
+  });
+});
+
+describe('promotion replay determinism (nmemo-vpz.8 / E8 criterion 2)', () => {
+  beforeEach(clean);
+  afterAll(clean);
+
+  it('re-promoting the SAME staged set into clean canonical yields identical canonical', async () => {
+    // A set that exercises merge + cross-predicate supersession + triple dedup, so
+    // the snapshot is a non-trivial fixed point, not just one inert fact.
+    const epoch = randomUUID();
+    const helix = await stageEntity(epoch, `${TAG} Helix`, 'organization');
+    const helixR = await stageEntity(epoch, `${TAG} Helix Robotics`, 'organization'); // merges with helix
+    const elena = await stageEntity(epoch, `${TAG} Elena`, 'person');
+    await stageFact(epoch, elena, 'works_at', { objectHandle: helix, validAt: new Date('2021-01-01') });
+    await stageFact(epoch, helixR, 'headquartered_in', { objectValue: 'Boston', validAt: new Date('2020-01-01'), exclusiveGroup: 'location' });
+    await stageFact(epoch, helix, 'relocated_to', { objectValue: 'Austin', validAt: new Date('2023-01-01'), exclusiveGroup: 'location' });
+    await stageFact(epoch, elena, 'works_at', { objectHandle: helix, validAt: new Date('2021-01-01') }); // dup → corroborate
+
+    await promote(epoch);
+    const snap1 = await canonicalValueSnapshot();
+
+    await wipeCanonical(); // clear canonical, KEEP the staging rows
+    await promote(epoch); // replay the same staged set into now-empty canonical
+
+    const snap2 = await canonicalValueSnapshot();
+    expect(snap2).toBe(snap1); // byte-identical by VALUE (ids differ, structure does not)
+
+    // Guard the check is meaningful: merge + supersession actually applied.
+    const tuples = JSON.parse(snap1) as Array<[string, string, string, boolean, string | null]>;
+    const activeLoc = tuples.filter((t) => t[3] && (t[1] === 'headquartered_in' || t[1] === 'relocated_to'));
+    expect(activeLoc).toHaveLength(1); // exactly one active location after supersession
+    expect(activeLoc[0]![2]).toBe('Austin'); // latest-valid
+  });
+});
+
+describe('epoch-v2 bug-fix scenarios — named harness cases (nmemo-vpz.8 / E8 criterion 4)', () => {
+  beforeEach(clean);
+  afterAll(clean);
+
+  it('nmemo-bsb: supersession keeps the latest-VALID fact, not the last-committed one', async () => {
+    // The fact committed LAST carries the EARLIER valid_at (a back-dated mention):
+    // last-committed != latest-valid. Promotion must keep latest-VALID active.
+    const epoch = randomUUID();
+    const helix = await stageEntity(epoch, `${TAG} Helix BSB`, 'organization');
+    await stageFact(epoch, helix, 'relocated_to', { objectValue: 'Austin', validAt: new Date('2023-01-01'), chunkIndex: 0, exclusiveGroup: 'location' });
+    await stageFact(epoch, helix, 'headquartered_in', { objectValue: 'Boston', validAt: new Date('2019-01-01'), chunkIndex: 1, exclusiveGroup: 'location' });
+    await promote(epoch);
+    const ent = await testDb`SELECT id FROM entities WHERE canonical_name LIKE ${TAG + '%'}`;
+    const active = await testDb`
+      SELECT object_value FROM facts
+      WHERE subject_entity_id = ${(ent[0] as { id: string }).id}::uuid AND expired_at IS NULL
+    `;
+    expect(active).toHaveLength(1);
+    expect((active[0] as { object_value: string }).object_value).toBe('Austin'); // latest-valid wins
+  });
+
+  it('nmemo-wyb: helix / helix-robotics duplicate entities merge to ONE canonical entity at promotion', async () => {
+    const epoch = randomUUID();
+    const a = await stageEntity(epoch, `${TAG} Helix WYB`, 'organization');
+    const b = await stageEntity(epoch, `${TAG} Helix WYB Robotics`, 'organization');
+    await stageFact(epoch, a, 'founded_in', { objectValue: '2015' });
+    await stageFact(epoch, b, 'headquartered_in', { objectValue: 'Austin', validAt: new Date('2023-01-01'), exclusiveGroup: 'location' });
+    const result = await promote(epoch);
+    expect(Object.keys(result.mintedEntityIds)).toHaveLength(1); // collapsed to one
+    const ents = await testDb`SELECT count(*)::int AS n FROM entities WHERE canonical_name LIKE ${TAG + '%'}`;
+    expect((ents[0] as { n: number }).n).toBe(1);
+  });
+
+  it('nmemo-3bp: a fact on a freshly-proposed OBJECT entity promotes with NO FK violation', async () => {
+    // Both subject and object are fresh (no canonical id until promotion mints them)
+    // — the exact case that FK-violated under the old per-chunk write race.
+    const epoch = randomUUID();
+    const alice = await stageEntity(epoch, `${TAG} Alice 3BP`, 'person');
+    const acme = await stageEntity(epoch, `${TAG} Acme 3BP`, 'organization');
+    await stageFact(epoch, alice, 'works_at', { objectHandle: acme, validAt: new Date('2022-01-01') });
+    const result = await promote(epoch); // must not throw on the object FK
+    expect(result.insertedFactIds).toHaveLength(1);
+    const fact = await testDb`SELECT object_entity_id FROM facts WHERE id = ${result.insertedFactIds[0]!}::uuid`;
+    expect((fact[0] as { object_entity_id: string | null }).object_entity_id).not.toBeNull();
   });
 });
