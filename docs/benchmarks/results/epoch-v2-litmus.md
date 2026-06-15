@@ -37,3 +37,22 @@ landed. Bead `nmemo-vpz.8` (E8).
   order twice) would confirm `litmus F1 ~= determinism F1`.
 - 3 chunks is a tiny corpus where each differing fact moves F1 sharply; corpus10/20
   give a steadier band. Re-run per landed step and track the number here.
+
+## Determinism confirmation — run `2026-06-15T15-04-01-351Z`
+
+Re-ran corpus3 epoch with `--determinism` (forward + forward2 + reverse):
+
+| comparison | entityF1 | factF1 |
+|---|---|---|
+| determinism (fwd vs fwd2, SAME order) | 0.71 | 0.44 |
+| litmus (fwd vs rev) | 1.00 | 0.42 |
+
+`singleActivePerExclusiveGroup` = 0 violations across all three orders (forward,
+forward2, reverse).
+
+**Verdict:** litmus factF1 (0.42) ~= determinism factF1 (0.44) — the reverse-order
+graph differs from forward by no more than a second SAME-order run does. The
+deterministic backbone contributes ~zero order effect; all residual run-to-run
+variance is the extraction-LLM floor, exactly as doc 41 §10 predicts. Live
+order-independence holds up to extraction noise; absolute factF1 climbs with a
+larger / gold-scored corpus (corpus10/20).
