@@ -85,6 +85,12 @@ export interface StagedFact {
   reasoning: string | null;
   /** Stored at propose time from the shared ontology; null = not exclusive. */
   exclusiveGroup: string | null;
+  /**
+   * Advisory VERIFY-phase hint (E4, doc 41 §4): a prior-canonical fact id this
+   * fact claims to supersede. Cross-checked against the deterministic outcome
+   * (never allowed to override valid_at ordering). null = no hint.
+   */
+  supersedesFactId: string | null;
 }
 
 export interface PriorCanonical {
@@ -184,12 +190,28 @@ export type Escalation =
       factIds: string[];
     };
 
+/**
+ * A VERIFY-phase supersession hint (doc 41 §4, §8a.3; E4) cross-checked against
+ * the deterministic outcome. The proposer flagged that `stagedFactId` supersedes
+ * the prior-canonical fact `supersedesFactId`; `agreed` is whether promotion's
+ * own group-aware ordering also expired that prior fact. valid_at stays the
+ * authority (ordering LOCKED, doc 41 §5c) — a disagreeing hint is recorded and
+ * logged (promotion.ts), never allowed to override the deterministic order.
+ */
+export interface SupersessionHint {
+  stagedFactId: string;
+  supersedesFactId: string;
+  agreed: boolean;
+}
+
 export interface PromotionPlan {
   entitiesToMint: PlannedEntity[];
   factsToInsert: PlannedFact[];
   factsToExpire: PlannedExpiry[];
   corroborations: PlannedCorroboration[];
   escalations: Escalation[];
+  /** Proposer supersession hints cross-checked against the deterministic order. */
+  supersessionHints: SupersessionHint[];
   /** stagedFactIds dropped because subject resolved == object resolved. */
   droppedSelfLoops: string[];
 }
@@ -591,6 +613,20 @@ export function planPromotion(prior: PriorCanonical, staged: StagedProposals): P
     };
   });
 
+  // VERIFY-phase supersession hints (doc 41 §4, §8a.3): cross-check each proposer
+  // hint against the deterministic outcome. valid_at ordering is the authority
+  // (LOCKED, §5c) — `agreed` only records whether promotion ALSO expired the
+  // flagged prior fact, so promotion.ts can surface the disagreements (a signal
+  // for the E5 arbiter) without ever letting a hint override the order.
+  const expiredPriorIds = new Set(factsToExpire.map((e) => e.factId));
+  const supersessionHints: SupersessionHint[] = staged.facts
+    .filter((f): f is StagedFact & { supersedesFactId: string } => f.supersedesFactId != null)
+    .map((f) => ({
+      stagedFactId: f.stagedFactId,
+      supersedesFactId: f.supersedesFactId,
+      agreed: expiredPriorIds.has(f.supersedesFactId),
+    }));
+
   // Canonical sort of every array so the plan is order-independent by value and
   // the litmus is a plain deep-equal (doc 41 §10).
   return {
@@ -599,6 +635,7 @@ export function planPromotion(prior: PriorCanonical, staged: StagedProposals): P
     factsToExpire: factsToExpire.sort((a, b) => (a.factId < b.factId ? -1 : 1)),
     corroborations: corroborations.sort((a, b) => (a.priorFactId < b.priorFactId ? -1 : 1)),
     escalations: escalations.sort((a, b) => (escalationKey(a) < escalationKey(b) ? -1 : 1)),
+    supersessionHints: supersessionHints.sort((a, b) => (a.stagedFactId < b.stagedFactId ? -1 : 1)),
     droppedSelfLoops: droppedSelfLoops.sort(),
   };
 }

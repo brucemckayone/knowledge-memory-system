@@ -1195,7 +1195,7 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
   {
     name: 'propose_fact',
     description:
-      'Propose a candidate fact into the epoch staging buffer, using entity HANDLES (from propose_entity) — not canonical ids. Returns the exclusive group this predicate belongs to and the prior-canonical active facts in that group (the disposal preview), so VERIFY can flag supersession. Provide an explicit validAt for time-sensitive facts, or set undated=true — never omit silently.',
+      'Propose a candidate fact into the epoch staging buffer, using entity HANDLES (from propose_entity) — not canonical ids. Returns the exclusive group this predicate belongs to and the prior-canonical active facts in that group (the disposal preview), so VERIFY can flag supersession. Provide an explicit validAt for time-sensitive facts, or set undated=true — never omit silently. In VERIFY, when this fact supersedes a prior-canonical fact in that group, pass that prior fact id as supersedesFactId as a hint to promotion.',
     mutates: true,
     inputSchema: {
       type: 'object' as const,
@@ -1208,6 +1208,10 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         undated: { type: 'boolean', description: 'Set true when the fact has no date in the source. Required when validAt is omitted.' },
         confidence: { type: 'number', minimum: 0, maximum: 1, description: 'Extraction confidence 0.0-1.0.' },
         reasoning: { type: 'string', description: 'Brief justification grounded in the source text.' },
+        supersedesFactId: {
+          type: 'string',
+          description: 'Hint to promotion: id of a prior-canonical fact in this exclusive group (from your reads or a prior propose_fact preview) that this fact supersedes. Advisory; promotion still orders by valid_at.',
+        },
       },
       required: ['subjectHandle', 'predicate'],
     },
@@ -3058,6 +3062,10 @@ async function _handleToolCallInner(
           confidence: (toolInput.confidence as number) ?? null,
           reasoning: (toolInput.reasoning as string) ?? null,
           exclusiveGroup,
+          // VERIFY-phase supersession hint (E4, doc 41 §4). Stored raw — promotion
+          // validates it against the actual prior-canonical actives (no FK; the
+          // id is agent-supplied and may be stale).
+          supersedesFactId: (toolInput.supersedesFactId as string) ?? null,
         })
         .returning({ stagedFactId: stagingProposedFacts.stagedFactId });
 
@@ -3115,6 +3123,12 @@ export interface EpochContext {
   epochId?: string;
   sourceId?: string;
   chunkIndex?: number;
+  /**
+   * Total chunks in this source's batch (E4, doc 41 §4). Passed to the proposer
+   * prompt as the "M" in "chunk N of M" so the agent knows its narration
+   * position. Not stamped onto staging rows — purely a prompt input.
+   */
+  totalChunks?: number;
 }
 
 export function getMcpEnv(actor: Actor, epoch?: EpochContext): Record<string, string> {
@@ -3489,6 +3503,11 @@ export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<G
       // as continuity context. Null / undefined is sent as null so the Python
       // endpoint can branch on absence without a sentinel string.
       previous_report: params.previousReport ?? null,
+      // Epoch v2 E4 (doc 41 §4): the actor selects the proposer prompt branch;
+      // chunk position becomes "chunk N of M" in narration order for that prompt.
+      actor,
+      chunk_index: params.epoch?.chunkIndex ?? null,
+      total_chunks: params.epoch?.totalChunks ?? null,
     },
     timeoutMs: config.GRAPH_AGENT_TIMEOUT_MS,
   });

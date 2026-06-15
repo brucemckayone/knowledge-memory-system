@@ -59,6 +59,7 @@ async function stageFact(
     chunkIndex?: number;
     confidence?: number;
     exclusiveGroup?: string;
+    supersedesFactId?: string;
   },
 ): Promise<string> {
   const id = randomUUID();
@@ -66,12 +67,12 @@ async function stageFact(
   await testDb`
     INSERT INTO staging_proposed_facts
       (staged_fact_id, epoch_id, subject_handle, predicate, object_handle, object_value,
-       valid_at, undated, chunk_index, confidence, reasoning, exclusive_group)
+       valid_at, undated, chunk_index, confidence, reasoning, exclusive_group, supersedes_fact_id)
     VALUES
       (${id}::uuid, ${epochId}::uuid, ${subjectHandle}::uuid, ${predicate},
        ${opts.objectHandle ?? null}::uuid, ${opts.objectValue ?? null},
        ${validAt}, ${validAt == null}, ${opts.chunkIndex ?? null}, ${opts.confidence ?? 0.9},
-       ${TAG + ':' + predicate}, ${opts.exclusiveGroup ?? null})
+       ${TAG + ':' + predicate}, ${opts.exclusiveGroup ?? null}, ${opts.supersedesFactId ?? null}::uuid)
   `;
   return id;
 }
@@ -152,6 +153,41 @@ describe('promotion against testDb (nmemo-vpz.3 / E3)', () => {
     expect((facts2[0] as { n: number }).n).toBe((facts1[0] as { n: number }).n);
   });
 
+  it('surfaces a proposer supersession hint on the plan, loaded from staging (E4, criterion 3)', async () => {
+    // Epoch 0: establish a prior-canonical HQ (Boston, 2019).
+    const epoch0 = randomUUID();
+    const helix0 = await stageEntity(epoch0, `${TAG} HintCo`, 'organization');
+    await stageFact(epoch0, helix0, 'headquartered_in', {
+      objectValue: 'Boston', validAt: new Date('2019-01-01'), exclusiveGroup: 'location',
+    });
+    await promote(epoch0);
+
+    const priorRows = await testDb`
+      SELECT id FROM facts WHERE source_text LIKE ${TAG + '%'} AND object_value = 'Boston'
+    `;
+    const priorFactId = (priorRows[0] as { id: string }).id;
+    const canonRows = await testDb`SELECT id FROM entities WHERE canonical_name LIKE ${TAG + '%'}`;
+    const canonId = (canonRows[0] as { id: string }).id;
+
+    // Epoch 1: anchored proposal with a later-valid HQ + a hint at the prior fact.
+    const epoch1 = randomUUID();
+    const helix1 = await stageEntity(epoch1, `${TAG} HintCo`, 'organization', canonId);
+    await stageFact(epoch1, helix1, 'headquartered_in', {
+      objectValue: 'Austin', validAt: new Date('2024-01-01'), exclusiveGroup: 'location',
+      supersedesFactId: priorFactId,
+    });
+
+    const result = await promote(epoch1);
+
+    // The hint round-tripped staging -> loader -> planner, cross-checked against
+    // the deterministic order (which also expired the prior fact).
+    expect(result.plan.supersessionHints).toHaveLength(1);
+    expect(result.plan.supersessionHints[0]!.supersedesFactId).toBe(priorFactId);
+    expect(result.plan.supersessionHints[0]!.agreed).toBe(true);
+    const prior = await testDb`SELECT expired_at FROM facts WHERE id = ${priorFactId}::uuid`;
+    expect((prior[0] as { expired_at: Date | null }).expired_at).not.toBeNull();
+  });
+
   it('leaves canonical untouched when the transaction fails mid-way (criterion 5, atomicity)', async () => {
     // Hand-built plan: mint one entity, then insert a fact whose subject resolves
     // to a NON-EXISTENT canonical id → facts.subject_entity_id FK violates → the
@@ -181,6 +217,7 @@ describe('promotion against testDb (nmemo-vpz.3 / E3)', () => {
       factsToExpire: [],
       corroborations: [],
       escalations: [],
+      supersessionHints: [],
       droppedSelfLoops: [],
     };
 

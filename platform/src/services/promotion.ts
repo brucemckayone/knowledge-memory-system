@@ -95,6 +95,7 @@ export async function loadPromotionInputs(
     confidence: r.confidence,
     reasoning: r.reasoning,
     exclusiveGroup: r.exclusiveGroup,
+    supersedesFactId: r.supersedesFactId,
   }));
 
   const types = [...new Set(stagedEntities.map((e) => e.type))];
@@ -339,5 +340,24 @@ export async function promote(epochId: string): Promise<PromotionResult> {
       `inserted=${result.insertedFactIds.length} expired=${result.expiredFactIds.length} ` +
       `corroborated=${result.corroboratedFactIds.length} dropped_self_loops=${plan.droppedSelfLoops.length}`,
   );
+
+  // VERIFY-phase supersession hints (doc 41 §4, §8a.3; E4). The deterministic
+  // valid_at order already decided supersession; hints are advisory. Log the
+  // ones that DISAGREED — a proposer believed a prior fact was superseded but
+  // valid_at ordering left it active. A signal for the E5 arbiter, never a
+  // correction here (ordering is LOCKED).
+  if (plan.supersessionHints.length > 0) {
+    const disagreed = plan.supersessionHints.filter((h) => !h.agreed);
+    console.log(
+      `[promotion] epoch=${epochId.slice(0, 8)} supersession_hints=${plan.supersessionHints.length} ` +
+        `agreed=${plan.supersessionHints.length - disagreed.length} disagreed=${disagreed.length}`,
+    );
+    for (const h of disagreed) {
+      console.warn(
+        `[promotion]   hint disagreement: staged ${h.stagedFactId.slice(0, 8)} claimed to supersede ` +
+          `prior ${h.supersedesFactId.slice(0, 8)}, but valid_at ordering left it active`,
+      );
+    }
+  }
   return result;
 }

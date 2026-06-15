@@ -547,9 +547,11 @@ async function filterLiveEntityIds(entityIds: string[]): Promise<string[]> {
  * canonical read-back here — promotion reads the staged rows by `epochId`. The
  * prior-extraction-report continuity (nmemo-upn) is preserved.
  *
- * NOTE: proposer-specific PROMPT enforcement (no-CAUSE, mandatory valid_at, §4)
- * is doc 41 §13 step 4 / E4. E3 wires the control flow; the allow-list is what
- * structurally keeps a proposer off canonical until then.
+ * Proposer-specific PROMPT enforcement (no-CAUSE, "chunk N of M", mandatory
+ * valid_at-or-undated, VERIFY supersession hint — doc 41 §4) lands in E4: the ML
+ * service selects the proposer prompt from the `extraction_proposer` actor, and
+ * the chunk position rides the epoch context below. The allow-list (E2) is the
+ * structural backstop that keeps a proposer off canonical regardless.
  */
 async function propose(
   memoryId: string,
@@ -632,7 +634,7 @@ async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<
   const tPropose = Date.now();
   await mapWithConcurrency(stored, limit, ({ memoryId, item }) =>
     withRetry(
-      () => propose(memoryId, { epochId, sourceId: item.sourceId, chunkIndex: item.chunkIndex }, { contentType: item.contentType }),
+      () => propose(memoryId, { epochId, sourceId: item.sourceId, chunkIndex: item.chunkIndex, totalChunks: items.length }, { contentType: item.contentType }),
       { retries: 4, isRetryable: isRetryableAgentError, baseDelayMs: 500 },
     ),
   );

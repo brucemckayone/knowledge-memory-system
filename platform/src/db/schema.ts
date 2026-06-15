@@ -756,6 +756,11 @@ export const stagingProposedFacts = pgTable('staging_proposed_facts', {
   confidence: real('confidence'),
   reasoning: text('reasoning'),
   exclusiveGroup: text('exclusive_group'),
+  // VERIFY-phase supersession hint (E4, doc 41 §4): a prior-canonical fact id
+  // this fact claims to supersede. Advisory — promotion cross-checks it against
+  // its deterministic valid_at ordering. No FK (agent-supplied, may be stale).
+  // See migration 042_staging_supersedes_hint.sql.
+  supersedesFactId: uuid('supersedes_fact_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

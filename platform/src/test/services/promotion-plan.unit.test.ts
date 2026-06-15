@@ -40,6 +40,7 @@ function fact(
     confidence: opts.confidence ?? 0.9,
     reasoning: opts.reasoning ?? 'r',
     exclusiveGroup: opts.exclusiveGroup ?? null,
+    supersedesFactId: opts.supersedesFactId ?? null,
   };
 }
 
@@ -165,6 +166,80 @@ describe('planPromotion — triple dedup (step d) + self-loops (step e)', () => 
     const plan = planPromotion(EMPTY_PRIOR, { entities: [helix, helix2], facts: [loop] });
     expect(plan.droppedSelfLoops).toContain(loop.stagedFactId);
     expect(plan.factsToInsert).toHaveLength(0);
+  });
+});
+
+describe('planPromotion — chunk_index ordering (E4, doc 41 §5c)', () => {
+  it('undated facts in an exclusive group order by chunkIndex (later chunk wins)', () => {
+    const helix = ent('Helix');
+    // both undated (no validAt) — ordering must fall back to chunkIndex
+    const early = fact(helix.handle, 'headquartered_in', { objectValue: 'Boston', chunkIndex: 0, exclusiveGroup: 'location' });
+    const late = fact(helix.handle, 'relocated_to', { objectValue: 'Austin', chunkIndex: 3, exclusiveGroup: 'location' });
+    const plan = planPromotion(EMPTY_PRIOR, { entities: [helix], facts: [early, late] });
+    const byId = new Map(plan.factsToInsert.map((f) => [f.stagedFactId, f]));
+    expect(byId.get(late.stagedFactId)!.active).toBe(true); // higher chunkIndex = later narration
+    expect(byId.get(early.stagedFactId)!.active).toBe(false);
+  });
+
+  it('a dated fact beats an undated peer regardless of chunk order', () => {
+    const helix = ent('Helix');
+    const undatedLater = fact(helix.handle, 'headquartered_in', { objectValue: 'Boston', chunkIndex: 9, exclusiveGroup: 'location' });
+    const datedEarlier = fact(helix.handle, 'relocated_to', { objectValue: 'Austin', validAt: new Date('2010-01-01'), chunkIndex: 0, exclusiveGroup: 'location' });
+    const plan = planPromotion(EMPTY_PRIOR, { entities: [helix], facts: [undatedLater, datedEarlier] });
+    const byId = new Map(plan.factsToInsert.map((f) => [f.stagedFactId, f]));
+    expect(byId.get(datedEarlier.stagedFactId)!.active).toBe(true); // dated beats undated even from an earlier chunk
+    expect(byId.get(undatedLater.stagedFactId)!.active).toBe(false);
+  });
+
+  it('dated facts order by valid_at, NOT by chunk order (ordering LOCKED)', () => {
+    const helix = ent('Helix');
+    // later valid_at sits in an EARLIER chunk — valid_at must still win
+    const olderValid = fact(helix.handle, 'headquartered_in', { objectValue: 'Boston', validAt: new Date('2020-01-01'), chunkIndex: 9, exclusiveGroup: 'location' });
+    const newerValid = fact(helix.handle, 'relocated_to', { objectValue: 'Austin', validAt: new Date('2023-01-01'), chunkIndex: 0, exclusiveGroup: 'location' });
+    const plan = planPromotion(EMPTY_PRIOR, { entities: [helix], facts: [olderValid, newerValid] });
+    const byId = new Map(plan.factsToInsert.map((f) => [f.stagedFactId, f]));
+    expect(byId.get(newerValid.stagedFactId)!.active).toBe(true); // later valid_at wins despite earlier chunk
+    expect(byId.get(olderValid.stagedFactId)!.active).toBe(false);
+  });
+});
+
+describe('planPromotion — supersession hints (E4, doc 41 §4)', () => {
+  it('records an AGREED hint when the deterministic order also expires the flagged prior fact', () => {
+    const prior: PriorCanonical = {
+      entities: [{ id: 'canon-helix', name: 'Helix', type: 'organization' }],
+      activeFacts: [
+        { id: 'prior-hq', subjectEntityId: 'canon-helix', predicate: 'headquartered_in', objectEntityId: null, objectValue: 'Boston', validAt: new Date('2019-01-01'), confidence: 1 },
+      ],
+    };
+    const helix = ent('Helix', 'organization', 'canon-helix');
+    const austin = fact(helix.handle, 'headquartered_in', {
+      objectValue: 'Austin', validAt: new Date('2024-01-01'), exclusiveGroup: 'location', supersedesFactId: 'prior-hq',
+    });
+    const plan = planPromotion(prior, { entities: [helix], facts: [austin] });
+    expect(plan.factsToExpire.map((e) => e.factId)).toContain('prior-hq');
+    expect(plan.supersessionHints).toEqual([
+      { stagedFactId: austin.stagedFactId, supersedesFactId: 'prior-hq', agreed: true },
+    ]);
+  });
+
+  it('records a DISAGREED hint without overriding valid_at (the hint loses to the order)', () => {
+    const prior: PriorCanonical = {
+      entities: [{ id: 'canon-helix', name: 'Helix', type: 'organization' }],
+      activeFacts: [
+        { id: 'prior-hq', subjectEntityId: 'canon-helix', predicate: 'headquartered_in', objectEntityId: null, objectValue: 'Austin', validAt: new Date('2024-01-01'), confidence: 1 },
+      ],
+    };
+    const helix = ent('Helix', 'organization', 'canon-helix');
+    // The proposer claims to supersede the prior, but its fact is OLDER — valid_at wins.
+    const boston = fact(helix.handle, 'headquartered_in', {
+      objectValue: 'Boston', validAt: new Date('2019-01-01'), exclusiveGroup: 'location', supersedesFactId: 'prior-hq',
+    });
+    const plan = planPromotion(prior, { entities: [helix], facts: [boston] });
+    expect(plan.factsToExpire.map((e) => e.factId)).not.toContain('prior-hq'); // prior stays active
+    expect(plan.factsToInsert.find((f) => f.stagedFactId === boston.stagedFactId)!.active).toBe(false);
+    expect(plan.supersessionHints).toEqual([
+      { stagedFactId: boston.stagedFactId, supersedesFactId: 'prior-hq', agreed: false },
+    ]);
   });
 });
 

@@ -174,6 +174,17 @@ describe('epoch-v2 propose tool surface + allow-lists (nmemo-vpz.2 / E2)', () =>
       expect(res.priorCanonicalActiveInGroup).toHaveLength(0);
     });
 
+    it('stores the VERIFY supersession hint (supersedesFactId) when provided (E4)', async () => {
+      const epochId = randomUUID();
+      const priorFactId = randomUUID(); // no FK — promotion validates it, the row stores it raw
+      const subj = await call('propose_entity', { name: 'Hinted Co', type: 'organization' }, proposerCtx(epochId));
+      const res = await call('propose_fact',
+        { subjectHandle: subj.handle, predicate: 'headquartered_in', objectValue: 'Austin', validAt: '2024-01-01', supersedesFactId: priorFactId },
+        proposerCtx(epochId));
+      const rows = await testDb`SELECT supersedes_fact_id FROM staging_proposed_facts WHERE staged_fact_id = ${res.stagedFactId}::uuid`;
+      expect(rows[0]!.supersedes_fact_id).toBe(priorFactId);
+    });
+
     it('rejects when neither / both of objectHandle and objectValue are provided', async () => {
       const epochId = randomUUID();
       const subj = await call('propose_entity', { name: 'Z', type: 'person' }, proposerCtx(epochId));
