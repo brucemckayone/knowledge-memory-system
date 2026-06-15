@@ -1354,6 +1354,10 @@ export const ACTOR_TOOL_ALLOWLIST: Record<Actor, ReadonlySet<string>> = {
   user: LEGACY_SURFACE,
   system_trigger: LEGACY_SURFACE,
   cascade: LEGACY_SURFACE,
+  // Deterministic promotion code (doc 41 §5) — writes canonical via the service
+  // layer, never via MCP, so it never spawns a server. Mapped defensively to the
+  // legacy surface to keep the record total.
+  promotion: LEGACY_SURFACE,
 };
 
 /**
@@ -3191,6 +3195,21 @@ export interface ExtractionAgentParams {
    * Python read-into-prompt boundary via `delimit_for_prompt(kind="report")`.
    */
   previousReport?: string | null;
+  /**
+   * Epoch v2 (doc 41 §4, §8a.4; bead nmemo-vpz.3 / E3). When set the agent runs
+   * as this actor instead of the default `graph_agent` — the propose→promote path
+   * spawns it as `extraction_proposer`, whose server-side allow-list (E2) exposes
+   * only reads + the staging `propose_*` writes. Omitted for every legacy
+   * invocation (serial/optimistic), which keep the full canonical-write surface.
+   */
+  actor?: Actor;
+  /**
+   * Epoch v2 (E3). Per-chunk epoch context baked into the spawned MCP server's
+   * env (via {@link getMcpConfigPath}) so the proposer's `propose_*` tools stamp
+   * the right epoch/source/chunk onto staging rows and parallel proposers get
+   * distinct config files.
+   */
+  epoch?: EpochContext;
 }
 
 export interface ExtractionAgentResult {
@@ -3451,7 +3470,11 @@ export async function invokeGardenerAgent(params: {
 }
 
 export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<GraphAgentResult> {
-  const mcpConfigPath = getMcpConfigPath('graph_agent');
+  const actor = params.actor ?? 'graph_agent';
+  // The actor's identity (audit stamp + tool allow-list) rides the MCP config
+  // env; agentFetch's `agent` is only a telemetry/timeout label, so the narrow
+  // 'graph_agent' label is kept for the proposer (same endpoint + timeout).
+  const mcpConfigPath = getMcpConfigPath(actor, params.epoch);
 
   return agentFetch<GraphAgentResult>({
     agent: 'graph_agent',

@@ -86,7 +86,12 @@ export type Actor =
   // never appears in fact_history/causal_edge_history. Deliberately NOT added to
   // migration 009's actor CHECK: if this value ever reaches an audit column it is
   // a bug (a proposer wrote canonical), and the CHECK should reject it.
-  | 'extraction_proposer';
+  | 'extraction_proposer'
+  // Epoch v2 (doc 41 §5f, §8): the deterministic promotion authority. Opposite
+  // of `extraction_proposer` — it is the ONE writer of canonical entities/facts
+  // at the propose→promote boundary, so every insert/supersession it performs
+  // stamps fact_history with actor='promotion' (permitted by mig 041's CHECK).
+  | 'promotion';
 
 export interface SourceReference {
   type: 'memory' | 'fact' | 'entity';

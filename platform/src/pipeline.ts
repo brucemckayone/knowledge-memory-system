@@ -9,7 +9,8 @@
 import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
-import { invokeGraphAgent, invokeGardenerAgent, type ContentType } from './services/causal-agent.js';
+import { invokeGraphAgent, invokeGardenerAgent, type ContentType, type EpochContext } from './services/causal-agent.js';
+import { promote } from './services/promotion.js';
 import { prepareBatch, type BatchItem, type IngestMode } from './services/batch.js';
 import { mapWithConcurrency, withRetry, isRetryableAgentError } from './services/concurrency.js';
 import { recordGardeningRun } from './services/gardening.js';
@@ -538,20 +539,84 @@ async function filterLiveEntityIds(entityIds: string[]): Promise<string[]> {
 }
 
 /**
- * Approach A — epoch / barrier. Store every chunk, fan extraction out in
- * parallel (bounded + 503-retry) so the agents write the live graph
- * concurrently, then run one barrier reconcile over everything the epoch
- * touched. Duplicate active facts are already prevented at write time by P1
- * (uniq_facts_active_triple); the barrier handles entity-identity dedup.
+ * Phase 2 proposer (doc 41 §4; bead nmemo-vpz.3 / E3). The store-then-propose
+ * sibling of {@link extract} for the epoch arm: it runs the graph agent as the
+ * `extraction_proposer` actor with the chunk's epoch context, so the agent's
+ * server-side allow-list (E2) lets it write candidate entities/facts into STAGING
+ * via the `propose_*` tools but NOT to canonical. There is deliberately no
+ * canonical read-back here — promotion reads the staged rows by `epochId`. The
+ * prior-extraction-report continuity (nmemo-upn) is preserved.
  *
- * NOTE (doc 38, deferred): explicit chunk_index temporal re-alignment is not
- * yet applied — exclusive-predicate supersession is valid_at-based in
- * createFact (order-independent when valid_at is extracted). chunk_index is
- * persisted on each memory for a future realign pass; behavioural correctness
- * of this arm is established at the benchmark/litmus stage.
+ * NOTE: proposer-specific PROMPT enforcement (no-CAUSE, mandatory valid_at, §4)
+ * is doc 41 §13 step 4 / E4. E3 wires the control flow; the allow-list is what
+ * structurally keeps a proposer off canonical until then.
+ */
+async function propose(
+  memoryId: string,
+  epoch: EpochContext,
+  opts?: { contentType?: ContentType },
+): Promise<void> {
+  const memory = await getMemory(memoryId);
+  if (!memory?.payload) throw new Error(`Memory ${memoryId} not found in Qdrant`);
+  const content = memory.payload.content as string;
+  const contentType: ContentType =
+    opts?.contentType ?? (memory.payload.content_type as ContentType | undefined) ?? 'prose';
+
+  let previousReport: string | null = null;
+  try {
+    const priorRows = await db
+      .select({ reportText: extractionReports.reportText })
+      .from(extractionReports)
+      .where(sql`memory_id <> ${memoryId}::uuid`)
+      .orderBy(sql`created_at DESC`)
+      .limit(1);
+    previousReport = priorRows[0]?.reportText ?? null;
+  } catch (err) {
+    console.warn('[pipeline] propose: failed to fetch prior report (continuing):', err instanceof Error ? err.message : err);
+  }
+
+  const agentResult = await invokeGraphAgent({
+    sourceText: content,
+    memoryId,
+    source: memory.payload.source as string | undefined,
+    contentType,
+    previousReport,
+    actor: 'extraction_proposer',
+    epoch,
+  });
+
+  if (agentResult.result) {
+    void Promise.resolve(
+      db.insert(extractionReports).values({ memoryId, reportText: agentResult.result }),
+    ).catch((err) => {
+      console.warn('[pipeline] propose: failed to store extraction report:', err instanceof Error ? err.message : err);
+    });
+  }
+}
+
+/**
+ * Approach A — epoch / propose→promote (doc 41 §2, §5; bead nmemo-vpz.3 / E3).
+ *
+ * The rewrite of the old barrier-reconcile epoch arm. Agents are no longer
+ * authoritative writers: each chunk is STORED, then a parallel
+ * `extraction_proposer` (bounded + 503-retry) writes candidate entities/facts
+ * into per-epoch STAGING in clean isolation — nothing canonical changes
+ * mid-epoch, so read-skew dies by construction. At the doc-34 Rule-2 "all chunks
+ * of this source proposed" boundary — here, the end of the batch, since one batch
+ * is one source (doc 41 §12 #2) — the deterministic {@link promote} resolves
+ * identity, orders + supersedes by exclusive group, dedups triples, and writes
+ * canonical in ONE transaction.
+ *
+ * Order-independence is now a structural property (doc 41 §10), not an emergent
+ * hope: `promote(forward) == promote(reverse)` for the deterministic backbone.
+ * The old barrier reconcile (updateEntityMeta / detectMergeCandidates /
+ * filterLiveEntityIds) is gone from this path — promotion is the single writer,
+ * so there is no concurrent-merge race to filter against (doc 41 §11, I6 retired).
  */
 async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<ExtractResult[]> {
   const limit = concurrency ?? EPOCH_CONCURRENCY;
+  const epochId = randomUUID();
+
   // Phase 1: store all chunks (bounded — embeddings hit the Ollama pool too).
   const stored = await mapWithConcurrency(items, limit, async (item) => ({
     memoryId: await store(item.text, {
@@ -563,30 +628,56 @@ async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<
     item,
   }));
 
-  // Phase 2: parallel agent extraction (the free-for-all writes).
-  const results = await mapWithConcurrency(stored, limit, ({ memoryId, item }) =>
-    withRetry(() => extract(memoryId, { contentType: item.contentType }), {
-      retries: 4,
-      isRetryable: isRetryableAgentError,
-      baseDelayMs: 500,
-    }),
+  // Phase 2: parallel PROPOSE into staging (isolated — no canonical writes).
+  const tPropose = Date.now();
+  await mapWithConcurrency(stored, limit, ({ memoryId, item }) =>
+    withRetry(
+      () => propose(memoryId, { epochId, sourceId: item.sourceId, chunkIndex: item.chunkIndex }, { contentType: item.contentType }),
+      { retries: 4, isRetryable: isRetryableAgentError, baseDelayMs: 500 },
+    ),
   );
+  const proposeMs = Date.now() - tPropose;
 
-  // Phase 3: barrier reconcile over every entity the epoch touched (filtered to
-  // entities that survived any concurrent merge — see filterLiveEntityIds).
-  const touchedIds = [...new Set(results.flatMap((r) => r.entities.map((e) => e.id)))];
-  const entityIds = await filterLiveEntityIds(touchedIds);
-  if (entityIds.length > 0) {
-    try {
-      await updateEntityMeta(entityIds);
-      await detectMergeCandidates(entityIds);
-      _resetReconciliationCooldown(); // the barrier always fires, regardless of cooldown
-      await maybeTriggerReconciliation();
-    } catch (err) {
-      console.warn('[epoch] barrier reconcile failed:', err instanceof Error ? err.message : err);
-    }
-  }
-  return results;
+  // Phase 3: PROMOTE — the deterministic authority writes canonical in one tx.
+  const tPromote = Date.now();
+  const result = await promote(epochId);
+  const promoteMs = Date.now() - tPromote;
+
+  // Epoch-wide summary. Per-chunk attribution is gone (promotion is epoch-wide);
+  // the canonical graph the validity harness reads is the source of truth. Built
+  // from the plan + result with no re-query.
+  const refId = (ref: { kind: 'canonical'; id: string } | { kind: 'cluster'; key: string }): string =>
+    ref.kind === 'canonical' ? ref.id : (result.mintedEntityIds[ref.key] ?? ref.key);
+  const entities: ResolvedEntity[] = result.plan.entitiesToMint.map((e) => ({
+    id: result.mintedEntityIds[e.clusterKey] ?? e.clusterKey,
+    canonicalName: e.name,
+    entityType: e.type,
+    isNew: true,
+    confidence: 1,
+  }));
+  // insertedFactIds is aligned with plan.factsToInsert (applyPromotion pushes in
+  // that order), so pair before filtering to active.
+  const facts: CreatedFact[] = result.plan.factsToInsert
+    .map((f, i) => ({ f, id: result.insertedFactIds[i] ?? '(promoted)' }))
+    .filter(({ f }) => f.active)
+    .map(({ f, id }) => ({
+      id,
+      subject: refId(f.subjectRef),
+      predicate: f.predicate,
+      object: f.objectValue ?? (f.objectRef ? refId(f.objectRef) : ''),
+      confidence: f.confidence,
+    }));
+  return [
+    {
+      memoryId: stored[0]?.memoryId ?? '',
+      entities,
+      facts,
+      skipped: [],
+      filtered: [],
+      timing: { propose: proposeMs, promote: promoteMs },
+      contradictionsDetected: 0,
+    },
+  ];
 }
 
 const OPTIMISTIC_CONCURRENCY = Number.parseInt(process.env.OPTIMISTIC_CONCURRENCY ?? '6', 10);
