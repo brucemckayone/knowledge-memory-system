@@ -11,6 +11,7 @@ import { ml } from './services/ml-client.js';
 import { storeMemory, getMemory } from './services/qdrant.js';
 import { invokeGraphAgent, invokeGardenerAgent, type ContentType, type EpochContext } from './services/causal-agent.js';
 import { promote } from './services/promotion.js';
+import { runCausalPass } from './services/causal-pass.js';
 import { prepareBatch, type BatchItem, type IngestMode } from './services/batch.js';
 import { mapWithConcurrency, withRetry, isRetryableAgentError } from './services/concurrency.js';
 import { recordGardeningRun } from './services/gardening.js';
@@ -644,6 +645,27 @@ async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<
   const tPromote = Date.now();
   const result = await promote(epochId);
   const promoteMs = Date.now() - tPromote;
+
+  // Phase 4: CAUSAL PASS — post-promotion, conditional, delta-scoped (doc 41 §6;
+  // E6). Deliberately AFTER promote() returns, not inside it: promote() stays
+  // deterministic + replayable; causality is built over the SETTLED canonical graph
+  // by the one agent that reads live canonical correctly (it runs when the graph is
+  // clean). Best-effort — promotion already committed, so a causal-pass failure must
+  // never fail the epoch (doc 41 §12 #9). runCausalPass self-skips when no trigger fires.
+  try {
+    const causal = await runCausalPass(epochId, result);
+    if (causal.ran) {
+      console.log(
+        `[epoch ${epochId.slice(0, 8)}] causal pass ran (${causal.decision.reasons.join('; ')}): ` +
+          `${causal.promotion?.created.length ?? 0} edge(s) promoted, ${causal.promotion?.dropped.length ?? 0} dropped`,
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[epoch ${epochId.slice(0, 8)}] causal pass failed (non-fatal):`,
+      err instanceof Error ? err.message : err,
+    );
+  }
 
   // Epoch-wide summary. Per-chunk attribution is gone (promotion is epoch-wide);
   // the canonical graph the validity harness reads is the source of truth. Built

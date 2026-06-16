@@ -83,6 +83,22 @@ const envSchema = z.object({
   // an HTTP round-trip.
   PATTERN_DETECTION_FACT_THRESHOLD: z.coerce.number().int().positive().default(50),
   GRAPH_STATS_FACT_THRESHOLD: z.coerce.number().int().positive().default(20),
+
+  // Epoch-v2 causal pass (doc 41 §6, §12 #6; bead nmemo-vpz.6 / E6). The causal
+  // pass is post-promotion, conditional, and delta-scoped:
+  //   - CAUSAL_PASS_FACT_THRESHOLD (N): trigger (b) — run the pass when a single
+  //     promotion settles at least this many facts (a substantive enough change to
+  //     be worth one informed causal look). Triggers (a) explicit causal language
+  //     and (c) a touched entity with prior causal edges fire independently.
+  //   - CAUSAL_PASS_SCOPE_CAP: hard cap on the number of causal events pushed to the
+  //     agent (minted events + the touched entities' causal neighbourhood). Keeps the
+  //     pass a bounded, single informed pass — not a full re-reason of the graph.
+  //   - CAUSAL_PROMOTION_STRENGTH: default strength stamped on a promoted causal edge.
+  //     The propose contract carries no strength (the agent asserts existence +
+  //     reasoning, not magnitude), so disposal applies this default. Tunable.
+  CAUSAL_PASS_FACT_THRESHOLD: z.coerce.number().int().positive().default(5),
+  CAUSAL_PASS_SCOPE_CAP: z.coerce.number().int().positive().default(200),
+  CAUSAL_PROMOTION_STRENGTH: z.coerce.number().min(0).max(1).default(0.6),
   // Suppress the scheduler at startup (tests, scripts, one-off CLIs).
   // Set DISABLE_SCHEDULER=1 to skip startScheduler() registration.
   DISABLE_SCHEDULER: z.coerce.boolean().default(false),

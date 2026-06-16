@@ -3677,6 +3677,51 @@ export async function invokeArbiterAgent(
 }
 
 // ============================================
+// Causal-pass Agent Invocation (E6, doc 41 §6, §8a.6)
+// ============================================
+
+export interface CausalAgentResult {
+  result: string;
+}
+
+/**
+ * The seam causal-pass.ts injects (default = {@link invokeCausalAgent}). DB tests
+ * supply a fake invoker that writes staging_causal_edges directly, exercising the
+ * dispose side without an LLM (mirrors promotion-arbiter's ArbiterInvoker, E5).
+ */
+export type CausalAgentInvoker = (epochId: string, scope: unknown) => Promise<void>;
+
+/**
+ * Invoke the post-promotion causal agent (Haiku) for one epoch (doc 41 §6, §8a.6).
+ * The causal pass PUSHES the settled delta scope (minted events + the touched
+ * entities' causal neighbourhood); the agent reads it, goes deeper via its read tools
+ * if needed, and records edges via propose_causal_edge into staging_causal_edges —
+ * causal-promotion then disposes them. The MCP server is spawned with this epoch's
+ * context (MNEMO_EPOCH_ID) so propose_causal_edge stamps the right epoch. Mirror of
+ * {@link invokeArbiterAgent}; the /causal-agent endpoint is added in ml-services (E6 Step 7).
+ */
+export async function invokeCausalAgent(epochId: string, scope: unknown): Promise<CausalAgentResult> {
+  const mcpConfigPath = getMcpConfigPath('causal_agent', { epochId });
+
+  const response = await fetch(`${config.ML_SERVICES_URL}/causal-agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      epoch_id: epochId,
+      scope,
+      mcp_config_path: mcpConfigPath,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => response.statusText);
+    throw new Error(`Causal agent failed (${response.status}): ${detail}`);
+  }
+
+  return response.json() as Promise<CausalAgentResult>;
+}
+
+// ============================================
 // Reconciliation-drift Agent Invocation (bead nmemo-2yv.83)
 // ============================================
 // Sibling to invokeReconciliationAgent — targets the
