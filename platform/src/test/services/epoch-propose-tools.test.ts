@@ -46,6 +46,28 @@ async function cleanStaging(): Promise<void> {
   await testDb.unsafe('DELETE FROM staging_proposed_entities');
 }
 
+// createTestEntity uses real-world canonical names (not a TAG). The original
+// beforeEach only cleared STAGING, so these canonical fixtures accumulated in the
+// shared cognitive_test DB across runs — and a later run's resolve_anchor('Globex')
+// then matched a STALE duplicate, not the freshly-minted one (the only name-matching
+// test; the rest pass ent.id explicitly so leftovers don't bite them). Scoped to this
+// file's exact names (no other test uses them), so it is safe under vitest's
+// parallel-file workers. Facts first (facts.subject_entity_id is RESTRICT, mig 038).
+const FIXTURE_ENTITY_NAMES = ['Dr. Elena Vasquez', 'Helix Corp', 'Acme Inc', 'Globex'];
+
+async function cleanFixtureEntities(): Promise<void> {
+  const names = FIXTURE_ENTITY_NAMES.map((n) => `'${n.replace(/'/g, "''")}'`).join(', ');
+  const ids = `SELECT id FROM entities WHERE canonical_name IN (${names})`;
+  await testDb.unsafe(`DELETE FROM fact_history WHERE fact_id IN (SELECT id FROM facts WHERE subject_entity_id IN (${ids}))`);
+  await testDb.unsafe(`DELETE FROM facts WHERE subject_entity_id IN (${ids})`);
+  await testDb.unsafe(`DELETE FROM entities WHERE canonical_name IN (${names})`);
+}
+
+async function cleanAll(): Promise<void> {
+  await cleanStaging();
+  await cleanFixtureEntities();
+}
+
 function proposerCtx(epochId: string, extra?: Partial<ToolCallContext>): ToolCallContext {
   return { agent: 'extraction_proposer', epochId, sourceId: null, chunkIndex: null, ...extra };
 }
@@ -55,8 +77,8 @@ async function call(tool: string, input: Record<string, unknown>, ctx: ToolCallC
 }
 
 describe('epoch-v2 propose tool surface + allow-lists (nmemo-vpz.2 / E2)', () => {
-  beforeEach(cleanStaging);
-  afterAll(cleanStaging);
+  beforeEach(cleanAll);
+  afterAll(cleanAll);
 
   describe('per-actor allow-list (criterion 4)', () => {
     it('extraction_proposer surface = reads + propose writes, NO canonical writes', () => {

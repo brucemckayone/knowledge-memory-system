@@ -24,6 +24,7 @@ import { stagingProposedEntities, stagingProposedFacts, entities, facts, sameAsL
 import { ml } from './ml-client.js';
 import { recordFactChange } from './audit.js';
 import { mergeEntities } from './entities.js';
+import { mintCausalEvent } from './causal.js';
 import {
   planPromotion,
   type PriorCanonical,
@@ -55,6 +56,13 @@ export interface PromotionResult {
   mergedAwayEntityIds: string[];
   /** same_as link ids created by identity verdicts (E5). */
   sameAsLinkIds: string[];
+  /**
+   * Causal event ids minted from this promotion's settled fact mutations (doc 41
+   * §12 #5; E6): 'created' per newly-active fact, 'expired' per prior fact expired
+   * this run, 'strengthened' per corroboration that raised confidence — each keyed
+   * to the stable fact id. The post-promotion causal pass scopes its delta from these.
+   */
+  mintedCausalEventIds: string[];
 }
 
 // ============================================
@@ -207,6 +215,7 @@ export async function applyPromotion(
   const corroboratedFactIds: string[] = [];
   const mergedAwayEntityIds: string[] = [];
   const sameAsLinkIds: string[] = [];
+  const mintedCausalEventIds: string[] = [];
 
   // 2. One transaction.
   await db.transaction(async (tx) => {
@@ -316,14 +325,34 @@ export async function applyPromotion(
         });
       }
       insertedFactIds.push(factId);
+
+      // (b.1) Mint a settled causal event for the active fact (doc 41 §12 #5; E6).
+      // One 'created' event per newly-active fact, keyed to its stable id, inside
+      // this tx so the post-promotion causal pass sees only settled event ids.
+      // Born-inactive facts (lost group supersession on arrival) never become
+      // active, so they get no event; expiries mint 'expired' at (c) and
+      // corroborations mint 'strengthened' at (d).
+      if (f.active) {
+        mintedCausalEventIds.push(
+          await mintCausalEvent(tx, {
+            factId,
+            transitionType: 'created',
+            subjectEntityId: subjectId,
+            predicate: f.predicate,
+            deltaConfidence: f.confidence,
+            sourceText: f.reasoning ?? null,
+          }),
+        );
+      }
     }
 
     // (c) Expire prior-canonical actives that lost group supersession.
     for (const ex of plan.factsToExpire) {
-      await tx
+      const [expired] = await tx
         .update(facts)
         .set({ expiredAt: new Date(), expireReason: ex.reason })
-        .where(and(eq(facts.id, ex.factId), isNull(facts.expiredAt)));
+        .where(and(eq(facts.id, ex.factId), isNull(facts.expiredAt)))
+        .returning({ subjectEntityId: facts.subjectEntityId, predicate: facts.predicate });
       await recordFactChange({
         factId: ex.factId,
         eventType: 'superseded',
@@ -331,6 +360,20 @@ export async function applyPromotion(
         actor: PROMOTION_ACTOR,
         tx,
       });
+      // (c.1) Mint an 'expired' event for the prior fact actually expired this run
+      // (doc 41 §12 #5; E6). `returning` is empty on a no-op re-run (already
+      // expired), so we never double-mint a transition that did not happen.
+      if (expired?.subjectEntityId) {
+        mintedCausalEventIds.push(
+          await mintCausalEvent(tx, {
+            factId: ex.factId,
+            transitionType: 'expired',
+            subjectEntityId: expired.subjectEntityId,
+            predicate: expired.predicate ?? '',
+            sourceText: ex.reason,
+          }),
+        );
+      }
       expiredFactIds.push(ex.factId);
     }
 
@@ -338,7 +381,11 @@ export async function applyPromotion(
     // confidence only if the epoch carried a higher one (matches createFact).
     for (const c of plan.corroborations) {
       const [row] = await tx
-        .select({ confidence: facts.confidence })
+        .select({
+          confidence: facts.confidence,
+          subjectEntityId: facts.subjectEntityId,
+          predicate: facts.predicate,
+        })
         .from(facts)
         .where(eq(facts.id, c.priorFactId));
       const prev = row?.confidence ?? 0;
@@ -354,6 +401,20 @@ export async function applyPromotion(
           tx,
         });
         corroboratedFactIds.push(c.priorFactId);
+        // (d.1) Mint a 'strengthened' event for the corroborated prior fact (doc 41
+        // §12 #5; E6) — only when confidence actually rose, mirroring the audit row.
+        if (row?.subjectEntityId) {
+          mintedCausalEventIds.push(
+            await mintCausalEvent(tx, {
+              factId: c.priorFactId,
+              transitionType: 'strengthened',
+              subjectEntityId: row.subjectEntityId,
+              predicate: row.predicate ?? '',
+              deltaConfidence: c.confidence - prev,
+              sourceText: 'Corroborated by an identical triple proposed this epoch',
+            }),
+          );
+        }
       }
     }
   });
@@ -367,6 +428,7 @@ export async function applyPromotion(
     corroboratedFactIds,
     mergedAwayEntityIds,
     sameAsLinkIds,
+    mintedCausalEventIds,
   };
 }
 

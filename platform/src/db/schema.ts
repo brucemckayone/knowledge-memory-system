@@ -326,6 +326,11 @@ export const causalEdges = pgTable('causal_edges', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   expiredAt: timestamp('expired_at', { withTimezone: true }),
   expireReason: text('expire_reason'),
+  // E6 (doc 41 §6, §12 #5): set by causal-promotion when a promoted edge cites an
+  // INVALIDATED fact — the edge is kept (never auto-repointed) but flagged so the
+  // next delta pass re-grounds or expires it. A superseded cited fact is NOT flagged.
+  staleCitation: boolean('stale_citation').default(false).notNull(),
+  staleCitationReason: text('stale_citation_reason'),
 });
 
 export const causalEdgesRelations = relations(causalEdges, ({ one }) => ({
@@ -793,6 +798,34 @@ export const arbiterVerdicts = pgTable(
   }),
 );
 
+/**
+ * Staging — proposed causal edges (E6, doc 41 §6, §8a.6).
+ *
+ * The post-promotion causal pass's propose_causal_edge buffer: the causal agent
+ * reads SETTLED canonical and proposes edges between SETTLED causal events (minted
+ * by promotion, §12 #5), writing HERE — never canonical. A deterministic
+ * causal-promotion step disposes these into `causalEdges` (ref-resolve, self-loop
+ * drop, dedup, cited-fact branch). Event ids are plain uuids (NOT FK) — ref-resolve
+ * is a disposal step. The doc-01 invariant (non-empty reasoning + source_references)
+ * is enforced structurally (migration 044_causal_pass.sql CHECKs).
+ */
+export const stagingCausalEdges = pgTable(
+  'staging_causal_edges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    epochId: uuid('epoch_id').notNull(),
+    causeEventId: uuid('cause_event_id').notNull(),
+    effectEventId: uuid('effect_event_id').notNull(),
+    reasoning: text('reasoning').notNull(),
+    sourceReferences: jsonb('source_references').notNull(),
+    proposedBy: varchar('proposed_by', { length: 32 }).default('causal_agent').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    epochIdx: index('idx_staging_causal_edges_epoch').on(t.epochId),
+  }),
+);
+
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
@@ -824,3 +857,5 @@ export type StagingProposedFact = typeof stagingProposedFacts.$inferSelect;
 export type NewStagingProposedFact = typeof stagingProposedFacts.$inferInsert;
 export type ArbiterVerdictRow = typeof arbiterVerdicts.$inferSelect;
 export type NewArbiterVerdictRow = typeof arbiterVerdicts.$inferInsert;
+export type StagingCausalEdge = typeof stagingCausalEdges.$inferSelect;
+export type NewStagingCausalEdge = typeof stagingCausalEdges.$inferInsert;

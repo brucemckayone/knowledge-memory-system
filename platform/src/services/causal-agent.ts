@@ -22,11 +22,11 @@ import { findConnectedEntities } from './graph.js';
 import { findSimilarEntities, resolveEntity, linkMemoryToEntity, mergeEntities } from './entities.js';
 import { searchMemories, getMemory } from './qdrant.js';
 import { db } from '../db/index.js';
-import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports, stagingProposedEntities, stagingProposedFacts, arbiterVerdicts } from '../db/schema.js';
+import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports, stagingProposedEntities, stagingProposedFacts, arbiterVerdicts, causalEvents } from '../db/schema.js';
 import { resolveExclusiveGroup } from './exclusive-groups.js';
 import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
 import { getEntityCausalHistory, createCausalEdge, expireCausalEdge, reviseCausalEdge, traceCauses, projectTrajectory, getCausalDelta, type SourceReference as CausalSourceRef } from './causal.js';
-import { getFactHistory, getEdgeHistory, type Actor } from './audit.js';
+import { getFactHistory, getEdgeHistory, jsonbLiteral, unwrapRows, type Actor } from './audit.js';
 import {
   getContradictions,
   resolveContradiction,
@@ -1297,6 +1297,34 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
       required: ['subjectHandle', 'predicate'],
     },
   },
+  {
+    name: 'propose_causal_edge',
+    description:
+      'Propose a causal edge between two SETTLED causal events into the causal pass staging buffer. The events were minted by promotion (stable ids) — pass their UUIDs as causeEventId / effectEventId. You do NOT write canonical: a deterministic causal-promotion step disposes proposals (ref-resolve, self-loop drop, dedup, cited-fact branch). The return previews disposal: refsResolve (whether each event id resolves) and citedFactStatus (the live status of every FACT you cite as a source reference: active | superseded | invalidated) — a superseded or invalidated cited fact is a WARNING you are grounding on a shaky fact. Every edge MUST carry non-empty reasoning and at least one source reference (doc 01 invariant).',
+    mutates: true,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        causeEventId: { type: 'string', description: 'UUID of the settled causal event that is the cause.' },
+        effectEventId: { type: 'string', description: 'UUID of the settled causal event that is the effect.' },
+        reasoning: { type: 'string', description: 'Detailed justification — WHY the cause led to the effect. Must be specific and non-empty.' },
+        sourceReferences: {
+          type: 'array',
+          description: 'Every source that informed this conclusion. At least one required.',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['memory', 'fact', 'entity'], description: 'Type of source reference.' },
+              id: { type: 'string', description: 'UUID of the memory, fact, or entity.' },
+              relevance: { type: 'string', description: 'How this source informed the causal conclusion.' },
+            },
+            required: ['type', 'id', 'relevance'],
+          },
+        },
+      },
+      required: ['causeEventId', 'effectEventId', 'reasoning', 'sourceReferences'],
+    },
+  },
 ];
 
 /**
@@ -1373,14 +1401,15 @@ export interface ToolCallContext {
  *
  * Seven of these mirror migration 009's audit-actor CHECK (graph_agent,
  * reasoning_agent, gardener_agent, reconciliation_agent, user, system_trigger,
- * cascade). `extraction_proposer` (epoch v2, doc 41 §8a.4) is the eighth — a
- * valid MCP actor for tool-scoping but DELIBERATELY absent from the audit CHECK:
- * it writes staging only, so it must never reach an audit column.
+ * cascade). `extraction_proposer` (epoch v2, doc 41 §8a.4) and `causal_agent`
+ * (epoch v2 E6, doc 41 §8a.6) are staging-only MCP actors — valid for tool-scoping
+ * but DELIBERATELY absent from the audit CHECK: they write staging, never canonical,
+ * so they must never reach an audit column.
  */
 export const VALID_ACTORS = new Set<Actor>([
   'graph_agent', 'reasoning_agent', 'gardener_agent',
   'reconciliation_agent', 'user', 'system_trigger', 'cascade',
-  'extraction_proposer',
+  'extraction_proposer', 'causal_agent',
 ]);
 
 /**
@@ -1461,8 +1490,28 @@ const ARBITER_SURFACE = new Set<string>([
   ...ARBITER_VERDICT_TOOLS,
 ]);
 
+/**
+ * The causal agent's surface (E6, doc 41 §8a.6): it READS the settled canonical
+ * graph broadly (every read-only tool — `get_causal_delta` scopes the pass, the
+ * rest gather source_references and check cited-fact status) and PROPOSES causal
+ * edges into staging via `propose_causal_edge`. It holds NO canonical causal-write
+ * tool: `create_causal_edge` / `expire_causal_edge` / `revise_causal_edge` are
+ * mutating (so absent from the read set) and become causal-promotion code — the
+ * agent proposes, causal-promotion disposes. §8a.6 names the expected causal read
+ * subset; granting the full read surface is structurally safe (reads never touch
+ * canonical).
+ */
+const CAUSAL_AGENT_STAGE_WRITES = ['propose_causal_edge'] as const;
+const CAUSAL_SURFACE = new Set<string>([
+  ...READ_ONLY_TOOL_NAMES,
+  ...CAUSAL_AGENT_STAGE_WRITES,
+]);
+
 export const ACTOR_TOOL_ALLOWLIST: Record<Actor, ReadonlySet<string>> = {
   extraction_proposer: PROPOSER_SURFACE,
+  // Post-promotion causal pass (E6): reads + propose_causal_edge only (no canonical
+  // causal-write tools — those are causal-promotion code).
+  causal_agent: CAUSAL_SURFACE,
   graph_agent: LEGACY_SURFACE,
   reasoning_agent: LEGACY_SURFACE,
   gardener_agent: LEGACY_SURFACE,
@@ -3188,6 +3237,88 @@ async function _handleToolCallInner(
         stagedFactId: inserted[0]!.stagedFactId,
         exclusiveGroup,
         priorCanonicalActiveInGroup,
+      });
+    }
+
+    // --- Causal pass propose tool (E6, doc 41 §6, §8a.6) ---
+    // The causal agent proposes edges between SETTLED canonical events (minted by
+    // promotion) into staging_causal_edges; a deterministic causal-promotion step
+    // disposes them. The return previews disposal: refsResolve (do the event ids
+    // resolve) + citedFactStatus (live status of each cited fact) — both WARN the
+    // agent BEFORE the cited-fact branch runs (superseded → keep, invalidated → stale).
+
+    case 'propose_causal_edge': {
+      if (!context.epochId) {
+        throw new Error('propose_causal_edge requires an epoch context (MNEMO_EPOCH_ID) — injected by the harness (the causal pass partitions staging by the promotion epoch).');
+      }
+      const causeEventId = toolInput.causeEventId as string;
+      const effectEventId = toolInput.effectEventId as string;
+      const reasoning = (toolInput.reasoning as string) ?? '';
+      const sourceReferences =
+        (toolInput.sourceReferences as Array<{ type: string; id: string; relevance: string }>) ?? [];
+
+      // doc-01 invariant enforced at the propose boundary (the 044 CHECKs back it
+      // up): every causal edge carries non-empty reasoning + >=1 source reference.
+      if (!causeEventId || !effectEventId) {
+        throw new Error('propose_causal_edge requires causeEventId and effectEventId.');
+      }
+      if (!reasoning.trim()) {
+        throw new Error('propose_causal_edge requires non-empty reasoning (doc 01 invariant).');
+      }
+      if (!Array.isArray(sourceReferences) || sourceReferences.length === 0) {
+        throw new Error('propose_causal_edge requires a non-empty sourceReferences array (doc 01 invariant).');
+      }
+
+      // refsResolve — do the cited cause/effect EVENT ids resolve to settled
+      // canonical events? A soft signal (causal-promotion DROPS an edge whose event
+      // id does not resolve); surfacing it here lets the agent self-correct.
+      const evRows = await db
+        .select({ id: causalEvents.id })
+        .from(causalEvents)
+        .where(inArray(causalEvents.id, [causeEventId, effectEventId]));
+      const evIds = new Set(evRows.map((r) => r.id));
+      const refsResolve = { cause: evIds.has(causeEventId), effect: evIds.has(effectEventId) };
+
+      // citedFactStatus — the live status of every FACT this edge cites as a source
+      // reference (doc 41 §6): active | superseded (expired_at set, a newer value
+      // landed) | invalidated (invalid_at set, it was wrong). Warns the agent it is
+      // grounding on a shaky fact BEFORE causal-promotion's cited-fact branch runs.
+      const citedFactIds = sourceReferences.filter((r) => r.type === 'fact' && r.id).map((r) => r.id);
+      let citedFactStatus: Array<{ factId: string; status: 'active' | 'superseded' | 'invalidated' }> = [];
+      if (citedFactIds.length > 0) {
+        const factRows = await db
+          .select({ id: factsTable.id, expiredAt: factsTable.expiredAt, invalidAt: factsTable.invalidAt })
+          .from(factsTable)
+          .where(inArray(factsTable.id, citedFactIds));
+        citedFactStatus = factRows.map((f) => ({
+          factId: f.id,
+          status: f.invalidAt ? 'invalidated' : f.expiredAt ? 'superseded' : 'active',
+        }));
+      }
+
+      // jsonb ARRAY values are stringified by drizzle `.values()` (Drizzle 0.29 +
+      // postgres.js 3.4) — they then fail the 044 jsonb_typeof='array' CHECK. Insert
+      // via a raw template with jsonbLiteral (JSON-encoded once, cast ::jsonb
+      // server-side), the same workaround createCausalEdge uses for source_references.
+      const inserted = await db.execute(sql`
+        INSERT INTO public.staging_causal_edges
+          (epoch_id, cause_event_id, effect_event_id, reasoning, source_references, proposed_by)
+        VALUES (
+          ${context.epochId}::uuid,
+          ${causeEventId}::uuid,
+          ${effectEventId}::uuid,
+          ${reasoning},
+          ${jsonbLiteral(sourceReferences)},
+          ${context.agent}
+        )
+        RETURNING id
+      `);
+      const stagedEdgeId = unwrapRows<{ id: string }>(inserted)[0]!.id;
+
+      return JSON.stringify({
+        stagedEdgeId,
+        refsResolve,
+        citedFactStatus,
       });
     }
 

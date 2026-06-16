@@ -22,6 +22,36 @@ import { resolveEscalations, type ArbiterInvoker, type EscalationDossier } from 
 
 const TAG = 'promtest';
 
+interface MintedEventRow {
+  transition_type: string;
+  fact_id: string;
+  subject_entity_id: string | null;
+  predicate: string | null;
+  delta_confidence: number | null;
+}
+
+/**
+ * Clear the causal layer (edge refs -> edge history -> edges -> events) for this
+ * test's TAG facts. E6: promotion now mints causal_events from settled fact
+ * mutations; causal_events.fact_id and .subject_entity_id are RESTRICT FKs, so the
+ * causal rows MUST go before the facts/entities they reference. Defensive about
+ * edges — promotion alone mints only events, but the causal pass adds edges.
+ */
+async function clearCausalForTag(): Promise<void> {
+  const tagFacts = `SELECT id FROM facts WHERE source_text LIKE '${TAG}%'`;
+  const tagEvents = `SELECT id FROM causal_events WHERE fact_id IN (${tagFacts})`;
+  await testDb.unsafe(
+    `DELETE FROM edge_source_refs WHERE edge_id IN (SELECT id FROM causal_edges WHERE cause_event_id IN (${tagEvents}) OR effect_event_id IN (${tagEvents}))`,
+  );
+  await testDb.unsafe(
+    `DELETE FROM causal_edge_history WHERE edge_id IN (SELECT id FROM causal_edges WHERE cause_event_id IN (${tagEvents}) OR effect_event_id IN (${tagEvents}))`,
+  );
+  await testDb.unsafe(
+    `DELETE FROM causal_edges WHERE cause_event_id IN (${tagEvents}) OR effect_event_id IN (${tagEvents})`,
+  );
+  await testDb.unsafe(`DELETE FROM causal_events WHERE fact_id IN (${tagFacts})`);
+}
+
 async function clean(): Promise<void> {
   // fact_history → facts (no cascade); facts.subject_entity_id is RESTRICT (mig
   // 038). Delete history by fact_id (promotion's audit rows aren't TAG-reasoned),
@@ -29,6 +59,7 @@ async function clean(): Promise<void> {
   await testDb.unsafe(
     `DELETE FROM fact_history WHERE fact_id IN (SELECT id FROM facts WHERE source_text LIKE '${TAG}%')`,
   );
+  await clearCausalForTag();
   await testDb.unsafe(`DELETE FROM facts WHERE source_text LIKE '${TAG}%'`);
   // E5 identity verdicts create entity_merges / same_as_links / entity_aliases rows
   // that FK-reference the TAG entities — clear them before deleting the entities.
@@ -137,6 +168,7 @@ async function wipeCanonical(): Promise<void> {
   await testDb.unsafe(
     `DELETE FROM fact_history WHERE fact_id IN (SELECT id FROM facts WHERE source_text LIKE '${TAG}%')`,
   );
+  await clearCausalForTag();
   await testDb.unsafe(`DELETE FROM facts WHERE source_text LIKE '${TAG}%'`);
   await testDb.unsafe(`DELETE FROM entities WHERE canonical_name LIKE '${TAG}%'`);
 }
@@ -371,6 +403,105 @@ describe('epoch-v2 bug-fix scenarios — named harness cases (nmemo-vpz.8 / E8 c
     expect(result.insertedFactIds).toHaveLength(1);
     const fact = await testDb`SELECT object_entity_id FROM facts WHERE id = ${result.insertedFactIds[0]!}::uuid`;
     expect((fact[0] as { object_entity_id: string | null }).object_entity_id).not.toBeNull();
+  });
+});
+
+describe('E6 — causal event minting at promotion (nmemo-vpz.6, doc 41 §12 #5)', () => {
+  beforeEach(clean);
+  afterAll(clean);
+
+  /** All causal events whose fact is one of this test's TAG facts. */
+  async function tagEvents(): Promise<MintedEventRow[]> {
+    const rows = await testDb`
+      SELECT transition_type, fact_id::text AS fact_id, subject_entity_id::text AS subject_entity_id,
+             predicate, delta_confidence
+      FROM causal_events
+      WHERE fact_id IN (SELECT id FROM facts WHERE source_text LIKE ${TAG + '%'})
+    `;
+    return rows as unknown as MintedEventRow[];
+  }
+
+  it('mints exactly one "created" event per newly-active fact, keyed to its fact id', async () => {
+    const epoch = randomUUID();
+    const alice = await stageEntity(epoch, `${TAG} Alice Mint`, 'person');
+    const acme = await stageEntity(epoch, `${TAG} Acme Mint`, 'organization');
+    await stageFact(epoch, alice, 'works_at', { objectHandle: acme, validAt: new Date('2022-01-01') });
+    await stageFact(epoch, alice, 'born_in', { objectValue: 'Boston', validAt: new Date('1990-01-01') });
+
+    const result = await promote(epoch);
+
+    // Two active facts inserted -> two minted ids, both returned and 'created'.
+    expect(result.insertedFactIds).toHaveLength(2);
+    expect(result.mintedCausalEventIds).toHaveLength(2);
+
+    const events = await tagEvents();
+    expect(events).toHaveLength(2);
+    expect(events.every((e) => e.transition_type === 'created')).toBe(true);
+    // Keyed to the stable fact ids promotion just inserted (§12 #5).
+    expect(new Set(events.map((e) => e.fact_id))).toEqual(new Set(result.insertedFactIds));
+    // No orphan events: Graph C node inputs are populated.
+    expect(events.every((e) => e.subject_entity_id && e.predicate)).toBe(true);
+  });
+
+  it('mints NO event for a fact born inactive (lost group supersession on arrival)', async () => {
+    // Two location facts in one epoch: Austin (2023) wins the group, Boston (2019)
+    // is inserted already-expired. Only the active winner mints an event.
+    const epoch = randomUUID();
+    const co = await stageEntity(epoch, `${TAG} BornInactive Co`, 'organization');
+    await stageFact(epoch, co, 'headquartered_in', { objectValue: 'Boston', validAt: new Date('2019-01-01'), exclusiveGroup: 'location' });
+    await stageFact(epoch, co, 'relocated_to', { objectValue: 'Austin', validAt: new Date('2023-01-01'), exclusiveGroup: 'location' });
+
+    const result = await promote(epoch);
+
+    expect(result.insertedFactIds).toHaveLength(2); // both inserted (one born-inactive)
+    expect(result.mintedCausalEventIds).toHaveLength(1); // only the active one mints
+
+    const events = await tagEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]!.transition_type).toBe('created');
+  });
+
+  it('mints an "expired" event for a prior-canonical fact superseded by a later epoch', async () => {
+    // Epoch 0: prior HQ Boston (active canonical).
+    const epoch0 = randomUUID();
+    const co0 = await stageEntity(epoch0, `${TAG} Expire Co`, 'organization');
+    await stageFact(epoch0, co0, 'headquartered_in', { objectValue: 'Boston', validAt: new Date('2019-01-01'), exclusiveGroup: 'location' });
+    await promote(epoch0);
+    const canonId = ((await testDb`SELECT id FROM entities WHERE canonical_name LIKE ${TAG + '%'}`)[0] as { id: string }).id;
+    const priorFactId = ((await testDb`SELECT id FROM facts WHERE source_text LIKE ${TAG + '%'} AND object_value = 'Boston'`)[0] as { id: string }).id;
+
+    // Epoch 1: a later-valid HQ supersedes the prior -> the prior fact expires.
+    const epoch1 = randomUUID();
+    const co1 = await stageEntity(epoch1, `${TAG} Expire Co`, 'organization', canonId);
+    await stageFact(epoch1, co1, 'headquartered_in', { objectValue: 'Austin', validAt: new Date('2024-01-01'), exclusiveGroup: 'location' });
+    const result = await promote(epoch1);
+
+    expect(result.expiredFactIds).toContain(priorFactId);
+    const events = await tagEvents();
+    expect(events.filter((e) => e.transition_type === 'expired').map((e) => e.fact_id)).toContain(priorFactId);
+    // The new active fact still got its 'created' event.
+    expect(events.some((e) => e.transition_type === 'created')).toBe(true);
+  });
+
+  it('mints a "strengthened" event when a corroboration raises confidence', async () => {
+    // Epoch 0: a fact at modest confidence.
+    const epoch0 = randomUUID();
+    const co0 = await stageEntity(epoch0, `${TAG} Corrob Co`, 'organization');
+    await stageFact(epoch0, co0, 'founded_in', { objectValue: '2015', confidence: 0.6 });
+    await promote(epoch0);
+    const canonId = ((await testDb`SELECT id FROM entities WHERE canonical_name LIKE ${TAG + '%'}`)[0] as { id: string }).id;
+    const priorFactId = ((await testDb`SELECT id FROM facts WHERE source_text LIKE ${TAG + '%'} AND object_value = '2015'`)[0] as { id: string }).id;
+
+    // Epoch 1: the SAME triple at higher confidence -> corroboration raises it.
+    const epoch1 = randomUUID();
+    const co1 = await stageEntity(epoch1, `${TAG} Corrob Co`, 'organization', canonId);
+    await stageFact(epoch1, co1, 'founded_in', { objectValue: '2015', confidence: 0.95 });
+    const result = await promote(epoch1);
+
+    expect(result.corroboratedFactIds).toContain(priorFactId);
+    const strengthened = (await tagEvents()).filter((e) => e.transition_type === 'strengthened');
+    expect(strengthened.map((e) => e.fact_id)).toContain(priorFactId);
+    expect(strengthened.find((e) => e.fact_id === priorFactId)!.delta_confidence).toBeGreaterThan(0);
   });
 });
 

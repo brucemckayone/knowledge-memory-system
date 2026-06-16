@@ -91,7 +91,13 @@ export type Actor =
   // of `extraction_proposer` — it is the ONE writer of canonical entities/facts
   // at the propose→promote boundary, so every insert/supersession it performs
   // stamps fact_history with actor='promotion' (permitted by mig 041's CHECK).
-  | 'promotion';
+  | 'promotion'
+  // Epoch v2 E6 (doc 41 §6, §8a.6): the post-promotion causal pass. Like
+  // `extraction_proposer`, an MCP actor for tool-scoping ONLY — it proposes causal
+  // edges into staging, never canonical (causal-promotion code writes canonical
+  // causal_edges with actor='promotion'). Deliberately NOT in migration 009's actor
+  // CHECK: if it reaches an audit column it is a bug.
+  | 'causal_agent';
 
 export interface SourceReference {
   type: 'memory' | 'fact' | 'entity';
