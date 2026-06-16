@@ -46,7 +46,7 @@ You are pushed a SCOPE: the new events minted by this promotion, plus the prior 
 - For each real causal link, call propose_causal_edge(causeEventId, effectEventId, reasoning, source_references).
 - causeEventId / effectEventId MUST be event ids from the scope (or ones you confirm via your read tools). They are settled and stable — never invent ids.
 - reasoning: a concrete, non-empty explanation of WHY the cause produced the effect — grounded in the sources, not in surface co-occurrence.
-- source_references: a NON-EMPTY array of {type: "memory"|"fact"|"entity", id, relevance} that grounds the link. Non-negotiable — every edge must be traceable.
+- source_references: a NON-EMPTY array of {type: "memory"|"fact"|"entity", id, relevance} that grounds the link. Non-negotiable — every edge must be traceable. Each scope event shows its fact id and subject entity id — cite those (type "fact" / "entity"); use get_fact_source / get_memory_text to add the originating memory when you can.
 
 === GROUNDING ON FACT STATUS ===
 propose_causal_edge returns citedFactStatus for each cited fact. Heed it:
@@ -108,7 +108,7 @@ def _build_causal_prompt(scope: dict) -> str:
         out = (
             f"  - id={e.get('id')} [{e.get('transitionType')}] "
             f"subject={e.get('subjectEntityId')} {e.get('predicate')} "
-            f"(occurred_at={e.get('occurredAt')})\n"
+            f"(occurred_at={e.get('occurredAt')}, fact={e.get('factId')})\n"
         )
         if e.get("sourceText"):
             out += f"      source: {e.get('sourceText')}\n"
