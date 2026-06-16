@@ -315,6 +315,7 @@ describe('promotion against testDb (nmemo-vpz.3 / E3)', () => {
       escalations: [],
       supersessionHints: [],
       droppedSelfLoops: [],
+      droppedOrphanEntities: [],
       entityMerges: [],
       sameAsLinks: [],
     };

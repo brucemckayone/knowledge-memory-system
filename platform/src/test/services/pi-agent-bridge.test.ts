@@ -71,11 +71,16 @@ describe('Pi Agent Bridge: tool conversion', () => {
   });
 
   it('expected write tools are flagged mutates: true', () => {
-    // The 17 known write tools from the design decision (bead .113).
+    // The original design-decision write tools (bead .113), minus create_causal_edge
+    // (the per-chunk CAUSE write tool retired in E7, doc 41 §11). NOTE: this curated
+    // list predates the E2-E6 staging-write tools (propose_entity/propose_fact/
+    // propose_causal_edge/propose_identity_verdict/propose_conflict_resolution) and is
+    // therefore stale against the current surface — a pre-existing failure to be
+    // resynced in a separate guard-refresh bead, not by E7.
     // This guards against accidentally flipping a write tool to mutates: false,
     // which would un-serialise it through the dispatcher's writeQueue.
     const EXPECTED_WRITE_TOOLS = new Set([
-      'create_causal_edge', 'create_fact', 'resolve_entity', 'link_entity_to_memory',
+      'create_fact', 'resolve_entity', 'link_entity_to_memory',
       'add_entity_alias', 'update_entity_summary', 'create_same_as_link', 'execute_merge',
       'resolve_candidate', 'expire_fact', 'invalidate_fact', 'restore_fact',
       'update_fact_confidence', 'expire_causal_edge', 'revise_causal_edge',

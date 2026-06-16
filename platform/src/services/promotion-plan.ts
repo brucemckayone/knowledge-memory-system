@@ -273,6 +273,12 @@ export interface PromotionPlan {
   supersessionHints: SupersessionHint[];
   /** stagedFactIds dropped because subject resolved == object resolved. */
   droppedSelfLoops: string[];
+  /**
+   * clusterKeys of freshly-minted entities dropped because no surviving fact
+   * references them (orphan cleanup, doc 41 §11 I7 — step e). Prior-canonical
+   * entities are never touched here; their lifecycle belongs to the gardener.
+   */
+  droppedOrphanEntities: string[];
   /** Canonical↔canonical merges from identity verdicts (executed by applyPromotion). */
   entityMerges: PlannedEntityMerge[];
   /** same_as links from identity verdicts (executed by applyPromotion). */
@@ -773,16 +779,38 @@ export function planPromotion(
       agreed: expiredPriorIds.has(f.supersedesFactId),
     }));
 
+  // (e) Orphan cleanup (doc 41 §11 I7 — the same step e as the self-loop drop). A
+  // freshly-minted entity that NO surviving fact references — its only proposals
+  // were dropped as self-loops, lost a subject/object handle, or it was proposed
+  // with no fact at all — would land in canonical as a factless orphan. Promotion
+  // is the single writer, so it drops the mint here rather than leaving it for the
+  // aged-orphan sweep. Computed purely from factsToInsert (which includes
+  // superseded/inactive facts, so an entity kept only by an expired fact survives),
+  // so it stays order-independent. Prior-canonical entities are out of scope — their
+  // lifecycle belongs to the gardener.
+  const referencedClusterKeys = new Set<string>();
+  for (const f of factsToInsert) {
+    if (f.subjectRef.kind === 'cluster') referencedClusterKeys.add(f.subjectRef.key);
+    if (f.objectRef?.kind === 'cluster') referencedClusterKeys.add(f.objectRef.key);
+  }
+  const liveEntitiesToMint: PlannedEntity[] = [];
+  const droppedOrphanEntities: string[] = [];
+  for (const e of entitiesToMint) {
+    if (referencedClusterKeys.has(e.clusterKey)) liveEntitiesToMint.push(e);
+    else droppedOrphanEntities.push(e.clusterKey);
+  }
+
   // Canonical sort of every array so the plan is order-independent by value and
   // the litmus is a plain deep-equal (doc 41 §10).
   return {
-    entitiesToMint: entitiesToMint.sort((a, b) => (a.clusterKey < b.clusterKey ? -1 : 1)),
+    entitiesToMint: liveEntitiesToMint.sort((a, b) => (a.clusterKey < b.clusterKey ? -1 : 1)),
     factsToInsert: factsToInsert.sort((a, b) => (a.stagedFactId < b.stagedFactId ? -1 : 1)),
     factsToExpire: factsToExpire.sort((a, b) => (a.factId < b.factId ? -1 : 1)),
     corroborations: corroborations.sort((a, b) => (a.priorFactId < b.priorFactId ? -1 : 1)),
     escalations: escalations.sort((a, b) => (escalationKey(a) < escalationKey(b) ? -1 : 1)),
     supersessionHints: supersessionHints.sort((a, b) => (a.stagedFactId < b.stagedFactId ? -1 : 1)),
     droppedSelfLoops: droppedSelfLoops.sort(),
+    droppedOrphanEntities: droppedOrphanEntities.sort(),
     entityMerges: entityMerges.sort((a, b) => (mergeKey(a) < mergeKey(b) ? -1 : 1)),
     sameAsLinks: sameAsLinks.sort((a, b) => (linkKey(a) < linkKey(b) ? -1 : 1)),
   };

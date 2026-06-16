@@ -520,26 +520,6 @@ async function runSerialBatch(items: BatchItem[], _concurrency?: number): Promis
 const EPOCH_CONCURRENCY = Number.parseInt(process.env.EPOCH_CONCURRENCY ?? '6', 10);
 
 /**
- * Narrow a set of touched entity ids to those that STILL EXIST. The parallel
- * arms harvest entity ids from the extraction results, but concurrent per-chunk
- * reconciliation can merge (and delete) some of those entities before the
- * barrier/final reconcile runs. Feeding a dead id into updateEntityMeta /
- * detectMergeCandidates FK-violates (entity_meta / merge_candidates reference
- * public.entities) and aborts the whole reconcile pass. A merged entity's data
- * already lives on its survivor, which is itself in the touched set when it was
- * extracted — so the survivor's meta is still refreshed; only the dead
- * tombstone id is dropped.
- */
-async function filterLiveEntityIds(entityIds: string[]): Promise<string[]> {
-  if (entityIds.length === 0) return [];
-  const rows = await db
-    .select({ id: entitiesTable.id })
-    .from(entitiesTable)
-    .where(inArray(entitiesTable.id, entityIds));
-  return rows.map((r) => r.id);
-}
-
-/**
  * Phase 2 proposer (doc 41 §4; bead nmemo-vpz.3 / E3). The store-then-propose
  * sibling of {@link extract} for the epoch arm: it runs the graph agent as the
  * `extraction_proposer` actor with the chunk's epoch context, so the agent's
@@ -612,9 +592,10 @@ async function propose(
  *
  * Order-independence is now a structural property (doc 41 §10), not an emergent
  * hope: `promote(forward) == promote(reverse)` for the deterministic backbone.
- * The old barrier reconcile (updateEntityMeta / detectMergeCandidates /
- * filterLiveEntityIds) is gone from this path — promotion is the single writer,
- * so there is no concurrent-merge race to filter against (doc 41 §11, I6 retired).
+ * The old barrier reconcile (updateEntityMeta / detectMergeCandidates, and the
+ * filterLiveEntityIds FK band-aid that guarded it) does not run on this path —
+ * promotion is the single writer, so there is no concurrent-merge race to filter
+ * against (doc 41 §11, I6 retired; the band-aid was deleted entirely in E7).
  */
 async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<ExtractResult[]> {
   const limit = concurrency ?? EPOCH_CONCURRENCY;
@@ -765,20 +746,12 @@ async function runOptimisticBatch(items: BatchItem[], concurrency?: number): Pro
     await reconcileLoop;
   }
 
-  // Final reconcile sweep over every touched entity (filtered to survivors of
-  // any concurrent merge — see filterLiveEntityIds).
-  const touchedIds = [...new Set(results.flatMap((r) => r.entities.map((e) => e.id)))];
-  const entityIds = await filterLiveEntityIds(touchedIds);
-  if (entityIds.length > 0) {
-    try {
-      await updateEntityMeta(entityIds);
-      await detectMergeCandidates(entityIds);
-      _resetReconciliationCooldown();
-      await maybeTriggerReconciliation();
-    } catch (err) {
-      console.warn('[optimistic] final reconcile failed:', err instanceof Error ? err.message : err);
-    }
-  }
+  // The post-hoc final reconcile sweep (updateEntityMeta / detectMergeCandidates /
+  // maybeTriggerReconciliation over the touched ids, filtered through the
+  // filterLiveEntityIds FK band-aid) was removed in E7 (doc 41 §11) along with the
+  // band-aid itself. The concurrent reconcile loop above already reconciles
+  // in-flight; the post-hoc sweep over possibly-merge-deleted ids was the only
+  // caller that needed the survivor filter.
   return results;
 }
 

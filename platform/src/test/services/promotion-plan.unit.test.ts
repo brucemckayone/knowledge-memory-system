@@ -59,7 +59,11 @@ describe('planPromotion — entity resolution (step a)', () => {
   it('merges helix / helix-robotics fresh duplicates into one entity (nmemo-wyb)', () => {
     const helix = ent('Helix');
     const helixRobotics = ent('Helix Robotics');
-    const plan = planPromotion(EMPTY_PRIOR, { entities: [helix, helixRobotics], facts: [] });
+    // A fact on the merged cluster keeps it from being orphan-pruned (step e).
+    const plan = planPromotion(EMPTY_PRIOR, {
+      entities: [helix, helixRobotics],
+      facts: [fact(helix.handle, 'founded_in', { objectValue: '2015' })],
+    });
     expect(plan.entitiesToMint).toHaveLength(1);
     expect(plan.entitiesToMint[0]!.memberHandles.sort()).toEqual([helix.handle, helixRobotics.handle].sort());
     // Display name is the most specific member.
@@ -67,7 +71,15 @@ describe('planPromotion — entity resolution (step a)', () => {
   });
 
   it('does NOT merge a non-word-prefix lookalike (helix vs helixology)', () => {
-    const plan = planPromotion(EMPTY_PRIOR, { entities: [ent('Helix'), ent('Helixology')], facts: [] });
+    const helix = ent('Helix');
+    const helixology = ent('Helixology');
+    const plan = planPromotion(EMPTY_PRIOR, {
+      entities: [helix, helixology],
+      facts: [
+        fact(helix.handle, 'founded_in', { objectValue: '2015' }),
+        fact(helixology.handle, 'founded_in', { objectValue: '2016' }),
+      ],
+    });
     expect(plan.entitiesToMint).toHaveLength(2);
   });
 
@@ -96,7 +108,11 @@ describe('planPromotion — entity resolution (step a)', () => {
       ],
       activeFacts: [],
     };
-    const plan = planPromotion(prior, { entities: [ent('Helix')], facts: [] });
+    const helix = ent('Helix');
+    const plan = planPromotion(prior, {
+      entities: [helix],
+      facts: [fact(helix.handle, 'founded_in', { objectValue: '2015' })],
+    });
     expect(plan.escalations).toHaveLength(1);
     expect(plan.escalations[0]!.kind).toBe('identity');
     // Conservative default: minted as its own fresh entity, not guessed.
@@ -162,13 +178,28 @@ describe('planPromotion — triple dedup (step d) + self-loops (step e)', () => 
     expect(plan.factsToInsert[0]!.corroboratesStagedFactIds).toHaveLength(1);
   });
 
-  it('drops a fact whose subject and object resolve to the same entity', () => {
+  it('drops a self-loop fact AND the now-factless mint as an orphan (§11 I7)', () => {
     const helix = ent('Helix');
     const helix2 = ent('Helix Robotics'); // merges with helix → same entity
     const loop = fact(helix.handle, 'partner_of', { objectHandle: helix2.handle });
     const plan = planPromotion(EMPTY_PRIOR, { entities: [helix, helix2], facts: [loop] });
     expect(plan.droppedSelfLoops).toContain(loop.stagedFactId);
     expect(plan.factsToInsert).toHaveLength(0);
+    // The merged cluster's only fact was the dropped self-loop → no surviving fact,
+    // so promotion drops the mint rather than create a factless orphan.
+    expect(plan.entitiesToMint).toHaveLength(0);
+    expect(plan.droppedOrphanEntities).toHaveLength(1);
+  });
+
+  it('keeps a minted entity that survives only via an inactive (superseded) fact', () => {
+    // An entity whose facts all LOST group supersession is still referenced by the
+    // inserted (inactive) facts — it is NOT an orphan.
+    const helix = ent('Helix');
+    const boston = fact(helix.handle, 'headquartered_in', { objectValue: 'Boston', validAt: new Date('2020-01-01'), exclusiveGroup: 'location' });
+    const austin = fact(helix.handle, 'relocated_to', { objectValue: 'Austin', validAt: new Date('2023-01-01'), exclusiveGroup: 'location' });
+    const plan = planPromotion(EMPTY_PRIOR, { entities: [helix], facts: [boston, austin] });
+    expect(plan.entitiesToMint).toHaveLength(1);
+    expect(plan.droppedOrphanEntities).toHaveLength(0);
   });
 });
 
@@ -357,7 +388,10 @@ describe('planPromotion — identity verdicts (E5)', () => {
 
   it('DISTINCT: suppresses the escalation and keeps the cluster fresh (mints a new entity)', () => {
     const helix = ent('Helix');
-    const staged: StagedProposals = { entities: [helix], facts: [] };
+    const staged: StagedProposals = {
+      entities: [helix],
+      facts: [fact(helix.handle, 'founded_in', { objectValue: '2015' })],
+    };
     const pass1 = planPromotion(TWO_HELIX_PRIORS, staged);
     const esc = pass1.escalations.find((e) => e.kind === 'identity')!;
     const verdict: IdentityVerdict = {

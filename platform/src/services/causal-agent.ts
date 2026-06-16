@@ -7,9 +7,11 @@
  *
  * Agent invocations (invokeGraphAgent, invokeReconciliationAgent, etc.) call the
  * corresponding ML service endpoints, which shell out to Claude Code with the
- * MCP config and the agent's system prompt. The unified graph agent handles
- * causal reasoning inline as a CAUSE phase — there is no longer a standalone
- * causal agent invocation.
+ * MCP config and the agent's system prompt. Causal reasoning is NOT done inline
+ * by the per-chunk extraction agent (the CAUSE phase + create_causal_edge tool
+ * were retired in E7, doc 41 §11). It runs as a separate post-promotion pass —
+ * invokeCausalAgent (Phase 4, §8a.6) — which proposes edges into staging that
+ * causal-promotion disposes.
  */
 
 import path from 'path';
@@ -25,7 +27,7 @@ import { db } from '../db/index.js';
 import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports, stagingProposedEntities, stagingProposedFacts, arbiterVerdicts, causalEvents } from '../db/schema.js';
 import { resolveExclusiveGroup } from './exclusive-groups.js';
 import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
-import { getEntityCausalHistory, createCausalEdge, expireCausalEdge, reviseCausalEdge, traceCauses, projectTrajectory, getCausalDelta, type SourceReference as CausalSourceRef } from './causal.js';
+import { getEntityCausalHistory, expireCausalEdge, reviseCausalEdge, traceCauses, projectTrajectory, getCausalDelta, type SourceReference as CausalSourceRef } from './causal.js';
 import { getFactHistory, getEdgeHistory, jsonbLiteral, unwrapRows, type Actor } from './audit.js';
 import {
   getContradictions,
@@ -274,62 +276,6 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
       required: ['from', 'to'],
     },
   },
-  {
-    name: 'create_causal_edge',
-    description:
-      'Assert a causal link between two causal events with detailed reasoning and source references. Every edge must be auditable — provide thorough reasoning and list all sources that informed the conclusion.',
-    mutates: true,
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        cause_event_id: {
-          type: 'string',
-          description: 'UUID of the causal event that is the cause',
-        },
-        effect_event_id: {
-          type: 'string',
-          description: 'UUID of the causal event that is the effect',
-        },
-        strength: {
-          type: 'number',
-          description: 'Confidence in the causal link, 0.0-1.0. Use 0.3-0.6 for inferred causality, 0.7-1.0 for explicitly stated.',
-        },
-        reasoning: {
-          type: 'string',
-          description: 'Detailed justification for this causal assertion. Must explain WHY the cause led to the effect.',
-        },
-        source_references: {
-          type: 'array',
-          description: 'Every source that informed this conclusion',
-          items: {
-            type: 'object',
-            properties: {
-              type: {
-                type: 'string',
-                enum: ['memory', 'fact', 'entity'],
-                description: 'Type of source reference',
-              },
-              id: {
-                type: 'string',
-                description: 'UUID of the memory, fact, or entity',
-              },
-              relevance: {
-                type: 'string',
-                description: 'How this source informed the causal conclusion',
-              },
-            },
-            required: ['type', 'id', 'relevance'],
-          },
-        },
-        temporal_span: {
-          type: 'string',
-          description: 'Optional estimated delay between cause and effect (ISO 8601 duration, e.g. "P7D" for 7 days)',
-        },
-      },
-      required: ['cause_event_id', 'effect_event_id', 'strength', 'reasoning', 'source_references'],
-    },
-  },
-
   // --- Extraction tools ---
 
   {
@@ -1495,11 +1441,12 @@ const ARBITER_SURFACE = new Set<string>([
  * graph broadly (every read-only tool — `get_causal_delta` scopes the pass, the
  * rest gather source_references and check cited-fact status) and PROPOSES causal
  * edges into staging via `propose_causal_edge`. It holds NO canonical causal-write
- * tool: `create_causal_edge` / `expire_causal_edge` / `revise_causal_edge` are
- * mutating (so absent from the read set) and become causal-promotion code — the
- * agent proposes, causal-promotion disposes. §8a.6 names the expected causal read
- * subset; granting the full read surface is structurally safe (reads never touch
- * canonical).
+ * tool: `create_causal_edge` was removed entirely in E7 (the per-chunk CAUSE path),
+ * and `expire_causal_edge` / `revise_causal_edge` remain mutating tools (so absent
+ * from the read set) reachable only by legacy/reasoning actors. Canonical causal
+ * writes flow through causal-promotion code — the agent proposes, causal-promotion
+ * disposes. §8a.6 names the expected causal read subset; granting the full read
+ * surface is structurally safe (reads never touch canonical).
  */
 const CAUSAL_AGENT_STAGE_WRITES = ['propose_causal_edge'] as const;
 const CAUSAL_SURFACE = new Set<string>([
@@ -1845,25 +1792,6 @@ async function _handleToolCallInner(
           extractionMethod: e.extractionMethod,
         })),
       });
-    }
-
-    case 'create_causal_edge': {
-      const refs = toolInput.source_references as Array<{
-        type: 'memory' | 'fact' | 'entity';
-        id: string;
-        relevance: string;
-      }>;
-      const edgeId = await createCausalEdge({
-        causeEventId: toolInput.cause_event_id as string,
-        effectEventId: toolInput.effect_event_id as string,
-        strength: toolInput.strength as number,
-        reasoning: toolInput.reasoning as string,
-        sourceReferences: refs,
-        temporalSpan: toolInput.temporal_span as string | undefined,
-        actor: context.agent,
-        reasoningReportId: context.reasoningReportId ?? null,
-      });
-      return JSON.stringify({ edgeId });
     }
 
     // --- Extraction tool handlers ---

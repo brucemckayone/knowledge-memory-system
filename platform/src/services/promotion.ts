@@ -482,7 +482,8 @@ export async function promote(epochId: string, opts: PromoteOptions = {}): Promi
     `[promotion] epoch=${epochId.slice(0, 8)} minted=${Object.keys(result.mintedEntityIds).length} ` +
       `inserted=${result.insertedFactIds.length} expired=${result.expiredFactIds.length} ` +
       `corroborated=${result.corroboratedFactIds.length} merged=${result.mergedAwayEntityIds.length} ` +
-      `same_as=${result.sameAsLinkIds.length} dropped_self_loops=${plan.droppedSelfLoops.length}`,
+      `same_as=${result.sameAsLinkIds.length} dropped_self_loops=${plan.droppedSelfLoops.length} ` +
+      `dropped_orphans=${plan.droppedOrphanEntities.length}`,
   );
 
   // VERIFY-phase supersession hints (doc 41 §4, §8a.3; E4). The deterministic
