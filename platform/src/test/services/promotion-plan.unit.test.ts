@@ -8,10 +8,13 @@ import { describe, it, expect } from 'vitest';
 import {
   planPromotion,
   normalizeName,
+  escalationKey,
   type PriorCanonical,
   type StagedProposals,
   type StagedEntity,
   type StagedFact,
+  type IdentityVerdict,
+  type ConflictVerdict,
 } from '../../services/promotion-plan.js';
 
 const EMPTY_PRIOR: PriorCanonical = { entities: [], activeFacts: [] };
@@ -282,5 +285,188 @@ describe('planPromotion — order independence (doc 38 litmus, doc 41 §10)', ()
     expect(activeRole[0]!.objectValue).toBe('CTO'); // latest valid
     expect(activeLoc).toHaveLength(1);
     expect(activeLoc[0]!.objectValue).toBe('Austin'); // latest valid
+  });
+});
+
+// ============================================
+// E5 — verdict-aware re-plan (doc 41 §8a.5, §12 #4)
+// ============================================
+
+/** Two distinct priors a short cluster name word-prefixes → an identity escalation. */
+const TWO_HELIX_PRIORS: PriorCanonical = {
+  entities: [
+    { id: 'canon-a', name: 'Helix Robotics', type: 'organization' },
+    { id: 'canon-b', name: 'Helix Biosciences', type: 'organization' },
+  ],
+  activeFacts: [],
+};
+
+describe('planPromotion — identity verdicts (E5)', () => {
+  it('MERGE: binds the cluster to the target and plans the other candidate as an entity merge', () => {
+    const helix = ent('Helix');
+    const someFact = fact(helix.handle, 'founded_in', { objectValue: '2015' });
+    const staged: StagedProposals = { entities: [helix], facts: [someFact] };
+
+    // Pass 1 surfaces the escalation; we derive the verdict against its key (the
+    // exact round-trip a recorded verdict + replay use — criterion 3).
+    const pass1 = planPromotion(TWO_HELIX_PRIORS, staged);
+    const esc = pass1.escalations.find((e) => e.kind === 'identity')!;
+    expect(esc).toBeDefined();
+    expect(esc.kind === 'identity' && esc.candidateIds).toEqual(['canon-a', 'canon-b']);
+
+    const verdict: IdentityVerdict = {
+      kind: 'identity',
+      escalationKey: escalationKey(esc),
+      members: ['canon-a', 'canon-b'],
+      decision: 'merge',
+      canonicalTarget: 'canon-a',
+      reasoning: 'Same org; Biosciences is a former name',
+    };
+    const pass2 = planPromotion(TWO_HELIX_PRIORS, staged, [verdict]);
+
+    expect(pass2.escalations).toHaveLength(0); // resolved, not re-escalated
+    expect(pass2.entitiesToMint).toHaveLength(0); // bound to canon-a, not minted fresh
+    expect(pass2.entityMerges).toEqual([
+      { sourceId: 'canon-b', targetId: 'canon-a', reason: verdict.reasoning },
+    ]);
+    expect(pass2.sameAsLinks).toHaveLength(0);
+    // The cluster's fact now points at the survivor.
+    expect(pass2.factsToInsert[0]!.subjectRef).toEqual({ kind: 'canonical', id: 'canon-a' });
+  });
+
+  it('SAME_AS: binds to the target and plans a same_as link, no merge', () => {
+    const helix = ent('Helix');
+    const staged: StagedProposals = { entities: [helix], facts: [] };
+    const pass1 = planPromotion(TWO_HELIX_PRIORS, staged);
+    const esc = pass1.escalations.find((e) => e.kind === 'identity')!;
+    const verdict: IdentityVerdict = {
+      kind: 'identity',
+      escalationKey: escalationKey(esc),
+      members: ['canon-a', 'canon-b'],
+      decision: 'same_as',
+      canonicalTarget: 'canon-a',
+      reasoning: 'Closely related but kept as separate rows',
+    };
+    const pass2 = planPromotion(TWO_HELIX_PRIORS, staged, [verdict]);
+    expect(pass2.escalations).toHaveLength(0);
+    expect(pass2.entityMerges).toHaveLength(0);
+    expect(pass2.sameAsLinks).toEqual([
+      { entityAId: 'canon-a', entityBId: 'canon-b', reason: verdict.reasoning },
+    ]);
+  });
+
+  it('DISTINCT: suppresses the escalation and keeps the cluster fresh (mints a new entity)', () => {
+    const helix = ent('Helix');
+    const staged: StagedProposals = { entities: [helix], facts: [] };
+    const pass1 = planPromotion(TWO_HELIX_PRIORS, staged);
+    const esc = pass1.escalations.find((e) => e.kind === 'identity')!;
+    const verdict: IdentityVerdict = {
+      kind: 'identity',
+      escalationKey: escalationKey(esc),
+      members: ['canon-a', 'canon-b'],
+      decision: 'distinct',
+      canonicalTarget: null,
+      reasoning: 'A genuinely new third Helix',
+    };
+    const pass2 = planPromotion(TWO_HELIX_PRIORS, staged, [verdict]);
+    expect(pass2.escalations).toHaveLength(0); // verdict consumed it
+    expect(pass2.entitiesToMint).toHaveLength(1); // minted distinct
+    expect(pass2.entityMerges).toHaveLength(0);
+    expect(pass2.sameAsLinks).toHaveLength(0);
+  });
+});
+
+describe('planPromotion — conflict verdicts (E5)', () => {
+  /** Equal valid_at + both undated chunkIndex, different object → an unbreakable conflict. */
+  function equalValidConflict(): { staged: StagedProposals; boston: StagedFact; austin: StagedFact } {
+    const helix = ent('Helix');
+    const sameDay = new Date('2022-01-01');
+    const boston = fact(helix.handle, 'headquartered_in', { objectValue: 'Boston', validAt: sameDay, exclusiveGroup: 'location' });
+    const austin = fact(helix.handle, 'headquartered_in', { objectValue: 'Austin', validAt: sameDay, exclusiveGroup: 'location' });
+    return { staged: { entities: [helix], facts: [boston, austin] }, boston, austin };
+  }
+
+  it('pass 1 records a conflict escalation (co-equal facts, different objects)', () => {
+    const { staged } = equalValidConflict();
+    const plan = planPromotion(EMPTY_PRIOR, staged);
+    const esc = plan.escalations.find((e) => e.kind === 'conflict');
+    expect(esc).toBeDefined();
+  });
+
+  it('EXPIRE: the arbiter expires the loser, keeps the winner active, no re-escalation', () => {
+    const { staged, boston, austin } = equalValidConflict();
+    const esc = planPromotion(EMPTY_PRIOR, staged).escalations.find((e) => e.kind === 'conflict')!;
+    const verdict: ConflictVerdict = {
+      kind: 'conflict',
+      escalationKey: escalationKey(esc),
+      expire: [{ factId: boston.stagedFactId, reason: 'Austin is the current HQ per the source' }],
+      correctedValidAt: null,
+      notExclusive: false,
+      reasoning: 'Austin wins',
+    };
+    const plan = planPromotion(EMPTY_PRIOR, staged, [verdict]);
+    expect(plan.escalations).toHaveLength(0);
+    const byId = new Map(plan.factsToInsert.map((f) => [f.stagedFactId, f]));
+    expect(byId.get(austin.stagedFactId)!.active).toBe(true);
+    expect(byId.get(boston.stagedFactId)!.active).toBe(false);
+    expect(byId.get(boston.stagedFactId)!.expireReason).toContain('Austin is the current HQ');
+  });
+
+  it('NOT_EXCLUSIVE: the arbiter keeps BOTH facts active', () => {
+    const { staged, boston, austin } = equalValidConflict();
+    const esc = planPromotion(EMPTY_PRIOR, staged).escalations.find((e) => e.kind === 'conflict')!;
+    const verdict: ConflictVerdict = {
+      kind: 'conflict',
+      escalationKey: escalationKey(esc),
+      expire: [],
+      correctedValidAt: null,
+      notExclusive: true,
+      reasoning: 'Two simultaneous offices — not mutually exclusive',
+    };
+    const plan = planPromotion(EMPTY_PRIOR, staged, [verdict]);
+    expect(plan.escalations).toHaveLength(0);
+    const byId = new Map(plan.factsToInsert.map((f) => [f.stagedFactId, f]));
+    expect(byId.get(austin.stagedFactId)!.active).toBe(true);
+    expect(byId.get(boston.stagedFactId)!.active).toBe(true); // both kept
+  });
+
+  it('CORRECTED_VALID_AT: a date correction is applied to the surviving fact', () => {
+    const { staged, boston, austin } = equalValidConflict();
+    const esc = planPromotion(EMPTY_PRIOR, staged).escalations.find((e) => e.kind === 'conflict')!;
+    const corrected = '2024-06-01T00:00:00.000Z';
+    const verdict: ConflictVerdict = {
+      kind: 'conflict',
+      escalationKey: escalationKey(esc),
+      expire: [{ factId: boston.stagedFactId, reason: 'Boston predates the move' }],
+      correctedValidAt: { [austin.stagedFactId]: corrected },
+      notExclusive: false,
+      reasoning: 'Austin move was actually mid-2024',
+    };
+    const plan = planPromotion(EMPTY_PRIOR, staged, [verdict]);
+    const austinPlanned = plan.factsToInsert.find((f) => f.stagedFactId === austin.stagedFactId)!;
+    expect(austinPlanned.active).toBe(true);
+    expect(austinPlanned.validAt!.toISOString()).toBe(corrected);
+  });
+});
+
+describe('planPromotion — verdict re-plan stays order-independent (litmus)', () => {
+  it('plan(forward, verdicts) deep-equals plan(reverse, verdicts)', () => {
+    const verdict: IdentityVerdict = {
+      kind: 'identity',
+      escalationKey: 'identity|organization|helix',
+      members: ['canon-a', 'canon-b'],
+      decision: 'merge',
+      canonicalTarget: 'canon-a',
+      reasoning: 'same',
+    };
+    const build = (): StagedProposals => {
+      seq = 0; // identical handle ids forward vs reverse
+      return { entities: [ent('Helix'), ent('Acme'), ent('Helix')], facts: [] };
+    };
+    const fwd = planPromotion(TWO_HELIX_PRIORS, build(), [verdict]);
+    const rev = build();
+    rev.entities.reverse();
+    const revPlan = planPromotion(TWO_HELIX_PRIORS, rev, [verdict]);
+    expect(revPlan).toEqual(fwd);
   });
 });

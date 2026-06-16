@@ -17,7 +17,8 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { testDb } from '../setup.js';
 import { promote, applyPromotion } from '../../services/promotion.js';
-import type { PromotionPlan } from '../../services/promotion-plan.js';
+import { planPromotion, type PromotionPlan, type PriorCanonical, type StagedProposals } from '../../services/promotion-plan.js';
+import { resolveEscalations, type ArbiterInvoker, type EscalationDossier } from '../../services/promotion-arbiter.js';
 
 const TAG = 'promtest';
 
@@ -29,9 +30,37 @@ async function clean(): Promise<void> {
     `DELETE FROM fact_history WHERE fact_id IN (SELECT id FROM facts WHERE source_text LIKE '${TAG}%')`,
   );
   await testDb.unsafe(`DELETE FROM facts WHERE source_text LIKE '${TAG}%'`);
+  // E5 identity verdicts create entity_merges / same_as_links / entity_aliases rows
+  // that FK-reference the TAG entities — clear them before deleting the entities.
+  const tagEntities = `SELECT id FROM entities WHERE canonical_name LIKE '${TAG}%'`;
+  await testDb.unsafe(
+    `DELETE FROM entity_merges WHERE source_entity_id IN (${tagEntities}) OR target_entity_id IN (${tagEntities})`,
+  );
+  await testDb.unsafe(
+    `DELETE FROM same_as_links WHERE entity_a_id IN (${tagEntities}) OR entity_b_id IN (${tagEntities})`,
+  );
+  await testDb.unsafe(`DELETE FROM entity_aliases WHERE entity_id IN (${tagEntities})`);
   await testDb.unsafe(`DELETE FROM entities WHERE canonical_name LIKE '${TAG}%'`);
   await testDb.unsafe('DELETE FROM staging_proposed_facts');
   await testDb.unsafe('DELETE FROM staging_proposed_entities');
+  await testDb.unsafe('DELETE FROM arbiter_verdicts');
+}
+
+/** Insert a canonical entity directly (a prior-canonical row for E5 escalations). */
+async function createCanonicalEntity(name: string, type: string): Promise<string> {
+  const id = randomUUID();
+  await testDb`INSERT INTO entities (id, canonical_name, entity_type) VALUES (${id}::uuid, ${name}, ${type})`;
+  return id;
+}
+
+/** Insert a canonical active fact directly (TAG-scoped so clean() removes it). */
+async function createCanonicalFact(subjectId: string, predicate: string, objectValue: string): Promise<string> {
+  const id = randomUUID();
+  await testDb`
+    INSERT INTO facts (id, subject_entity_id, predicate, object_value, source_text, extraction_method)
+    VALUES (${id}::uuid, ${subjectId}::uuid, ${predicate}, ${objectValue}, ${TAG + ':prior'}, 'llm')
+  `;
+  return id;
 }
 
 async function stageEntity(
@@ -254,6 +283,8 @@ describe('promotion against testDb (nmemo-vpz.3 / E3)', () => {
       escalations: [],
       supersessionHints: [],
       droppedSelfLoops: [],
+      entityMerges: [],
+      sameAsLinks: [],
     };
 
     await expect(applyPromotion(randomUUID(), plan)).rejects.toThrow();
@@ -340,5 +371,159 @@ describe('epoch-v2 bug-fix scenarios — named harness cases (nmemo-vpz.8 / E8 c
     expect(result.insertedFactIds).toHaveLength(1);
     const fact = await testDb`SELECT object_entity_id FROM facts WHERE id = ${result.insertedFactIds[0]!}::uuid`;
     expect((fact[0] as { object_entity_id: string | null }).object_entity_id).not.toBeNull();
+  });
+});
+
+// ============================================
+// E5 — promotion-escalation arbiter seam (nmemo-vpz.5, doc 41 §8a.5)
+// ============================================
+
+describe('promotion-escalation arbiter (nmemo-vpz.5 / E5)', () => {
+  beforeEach(clean);
+  afterAll(clean);
+
+  it('criterion 1: an ambiguous cluster escalates, the arbiter MERGE verdict is executed by promotion', async () => {
+    // Two prior canonical orgs a short proposal word-prefix-matches → identity
+    // escalation. The arbiter says "merge"; promotion executes the canonical merge.
+    const epoch = randomUUID();
+    const robo = await createCanonicalEntity(`${TAG} Helix Robotics`, 'organization');
+    const bio = await createCanonicalEntity(`${TAG} Helix Biosciences`, 'organization');
+    // A fact on each side — whichever becomes the merge source gets re-pointed,
+    // so the 'merged' audit invariant is exercised regardless of the id sort.
+    await createCanonicalFact(robo, 'industry', 'robotics');
+    await createCanonicalFact(bio, 'industry', 'biotech');
+    const helix = await stageEntity(epoch, `${TAG} Helix`, 'organization');
+    await stageFact(epoch, helix, 'headquartered_in', { objectValue: 'Austin', validAt: new Date('2023-01-01'), exclusiveGroup: 'location' });
+
+    // Fake arbiter: merge the candidates into the lexicographically-first id (the
+    // dossier lists candidateIds sorted), writing the verdict the tools would write.
+    let invoked = 0;
+    const mergeArbiter: ArbiterInvoker = async (epochId, dossiers) => {
+      invoked++;
+      const d = dossiers.find((x): x is Extract<EscalationDossier, { kind: 'identity' }> => x.kind === 'identity')!;
+      const target = d.candidates[0]!.id;
+      await testDb`
+        UPDATE arbiter_verdicts
+        SET verdict = ${JSON.stringify({ members: [robo, bio], decision: 'merge', canonicalTarget: target, reasoning: 'Same org; Biosciences is the former name (test)' })}::jsonb,
+            decided_by = 'reconciliation_agent', decided_at = now()
+        WHERE epoch_id = ${epochId}::uuid AND escalation_key = ${d.escalationKey}
+      `;
+    };
+
+    const result = await promote(epoch, { invokeArbiter: mergeArbiter });
+
+    expect(invoked).toBe(1);
+    expect(result.mergedAwayEntityIds).toHaveLength(1); // one candidate merged into the other
+    // Exactly one of the two prior canonical orgs survives.
+    const survivors = await testDb`SELECT id FROM entities WHERE id IN (${robo}::uuid, ${bio}::uuid)`;
+    expect(survivors).toHaveLength(1);
+    // The proposed "Helix" cluster bound to the survivor — no third fresh entity minted.
+    const freshHelix = await testDb`SELECT id FROM entities WHERE canonical_name = ${TAG + ' Helix'}`;
+    expect(freshHelix).toHaveLength(0);
+    // The proposed HQ fact landed on the survivor.
+    const survivorId = (survivors[0] as { id: string }).id;
+    const hq = await testDb`
+      SELECT object_value FROM facts
+      WHERE subject_entity_id = ${survivorId}::uuid AND predicate = 'headquartered_in' AND expired_at IS NULL
+    `;
+    expect((hq[0] as { object_value: string }).object_value).toBe('Austin');
+    // Merge audit invariant (replaces the retired execute_merge dispatch coverage):
+    // the re-pointed fact gets a 'merged' fact_history row stamped actor='promotion'.
+    const mergedAudit = await testDb`
+      SELECT fh.actor FROM fact_history fh
+      JOIN facts f ON f.id = fh.fact_id
+      WHERE f.source_text LIKE ${TAG + '%'} AND fh.event_type = 'merged'
+    `;
+    expect(mergedAudit.length).toBeGreaterThanOrEqual(1);
+    expect((mergedAudit[0] as { actor: string }).actor).toBe('promotion');
+  });
+
+  it('criterion 1: a SAME_AS verdict links the candidates instead of merging', async () => {
+    const epoch = randomUUID();
+    const robo = await createCanonicalEntity(`${TAG} Helix Robotics`, 'organization');
+    const bio = await createCanonicalEntity(`${TAG} Helix Biosciences`, 'organization');
+    const helix = await stageEntity(epoch, `${TAG} Helix`, 'organization');
+    await stageFact(epoch, helix, 'founded_in', { objectValue: '2009' });
+
+    const sameAsArbiter: ArbiterInvoker = async (epochId, dossiers) => {
+      const d = dossiers.find((x): x is Extract<EscalationDossier, { kind: 'identity' }> => x.kind === 'identity')!;
+      await testDb`
+        UPDATE arbiter_verdicts
+        SET verdict = ${JSON.stringify({ members: [robo, bio], decision: 'same_as', canonicalTarget: d.candidates[0]!.id, reasoning: 'related, kept separate (test)' })}::jsonb,
+            decided_at = now()
+        WHERE epoch_id = ${epochId}::uuid AND escalation_key = ${d.escalationKey}
+      `;
+    };
+
+    const result = await promote(epoch, { invokeArbiter: sameAsArbiter });
+    expect(result.mergedAwayEntityIds).toHaveLength(0); // not merged
+    expect(result.sameAsLinkIds).toHaveLength(1); // linked
+    // Both prior canonical orgs survive.
+    const survivors = await testDb`SELECT id FROM entities WHERE id IN (${robo}::uuid, ${bio}::uuid)`;
+    expect(survivors).toHaveLength(2);
+    const link = await testDb`SELECT created_by FROM same_as_links WHERE id = ${result.sameAsLinkIds[0]!}::uuid`;
+    expect((link[0] as { created_by: string }).created_by).toBe('promotion');
+  });
+
+  it('criterion 3: a replayed promotion reuses the recorded verdict WITHOUT re-invoking the arbiter', async () => {
+    // resolveEscalations is exercised directly so the prior canonical (which a
+    // promote()/wipe cycle would delete) stays fixed and the SAME escalation key
+    // re-surfaces — isolating the store-reuse short-circuit.
+    const epoch = randomUUID();
+    const prior: PriorCanonical = {
+      entities: [
+        { id: randomUUID(), name: `${TAG} Helix Robotics`, type: 'organization' },
+        { id: randomUUID(), name: `${TAG} Helix Biosciences`, type: 'organization' },
+      ],
+      activeFacts: [],
+    };
+    const staged: StagedProposals = {
+      entities: [{ handle: randomUUID(), name: `${TAG} Helix`, type: 'organization', summary: null, anchorCanonicalId: null }],
+      facts: [],
+    };
+    const plan = planPromotion(prior, staged);
+    expect(plan.escalations).toHaveLength(1);
+
+    let invoked = 0;
+    const distinctArbiter: ArbiterInvoker = async (epochId, dossiers) => {
+      invoked++;
+      const d = dossiers[0]!;
+      await testDb`
+        UPDATE arbiter_verdicts
+        SET verdict = ${JSON.stringify({ members: [], decision: 'distinct', canonicalTarget: null, reasoning: 'distinct (test)' })}::jsonb,
+            decided_at = now()
+        WHERE epoch_id = ${epochId}::uuid AND escalation_key = ${d.escalationKey}
+      `;
+    };
+
+    const first = await resolveEscalations(epoch, prior, staged, plan.escalations, { invokeArbiter: distinctArbiter });
+    expect(invoked).toBe(1);
+    expect(first).toHaveLength(1);
+    expect(first[0]!.kind).toBe('identity');
+
+    // Same epoch + same escalations → reuse the recorded verdict, no LLM.
+    const second = await resolveEscalations(epoch, prior, staged, plan.escalations, { invokeArbiter: distinctArbiter });
+    expect(invoked).toBe(1); // NOT incremented — verdict reused from arbiter_verdicts
+    expect(second).toEqual(first);
+  });
+
+  it('criterion 1: an undecided escalation falls back to the conservative default (promotion still completes)', async () => {
+    const epoch = randomUUID();
+    await createCanonicalEntity(`${TAG} Helix Robotics`, 'organization');
+    await createCanonicalEntity(`${TAG} Helix Biosciences`, 'organization');
+    const helix = await stageEntity(epoch, `${TAG} Helix`, 'organization');
+    await stageFact(epoch, helix, 'founded_in', { objectValue: '2009' });
+
+    // Arbiter declines (writes no verdict). Promotion must still complete with the
+    // conservative default: the cluster stays distinct (a fresh entity is minted).
+    const silentArbiter: ArbiterInvoker = async () => { /* no verdict written */ };
+    const result = await promote(epoch, { invokeArbiter: silentArbiter });
+    expect(result.mergedAwayEntityIds).toHaveLength(0);
+    expect(result.sameAsLinkIds).toHaveLength(0);
+    // Conservative default: the cluster stays distinct → a fresh entity is minted
+    // (the planner mints under the normalised, lower-cased name).
+    expect(Object.keys(result.mintedEntityIds)).toHaveLength(1);
+    const freshHelix = await testDb`SELECT id FROM entities WHERE lower(canonical_name) = ${(TAG + ' Helix').toLowerCase()}`;
+    expect(freshHelix).toHaveLength(1);
   });
 });

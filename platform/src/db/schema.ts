@@ -764,6 +764,35 @@ export const stagingProposedFacts = pgTable('staging_proposed_facts', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+/**
+ * Arbiter verdicts (E5, doc 41 §8a.5, §12 #4) — the promotion-escalation arbiter's
+ * disposal of an escalation, recorded against its dossier for replay reuse.
+ *
+ * Promotion pre-records the dossier (verdict null) keyed by (epochId, escalationKey);
+ * a verdict tool (propose_identity_verdict / propose_conflict_resolution) fills the
+ * verdict. escalationKey is the value-derived stable id of the escalation
+ * (promotion-plan.ts) so a replayed promotion reuses the recorded verdict without
+ * re-invoking the LLM. See migration 043_arbiter_verdicts.sql.
+ */
+export const arbiterVerdicts = pgTable(
+  'arbiter_verdicts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    epochId: uuid('epoch_id').notNull(),
+    escalationKey: text('escalation_key').notNull(),
+    kind: text('kind').notNull(),
+    dossier: jsonb('dossier').notNull(),
+    verdict: jsonb('verdict'),
+    decidedBy: varchar('decided_by', { length: 32 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => ({
+    epochKeyUniq: unique('arbiter_verdict_epoch_key_uniq').on(t.epochId, t.escalationKey),
+    epochIdx: index('idx_arbiter_verdicts_epoch').on(t.epochId),
+  }),
+);
+
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
@@ -793,3 +822,5 @@ export type StagingProposedEntity = typeof stagingProposedEntities.$inferSelect;
 export type NewStagingProposedEntity = typeof stagingProposedEntities.$inferInsert;
 export type StagingProposedFact = typeof stagingProposedFacts.$inferSelect;
 export type NewStagingProposedFact = typeof stagingProposedFacts.$inferInsert;
+export type ArbiterVerdictRow = typeof arbiterVerdicts.$inferSelect;
+export type NewArbiterVerdictRow = typeof arbiterVerdicts.$inferInsert;

@@ -20,9 +20,10 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { stagingProposedEntities, stagingProposedFacts, entities, facts } from '../db/schema.js';
+import { stagingProposedEntities, stagingProposedFacts, entities, facts, sameAsLinks } from '../db/schema.js';
 import { ml } from './ml-client.js';
 import { recordFactChange } from './audit.js';
+import { mergeEntities } from './entities.js';
 import {
   planPromotion,
   type PriorCanonical,
@@ -33,6 +34,12 @@ import {
   type StagedEntity,
   type StagedFact,
 } from './promotion-plan.js';
+import { resolveEscalations, type ArbiterInvoker } from './promotion-arbiter.js';
+
+/** Options for {@link promote}. `invokeArbiter` is injectable for tests (E5). */
+export interface PromoteOptions {
+  invokeArbiter?: ArbiterInvoker;
+}
 
 const PROMOTION_ACTOR = 'promotion' as const;
 
@@ -44,6 +51,10 @@ export interface PromotionResult {
   insertedFactIds: string[];
   expiredFactIds: string[];
   corroboratedFactIds: string[];
+  /** Source entity ids merged away by identity-verdict merges (E5). */
+  mergedAwayEntityIds: string[];
+  /** same_as link ids created by identity verdicts (E5). */
+  sameAsLinkIds: string[];
 }
 
 // ============================================
@@ -194,9 +205,48 @@ export async function applyPromotion(
   const insertedFactIds: string[] = [];
   const expiredFactIds: string[] = [];
   const corroboratedFactIds: string[] = [];
+  const mergedAwayEntityIds: string[] = [];
+  const sameAsLinkIds: string[] = [];
 
   // 2. One transaction.
   await db.transaction(async (tx) => {
+    // (0) Identity-verdict execution (E5, doc 41 §8a.5): the arbiter decided, the
+    // applier executes. Canonical↔canonical merges (execute_merge moved out of the
+    // agent surface into promotion code) and same_as links (create_same_as_link,
+    // likewise) run FIRST, so the survivor and its re-pointed facts are settled
+    // before the plan's fact mutations land. Both stamp actor='promotion' (mig 041).
+    // A bad verdict throws → the whole tx rolls back (atomicity), same contract as
+    // every other promotion mutation.
+    for (const m of plan.entityMerges) {
+      await mergeEntities({
+        sourceId: m.sourceId,
+        targetId: m.targetId,
+        reason: m.reason,
+        method: 'llm_verified',
+        actor: PROMOTION_ACTOR,
+        tx,
+      });
+      mergedAwayEntityIds.push(m.sourceId);
+    }
+    for (const l of plan.sameAsLinks) {
+      // Canonical ordering (a < b) — mirrors the retired create_same_as_link tool.
+      const [aId, bId] =
+        l.entityAId < l.entityBId ? [l.entityAId, l.entityBId] : [l.entityBId, l.entityAId];
+      const inserted = await tx
+        .insert(sameAsLinks)
+        .values({
+          entityAId: aId,
+          entityBId: bId,
+          reasoning: l.reason,
+          sourceEvidence: [],
+          confidence: 1,
+          createdBy: PROMOTION_ACTOR,
+        })
+        .onConflictDoNothing()
+        .returning({ id: sameAsLinks.id });
+      if (inserted[0]) sameAsLinkIds.push(inserted[0].id);
+    }
+
     // (a) Mint fresh entities — dedup-by-name within the tx so a re-run reuses the
     // id the prior run wrote (idempotency, doc 41 §12 #9) and we never create a
     // second row for an existing canonical name+type.
@@ -308,7 +358,16 @@ export async function applyPromotion(
     }
   });
 
-  return { epochId, plan, mintedEntityIds, insertedFactIds, expiredFactIds, corroboratedFactIds };
+  return {
+    epochId,
+    plan,
+    mintedEntityIds,
+    insertedFactIds,
+    expiredFactIds,
+    corroboratedFactIds,
+    mergedAwayEntityIds,
+    sameAsLinkIds,
+  };
 }
 
 // ============================================
@@ -320,25 +379,48 @@ export async function applyPromotion(
  * transactional: safe to retry after a failure (canonical untouched) and
  * idempotent on a double-fire (the second run corroborates rather than dupes).
  *
- * Escalations (doc 41 §5g) are returned on `result.plan.escalations`; in E3 the
- * arbiter is a stub, so they are logged for the E5 recast and the conservative
- * deterministic default has already been applied by the planner.
+ * Escalations (doc 41 §5g) the deterministic backbone cannot settle are resolved by
+ * the promotion-escalation arbiter (E5, doc 41 §8a.5): a first planning pass
+ * surfaces them, `resolveEscalations` turns each into a verdict (replay-reuse or the
+ * Haiku arbiter), and a SECOND verdict-aware pass produces the plan that is applied.
+ * Any escalation left without a verdict keeps the planner's conservative default, so
+ * promotion always completes deterministically.
  */
-export async function promote(epochId: string): Promise<PromotionResult> {
+export async function promote(epochId: string, opts: PromoteOptions = {}): Promise<PromotionResult> {
   const { prior, staged } = await loadPromotionInputs(epochId);
-  const plan = planPromotion(prior, staged);
+
+  // Pass 1: deterministic plan that SURFACES escalations (conservative defaults).
+  const firstPass = planPromotion(prior, staged);
+
+  // Resolve escalations to verdicts, then RE-PLAN with them so the applied plan
+  // reflects the arbiter's dispositions (doc 41 §8a.5; "arbiter decides, promotion
+  // executes"). No escalations → the first plan is applied unchanged.
+  let plan = firstPass;
+  if (firstPass.escalations.length > 0) {
+    const verdicts = await resolveEscalations(epochId, prior, staged, firstPass.escalations, {
+      invokeArbiter: opts.invokeArbiter,
+    });
+    if (verdicts.length > 0) {
+      plan = planPromotion(prior, staged, verdicts);
+      console.log(
+        `[promotion] epoch=${epochId.slice(0, 8)} arbiter resolved ${verdicts.length}/${firstPass.escalations.length} ` +
+          `escalation(s); ${plan.escalations.length} remain at conservative default`,
+      );
+    } else {
+      console.log(
+        `[promotion] epoch=${epochId.slice(0, 8)} ${firstPass.escalations.length} escalation(s) recorded; ` +
+          `no arbiter verdict — conservative defaults kept`,
+      );
+    }
+  }
+
   const result = await applyPromotion(epochId, plan);
 
-  if (plan.escalations.length > 0) {
-    console.log(
-      `[promotion] epoch=${epochId.slice(0, 8)} ${plan.escalations.length} escalation(s) recorded (arbiter stub — E5): ` +
-        plan.escalations.map((e) => `${e.kind}:${e.reason}`).join(' | '),
-    );
-  }
   console.log(
     `[promotion] epoch=${epochId.slice(0, 8)} minted=${Object.keys(result.mintedEntityIds).length} ` +
       `inserted=${result.insertedFactIds.length} expired=${result.expiredFactIds.length} ` +
-      `corroborated=${result.corroboratedFactIds.length} dropped_self_loops=${plan.droppedSelfLoops.length}`,
+      `corroborated=${result.corroboratedFactIds.length} merged=${result.mergedAwayEntityIds.length} ` +
+      `same_as=${result.sameAsLinkIds.length} dropped_self_loops=${plan.droppedSelfLoops.length}`,
   );
 
   // VERIFY-phase supersession hints (doc 41 §4, §8a.3; E4). The deterministic

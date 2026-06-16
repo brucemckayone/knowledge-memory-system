@@ -19,6 +19,7 @@ import {
   allowlistFor,
   type ToolCallContext,
 } from '../../services/causal-agent.js';
+import type { Actor } from '../../services/audit.js';
 import { testDb, createTestEntity, createTestFact } from '../setup.js';
 
 // The canonical-write tools the propose/promote split removes from agents
@@ -26,6 +27,16 @@ import { testDb, createTestEntity, createTestFact } from '../setup.js';
 const CANONICAL_WRITE_TOOLS = [
   'create_fact', 'resolve_entity', 'execute_merge', 'expire_fact',
   'invalidate_fact', 'create_same_as_link', 'update_entity_summary',
+];
+
+// E5 (doc 41 §8a.5): these three move OUT of every agent surface into promotion
+// code — "the arbiter decides, promotion executes."
+const RETIRED_TO_PROMOTION = ['execute_merge', 'create_same_as_link', 'resolve_contradiction'];
+// Legacy canonical writes graph_agent/reasoning_agent KEEP (serial/optimistic arms).
+const LEGACY_GRAPH_WRITES = ['create_fact', 'resolve_entity', 'expire_fact', 'invalidate_fact', 'update_entity_summary'];
+const ALL_ACTORS: Actor[] = [
+  'extraction_proposer', 'graph_agent', 'reasoning_agent', 'gardener_agent',
+  'reconciliation_agent', 'user', 'system_trigger', 'cascade', 'promotion',
 ];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -59,12 +70,15 @@ describe('epoch-v2 propose tool surface + allow-lists (nmemo-vpz.2 / E2)', () =>
       }
     });
 
-    it('legacy graph_agent keeps the full surface (canonical writes intact)', () => {
+    it('legacy graph_agent keeps its non-retired canonical writes, but NOT the E5 promotion-retired tools', () => {
       const surface = allowlistFor('graph_agent');
-      for (const w of CANONICAL_WRITE_TOOLS) {
+      for (const w of LEGACY_GRAPH_WRITES) {
         expect(surface.has(w), `graph_agent must keep ${w}`).toBe(true);
       }
-      // graph_agent also keeps the propose tools — legacy actors are unrestricted.
+      for (const w of RETIRED_TO_PROMOTION) {
+        expect(surface.has(w), `graph_agent must NOT hold E5-retired ${w}`).toBe(false);
+      }
+      // graph_agent also keeps the propose tools — legacy actors are otherwise unrestricted.
       expect(surface.has('propose_entity')).toBe(true);
     });
 
@@ -72,6 +86,38 @@ describe('epoch-v2 propose tool surface + allow-lists (nmemo-vpz.2 / E2)', () =>
       await expect(
         handleToolCall('create_fact', { subject: 'x' }, proposerCtx(randomUUID())),
       ).rejects.toThrow(/not permitted for actor "extraction_proposer"/);
+    });
+
+    // --- E5 (nmemo-vpz.5) criterion 2: the merge/link/contradiction tools leave EVERY agent surface ---
+
+    it('E5 criterion 2: execute_merge / create_same_as_link / resolve_contradiction are absent from EVERY agent allow-list', () => {
+      for (const actor of ALL_ACTORS) {
+        const surface = allowlistFor(actor);
+        for (const w of RETIRED_TO_PROMOTION) {
+          expect(surface.has(w), `${actor} must NOT hold ${w} (moved to promotion code)`).toBe(false);
+        }
+      }
+    });
+
+    it('E5: the recast reconciliation_agent (arbiter) holds the verdict tools + reads, no canonical writes', () => {
+      const surface = allowlistFor('reconciliation_agent');
+      expect(surface.has('propose_identity_verdict')).toBe(true);
+      expect(surface.has('propose_conflict_resolution')).toBe(true);
+      expect(surface.has('query_entity_facts')).toBe(true); // reads to "go deeper" (§8a.5)
+      expect(surface.has('get_reconciliation_context')).toBe(false); // subsumed by the pushed dossier
+      for (const w of [...RETIRED_TO_PROMOTION, 'create_fact', 'expire_fact', 'resolve_candidate']) {
+        expect(surface.has(w), `arbiter must NOT hold ${w}`).toBe(false);
+      }
+    });
+
+    it('E5: a retired-tool call from the arbiter fails STRUCTURALLY', async () => {
+      await expect(
+        handleToolCall(
+          'execute_merge',
+          { source_entity_id: randomUUID(), target_entity_id: randomUUID(), reasoning: 'x' },
+          { agent: 'reconciliation_agent', epochId: null, sourceId: null, chunkIndex: null },
+        ),
+      ).rejects.toThrow(/not permitted for actor "reconciliation_agent"/);
     });
   });
 

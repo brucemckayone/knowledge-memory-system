@@ -22,7 +22,7 @@ import { findConnectedEntities } from './graph.js';
 import { findSimilarEntities, resolveEntity, linkMemoryToEntity, mergeEntities } from './entities.js';
 import { searchMemories, getMemory } from './qdrant.js';
 import { db } from '../db/index.js';
-import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports, stagingProposedEntities, stagingProposedFacts } from '../db/schema.js';
+import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports, stagingProposedEntities, stagingProposedFacts, arbiterVerdicts } from '../db/schema.js';
 import { resolveExclusiveGroup } from './exclusive-groups.js';
 import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
 import { getEntityCausalHistory, createCausalEdge, expireCausalEdge, reviseCausalEdge, traceCauses, projectTrajectory, getCausalDelta, type SourceReference as CausalSourceRef } from './causal.js';
@@ -667,6 +667,87 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
       },
       required: [],
+    },
+  },
+
+  // --- Promotion-escalation arbiter verdict tools (E5, doc 41 §8a.5) ---
+  // The arbiter DECIDES via these; promotion EXECUTES (execute_merge /
+  // create_same_as_link / resolve_contradiction left the agent surface). Each
+  // attaches a verdict to a pre-recorded escalation dossier (arbiter_verdicts),
+  // keyed by the escalation_key promotion pushed — an agent can only dispose of an
+  // escalation promotion actually raised, never invent one.
+  {
+    name: 'propose_identity_verdict',
+    description:
+      'Record your verdict on an IDENTITY escalation from the dossier: are the candidate canonical entities the same? ONE decision per call. decision="merge" (they are one — promotion destructively merges the other candidates into canonical_target), "same_as" (related identities kept as separate rows, linked to canonical_target), or "distinct" (genuinely different — promotion keeps the proposed cluster as a new entity). canonical_target is REQUIRED for merge/same_as and must be one of the candidate ids. Pass escalation_key from the dossier verbatim. You decide; promotion executes.',
+    mutates: true,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        escalation_key: {
+          type: 'string',
+          description: 'The escalationKey from the dossier this verdict resolves (verbatim).',
+        },
+        decision: {
+          type: 'string',
+          enum: ['merge', 'same_as', 'distinct'],
+          description: 'merge (destructive unify), same_as (link, keep rows), or distinct (different entities).',
+        },
+        canonical_target: {
+          type: 'string',
+          description: 'Survivor candidate id the cluster binds to. Required for merge/same_as; omit for distinct.',
+        },
+        members: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'The candidate canonical ids this verdict covers (from the dossier).',
+        },
+        reasoning: {
+          type: 'string',
+          description: 'Why — grounded in the candidates’ facts, aliases, and sources.',
+        },
+      },
+      required: ['escalation_key', 'decision', 'reasoning'],
+    },
+  },
+  {
+    name: 'propose_conflict_resolution',
+    description:
+      'Record your verdict on a CONFLICT escalation from the dossier: an exclusive-group collision valid_at ordering could not break (co-equal dates, different objects). Decide which fact(s) to expire via expire=[{factId, reason}] (the losers), OR set not_exclusive=true when the facts are NOT actually mutually exclusive (promotion keeps them all). Optionally correct a wrong date via corrected_valid_at={factId: ISO8601}. Pass escalation_key from the dossier verbatim. You decide; promotion executes the expiries.',
+    mutates: true,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        escalation_key: {
+          type: 'string',
+          description: 'The escalationKey from the dossier this verdict resolves (verbatim).',
+        },
+        expire: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              factId: { type: 'string', description: 'Fact id to expire (a staged or prior fact id from the dossier).' },
+              reason: { type: 'string', description: 'Why this fact loses.' },
+            },
+            required: ['factId', 'reason'],
+          },
+          description: 'The loser facts to expire, with reasons. Empty when not_exclusive=true.',
+        },
+        not_exclusive: {
+          type: 'boolean',
+          description: 'True when the facts are not actually mutually exclusive — promotion keeps every member active.',
+        },
+        corrected_valid_at: {
+          type: 'object',
+          description: 'Optional date corrections {factId: ISO8601} applied to surviving facts.',
+        },
+        reasoning: {
+          type: 'string',
+          description: 'Why this resolution — grounded in the facts and sources.',
+        },
+      },
+      required: ['escalation_key', 'reasoning'],
     },
   },
 
@@ -1340,19 +1421,53 @@ const PROPOSER_SURFACE = new Set<string>([
 ]);
 
 /**
- * Legacy surface = every tool (full GRAPH_TOOLS). Legacy agents are unrestricted
- * so nothing downstream of E2 changes behaviour until E3, and transport parity
- * (which runs as the default graph_agent) still sees the complete set. The
- * proposer's restriction lives entirely on the new `extraction_proposer` actor.
+ * Canonical-write tools RETIRED from every agent surface in E5 (doc 41 §8a.2,
+ * §8a.5): "the arbiter decides, promotion executes." `execute_merge`,
+ * `create_same_as_link`, and `resolve_contradiction` are now promotion code
+ * (promotion.ts calls mergeEntities / inserts same_as / expires via the planner).
+ * They remain defined in GRAPH_TOOLS (handlers retired in E7) but no actor — agent
+ * OR promotion — may reach them via MCP. This is acceptance criterion (2): absent
+ * from EVERY agent allow-list.
  */
-const LEGACY_SURFACE = new Set<string>(GRAPH_TOOLS.map((t) => t.name));
+const RETIRED_TO_PROMOTION = new Set<string>([
+  'execute_merge',
+  'create_same_as_link',
+  'resolve_contradiction',
+]);
+
+/**
+ * Legacy surface = every tool EXCEPT the E5-retired canonical-write tools and the
+ * arbiter-only verdict tools. Legacy agents keep their other writes (the
+ * serial/optimistic arms are otherwise unaffected) but can no longer merge/link/
+ * resolve-contradiction directly — those moved to promotion.
+ */
+const ARBITER_VERDICT_TOOLS = ['propose_identity_verdict', 'propose_conflict_resolution'] as const;
+
+const LEGACY_SURFACE = new Set<string>(
+  GRAPH_TOOLS.map((t) => t.name).filter(
+    (n) => !RETIRED_TO_PROMOTION.has(n) && !(ARBITER_VERDICT_TOOLS as readonly string[]).includes(n),
+  ),
+);
+
+/**
+ * The promotion-escalation arbiter surface (reconciliation_agent recast, doc 41
+ * §8a.5): every read tool to "talk to the real graph" + the two verdict tools.
+ * The pushed dossier subsumes `get_reconciliation_context` (the old pull-everything
+ * entry point), so it is excluded. No canonical-write tools — the arbiter proposes
+ * verdicts; promotion disposes.
+ */
+const ARBITER_SURFACE = new Set<string>([
+  ...[...READ_ONLY_TOOL_NAMES].filter((n) => n !== 'get_reconciliation_context'),
+  ...ARBITER_VERDICT_TOOLS,
+]);
 
 export const ACTOR_TOOL_ALLOWLIST: Record<Actor, ReadonlySet<string>> = {
   extraction_proposer: PROPOSER_SURFACE,
   graph_agent: LEGACY_SURFACE,
   reasoning_agent: LEGACY_SURFACE,
   gardener_agent: LEGACY_SURFACE,
-  reconciliation_agent: LEGACY_SURFACE,
+  // Recast as the promotion-escalation arbiter (E5): reads + verdict tools only.
+  reconciliation_agent: ARBITER_SURFACE,
   // Non-agent actors never spawn an MCP server; map them defensively to the
   // legacy surface so the record is total and a stray call is not silently denied.
   user: LEGACY_SURFACE,
@@ -3076,6 +3191,92 @@ async function _handleToolCallInner(
       });
     }
 
+    // --- Promotion-escalation arbiter verdict tools (E5, doc 41 §8a.5) ---
+    // The arbiter attaches its decision to a dossier promotion pre-recorded in
+    // arbiter_verdicts (verdict null), keyed by (epoch_id, escalation_key, kind).
+    // The decision JSONB holds only the decision fields — kind + escalation_key are
+    // the row columns (promotion-arbiter.rowToVerdict reassembles the Verdict).
+
+    case 'propose_identity_verdict': {
+      if (!context.epochId) {
+        throw new Error('propose_identity_verdict requires an epoch context (MNEMO_EPOCH_ID) — pushed by promotion.');
+      }
+      const escKey = toolInput.escalation_key as string;
+      const decision = toolInput.decision as string;
+      const canonicalTarget = (toolInput.canonical_target as string) ?? null;
+      if ((decision === 'merge' || decision === 'same_as') && !canonicalTarget) {
+        throw new Error(`propose_identity_verdict: decision="${decision}" requires canonical_target (a candidate id).`);
+      }
+      const verdict = {
+        members: (toolInput.members as string[]) ?? [],
+        decision,
+        canonicalTarget,
+        reasoning: toolInput.reasoning as string,
+      };
+      const updated = await db
+        .update(arbiterVerdicts)
+        .set({ verdict, decidedBy: context.agent, decidedAt: new Date() })
+        .where(
+          and(
+            eq(arbiterVerdicts.epochId, context.epochId),
+            eq(arbiterVerdicts.escalationKey, escKey),
+            eq(arbiterVerdicts.kind, 'identity'),
+          ),
+        )
+        .returning({ id: arbiterVerdicts.id });
+      if (updated.length === 0) {
+        return JSON.stringify({
+          recorded: false,
+          reason: `no pending identity escalation with key "${escKey}" for this epoch (check the dossier's escalation_key)`,
+        });
+      }
+      return JSON.stringify({
+        recorded: true,
+        decision,
+        willExecute:
+          decision === 'merge'
+            ? 'promotion merges the other candidates into canonical_target'
+            : decision === 'same_as'
+              ? 'promotion links the candidates same_as'
+              : 'promotion keeps the proposed cluster distinct',
+      });
+    }
+
+    case 'propose_conflict_resolution': {
+      if (!context.epochId) {
+        throw new Error('propose_conflict_resolution requires an epoch context (MNEMO_EPOCH_ID) — pushed by promotion.');
+      }
+      const escKey = toolInput.escalation_key as string;
+      const verdict = {
+        expire: (toolInput.expire as Array<{ factId: string; reason: string }>) ?? [],
+        correctedValidAt: (toolInput.corrected_valid_at as Record<string, string> | null) ?? null,
+        notExclusive: toolInput.not_exclusive === true,
+        reasoning: toolInput.reasoning as string,
+      };
+      const updated = await db
+        .update(arbiterVerdicts)
+        .set({ verdict, decidedBy: context.agent, decidedAt: new Date() })
+        .where(
+          and(
+            eq(arbiterVerdicts.epochId, context.epochId),
+            eq(arbiterVerdicts.escalationKey, escKey),
+            eq(arbiterVerdicts.kind, 'conflict'),
+          ),
+        )
+        .returning({ id: arbiterVerdicts.id });
+      if (updated.length === 0) {
+        return JSON.stringify({
+          recorded: false,
+          reason: `no pending conflict escalation with key "${escKey}" for this epoch (check the dossier's escalation_key)`,
+        });
+      }
+      return JSON.stringify({
+        recorded: true,
+        notExclusive: verdict.notExclusive,
+        expireCount: verdict.expire.length,
+      });
+    }
+
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -3298,6 +3499,50 @@ export async function invokeReconciliationAgent(params: {
   }
 
   return response.json() as Promise<ReconciliationAgentResult>;
+}
+
+// ============================================
+// Promotion-escalation Arbiter Invocation (E5, doc 41 §8a.5)
+// ============================================
+
+export interface ArbiterAgentResult {
+  result: string;
+}
+
+/**
+ * Invoke the promotion-escalation arbiter (reconciliation_agent recast, Haiku).
+ * Promotion PUSHES the dossiers; the agent reads them, optionally goes deeper via
+ * its read tools, then records a verdict per escalation via propose_identity_verdict
+ * / propose_conflict_resolution. The MCP server is spawned with this epoch's context
+ * (MNEMO_EPOCH_ID) so those tools can locate the pre-recorded dossier rows.
+ *
+ * Bound lazily by promotion-arbiter.ts (dynamic import) to keep promotion free of a
+ * static dependency on this module. `dossiers` are JSON-serialised verbatim into the
+ * ml-services request — typed `unknown[]` here to avoid importing the dossier type
+ * (and a static import cycle).
+ */
+export async function invokeArbiterAgent(
+  epochId: string,
+  dossiers: unknown[],
+): Promise<ArbiterAgentResult> {
+  const mcpConfigPath = getMcpConfigPath('reconciliation_agent', { epochId });
+
+  const response = await fetch(`${config.ML_SERVICES_URL}/arbiter-agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      epoch_id: epochId,
+      dossiers,
+      mcp_config_path: mcpConfigPath,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => response.statusText);
+    throw new Error(`Arbiter agent failed (${response.status}): ${detail}`);
+  }
+
+  return response.json() as Promise<ArbiterAgentResult>;
 }
 
 // ============================================

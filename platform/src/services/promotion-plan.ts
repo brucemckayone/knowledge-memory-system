@@ -190,6 +190,65 @@ export type Escalation =
       factIds: string[];
     };
 
+// ============================================
+// Verdicts — the arbiter's disposal of an escalation (E5, doc 41 §8a.5, §12 #4)
+// ============================================
+
+/**
+ * The arbiter (LLM) decides; promotion executes (doc 41 §8a.5). A verdict is the
+ * disposal of one {@link Escalation}, tied to it by {@link escalationKey}. Verdicts
+ * are recorded against their dossier and fed back into a SECOND, verdict-aware
+ * `planPromotion` pass — so the plan stays a pure function of (prior, staged,
+ * verdicts), the litmus deep-equal still holds, and a replayed promotion reuses the
+ * recorded verdict without re-invoking the LLM (doc 41 §12 #4).
+ */
+export type IdentityDecision = 'merge' | 'same_as' | 'distinct';
+
+export interface IdentityVerdict {
+  kind: 'identity';
+  /** The {@link escalationKey} of the identity escalation this resolves. */
+  escalationKey: string;
+  /** The candidate canonical ids the verdict covers (the escalation's candidateIds). */
+  members: string[];
+  decision: IdentityDecision;
+  /** Survivor id the cluster binds to (merge target / same_as anchor); null for distinct. */
+  canonicalTarget: string | null;
+  reasoning: string;
+}
+
+export interface ConflictVerdict {
+  kind: 'conflict';
+  /** The {@link escalationKey} of the conflict escalation this resolves. */
+  escalationKey: string;
+  /** Fact ids (staged or prior, as they appear in the escalation) to expire, with reasons. */
+  expire: Array<{ factId: string; reason: string }>;
+  /** Optional date corrections (factId → ISO 8601) applied to the facts that survive. */
+  correctedValidAt: Record<string, string> | null;
+  /** When true the group is NOT actually exclusive — keep every member active. */
+  notExclusive: boolean;
+  reasoning: string;
+}
+
+export type Verdict = IdentityVerdict | ConflictVerdict;
+
+/**
+ * A canonical↔canonical entity merge the applier executes (doc 41 §8a.5 —
+ * `execute_merge` moves out of the agent surface into promotion code). Emitted when
+ * an identity verdict says two existing canonical entities are the same.
+ */
+export interface PlannedEntityMerge {
+  sourceId: string;
+  targetId: string;
+  reason: string;
+}
+
+/** A same_as identity link the applier creates (`create_same_as_link` → promotion code). */
+export interface PlannedSameAsLink {
+  entityAId: string;
+  entityBId: string;
+  reason: string;
+}
+
 /**
  * A VERIFY-phase supersession hint (doc 41 §4, §8a.3; E4) cross-checked against
  * the deterministic outcome. The proposer flagged that `stagedFactId` supersedes
@@ -214,6 +273,10 @@ export interface PromotionPlan {
   supersessionHints: SupersessionHint[];
   /** stagedFactIds dropped because subject resolved == object resolved. */
   droppedSelfLoops: string[];
+  /** Canonical↔canonical merges from identity verdicts (executed by applyPromotion). */
+  entityMerges: PlannedEntityMerge[];
+  /** same_as links from identity verdicts (executed by applyPromotion). */
+  sameAsLinks: PlannedSameAsLink[];
 }
 
 // ============================================
@@ -266,6 +329,8 @@ interface EntityResolution {
   byHandle: Map<string, ResolvedRef>;
   entitiesToMint: PlannedEntity[];
   escalations: Escalation[];
+  entityMerges: PlannedEntityMerge[];
+  sameAsLinks: PlannedSameAsLink[];
 }
 
 /**
@@ -282,10 +347,21 @@ interface EntityResolution {
  *  4. Otherwise fresh: word-prefix-connected unanchored clusters of the same type
  *     fold into one fresh entity, keyed deterministically by the component's
  *     lexicographically-smallest normalised name (order-independent).
+ *
+ * When an identity verdict (E5) resolves a rule-3 ambiguity, the cluster binds to
+ * the verdict's `canonicalTarget` and the other candidates are merged into it
+ * (`merge`) or same_as-linked (`same_as`) — executed later by applyPromotion. A
+ * `distinct` verdict (or no verdict yet) keeps the cluster fresh.
  */
-function resolveEntities(prior: PriorEntity[], staged: StagedEntity[]): EntityResolution {
+function resolveEntities(
+  prior: PriorEntity[],
+  staged: StagedEntity[],
+  identityVerdicts: Map<string, IdentityVerdict>,
+): EntityResolution {
   const byHandle = new Map<string, ResolvedRef>();
   const escalations: Escalation[] = [];
+  const entityMerges: PlannedEntityMerge[] = [];
+  const sameAsLinks: PlannedSameAsLink[] = [];
 
   // Prior canonical by type → [{id, norm}]. (name,type) may legitimately repeat
   // across distinct ids only if the graph already has dupes; we treat each row.
@@ -344,14 +420,35 @@ function resolveEntities(prior: PriorEntity[], staged: StagedEntity[]): EntityRe
       continue;
     }
     if (matchedIds.length >= 2) {
-      escalations.push({
-        kind: 'identity',
-        reason: `"${c.norm}" word-prefix-matches ${matchedIds.length} distinct canonical entities of type ${c.type}; cannot disambiguate deterministically`,
-        clusterName: c.norm,
-        type: c.type,
-        candidateIds: matchedIds.sort(),
-      });
-      // Conservative default: keep distinct (fall through to fresh).
+      const sortedIds = [...matchedIds].sort();
+      const verdict = identityVerdicts.get(`identity|${c.type}|${c.norm}`);
+      if (verdict && verdict.canonicalTarget && (verdict.decision === 'merge' || verdict.decision === 'same_as')) {
+        // Arbiter settled it (doc 41 §8a.5): bind the cluster to the survivor and
+        // either merge the other candidates into it (execute_merge → promotion code)
+        // or link them same_as. No escalation, no fresh mint.
+        const target = verdict.canonicalTarget;
+        for (const h of c.handles) byHandle.set(h, { kind: 'canonical', id: target });
+        for (const other of sortedIds) {
+          if (other === target) continue;
+          if (verdict.decision === 'merge') {
+            entityMerges.push({ sourceId: other, targetId: target, reason: verdict.reasoning });
+          } else {
+            sameAsLinks.push({ entityAId: target, entityBId: other, reason: verdict.reasoning });
+          }
+        }
+        continue;
+      }
+      if (!verdict) {
+        // No verdict yet (pass 1) → record the escalation; conservative default below.
+        escalations.push({
+          kind: 'identity',
+          reason: `"${c.norm}" word-prefix-matches ${matchedIds.length} distinct canonical entities of type ${c.type}; cannot disambiguate deterministically`,
+          clusterName: c.norm,
+          type: c.type,
+          candidateIds: sortedIds,
+        });
+      }
+      // verdict.decision === 'distinct' OR no verdict → keep the cluster distinct (fresh).
     }
     const list = freshByType.get(c.type) ?? [];
     list.push({ norm: c.norm, handles: c.handles });
@@ -407,7 +504,7 @@ function resolveEntities(prior: PriorEntity[], staged: StagedEntity[]): EntityRe
     }
   }
 
-  return { byHandle, entitiesToMint, escalations };
+  return { byHandle, entitiesToMint, escalations, entityMerges, sameAsLinks };
 }
 
 // ============================================
@@ -416,13 +513,35 @@ function resolveEntities(prior: PriorEntity[], staged: StagedEntity[]): EntityRe
 
 /**
  * Compute the canonical-graph mutations for one epoch's promotion (doc 41 §5).
- * Pure: no DB, no embeddings, no random ids — same (prior, staged) always yields
- * the same plan, and `planPromotion(forward) deep-equals planPromotion(reverse)`
+ * Pure: no DB, no embeddings, no random ids — same (prior, staged, verdicts) always
+ * yields the same plan, and `planPromotion(forward) deep-equals planPromotion(reverse)`
  * (doc 41 §10, the doc-38 litmus by construction).
+ *
+ * `verdicts` (E5, doc 41 §8a.5) is empty on the first pass — escalations are then
+ * recorded with conservative defaults. promote() resolves those escalations to
+ * verdicts (store-or-arbiter) and calls planPromotion AGAIN with them; this second
+ * plan binds ambiguous clusters / disposes conflicts per the arbiter and is what
+ * gets applied. Verdicts are a pure input, so the litmus and replay both still hold.
  */
-export function planPromotion(prior: PriorCanonical, staged: StagedProposals): PromotionPlan {
+export function planPromotion(
+  prior: PriorCanonical,
+  staged: StagedProposals,
+  verdicts: Verdict[] = [],
+): PromotionPlan {
+  // Index verdicts by the escalation key they resolve (doc 41 §8a.5, §12 #4).
+  const identityVerdicts = new Map<string, IdentityVerdict>();
+  const conflictVerdicts = new Map<string, ConflictVerdict>();
+  for (const v of verdicts) {
+    if (v.kind === 'identity') identityVerdicts.set(v.escalationKey, v);
+    else conflictVerdicts.set(v.escalationKey, v);
+  }
+
   // (a) Entity resolution.
-  const { byHandle, entitiesToMint, escalations } = resolveEntities(prior.entities, staged.entities);
+  const { byHandle, entitiesToMint, escalations, entityMerges, sameAsLinks } = resolveEntities(
+    prior.entities,
+    staged.entities,
+    identityVerdicts,
+  );
 
   // (b) Ref-rewrite + (e) self-loop drop. A staged fact whose subject handle is
   // unknown is dropped defensively (a proposer referenced a non-proposed entity).
@@ -551,6 +670,9 @@ export function planPromotion(prior: PriorCanonical, staged: StagedProposals): P
   // expire. Prior losers → factsToExpire; insertable losers → active=false.
   const factsToExpire: PlannedExpiry[] = [];
   const supersededInsertable = new Map<string, string>(); // stagedFactId → expireReason
+  const validAtOverrides = new Map<string, Date>(); // stagedFactId → corrected validAt (conflict verdict)
+  const memberFactId = (m: GroupMember): string =>
+    m.insertableRep ? m.insertableRep.r.f.stagedFactId : m.priorFact!.id;
   for (const [k, members] of groups) {
     if (members.length < 2) continue;
     const sorted = [...members].sort((a, b) => compareFactPrecedence(a.prec, b.prec));
@@ -558,13 +680,39 @@ export function planPromotion(prior: PriorCanonical, staged: StagedProposals): P
     const runnerUp = sorted[sorted.length - 2]!;
     const group = k.split('::')[1]!;
 
-    // Conflict escalation (doc 41 §5g, §8a.5): winner and runner-up tie on the
-    // meaningful keys (valid_at + chunk_index) yet assert different objects —
-    // ordering cannot break it. Record + keep the deterministic pick.
-    if (
-      cmpValidAtChunk(winner.prec, runnerUp.prec) === 0 &&
-      winner.objKey !== runnerUp.objKey
-    ) {
+    // Conflict (doc 41 §5g, §8a.5): winner and runner-up tie on the meaningful keys
+    // (valid_at + chunk_index) yet assert different objects — ordering cannot break it.
+    const isConflict =
+      cmpValidAtChunk(winner.prec, runnerUp.prec) === 0 && winner.objKey !== runnerUp.objKey;
+
+    if (isConflict) {
+      const factIds = members.map(memberFactId).sort();
+      const verdict = conflictVerdicts.get(`conflict|${group}|${factIds.join(',')}`);
+      if (verdict) {
+        // Arbiter disposed of this conflict (resolve_contradiction → promotion code).
+        if (verdict.notExclusive) {
+          // Not actually exclusive — keep every member active; no supersession here.
+          continue;
+        }
+        const expireReasons = new Map(verdict.expire.map((e) => [e.factId, e.reason] as const));
+        for (const m of members) {
+          const reason = expireReasons.get(memberFactId(m));
+          if (reason == null) continue;
+          if (m.priorFact) {
+            factsToExpire.push({ factId: m.priorFact.id, reason, supersededByStagedFactId: null });
+          } else if (m.insertableRep) {
+            supersededInsertable.set(m.insertableRep.r.f.stagedFactId, reason);
+          }
+        }
+        if (verdict.correctedValidAt) {
+          for (const [fid, iso] of Object.entries(verdict.correctedValidAt)) {
+            validAtOverrides.set(fid, new Date(iso));
+          }
+        }
+        continue;
+      }
+      // No verdict (pass 1) → record the escalation, then fall through to the
+      // deterministic confidence/id tiebreak pick (the conservative default).
       escalations.push({
         kind: 'conflict',
         reason: `exclusive group "${group}" has co-equal facts (same valid_at + chunk_index) with different objects; resolved by confidence/id tiebreak`,
@@ -572,9 +720,7 @@ export function planPromotion(prior: PriorCanonical, staged: StagedProposals): P
           ? winner.insertableRep.r.subjectRef
           : { kind: 'canonical', id: winner.priorFact!.subjectEntityId },
         exclusiveGroup: group,
-        factIds: members
-          .map((m) => (m.insertableRep ? m.insertableRep.r.f.stagedFactId : m.priorFact!.id))
-          .sort(),
+        factIds,
       });
     }
 
@@ -602,7 +748,7 @@ export function planPromotion(prior: PriorCanonical, staged: StagedProposals): P
       predicate: rep.r.f.predicate,
       objectRef: rep.r.objectRef,
       objectValue: rep.r.objectRef ? null : rep.r.f.objectValue,
-      validAt: rep.r.f.validAt,
+      validAt: validAtOverrides.get(rep.r.f.stagedFactId) ?? rep.r.f.validAt,
       chunkIndex: rep.r.f.chunkIndex,
       confidence: rep.confidence,
       reasoning: rep.r.f.reasoning,
@@ -637,6 +783,8 @@ export function planPromotion(prior: PriorCanonical, staged: StagedProposals): P
     escalations: escalations.sort((a, b) => (escalationKey(a) < escalationKey(b) ? -1 : 1)),
     supersessionHints: supersessionHints.sort((a, b) => (a.stagedFactId < b.stagedFactId ? -1 : 1)),
     droppedSelfLoops: droppedSelfLoops.sort(),
+    entityMerges: entityMerges.sort((a, b) => (mergeKey(a) < mergeKey(b) ? -1 : 1)),
+    sameAsLinks: sameAsLinks.sort((a, b) => (linkKey(a) < linkKey(b) ? -1 : 1)),
   };
 }
 
@@ -655,5 +803,13 @@ function cmpValidAtChunk(a: FactPrecedence, b: FactPrecedence): number {
   return 0;
 }
 
-const escalationKey = (e: Escalation): string =>
+/**
+ * The stable identity of an escalation — the key a {@link Verdict} is recorded
+ * against (doc 41 §12 #4). Value-derived (no arrival order), so the same staged set
+ * always produces the same key ⇒ a replayed promotion finds the recorded verdict.
+ */
+export const escalationKey = (e: Escalation): string =>
   e.kind === 'identity' ? `identity|${e.type}|${e.clusterName}` : `conflict|${e.exclusiveGroup}|${e.factIds.join(',')}`;
+
+const mergeKey = (m: PlannedEntityMerge): string => `${m.sourceId}->${m.targetId}`;
+const linkKey = (l: PlannedSameAsLink): string => [l.entityAId, l.entityBId].sort().join('~');
