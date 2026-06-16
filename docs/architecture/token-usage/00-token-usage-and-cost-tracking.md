@@ -17,6 +17,17 @@ implementation pass (or a beads epic) can be driven without ambiguity.
 > risks (write-path shape, retention, PII, cost ceilings, cache-write TTL split,
 > streaming). Items the review marked unverifiable were dropped.
 
+> **Decoupling review (2026-06-16):** a follow-up maintainability pass hardened
+> three boundaries so the tracker doesn't become a maintenance burden. (1) Pricing
+> is **single-source-of-truth in TypeScript** (4.4) — ml-services never prices.
+> (2) `ResourcePool` **stays generic** (4.1) — the per-request accumulator is a
+> normal argument to the provider callable, not a pool kwarg, so the pool stays
+> usage-agnostic. (3) Cost **enforcement is separated from capture** (6) — the
+> accumulator is pure capture and never raises; the per-trace ceiling is a separate
+> optional guard that reads the running total. It also added a schema-drift guard
+> for the hand-synced `llm_usage` table (4.3) and made `operation` a single enum
+> imported by every call site (4.7).
+
 ---
 
 ## 1. Context
@@ -222,13 +233,18 @@ the request runs in a different context than the worker, so it is invisible at
 capture, and the 6 shared workers (`ML_LLM_WORKERS=6`, `:26`) would interleave
 usage across concurrent requests.
 
-Instead, **thread an explicit per-request accumulator object** through
-`ResourcePool.submit()` into `generate()`: the request handler creates an
-accumulator, passes it into each `submit()` call, and each provider appends its
-`UsageRecord` to that exact object. (Equivalently, capture
-`contextvars.copy_context()` in `submit()` and run `fn` under it with a
-per-request mutable list — but the explicit argument is simpler to reason about
-under the worker pool.) A concurrency test fires N parallel `/graph-agent`
+Instead, **pass an explicit per-request accumulator object as a normal argument to
+the provider callable** handed to `submit()`: the request handler creates an
+accumulator, passes it into each `submit(fn, …, accumulator)` call, and each
+provider adapter appends its `UsageRecord` to that exact object after a successful
+call. **`ResourcePool` is not modified** — `submit(fn, *args, **kwargs)`
+(`concurrency.py:91`) already forwards args/kwargs verbatim into the worker's
+`to_thread(fn, …)` (`:79`), so the accumulator reaches the provider untouched and
+the pool stays generic and usage-agnostic (it is shared by `ollama_pool` and
+`llm_pool`; a token-tracking concern must not leak into it). Do **not** add an
+`accumulator` kwarg to the pool. (A `contextvars.copy_context()` variant is
+possible but unnecessary — the explicit argument is simpler and keeps the pool
+oblivious.) A concurrency test fires N parallel `/graph-agent`
 requests and asserts each response's `usage.calls` contains only its own calls
 (no cross-request bleed). See 4.7 — only operations on the live call graph get an
 accumulator wired in.
@@ -261,7 +277,10 @@ It follows the AGE search_path rule (`CLAUDE.md`): `001_consolidated.sql` sets t
 session search_path to `ag_catalog, public, "$user"`, so **all DDL is explicitly
 `public.`-qualified** and we do **not** change the session search_path. Both
 `schema.ts` (Drizzle) and the raw `.sql` migration are updated and kept in sync by
-hand; `migrate.ts` runs `.sql` files in alphabetical order.
+hand; `migrate.ts` runs `.sql` files in alphabetical order. Because this is a dual
+source of truth, a **schema-drift test** introspects the live `llm_usage` columns
+(`information_schema`) and asserts they match the Drizzle table's column set, so the
+hand-sync cannot silently rot.
 
 **Write path (resolves the hot-path / unbounded-growth risk).** Insert **one
 batched row-set per HTTP response, fire-and-forget** (mirroring the existing
@@ -392,9 +411,14 @@ insert and the cost computation, mirroring the existing inline
 ### 4.4 Pricing model — versioned, config-driven, multiplier-capable
 
 Pricing lives in `platform/src/config.ts` (the repo's existing config module — there
-is no `platform/src/config/` directory) as an exported `PRICING` map plus helpers,
-with a Python mirror for the ml-services side if cost is computed there. Rates are
-**USD per 1,000,000 tokens**. `ModelRate` is an **open map keyed by usage type** so
+is no `platform/src/config/` directory) as an exported `PRICING` map plus helpers.
+**Cost is computed in exactly one place — TypeScript.** ml-services never prices: it
+emits token counts plus `cost_status` / `token_source` hints only (the lone `cost 0`
+for local Ollama is a status, not a rate; today the only Python `estimated_usd` is
+the value the Claude CLI itself returns, at `llm.py:300,562` — there is no rate table
+in Python). There is **no Python pricing mirror** — re-pricing must stay a one-file TS
+edit, and history re-prices from the stored token buckets. Rates are **USD per
+1,000,000 tokens**. `ModelRate` is an **open map keyed by usage type** so
 reasoning/multimodal models stay config-only, plus per-row provenance.
 
 ```ts
@@ -587,9 +611,12 @@ rows in the candidate set were wrong in the first draft.
 
 ### 4.7 Operation taxonomy
 
-`operation` is a closed vocabulary so reports group cleanly, split into operations
-that **are currently invoked** (wire capture into these) versus **reserved/future**
-(no capture until the call path is live, so reports never show empty dimensions):
+`operation` is a closed vocabulary so reports group cleanly. It is **defined once**
+(an enum/const in `platform/src/config.ts`, imported by every call site) rather than
+string literals scattered across handlers, so adding or renaming an operation is a
+one-place edit. It is split into operations that **are currently invoked** (wire
+capture into these) versus **reserved/future** (no capture until the call path is
+live, so reports never show empty dimensions):
 
 - **Active:** `graph_agent` (the live extraction path), `reasoning_agent` (query),
   `reconciliation_agent`, `gardener_agent`, `drift`, `judge` (benchmark only),
@@ -632,9 +659,12 @@ Named here so a later implementation pass or beads epic is unambiguous:
 
 - `ml-services/app/core/llm.py` — `UsageRecord` and per-provider adapters; fix
   `ZAIProvider` to read `response.usage` with the OpenAI remainder rule; the
-  explicit per-request accumulator threaded through the pool.
-- `ml-services/app/core/concurrency.py` — accept and propagate the per-request
-  accumulator through `ResourcePool.submit()` into the worker call.
+  explicit per-request accumulator passed as an argument to each provider adapter
+  (the pool is untouched).
+- `ml-services/app/core/concurrency.py` — **no change.** `submit(fn, *args,
+  **kwargs)` already forwards args/kwargs verbatim into the worker call, so the
+  accumulator rides as a normal argument to the provider callable. Do not add
+  usage-specific params to the pool; a passthrough test confirms the forward.
 - `ml-services/app/main.py` and each router — a FastAPI dependency that creates the
   accumulator and attaches `usage` (read from the body) to every response.
 - `platform/src/services/ml-client.ts` and the `agentFetch` wrapper in
@@ -642,8 +672,9 @@ Named here so a later implementation pass or beads epic is unambiguous:
   fire-and-forget.
 - `platform/src/services/usage.ts` (new) — batch insert helper and cost
   computation.
-- `platform/src/config.ts` — the `PRICING` map, `ModelRate`, and multiplier
-  helpers (no new `config/` directory).
+- `platform/src/config.ts` — the `PRICING` map, `ModelRate`, multiplier helpers, and
+  the single `operation` enum (no new `config/` directory). This is the **only** place
+  cost is priced; ml-services never prices.
 - `platform/src/db/schema.ts` and `platform/src/db/migrations/040_llm_usage.sql`.
 - `platform/src/pipeline.ts` and the query handler — sum usage into `IngestResult`
   and the query response (the echo benchmarks consume), fire-and-forget the rows.
@@ -654,17 +685,23 @@ Named here so a later implementation pass or beads epic is unambiguous:
   `TokenAccumulator`, and the `X-Mnemo-Trace-Id` header if we choose option (a) for
   trace correlation.
 
-## 6. Cost controls (new)
+## 6. Cost controls (separate layer over capture)
 
 A single runaway agent loop (reasoning 40-100 calls, gardener ~80) can burn budget
-with no ceiling. The per-request accumulator already knows running cost mid-request,
-so:
+with no ceiling. The per-request accumulator already knows running cost mid-request —
+but **enforcement is kept separate from capture**: the accumulator stays pure capture
+(it appends `UsageRecord`s and exposes a running total; it never raises), so a capture
+bug can only ever lose a metric, never abort a production agent loop.
 
-- Enforce a **per-trace USD ceiling** in the accumulator that can abort the loop
-  when exceeded (config-driven; off by default in dev).
-- Add **budgets and alerting** on the `llm_usage` rollups (per provider, per
-  operation, per day).
-- These are part of the same instrumentation and should land with it, not after.
+- A **per-trace USD ceiling** is a thin, optional guard that *reads* the accumulator's
+  running total after each call and aborts the loop when exceeded (config-driven; off
+  by default in dev). It lives outside the capture write-path, carried on the
+  per-request accumulator the handler constructs — **not** threaded through
+  `ResourcePool.submit()` (the pool stays usage-agnostic, see 4.1).
+- **Budgets and alerting** on the `llm_usage` rollups (per provider, per operation,
+  per day) are fire-and-forget and advisory — they never block an insert or a response.
+- Capture (4.1-4.3) must work with enforcement absent or disabled; the ceiling and
+  budgets land as their own bead after capture is proven, not before.
 
 ## 7. Known limitations
 
