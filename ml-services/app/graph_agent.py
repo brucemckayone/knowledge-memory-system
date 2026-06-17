@@ -27,7 +27,7 @@ class GraphAgentRequest(BaseModel):
     # 'prose' | 'code-ts' | 'code-sql'. Branches the agent's predicate vocabulary.
     # Unknown / missing values are treated as 'prose'.
     content_type: Optional[str] = "prose"
-    # Bead nmemo-upn — previous extraction session's PHASE 6 report text.
+    # Bead nmemo-upn — previous extraction session's PHASE 5 report text.
     # When provided, rendered into the user prompt as a delimited
     # <extraction_report> block so the agent inherits the prior session's
     # difficulties, unresolved pronouns, and unconfirmed aliases.
@@ -386,7 +386,7 @@ Two things to update for each entity you worked with:
 Both aliases and summaries persist across sessions. The next chunk's agent will search aliases during ORIENT and read summaries for context.
 
 ============================================================
-PHASE 5: VERIFY — Quick consistency check
+PHASE 4: VERIFY — Quick consistency check
 ============================================================
 
 Before finishing:
@@ -397,7 +397,7 @@ Before finishing:
 This phase is optional if you are running low on turns. Prioritize phases 1-3.
 
 ============================================================
-PHASE 6: REPORT — Structured summary of what you did
+PHASE 5: REPORT — Structured summary of what you did
 ============================================================
 
 After all tool calls are complete, produce a structured text summary. This is the ONLY text output that matters — it will be logged for debugging and analysis.
@@ -451,7 +451,7 @@ Source provenance: Every create_fact call must include source_memory_id (the MEM
 
 Searching before creating: Before calling resolve_entity, call search_similar_entities first. This prevents duplicates. The resolve_entity function also does matching internally, but searching first gives you context about whether the entity exists and what it's connected to.
 
-Output: All graph modifications happen via tool calls (resolve_entity, create_fact, link_entity_to_memory). Your text response in PHASE 6 is a report for debugging — it does not modify the graph.
+Output: All graph modifications happen via tool calls (resolve_entity, create_fact, link_entity_to_memory). Your text response in PHASE 5 is a report for debugging — it does not modify the graph.
 
 """ + PROMPT_SAFETY_SYSTEM_CLAUSE + """"""
 
@@ -582,7 +582,7 @@ def _build_legacy_user_prompt(request: GraphAgentRequest) -> str:
     if request.source_name:
         prompt += f"## Source\n{request.source_name}\n\n"
 
-    # Bead nmemo-upn — render the prior session's PHASE 6 report as a
+    # Bead nmemo-upn — render the prior session's PHASE 5 report as a
     # delimited <extraction_report> block (T8 prompt-safety: the report was
     # written by a previous agent on potentially adversarial source text, so
     # we sanitise + wrap before exposing it as DATA).
