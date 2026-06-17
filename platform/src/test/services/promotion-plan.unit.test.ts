@@ -201,6 +201,31 @@ describe('planPromotion — triple dedup (step d) + self-loops (step e)', () => 
     expect(plan.entitiesToMint).toHaveLength(1);
     expect(plan.droppedOrphanEntities).toHaveLength(0);
   });
+
+  it('keeps a minted entity referenced ONLY as a fact object (objectRef.kind===cluster)', () => {
+    // The orphan oracle reads BOTH subjectRef and objectRef (promotion-plan.ts:793-794).
+    // The objectRef clause is load-bearing: an entity whose sole appearance is as the
+    // OBJECT of a surviving fact must NOT be pruned. Mint Helix (subject) + Ada (object
+    // only) via `Helix employs Ada`; both must survive, nothing dropped. Removing the
+    // objectRef clause would drop Ada and fail this — a direct mutation-kill.
+    const helix = ent('Helix');
+    const ada = ent('Ada', 'person');
+    const employs = fact(helix.handle, 'employs', { objectHandle: ada.handle });
+    const plan = planPromotion(EMPTY_PRIOR, { entities: [helix, ada], facts: [employs] });
+    expect(plan.factsToInsert).toHaveLength(1);
+    expect(plan.entitiesToMint).toHaveLength(2);
+    expect(plan.droppedOrphanEntities).toHaveLength(0);
+  });
+
+  it('drops a fresh mint proposed with NO fact at all as an orphan (§11 I7, bare path)', () => {
+    // The simplest and most common orphan trigger (promotion-plan.ts:783 "proposed with
+    // no fact at all"): a fresh, non-anchored, non-merging entity staged with zero facts
+    // is minted then pruned. Asserted directly here rather than only via the self-loop
+    // sub-case above.
+    const plan = planPromotion(EMPTY_PRIOR, { entities: [ent('Orphan')], facts: [] });
+    expect(plan.entitiesToMint).toHaveLength(0);
+    expect(plan.droppedOrphanEntities).toHaveLength(1);
+  });
 });
 
 describe('planPromotion — chunk_index ordering (E4, doc 41 §5c)', () => {
