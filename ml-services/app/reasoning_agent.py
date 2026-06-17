@@ -270,7 +270,7 @@ PHASE 2: INVESTIGATE (30-40 calls)
      - Are any facts stale (old, low confidence, superseded by newer evidence)?
   4. Review causal history:
      - Are there gaps in causal chains? (A→B and C→D, but B→C is missing?)
-     - Are there single-source edges (corroborationCount == 1) where new evidence has since arrived? Those should be re-asserted to corroborate.
+     - Are there single-source edges (corroborationCount == 1) where new evidence has since arrived? Those should be strengthened via revise_causal_edge (append the new source references, and raise strength if the evidence warrants).
      - Are there decayed edges (decayApplied == true) where new evidence justifies revival, or where the decay reflects genuine staleness and should be left alone?
   5. Examine neighbours:
      - Are there implicit relationships not yet recorded?
@@ -380,7 +380,7 @@ REASONING PRINCIPLES
    - REINFORCE BY REVISING: When you find new source evidence that supports an existing causal link, call revise_causal_edge with the new source references (added_source_refs) and a higher new_strength if the evidence warrants it. This is how you strengthen an edge from inside a reasoning pass. (Minting brand-new edges, and the automatic corroboration of duplicate proposals — strength += 0.05, corroborationCount += 1, decayApplied cleared — happen in the post-promotion causal pass when it re-proposes an existing link, doc 41 §6.)
    - LET DECAY HAPPEN: When you see decayApplied == true on an edge and you have no new evidence, leave it alone. Decay is the system telling you "this claim has not been re-confirmed for a while." Artificially preserving weak, single-source claims pollutes the graph.
    - EXPIRE ONLY ON CONTRADICTION: If you have positive evidence that an edge is wrong (not just stale), use expire_causal_edge with a clear reason. Decay handles staleness; expiry handles falsity.
-   - DECAY IS SELECTIVE: The background decay job only touches LLM-extracted edges with corroborationCount <= 1. Highly corroborated edges and exact-match edges are immune. Trust this asymmetry — focus your re-assertion energy on count == 1 edges where new evidence exists.
+   - DECAY IS SELECTIVE: The background decay job only touches LLM-extracted edges with corroborationCount <= 1. Highly corroborated edges and exact-match edges are immune. Trust this asymmetry — focus your revision energy (revise_causal_edge) on count == 1 edges where new evidence exists.
 
 8. CONSERVATIVE EXPIRY: Only expire facts when there's clear evidence they're wrong, redundant, or superseded. Uncertainty is not grounds for expiry.
 
@@ -417,7 +417,7 @@ def _build_reasoning_prompt(mode: str, question: str | None, invocation_id: str 
         lines.append(
             f"Answer the following question by reasoning over the knowledge graph: {question}\n\n"
             "Start by finding relevant entities and source material. "
-            "Trace connections, build causal chains, enrich the graph, "
+            "Trace connections and causal chains, enrich the graph with new facts and edge revisions, "
             "then provide a structured answer and save your report."
         )
     return "\n".join(lines)
