@@ -104,7 +104,7 @@ Promotion is a near-pure function `promote(priorCanonical, stagedProposals) → 
 
 **(d) Fact-triple dedup (P1).** `uniq_facts_active_triple` applied across the whole epoch's promoted set — deterministic, not racing at write time. Duplicate triples corroborate (bump observation), not duplicate.
 
-**(e) Cleanup.** Drop post-merge self-loops; resolve `opposing_object` contradictions using the same time order; flag/prune orphan entities (no active fact, not a fresh arrival).
+**(e) Cleanup.** Drop post-merge self-loops; resolve `opposing_object` contradictions using the same time order; prune **freshly-minted** entities left factless by those drops — a mint no surviving fact references (its proposals were all dropped as self-loops, lost a subject/object handle, or it was proposed with no fact at all). The check counts a mint as referenced by *any* promoted fact, including superseded/inactive ones, so an entity kept only by an expired fact survives (order-independent — computed from the settled fact set). Prior-canonical entities that lose their last active fact are **not** pruned here; that lifecycle belongs to the gardener (§7). (E7: this is the implemented I7 cleanup — `droppedOrphanEntities` in `promotion-plan.ts`.)
 
 **(f) Promote.** Write resolved entities + facts to canonical in one transaction, each mutation paired with its `fact_history` / audit row (doc 12 contract).
 
