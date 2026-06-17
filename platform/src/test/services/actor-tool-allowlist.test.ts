@@ -34,6 +34,31 @@ function nonReadTools(actor: Actor): string[] {
   return [...allowlistFor(actor)].filter((t) => !READ_ONLY.has(t)).sort();
 }
 
+/**
+ * The canonical-write tools that, under the propose/dispose model (doc 41 §8a.2),
+ * are NOT agent-facing — they became promotion / disposal / gardener-only code. A
+ * §8a propose/verdict actor must hold NONE of these. This is a HARDCODED literal,
+ * deliberately NOT derived from the `mutates` flag, so it is an INDEPENDENT oracle:
+ * the partition test below cross-checks it against the flag, which is what closes the
+ * circular-oracle weakness — a write tool mislabelled `mutates:false` (otherwise it
+ * would slip into the read superset undetected) OR a brand-new mutating tool both
+ * force this list to be updated rather than silently passing.
+ */
+const CANONICAL_WRITES = [
+  'create_fact', 'resolve_entity', 'execute_merge', 'create_same_as_link',
+  'expire_fact', 'invalidate_fact', 'resolve_contradiction', 'create_contradiction',
+  'update_entity_summary', 'update_fact_confidence', 'restore_fact', 'resolve_candidate',
+  'add_entity_alias', 'link_entity_to_memory', 'expire_causal_edge', 'revise_causal_edge',
+  'save_reasoning_report',
+];
+
+/** The staging-write (propose/verdict) tools — the ONLY mutating tools an agent may hold (§8a.4-.6). */
+const PROPOSE_VERDICT_WRITES = [
+  'propose_entity', 'propose_fact',                          // §8a.4 proposer
+  'propose_identity_verdict', 'propose_conflict_resolution', // §8a.5 arbiter
+  'propose_causal_edge',                                     // §8a.6 causal
+];
+
 describe('actor tool allow-lists match the §8a tables (E7, doc 41 §8a)', () => {
   for (const [actor, expected] of Object.entries(EXPECTED_NON_READ) as Array<[Actor, string[]]>) {
     it(`${actor}: non-read surface is EXACTLY {${expected.join(', ')}} — no canonical writes`, () => {
@@ -65,18 +90,30 @@ describe('actor tool allow-lists match the §8a tables (E7, doc 41 §8a)', () =>
   });
 
   it('no §8a propose/verdict actor holds ANY canonical-write tool', () => {
-    const canonicalWrites = [
-      'create_fact', 'resolve_entity', 'execute_merge', 'create_same_as_link',
-      'expire_fact', 'invalidate_fact', 'resolve_contradiction', 'update_entity_summary',
-      'update_fact_confidence', 'restore_fact', 'resolve_candidate', 'add_entity_alias',
-      'link_entity_to_memory', 'expire_causal_edge', 'revise_causal_edge', 'save_reasoning_report',
-    ];
     const actors: Actor[] = ['extraction_proposer', 'reconciliation_agent', 'causal_agent'];
     for (const a of actors) {
       const surface = allowlistFor(a);
-      for (const w of canonicalWrites) {
+      for (const w of CANONICAL_WRITES) {
         expect(surface.has(w), `${a} must NOT hold canonical-write ${w}`).toBe(false);
       }
+    }
+  });
+
+  it('canonical-write backstop is COMPLETE: mutating tools partition into {canonical writes} ⊎ {propose/verdict} (flag-independent)', () => {
+    // Closes the circular-oracle weakness: the per-actor read/write split above is
+    // derived from the SAME `mutates` flag the surfaces are built from, so a canonical
+    // write mislabelled mutates:false would enter the read superset undetected and the
+    // backstop above (iterating CANONICAL_WRITES) would still pass. Pin the entire
+    // mutating surface against two hardcoded literals: a flag-flip drops a tool out of
+    // `filter(mutates)` (→ mismatch) and a NEW mutating tool adds one not in either
+    // literal (→ mismatch), so the guard can never silently rot.
+    const mutating = GRAPH_TOOLS.filter((t) => t.mutates).map((t) => t.name).sort();
+    expect(mutating).toEqual([...CANONICAL_WRITES, ...PROPOSE_VERDICT_WRITES].sort());
+    // Belt-and-braces: every listed canonical write really exists and is flagged mutates.
+    for (const w of CANONICAL_WRITES) {
+      const tool = GRAPH_TOOLS.find((t) => t.name === w);
+      expect(tool, `${w} must exist in GRAPH_TOOLS`).toBeDefined();
+      expect(tool!.mutates, `${w} must be flagged mutates:true`).toBe(true);
     }
   });
 
