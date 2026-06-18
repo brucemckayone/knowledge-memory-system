@@ -34,6 +34,7 @@ from .parse_transcript import router as parse_transcript_router
 from .parse_document import router as parse_document_router
 from .parse_markdown import router as parse_markdown_router
 from .compare_predicates import router as compare_predicates_router
+from .resolve_predicate import router as resolve_predicate_router
 from .extract_agentic import router as extract_agentic_router
 from .graph_agent import router as graph_agent_router
 from .reconciliation_agent import router as reconciliation_agent_router
@@ -90,6 +91,7 @@ app.include_router(parse_transcript_router, tags=["Transcript Parsing"])
 app.include_router(parse_document_router, tags=["Document Parsing"])
 app.include_router(parse_markdown_router, tags=["Markdown Parsing"])
 app.include_router(compare_predicates_router, tags=["Predicate Comparison"])
+app.include_router(resolve_predicate_router, tags=["Predicate Resolution"])
 # Agentic extraction
 app.include_router(extract_agentic_router, tags=["Agentic Extraction"])
 # Unified graph agent
@@ -143,7 +145,8 @@ async def health():
             "parse-transcript",
             "parse-document",
             "parse-markdown",
-            "compare-predicates"
+            "compare-predicates",
+            "resolve-predicate"
         ]
     }
 
@@ -173,7 +176,8 @@ def root():
             "parse_transcript": "/parse-transcript",
             "parse_document": "/parse-document",
             "parse_markdown": "/parse-markdown",
-            "compare_predicates": "/compare-predicates"
+            "compare_predicates": "/compare-predicates",
+            "resolve_predicate": "/resolve-predicate"
         }
     }
 
