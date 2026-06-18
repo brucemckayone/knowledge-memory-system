@@ -298,6 +298,7 @@ def run_real(config: RunConfig, notes: str) -> int:
                     client.reset()
 
                 ingest_calls = 0
+                ingest_failures = 0
                 skipped = 0
                 flat_idx = 0
                 for session in q.sessions:
@@ -317,13 +318,30 @@ def run_real(config: RunConfig, notes: str) -> int:
                         # role labels ride in `chunk` (rendered by chunk_session);
                         # the prompt maps them — no structured per-turn role on a
                         # multi-turn blob.
-                        client.ingest(
-                            chunk,
-                            source=source,
-                            content_type="conversational",
-                            stream_id=q.question_id,
-                        )
-                        ingest_calls += 1
+                        #
+                        # A single window's ingest is NON-FATAL: the haystack is
+                        # ~80 windows and the agentic extraction has high per-window
+                        # latency variance (~190s avg, occasional >timeout). One slow
+                        # or timed-out window must NOT discard the other ~79 — log,
+                        # count, and keep going; the query runs against whatever
+                        # landed. Question-level abort is reserved for query/judge.
+                        try:
+                            client.ingest(
+                                chunk,
+                                source=source,
+                                content_type="conversational",
+                                stream_id=q.question_id,
+                            )
+                            ingest_calls += 1
+                        except Exception as ie:
+                            ingest_failures += 1
+                            print(
+                                f"{progress} {q.question_id} ingest WARN "
+                                f"window={flat_idx} failures={ingest_failures}: "
+                                f"{type(ie).__name__}: {ie}",
+                                file=sys.stderr,
+                                flush=True,
+                            )
                         flat_idx += 1
                 if config.resume_from:
                     print(
@@ -348,7 +366,7 @@ def run_real(config: RunConfig, notes: str) -> int:
                 print(
                     f"{progress} {q.question_id} {q.category} "
                     f"score={verdict.score:.2f} sessions={len(q.sessions)} "
-                    f"ingests={ingest_calls}",
+                    f"ingests={ingest_calls} ingest_failures={ingest_failures}",
                     flush=True,
                 )
             except (MnemoClientError, JudgeError, Exception) as e:

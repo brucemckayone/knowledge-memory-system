@@ -1,0 +1,48 @@
+{
+  "benchmark": "longmemeval",
+  "cut": "LongMemEval_S",
+  "mnemo_git_sha": "b64a4762291b27a649f1a81cf455fe40005b070f",
+  "harness_commit": "9e0b455f4ef0e2ab8f2e582289761153549043fc",
+  "config_path": "benchmarks/longmemeval/config.yaml",
+  "model_under_test": "claude-haiku-4-5-20251001",
+  "judge_model": "claude-sonnet-4-6",
+  "timestamp": "2026-06-10T08:56:12Z",
+  "dataset_size": 1,
+  "scores": {
+    "overall_accuracy": 0.0,
+    "by_category": {
+      "information_extraction": {
+        "accuracy": 0.0,
+        "n": 1,
+        "correct": 0
+      },
+      "multi_session_reasoning": {
+        "accuracy": null,
+        "n": 0,
+        "correct": 0
+      },
+      "temporal_reasoning": {
+        "accuracy": null,
+        "n": 0,
+        "correct": 0
+      },
+      "knowledge_updates": {
+        "accuracy": null,
+        "n": 0,
+        "correct": 0
+      },
+      "abstention": {
+        "accuracy": null,
+        "n": 0,
+        "correct": 0
+      }
+    },
+    "abstention_rate": null,
+    "sanity_pass": false,
+    "n": 1,
+    "correct": 0,
+    "errors": 1
+  },
+  "notes": "1-question smoke, host stack, migrations 038+039 applied, HTTP timeout 1200s, per-window ingest non-fatal; 2026-06-10",
+  "judge_prompt_version": "v1"
+}
