@@ -64,3 +64,14 @@ test-data/
 
 # Snapshot cache (per-machine; manifest is the source of truth)
 platform/test-snapshots/
+
+# Playwright MCP transient page snapshots (accessibility-tree dumps from
+# browser debugging). The committed PNGs in .playwright-mcp/ are intentional;
+# only the auto-generated page-*.yml snapshots are noise.
+**/.playwright-mcp/page-*.yml
+
+# Windows reserved-name junk file (accidental `> nul` redirect output)
+platform/nul
+
+# Runtime log offset cursor (per-machine; single byte-offset value)
+/.logbase
