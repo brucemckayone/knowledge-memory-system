@@ -193,6 +193,10 @@ export const factPredicates = pgTable('fact_predicates', {
   isExclusive: boolean('is_exclusive').default(false),
   category: varchar('category', { length: 50 }),
   aliases: text('aliases').array().default([]),
+  // Per-predicate type pair for the multi-signal type-pair-overlap (doc 42 §4).
+  subjectType: varchar('subject_type', { length: 50 }),
+  objectType: varchar('object_type', { length: 50 }),
+  // Note: embedding VECTOR(768) handled directly via SQL (pgvector), not in Drizzle (migration 045)
   isCanonical: boolean('is_canonical').default(true),
   usageCount: integer('usage_count').default(0),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),

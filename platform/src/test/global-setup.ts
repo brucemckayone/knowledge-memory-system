@@ -160,9 +160,14 @@ function preprocessMigration(content: string, ext: ExtensionAvailability): strin
   processed = processed.replace(/CREATE EXTENSION IF NOT EXISTS[^;]+;\s*\n?/g, '');
 
   if (!ext.vector) {
-    // Strip vector column definitions
+    // Strip vector column definitions (inline CREATE TABLE members)
     processed = processed.replace(/,?\s*\n\s*embedding\s+VECTOR\(\d+\)/gi, '');
     processed = processed.replace(/,?\s*\n\s*fact_embedding\s+VECTOR\(\d+\)/gi, '');
+    // Strip ALTER TABLE ... ADD COLUMN ... vector(N) — incremental migrations add
+    // vector columns via ALTER, not inline (e.g. migration 045). Without this the
+    // whole migration aborts on `type "vector" does not exist` when pgvector is
+    // absent, taking its non-vector statements down with it.
+    processed = processed.replace(/ALTER TABLE[^;]*ADD COLUMN[^;]*\bvector\s*\(\d+\)[^;]*;\s*\n?/gi, '');
     // Strip hnsw indexes on vector columns
     processed = processed.replace(/CREATE INDEX[^;]*hnsw[^;]*vector_cosine_ops[^;]*;\s*\n?/gi, '');
   }

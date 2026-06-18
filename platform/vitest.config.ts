@@ -21,7 +21,10 @@ export default defineConfig({
     env: {
       DATABASE_URL: 'postgres://cognitive:cognitive@127.0.0.1:5433/cognitive_test',
       NODE_ENV: 'test',
-      ML_SERVICES_URL: 'http://127.0.0.1:8000',
+      // Default to the standard :8000; honour an explicit ML_SERVICES_URL override
+      // so a worktree instance on another port (e.g. :8001) can be live-tested
+      // without editing this file. DATABASE_URL stays pinned to cognitive_test.
+      ML_SERVICES_URL: process.env.ML_SERVICES_URL ?? 'http://127.0.0.1:8000',
       QDRANT_URL: 'http://127.0.0.1:6335',
     },
 
