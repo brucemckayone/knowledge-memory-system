@@ -36,6 +36,7 @@ import {
   type StagedFact,
 } from './promotion-plan.js';
 import { resolveEscalations, type ArbiterInvoker } from './promotion-arbiter.js';
+import { canonicalizeStagedPredicates } from './predicate-resolve.js';
 
 /** Options for {@link promote}. `invokeArbiter` is injectable for tests (E5). */
 export interface PromoteOptions {
@@ -450,6 +451,19 @@ export async function applyPromotion(
  */
 export async function promote(epochId: string, opts: PromoteOptions = {}): Promise<PromotionResult> {
   const { prior, staged } = await loadPromotionInputs(epochId);
+
+  // Canonicalize staged predicates against the registry BEFORE planning (doc 42
+  // §7, PC4 — "the spine"). Mutates StagedFact.predicate to the canonical string,
+  // so tripleKey, the prior-canonical index, exclusive-group supersession, and the
+  // written facts.predicate all key on the canonical predicate. Deterministic and
+  // ml-down safe (keeps raw predicates if resolve is unreachable).
+  const predStats = await canonicalizeStagedPredicates(staged.facts, staged.entities);
+  if (predStats.reused + predStats.minted + predStats.deferred > 0) {
+    console.log(
+      `[promotion] epoch=${epochId.slice(0, 8)} predicates: reused=${predStats.reused} ` +
+        `minted=${predStats.minted} deferred=${predStats.deferred}`,
+    );
+  }
 
   // Pass 1: deterministic plan that SURFACES escalations (conservative defaults).
   const firstPass = planPromotion(prior, staged);

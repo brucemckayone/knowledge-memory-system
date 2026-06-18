@@ -152,11 +152,63 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// --- Predicate resolution (doc 42 §6, PC3/PC4) ---
+
+export interface ResolvePredicateCandidate {
+  predicate: string;
+  description?: string;
+  embedding: number[];
+  subjectType?: string | null;
+  objectType?: string | null;
+  inversePredicate?: string | null;
+  aliases?: string[];
+}
+
+export interface ResolvePredicateRequest {
+  predicate: string;
+  subjectType?: string | null;
+  objectType?: string | null;
+  candidates: ResolvePredicateCandidate[];
+  mergeThreshold?: number;
+  distinctThreshold?: number;
+}
+
+export interface ResolvePredicateResponse {
+  decision: 'merge' | 'distinct' | 'ambiguous';
+  canonical: string | null;
+  base: string;
+  temporal_hint: string | null;
+  score: number;
+  signals: Record<string, unknown>;
+  top: Array<{ predicate: string; combined: number; inverse_blocked: boolean }>;
+}
+
 // --- Public API ---
 
 export const ml = {
   embed(text: string, model = config.EMBED_MODEL) {
     return mlFetch<EmbedResponse>('/embed', { text, model }, 600_000);
+  },
+
+  /** Resolve a raw predicate to canonical/mint/ambiguous (doc 42 §6). Stateless:
+   * the caller passes the candidate canonicals (with their stored embeddings). */
+  resolvePredicate(req: ResolvePredicateRequest) {
+    return mlFetch<ResolvePredicateResponse>('/resolve-predicate', {
+      predicate: req.predicate,
+      ...(req.subjectType != null ? { subject_type: req.subjectType } : {}),
+      ...(req.objectType != null ? { object_type: req.objectType } : {}),
+      candidates: req.candidates.map((c) => ({
+        predicate: c.predicate,
+        description: c.description ?? '',
+        embedding: c.embedding,
+        subject_type: c.subjectType ?? null,
+        object_type: c.objectType ?? null,
+        inverse_predicate: c.inversePredicate ?? null,
+        aliases: c.aliases ?? [],
+      })),
+      ...(req.mergeThreshold != null ? { merge_threshold: req.mergeThreshold } : {}),
+      ...(req.distinctThreshold != null ? { distinct_threshold: req.distinctThreshold } : {}),
+    }, 120_000);
   },
 
   extractEntities(
