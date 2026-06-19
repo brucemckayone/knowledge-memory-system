@@ -31,6 +31,17 @@ ALTER TABLE public.fact_predicates ADD COLUMN IF NOT EXISTS object_type varchar(
 CREATE INDEX IF NOT EXISTS idx_fact_predicates_embedding
   ON public.fact_predicates USING hnsw (embedding vector_cosine_ops);
 
+-- Demote stale canonicals before re-asserting the current ontology. The 001 seed
+-- marked ~34 predicates canonical; the living ontology is the 27 upserted below.
+-- Several stale ones are now ALIASES of a current canonical (e.g. `located_in` is
+-- an alias of `lives_in`) — left is_canonical they compete as resolve candidates
+-- and a proposal of `located_in` resolves to itself instead of folding to
+-- `lives_in`, re-introducing sprawl. Demote all, then the UPSERT re-canonicalizes
+-- exactly the 27 so the resolve candidate set IS the current ontology. 'rejected'
+-- keeps them out of the candidate loader (which excludes rejected).
+UPDATE public.fact_predicates SET is_canonical = false, status = 'rejected'
+  WHERE is_canonical = true;
+
 -- Canonical ontology snapshot: predicate, description, inverse_predicate,
 -- predicate_type, is_exclusive, category, aliases, subject_type, object_type.
 -- Mirrors predicate-ontology.ts::CANONICAL_ONTOLOGY (27 predicates) +
