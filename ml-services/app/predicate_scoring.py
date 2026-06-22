@@ -25,16 +25,39 @@ try:
 except ImportError:  # pragma: no cover - jellyfish is a hard dep, see requirements.txt
     _jw_sim = None
 
-# Multi-signal weights (benchmark_ontology_embeddings.py:732). Sum to 1.0.
-W_COSINE = 0.50
-W_TYPE_PAIR = 0.30
-W_JARO = 0.10
-W_CONCEPTNET = 0.10
+# Multi-signal weights + two-threshold calibration. TUNABLE CONFIG, not law: the
+# defaults are the benchmark's calibrated values (B3; benchmark_ontology_embeddings.py:732),
+# overridable per-deployment via env so the PC6 sweep can lock a different operating
+# point WITHOUT a code edit (doc 42 §4, PC6). The PC6 sweep emits the recommended
+# env values; PC8 runs the gate at the locked point. Per-request override also exists
+# (resolve_predicate.py merge_threshold/distinct_threshold fields).
+import os as _os
 
-# Two-threshold calibration (benchmark B3; doc 42 §4). Config, not law — PC6
-# re-derives these on corpus10/corpus20 and PC8 runs at that operating point.
-MERGE_THRESHOLD = 0.905
-DISTINCT_THRESHOLD = 0.848
+
+def _envf(name: str, default: float) -> float:
+    try:
+        return float(_os.environ[name])
+    except (KeyError, ValueError):
+        return default
+
+
+# Defaults: the PC6-recommended operating point (sweep_predicate_thresholds.py,
+# 2026-06-20), PROVISIONAL pending the PC8 live A/B vs the old 0.905 point. The
+# sweep's B7=0 gate is the curated adversarial pairs AUGMENTED with all same-type
+# distinct-canonical pairs (the risky band), and the chosen merge_t keeps a >=0.015
+# safety headroom above the worst must-not-merge score (a merge is lossy/
+# unrecoverable; over-minting is gardener-recoverable, so we err high). KEY FINDING:
+# once that headroom is required, the score threshold can only loosen marginally
+# (0.905 -> 0.89) and score-reuse barely rises (0.18 -> 0.19) — the multi-signal
+# SCORE is NOT the primary over-minting lever; the alias table (deterministic) and
+# the PC5 propose-time reuse hint are. PC8 measures the real net minting effect.
+W_COSINE = _envf("PREDICATE_W_COSINE", 0.55)
+W_TYPE_PAIR = _envf("PREDICATE_W_TYPE_PAIR", 0.30)
+W_JARO = _envf("PREDICATE_W_JARO", 0.10)
+W_CONCEPTNET = _envf("PREDICATE_W_CONCEPTNET", 0.05)
+
+MERGE_THRESHOLD = _envf("PREDICATE_MERGE_THRESHOLD", 0.89)
+DISTINCT_THRESHOLD = _envf("PREDICATE_DISTINCT_THRESHOLD", 0.84)
 
 # Static lexical prior. Ported from ontology_test_data.py::CONCEPTNET_SYNONYMS
 # with the `employs -> works_at` entry REMOVED: that pair is an inverse, not a
@@ -120,14 +143,28 @@ def multi_signal_score(
     tov = type_pair_overlap(type_pair_a, type_pair_b)
     jw = jaro_winkler(pred_a, pred_b)
     cn = conceptnet_relatedness(pred_a, pred_b)
-    combined = W_COSINE * cos + W_TYPE_PAIR * tov + W_JARO * jw + W_CONCEPTNET * cn
-    return {
+    signals = {
         "cosine_sim": cos,
         "type_pair_overlap": tov,
         "jaro_winkler": jw,
         "conceptnet": cn,
-        "combined": combined,
     }
+    signals["combined"] = combine(signals)
+    return signals
+
+
+def combine(signals: dict, weights: Optional[tuple] = None) -> float:
+    """Weighted combine of a per-signal breakdown. Defaults to the configured
+    weights; pass an explicit (cosine, type_pair, jaro, conceptnet) tuple to score
+    a hypothetical weighting WITHOUT re-embedding — the PC6 sweep does exactly this
+    over the cached per-signal scores."""
+    wc, wt, wj, wn = weights if weights is not None else (W_COSINE, W_TYPE_PAIR, W_JARO, W_CONCEPTNET)
+    return (
+        wc * signals["cosine_sim"]
+        + wt * signals["type_pair_overlap"]
+        + wj * signals["jaro_winkler"]
+        + wn * signals["conceptnet"]
+    )
 
 
 def is_inverse(
