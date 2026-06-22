@@ -71,11 +71,16 @@ describe('Pi Agent Bridge: tool conversion', () => {
   });
 
   it('expected write tools are flagged mutates: true', () => {
-    // The 17 known write tools from the design decision (bead .113).
+    // The original design-decision write tools (bead .113), minus create_causal_edge
+    // (the per-chunk CAUSE write tool retired in E7, doc 41 §11). NOTE: this curated
+    // list predates the E2-E6 staging-write tools (propose_entity/propose_fact/
+    // propose_causal_edge/propose_identity_verdict/propose_conflict_resolution) and is
+    // therefore stale against the current surface — a pre-existing failure to be
+    // resynced in a separate guard-refresh bead, not by E7.
     // This guards against accidentally flipping a write tool to mutates: false,
     // which would un-serialise it through the dispatcher's writeQueue.
     const EXPECTED_WRITE_TOOLS = new Set([
-      'create_causal_edge', 'create_fact', 'resolve_entity', 'link_entity_to_memory',
+      'create_fact', 'resolve_entity', 'link_entity_to_memory',
       'add_entity_alias', 'update_entity_summary', 'create_same_as_link', 'execute_merge',
       'resolve_candidate', 'expire_fact', 'invalidate_fact', 'restore_fact',
       'update_fact_confidence', 'expire_causal_edge', 'revise_causal_edge',
@@ -214,18 +219,23 @@ describe('Pi Agent Bridge: bridge module structure', () => {
     expect(source).toContain('req.destroy()');
   });
 
-  it('VALID_ACTORS is exported from causal-agent.ts and covers all 7 Actor values', () => {
+  it('VALID_ACTORS is exported from causal-agent.ts and covers all 8 Actor values', () => {
     // Bead nmemo-2yv.117 re-lock: the bridge re-uses the existing
     // VALID_ACTORS set rather than introducing a narrower KNOWN_ACTORS.  This
     // test pins the contract so a future caller of `handleToolCall` adding a
     // new agent type touches one place (causal-agent.ts) and the bridge picks
     // it up automatically.
+    //
+    // Epoch v2 (doc 41 §8a.4) added the 8th actor `extraction_proposer` — a
+    // valid MCP actor for tool-scoping that writes staging only (deliberately
+    // absent from migration 009's audit CHECK).
     expect(VALID_ACTORS).toBeInstanceOf(Set);
-    expect(VALID_ACTORS.size).toBe(7);
+    expect(VALID_ACTORS.size).toBe(8);
 
     const expected: ToolCallContext['agent'][] = [
       'graph_agent', 'reasoning_agent', 'gardener_agent',
       'reconciliation_agent', 'user', 'system_trigger', 'cascade',
+      'extraction_proposer',
     ];
     for (const actor of expected) {
       expect(VALID_ACTORS.has(actor), `expected VALID_ACTORS to include ${actor}`).toBe(true);

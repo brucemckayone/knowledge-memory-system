@@ -1,0 +1,20 @@
+{
+  "runId": "2026-06-09T09-02-15-350Z",
+  "timestamp": "2026-06-09T10:02:49.292Z",
+  "gitCommit": "bc379fa",
+  "corpus": "corpus20.json",
+  "chunkCount": 20,
+  "modes": [
+    "epoch"
+  ],
+  "orders": [
+    "forward",
+    "reverse"
+  ],
+  "concurrency": {
+    "epoch": "3",
+    "optimistic": "3"
+  },
+  "model": "glm-5-turbo",
+  "richSchemaVersion": 1
+}

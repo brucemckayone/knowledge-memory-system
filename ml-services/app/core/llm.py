@@ -70,6 +70,8 @@ TASK_DEFAULTS: Dict[str, Dict[str, str]] = {
     "extract_agentic":       {"model": "haiku",  "effort": "low"},
     "graph_agent":           {"model": "haiku",  "effort": "low"},
     "reconciliation_agent":  {"model": "haiku",  "effort": "low"},
+    "arbiter_agent":         {"model": "haiku",  "effort": "low"},
+    "causal_agent":          {"model": "haiku",  "effort": "low"},
     "gardener_agent":        {"model": "haiku",  "effort": "low"},
     "reasoning_agent":       {"model": "haiku",  "effort": "low"},
     "pattern_naming":        {"model": "haiku",  "effort": "low"},

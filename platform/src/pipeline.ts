@@ -8,10 +8,14 @@
 
 import { randomUUID, createHash } from 'crypto';
 import { ml } from './services/ml-client.js';
-import { storeMemory, storeMemoryWithUnits, getMemory } from './services/qdrant.js';
+import { storeMemoryWithUnits, getMemory } from './services/qdrant.js';
 import { config } from './config.js';
-import { invokeGraphAgent, invokeGardenerAgent, type ContentType } from './services/causal-agent.js';
+import { invokeGraphAgent, invokeGardenerAgent, type ContentType, type EpochContext } from './services/causal-agent.js';
 import { findOrCreateSpeaker } from './services/entities.js';
+import { promote } from './services/promotion.js';
+import { runCausalPass } from './services/causal-pass.js';
+import { prepareBatch, type BatchItem, type IngestMode } from './services/batch.js';
+import { mapWithConcurrency, withRetry, isRetryableAgentError } from './services/concurrency.js';
 import { recordGardeningRun } from './services/gardening.js';
 import { applyConfidenceDecay } from './services/causal.js';
 import { detectContradictions } from './services/contradictions.js';
@@ -29,6 +33,15 @@ export interface ExtractResult {
   timing: Record<string, number>;
   gardener?: { triggered: boolean; report?: string };
   reconciliation?: { triggered: boolean; candidateCount?: number; report?: string; skippedReason?: string };
+  /**
+   * Contradictions newly DETECTED during this chunk's SQL sweep (the `detected`
+   * count from {@link detectContradictions}). 0 when the sweep did not run on
+   * this chunk (it fires only every DECAY_RUN_INTERVAL graph-agent runs) or
+   * threw. Summed across chunks by the comparison harness and compared against
+   * the contradictions REFLECTED in the final table — the doc 39 §2.B
+   * detected-vs-reflected gap (nmemo-hm4.5).
+   */
+  contradictionsDetected: number;
 }
 
 // ============================================
@@ -389,7 +402,7 @@ export function mapFactToUnits(
  */
 export async function store(
   text: string,
-  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string }
+  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string; sourceId?: string; chunkIndex?: number }
 ): Promise<string> {
   const memoryId = randomUUID();
   const streamId = metadata?.streamId ?? DEFAULT_STREAM_ID;
@@ -421,6 +434,12 @@ export async function store(
         // source/content_type so standalone re-extraction (extract(memoryId))
         // recovers it, and so query-time metadata-scoped retrieval can filter.
         stream_id: streamId,
+        // Batch provenance (doc 38 §1): source_id groups all chunks of one
+        // batched source; chunk_index is the narration-order key the reconcile
+        // step uses for temporal alignment. Omitted for single-chunk ingest
+        // (backward compatible) so single ingest payloads are unchanged.
+        ...(metadata?.sourceId !== undefined ? { source_id: metadata.sourceId } : {}),
+        ...(metadata?.chunkIndex !== undefined ? { chunk_index: metadata.chunkIndex } : {}),
       },
     },
     units: units.map((u, i) => ({
@@ -607,6 +626,10 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
   // 4. Update graph meta (entity stats + merge candidate detection)
   let gardenerResult: { triggered: boolean; report?: string } | undefined;
   let reconciliationResult: ExtractResult['reconciliation'];
+  // Contradictions detected on this chunk's SQL sweep; stays 0 unless the
+  // periodic sweep runs below (and succeeds). Surfaced on ExtractResult so the
+  // harness can compute the detected-vs-reflected gap (nmemo-hm4.5).
+  let contradictionsDetected = 0;
   if (entityIds.length > 0) {
     const tMeta = Date.now();
     try {
@@ -695,6 +718,7 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
       const tContra = Date.now();
       try {
         const contraResult = await detectContradictions();
+        contradictionsDetected = contraResult.detected;
         const errorsPart = contraResult.errors
           ? ` errors=${JSON.stringify(contraResult.errors)}`
           : '';
@@ -708,7 +732,7 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
     }
   }
 
-  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing, gardener: gardenerResult, reconciliation: reconciliationResult };
+  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing, gardener: gardenerResult, reconciliation: reconciliationResult, contradictionsDetected };
 }
 
 /**
@@ -733,6 +757,357 @@ export async function ingest(
   extractResult.timing.total = Date.now() - totalStart;
   console.log(`${tag} done total=${extractResult.timing.total}ms`);
   return extractResult;
+}
+
+// ============================================
+// Batch ingestion (doc 38 — parallel ingestion)
+// ============================================
+
+export interface BatchIngestOptions {
+  source?: string;
+  /** Reuse an existing source id (e.g. re-ingest); otherwise one is generated. */
+  sourceId?: string;
+  contentType?: ContentType;
+  /** Which pipeline arm to run. Default 'serial' (the baseline control). */
+  mode?: IngestMode;
+  /**
+   * Max concurrent agent extractions for the parallel arms (epoch/optimistic).
+   * Per-run override; falls back to EPOCH_CONCURRENCY / OPTIMISTIC_CONCURRENCY
+   * env (default 6). Ignored by the serial arm. Lets the benchmark driver tune
+   * fan-out per run without a platform restart (e.g. throttle a rate-limited
+   * upstream model).
+   */
+  concurrency?: number;
+  /**
+   * Stream scope for speaker identity, applied to every chunk in the batch
+   * (one batch = one source = one conversational stream, doc 41 §12 #2). Threaded
+   * into each chunk's store() so extract()/propose() resolve the SAME per-stream
+   * USER/ASSISTANT speakers across all three arms. Defaults to DEFAULT_STREAM_ID
+   * downstream when omitted (backward compatible with non-conversational batches).
+   */
+  streamId?: string;
+}
+
+export interface BatchIngestResult {
+  sourceId: string;
+  mode: IngestMode;
+  chunkCount: number;
+  results: ExtractResult[];
+  timing: { total: number };
+}
+
+/**
+ * Baseline / control arm: store + extract each chunk strictly in chunk_index
+ * order. This is the serial FIFO behaviour the parallel arms are measured
+ * against (doc 38 §7) — deterministic, correct, slow.
+ *
+ * Extraction gets the SAME 503-backpressure retry as the epoch/optimistic arms
+ * (withRetry + isQueueFull). Without it the baseline was the only arm that turned
+ * a transient ML-service 503 into a hard 500 of the whole batch — even "serial"
+ * isn't single-flight against the ml-services pool (the gardener fires its own
+ * agent mid-run via extract()'s run counter), so the pool can momentarily
+ * saturate. That failure mode is an unfair-baseline artifact, not a property of
+ * the serial strategy. A non-retryable error still propagates (parity with the
+ * parallel arms).
+ */
+async function runSerialBatch(items: BatchItem[], _concurrency?: number): Promise<ExtractResult[]> {
+  const results: ExtractResult[] = [];
+  for (const item of items) {
+    const memoryId = await store(item.text, {
+      source: item.source,
+      sourceId: item.sourceId,
+      chunkIndex: item.chunkIndex,
+      contentType: item.contentType,
+      streamId: item.streamId,
+    });
+    results.push(
+      await withRetry(() => extract(memoryId, { contentType: item.contentType }), {
+        retries: 4,
+        isRetryable: isRetryableAgentError,
+        baseDelayMs: 500,
+      }),
+    );
+  }
+  return results;
+}
+
+/** Max concurrent agent extractions per batch — keep ≈ ML_LLM_WORKERS so the
+ *  pool absorbs the fan-out; excess returns 503 and we back off + retry. */
+const EPOCH_CONCURRENCY = Number.parseInt(process.env.EPOCH_CONCURRENCY ?? '6', 10);
+
+/**
+ * Phase 2 proposer (doc 41 §4; bead nmemo-vpz.3 / E3). The store-then-propose
+ * sibling of {@link extract} for the epoch arm: it runs the graph agent as the
+ * `extraction_proposer` actor with the chunk's epoch context, so the agent's
+ * server-side allow-list (E2) lets it write candidate entities/facts into STAGING
+ * via the `propose_*` tools but NOT to canonical. There is deliberately no
+ * canonical read-back here — promotion reads the staged rows by `epochId`. The
+ * prior-extraction-report continuity (nmemo-upn) is preserved.
+ *
+ * Proposer-specific PROMPT enforcement (no-CAUSE, "chunk N of M", mandatory
+ * valid_at-or-undated, VERIFY supersession hint — doc 41 §4) lands in E4: the ML
+ * service selects the proposer prompt from the `extraction_proposer` actor, and
+ * the chunk position rides the epoch context below. The allow-list (E2) is the
+ * structural backstop that keeps a proposer off canonical regardless.
+ */
+async function propose(
+  memoryId: string,
+  epoch: EpochContext,
+  opts?: { contentType?: ContentType },
+): Promise<void> {
+  const memory = await getMemory(memoryId);
+  if (!memory?.payload) throw new Error(`Memory ${memoryId} not found in Qdrant`);
+  const content = memory.payload.content as string;
+  const contentType: ContentType =
+    opts?.contentType ?? (memory.payload.content_type as ContentType | undefined) ?? 'prose';
+
+  // nmemo-3f9.2 (epoch arm): the proposer is the epoch arm's sibling of extract(),
+  // so it MUST get the same speaker anchor. Recover the stream scope from the
+  // stored payload and pre-resolve participants exactly as extract() does —
+  // otherwise first-person facts ("I", "you") get fuzzy-resolved per chunk instead
+  // of anchoring to the per-stream USER/ASSISTANT entities, and the epoch arm would
+  // silently lose stream-scoped speaker identity that the serial/optimistic arms keep.
+  const streamId = (memory.payload.stream_id as string | undefined) ?? DEFAULT_STREAM_ID;
+  const participants = await resolveStreamParticipants(streamId, content);
+
+  let previousReport: string | null = null;
+  try {
+    const priorRows = await db
+      .select({ reportText: extractionReports.reportText })
+      .from(extractionReports)
+      .where(sql`memory_id <> ${memoryId}::uuid`)
+      .orderBy(sql`created_at DESC`)
+      .limit(1);
+    previousReport = priorRows[0]?.reportText ?? null;
+  } catch (err) {
+    console.warn('[pipeline] propose: failed to fetch prior report (continuing):', err instanceof Error ? err.message : err);
+  }
+
+  const agentResult = await invokeGraphAgent({
+    sourceText: content,
+    memoryId,
+    source: memory.payload.source as string | undefined,
+    contentType,
+    previousReport,
+    actor: 'extraction_proposer',
+    epoch,
+    streamId,
+    participants: participants.block,
+  });
+
+  if (agentResult.result) {
+    void Promise.resolve(
+      db.insert(extractionReports).values({ memoryId, reportText: agentResult.result }),
+    ).catch((err) => {
+      console.warn('[pipeline] propose: failed to store extraction report:', err instanceof Error ? err.message : err);
+    });
+  }
+}
+
+/**
+ * Approach A — epoch / propose→promote (doc 41 §2, §5; bead nmemo-vpz.3 / E3).
+ *
+ * The rewrite of the old barrier-reconcile epoch arm. Agents are no longer
+ * authoritative writers: each chunk is STORED, then a parallel
+ * `extraction_proposer` (bounded + 503-retry) writes candidate entities/facts
+ * into per-epoch STAGING in clean isolation — nothing canonical changes
+ * mid-epoch, so read-skew dies by construction. At the doc-34 Rule-2 "all chunks
+ * of this source proposed" boundary — here, the end of the batch, since one batch
+ * is one source (doc 41 §12 #2) — the deterministic {@link promote} resolves
+ * identity, orders + supersedes by exclusive group, dedups triples, and writes
+ * canonical in ONE transaction.
+ *
+ * Order-independence is now a structural property (doc 41 §10), not an emergent
+ * hope: `promote(forward) == promote(reverse)` for the deterministic backbone.
+ * The old barrier reconcile (updateEntityMeta / detectMergeCandidates, and the
+ * filterLiveEntityIds FK band-aid that guarded it) does not run on this path —
+ * promotion is the single writer, so there is no concurrent-merge race to filter
+ * against (doc 41 §11, I6 retired; the band-aid was deleted entirely in E7).
+ */
+async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<ExtractResult[]> {
+  const limit = concurrency ?? EPOCH_CONCURRENCY;
+  const epochId = randomUUID();
+
+  // Phase 1: store all chunks (bounded — embeddings hit the Ollama pool too).
+  const stored = await mapWithConcurrency(items, limit, async (item) => ({
+    memoryId: await store(item.text, {
+      source: item.source,
+      sourceId: item.sourceId,
+      chunkIndex: item.chunkIndex,
+      contentType: item.contentType,
+      streamId: item.streamId,
+    }),
+    item,
+  }));
+
+  // Phase 2: parallel PROPOSE into staging (isolated — no canonical writes).
+  const tPropose = Date.now();
+  await mapWithConcurrency(stored, limit, ({ memoryId, item }) =>
+    withRetry(
+      () => propose(memoryId, { epochId, sourceId: item.sourceId, chunkIndex: item.chunkIndex, totalChunks: items.length }, { contentType: item.contentType }),
+      { retries: 4, isRetryable: isRetryableAgentError, baseDelayMs: 500 },
+    ),
+  );
+  const proposeMs = Date.now() - tPropose;
+
+  // Phase 3: PROMOTE — the deterministic authority writes canonical in one tx.
+  const tPromote = Date.now();
+  const result = await promote(epochId);
+  const promoteMs = Date.now() - tPromote;
+
+  // Phase 4: CAUSAL PASS — post-promotion, conditional, delta-scoped (doc 41 §6;
+  // E6). Deliberately AFTER promote() returns, not inside it: promote() stays
+  // deterministic + replayable; causality is built over the SETTLED canonical graph
+  // by the one agent that reads live canonical correctly (it runs when the graph is
+  // clean). Best-effort — promotion already committed, so a causal-pass failure must
+  // never fail the epoch (doc 41 §12 #9). runCausalPass self-skips when no trigger fires.
+  try {
+    const causal = await runCausalPass(epochId, result);
+    if (causal.ran) {
+      console.log(
+        `[epoch ${epochId.slice(0, 8)}] causal pass ran (${causal.decision.reasons.join('; ')}): ` +
+          `${causal.promotion?.created.length ?? 0} edge(s) promoted, ${causal.promotion?.dropped.length ?? 0} dropped`,
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[epoch ${epochId.slice(0, 8)}] causal pass failed (non-fatal):`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+
+  // Epoch-wide summary. Per-chunk attribution is gone (promotion is epoch-wide);
+  // the canonical graph the validity harness reads is the source of truth. Built
+  // from the plan + result with no re-query.
+  const refId = (ref: { kind: 'canonical'; id: string } | { kind: 'cluster'; key: string }): string =>
+    ref.kind === 'canonical' ? ref.id : (result.mintedEntityIds[ref.key] ?? ref.key);
+  const entities: ResolvedEntity[] = result.plan.entitiesToMint.map((e) => ({
+    id: result.mintedEntityIds[e.clusterKey] ?? e.clusterKey,
+    canonicalName: e.name,
+    entityType: e.type,
+    isNew: true,
+    confidence: 1,
+  }));
+  // insertedFactIds is aligned with plan.factsToInsert (applyPromotion pushes in
+  // that order), so pair before filtering to active.
+  const facts: CreatedFact[] = result.plan.factsToInsert
+    .map((f, i) => ({ f, id: result.insertedFactIds[i] ?? '(promoted)' }))
+    .filter(({ f }) => f.active)
+    .map(({ f, id }) => ({
+      id,
+      subject: refId(f.subjectRef),
+      predicate: f.predicate,
+      object: f.objectValue ?? (f.objectRef ? refId(f.objectRef) : ''),
+      confidence: f.confidence,
+    }));
+  return [
+    {
+      memoryId: stored[0]?.memoryId ?? '',
+      entities,
+      facts,
+      skipped: [],
+      filtered: [],
+      timing: { propose: proposeMs, promote: promoteMs },
+      contradictionsDetected: 0,
+    },
+  ];
+}
+
+const OPTIMISTIC_CONCURRENCY = Number.parseInt(process.env.OPTIMISTIC_CONCURRENCY ?? '6', 10);
+const OPTIMISTIC_RECONCILE_INTERVAL_MS = Number.parseInt(
+  process.env.OPTIMISTIC_RECONCILE_INTERVAL_MS ?? '3000',
+  10,
+);
+
+/**
+ * Approach B — continuous optimistic concurrency. Agents write the live graph
+ * in parallel (bounded + 503-retry) with NO barrier; a reconcile loop runs
+ * concurrently alongside them. Safe against in-flight writes via P1
+ * (uniq_facts_active_triple prevents duplicate facts; the racing INSERT is
+ * caught + corroborated in createFact) and P3 (facts.subject_entity_id
+ * RESTRICT — a merge racing a write rolls back instead of cascade-deleting,
+ * doc 05 Bug C). The agent recovers from a stale-entity write via the P2
+ * actionable MCP error ([entity_missing] → re-resolve).
+ */
+async function runOptimisticBatch(items: BatchItem[], concurrency?: number): Promise<ExtractResult[]> {
+  const limit = concurrency ?? OPTIMISTIC_CONCURRENCY;
+  // Phase 1: store all chunks (bounded).
+  const stored = await mapWithConcurrency(items, limit, async (item) => ({
+    memoryId: await store(item.text, {
+      source: item.source,
+      sourceId: item.sourceId,
+      chunkIndex: item.chunkIndex,
+      contentType: item.contentType,
+      streamId: item.streamId,
+    }),
+    item,
+  }));
+
+  // Concurrent reconcile loop — runs alongside extraction (no barrier).
+  let extracting = true;
+  const reconcileLoop = (async () => {
+    while (extracting) {
+      await new Promise((r) => setTimeout(r, OPTIMISTIC_RECONCILE_INTERVAL_MS));
+      if (!extracting) break;
+      try {
+        _resetReconciliationCooldown();
+        await maybeTriggerReconciliation();
+      } catch (err) {
+        console.warn('[optimistic] concurrent reconcile tick failed:', err instanceof Error ? err.message : err);
+      }
+    }
+  })();
+
+  // Phase 2: parallel agent extraction (continuous optimistic writes).
+  // try/finally guarantees the reconcile loop is stopped + awaited even if
+  // extraction throws — otherwise the loop (and this call) would hang.
+  let results: ExtractResult[];
+  try {
+    results = await mapWithConcurrency(stored, limit, ({ memoryId, item }) =>
+      withRetry(() => extract(memoryId, { contentType: item.contentType }), {
+        retries: 4,
+        isRetryable: isRetryableAgentError,
+        baseDelayMs: 500,
+      }),
+    );
+  } finally {
+    extracting = false;
+    await reconcileLoop;
+  }
+
+  // The post-hoc final reconcile sweep (updateEntityMeta / detectMergeCandidates /
+  // maybeTriggerReconciliation over the touched ids, filtered through the
+  // filterLiveEntityIds FK band-aid) was removed in E7 (doc 41 §11) along with the
+  // band-aid itself. The concurrent reconcile loop above already reconciles
+  // in-flight; the post-hoc sweep over possibly-merge-deleted ids was the only
+  // caller that needed the survivor filter.
+  return results;
+}
+
+/**
+ * Ingest a batch of chunks belonging to one source. Stores every chunk tagged
+ * with a shared `sourceId` + its `chunkIndex`, then runs the selected pipeline
+ * arm. `serial` is the comparison baseline; `epoch`/`optimistic` are the two
+ * candidate architectures under evaluation.
+ */
+export async function ingestBatch(
+  chunks: string[],
+  opts: BatchIngestOptions = {},
+): Promise<BatchIngestResult> {
+  const mode: IngestMode = opts.mode ?? 'serial';
+  const sourceId = opts.sourceId ?? randomUUID();
+  const tag = `[ingestBatch:${sourceId.slice(0, 8)}:${mode}]`;
+  const start = Date.now();
+  console.log(`${tag} start chunks=${chunks.length} source=${opts.source ?? 'unknown'}`);
+
+  const items = prepareBatch(chunks, { source: opts.source, sourceId, contentType: opts.contentType, streamId: opts.streamId });
+  const runner =
+    mode === 'serial' ? runSerialBatch : mode === 'epoch' ? runEpochBatch : runOptimisticBatch;
+  const results = await runner(items, opts.concurrency);
+
+  const total = Date.now() - start;
+  console.log(`${tag} done chunks=${chunks.length} results=${results.length} +${total}ms`);
+  return { sourceId, mode, chunkCount: chunks.length, results, timing: { total } };
 }
 
 // ============================================

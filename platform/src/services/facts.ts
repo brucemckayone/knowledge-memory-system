@@ -10,12 +10,14 @@
  * fact_history row in the same transaction as the mutation.
  */
 
+import { randomUUID } from 'node:crypto';
 import { db, type Tx } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
 import { facts, factPredicates, entities, causalEvents, factSources, type Fact, type FactSource } from '../db/schema.js';
 import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
 import { ml } from './ml-client.js';
 import { recordPredicateUsage } from './predicates.js';
+import { resolveExclusiveGroup, compareFactPrecedence, type FactPrecedence } from './exclusive-groups.js';
 import { recordFactChange, type Actor } from './audit.js';
 import { cascadeFactExpiry } from './causal.js';
 import type { SeveritySummary } from './impact.js';
@@ -142,89 +144,64 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     reasoning,
   } = params;
 
-  // Check if this predicate is exclusive
+  // Exclusive-group supersession gate (doc 41 §5c, bead nmemo-vpz.1 / E1). A
+  // fact participates in supersession when its predicate resolves to an
+  // exclusive GROUP in the shared ontology (cross-predicate, e.g.
+  // lives_in/relocated_to/headquartered_in → 'location') OR is flagged exclusive
+  // in the fact_predicates table (DB-registered exclusivity with no ontology
+  // group — matched by exact predicate). The union preserves DB-flagged
+  // exclusivity (living ontology, audit tests) while adding group awareness.
+  //
+  // We only COMPUTE the candidate set here (a read). The actual expiry runs
+  // after the dedup fast path AND the insert (below), so (a) an identical
+  // re-assertion corroborates instead of churning the group, and (b) the
+  // LATEST-VALID fact — not the last-COMMITTED one — stays active (nmemo-bsb).
+  const group = resolveExclusiveGroup(predicate);
   const predicateInfo = await getPredicateInfo(predicate);
+  const participatesInExclusiveGroup = group != null || predicateInfo?.isExclusive === true;
+  const supersedeCandidates = participatesInExclusiveGroup
+    ? await findSupersedingFacts(subjectEntityId, predicate, validAt, invalidAt)
+    : [];
 
-  if (predicateInfo?.isExclusive) {
-    const superseded = await findSupersedingFacts(
-      subjectEntityId,
-      predicate,
-      validAt,
-      invalidAt,
-    );
+  // Find the active fact for this triple (the dedup key). Used by the fast
+  // path below AND the P1 race-recovery path (doc 38).
+  const findActiveTriple = async (): Promise<{ id: string; confidence: number | null } | undefined> =>
+    (
+      await db
+        .select({ id: facts.id, confidence: facts.confidence })
+        .from(facts)
+        .where(and(
+          eq(facts.subjectEntityId, subjectEntityId),
+          eq(facts.predicate, predicate),
+          objectEntityId
+            ? eq(facts.objectEntityId, objectEntityId)
+            : eq(facts.objectValue, objectValue ?? ''),
+          isNull(facts.expiredAt),
+        ))
+        .limit(1)
+    )[0];
 
-    // Expire old facts that this one supersedes. The supersession is a side
-    // effect of the new write, so attribute it to 'cascade' with a reasoning
-    // string pointing at the parent mutation. Tag the fact_history row as
-    // event_type='superseded' (bead nmemo-2yv.31) so downstream consumers can
-    // tell "replaced by a newer specific assertion" apart from "genuine
-    // expiry" — both flowed through expireFact previously and collapsed onto
-    // the same 'expired' label.
-    for (const oldFact of superseded) {
-      await expireFact({
-        factId: oldFact.id,
-        reasoning: `Cascade: superseded by new fact for (${subjectEntityId}, ${predicate})`,
-        actor: 'cascade',
-        eventType: 'superseded',
-        reasoningReportId,
-      });
-    }
-  }
-
-  // Dedup: check for existing active fact with matching triple
-  const existingMatch = await db
-    .select({ id: facts.id, confidence: facts.confidence })
-    .from(facts)
-    .where(and(
-      eq(facts.subjectEntityId, subjectEntityId),
-      eq(facts.predicate, predicate),
-      objectEntityId
-        ? eq(facts.objectEntityId, objectEntityId)
-        : eq(facts.objectValue, objectValue ?? ''),
-      isNull(facts.expiredAt),
-    ))
-    .limit(1);
-
-  if (existingMatch[0]) {
-    // Exact match exists — corroborating observation. Don't overwrite the
-    // singleton sourceMemoryId (bead nmemo-2yv.32): instead append to the
-    // fact_sources one-to-many table, then emit an audit row when either
-    // (a) a brand-new source memory was added, OR (b) confidence rose.
-    //
-    // Audit semantics:
-    //   - confidence rose only           → 'confidence_raised'
-    //   - new source added, no Δconf     → 'revised' (evidence widened)
-    //   - both                           → 'confidence_raised' (the higher
-    //                                       signal — the new source is
-    //                                       captured in source_references)
-    //   - same source, same confidence   → fact_sources observation_count
-    //                                       bumps; no fact_history row
-    //                                       (no semantic change)
-    //
-    // Bead nmemo-2yv.29 atomicity property is preserved: a failed audit
-    // insert (e.g. CHECK violation on actor) rolls back the entire branch
-    // — both the confidence UPDATE and the fact_sources upsert.
-    const existing = existingMatch[0];
+  // Corroborate an existing active fact: append the source (fact_sources),
+  // raise confidence if higher, and emit one audit row.
+  //
+  // Audit semantics:
+  //   - confidence rose only           → 'confidence_raised'
+  //   - new source added, no Δconf     → 'revised' (evidence widened)
+  //   - both                           → 'confidence_raised'
+  //   - same source, same confidence   → observation_count bumps, no audit row
+  //
+  // Atomic — a failed audit insert rolls back the whole branch (bead
+  // nmemo-2yv.29). Extracted so the dedup fast path AND the unique-violation
+  // race-recovery path (P1) share one implementation.
+  const corroborate = async (existing: { id: string; confidence: number | null }): Promise<string> => {
     const prevConfidence = existing.confidence ?? 0;
     const nextConfidence = Math.max(prevConfidence, confidence);
-
     await db.transaction(async (tx) => {
-      const { added: sourceAdded } = await recordFactSource(
-        tx,
-        existing.id,
-        sourceMemoryId,
-        sourceText,
-        confidence,
-      );
-
+      const { added: sourceAdded } = await recordFactSource(tx, existing.id, sourceMemoryId, sourceText, confidence);
       const confidenceChanged = nextConfidence > prevConfidence;
       if (confidenceChanged) {
-        await tx
-          .update(facts)
-          .set({ confidence: nextConfidence })
-          .where(eq(facts.id, existing.id));
+        await tx.update(facts).set({ confidence: nextConfidence }).where(eq(facts.id, existing.id));
       }
-
       if (sourceAdded || confidenceChanged) {
         const eventType = confidenceChanged ? 'confidence_raised' : 'revised';
         const defaultReasoning = confidenceChanged
@@ -246,6 +223,12 @@ export async function createFact(params: CreateFactParams): Promise<string> {
       }
     });
     return existing.id;
+  };
+
+  // Dedup fast path: corroborate an existing active triple instead of inserting.
+  const existingMatch = await findActiveTriple();
+  if (existingMatch) {
+    return corroborate(existingMatch);
   }
 
   // Generate embedding for fact text
@@ -262,44 +245,108 @@ export async function createFact(params: CreateFactParams): Promise<string> {
   // source memory; the fact_sources row exists to support subsequent
   // corroborations (where source_memory_id would have been overwritten
   // under the old singleton schema).
-  const factId = await db.transaction(async (tx) => {
-    const [row] = await tx
-      .insert(facts)
-      .values({
-        subjectEntityId,
-        predicate,
-        objectEntityId,
-        objectValue,
-        validAt,
-        invalidAt,
-        sourceMemoryId,
-        sourceText,
-        extractionMethod,
-        confidence,
-      })
-      .returning({ id: facts.id });
+  // Mint the id up front (doc 41 §10): group supersession orders facts with a
+  // stable id as the final tiebreak, so the new fact needs a known id before we
+  // rank it against the prior actives in its group. A pre-minted id also keeps
+  // that tiebreak deterministic across forward/reverse ingestion.
+  const newId = randomUUID();
+  let factId: string;
+  try {
+    factId = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(facts)
+        .values({
+          id: newId,
+          subjectEntityId,
+          predicate,
+          objectEntityId,
+          objectValue,
+          validAt,
+          invalidAt,
+          sourceMemoryId,
+          sourceText,
+          extractionMethod,
+          confidence,
+        })
+        .returning({ id: facts.id });
 
-    if (!row) throw new Error('Failed to create fact');
+      if (!row) throw new Error('Failed to create fact');
 
-    await recordFactSource(tx, row.id, sourceMemoryId, sourceText, confidence);
+      await recordFactSource(tx, row.id, sourceMemoryId, sourceText, confidence);
 
-    await recordFactChange({
-      factId: row.id,
-      eventType: 'created',
-      newConfidence: confidence,
-      newValidAt: validAt,
-      newInvalidAt: invalidAt ?? null,
-      reasoning: reasoning ?? `Fact created by ${actor}`,
-      sourceReferences: sourceMemoryId
-        ? [{ type: 'memory', id: sourceMemoryId, relevance: sourceText ?? '' }]
-        : [],
-      actor,
-      reasoningReportId,
-      tx,
+      await recordFactChange({
+        factId: row.id,
+        eventType: 'created',
+        newConfidence: confidence,
+        newValidAt: validAt,
+        newInvalidAt: invalidAt ?? null,
+        reasoning: reasoning ?? `Fact created by ${actor}`,
+        sourceReferences: sourceMemoryId
+          ? [{ type: 'memory', id: sourceMemoryId, relevance: sourceText ?? '' }]
+          : [],
+        actor,
+        reasoningReportId,
+        tx,
+      });
+
+      return row.id;
     });
+  } catch (err) {
+    // P1 (doc 38): a concurrent writer inserted the same active triple between
+    // our dedup SELECT and this INSERT; the partial unique index
+    // uniq_facts_active_triple (mig 037) rejected the duplicate. Recover by
+    // corroborating the winning row instead of surfacing the error.
+    if ((err as { code?: string })?.code === '23505') {
+      const winner = await findActiveTriple();
+      if (winner) return corroborate(winner);
+    }
+    throw err;
+  }
 
-    return row.id;
-  });
+  // Group-aware supersession (doc 41 §5c, §10; bead nmemo-vpz.1 / E1). Among the
+  // overlapping prior actives in this exclusive group PLUS the fact we just
+  // inserted, exactly one — the LATEST-VALID — stays active; the rest expire as
+  // 'superseded'. Ordering is valid_at → chunk_index → confidence → stable id
+  // (compareFactPrecedence), independent of insertion order. Consequence: a
+  // back-dated arrival LOSES — it is recorded (already inserted) then
+  // immediately superseded by the later-valid incumbent, rather than wrongly
+  // displacing it (this is the nmemo-bsb "last-committed vs latest-valid" fix).
+  if (supersedeCandidates.length > 0) {
+    const ranked: FactPrecedence[] = [
+      ...supersedeCandidates.map((f) => ({ validAt: f.validAt, confidence: f.confidence, id: f.id })),
+      { validAt, confidence, id: factId },
+    ];
+    ranked.sort(compareFactPrecedence);
+    const winnerId = ranked[ranked.length - 1]!.id;
+    const groupLabel = group ?? predicate;
+
+    // Expire every prior active in the group except the winner. The reasoning
+    // string keeps the (subject, predicate) tuple so audit consumers can hop
+    // from the history row to the cause of the supersession (bead nmemo-2yv.31).
+    for (const old of supersedeCandidates) {
+      if (old.id === winnerId) continue;
+      await expireFact({
+        factId: old.id,
+        reasoning: `Cascade: superseded by new fact for (${subjectEntityId}, ${predicate}) [exclusive group '${groupLabel}', latest-valid kept]`,
+        actor: 'cascade',
+        eventType: 'superseded',
+        reasoningReportId,
+      });
+    }
+
+    // If the fact we just inserted is NOT the latest-valid, it loses to the
+    // incumbent: record it, then immediately supersede it. Keeps exactly one
+    // active per (subject, group) regardless of arrival order.
+    if (winnerId !== factId) {
+      await expireFact({
+        factId,
+        reasoning: `Cascade: superseded by new fact for (${subjectEntityId}, ${predicate}) [back-dated; later-valid fact ${winnerId} kept in exclusive group '${groupLabel}']`,
+        actor: 'cascade',
+        eventType: 'superseded',
+        reasoningReportId,
+      });
+    }
+  }
 
   // Store embedding if generated (skip if vector extension not available)
   if (embedding && embedding.length > 0) {
@@ -400,21 +447,39 @@ export async function findSupersedingFacts(
   validAt: Date,
   invalidAt?: Date,
 ): Promise<Fact[]> {
+  // Group-aware membership (doc 41 §9.1, bead nmemo-vpz.1). Resolve the new
+  // fact's exclusive group once, then consider EVERY active fact of the subject
+  // whose predicate resolves to the SAME group — not just an exact predicate
+  // string. This is the headline fix: lives_in / relocated_to / headquartered_in
+  // (all → 'location') now contend for the same single active slot, where before
+  // they coexisted. When the predicate is not in any group (a DB-registered
+  // exclusive predicate with no ontology entry), fall back to exact-predicate
+  // match so DB-flagged exclusivity still supersedes.
+  const group = resolveExclusiveGroup(predicate);
+
   const activeFacts = await db
     .select()
     .from(facts)
     .where(and(
       eq(facts.subjectEntityId, subjectId),
-      eq(facts.predicate, predicate),
       isNull(facts.expiredAt),
     ));
 
+  const newEnd = invalidAt || new Date('9999-12-31');
+
   return activeFacts.filter(fact => {
+    // Same exclusive group (or same exact predicate when ungrouped).
+    if (group != null) {
+      if (resolveExclusiveGroup(fact.predicate) !== group) return false;
+    } else if (fact.predicate !== predicate) {
+      return false;
+    }
+
+    // Temporal overlap (unchanged): two facts with disjoint closed validity
+    // intervals are distinct historical truths, not supersession candidates —
+    // only overlapping intervals contend for the single active slot.
     if (!fact.validAt) return true;
-
     const factEnd = fact.invalidAt || new Date('9999-12-31');
-    const newEnd = invalidAt || new Date('9999-12-31');
-
     return fact.validAt < newEnd && factEnd > validAt;
   });
 }

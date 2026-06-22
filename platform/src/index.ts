@@ -8,8 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve, sep } from 'node:path';
 import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
-import { ingest, store, extract, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
+import { Hono, type Context } from 'hono';
+import { ingest, store, extract, ingestBatch, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
+import type { IngestMode } from './services/batch.js';
 import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports } from './db/index.js';
 import { isNull, sql, eq } from 'drizzle-orm';
@@ -24,6 +25,18 @@ import { triggerCrossClusterAfterCompute } from './services/cross-cluster-genera
 import { getTopologySnapshot, getComponentEntities } from './services/topology.js';
 import { getClustersSnapshot, getClusterEntities } from './services/clustering.js';
 import { getDriftEvents, getDriftState } from './services/drift.js';
+import { exportCanonicalGraph, exportRichGraph } from './services/graph-canonical-query.js';
+import { Agent, setGlobalDispatcher } from 'undici';
+
+// The platform makes long synchronous fetches to the ml-services agent endpoints
+// (graph / reconciliation / gardener — each a `claude -p` subprocess that can run
+// minutes). undici's default 300s headersTimeout fires before our per-call
+// AbortController watchdog, surfacing as UND_ERR_HEADERS_TIMEOUT ("fetch failed")
+// and aborting batch post-processing (e.g. the optimistic arm's reconcile/gardener
+// auto-trigger -> 500). Disable the client response timeouts process-wide; the
+// AbortController in agentFetch/mlFetch still bounds each call. Mirrors the
+// comparison driver's dispatcher. See nmemo-1tc.
+setGlobalDispatcher(new Agent({ headersTimeout: 0, bodyTimeout: 0 }));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const vizHtmlPath = join(__dirname, '../viz/index.html');
@@ -95,6 +108,40 @@ app.get('/ingest/queue/status', (c) => {
   // generator polls this to know when a queued chunk has finished ingesting.
   return c.json(getIngestQueueStatus());
 });
+
+// Batch ingestion (doc 38) — one batched source, chunks tagged with source_id +
+// chunk_index. `mode` selects the pipeline arm under comparison: serial (the
+// baseline control), epoch (Approach A), optimistic (Approach B). epoch and
+// optimistic return 501 until their orchestrators land (Stage 3/4).
+async function handleBatch(c: Context, mode: IngestMode) {
+  const body = await c.req.json<{ chunks?: string[]; source?: string; contentType?: string; concurrency?: number }>();
+  if (!Array.isArray(body.chunks) || body.chunks.length === 0) {
+    return c.json({ error: 'chunks (non-empty array) is required' }, 400);
+  }
+  // Per-run concurrency override for the parallel arms (epoch/optimistic); only a
+  // positive integer is honoured, else the arm falls back to its env default.
+  const concurrency =
+    typeof body.concurrency === 'number' && Number.isInteger(body.concurrency) && body.concurrency > 0
+      ? body.concurrency
+      : undefined;
+  try {
+    const result = await ingestBatch(body.chunks, {
+      source: body.source,
+      contentType: parseContentType(body.contentType),
+      mode,
+      concurrency,
+    });
+    return c.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/not implemented/i.test(msg)) return c.json({ error: msg }, 501);
+    throw err;
+  }
+}
+
+app.post('/ingest/batch/serial', (c) => handleBatch(c, 'serial'));
+app.post('/ingest/batch/epoch', (c) => handleBatch(c, 'epoch'));
+app.post('/ingest/batch/optimistic', (c) => handleBatch(c, 'optimistic'));
 
 // ============================================
 // Viz routes
@@ -423,6 +470,21 @@ app.get('/api/viz/unified', async (c) => {
   }
 
   return c.json({ nodes, edges });
+});
+
+// Content-addressed canonical graph (doc 38) — the parallel-ingestion harness
+// fetches this after each run to diff structure (determinism/litmus) + counts.
+// UUID/timestamp-free, so two runs of the same corpus are comparable.
+app.get('/api/graph/canonical', async (c) => {
+  return c.json(await exportCanonicalGraph());
+});
+
+// Rich graph dump (doc 39 §3.1) — the validity & quality harness fetches this:
+// expired facts (supersession audit), causal edge reasoning + source_references,
+// contradictions, same_as, and the agents' reports. A superset of
+// /api/graph/canonical, which intentionally strips those for byte-comparability.
+app.get('/api/graph/full', async (c) => {
+  return c.json(await exportRichGraph());
 });
 
 app.get('/api/viz/merge-candidates', async (c) => {
