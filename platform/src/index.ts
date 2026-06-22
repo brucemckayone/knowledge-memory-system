@@ -114,7 +114,7 @@ app.get('/ingest/queue/status', (c) => {
 // baseline control), epoch (Approach A), optimistic (Approach B). epoch and
 // optimistic return 501 until their orchestrators land (Stage 3/4).
 async function handleBatch(c: Context, mode: IngestMode) {
-  const body = await c.req.json<{ chunks?: string[]; source?: string; contentType?: string; concurrency?: number }>();
+  const body = await c.req.json<{ chunks?: string[]; source?: string; contentType?: string; concurrency?: number; stream_id?: string }>();
   if (!Array.isArray(body.chunks) || body.chunks.length === 0) {
     return c.json({ error: 'chunks (non-empty array) is required' }, 400);
   }
@@ -130,6 +130,10 @@ async function handleBatch(c: Context, mode: IngestMode) {
       contentType: parseContentType(body.contentType),
       mode,
       concurrency,
+      // nmemo-3f9.2: thread the batch-level stream scope so every chunk's
+      // store()/extract()/propose() resolves the same per-stream USER/ASSISTANT
+      // speakers across all three arms (one batch = one stream).
+      streamId: body.stream_id,
     });
     return c.json(result);
   } catch (err) {

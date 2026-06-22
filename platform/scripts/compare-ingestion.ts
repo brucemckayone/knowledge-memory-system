@@ -83,6 +83,13 @@ const repeats = Math.max(1, Math.trunc(Number(arg('repeats', '1'))) || 1);
 // rate-limited upstream model without a platform restart.
 const concurrencyArg = Number(arg('concurrency'));
 const concurrency = Number.isInteger(concurrencyArg) && concurrencyArg > 0 ? concurrencyArg : undefined;
+// --stream <id> (nmemo-3f9.2): batch-level stream scope for speaker identity. When
+// set, every chunk ingests as one conversational stream, so the epoch/optimistic
+// arms exercise CONCURRENT stream-scoped speaker resolution (findOrCreateSpeaker
+// under fan-out) — the streams-under-concurrency determinism gate. --content-type
+// selects the extraction prompt variant ('conversational' = speaker-aware prompt).
+const streamId = arg('stream');
+const contentType = arg('content-type');
 // Agent review (doc 39 §2.D, nmemo-hm4.7) — OFF by default. When on, a STRONG
 // judge model reviews each forward arm AFTER the artifacts are captured. A plain
 // run never calls the judge. --judge-model overrides the model (provider/model,
@@ -148,6 +155,8 @@ async function ingestAndCapture(
     chunks: orderedChunks,
     source: `compare-${mode}`,
     ...(concurrency !== undefined ? { concurrency } : {}),
+    ...(streamId !== undefined ? { stream_id: streamId } : {}),
+    ...(contentType !== undefined ? { contentType } : {}),
   });
   if (!res.ok) {
     // Read + surface the error body (capped) so the actual platform failure is
