@@ -78,6 +78,29 @@ export async function mintPredicateCandidate(
   };
 }
 
+export interface PredicateMatch {
+  predicate: string;
+  description: string | null;
+  similarity: number;
+}
+
+/** Rank existing registry predicates by enriched-embedding similarity to a query
+ * relation phrase. Backs the propose-time `search_predicates` MCP tool (PC5): a
+ * read-only reuse hint so the proposer reuses a canonical instead of inventing a
+ * near-duplicate. Returns [] if no predicates carry embeddings yet. */
+export async function searchPredicates(query: string, limit = 8): Promise<PredicateMatch[]> {
+  const vec = await embedPredicateText(query);
+  const lit = sql.raw(`'${toVectorLiteral(vec)}'::vector`);
+  const rows = await rawQuery<{ predicate: string; description: string | null; similarity: number }>(sql`
+    SELECT predicate, description, 1 - (embedding <=> ${lit}) AS similarity
+    FROM public.fact_predicates
+    WHERE embedding IS NOT NULL AND status <> 'rejected'
+    ORDER BY embedding <=> ${lit}
+    LIMIT ${limit}
+  `);
+  return rows.map((r) => ({ predicate: r.predicate, description: r.description, similarity: Number(r.similarity) }));
+}
+
 export interface CanonicalizeStats {
   reused: number;
   minted: number;

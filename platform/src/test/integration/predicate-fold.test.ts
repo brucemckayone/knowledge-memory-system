@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { testDb, skipCtx, isMLServiceAvailable, hasVectorExtension } from '../setup.js';
 import { promote } from '../../services/promotion.js';
 import { backfillPredicateEmbeddings } from '../../services/predicate-embeddings.js';
+import { searchPredicates } from '../../services/predicate-resolve.js';
 
 const TAG = 'predfold';
 const MINTED = 'enjoys_hiking_with';
@@ -122,6 +123,17 @@ describe('PC4 — promote-time predicate fold', () => {
     const active = facts.filter((f) => f.active);
     expect(active.length).toBe(1);
     expect(active[0]!.object_value).toBe('Senior Engineer');
+  });
+
+  // PC5: the search_predicates reuse hint ranks existing canonicals for a
+  // relation phrase (read-only; shares the fold's registry + embeddings).
+  it('search_predicates ranks the right canonical for a relation phrase', async () => {
+    const employ = await searchPredicates('is employed by', 5);
+    expect(employ.map((m) => m.predicate)).toContain('works_at');
+    const reside = await searchPredicates('is based in', 5);
+    expect(reside.map((m) => m.predicate)).toContain('lives_in');
+    // ranked by descending similarity
+    expect(employ[0]!.similarity).toBeGreaterThanOrEqual(employ[employ.length - 1]!.similarity);
   });
 
   it('mints a candidate for a genuinely novel relation', async () => {

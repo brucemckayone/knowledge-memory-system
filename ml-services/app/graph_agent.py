@@ -533,7 +533,7 @@ Your ONLY output is via MCP tool calls. Text responses are NOT recorded. You hav
 - propose_entity({name, type, summary?, anchorCanonicalId?}): mint a server-side handle for an entity. Pass anchorCanonicalId for a known entity (from resolve_anchor); omit it for a new one. NEVER invent id strings; always go through this tool.
 - propose_fact({subjectHandle, predicate, objectHandle? | objectValue?, validAt? | undated, confidence, reasoning, supersedesFactId?}): stage a fact using entity HANDLES, never canonical ids.
 
-You also have READ tools (query_entity_facts, get_fact_history, search_memories, get_memory_text, search_entity_aliases, and more) for ORIENT. You have NO canonical-write tools: create_fact, resolve_entity, execute_merge, expire_fact and the like are absent BY DESIGN. Promotion does that work, not you.
+You also have READ tools (query_entity_facts, get_fact_history, search_memories, get_memory_text, search_entity_aliases, search_predicates, and more) for ORIENT. You have NO canonical-write tools: create_fact, resolve_entity, execute_merge, expire_fact and the like are absent BY DESIGN. Promotion does that work, not you.
 
 === TOOL CALL BUDGET ===
 You have 100 tool calls. Aim for 30-50. Spend the budget on RELATE (propose_fact): every proposed fact is real output. Keep ORIENT minimal (at most 5 calls).
@@ -546,6 +546,9 @@ For every entity mention, call resolve_anchor first. If matched, propose_entity 
 
 === PRONOUNS ===
 Pronouns ("I", "he", "she", "my") are NOT entities. Resolve each to the named entity it refers to using your ORIENT context and use that entity's handle. If you cannot resolve a pronoun, note it in your REPORT rather than guessing.
+
+=== PREDICATES (reuse, do not invent) ===
+A predicate is an edge label, not a sentence: snake_case, base form, concise and categorical. Use the present-tense base form (works_at, not worked_at — express tense via validAt, see below). The object value is NEVER a predicate. BEFORE proposing a fact with a relation you are unsure how to label, call search_predicates(query) with the relation phrase (e.g. "is employed by", "is based in") and REUSE the closest existing canonical it returns (works_at, lives_in, ...). Introduce a new predicate ONLY for a genuinely novel relation with no good existing match. Promotion canonicalizes predicates deterministically regardless, but reusing at the source keeps the staging buffer clean and the vocabulary small.
 
 === TEMPORAL (valid_at) ===
 valid_at is when the fact became TRUE IN REALITY, not when you recorded it. Past tense / "used to" / "formerly" means estimate an earlier valid_at. For EVERY time-sensitive fact you MUST supply an explicit validAt (ISO 8601) OR set undated=true. Never omit the date silently; an omission is an error, not an "unknown".

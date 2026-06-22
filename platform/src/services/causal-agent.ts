@@ -53,6 +53,7 @@ import {
 import { ml } from './ml-client.js';
 import { config } from '../config.js';
 import { normalizePredicate } from './predicates.js';
+import { searchPredicates } from './predicate-resolve.js';
 import { RESOLUTION_VALUES } from './enums.js';
 import { capAndSanitize, delimitForPrompt } from './prompt-safety.js';
 
@@ -449,6 +450,26 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         query: {
           type: 'string',
           description: 'The reference text to search for (e.g. "the stranger", "captain", "narrator")',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'search_predicates',
+    description:
+      'Search the canonical predicate registry for existing relationship predicates similar to a relation you are about to propose, so you REUSE an existing canonical instead of inventing a near-duplicate (e.g. find that "is employed by" should be "works_at"). Returns ranked {predicate, description, similarity}. Use during RELATE before propose_fact whenever you are unsure which predicate label to use.',
+    mutates: false,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The relationship phrase or candidate predicate to look up (e.g. "works for", "is employed by", "lives in").',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max results to return (default 8).',
         },
       },
       required: ['query'],
@@ -1934,6 +1955,13 @@ async function _handleToolCallInner(
         })
         .onConflictDoNothing();
       return JSON.stringify({ added: true });
+    }
+
+    case 'search_predicates': {
+      const query = toolInput.query as string;
+      const limit = typeof toolInput.limit === 'number' ? toolInput.limit : 8;
+      const matches = await searchPredicates(query, limit);
+      return JSON.stringify({ predicates: matches });
     }
 
     case 'search_entity_aliases': {
