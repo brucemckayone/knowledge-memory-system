@@ -614,15 +614,32 @@ class PiBridgeProvider:
     # -- internal helpers ---------------------------------------------------
 
     def _resolve(self, key: str, options: Optional[Dict] = None) -> str:
-        """Resolve a setting: explicit option > task default > Pi default."""
+        """Resolve a setting: explicit option > task default > Pi default.
+
+        IMPORTANT: TASK_DEFAULTS hold Claude Code model names
+        (haiku/sonnet/opus). The Pi/zai (GLM) backend has no models by those
+        names, so for the ``model`` key we DELIBERATELY skip the task default
+        and fall back to the Pi default (``PI_MODEL`` env, else ``glm-5.1``)
+        unless the caller passes an explicit, Pi-compatible ``options["model"]``.
+        Previously the task default leaked through and the bridge asked zai for
+        a model literally named ``haiku`` → "Model not found: provider=zai
+        id=haiku", which broke every task with a TASK_DEFAULTS entry (graph_agent,
+        classify, extract_entities, ...) on the pi harness.
+
+        The ``effort`` task default is still honoured — it maps to a Pi thinking
+        level via ``_map_effort`` and is provider-independent.
+        """
         if options and options.get(key):
             return str(options[key])
-        task = (options or {}).get("task", "")
-        task_defaults = TASK_DEFAULTS.get(task, {})
-        if key in task_defaults:
-            return task_defaults[key]
-        # Pi defaults
-        pi_defaults = {"model": "glm-5.1", "provider": "zai"}
+        # Claude-specific model names in TASK_DEFAULTS are meaningless to the
+        # zai/GLM backend — only consult task defaults for non-model keys.
+        if key != "model":
+            task = (options or {}).get("task", "")
+            task_defaults = TASK_DEFAULTS.get(task, {})
+            if key in task_defaults:
+                return task_defaults[key]
+        # Pi defaults (model is env-overridable to swap GLM versions w/o code change).
+        pi_defaults = {"model": os.getenv("PI_MODEL", "glm-5.1"), "provider": "zai"}
         return pi_defaults.get(key, "")
 
     def _map_effort(self, options: Optional[Dict] = None) -> str:
