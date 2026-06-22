@@ -99,7 +99,7 @@ function correctnessReport(): CorrectnessReport {
       { subject: 'Elena Vasquez', group: 'role_title', expectedObject: 'chief technology officer', actualObjects: ['junior software engineer', 'senior engineer', 'cto'], pass: false },
       { subject: 'Helix', group: 'org_hq', expectedObject: 'austin', actualObjects: ['austin'], pass: true },
     ],
-    predicateSprawl: [{ group: 'role_title', predicateCount: 4, predicates: ['job_title', 'title', 'role_at', 'cto_at'] }],
+    predicateSprawl: [{ subject: 'elena vasquez', group: 'role_title', predicateCount: 4, predicates: ['job_title', 'title', 'role_at', 'cto_at'] }],
     missingEntities: [],
     extraEntities: ['Mystery Corp'],
     missingFacts: [],

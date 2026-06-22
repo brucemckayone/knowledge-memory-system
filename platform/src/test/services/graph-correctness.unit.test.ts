@@ -83,7 +83,10 @@ describe('scoreAgainstGold — perfect match', () => {
       ],
       exclusiveExpectations: [
         { subject: 'Elena Vasquez', group: 'role_title', expectedObject: 'chief technology officer' },
-        { subject: 'Helix Robotics', group: 'org_hq', expectedObject: 'Austin' },
+        // 'org_hq' was merged into the 'location' group (exclusive-groups.ts:61,
+        // "the former org_hq group"); this fixture lagged the rename (pre-existing
+        // failure, unrelated to PC8 — surfaced while adding subject-aware sprawl).
+        { subject: 'Helix Robotics', group: 'location', expectedObject: 'Austin' },
         { subject: 'Elena Vasquez', group: 'works_at', expectedObject: 'Helix Robotics' },
       ],
     };
@@ -160,8 +163,33 @@ describe('scoreAgainstGold — Elena with 5 active titles', () => {
     // predicate sprawl: many distinct predicates folded into one group.
     expect(report.predicateSprawl).toHaveLength(1);
     const sprawl = report.predicateSprawl[0]!;
+    expect(sprawl.subject).toBe('elena vasquez');
     expect(sprawl.group).toBe('role_title');
     expect(sprawl.predicateCount).toBe(5);
+  });
+
+  it('does NOT count two different subjects in one coarse group as sprawl', () => {
+    // A person's residence (lives_in) and an org's HQ (headquartered_in) both
+    // resolve to the coarse `location` exclusive group, but they are DIFFERENT
+    // subjects each with ONE predicate — not sprawl. A subject-blind metric
+    // would wrongly report this as predicateSprawl=2 (the PC8 finding).
+    const aliceId = 'alice';
+    const acmeId = 'acme';
+    const g = graph({
+      entities: [entity(aliceId, 'Alice'), entity(acmeId, 'Acme Corp')],
+      facts: [
+        fact({ subjectEntityId: aliceId, predicate: 'lives_in', objectValue: 'Boston' }),
+        fact({ subjectEntityId: acmeId, predicate: 'headquartered_in', objectValue: 'Austin' }),
+      ],
+    });
+    const gold: GoldGraph = {
+      corpus: 'test',
+      entities: [{ name: 'Alice', type: 'person' }, { name: 'Acme Corp', type: 'organization' }],
+      currentFacts: [],
+      exclusiveExpectations: [],
+    };
+    const report = scoreAgainstGold(g, gold);
+    expect(report.predicateSprawl).toHaveLength(0);
   });
 });
 

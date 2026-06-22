@@ -36,7 +36,9 @@ from tests.ontology_test_data import (
     ADVERSARIAL_PAIRS,
     INVERSE_PAIRS,
     NATURAL_LANGUAGE_PREDICATES,
+    NOISE_PREDICATES,
 )
+from app.predicate_scoring import MERGE_THRESHOLD
 
 import ollama
 
@@ -133,6 +135,32 @@ def test_b19_nl_mapping_accuracy() -> float:
     acc = correct / len(NATURAL_LANGUAGE_PREDICATES)
     assert acc >= 0.85, f"NL mapping accuracy {acc:.3f} < 0.85 ({correct}/{len(NATURAL_LANGUAGE_PREDICATES)})"
     return acc
+
+
+def measure_b8_noise_rejection() -> float:
+    """B8: noise predicates should NOT merge into a canonical (max combined <
+    merge_t -> minted/rejected). Reported, not gated (doc 42 §9): the recovery
+    lever for the noisy near-duplicates (sort_of_works_at, basically_knows) is
+    prefix-stripping, which is a known follow-up, not the multi-signal score."""
+    canonicals = list(ONTOLOGY.keys())
+    canon_emb = {c: embed_enriched(c, ONTOLOGY[c]["description"]) for c in canonicals}
+    rejected = 0
+    leaks = []
+    for noise in NOISE_PREDICATES:
+        ne = embed_enriched(noise["label"], noise["desc"])
+        tp = _get_type_pair(noise["label"])
+        best = max(
+            multi_signal_score(noise["label"], tp, ne, c, _get_type_pair(c), canon_emb[c])["combined"]
+            for c in canonicals
+        )
+        if best < MERGE_THRESHOLD:
+            rejected += 1
+        else:
+            leaks.append((noise["label"], round(best, 4)))
+    rate = rejected / len(NOISE_PREDICATES)
+    if leaks:
+        print(f"    B8 leaks (merge >= {MERGE_THRESHOLD}): {leaks}")
+    return rate
 
 
 def test_normalization_pure() -> None:
@@ -238,6 +266,9 @@ def main() -> int:
     print(f"  [PASS] B12: {n_inv} inverse pairs blocked by the guard")
     acc = test_b19_nl_mapping_accuracy()
     print(f"  [PASS] B9/B19: NL mapping accuracy {acc:.1%} (>= 85%)")
+    b8 = measure_b8_noise_rejection()
+    mark = "PASS" if b8 >= 0.80 else "REPORT"
+    print(f"  [{mark}] B8: noise auto-reject rate {b8:.1%} (target >=80%, report-only per doc 42 §9)")
     if _endpoint_available():
         test_endpoint_smoke()
         print(f"  [PASS] endpoint smoke: alias->canonical, novel->mint, inverse->keep-separate ({_RESOLVE_BASE})")

@@ -74,8 +74,14 @@ export interface ExpectationResult {
   pass: boolean;
 }
 
-/** Distinct active predicates folded into one exclusive group (>1 = sprawl). */
+/** Distinct active predicates a SINGLE subject holds in one exclusive group
+ * (>1 = real sprawl: the same subject's one logical relation split across
+ * several predicate strings). Keyed per-subject so it agrees with the
+ * subject-aware `singleActivePerExclusiveGroup` invariant — two DIFFERENT
+ * subjects each holding a different predicate in the same coarse group (a
+ * person's `lives_in` and an org's `headquartered_in`) is NOT sprawl. */
 export interface SprawlEntry {
+  subject: string;
   group: string;
   predicateCount: number;
   predicates: string[];
@@ -254,18 +260,24 @@ export function scoreAgainstGold(graph: RichGraph, gold: GoldGraph): Correctness
   const currentStateCorrectness =
     expectations.length === 0 ? 1 : expectations.filter((e) => e.pass).length / expectations.length;
 
-  // --- predicate sprawl (per exclusive group present, distinct predicates) ---
+  // --- predicate sprawl (per SUBJECT+group, distinct predicate strings) ---
+  // Keyed on (subject, group), not group alone: real sprawl is one subject
+  // expressing one logical relation under several predicate strings. Two
+  // different subjects each in the same coarse group (a person `lives_in`, an
+  // org `headquartered_in`) is not sprawl — and a subject-blind count would
+  // disagree with the `singleActivePerExclusiveGroup` invariant.
   const predicateSprawl: SprawlEntry[] = [];
-  const groupPredicates = new Map<string, Set<string>>();
+  const subjGroupPredicates = new Map<string, { subject: string; group: string; preds: Set<string> }>();
   for (const p of activeProjected) {
     const group = resolveExclusiveGroup(p.predicate);
     if (group == null) continue;
-    const set = groupPredicates.get(group) ?? new Set<string>();
-    set.add(norm(p.predicate));
-    groupPredicates.set(group, set);
+    const key = `${norm(p.subject)} :: ${group}`;
+    const entry = subjGroupPredicates.get(key) ?? { subject: norm(p.subject), group, preds: new Set<string>() };
+    entry.preds.add(norm(p.predicate));
+    subjGroupPredicates.set(key, entry);
   }
-  for (const [group, preds] of groupPredicates) {
-    if (preds.size > 1) predicateSprawl.push({ group, predicateCount: preds.size, predicates: [...preds] });
+  for (const { subject, group, preds } of subjGroupPredicates.values()) {
+    if (preds.size > 1) predicateSprawl.push({ subject, group, predicateCount: preds.size, predicates: [...preds] });
   }
 
   return {
