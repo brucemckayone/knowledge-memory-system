@@ -71,20 +71,31 @@ describe('Pi Agent Bridge: tool conversion', () => {
   });
 
   it('expected write tools are flagged mutates: true', () => {
-    // The original design-decision write tools (bead .113), minus create_causal_edge
-    // (the per-chunk CAUSE write tool retired in E7, doc 41 §11). NOTE: this curated
-    // list predates the E2-E6 staging-write tools (propose_entity/propose_fact/
-    // propose_causal_edge/propose_identity_verdict/propose_conflict_resolution) and is
-    // therefore stale against the current surface — a pre-existing failure to be
-    // resynced in a separate guard-refresh bead, not by E7.
-    // This guards against accidentally flipping a write tool to mutates: false,
-    // which would un-serialise it through the dispatcher's writeQueue.
+    // The full current write surface (mutates: true). This guards against
+    // accidentally flipping a write tool to mutates: false, which would
+    // un-serialise it through the dispatcher's writeQueue and risk a DB race.
+    //
+    // Resynced from the original design-decision list (bead .113): create_causal_edge
+    // was retired in E7 (doc 41 §11); the E2-E6 staging-write tools (propose_entity/
+    // propose_fact/propose_causal_edge/propose_identity_verdict/propose_conflict_resolution)
+    // and create_contradiction were added since and now belong here. List derived
+    // from `GRAPH_TOOLS.filter(t => t.mutates)` — keep it in lockstep with the
+    // tool definitions in causal-agent.ts.
     const EXPECTED_WRITE_TOOLS = new Set([
+      // Canonical entity/fact writes
       'create_fact', 'resolve_entity', 'link_entity_to_memory',
       'add_entity_alias', 'update_entity_summary', 'create_same_as_link', 'execute_merge',
       'resolve_candidate', 'expire_fact', 'invalidate_fact', 'restore_fact',
-      'update_fact_confidence', 'expire_causal_edge', 'revise_causal_edge',
-      'resolve_contradiction', 'save_reasoning_report',
+      'update_fact_confidence',
+      // Causal-edge writes
+      'expire_causal_edge', 'revise_causal_edge',
+      // Contradiction writes
+      'create_contradiction', 'resolve_contradiction',
+      // Reasoning report write
+      'save_reasoning_report',
+      // E2-E6 staging-write tools (doc 41 §8a) — write staging, never canonical
+      'propose_entity', 'propose_fact', 'propose_causal_edge',
+      'propose_identity_verdict', 'propose_conflict_resolution',
     ]);
 
     const actualWriteTools = new Set(
@@ -219,23 +230,24 @@ describe('Pi Agent Bridge: bridge module structure', () => {
     expect(source).toContain('req.destroy()');
   });
 
-  it('VALID_ACTORS is exported from causal-agent.ts and covers all 8 Actor values', () => {
+  it('VALID_ACTORS is exported from causal-agent.ts and covers all 9 Actor values', () => {
     // Bead nmemo-2yv.117 re-lock: the bridge re-uses the existing
     // VALID_ACTORS set rather than introducing a narrower KNOWN_ACTORS.  This
     // test pins the contract so a future caller of `handleToolCall` adding a
     // new agent type touches one place (causal-agent.ts) and the bridge picks
     // it up automatically.
     //
-    // Epoch v2 (doc 41 §8a.4) added the 8th actor `extraction_proposer` — a
-    // valid MCP actor for tool-scoping that writes staging only (deliberately
-    // absent from migration 009's audit CHECK).
+    // Seven actors mirror migration 009's audit CHECK. Two staging-only MCP
+    // actors are valid for tool-scoping but DELIBERATELY absent from the audit
+    // CHECK (they write staging, never canonical): `extraction_proposer`
+    // (epoch v2, doc 41 §8a.4) and `causal_agent` (epoch v2 E6, doc 41 §8a.6).
     expect(VALID_ACTORS).toBeInstanceOf(Set);
-    expect(VALID_ACTORS.size).toBe(8);
+    expect(VALID_ACTORS.size).toBe(9);
 
     const expected: ToolCallContext['agent'][] = [
       'graph_agent', 'reasoning_agent', 'gardener_agent',
       'reconciliation_agent', 'user', 'system_trigger', 'cascade',
-      'extraction_proposer',
+      'extraction_proposer', 'causal_agent',
     ];
     for (const actor of expected) {
       expect(VALID_ACTORS.has(actor), `expected VALID_ACTORS to include ${actor}`).toBe(true);
