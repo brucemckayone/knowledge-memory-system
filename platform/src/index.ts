@@ -12,8 +12,10 @@ import { Hono, type Context } from 'hono';
 import { ingest, store, extract, ingestBatch, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
 import type { IngestMode } from './services/batch.js';
 import { config } from './config.js';
-import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports } from './db/index.js';
+import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, captureIdempotency } from './db/index.js';
 import { isNull, sql, eq } from 'drizzle-orm';
+import { heroRoute } from './routes/hero.js';
+import { notificationsHandler } from './routes/notifications.js';
 import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
@@ -43,6 +45,39 @@ const vizHtmlPath = join(__dirname, '../viz/index.html');
 
 export const app = new Hono();
 
+// ============================================
+// iOS API v1 — bearer auth over /api/* (ASK milestone-1)
+// ============================================
+// Scoped to the /api/* prefix ONLY. /health and the pipeline routes
+// (/ingest, /store, /extract) are intentionally NOT under /api and stay
+// tokenless — dev over http and every existing endpoint test keep working.
+//
+// Policy (env-driven, read at request time so tests can flip it per-case):
+//   AUTH_REQUIRED unset/false (dev & test default) -> pass through, no auth.
+//   AUTH_REQUIRED true -> require `Authorization: Bearer <MNEMO_API_TOKEN>`;
+//   on missing/mismatched token respond 401 with EXACT body {"error":"unauthorized"}.
+// Keeping this off the zod config schema (read straight from process.env) means
+// no existing test that constructs `config` is perturbed.
+function authRequired(): boolean {
+  const v = (process.env.AUTH_REQUIRED ?? '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
+app.use('/api/*', async (c, next) => {
+  if (!authRequired()) return next();
+  const expected = process.env.MNEMO_API_TOKEN ?? '';
+  const header = c.req.header('authorization') ?? '';
+  const match = /^Bearer\s+(.+)$/i.exec(header);
+  const token = match?.[1]?.trim();
+  // A non-empty expected token must match exactly. An empty/unset expected
+  // token while AUTH_REQUIRED is on is a misconfiguration — reject all to fail
+  // closed rather than silently accept every caller.
+  if (expected.length === 0 || token !== expected) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+  return next();
+});
+
 app.get('/health', async (c) => {
   const [db, mlOk, qdrantOk] = await Promise.all([
     checkDatabaseHealth(),
@@ -65,18 +100,91 @@ export function parseContentType(v: unknown): ContentTypeBody | undefined {
   return undefined;
 }
 
+// iOS milestone-1 capture context (ASK-016 / onboarding). All fields optional;
+// persisted with the memory where natural. onboarding_prompt_id is the one field
+// the bead pins as must-not-drop — it threads onboarding-context ingests so the
+// onboarding arc can attribute substrate growth to the prompt that elicited it.
+interface IngestContext {
+  seed_entity_id?: string;
+  walk_session_id?: string;
+  walk_question_id?: string;
+  onboarding_prompt_id?: string;
+  shared_url?: string;
+}
+
 app.post('/ingest', async (c) => {
-  const body = await c.req.json<{ text: string; source?: string; contentType?: string; stream_id?: string }>();
+  const body = await c.req.json<{
+    text: string;
+    source?: string;
+    contentType?: string;
+    stream_id?: string;
+    // iOS milestone-1 OPTIONAL additions — pre-iOS callers omit both.
+    idempotency_key?: string;
+    context?: IngestContext;
+  }>();
   if (!body.text) return c.json({ error: 'text is required' }, 400);
+
+  const idempotencyKey =
+    typeof body.idempotency_key === 'string' && body.idempotency_key.trim().length > 0
+      ? body.idempotency_key.trim()
+      : undefined;
+
+  // Idempotent replay: a retried POST with a key already in capture_idempotency
+  // returns the prior memory_id WITHOUT re-ingesting (at-most-once under client
+  // retries — capture works offline and retries on reconnect). 202 signals "we
+  // already have this; nothing new ran".
+  if (idempotencyKey) {
+    const prior = await db
+      .select({ memoryId: captureIdempotency.memoryId })
+      .from(captureIdempotency)
+      .where(eq(captureIdempotency.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (prior[0]) {
+      return c.json({ memory_id: prior[0].memoryId, idempotent: true }, 202);
+    }
+  }
+
+  // Persist the onboarding prompt id with the memory where natural: fold it into
+  // the source tag so it travels with the Qdrant payload (the bead's "at minimum
+  // do not drop onboarding_prompt_id"). The remaining context fields are accepted
+  // and currently ride alongside via the same source-tag channel; richer
+  // per-field columns are a documented follow-up.
+  const promptId = body.context?.onboarding_prompt_id;
+  const source =
+    promptId && (!body.source || !body.source.includes('onboarding_prompt:'))
+      ? `${body.source ?? 'ios'}|onboarding_prompt:${promptId}`
+      : body.source;
+
   const result = await ingest(body.text, {
-    source: body.source,
+    source,
     contentType: parseContentType(body.contentType),
     // nmemo-3f9.2: optional stream scope for speaker identity. Absent ->
     // implicit single stream (back-compat). No participants array is accepted;
     // speakers are discovered from data, never declared.
     streamId: body.stream_id,
   });
-  return c.json(result);
+
+  // Record the idempotency ledger row AFTER a successful ingest so a failed
+  // ingest is retryable under the same key. ON CONFLICT DO NOTHING tolerates a
+  // racing concurrent retry that already inserted the key.
+  if (idempotencyKey) {
+    try {
+      await db
+        .insert(captureIdempotency)
+        .values({ idempotencyKey, memoryId: result.memoryId })
+        .onConflictDoNothing();
+    } catch (err) {
+      console.warn(
+        '[ingest] failed to record idempotency key (continuing):',
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  // Keep the response body decodable for the iOS client: surface memory_id
+  // alongside the existing ExtractResult fields (additive — pre-iOS callers
+  // already read the rest of the shape unchanged).
+  return c.json({ ...result, memory_id: result.memoryId });
 });
 
 app.post('/store', async (c) => {
@@ -981,6 +1089,25 @@ app.get('/api/entity/:id/profile', async (c) => {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
 });
+
+// ============================================
+// iOS API v1 — home surfaces (ASK-017 hero, ASK-018 notifications)
+// ============================================
+
+// GET /api/hero?nodeId=<entityId> — home hero composition (ASK-017). nodeId is
+// OPTIONAL (passed through to the handler); absent => the user's self entity
+// (ASK-006). Sparse-data / fresh DB => { active: null } (200) so iOS renders the
+// pre-data stub. An EXPLICIT nodeId that does not resolve => 404 (iOS "still
+// listening" fallback). Any other failure => 500 (same fallback). The route file
+// (routes/hero.ts) owns the wire normalization (toHeroResponse) and status map.
+app.get('/api/hero', heroRoute);
+
+// GET /api/notifications — active, already-composed notification cards (ASK-018).
+// Backend owns composition/persistence/age-out; iOS owns selection/sort/4-card
+// cap. Optional ?limit caps the rows read (default 20). The route file
+// (routes/notifications.ts) owns compose+persist and the encode-boundary
+// discipline (kind == target.type, no blank fields, unique notificationId).
+app.get('/api/notifications', notificationsHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
