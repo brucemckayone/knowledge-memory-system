@@ -1816,8 +1816,24 @@ if (!process.env.VITEST) {
   // Bead nmemo-2yv.132: run the startup-validation gate before serving. The
   // qdrant_dim validator wraps ensureCollections (bead .121); the three
   // others cover ml-services reach, transport health, and port collisions.
-  // Strict-only — any failure aborts boot. No env-var opt-out (bead .132
-  // Decision section).
+  // Strict-only by default — any failure aborts boot.
+  //
+  // Narrow, dev/test-only exception: SKIP_ML_SERVICES_GATE=1 omits the two
+  // external-LLM-stack validators (ml_services + transport) so the iOS
+  // live-integration stack can boot the HTTP read surfaces against
+  // Postgres+Qdrant while ml-services is intentionally down. The skip itself
+  // lives in startup-validation.ts (forced off when NODE_ENV=production); here
+  // we only emit a LOUD warning so an operator never mistakes a bypassed boot
+  // for a fully-validated one.
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    ['1', 'true', 'yes'].includes((process.env.SKIP_ML_SERVICES_GATE ?? '').trim().toLowerCase())
+  ) {
+    console.warn(
+      '[startup] ⚠️  SKIP_ML_SERVICES_GATE is set — ml-services + transport startup gates are BYPASSED. ' +
+        'ml-services is NOT verified reachable. This is a dev/test escape hatch only; never use in production.',
+    );
+  }
   const { validateStartup } = await import('./services/startup-validation.js');
   const results = await validateStartup();
   const failed = results.filter(r => !r.ok);

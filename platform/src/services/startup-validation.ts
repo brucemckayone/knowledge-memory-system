@@ -26,9 +26,19 @@
  *     production behaviour is fail-fast (`process.exit(1)` on any
  *     `!ok`).
  *
- * Why not a `STRICT_STARTUP` env opt-out: bead .132 Decision section
- * rejected that explicitly. An env-var escape hatch recreates the
- * silent-drift problem this module is fixing. Strict-only.
+ * Why not a broad `STRICT_STARTUP` env opt-out: bead .132 Decision section
+ * rejected that explicitly. A blanket escape hatch recreates the silent-drift
+ * problem this module is fixing.
+ *
+ * One narrow, documented exception: `SKIP_ML_SERVICES_GATE=1` (read live from
+ * process.env so tests / operators can flip it per-invocation) omits the two
+ * validators that probe the external LLM stack — `ml_services` AND `transport`
+ * (the pi-bridge / graph-MCP host process is the same dependency surface). This
+ * exists for the iOS live-integration test stack, where ml-services is
+ * intentionally down and the iOS read surfaces (hero, notifications) must still
+ * boot against Postgres+Qdrant to prove the HTTP contract. It is a no-op in
+ * production (NODE_ENV=production forces both gates on regardless) and leaves
+ * the other two validators (qdrant_dim, ports) strict.
  */
 
 import { config } from '../config.js';
@@ -160,10 +170,31 @@ const VALIDATORS: Validator[] = [
 ];
 
 /** Run every validator (no short-circuit) and return the result list.
- *  The caller decides fail-fast vs. tolerate. Validators never throw out. */
+ *  The caller decides fail-fast vs. tolerate. Validators never throw out.
+ *
+ *  `SKIP_ML_SERVICES_GATE=1` omits the two external-LLM-stack validators
+ *  (`ml_services` + `transport`) — a narrow dev/test escape hatch for the iOS
+ *  live-integration stack where ml-services is intentionally down but the HTTP
+ *  read surfaces must still boot. Forced off (both gates stay strict) in
+ *  production (NODE_ENV=production) so the silent-drift protection bead .132
+ *  mandates is never weakened in real deployments. */
+function shouldSkipMlServicesGate(): boolean {
+  if (process.env.NODE_ENV === 'production') return false; // strict in prod, always
+  const v = (process.env.SKIP_ML_SERVICES_GATE ?? '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
+// Validators omitted by SKIP_ML_SERVICES_GATE — both probe the external LLM
+// stack (ml-services FastAPI + its host transport process). qdrant_dim + ports
+// are local and stay strict under the flag.
+const ML_GATE_VALIDATOR_NAMES = new Set(['ml_services', 'transport']);
+
 export async function validateStartup(): Promise<ValidatorResult[]> {
+  const active = shouldSkipMlServicesGate()
+    ? VALIDATORS.filter(v => !ML_GATE_VALIDATOR_NAMES.has(v.name))
+    : VALIDATORS;
   const results: ValidatorResult[] = [];
-  for (const v of VALIDATORS) {
+  for (const v of active) {
     results.push(await runValidator(v));
   }
   return results;
