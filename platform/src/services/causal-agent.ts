@@ -3500,6 +3500,17 @@ export function getMcpEnv(actor: Actor, epoch?: EpochContext): Record<string, st
     const val = process.env[key] || envFile.parsed?.[key];
     if (val) env[key] = val;
   }
+  // Infra vars the MCP server needs to actually start — distinct from the app
+  // config keys above. The server is launched via `npx tsx`, so PATH must be
+  // present to resolve those binaries (and node itself); HOME lets npx/tsx
+  // resolve their caches. When Claude Code launches the MCP server it inherits
+  // these from its own process; when checkGraphMcpHealth spawns it directly with
+  // this curated env (which REPLACES the environment), their absence means
+  // `spawn npx` fails with ENOENT. Pass them through so both paths match.
+  for (const key of ['PATH', 'HOME']) {
+    const val = process.env[key];
+    if (val) env[key] = val;
+  }
   if (epoch?.epochId) env.MNEMO_EPOCH_ID = epoch.epochId;
   if (epoch?.sourceId) env.MNEMO_SOURCE_ID = epoch.sourceId;
   if (epoch?.chunkIndex != null) env.MNEMO_CHUNK_INDEX = String(epoch.chunkIndex);
