@@ -539,6 +539,27 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
     });
   }
 
+  // ASK-006: link the SELF entity (default-stream USER speaker) to this memory
+  // so the hero's entriesCount > 0 for first-person content. The graph agent
+  // anchors first-person I/my/me to participants.userEntityId, but it may not
+  // emit a memory_entities row for a memory with no extractable third-party
+  // mention (e.g. a bare "i feel tired"). Asserting the link here — only on the
+  // default stream, where the user speaker IS self — guarantees the self
+  // entity is in entityIds below and gets its entity_meta (source_memory_count)
+  // refreshed by updateEntityMeta. Idempotent via memory_entities' ON CONFLICT.
+  if (streamId === DEFAULT_STREAM_ID) {
+    try {
+      await db.insert(memoryEntities).values({
+        memoryId,
+        entityId: participants.userEntityId,
+        mentionText: 'self',
+        relationship: 'authored_by',
+      }).onConflictDoNothing();
+    } catch (err) {
+      console.warn('[pipeline] failed to link self entity to memory (continuing):', err instanceof Error ? err.message : err);
+    }
+  }
+
   // 3. Query what the agent created (entities + facts linked to this memory)
   const entityLinks = await db
     .select({ entityId: memoryEntities.entityId })

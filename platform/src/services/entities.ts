@@ -19,6 +19,14 @@ import { recordFactChange, unwrapRows, type Actor } from './audit.js';
 // This string type allows any value — runtime validation happens via getValidEntityTypes().
 export type EntityType = string;
 
+// ASK-006 self-entity bootstrap. The SELF entity is the default-stream USER
+// speaker — the (stream, speaker) join is the canonical key; `is_self` on its
+// properties JSONB is a confirming/asserting flag, not a new table/column.
+// These two literals mirror pipeline.ts DEFAULT_STREAM_ID and the
+// findOrCreateSpeaker(streamId,'user','user') call that seeds the default user.
+const SELF_STREAM_ID = 'default';
+const SELF_SPEAKER_KEY = 'user';
+
 let _cachedEntityTypes: string[] | null = null;
 let _cacheTime = 0;
 const CACHE_TTL_MS = 60_000; // 1 minute
@@ -89,6 +97,11 @@ export async function findOrCreateSpeaker(
       sql`SELECT pg_advisory_xact_lock(hashtext(${'speaker||' + streamId + '||' + speakerKey}))`,
     );
 
+    // ASK-006: the default-stream USER speaker IS the SELF entity. Stamp its
+    // properties with is_self=true so getSelfEntity()'s flag assertion holds.
+    // Scoped to (default, user) so per-stream user speakers are NOT self.
+    const isSelf = streamId === SELF_STREAM_ID && speakerKey === SELF_SPEAKER_KEY;
+
     const existing = await tx
       .select({ entityId: streamParticipants.entityId })
       .from(streamParticipants)
@@ -98,6 +111,16 @@ export async function findOrCreateSpeaker(
       ))
       .limit(1);
     if (existing[0]) {
+      // Assert is_self on the pre-existing self entity (idempotent backfill for
+      // rows created before this flag existed). JSONB merge keeps other props.
+      if (isSelf) {
+        await tx.execute(sql`
+          UPDATE entities
+          SET properties = properties || '{"is_self": true}'::jsonb
+          WHERE id = ${existing[0].entityId}::uuid
+            AND COALESCE(properties->>'is_self', 'false') <> 'true'
+        `);
+      }
       return { id: existing[0].entityId, isNew: false };
     }
 
@@ -110,7 +133,13 @@ export async function findOrCreateSpeaker(
       .values({
         canonicalName: displayName,
         entityType,
-        properties: { streamId, speakerKey, role: role ?? null, anonymousSpeaker: true },
+        properties: {
+          streamId,
+          speakerKey,
+          role: role ?? null,
+          anonymousSpeaker: true,
+          ...(isSelf ? { is_self: true } : {}),
+        },
         confidence: 1.0,
       })
       .returning({ id: entities.id });
@@ -127,6 +156,53 @@ export async function findOrCreateSpeaker(
     });
     return { id: entity.id, isNew: true };
   });
+}
+
+/** Shape returned by {@link getSelfEntity}. */
+export interface SelfEntity {
+  id: string;
+  name: string;
+  type: EntityType;
+  properties: Record<string, unknown>;
+}
+
+/**
+ * Resolve the SELF entity — the default-stream USER speaker (ASK-006).
+ *
+ * The CANONICAL key is the (stream, speaker) join, NOT a name or a column:
+ * stream_participants.stream_id = 'default' AND speaker_key = 'user' resolves
+ * the single entity seeded by findOrCreateSpeaker('default','user','user').
+ * The `is_self` flag on its properties JSONB confirms/asserts identity but the
+ * join is the source of truth.
+ *
+ * Capture-works-offline: bootstrap is implicit on first ingest, so a fresh DB
+ * has NO self entity yet. Returns null in that case — callers (the hero
+ * handler) render a sparse stub with active:null rather than failing.
+ */
+export async function getSelfEntity(): Promise<SelfEntity | null> {
+  const rows = await db
+    .select({
+      id: entities.id,
+      name: entities.canonicalName,
+      type: entities.entityType,
+      properties: entities.properties,
+    })
+    .from(entities)
+    .innerJoin(streamParticipants, eq(streamParticipants.entityId, entities.id))
+    .where(and(
+      eq(streamParticipants.streamId, SELF_STREAM_ID),
+      eq(streamParticipants.speakerKey, SELF_SPEAKER_KEY),
+    ))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    properties: (row.properties ?? {}) as Record<string, unknown>,
+  };
 }
 
 export interface CreateEntityParams {
