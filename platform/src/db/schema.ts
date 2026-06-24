@@ -921,3 +921,69 @@ export type ArbiterVerdictRow = typeof arbiterVerdicts.$inferSelect;
 export type NewArbiterVerdictRow = typeof arbiterVerdicts.$inferInsert;
 export type StagingCausalEdge = typeof stagingCausalEdges.$inferSelect;
 export type NewStagingCausalEdge = typeof stagingCausalEdges.$inferInsert;
+
+// ============================================
+// iOS API v1 — milestone-1 substrate (migration 049_ios_milestone1.sql)
+// ============================================
+
+/**
+ * Capture Idempotency (iOS milestone-1)
+ *
+ * Dedup ledger for POST /api/ingest. The iOS client mints an idempotency_key
+ * per capture and retries the same key on transient failure (capture works
+ * offline, retries on reconnect). A retried ingest with a key already present
+ * returns the prior memory_id instead of running ingest again — at-most-once
+ * ingest under client retries.
+ *
+ * memory_id is the Qdrant memory point id minted by the first successful ingest
+ * (UUID-shaped, stored as text — there is no Postgres memories table to FK to;
+ * memories live in Qdrant). Lookup: SELECT memory_id WHERE idempotency_key = $1.
+ *
+ * Defined in migration 049_ios_milestone1.sql.
+ */
+export const captureIdempotency = pgTable('capture_idempotency', {
+  idempotencyKey: text('idempotency_key').primaryKey(),
+  memoryId: text('memory_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type CaptureIdempotency = typeof captureIdempotency.$inferSelect;
+export type NewCaptureIdempotency = typeof captureIdempotency.$inferInsert;
+
+/**
+ * Notification Cards (iOS milestone-1)
+ *
+ * Backs the iOS NotificationCard wire contract. The backend serves only the
+ * undismissed rows (WHERE dismissed_at IS NULL) ordered by created_at; the
+ * client dismisses a card by stamping dismissed_at (soft-delete — no
+ * hard-delete in v1).
+ *
+ * `id` is the server PK (uuid). `notificationId` is the stable wire id the iOS
+ * client keys on (and references when dismissing). The remaining columns mirror
+ * the NotificationCard fields: kind/meta/title/body/cta plus a target
+ * (target_type + target_id) the card's CTA navigates to, an optional due_at and
+ * severity. Severity/due_at/dismissed_at are nullable.
+ *
+ * Defined in migration 049_ios_milestone1.sql.
+ */
+export const notificationCards = pgTable('notification_cards', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  notificationId: text('notification_id').notNull(),
+  kind: text('kind').notNull(),
+  meta: text('meta'),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  cta: text('cta'),
+  targetType: text('target_type'),
+  targetId: text('target_id'),
+  dueAt: timestamp('due_at', { withTimezone: true }),
+  severity: text('severity'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+}, (t) => ({
+  notificationIdUniq: unique('notification_cards_notification_id_uniq').on(t.notificationId),
+  activeIdx: index('idx_notification_cards_active').on(t.createdAt),
+}));
+
+export type NotificationCard = typeof notificationCards.$inferSelect;
+export type NewNotificationCard = typeof notificationCards.$inferInsert;
