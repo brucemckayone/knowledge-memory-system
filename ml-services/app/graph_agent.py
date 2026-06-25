@@ -15,6 +15,7 @@ from typing import Optional
 from .core.llm import llm_client
 from .core.concurrency import llm_pool, QueueFullError
 from .core.prompt_safety import PROMPT_SAFETY_SYSTEM_CLAUSE, delimit_for_prompt
+from .core.task_utils import get_date_context
 
 router = APIRouter()
 
@@ -427,7 +428,7 @@ Be thorough but use your judgement about what's worth recording. A fact should c
    - "he" / "she" → determine from narrative context
    - "my sister" → resolve to the named entity (e.g., Margaret)
 3. Before creating a fact, MUST call query_entity_facts(subject_entity_id) to check if this exact relationship already exists. Do NOT create duplicate facts.
-4. Predicates MUST be base form only: works_at, lives_in, knows, writes_to, visited, sibling_of, near, parent_of, child_of, married_to, friend_of, member_of, skilled_in, founded, created, studied_at, role_at, north_of, part_of
+4. Predicates MUST be base form only: works_at, lives_in, knows, writes_to, visited, sibling_of, near, parent_of, child_of, married_to, friend_of, member_of, skilled_in, founded, created, studied_at, role_at, north_of, part_of, plans_to, intends_to, committed_to
 5. Do NOT use past tense predicates (worked_at, lived_in). Use temporal_hint instead.
 6. MUST include source_text: the exact quote from the text supporting this relationship.
 7. MUST include source_memory_id: use the MEMORY_ID provided in the extraction context.
@@ -448,6 +449,7 @@ Temporal hints from text:
 - Present tense / "currently" / "now" → temporal_hint="current"
 - Past tense / "used to" / "formerly" / "six years ago" → temporal_hint="past", estimate valid_at
 - Future / "shall" / "will" / "intend to" → temporal_hint="future", estimate valid_at
+- Relative deadlines — "by friday", "this week", "next week", "next month", "in a few days" → resolve to a concrete FUTURE ISO date using TODAY (provided in the user message). "by friday" = the upcoming Friday; "this week" = the end of the current week; "next week" = the end of the following week; "next month" = the same day next month. For commitments (plans_to / intends_to / committed_to), valid_at IS the deadline — resolve it precisely.
 - When a new fact contradicts an existing one (moved from X to Y), just create the new fact — the system handles supersession automatically for exclusive predicates.
 
 === EXAMPLES ===
@@ -462,6 +464,15 @@ Text: "You will rejoice to hear that no disaster has accompanied my dear sister"
 
 Text: "I shall depart for Archangel in a fortnight"
 → create_fact(subject=R.Walton, predicate="visited", object=Archangel, confidence=0.8, temporal_hint="future", source_text="I shall depart for Archangel")
+
+=== COMMITMENTS / PROMISES ===
+
+When the speaker states an intention, plan, or promise to do something, capture it as a COMMITMENT fact (these become the user's held "promises"):
+- Triggers: "i'll", "i will", "i plan to", "i'm going to", "i intend to", "i promised to", "i need to", "i have to", "i'm planning to".
+- Model: subject = the speaker (the one committing); predicate = committed_to (strongest — "i promised"), plans_to ("i plan to", "i'm going to", "i need to", "i have to"), or intends_to ("i'll", "i will", "i intend to"); object_value = the ACTION they committed to in base verb form (e.g. "write to dad", "send the studio reply", "call sarah back"); valid_at = the DEADLINE (see TEMPORAL — resolve relative dates against TODAY); temporal_hint="future"; confidence per how explicit the commitment is.
+- The object is the ACTION (object_value), NOT a person. "i'll write to dad" → subject=speaker, predicate=plans_to, object_value="write to dad" (do NOT use object_entity=dad — the promise is the act, not the person).
+- A commitment with NO stated deadline → omit valid_at (undated). It stays an open commitment with no ripening date.
+- Do NOT capture hypotheticals or conditions as commitments ("if x then i'll y" is not a commitment unless the condition is met). Only firm intentions/plans/promises.
 
 ============================================================
 PHASE 3b: UPDATE SUMMARIES — Keep entity profiles current
@@ -749,8 +760,10 @@ Pronouns ("I", "he", "she", "my") are NOT entities. Resolve each to the named en
 === PREDICATES (reuse, do not invent) ===
 A predicate is an edge label, not a sentence: snake_case, base form, concise and categorical. Use the present-tense base form (works_at, not worked_at — express tense via validAt, see below). The object value is NEVER a predicate. BEFORE proposing a fact with a relation you are unsure how to label, call search_predicates(query) with the relation phrase (e.g. "is employed by", "is based in") and REUSE the closest existing canonical it returns (works_at, lives_in, ...). Introduce a new predicate ONLY for a genuinely novel relation with no good existing match. Promotion canonicalizes predicates deterministically regardless, but reusing at the source keeps the staging buffer clean and the vocabulary small.
 
+COMMITMENTS: when the speaker states an intention / plan / promise ("i'll", "i plan to", "i'm going to", "i intend to", "i promised to", "i need to", "i have to"), propose a commitment fact: subject = the speaker; predicate = committed_to (strongest: "i promised"), plans_to ("i plan to" / "i'm going to" / "i need to"), or intends_to ("i'll" / "i will" / "i intend to"); object_value = the ACTION in base verb form ("write to dad", "send the studio reply") — the object is the action, NOT a person; valid_at = the deadline (resolve relative dates against TODAY, see TEMPORAL); temporal_hint future. A commitment with no stated deadline → undated=true.
+
 === TEMPORAL (valid_at) ===
-valid_at is when the fact became TRUE IN REALITY, not when you recorded it. Past tense / "used to" / "formerly" means estimate an earlier valid_at. For EVERY time-sensitive fact you MUST supply an explicit validAt (ISO 8601) OR set undated=true. Never omit the date silently; an omission is an error, not an "unknown".
+valid_at is when the fact became TRUE IN REALITY, not when you recorded it. Past tense / "used to" / "formerly" means estimate an earlier valid_at. For EVERY time-sensitive fact you MUST supply an explicit validAt (ISO 8601) OR set undated=true. Never omit the date silently; an omission is an error, not an "unknown". Relative deadlines ("by friday", "this week", "next week", "next month") → resolve to a concrete FUTURE ISO date using TODAY (provided in the user message): "by friday" = upcoming Friday; "this week" = end of the current week; "next week" = end of the following week; "next month" = the same day next month. For commitments (plans_to / intends_to / committed_to), valid_at IS the deadline — resolve it precisely.
 
 === EXCLUSIVE ATTRIBUTES + SUPERSESSION HINTS ===
 Some attributes are single-valued for a subject: a person's current title or role, a subject's current location. propose_fact returns the exclusive group and the prior-canonical active facts in that group (the disposal preview). When a fact you propose is a NEWER value for such an attribute than a prior-canonical fact, pass that prior fact's id as supersedesFactId, a hint to promotion. The hint is advisory: promotion orders by valid_at and decides supersession deterministically. Assert exclusive attributes in structured form: subject handle, predicate, object value, and date.
@@ -779,9 +792,11 @@ def _system_prompt_for(content_type: Optional[str], actor: Optional[str] = None)
 def _build_legacy_user_prompt(request: GraphAgentRequest) -> str:
     """The legacy user prompt (create_fact workflow). Extracted so the endpoint
     can branch on actor; the per-chunk CAUSE phase was retired in E7 (doc 41 §11)."""
+    today = get_date_context()["today"]
     prompt = (
         f"## Source Text\n{request.source_text}\n\n"
         f"## Memory ID (MEMORY_ID)\n{request.memory_id}\n\n"
+        f"## Today\n{today} — resolve any relative dates in the text (\"by friday\", \"this week\", \"next month\") against this day. \"by friday\" = upcoming Friday; \"this week\" = the current week; \"next week\" = the following week.\n\n"
     )
     if request.source_name:
         prompt += f"## Source\n{request.source_name}\n\n"
@@ -825,11 +840,14 @@ def _build_proposer_user_prompt(request: GraphAgentRequest) -> str:
     propose-only four-phase workflow (no CAUSE), the mandatory
     valid_at-or-undated rule, and the VERIFY supersession-hint instruction.
 
-    Pure function so test_proposer_prompt.py can assert the §4 contract without
-    an LLM, DB, or HTTP."""
+    Reads today's date (for relative-deadline resolution) but otherwise needs no
+    LLM, DB, or HTTP, so test_proposer_prompt.py can assert the §4 contract
+    cheaply via substring checks."""
+    today = get_date_context()["today"]
     prompt = (
         f"## Source Text\n{request.source_text}\n\n"
         f"## Memory ID (MEMORY_ID)\n{request.memory_id}\n\n"
+        f"## Today\n{today} — resolve any relative dates in the text (\"by friday\", \"this week\", \"next month\") against this day. \"by friday\" = upcoming Friday; \"this week\" = the current week; \"next week\" = the following week.\n\n"
     )
     if request.source_name:
         prompt += f"## Source\n{request.source_name}\n\n"
