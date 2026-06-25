@@ -987,3 +987,38 @@ export const notificationCards = pgTable('notification_cards', {
 
 export type NotificationCard = typeof notificationCards.$inferSelect;
 export type NewNotificationCard = typeof notificationCards.$inferInsert;
+
+/**
+ * Memory Index (iOS milestone-1 / ASK-002)
+ *
+ * A cheap Postgres recency index for memories. Memories themselves live in
+ * Qdrant (there is no Postgres memories table), but Qdrant cannot ORDER BY
+ * created_at cheaply and the home "recent" section is a pure recency read. So
+ * pipeline.store() writes one row here right after the Qdrant upsert, and
+ * GET /api/recent is a single PG read (ordered by created_at DESC) joined to
+ * memory_entities ⋈ entities for the italic entity.
+ *
+ * memory_id is the canonical memory id (the Qdrant parent window point id
+ * minted by store(); same value facts.source_memory_id and
+ * memory_entities.memory_id anchor on). TEXT PK, no FK — no Postgres memories
+ * table exists to FK to. created_at mirrors the Qdrant payload created_at so
+ * ordering agrees with every other created_at view. pulled_line is a
+ * deterministic short excerpt (first sentence or first ~120 chars) computed in
+ * store(); nullable for legacy rows (recent falls back to an on-the-fly
+ * excerpt). source/stream_id passthrough the ingest metadata.
+ *
+ * Defined in migration 050_recent_index.sql.
+ */
+export const memoryIndex = pgTable('memory_index', {
+  memoryId: text('memory_id').primaryKey(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  pulledLine: text('pulled_line'),
+  source: text('source'),
+  streamId: text('stream_id'),
+}, (t) => ({
+  // /api/recent is ORDER BY created_at DESC LIMIT N.
+  recentIdx: index('idx_memory_index_created_at').on(t.createdAt),
+}));
+
+export type MemoryIndex = typeof memoryIndex.$inferSelect;
+export type NewMemoryIndex = typeof memoryIndex.$inferInsert;

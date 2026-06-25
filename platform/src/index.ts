@@ -16,6 +16,9 @@ import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents,
 import { isNull, sql, eq } from 'drizzle-orm';
 import { heroRoute } from './routes/hero.js';
 import { notificationsHandler } from './routes/notifications.js';
+import { recentHandler } from './routes/recent.js';
+import { holdingHandler } from './routes/holding.js';
+import { goingHandler } from './routes/going.js';
 import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
@@ -1148,6 +1151,23 @@ app.get('/api/hero', heroRoute);
 // (routes/notifications.ts) owns compose+persist and the encode-boundary
 // discipline (kind == target.type, no blank fields, unique notificationId).
 app.get('/api/notifications', notificationsHandler);
+
+// GET /api/recent?limit=N — recent memories timeline (ASK-002). nodeId-free
+// recency index read. Sparse/fresh-DB => { entries: [] } (200). The route file
+// (routes/recent.ts) owns the wire normalization; the service (services/recent.ts)
+// does the Qdrant content fetch + italic entity join + fail-loud row dropping.
+app.get('/api/recent', recentHandler);
+
+// GET /api/holding?limit=N — held/ripening/open items (ASK-HOLDING). GET-only;
+// nudge/let-go POSTs stay 501 until the promises epic (ASK-016) lands. Sparse /
+// fresh-DB / no self entity / unseeded promise predicates => { items: [] } (200).
+app.get('/api/holding', holdingHandler);
+
+// GET /api/going-toward — directional commitments throughline (going-toward
+// surface). No params. Sparse / not-yet-computed graph => { directions: [] }
+// (200). The route file (routes/going.ts) owns the fail-loud wire normalization
+// (status closed enum, confirmedSince ISO-8601 rule, italicEntity substring).
+app.get('/api/going-toward', goingHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [

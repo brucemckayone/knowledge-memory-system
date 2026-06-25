@@ -21,7 +21,7 @@ import { applyConfidenceDecay } from './services/causal.js';
 import { detectContradictions } from './services/contradictions.js';
 import { updateEntityMeta, detectMergeCandidates } from './services/graph-meta.js';
 import { db } from './db/index.js';
-import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports, mergeCandidates, entityAliases, factUnits } from './db/schema.js';
+import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports, mergeCandidates, entityAliases, factUnits, memoryIndex } from './db/schema.js';
 import { eq, inArray, sql } from 'drizzle-orm';
 
 export interface ExtractResult {
@@ -51,6 +51,74 @@ export interface ExtractResult {
 // When a caller omits it, every memory lands in one implicit stream so the
 // pre-3f9 single-user behaviour is preserved (back-compat).
 const DEFAULT_STREAM_ID = 'default';
+
+/**
+ * Deterministic short excerpt of a memory body for the home "recent" section's
+ * pulled-line (ASK-002). NOT Voice-C-composed prose (it is the user's own past
+ * words, surfaced verbatim) and NOT phrasePulledLine() — that prepends
+ * "this came back to you:" and the recent section needs a BARE excerpt.
+ *
+ * Rule (documented decision, ASK-002): take the first sentence (text up to and
+ * including the first sentence-final punctuation . ! ? …), and if that is
+ * longer than ~120 chars, truncate to 120 chars at the last whitespace boundary
+ * (no mid-word cut) and append an ellipsis. Single-sentence memories shorter
+ * than the cap pass through unchanged. Whitespace is collapsed/trimmed. The
+ * output never exceeds 123 chars (120 + "…"). Empty input => '' (recent treats
+ * an empty pulled_line as "fall back to fullContent").
+ */
+export function pulledLineExcerpt(body: string): string {
+  const trimmed = body.trim().replace(/\s+/g, ' ');
+  if (trimmed.length === 0) return '';
+
+  const CAP = 120;
+  // First sentence: up to and including the first sentence-final mark that is
+  // followed by whitespace or end-of-string.
+  const sentenceMatch = trimmed.match(/^.*?[.!?…](?=\s|$)/s);
+  const firstSentence = sentenceMatch ? sentenceMatch[0] : trimmed;
+
+  if (firstSentence.length <= CAP) return firstSentence;
+
+  // Truncate at the last whitespace boundary at-or-before CAP, append ellipsis.
+  const slice = firstSentence.slice(0, CAP);
+  const lastSpace = slice.lastIndexOf(' ');
+  const head = lastSpace > 0 ? slice.slice(0, lastSpace) : slice;
+  return `${head}…`;
+}
+
+/**
+ * Write the memory_index recency row (ASK-002) right after the Qdrant upsert,
+ * so /api/recent is a cheap PG read rather than a Qdrant scan. Idempotent on
+ * memory_id (PK): a re-store of the same id (not the normal path — store()
+ * mints a fresh randomUUID each call) upserts rather than throwing. Failures
+ * are caught + warn-logged: a missing memory_index row degrades recent to
+ * omitting that memory, but must NOT fail the ingest that just succeeded
+ * (capture works offline; the recency index is best-effort, not load-bearing).
+ */
+async function indexMemoryForRecent(args: {
+  memoryId: string;
+  createdAt: Date;
+  body: string;
+  source?: string;
+  streamId: string;
+}): Promise<void> {
+  try {
+    await db
+      .insert(memoryIndex)
+      .values({
+        memoryId: args.memoryId,
+        createdAt: args.createdAt,
+        pulledLine: pulledLineExcerpt(args.body),
+        source: args.source,
+        streamId: args.streamId,
+      })
+      .onConflictDoNothing({ target: memoryIndex.memoryId });
+  } catch (err) {
+    console.warn(
+      `[pipeline] memory_index write failed for ${args.memoryId} (recent will omit until backfill):`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
 
 // Assistant-role labels ride in the source text (e.g. "ASSISTANT: ..."), they
 // are never declared on /ingest. We only seed an assistant speaker when such a
@@ -482,6 +550,21 @@ export async function store(
       },
     })),
   });
+
+  // ASK-002 recency index: write the memory_index row right after the Qdrant
+  // upsert so /api/recent is a cheap PG read. createdAt mirrors the Qdrant
+  // payload created_at so recent ordering agrees with every other created_at
+  // view. Best-effort (see indexMemoryForRecent): a failure must not fail the
+  // ingest that just succeeded.
+  const createdAt = metadata?.timestamp ?? new Date();
+  await indexMemoryForRecent({
+    memoryId,
+    createdAt,
+    body: text,
+    source: metadata?.source,
+    streamId,
+  });
+
   return memoryId;
 }
 
