@@ -1330,6 +1330,23 @@ async function drainExtraction(): Promise<void> {
     const item = extractionQueue.shift()!;
     try {
       await extract(item.memoryId, { contentType: item.contentType });
+      // EPIC 2 / ASK-010: after each successful extract, re-evaluate the
+      // onboarding stage machine. The machine is substrate-driven, NOT source-
+      // gated — a non-onboarding ingest still densifies the graph
+      // (design/08-onboarding.md:15) and may advance the arc. Best-effort:
+      // a failure here must NEVER fail the extraction (the capture is
+      // permanent; the onboarding read is a soft surface). Lazy-import to keep
+      // the onboarding service off the pipeline's hot import path + avoid any
+      // circular-dep risk.
+      try {
+        const { evaluateStage } = await import('./services/onboarding.js');
+        await evaluateStage();
+      } catch (onbErr) {
+        console.warn(
+          '[extraction-queue] onboarding evaluateStage failed (continuing):',
+          onbErr instanceof Error ? onbErr.message : onbErr,
+        );
+      }
     } catch (err) {
       console.error(
         `[extraction-queue] extract failed for ${item.memoryId}:`,

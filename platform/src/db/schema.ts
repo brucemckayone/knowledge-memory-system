@@ -1022,3 +1022,39 @@ export const memoryIndex = pgTable('memory_index', {
 
 export type MemoryIndex = typeof memoryIndex.$inferSelect;
 export type NewMemoryIndex = typeof memoryIndex.$inferInsert;
+
+/**
+ * User Onboarding State (iOS API v1 / ASK-010 / EPIC 2)
+ *
+ * The single-user-v1 onboarding state machine: the current stage in the prompt
+ * arc (design/08-onboarding.md §"Stage transitions"), the pre-composed current
+ * prompt, the Stage 4 inferred-focus candidate list, and the post-confirmation
+ * confirmed-focus list. The stage NEVER regresses (design/08-onboarding.md:137).
+ *
+ * Single-row v1: keyed by id='v1' (default). A multi-user schema would add a
+ * user_id column; that lift is not pre-built (fluid-contract-minimality).
+ *
+ * Columns mirror the iOS OnboardingState wire (Sources/MnemoBackend/ASK/
+ * Onboarding/OnboardingState.swift) one-to-one, except the nested `prompt` and
+ * `inferredFocus` objects are flattened/packed (see migration 051 for the
+ * column-by-column mapping + the closed-enum CHECKs that mirror the iOS
+ * OnboardingStage / PromptKind decoders).
+ *
+ * Defined in migration 051_onboarding_state.sql.
+ */
+export const userOnboardingState = pgTable('user_onboarding_state', {
+  id: text('id').primaryKey().default('v1'),
+  stage: text('stage').notNull().default('stage_1'),
+  currentPromptId: text('current_prompt_id'),
+  currentPromptText: text('current_prompt_text'),
+  currentPromptKind: text('current_prompt_kind'),
+  currentPromptIssuedAt: timestamp('current_prompt_issued_at', { withTimezone: true }),
+  inferredFocus: jsonb('inferred_focus'),
+  confirmedFocus: jsonb('confirmed_focus'),
+  isHardTopic: boolean('is_hard_topic').notNull().default(false),
+  lastAdvancedAt: timestamp('last_advanced_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type UserOnboardingState = typeof userOnboardingState.$inferSelect;
+export type NewUserOnboardingState = typeof userOnboardingState.$inferInsert;

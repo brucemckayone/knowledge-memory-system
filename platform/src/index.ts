@@ -19,6 +19,12 @@ import { notificationsHandler } from './routes/notifications.js';
 import { recentHandler } from './routes/recent.js';
 import { holdingHandler } from './routes/holding.js';
 import { goingHandler } from './routes/going.js';
+import {
+  onboardingCurrentHandler,
+  confirmFocusHandler,
+  untangleFocusHandler,
+  renameFocusHandler,
+} from './routes/onboarding.js';
 import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
@@ -1168,6 +1174,22 @@ app.get('/api/holding', holdingHandler);
 // (200). The route file (routes/going.ts) owns the fail-loud wire normalization
 // (status closed enum, confirmedSince ISO-8601 rule, italicEntity substring).
 app.get('/api/going-toward', goingHandler);
+
+// /api/onboarding/* — the onboarding prompt arc (ASK-010 / EPIC 2). iOS reads
+// the current stage + prompt via GET current-prompt and drives the Stage 4
+// "is that right?" moment via the three focus mutations. The response to GET
+// is a BARE OnboardingState object (no envelope — the iOS APIClient decodes
+// Response = OnboardingState directly). The mutation POSTs return 2xx empty on
+// success (EmptyResponse). Stage advancement is substrate-driven: the post-
+// extract hook (pipeline.drainExtraction) runs evaluateStage after each
+// ingest, so /advance is implicit via /ingest (not built). inferred-focus is
+// folded into the awaiting_confirmation GET payload (not a separate route).
+// The route file (routes/onboarding.ts) owns the fail-loud wire normalization;
+// the service (services/onboarding.ts) owns the stage machine + prompts.
+app.get('/api/onboarding/current-prompt', onboardingCurrentHandler);
+app.post('/api/onboarding/confirm-focus', confirmFocusHandler);
+app.post('/api/onboarding/untangle-focus', untangleFocusHandler);
+app.post('/api/onboarding/rename-focus', renameFocusHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
