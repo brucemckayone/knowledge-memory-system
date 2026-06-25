@@ -76,6 +76,10 @@ bridge:
 # Uses uv to manage a Python 3.11 venv (avoids Python 3.14 wheel incompatibilities)
 # --http h11: required on Windows (httptools hangs for native HTTP clients)
 # LLM_PROVIDER is read from ml-services/.env (default: pi, which needs make bridge)
+#
+# macOS runbook (this `ml` target is Windows-only — backslash venv paths + `set`):
+# run from the ml-services dir against its existing ./venv:
+#   cd ml-services && ./venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --http h11
 ml:
 	cd ml-services && uv venv --python 3.11 .venv
 	cd ml-services && uv pip install --python .venv/Scripts/python.exe -r requirements.txt --quiet

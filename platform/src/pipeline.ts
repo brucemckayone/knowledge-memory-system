@@ -400,9 +400,22 @@ export function mapFactToUnits(
  * whole parent window, so the Haiku call count is identical to the pre-unit
  * baseline — only the embedding/retrieval granularity changes underneath.
  */
+// iOS milestone-1 capture context (ASK-016 / onboarding). All fields optional;
+// persisted onto the parent window payload alongside source/content_type so they
+// travel with the Qdrant memory and survive standalone re-extraction. Only the
+// fields actually present are written (single-chunk payloads stay unchanged when
+// no context is supplied — backward compatible with all pre-iOS callers).
+export interface CaptureContext {
+  seedEntityId?: string;
+  walkSessionId?: string;
+  walkQuestionId?: string;
+  onboardingPromptId?: string;
+  sharedUrl?: string;
+}
+
 export async function store(
   text: string,
-  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string; sourceId?: string; chunkIndex?: number }
+  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string; sourceId?: string; chunkIndex?: number; captureContext?: CaptureContext }
 ): Promise<string> {
   const memoryId = randomUUID();
   const streamId = metadata?.streamId ?? DEFAULT_STREAM_ID;
@@ -440,6 +453,15 @@ export async function store(
         // (backward compatible) so single ingest payloads are unchanged.
         ...(metadata?.sourceId !== undefined ? { source_id: metadata.sourceId } : {}),
         ...(metadata?.chunkIndex !== undefined ? { chunk_index: metadata.chunkIndex } : {}),
+        // iOS milestone-1 capture context: persist each supplied field beside
+        // source/content_type so it rides with the memory's Qdrant payload.
+        // Wire-shape snake_case keys are preserved on the payload. Absent fields
+        // are omitted so non-iOS ingest payloads are unchanged.
+        ...(metadata?.captureContext?.seedEntityId !== undefined ? { seed_entity_id: metadata.captureContext.seedEntityId } : {}),
+        ...(metadata?.captureContext?.walkSessionId !== undefined ? { walk_session_id: metadata.captureContext.walkSessionId } : {}),
+        ...(metadata?.captureContext?.walkQuestionId !== undefined ? { walk_question_id: metadata.captureContext.walkQuestionId } : {}),
+        ...(metadata?.captureContext?.onboardingPromptId !== undefined ? { onboarding_prompt_id: metadata.captureContext.onboardingPromptId } : {}),
+        ...(metadata?.captureContext?.sharedUrl !== undefined ? { shared_url: metadata.captureContext.sharedUrl } : {}),
       },
     },
     units: units.map((u, i) => ({
@@ -762,7 +784,7 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
  */
 export async function ingest(
   text: string,
-  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string }
+  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string; captureContext?: CaptureContext }
 ): Promise<IngestResult> {
   const rid = randomUUID().slice(0, 8);
   const tag = `[ingest:${rid}]`;
@@ -1183,4 +1205,54 @@ async function drainQueue(): Promise<void> {
  */
 export function getIngestQueueStatus(): { queued: number; draining: boolean } {
   return { queued: ingestQueue.length, draining };
+}
+
+// ============================================
+// Extraction-only queue (non-blocking /ingest)
+// ============================================
+
+// `store()` already ran synchronously on the request path; this drains the slow
+// `extract()` (the ~60s graph agent) one item at a time, OFF the request path —
+// the same no-concurrent-graph-agent discipline as the serial ingest queue
+// above, so iOS capture POSTs return 202 immediately (capture must never block
+// the UI on substrate speed; design/05-capture.md §"Network unavailable").
+interface ExtractionItem {
+  memoryId: string;
+  contentType?: ContentType;
+}
+
+const extractionQueue: ExtractionItem[] = [];
+let extractionDraining = false;
+
+/**
+ * Enqueue an extraction job for a memory that is already stored. Returns
+ * immediately — the graph agent runs in the background. A failed extract is
+ * logged and dropped (the memory is durable in Qdrant; a re-capture or later
+ * re-trigger recovers its entities/edges). Durable DB-backed jobs are a v1.x
+ * follow-up (scoping G5); for single-user v1 this in-memory drain is the
+ * async-extraction substrate that lets `/ingest` return 202 without blocking.
+ */
+export function enqueueExtraction(memoryId: string, contentType?: ContentType): void {
+  extractionQueue.push({ memoryId, contentType });
+  console.log(
+    `[extraction-queue] enqueued memoryId=${memoryId.slice(0, 8)} len=${extractionQueue.length}`,
+  );
+  void drainExtraction(); // kick the worker (no-op if already running)
+}
+
+async function drainExtraction(): Promise<void> {
+  if (extractionDraining) return;
+  extractionDraining = true;
+  while (extractionQueue.length > 0) {
+    const item = extractionQueue.shift()!;
+    try {
+      await extract(item.memoryId, { contentType: item.contentType });
+    } catch (err) {
+      console.error(
+        `[extraction-queue] extract failed for ${item.memoryId}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  extractionDraining = false;
 }

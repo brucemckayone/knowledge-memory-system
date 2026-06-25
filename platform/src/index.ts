@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve, sep } from 'node:path';
 import { serve } from '@hono/node-server';
 import { Hono, type Context } from 'hono';
-import { ingest, store, extract, ingestBatch, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
+import { store, extract, ingestBatch, enqueueIngest, enqueueExtraction, getIngestQueueStatus } from './pipeline.js';
 import type { IngestMode } from './services/batch.js';
 import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, captureIdempotency } from './db/index.js';
@@ -118,11 +118,23 @@ app.post('/ingest', async (c) => {
     source?: string;
     contentType?: string;
     stream_id?: string;
-    // iOS milestone-1 OPTIONAL additions — pre-iOS callers omit both.
+    // iOS milestone-1 OPTIONAL additions — pre-iOS callers omit all.
     idempotency_key?: string;
     context?: IngestContext;
+    // ISO-8601 client capture time. Honored as the memory's created_at so the
+    // basin reflects WHEN the user captured (offline + later sync), not when the
+    // server happened to receive. Absent -> server time default (back-compat).
+    captured_at?: string;
   }>();
   if (!body.text) return c.json({ error: 'text is required' }, 400);
+
+  // Parse the client capture timestamp; ignore an unparseable value rather than
+  // 400 (a bad clock must not block capture — the server-time default applies).
+  let capturedAt: Date | undefined;
+  if (typeof body.captured_at === 'string' && body.captured_at.trim().length > 0) {
+    const parsed = new Date(body.captured_at);
+    if (!Number.isNaN(parsed.getTime())) capturedAt = parsed;
+  }
 
   const idempotencyKey =
     typeof body.idempotency_key === 'string' && body.idempotency_key.trim().length > 0
@@ -144,34 +156,57 @@ app.post('/ingest', async (c) => {
     }
   }
 
-  // Persist the onboarding prompt id with the memory where natural: fold it into
-  // the source tag so it travels with the Qdrant payload (the bead's "at minimum
-  // do not drop onboarding_prompt_id"). The remaining context fields are accepted
-  // and currently ride alongside via the same source-tag channel; richer
-  // per-field columns are a documented follow-up.
+  // Keep the onboarding prompt id folded into the source tag (unchanged): the
+  // bead's "at minimum do not drop onboarding_prompt_id" — this preserves the
+  // existing source-tag channel that downstream readers already rely on.
   const promptId = body.context?.onboarding_prompt_id;
   const source =
     promptId && (!body.source || !body.source.includes('onboarding_prompt:'))
       ? `${body.source ?? 'ios'}|onboarding_prompt:${promptId}`
       : body.source;
 
-  const result = await ingest(body.text, {
+  // Persist the FULL capture-context block onto the memory's Qdrant payload (in
+  // addition to the source-tag channel above). Map the snake_case wire keys to
+  // the typed CaptureContext; only present fields are forwarded/persisted.
+  const captureContext = body.context
+    ? {
+        seedEntityId: body.context.seed_entity_id,
+        walkSessionId: body.context.walk_session_id,
+        walkQuestionId: body.context.walk_question_id,
+        onboardingPromptId: body.context.onboarding_prompt_id,
+        sharedUrl: body.context.shared_url,
+      }
+    : undefined;
+
+  // NON-BLOCKING INGEST (scoping decision #10 — async 202; design/05-capture.md
+  // §"Network unavailable" + §"When the placement is uncertain"). The capture
+  // POST must return immediately: it never blocks the iOS UI on substrate speed.
+  // `store()` is fast (embed + Qdrant upsert) and mints the memory_id; the
+  // ~60s `extract()` graph agent runs OFF the request path via
+  // `enqueueExtraction`. The node lands in /api/hero on the next fetch AFTER
+  // extraction completes.
+  const memoryId = await store(body.text, {
     source,
     contentType: parseContentType(body.contentType),
     // nmemo-3f9.2: optional stream scope for speaker identity. Absent ->
     // implicit single stream (back-compat). No participants array is accepted;
     // speakers are discovered from data, never declared.
     streamId: body.stream_id,
+    // Honor the client capture time when supplied; store() falls back to server
+    // time when undefined.
+    timestamp: capturedAt,
+    captureContext,
   });
 
-  // Record the idempotency ledger row AFTER a successful ingest so a failed
-  // ingest is retryable under the same key. ON CONFLICT DO NOTHING tolerates a
-  // racing concurrent retry that already inserted the key.
+  // Record the idempotency ledger row AT ENQUEUE TIME (born idempotent): a
+  // retried POST short-circuits to this memory_id EVEN BEFORE extraction
+  // finishes, so a client retry never double-ingests. ON CONFLICT DO NOTHING
+  // tolerates a racing concurrent retry that already inserted the key.
   if (idempotencyKey) {
     try {
       await db
         .insert(captureIdempotency)
-        .values({ idempotencyKey, memoryId: result.memoryId })
+        .values({ idempotencyKey, memoryId })
         .onConflictDoNothing();
     } catch (err) {
       console.warn(
@@ -181,10 +216,15 @@ app.post('/ingest', async (c) => {
     }
   }
 
-  // Keep the response body decodable for the iOS client: surface memory_id
-  // alongside the existing ExtractResult fields (additive — pre-iOS callers
-  // already read the rest of the shape unchanged).
-  return c.json({ ...result, memory_id: result.memoryId });
+  // Kick extraction off the request path (one-at-a-time background drain, same
+  // no-concurrent-graph-agent discipline as the serial ingest queue). The
+  // response returns 202 immediately; extract() runs in the background.
+  enqueueExtraction(memoryId, parseContentType(body.contentType));
+
+  // 202 Accepted: the memory is stored + idempotent; extraction is queued and
+  // will surface in /api/hero shortly. {memory_id} is the decodable contract the
+  // iOS CaptureUploader acknowledges on (any 2xx clears the queue entry).
+  return c.json({ memory_id: memoryId }, 202);
 });
 
 app.post('/store', async (c) => {
