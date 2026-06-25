@@ -20,7 +20,15 @@ import { recentHandler } from './routes/recent.js';
 import { holdingHandler } from './routes/holding.js';
 import { goingHandler } from './routes/going.js';
 import { askHandler } from './routes/ask.js';
-import { openPromisesHandler, promiseDetailHandler } from './routes/promises.js';
+import {
+  openPromisesHandler,
+  promiseDetailHandler,
+  nudgePromiseHandler,
+  markDoneHandler,
+  letGoHandler,
+  recategorizeHandler,
+  dismissSuggestionHandler,
+} from './routes/promises.js';
 import {
   onboardingCurrentHandler,
   confirmFocusHandler,
@@ -1262,6 +1270,17 @@ app.get('/api/promises/open', openPromisesHandler);
 // 404 when the fact is missing, not a commitment predicate, or invalidated/
 // expired. 500 on any other failure.
 app.get('/api/promises/:fact_id', promiseDetailHandler);
+// POST /api/promises/:fact_id/* — the 5 promise mutations (ASK-016 slice 3).
+// nudge returns the reshaped bare Promise (200); done/let-go/recategorize/
+// dismiss-completion-suggestion return 204 empty (iOS EmptyResponse). The
+// route file (routes/promises.ts) owns the 404 (not a commitment/missing) and
+// 409 (nudge: no deadline to shift / nudge limit reached) maps; the service
+// (services/promises.ts) owns the substrate writes. Paths match iOS verbatim.
+app.post('/api/promises/:fact_id/nudge', nudgePromiseHandler);
+app.post('/api/promises/:fact_id/done', markDoneHandler);
+app.post('/api/promises/:fact_id/let-go', letGoHandler);
+app.post('/api/promises/:fact_id/recategorize', recategorizeHandler);
+app.post('/api/promises/:fact_id/dismiss-completion-suggestion', dismissSuggestionHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [

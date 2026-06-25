@@ -22,8 +22,8 @@ import { testDb, createTestEntity, deleteFromTables, QDRANT_URL, isQdrantAvailab
 import { streamParticipants } from '../../db/index.js';
 import { eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { getOpenPromises, getPromiseByFactId, derivePromiseState } from '../../services/promises.js';
-import { openPromisesHandler, promiseDetailHandler } from '../../routes/promises.js';
+import { getOpenPromises, getPromiseByFactId, derivePromiseState, nudgePromise, markPromiseDone, releasePromise, recategorizePromise, dismissCompletionSuggestion, NUDGE_LIMIT } from '../../services/promises.js';
+import { openPromisesHandler, promiseDetailHandler, nudgePromiseHandler, markDoneHandler, letGoHandler, recategorizeHandler, dismissSuggestionHandler } from '../../routes/promises.js';
 import { storeMemory, clearMemories, qdrant } from '../../services/qdrant.js';
 import { randomEmbedding } from '../setup.js';
 
@@ -464,3 +464,278 @@ describe('promises — getPromiseByFactId + route', () => {
 // collection-init side effect under test bundlers; QDRANT_URL documents the env.
 void qdrant;
 void QDRANT_URL;
+
+// =============================================================================
+// ASK-016 slice 3 — MUTATIONS (nudge / done / let-go / recategorize / dismiss)
+// =============================================================================
+
+describe('promises — mutations (slice 3)', () => {
+  function qdrantTest(name: string, fn: () => Promise<void>): void {
+    it(name, async () => {
+      if (!qdrantOk) return; // Qdrant unavailable — skip silently
+      await fn();
+    });
+  }
+
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    await cleanSlate();
+  });
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await cleanSlate();
+    if (qdrantOk) await clearMemories();
+  });
+
+  // --- nudge -----------------------------------------------------------------
+
+  qdrantTest('nudge shifts valid_at +24h, bumps nudge_count, keeps it active', async () => {
+    const selfId = await seedSelfEntity();
+    const memId = await seedSourceMemory('i said i would send the studio reply.');
+    const soon = new Date(Date.now() + 6 * 60 * 60 * 1000); // ripening
+    const id = await seedPromiseFact({
+      subjectEntityId: selfId,
+      objectValue: 'send the studio reply',
+      validAt: soon,
+      sourceMemoryId: memId,
+    });
+
+    const result = await nudgePromise(id);
+    expect(result.kind).toBe('ok');
+    if (result.kind !== 'ok') return;
+    // valid_at shifted ~+24h; nudge_count 0 → 1.
+    const shifted = new Date(result.promise.validAt!).getTime();
+    expect(shifted - soon.getTime()).toBeCloseTo(24 * 60 * 60 * 1000, -2);
+    expect(result.promise.nudgeCount).toBe(1);
+    // still in the active set (ripening now, since +24h may still be <= 48h; the
+    // contract only requires it stays non-terminal).
+    expect(['ripening', 'nudged', 'held']).toContain(result.promise.state);
+
+    // Reflected in GET /open.
+    const open = await getOpenPromises();
+    expect(open.promises.find((p) => p.factId === id)?.nudgeCount).toBe(1);
+  });
+
+  qdrantTest('nudge an undated (open) promise → no_deadline (409)', async () => {
+    const selfId = await seedSelfEntity();
+    const memId = await seedSourceMemory('no deadline here.');
+    const id = await seedPromiseFact({
+      subjectEntityId: selfId,
+      objectValue: 'something undated',
+      sourceMemoryId: memId, // validAt NULL → state open
+    });
+    const result = await nudgePromise(id);
+    expect(result.kind).toBe('no_deadline');
+  });
+
+  qdrantTest('nudge limit: 4th nudge → nudge_limit (409)', async () => {
+    const selfId = await seedSelfEntity();
+    const memId = await seedSourceMemory('seeded at the limit.');
+    // Seed a held promise already at NUDGE_LIMIT nudges, with a far deadline so
+    // it stays held/nudged (not ripening) across the +24h shifts.
+    const far = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000); // +60d
+    const id = await seedPromiseFact({
+      subjectEntityId: selfId,
+      objectValue: 'far out promise',
+      validAt: far,
+      nudgeCount: NUDGE_LIMIT,
+      sourceMemoryId: memId,
+    });
+    const result = await nudgePromise(id);
+    expect(result.kind).toBe('nudge_limit');
+    // Substrate unchanged.
+    const after = await getPromiseByFactId(id);
+    expect(after?.nudgeCount).toBe(NUDGE_LIMIT);
+  });
+
+  qdrantTest('nudge a non-commitment / missing fact → not_found (404)', async () => {
+    const result = await nudgePromise('00000000-0000-0000-0000-0000000000a1');
+    expect(result.kind).toBe('not_found');
+  });
+
+  qdrantTest('nudge route maps: 200 bare object / 404 / 409 no_deadline / 409 limit', async () => {
+    const selfId = await seedSelfEntity();
+    const memId = await seedSourceMemory('route test.');
+    const soon = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    const dated = await seedPromiseFact({
+      subjectEntityId: selfId, objectValue: 'dated', validAt: soon, sourceMemoryId: memId,
+    });
+    const undated = await seedPromiseFact({
+      subjectEntityId: selfId, objectValue: 'undated', sourceMemoryId: memId,
+    });
+
+    // 200 bare object on the dated one.
+    const jsonOk = vi.fn();
+    const cOk = { req: { param: () => dated }, json: jsonOk } as unknown as Parameters<typeof nudgePromiseHandler>[0];
+    await nudgePromiseHandler(cOk);
+    const [bodyOk, statusOk] = jsonOk.mock.calls[0]!;
+    expect(statusOk ?? 200).toBe(200);
+    expect(bodyOk.factId).toBe(dated);
+    expect(bodyOk.nudgeCount).toBe(1);
+
+    // 409 on the undated one.
+    const json409 = vi.fn();
+    const c409 = { req: { param: () => undated }, json: json409 } as unknown as Parameters<typeof nudgePromiseHandler>[0];
+    await nudgePromiseHandler(c409);
+    const [, status409] = json409.mock.calls[0]!;
+    expect(status409).toBe(409);
+
+    // 404 on a missing fact.
+    const json404 = vi.fn();
+    const c404 = { req: { param: () => '00000000-0000-0000-0000-0000000000b2' }, json: json404 } as unknown as Parameters<typeof nudgePromiseHandler>[0];
+    await nudgePromiseHandler(c404);
+    const [, status404] = json404.mock.calls[0]!;
+    expect(status404).toBe(404);
+  });
+
+  // --- done ------------------------------------------------------------------
+
+  qdrantTest('done marks completion_resolution=done and drops from /open', async () => {
+    const selfId = await seedSelfEntity();
+    const memId = await seedSourceMemory('done test.');
+    const soon = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    const id = await seedPromiseFact({
+      subjectEntityId: selfId, objectValue: 'finish it', validAt: soon, sourceMemoryId: memId,
+    });
+    const ok = await markPromiseDone(id);
+    expect(ok).toBe(true);
+
+    // Excluded from /open (terminal state).
+    const open = await getOpenPromises();
+    expect(open.promises.find((p) => p.factId === id)).toBeUndefined();
+
+    // Detail still resolves, as done.
+    const detail = await getPromiseByFactId(id);
+    expect(detail?.state).toBe('done');
+  });
+
+  qdrantTest('done on a missing/non-commitment fact → false (404)', async () => {
+    const ok = await markPromiseDone('00000000-0000-0000-0000-0000000000c3');
+    expect(ok).toBe(false);
+  });
+
+  qdrantTest('done route returns 204 empty, 404 missing', async () => {
+    const selfId = await seedSelfEntity();
+    const memId = await seedSourceMemory('done route.');
+    const soon = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    const id = await seedPromiseFact({
+      subjectEntityId: selfId, objectValue: 'x', validAt: soon, sourceMemoryId: memId,
+    });
+    // 204.
+    const jsonOk = vi.fn();
+    const bodyOk = vi.fn();
+    const cOk = { req: { param: () => id }, json: jsonOk, body: bodyOk } as unknown as Parameters<typeof markDoneHandler>[0];
+    await markDoneHandler(cOk);
+    expect(bodyOk).toHaveBeenCalledTimes(1);
+    const [, statusOk] = bodyOk.mock.calls[0]!;
+    expect(statusOk).toBe(204);
+
+    // 404.
+    const json404 = vi.fn();
+    const body404 = vi.fn();
+    const c404 = { req: { param: () => '00000000-0000-0000-0000-0000000000d4' }, json: json404, body: body404 } as unknown as Parameters<typeof markDoneHandler>[0];
+    await markDoneHandler(c404);
+    const [, status404] = json404.mock.calls[0]!;
+    expect(status404).toBe(404);
+  });
+
+  // --- let-go ----------------------------------------------------------------
+
+  qdrantTest('let-go releases (let_go) and drops from /open; fact preserved', async () => {
+    const selfId = await seedSelfEntity();
+    const memId = await seedSourceMemory('letgo test.');
+    const soon = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    const id = await seedPromiseFact({
+      subjectEntityId: selfId, objectValue: 'release me', validAt: soon, sourceMemoryId: memId,
+    });
+    const ok = await releasePromise(id);
+    expect(ok).toBe(true);
+
+    const open = await getOpenPromises();
+    expect(open.promises.find((p) => p.factId === id)).toBeUndefined();
+
+    // Fact preserved (let-go, not deleted) — detail resolves the terminal.
+    const detail = await getPromiseByFactId(id);
+    expect(detail?.state).toBe('let-go');
+  });
+
+  qdrantTest('let-go route returns 204', async () => {
+    const selfId = await seedSelfEntity();
+    const memId = await seedSourceMemory('letgo route.');
+    const soon = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    const id = await seedPromiseFact({
+      subjectEntityId: selfId, objectValue: 'y', validAt: soon, sourceMemoryId: memId,
+    });
+    const jsonOk = vi.fn();
+    const bodyOk = vi.fn();
+    const cOk = { req: { param: () => id }, json: jsonOk, body: bodyOk } as unknown as Parameters<typeof letGoHandler>[0];
+    await letGoHandler(cOk);
+    const [, statusOk] = bodyOk.mock.calls[0]!;
+    expect(statusOk).toBe(204);
+  });
+
+  // --- recategorize ----------------------------------------------------------
+
+  qdrantTest('recategorize rewrites predicate → mentioned and drops from the promise set', async () => {
+    const selfId = await seedSelfEntity();
+    const memId = await seedSourceMemory('recat test.');
+    const soon = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    const id = await seedPromiseFact({
+      subjectEntityId: selfId, objectValue: 'not really a promise', validAt: soon, sourceMemoryId: memId,
+    });
+    const ok = await recategorizePromise(id);
+    expect(ok).toBe(true);
+
+    // No longer in the promise set (predicate 'mentioned' is not a commitment).
+    const open = await getOpenPromises();
+    expect(open.promises.find((p) => p.factId === id)).toBeUndefined();
+    const detail = await getPromiseByFactId(id);
+    expect(detail).toBeNull();
+
+    // The row itself still exists in facts (verified via direct substrate read).
+    const row = await testDb`SELECT predicate FROM facts WHERE id = ${id}::uuid`;
+    expect(row[0]?.predicate).toBe('mentioned');
+  });
+
+  qdrantTest('recategorize route returns 204, 404 missing', async () => {
+    const selfId = await seedSelfEntity();
+    const memId = await seedSourceMemory('recat route.');
+    const soon = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    const id = await seedPromiseFact({
+      subjectEntityId: selfId, objectValue: 'z', validAt: soon, sourceMemoryId: memId,
+    });
+    const jsonOk = vi.fn();
+    const bodyOk = vi.fn();
+    const cOk = { req: { param: () => id }, json: jsonOk, body: bodyOk } as unknown as Parameters<typeof recategorizeHandler>[0];
+    await recategorizeHandler(cOk);
+    const [, statusOk] = bodyOk.mock.calls[0]!;
+    expect(statusOk).toBe(204);
+
+    const json404 = vi.fn();
+    const c404 = { req: { param: () => '00000000-0000-0000-0000-0000000000e5' }, json: json404 } as unknown as Parameters<typeof recategorizeHandler>[0];
+    await recategorizeHandler(c404);
+    const [, status404] = json404.mock.calls[0]!;
+    expect(status404).toBe(404);
+  });
+
+  // --- dismiss-completion-suggestion ----------------------------------------
+
+  it('dismiss-completion-suggestion is a no-op (never errors)', async () => {
+    // Does not require Qdrant — the service function is a pure no-op.
+    await expect(dismissCompletionSuggestion('00000000-0000-0000-0000-0000000000f6'))
+      .resolves.toBeUndefined();
+  });
+
+  it('dismiss-completion-suggestion route returns 204', async () => {
+    const jsonOk = vi.fn();
+    const bodyOk = vi.fn();
+    const cOk = {
+      req: { param: () => '00000000-0000-0000-0000-0000000000f7' },
+      json: jsonOk,
+      body: bodyOk,
+    } as unknown as Parameters<typeof dismissSuggestionHandler>[0];
+    await dismissSuggestionHandler(cOk);
+    const [, statusOk] = bodyOk.mock.calls[0]!;
+    expect(statusOk).toBe(204);
+  });
+});

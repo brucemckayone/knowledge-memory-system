@@ -70,7 +70,7 @@
  */
 
 import { db, facts } from '../db/index.js';
-import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNull, isNotNull, or, sql, type SQL } from 'drizzle-orm';
 import { getSelfEntity } from './entities.js';
 import { getMemory } from './qdrant.js';
 
@@ -353,7 +353,83 @@ export async function getOpenPromises(limit?: number): Promise<OpenPromisesRespo
 export async function getPromiseByFactId(factId: string): Promise<PromiseDTO | null> {
   const now = new Date();
 
+  // The detail route serves ALL lifecycle states including the terminals
+  // (done/let-go). A resolved promise sets BOTH completion_resolution AND
+  // invalid_at (the done/let-go mutations write them together), so a filter
+  // on isNull(invalid_at) alone would 404 the very terminals this route is
+  // meant to serve. Instead: exclude only facts that are expired/hard-
+  // invalidated WITHOUT a completion resolution (a genuine invalidation),
+  // and keep those whose invalid_at is the completion release.
   const rows: PromiseFactRow[] = await db
+    .select(PROMISE_FACT_COLUMNS)
+    .from(facts)
+    .where(
+      and(
+        eq(facts.id, factId),
+        inArray(facts.predicate, [...PROMISE_PREDICATES]),
+        isNull(facts.expiredAt),
+        // Active (no invalid_at) OR completed (invalid_at set by a resolution).
+        or(isNull(facts.invalidAt), isNotNull(facts.completionResolution)),
+      ),
+    )
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+  return toPromiseDTO(row, now);
+}
+
+// =============================================================================
+// MUTATIONS (ASK-016 slice 3)
+// =============================================================================
+//
+// Five write surfaces that change a promise's substrate. The route file
+// (routes/promises.ts) owns the 404/409→HTTP mapping; these functions return
+// the data or a typed sentinel for the caller to interpret:
+//
+//   - nudgePromise        → PromiseDTO (shifted) | 'NOT_FOUND' | 'NO_DEADLINE' | 'NUDGE_LIMIT'
+//   - markPromiseDone     → true | false  (false = not a commitment / missing)
+//   - releasePromise      → true | false  (let-go — never a hard delete; rule 9)
+//   - recategorizePromise → true | false  (predicate → 'mentioned', drops the
+//                                          row from the promise set)
+//   - dismissCompletionSuggestion → no-op stub (slice 4 owns suggestions; v1
+//                                    has none, so the call is acknowledged and
+//                                    ignored — never errors)
+//
+// NUDGE LIMIT: a promise can be nudged at most NUDGE_LIMIT (3) times. Each
+// nudge shifts valid_at +24h and bumps nudge_count + last_nudged_at. Nudge is
+// ONLY meaningful for ripening/held/nudged promises — a promise with NO
+// valid_at (state `open`) has no deadline to shift, so it is refused (409).
+//
+// RELEASE/DONE set completion_resolution + invalid_at (the fact stays in the
+// table; never hard-deleted). completion_metadata records provenance
+// (resolved_at + actor). Recategorize rewrites predicate → 'mentioned' so the
+// ontology (which passes unknown predicates through) drops it from the
+// commitment set entirely.
+
+/** Cap on how many times a single promise may be nudged. */
+export const NUDGE_LIMIT = 3;
+
+/** Nudge result sentinels (the route maps these to HTTP). */
+export type NudgeResult =
+  | { kind: 'ok'; promise: PromiseDTO }
+  | { kind: 'not_found' }
+  | { kind: 'no_deadline' } // valid_at IS NULL — nudge only shifts a deadline
+  | { kind: 'nudge_limit' }; // nudge_count >= NUDGE_LIMIT
+
+/**
+ * Shift a promise's deadline +24h and bump nudge_count/last_nudged_at (ASK-016
+ * slice 3). Refused (no mutation) when the fact isn't an active commitment, has
+ * no deadline to shift, or has already hit NUDGE_LIMIT. Returns the shifted
+ * Promise shaped via toPromiseDTO (backend-authoritative state recomputed).
+ */
+export async function nudgePromise(factId: string): Promise<NudgeResult> {
+  const now = new Date();
+
+  // Fetch under the commitment predicate so a non-commitment fact 404s (not a
+  // silent predicate rewrite). Single read before write — the UPDATE ... RETURNING
+  // path below would otherwise let a non-commitment row slip through.
+  const existing: PromiseFactRow[] = await db
     .select(PROMISE_FACT_COLUMNS)
     .from(facts)
     .where(
@@ -366,8 +442,119 @@ export async function getPromiseByFactId(factId: string): Promise<PromiseDTO | n
     )
     .limit(1);
 
-  const row = rows[0];
-  if (!row) return null;
-  return toPromiseDTO(row, now);
+  const row = existing[0];
+  if (!row) return { kind: 'not_found' };
+
+  // No deadline to shift — nudge only applies to ripening/held/nudged (a
+  // promise with state `open` has no valid_at).
+  if (row.validAt === null) return { kind: 'no_deadline' };
+
+  const nudgeCount = row.nudgeCount ?? 0;
+  if (nudgeCount >= NUDGE_LIMIT) return { kind: 'nudge_limit' };
+
+  // NOTE: drizzle's returning() selects the alias keys directly, but the
+  // shape is keyed by our column aliases (objectValue, sourceMemoryId, …).
+  // We map the row defensively — drizzle returns the camelCase keys when the
+  // column is aliased in the schema, which matches PromiseFactRow.
+  const updated = await db
+    .update(facts)
+    .set({
+      validAt: sql`${facts.validAt} + INTERVAL '24 hours'`,
+      nudgeCount: sql`${facts.nudgeCount} + 1`,
+      lastNudgedAt: now,
+    })
+    .where(eq(facts.id, factId))
+    .returning(PROMISE_FACT_COLUMNS);
+
+  const next = updated[0] as PromiseFactRow | undefined;
+  if (!next) return { kind: 'not_found' }; // raced away — treat as not found
+  const promise = await toPromiseDTO(next, now);
+  if (!promise) return { kind: 'not_found' }; // degenerate row (blank quote/prose)
+  return { kind: 'ok', promise };
+}
+
+/**
+ * Mark a promise done (ASK-016 slice 3). Sets completion_resolution='done',
+ * invalid_at=NOW(), completion_metadata provenance. Returns true on success,
+ * false if the fact isn't an active commitment (→ 404). The fact is preserved
+ * (never hard-deleted — CLAUDE.md rule 9).
+ */
+export async function markPromiseDone(factId: string): Promise<boolean> {
+  const result = await db
+    .update(facts)
+    .set({
+      completionResolution: 'done',
+      invalidAt: new Date(),
+      completionMetadata: sql`jsonb_build_object('resolved_at', NOW(), 'actor', 'user')`,
+    })
+    .where(
+      and(
+        eq(facts.id, factId),
+        inArray(facts.predicate, [...PROMISE_PREDICATES]),
+        isNull(facts.invalidAt),
+        isNull(facts.expiredAt),
+      ),
+    )
+    .returning({ id: facts.id });
+  return result.length > 0;
+}
+
+/**
+ * Release a promise (let-go — ASK-016 slice 3). Same shape as done but
+ * completion_resolution='let_go'. NEVER a hard delete (CLAUDE.md rule 9).
+ */
+export async function releasePromise(factId: string): Promise<boolean> {
+  const result = await db
+    .update(facts)
+    .set({
+      completionResolution: 'let_go',
+      invalidAt: new Date(),
+      completionMetadata: sql`jsonb_build_object('resolved_at', NOW(), 'actor', 'user')`,
+    })
+    .where(
+      and(
+        eq(facts.id, factId),
+        inArray(facts.predicate, [...PROMISE_PREDICATES]),
+        isNull(facts.invalidAt),
+        isNull(facts.expiredAt),
+      ),
+    )
+    .returning({ id: facts.id });
+  return result.length > 0;
+}
+
+/**
+ * Recategorize a promise as "not a promise" (ASK-016 slice 3). Rewrites
+ * predicate → 'mentioned' so the ontology (which passes unknown predicates
+ * through) drops the row from the commitment set. 'mentioned' is NOT a
+ * commitment predicate, so GET /api/promises/open and /:factId both stop
+ * surfacing it. Returns true on success, false if not an active commitment.
+ */
+export async function recategorizePromise(factId: string): Promise<boolean> {
+  const result = await db
+    .update(facts)
+    .set({ predicate: 'mentioned' })
+    .where(
+      and(
+        eq(facts.id, factId),
+        inArray(facts.predicate, [...PROMISE_PREDICATES]),
+        isNull(facts.invalidAt),
+        isNull(facts.expiredAt),
+      ),
+    )
+    .returning({ id: facts.id });
+  return result.length > 0;
+}
+
+/**
+ * Dismiss a completion suggestion (ASK-016 slice 3). v1 has NO suggestion
+ * surface (slice 4 lands done-by-recording detection), so this is a documented
+ * no-op: acknowledge the call and do nothing. Never errors. The signature is
+ * stable so iOS can wire it now and slice 4 fills in the persistence.
+ */
+export async function dismissCompletionSuggestion(_factId: string): Promise<void> {
+  // Intentionally empty in v1. Slice 4 will record the dismissal against the
+  // suggestion row once suggestions exist.
+  return;
 }
 
