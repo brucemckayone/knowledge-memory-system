@@ -20,6 +20,7 @@ import { recentHandler } from './routes/recent.js';
 import { holdingHandler } from './routes/holding.js';
 import { goingHandler } from './routes/going.js';
 import { askHandler } from './routes/ask.js';
+import { openPromisesHandler, promiseDetailHandler } from './routes/promises.js';
 import {
   onboardingCurrentHandler,
   confirmFocusHandler,
@@ -1244,6 +1245,23 @@ app.post('/api/onboarding/rename-focus', renameFocusHandler);
 // concerns; the service (services/ask.ts) does search + compose + entity join
 // + isHardTopic/isAmbiguous derivation + fail-loud span shaping.
 app.post('/api/ask', askHandler);
+
+// GET /api/promises/open — active promises overview (ASK-016 slice 2). Returns
+// only {open, held, ripening, nudged} (done/let-go excluded), valid_at ASC
+// NULLS LAST, optional ?limit=N for widget sizes. Sparse / fresh DB / no self
+// entity / unseeded commitment predicates => { promises: [] } (200, BARE array
+// never null). The route file (routes/promises.ts) owns ONLY wire concerns;
+// the service (services/promises.ts) does the backend-authoritative 6-state
+// derivation + Qdrant source-quote lift + fail-loud row dropping.
+//
+// ROUTE ORDER: /api/promises/open MUST be registered before /api/promises/:fact_id
+// or Hono's pattern matcher routes the literal "open" into the param handler.
+app.get('/api/promises/open', openPromisesHandler);
+// GET /api/promises/:fact_id — one Promise by fact id (ASK-016 slice 2).
+// Returns a BARE Promise object (no wrapper — iOS decodes Response = Promise).
+// 404 when the fact is missing, not a commitment predicate, or invalidated/
+// expired. 500 on any other failure.
+app.get('/api/promises/:fact_id', promiseDetailHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
