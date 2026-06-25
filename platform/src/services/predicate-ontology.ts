@@ -259,6 +259,33 @@ export const CANONICAL_ONTOLOGY: Record<string, {
     category: 'events',
     aliases: ['presented_at', 'gave_talk_at', 'keynote_at'],
   },
+  // Commitments / promises (ASK-016). The user's stated intentions / plans /
+  // promises — surfaced as the home "holding" set. Modeled as subject = the
+  // speaker, object_value = the action ("write to dad"), valid_at = the
+  // deadline; NOT object_entity (the promise is the act, not a person). Not
+  // exclusive — a person holds many commitments at once. Strength rises
+  // intends_to -> plans_to -> committed_to.
+  plans_to: {
+    description: 'Plans / is going to perform an action (a held promise)',
+    type: 'commitment',
+    exclusive: false,
+    category: 'commitments',
+    aliases: ['planning_to', 'going_to', 'needs_to', 'has_to'],
+  },
+  intends_to: {
+    description: 'Intends to perform an action (a held promise, weaker than plans_to)',
+    type: 'commitment',
+    exclusive: false,
+    category: 'commitments',
+    aliases: ['intending_to', 'thinking_of'],
+  },
+  committed_to: {
+    description: 'Promised to perform an action (a held promise, strongest commitment)',
+    type: 'commitment',
+    exclusive: false,
+    category: 'commitments',
+    aliases: ['promised_to', 'pledged_to', 'vowed_to'],
+  },
 };
 
 // Build reverse lookup for aliases

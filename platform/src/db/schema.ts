@@ -140,6 +140,21 @@ export const facts = pgTable('facts', {
 
   // Quality
   confidence: real('confidence').default(1.0),
+
+  // Promise state (ASK-016). Only meaningful for commitment predicates
+  // (plans_to / intends_to / committed_to); null/default on ordinary facts.
+  // nudgeCount: how many times the user extended this promise's deadline.
+  // lastNudgedAt: when the user last nudged it (backend-internal; not on the
+  //   iOS wire — iOS carries only nudgeCount).
+  // completionResolution: 'done' | 'let_go' | null (null = still open). Set
+  //   when the user resolves a promise; the fact is preserved (never
+  //   hard-deleted — CLAUDE.md rule 9 / "let go" is a release).
+  // completionMetadata: provenance for the resolution (e.g. auto-detected
+  //   suggestion the user confirmed, source memory id).
+  nudgeCount: integer('nudge_count').default(0),
+  lastNudgedAt: timestamp('last_nudged_at', { withTimezone: true }),
+  completionResolution: varchar('completion_resolution', { length: 20 }),
+  completionMetadata: jsonb('completion_metadata'),
 });
 
 export const factsRelations = relations(facts, ({ one }) => ({
