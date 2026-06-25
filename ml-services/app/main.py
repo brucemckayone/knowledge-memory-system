@@ -41,6 +41,8 @@ from .reconciliation_agent import router as reconciliation_agent_router
 from .causal_agent import router as causal_agent_router
 from .gardener_agent import router as gardener_agent_router
 from .reasoning_agent import router as reasoning_agent_router
+# iOS API v1 — Voice-C compose (ASK-005 + ASK-009)
+from .voice_c_compose import router as voice_c_compose_router
 from .core.llm import LLM_PROVIDER
 from .core.concurrency import ollama_pool, llm_pool, THREAD_POOL_SIZE
 
@@ -103,6 +105,8 @@ app.include_router(causal_agent_router, tags=["Causal Agent"])
 # Graph gardener
 app.include_router(gardener_agent_router, tags=["Graph Gardener"])
 app.include_router(reasoning_agent_router, tags=["Reasoning Agent"])
+# iOS API v1 — Voice-C compose (ASK-005 + ASK-009)
+app.include_router(voice_c_compose_router, tags=["Voice-C Compose"])
 # Phase 2: Topology primitives (T0)
 from .topology import router as topology_router
 app.include_router(topology_router, tags=["Topology"])

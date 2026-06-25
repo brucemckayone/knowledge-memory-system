@@ -75,6 +75,10 @@ TASK_DEFAULTS: Dict[str, Dict[str, str]] = {
     "gardener_agent":        {"model": "haiku",  "effort": "low"},
     "reasoning_agent":       {"model": "haiku",  "effort": "low"},
     "pattern_naming":        {"model": "haiku",  "effort": "low"},
+    # iOS API v1 — Voice-C compose (ASK-005). haiku is too weak for the
+    # lowercase/em-dash/encouraging-not-guilting persona; sonnet+medium is
+    # the floor that passes the assertVoiceC lint deterministically.
+    "voice_c_compose":       {"model": "sonnet", "effort": "medium"},
 }
 DEFAULT_MODEL = "haiku"
 DEFAULT_EFFORT = "low"
