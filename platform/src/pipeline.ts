@@ -21,7 +21,7 @@ import { applyConfidenceDecay } from './services/causal.js';
 import { detectContradictions } from './services/contradictions.js';
 import { updateEntityMeta, detectMergeCandidates } from './services/graph-meta.js';
 import { db } from './db/index.js';
-import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports, mergeCandidates, entityAliases, factUnits, memoryIndex } from './db/schema.js';
+import { entities as entitiesTable, facts as factsTable, memoryEntities, extractionReports, mergeCandidates, entityAliases, factUnits, memoryIndex, extractionFailures } from './db/schema.js';
 import { eq, inArray, sql } from 'drizzle-orm';
 
 export interface ExtractResult {
@@ -90,9 +90,11 @@ export function pulledLineExcerpt(body: string): string {
  * so /api/recent is a cheap PG read rather than a Qdrant scan. Idempotent on
  * memory_id (PK): a re-store of the same id (not the normal path — store()
  * mints a fresh randomUUID each call) upserts rather than throwing. Failures
- * are caught + warn-logged: a missing memory_index row degrades recent to
- * omitting that memory, but must NOT fail the ingest that just succeeded
- * (capture works offline; the recency index is best-effort, not load-bearing).
+ * are caught + warn-logged: a missing memory_index row is PERMANENTLY absent
+ * from /api/recent in v1 (there is no backfill — the memory is canonical in
+ * Qdrant but will not appear in the recent timeline), but must NOT fail the
+ * ingest that just succeeded (capture works offline; the recency index is
+ * best-effort, not load-bearing on the capture path).
  */
 async function indexMemoryForRecent(args: {
   memoryId: string;
@@ -114,7 +116,7 @@ async function indexMemoryForRecent(args: {
       .onConflictDoNothing({ target: memoryIndex.memoryId });
   } catch (err) {
     console.warn(
-      `[pipeline] memory_index write failed for ${args.memoryId} (recent will omit until backfill):`,
+      `[pipeline] memory_index write failed for ${args.memoryId} (permanently in v1 — no backfill; the memory is canonical in Qdrant but absent from /api/recent):`,
       err instanceof Error ? err.message : err,
     );
   }
@@ -1249,6 +1251,16 @@ interface QueueItem {
 const ingestQueue: QueueItem[] = [];
 let draining = false;
 
+// Shared process-wide "an extract() / graph-agent run is in flight" guard.
+// Both drainQueue() (legacy /ingest/queue -> ingest() -> extract()) and
+// drainExtraction() (non-blocking /ingest -> extract()) run the graph agent.
+// Without a SHARED flag the two drains could each set their OWN boolean and
+// run extract() concurrently — a graph-agent race. This single flag is the
+// authority: only one extract() runs process-wide at a time. A drain that
+// finds it busy leaves the item queued; its own kick (or the other drain's
+// finish) re-attempts. See the unification note in drainExtraction.
+let extractBusy = false;
+
 /**
  * Enqueue text for ingestion. Returns immediately.
  * Items are processed one at a time in FIFO order —
@@ -1271,10 +1283,21 @@ async function drainQueue(): Promise<void> {
   draining = true;
   while (ingestQueue.length > 0) {
     const item = ingestQueue.shift()!;
+    // LEGACY path (/ingest/queue): ingest() runs store() THEN extract() in one
+    // call. The graph-agent half must honor the shared extractBusy guard so it
+    // cannot run concurrently with drainExtraction's extract(). If busy, requeue
+    // the item at the head and yield — drainExtraction's finish re-kicks us.
+    if (extractBusy) {
+      ingestQueue.unshift(item);
+      break;
+    }
+    extractBusy = true;
     try {
       await ingest(item.text, { source: item.source, contentType: item.contentType });
     } catch (err) {
       console.error(`[queue] ingest failed:`, err instanceof Error ? err.message : err);
+    } finally {
+      extractBusy = false;
     }
   }
   draining = false;
@@ -1310,10 +1333,11 @@ let extractionDraining = false;
 /**
  * Enqueue an extraction job for a memory that is already stored. Returns
  * immediately — the graph agent runs in the background. A failed extract is
- * logged and dropped (the memory is durable in Qdrant; a re-capture or later
- * re-trigger recovers its entities/edges). Durable DB-backed jobs are a v1.x
- * follow-up (scoping G5); for single-user v1 this in-memory drain is the
- * async-extraction substrate that lets `/ingest` return 202 without blocking.
+ * logged AND durably recorded in extraction_failures (the queryable developer
+ * surface — the memory is permanent in Qdrant; only its extraction was lost).
+ * Re-enqueue-on-startup is the full G5 durable-jobs follow-up and is DEFERRED;
+ * this drain remains the in-memory async-extraction substrate that lets
+ * `/ingest` return 202 without blocking.
  */
 export function enqueueExtraction(memoryId: string, contentType?: ContentType): void {
   extractionQueue.push({ memoryId, contentType });
@@ -1326,33 +1350,82 @@ export function enqueueExtraction(memoryId: string, contentType?: ContentType): 
 async function drainExtraction(): Promise<void> {
   if (extractionDraining) return;
   extractionDraining = true;
-  while (extractionQueue.length > 0) {
-    const item = extractionQueue.shift()!;
-    try {
-      await extract(item.memoryId, { contentType: item.contentType });
-      // EPIC 2 / ASK-010: after each successful extract, re-evaluate the
-      // onboarding stage machine. The machine is substrate-driven, NOT source-
-      // gated — a non-onboarding ingest still densifies the graph
-      // (design/08-onboarding.md:15) and may advance the arc. Best-effort:
-      // a failure here must NEVER fail the extraction (the capture is
-      // permanent; the onboarding read is a soft surface). Lazy-import to keep
-      // the onboarding service off the pipeline's hot import path + avoid any
-      // circular-dep risk.
+  try {
+    while (extractionQueue.length > 0) {
+      // SHARED extractBusy guard: drainQueue (legacy /ingest/queue -> ingest()
+      // -> extract()) and this drain both run the graph agent. Only one
+      // extract() may run process-wide at a time. If the legacy queue holds the
+      // flag, leave this item queued and yield; drainQueue's finish re-kicks us.
+      if (extractBusy) break;
+      const item = extractionQueue.shift()!;
+      extractBusy = true;
       try {
-        const { evaluateStage } = await import('./services/onboarding.js');
-        await evaluateStage();
-      } catch (onbErr) {
-        console.warn(
-          '[extraction-queue] onboarding evaluateStage failed (continuing):',
-          onbErr instanceof Error ? onbErr.message : onbErr,
+        await extract(item.memoryId, { contentType: item.contentType });
+        // EPIC 2 / ASK-010: after each successful extract, re-evaluate the
+        // onboarding stage machine. The machine is substrate-driven, NOT source-
+        // gated — a non-onboarding ingest still densifies the graph
+        // (design/08-onboarding.md:15) and may advance the arc. Best-effort:
+        // a failure here must NEVER fail the extraction (the capture is
+        // permanent; the onboarding read is a soft surface). Lazy-import to keep
+        // the onboarding service off the pipeline's hot import path + avoid any
+        // circular-dep risk.
+        try {
+          const { evaluateStage } = await import('./services/onboarding.js');
+          await evaluateStage();
+        } catch (onbErr) {
+          // Read the current persisted stage so a frozen stage machine is
+          // diagnosable from the warn alone (which stage was being evaluated).
+          let currentStage = 'unknown';
+          try {
+            const { getOnboardingState } = await import('./services/onboarding.js');
+            currentStage = (await getOnboardingState()).stage;
+          } catch {
+            // leave 'unknown' — the stage read itself failed
+          }
+          console.warn(
+            `[extraction-queue] onboarding evaluateStage failed at stage=${currentStage} (continuing):`,
+            onbErr instanceof Error ? onbErr.message : onbErr,
+          );
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[extraction-queue] extract failed for ${item.memoryId}:`,
+          msg,
         );
+        // Durable failure signal (G5 partial): UPSERT extraction_failures so an
+        // operator can see which memories never got entities/edges + why. The
+        // memory stays durable in Qdrant; this row is the queryable surface.
+        // Fire-and-forget within the catch — a failed UPSERT write must not
+        // propagate out of the catch and abort the drain loop.
+        try {
+          await db
+            .insert(extractionFailures)
+            .values({
+              memoryId: item.memoryId,
+              attempts: 1,
+              lastError: msg,
+              lastAttemptedAt: new Date(),
+            })
+            .onConflictDoUpdate({
+              target: extractionFailures.memoryId,
+              set: {
+                attempts: sql`${extractionFailures.attempts} + 1`,
+                lastError: msg,
+                lastAttemptedAt: new Date(),
+              },
+            });
+        } catch (upsertErr) {
+          console.warn(
+            `[extraction-queue] extraction_failures upsert failed for ${item.memoryId} (continuing):`,
+            upsertErr instanceof Error ? upsertErr.message : upsertErr,
+          );
+        }
+      } finally {
+        extractBusy = false;
       }
-    } catch (err) {
-      console.error(
-        `[extraction-queue] extract failed for ${item.memoryId}:`,
-        err instanceof Error ? err.message : err,
-      );
     }
+  } finally {
+    extractionDraining = false;
   }
-  extractionDraining = false;
 }

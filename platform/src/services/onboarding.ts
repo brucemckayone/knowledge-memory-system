@@ -263,10 +263,11 @@ function composePrompt(
     }
     case 'stage_3': {
       // Themed: reference the two strongest cluster representatives.
-      // Template mirrors FixtureOnboardingProvider.stage3.
+      // Template mirrors FixtureOnboardingProvider.stage3. Single em-dash (the
+      // prompt is one sentence — Voice C punctuation).
       const names = (ctx.topFocusNames ?? []).map(normalizeName).filter((n) => n.length > 0);
       if (names.length >= 2) {
-        const text = `the same shape has come up twice — ${names[0]} and ${names[1]}. — what is the sentence underneath?`;
+        const text = `${names[0]} and ${names[1]} have the same shape. — what is the sentence underneath?`;
         assertVoiceC(text);
         return { promptId, text, kind: 'themed', issuedAt };
       }

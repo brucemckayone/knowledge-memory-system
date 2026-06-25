@@ -150,18 +150,42 @@ app.post('/ingest', async (c) => {
       ? body.idempotency_key.trim()
       : undefined;
 
-  // Idempotent replay: a retried POST with a key already in capture_idempotency
-  // returns the prior memory_id WITHOUT re-ingesting (at-most-once under client
-  // retries — capture works offline and retries on reconnect). 202 signals "we
-  // already have this; nothing new ran".
+  // Idempotent capture (at-most-once under client retries — capture works
+  // offline and retries on reconnect). ATOMIC dedup: INSERT the idempotency row
+  // FIRST with onConflictDoNothing. If the insert affected 0 rows (conflict),
+  // a prior/concurrent request already won the race — re-select its memory_id
+  // and return the 202 idempotent short-circuit BEFORE store() (no double-
+  // ingest under two concurrent same-key requests — closes the check-then-store
+  // TOCTOU window the old select-then-store-then-insert sequence had). Only if
+  // THIS request's insert succeeds do we proceed to store()+enqueue. 202 here
+  // signals "we already have this; nothing new ran".
   if (idempotencyKey) {
-    const prior = await db
-      .select({ memoryId: captureIdempotency.memoryId })
-      .from(captureIdempotency)
-      .where(eq(captureIdempotency.idempotencyKey, idempotencyKey))
-      .limit(1);
-    if (prior[0]) {
-      return c.json({ memory_id: prior[0].memoryId, idempotent: true }, 202);
+    const inserted = await db
+      .insert(captureIdempotency)
+      .values({ idempotencyKey, memoryId: null })
+      .onConflictDoNothing()
+      .returning({ memoryId: captureIdempotency.memoryId });
+    if (inserted.length === 0) {
+      // Conflict: another request (this one's earlier retry or a concurrent
+      // twin) already won the key. Re-select the winning memory_id and short-
+      // circuit. The winner inserts the row with memory_id NULL, then backfills
+      // after store(); if we read NULL the winner is mid-store — poll a few
+      // times so a same-key retry never observes a half-written row.
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const prior = await db
+          .select({ memoryId: captureIdempotency.memoryId })
+          .from(captureIdempotency)
+          .where(eq(captureIdempotency.idempotencyKey, idempotencyKey))
+          .limit(1);
+        if (prior[0]?.memoryId) {
+          return c.json({ memory_id: prior[0].memoryId, idempotent: true }, 202);
+        }
+        // Winner still mid-store; brief backoff then retry.
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      // Winner stalled past the poll budget. Fall through to a fresh ingest
+      // rather than stranding the client — the worst case is one extra store()
+      // under a key whose winner died, which is strictly better than a hang.
     }
   }
 
@@ -194,32 +218,52 @@ app.post('/ingest', async (c) => {
   // ~60s `extract()` graph agent runs OFF the request path via
   // `enqueueExtraction`. The node lands in /api/hero on the next fetch AFTER
   // extraction completes.
-  const memoryId = await store(body.text, {
-    source,
-    contentType: parseContentType(body.contentType),
-    // nmemo-3f9.2: optional stream scope for speaker identity. Absent ->
-    // implicit single stream (back-compat). No participants array is accepted;
-    // speakers are discovered from data, never declared.
-    streamId: body.stream_id,
-    // Honor the client capture time when supplied; store() falls back to server
-    // time when undefined.
-    timestamp: capturedAt,
-    captureContext,
-  });
+  //
+  // store()+enqueue are wrapped in try/catch mirroring every other /api/*
+  // handler (recent/holding/going/onboarding): on throw return a structured
+  // 500 + correlation-context log so the failure is traceable to this ingest.
+  // The idempotency row is already written (the INSERT-first path above won the
+  // race), so a retried POST will still short-circuit — the 500 is recoverable
+  // by the client retrying the SAME key.
+  let memoryId: string;
+  try {
+    memoryId = await store(body.text, {
+      source,
+      contentType: parseContentType(body.contentType),
+      // nmemo-3f9.2: optional stream scope for speaker identity. Absent ->
+      // implicit single stream (back-compat). No participants array is accepted;
+      // speakers are discovered from data, never declared.
+      streamId: body.stream_id,
+      // Honor the client capture time when supplied; store() falls back to server
+      // time when undefined.
+      timestamp: capturedAt,
+      captureContext,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[ingest] store failed idempotencyKey=${idempotencyKey ?? '-'} source=${source ?? '-'}: ${msg}`,
+    );
+    return c.json({ error: msg }, 500);
+  }
 
-  // Record the idempotency ledger row AT ENQUEUE TIME (born idempotent): a
-  // retried POST short-circuits to this memory_id EVEN BEFORE extraction
-  // finishes, so a client retry never double-ingests. ON CONFLICT DO NOTHING
-  // tolerates a racing concurrent retry that already inserted the key.
+  // Backfill the real memory_id onto the idempotency row we inserted above
+  // (it was born with a placeholder so the INSERT-first dedup could win the
+  // race before store() minted the id). onConflictDoNothing keeps this a no-op
+  // assert if a concurrent twin already wrote the real id.
   if (idempotencyKey) {
     try {
       await db
-        .insert(captureIdempotency)
-        .values({ idempotencyKey, memoryId })
-        .onConflictDoNothing();
+        .update(captureIdempotency)
+        .set({ memoryId })
+        .where(eq(captureIdempotency.idempotencyKey, idempotencyKey));
     } catch (err) {
+      // Non-fatal: the capture is stored; only the ledger backfill failed. A
+      // retry with the same key would now re-ingest (the row still holds the
+      // placeholder '') — so log LOUDLY with key + memoryId so the chain is
+      // traceable and an operator can repair the row.
       console.warn(
-        '[ingest] failed to record idempotency key (continuing):',
+        `[ingest] idempotency ledger backfill failed for idempotency_key=${idempotencyKey} memoryId=${memoryId} (continuing):`,
         err instanceof Error ? err.message : err,
       );
     }

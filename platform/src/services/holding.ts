@@ -18,36 +18,25 @@
  *   - held/ripening: `facts` where predicate ∈ PROMISE_PREDICATES, invalid_at
  *     IS NULL, expired_at IS NULL. `line` is `facts.source_text` — the user's
  *     own past words, passed through VERBATIM (NOT composed).
- *   - open: `findCausalGhosts(selfEntityId)` from services/causal-patterns.ts.
+ *   - open: causal ghosts (services/causal-patterns.ts findCausalGhosts).
  *
  * ============================================================
- * SPIKE (flagged): the ghost → user-worded-prose join is unresolved.
+ * v1 SUPPRESSION: open-state ghost items are NOT shipped.
  * ============================================================
  * `findCausalGhosts` returns Ghost objects whose `reasoning` is structural
- * metadata ("Entity covers N of M edge positions in pattern '<name>'; position
- * P is missing.") — NOT the user's own words. The wire contract demands `line`
- * be the user's OWN past words (design/03-home.md §"Section 4": "a kept list";
- * the examples are first-person commitments). Causal ghosts do not carry a
- * source_text / pulled_line: they describe a MISSING structural slot, not an
- * uttered commitment, so there is nothing verbatim to lift. This mirrors gap
- * G3 in BACKEND-INTEGRATION-SCOPING.md (walk's ghost→ids spike).
- *
- * Resolution options (out of scope for GET-only v1 — flagged for the promises
- * epic, ASK-016, which owns the commitment-predicate ontology + a real
- * open-question compose):
- *   (a) join a ghost back to the nearest supporting memory's pulled_line
- *       (needs the memory_index / pulled_line work — ASK-002, recent epic); OR
- *   (b) a deterministic Voice-C compose over the pattern context (the composer
- *       exists; voice-c-composer.ts) — but that yields composed prose, not the
- *       user's verbatim words, and the surface contract is "the user's own
- *       past words."
- *
- * v1 DECISION (documented): until the join lands, an `open` item's `line` is a
- * deterministic, Voice-C-safe placeholder composed from the ghost's pattern
- * context — it names the open thread the ghost points at, lowercase, no
- * forbidden verbs — and `metaText` is omitted (iOS recomposes it). This keeps
- * the endpoint decodable and the surface non-blank without inventing a fake
- * user quote. When ASK-016 lands the real source_text join, swap the line.
+ * graph-topology metadata ("Entity covers N of M edge positions in pattern
+ * '<name>'; position P is missing.") — NOT the user's own words. The wire
+ * contract demands `line` be the user's OWN past words (design/03-home.md
+ * §"Section 4": "a kept list"; the examples are first-person commitments).
+ * Causal ghosts carry no source_text / pulled_line: they describe a MISSING
+ * structural slot, not an uttered commitment, so there is nothing verbatim to
+ * lift. Shipping them would surface composed backend vocabulary as if it were
+ * the user's voice — a Voice-C violation. open items stay suppressed until the
+ * source_text join (the promises epic ASK-016, which owns the commitment-
+ * predicate ontology + a real open-question compose) can lift the user's actual
+ * words onto a ghost. Until then ONLY held/ripening items are served; the
+ * suppression is logged once per process. This mirrors gap G3 in
+ * BACKEND-INTEGRATION-SCOPING.md (walk's ghost→ids spike).
  *
  * ============================================================
  * DECISION: explicit-classification `state`, NOT the valid_at-threshold rule.
@@ -68,8 +57,6 @@
 import { db, facts } from '../db/index.js';
 import { eq, and, isNull, inArray, desc } from 'drizzle-orm';
 import { getSelfEntity } from './entities.js';
-import { findCausalGhosts, type Ghost } from './causal-patterns.js';
-import { assertVoiceC } from './voice-c-composer.js';
 
 // --- wire contract (camelCase; matches iOS HoldingItem.swift CodingKeys) ------
 
@@ -113,14 +100,6 @@ const PROMISE_PREDICATES = ['plans_to', 'intends_to', 'committed_to'] as const;
  *  (design/03-home.md: "ripening if within 48h"). In ms. */
 const RIPENING_WINDOW_MS = 48 * 60 * 60 * 1000;
 
-/** Caps how many ghosts we turn into `open` items (findCausalGhosts already
- *  caps at 10; we further bound the section). */
-const OPEN_CAP = 5;
-
-function nonBlank(v: unknown): v is string {
-  return typeof v === 'string' && v.trim().length > 0;
-}
-
 /** Normalize an optional string to non-empty-trimmed-or-null. */
 function trimOrNull(v: string | null | undefined): string | null {
   if (v == null) return null;
@@ -139,31 +118,10 @@ interface PromiseFactRow {
   createdAt: Date;
 }
 
-/**
- * Build a deterministic, Voice-C-safe placeholder `line` for an `open` ghost
- * item. The ghost's `reasoning` is structural metadata, not user words (see the
- * SPIKE note in the file header) — so we name the open thread the ghost points
- * at, lowercase, with no forbidden verbs. assertVoiceC guards the result.
- *
- * The pattern name is often already lowercase prose ("approach → commit →
- * ship"); we lower-case + collapse whitespace defensively and strip a trailing
- * period. When the pattern is anonymous we fall back to a generic, never-blank
- * phrasing so the row is always decodable (iOS rejects empty `line`).
- */
-function composeGhostLine(ghost: Ghost): string {
-  const name = nonBlank(ghost.patternName) ? ghost.patternName : null;
-  const expected = nonBlank(ghost.expectedPredicateCategory) ? ghost.expectedPredicateCategory : null;
-  let line: string;
-  if (name && expected) {
-    line = `an open thread in ${name.toLowerCase()} — the ${expected.toLowerCase()} step is still missing`;
-  } else if (name) {
-    line = `an open thread in ${name.toLowerCase()} — one step is still missing`;
-  } else {
-    line = 'an open thread — one step is still missing';
-  }
-  assertVoiceC(line);
-  return line;
-}
+// NOTE: the `open`-state ghost machinery (composeGhostLine / readOpenItems /
+// OPEN_CAP) lived here. It was REMOVED for v1 — open items are suppressed
+// pending the ASK-016 source_text join (see the SUPPRESSION note in the file
+// header). The held/ripening path below is the only source shipped.
 
 /**
  * Classify a promise fact into `held` or `ripening`. A fact with a future
@@ -236,52 +194,25 @@ async function readPromiseItems(selfEntityId: string, limit: number, now: Date):
   return items;
 }
 
-/**
- * Turn the self entity's causal ghosts into `open` items. See the SPIKE note in
- * the file header: the ghost carries no user-worded prose, so `line` is a
- * deterministic placeholder until the ASK-016 join lands. `validAt` is always
- * null for `open` (a held question has no deadline).
- */
-async function readOpenItems(selfEntityId: string, limit: number): Promise<HoldingItemDTO[]> {
-  let ghosts: Ghost[];
-  try {
-    ghosts = await findCausalGhosts(selfEntityId);
-  } catch (err) {
-    // Ghost detection failure must NOT blank the whole section — the promise
-    // items are independent. Log and serve zero open items.
-    console.warn(
-      `[holding] ghost detection failed for entity ${selfEntityId}: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return [];
-  }
-
-  const items: HoldingItemDTO[] = [];
-  for (const g of ghosts.slice(0, Math.min(limit, OPEN_CAP))) {
-    const line = composeGhostLine(g);
-    items.push({
-      holdingId: `holding:ghost:${g.patternId}:${g.positionInPattern}`,
-      line,
-      state: 'open',
-      validAt: null,
-      // Ghosts have no createdAt of their own; the pattern's last_seen_at is
-      // the closest timestamp, but we don't fetch it here to avoid a second
-      // join. Use NOW() so the row has a valid, ordered createdAt. The display
-      // ordering lives in the iOS view layer regardless.
-      createdAt: new Date().toISOString(),
-      metaText: null,
-      sourceMemoryId: null,
-      factId: null,
-    });
-  }
-  return items;
-}
-
 // --- public entry point ------------------------------------------------------
+
+// v1 SUPPRESSION: `open`-state items (causal-ghost-derived) are intentionally
+// NOT shipped in v1. The ghost carries no user-worded prose — its `reasoning` is
+// structural graph-topology vocabulary — so the only available `line` was a
+// COMPOSED placeholder that surfaced backend vocabulary as if it were the
+// user's voice. design/03-home.md §"Section 4 — Holding" is explicit that
+// holding is "a kept list" of the user's OWN words; composed topology prose
+// violates that contract. open items stay suppressed until the source_text join
+// (the ASK-016 / promises-epic follow-up) can lift the user's actual words onto
+// a ghost. Until then only held/ripening items are returned. Logged once per
+// process so an operator knows the suppression is intentional, not a bug.
+let openSuppressionLogged = false;
 
 /**
  * Compose the holding section for the self entity (ASK-006). Promise facts →
- * held/ripening; causal ghosts → open. Merged, newest-first by createdAt, capped
- * at `limit`. A fresh DB / no self entity / no promise predicates / no canonical
+ * held/ripening ONLY in v1 (open/ghost items are suppressed — see the
+ * SUPPRESSION note above). Merged, newest-first by createdAt, capped at
+ * `limit`. A fresh DB / no self entity / no promise predicates / no canonical
  * patterns yields the well-formed empty payload `{ items: [] }` (never null),
  * mirroring the hero's sparse-data posture.
  *
@@ -299,17 +230,24 @@ export async function getHolding(limit = 20): Promise<HoldingResponse> {
     return { items: [] };
   }
 
-  const [promiseItems, openItems] = await Promise.all([
-    readPromiseItems(self.id, safeLimit, now),
-    readOpenItems(self.id, safeLimit),
-  ]);
+  // v1: only held/ripening. The open/ghost read is intentionally NOT called
+  // (see the SUPPRESSION note above the function). Logged once per process.
+  if (!openSuppressionLogged) {
+    openSuppressionLogged = true;
+    console.warn(
+      '[holding] open-state ghost items are intentionally suppressed in v1 '
+        + '(pending the source_text join from the promises epic ASK-016); '
+        + 'only held/ripening items are served',
+    );
+  }
 
-  // Dedupe on holdingId (a promise fact and a ghost could not collide by id
-  // construction, but guard defensively — the iOS decoder dedupes on identity
-  // and a collision would silently collapse a row).
+  const promiseItems = await readPromiseItems(self.id, safeLimit, now);
+
+  // Dedupe on holdingId (defensive — the iOS decoder dedupes on identity and a
+  // collision would silently collapse a row).
   const seen = new Set<string>();
   const merged: HoldingItemDTO[] = [];
-  for (const item of [...promiseItems, ...openItems]) {
+  for (const item of promiseItems) {
     if (seen.has(item.holdingId)) continue;
     seen.add(item.holdingId);
     merged.push(item);

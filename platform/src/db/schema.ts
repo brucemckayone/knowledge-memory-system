@@ -943,7 +943,10 @@ export type NewStagingCausalEdge = typeof stagingCausalEdges.$inferInsert;
  */
 export const captureIdempotency = pgTable('capture_idempotency', {
   idempotencyKey: text('idempotency_key').primaryKey(),
-  memoryId: text('memory_id').notNull(),
+  // Nullable: /ingest INSERTs the row FIRST (atomic dedup, before store() mints
+  // the id), then backfills. NULL means "the winner is mid-store"; a concurrent
+  // conflict-path re-select retries briefly. See migration 052.
+  memoryId: text('memory_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -1022,6 +1025,30 @@ export const memoryIndex = pgTable('memory_index', {
 
 export type MemoryIndex = typeof memoryIndex.$inferSelect;
 export type NewMemoryIndex = typeof memoryIndex.$inferInsert;
+
+/**
+ * Extraction Failures (durable extraction-failure signal — G5 partial).
+ *
+ * When drainExtraction()'s extract() throws, the failure is UPSERTed here so an
+ * operator has a queryable developer surface (which memories never got
+ * entities/edges + why). The memory is durable in Qdrant; only its extraction
+ * was lost. Re-enqueue-on-startup is the full G5 follow-up and is DEFERRED —
+ * this table alone is the signal the catch arm writes to.
+ *
+ * memory_id has no FK (memories live in Qdrant) — same posture as
+ * memory_index.memory_id / capture_idempotency.memory_id.
+ *
+ * Defined in migration 052_extraction_failures.sql.
+ */
+export const extractionFailures = pgTable('extraction_failures', {
+  memoryId: text('memory_id').primaryKey(),
+  attempts: integer('attempts').notNull().default(1),
+  lastError: text('last_error'),
+  lastAttemptedAt: timestamp('last_attempted_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type ExtractionFailure = typeof extractionFailures.$inferSelect;
+export type NewExtractionFailure = typeof extractionFailures.$inferInsert;
 
 /**
  * User Onboarding State (iOS API v1 / ASK-010 / EPIC 2)
