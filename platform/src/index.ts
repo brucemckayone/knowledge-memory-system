@@ -19,6 +19,7 @@ import { notificationsHandler } from './routes/notifications.js';
 import { recentHandler } from './routes/recent.js';
 import { holdingHandler } from './routes/holding.js';
 import { goingHandler } from './routes/going.js';
+import { askHandler } from './routes/ask.js';
 import {
   onboardingCurrentHandler,
   confirmFocusHandler,
@@ -1234,6 +1235,15 @@ app.get('/api/onboarding/current-prompt', onboardingCurrentHandler);
 app.post('/api/onboarding/confirm-focus', confirmFocusHandler);
 app.post('/api/onboarding/untangle-focus', untangleFocusHandler);
 app.post('/api/onboarding/rename-focus', renameFocusHandler);
+
+// POST /api/ask — ask composition (ASK-015). Body { query, voiceInput }. Runs
+// hybrid search and composes a Voice-C answer ON DEMAND (one of the only
+// on-demand compositions in the product — ask.md §"Result is not
+// pregenerated"). Empty search => { answer: null } (200, NO LLM call — the
+// empty short-circuit). The route file (routes/ask.ts) owns ONLY the wire
+// concerns; the service (services/ask.ts) does search + compose + entity join
+// + isHardTopic/isAmbiguous derivation + fail-loud span shaping.
+app.post('/api/ask', askHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
