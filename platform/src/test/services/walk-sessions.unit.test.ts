@@ -39,6 +39,14 @@ vi.mock('../../pipeline.js', () => ({
 // import graph off real config.
 vi.mock('../../services/walk-questions.js', () => ({ composeWalkQuestions: vi.fn() }));
 vi.mock('../../services/re-read.js', () => ({}));
+// walk-summary.js pulls in qdrant + voice-c-compose-llm (→ config.ts, which
+// process.exit(1)s without DATABASE_URL); mock it to inert stubs. The pregen trigger
+// is injected via answerWalk's `_deps` where a test asserts on it; getWalkSummaryByComposition
+// returns null so endWalk's still-settling path holds (no pregenerated letter seeded).
+vi.mock('../../services/walk-summary.js', () => ({
+  triggerWalkSummaryPregen: vi.fn(),
+  getWalkSummaryByComposition: vi.fn(async () => null),
+}));
 
 import {
   startWalk,

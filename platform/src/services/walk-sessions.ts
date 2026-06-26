@@ -60,6 +60,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { store, enqueueExtraction, type CaptureContext } from '../pipeline.js';
 import { composeWalkQuestions, type WalkQuestion } from './walk-questions.js';
+import { triggerWalkSummaryPregen, getWalkSummaryByComposition } from './walk-summary.js';
 import type { ReReadLetterDTO } from './re-read.js';
 
 // =============================================================================
@@ -201,12 +202,19 @@ export interface WalkSessionDeps {
   store: typeof store;
   /** Kick extraction off the request path. */
   enqueueExtraction: typeof enqueueExtraction;
+  /**
+   * Fire-and-forget walk-summary (re)compose, off the request path (MNEMO-478.3).
+   * Called from answerWalk once an answer has landed so the summary letter is
+   * prepared by the time the user ends the walk (ASK-011 compose-as-material-lands).
+   */
+  triggerWalkSummaryPregen: typeof triggerWalkSummaryPregen;
 }
 
 const DEFAULT_DEPS: WalkSessionDeps = {
   composeWalkQuestions,
   store,
   enqueueExtraction,
+  triggerWalkSummaryPregen,
 };
 
 // =============================================================================
@@ -457,6 +465,16 @@ export async function answerWalk(args: {
   `);
   await touchSession(sessionId);
 
+  // 2b. ASYNC PREGEN (MNEMO-478.3, walk.md §"Summary letter pregeneration"): kick a
+  //     fire-and-forget walk-summary (re)compose off the request path now that an
+  //     answer has landed (mirrors ASK-011's compose-as-material-lands). NOT awaited —
+  //     the answer returns immediately; the summary is prepared so /end returns it
+  //     instantly. composeWalkSummary lifts the answer's content from Qdrant, which is
+  //     readable now (store() upserted it synchronously above — extraction, the async
+  //     part, is not needed for the summary). Each answer recomposes from all answers
+  //     so far, so the summary stays current with the walk.
+  deps.triggerWalkSummaryPregen(sessionId);
+
   // 3. RE-EVAL the queue (walk.md §"Question selection", §"Refresh of ghost
   //    candidates"). New ghost candidates from the answer's content may join; the
   //    session's already-asked ghost_pattern_ids are the no-repeat exclusion set.
@@ -520,11 +538,13 @@ export async function skipWalk(args: {
 
 /**
  * POST /api/walks/:id/end — end the session (ASK-007). Flips status to 'ended' and
- * returns the pregenerated summary letter when one exists (478.3 wires the pregen
- * via summary_letter_composition_id), else { summary_letter: null }. In THIS task the
- * pregen is not wired, so summary_letter is null until 478.3 lands.
- * Throws WalkSessionNotFoundError when the session is missing (route → 404). An
- * already-ended session is idempotently re-ended (returns its current summary).
+ * returns the PREGENERATED summary letter when one is ready (MNEMO-478.3: the summary
+ * is composed fire-and-forget as answers land, recorded onto
+ * summary_letter_composition_id), else { summary_letter: null } — the brief
+ * `still settling…` path. endWalk NEVER blocks on composition: it reads what is
+ * already prepared and returns immediately. Throws WalkSessionNotFoundError when the
+ * session is missing (route → 404). An already-ended session is idempotently re-ended
+ * (returns its prepared summary).
  */
 export async function endWalk(args: { sessionId: string }): Promise<EndWalkResponse> {
   // requireActive=false: re-ending an already-ended session is idempotent. Only a
@@ -543,12 +563,27 @@ export async function endWalk(args: { sessionId: string }): Promise<EndWalkRespo
     `);
   }
 
-  // 478.3 wires the pregen: when summary_letter_composition_id points at a composed
-  // re_read_letters row, return that letter. In THIS task no pregen exists, so the
-  // letter is null (iOS shows the brief `still settling…` state, ASK-007). Reading
-  // the letter row is deferred to 478.3's wiring — returning null here is the
-  // documented degraded-v1 behavior.
-  return { summary_letter: null };
+  // MNEMO-478.3: when summary_letter_composition_id points at a pregenerated
+  // re_read_letters row, return that letter INSTANTLY. The pregen is fire-and-forget
+  // from answerWalk; if it has not settled yet (no answers, or the first compose is
+  // still running) the column is NULL and we return summary_letter:null — iOS shows
+  // the brief `still settling…` state (ASK-007). We do NOT block on composition here.
+  if (!session.summary_letter_composition_id) {
+    return { summary_letter: null };
+  }
+  let summary_letter: ReReadLetterDTO | null = null;
+  try {
+    summary_letter = await getWalkSummaryByComposition(session.summary_letter_composition_id);
+  } catch (err) {
+    // A read failure on the prepared letter is not fatal — fall back to the
+    // still-settling shape rather than 500-ing the end of a walk.
+    console.warn(
+      `[walk-sessions] endWalk: failed to read pregenerated summary for session=${sessionId} (returning null):`,
+      err instanceof Error ? err.message : err,
+    );
+    summary_letter = null;
+  }
+  return { summary_letter };
 }
 
 /**
