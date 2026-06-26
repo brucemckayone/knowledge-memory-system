@@ -43,6 +43,8 @@ from .gardener_agent import router as gardener_agent_router
 from .reasoning_agent import router as reasoning_agent_router
 # iOS API v1 — Voice-C compose (ASK-005 + ASK-009)
 from .voice_c_compose import router as voice_c_compose_router
+# iOS API v1 — cluster topic labels (ASK-014)
+from .label_cluster import router as label_cluster_router
 from .core.llm import LLM_PROVIDER
 from .core.concurrency import ollama_pool, llm_pool, THREAD_POOL_SIZE
 
@@ -107,6 +109,8 @@ app.include_router(gardener_agent_router, tags=["Graph Gardener"])
 app.include_router(reasoning_agent_router, tags=["Reasoning Agent"])
 # iOS API v1 — Voice-C compose (ASK-005 + ASK-009)
 app.include_router(voice_c_compose_router, tags=["Voice-C Compose"])
+# iOS API v1 — cluster topic labels (ASK-014)
+app.include_router(label_cluster_router, tags=["Cluster Labels"])
 # Phase 2: Topology primitives (T0)
 from .topology import router as topology_router
 app.include_router(topology_router, tags=["Topology"])
@@ -150,7 +154,9 @@ async def health():
             "parse-document",
             "parse-markdown",
             "compare-predicates",
-            "resolve-predicate"
+            "resolve-predicate",
+            "voice-c-compose",
+            "label-cluster"
         ]
     }
 

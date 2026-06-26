@@ -36,6 +36,7 @@ import {
   renameFocusHandler,
 } from './routes/onboarding.js';
 import { riseHandler } from './routes/rise.js';
+import { bridgeCurrentHandler, exploreNodeHandler } from './routes/bridge.js';
 import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
@@ -1292,6 +1293,21 @@ app.post('/api/promises/:fact_id/dismiss-completion-suggestion', dismissSuggesti
 // (routes/rise.ts) owns ONLY wire concerns; the service (services/rise.ts) does
 // the Qdrant content lift + edge-id / pattern-partner sourcing.
 app.get('/api/rise/:annotationId', riseHandler);
+
+// GET /api/bridge/current — the pregenerated bridge narrative (ASK-014 degraded
+// v1). The service identifies the highest-betweenness bridge entity, names the
+// communities running through it (cluster spokes), and composes a Voice-C
+// narrative with in-bounds annotations. { bridgeNarrative: null } is the
+// "no bridge yet" SUCCESS-shape (200, iOS unwraps to nil), NOT a 404.
+//
+// GET /api/explore/node/:entityId — one explore frame (node + 1-hop neighbors).
+// 404 for a malformed / unknown id (iOS has no let-go shape for explore).
+// secondDegree / secondDegreeStubs are [] in this v1. The route files
+// (routes/bridge.ts) own ONLY wire concerns; services/bridge.ts does the
+// topology / subgraph sourcing + Voice-C composition. The three handle
+// endpoints (confirm/reject/rename) + bridgeShift are DEFERRED (iOS 501 stubs).
+app.get('/api/bridge/current', bridgeCurrentHandler);
+app.get('/api/explore/node/:entityId', exploreNodeHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
