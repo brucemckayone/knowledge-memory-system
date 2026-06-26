@@ -458,6 +458,12 @@ export async function composeReReadLetter(args: {
          AND is_current = TRUE
     `);
 
+    // jsonb columns are written `${JSON.stringify(x)}::text::jsonb` (NOT bare
+    // `::jsonb`). postgres-js binds a JS-string param under a jsonb cast as a JSON
+    // *string scalar* (double-encode) — `jsonb_typeof` would be 'string', breaking
+    // any in-SQL key/element indexing (e.g. the patrol's prev_reply->>'recordedAt').
+    // The explicit `::text` forces a text bind; `::jsonb` then parses it to a real
+    // object/array. Do NOT drop the `::text` (MNEMO-1f4).
     const rows = (await tx.execute(sql`
       INSERT INTO public.re_read_letters (
         user_id,
@@ -474,10 +480,10 @@ export async function composeReReadLetter(args: {
       ) VALUES (
         ${USER_KEY},
         ${threadEntityId}::uuid,
-        ${JSON.stringify(threadFocusEntityIds)}::jsonb,
+        ${JSON.stringify(threadFocusEntityIds)}::text::jsonb,
         ${eyebrow},
         ${body},
-        ${JSON.stringify(annotations)}::jsonb,
+        ${JSON.stringify(annotations)}::text::jsonb,
         FALSE,
         ${hardTopics},
         TRUE,
@@ -667,9 +673,12 @@ export async function recordReply(args: {
   //    letter was already superseded (a newer current letter exists for the thread),
   //    this matches 0 rows → no-op + warn (the reply answered a now-archived letter;
   //    the responding letter is the live one).
+  // `::text::jsonb` (NOT bare `::jsonb`): forces a text bind so the value lands as a
+  // real jsonb OBJECT, not a JSON string scalar — selectThreadsWorthALetter arm (b)
+  // indexes prev_reply->>'recordedAt', which is NULL on a scalar (MNEMO-1f4).
   const updated = (await db.execute(sql`
     UPDATE public.re_read_letters
-       SET prev_reply = ${JSON.stringify(prevReply)}::jsonb
+       SET prev_reply = ${JSON.stringify(prevReply)}::text::jsonb
      WHERE composition_id = ${compositionId}::uuid
        AND user_id = ${USER_KEY}
        AND is_current = TRUE
