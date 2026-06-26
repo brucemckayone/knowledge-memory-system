@@ -37,6 +37,11 @@ import {
 } from './routes/onboarding.js';
 import { riseHandler } from './routes/rise.js';
 import { bridgeCurrentHandler, exploreNodeHandler } from './routes/bridge.js';
+import {
+  reReadCurrentHandler,
+  reReadAllHandler,
+  reReadThreadHandler,
+} from './routes/re-read.js';
 import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
@@ -1308,6 +1313,22 @@ app.get('/api/rise/:annotationId', riseHandler);
 // endpoints (confirm/reject/rename) + bridgeShift are DEFERRED (iOS 501 stubs).
 app.get('/api/bridge/current', bridgeCurrentHandler);
 app.get('/api/explore/node/:entityId', exploreNodeHandler);
+
+// /api/re-read/* — the pregenerated re-read letters (ASK-011 read-path v1). iOS
+// reads what is already prepared and NEVER waits (letters are pregenerated). All
+// three reads return an ENVELOPE ({letter}|{letters}); null/[] are 200
+// success-shapes, NOT 404s (a missing letter routes iOS to explore + query, per
+// re-read.md §"The 'no prepared letter' state"). 500 reserved for real failures.
+//
+// ROUTE ORDER: /current and /all MUST be registered BEFORE the bare /api/re-read/
+// so Hono's matcher does not let the bare path shadow the more specific ones.
+// The route files (routes/re-read.ts) own ONLY wire concerns; services/re-read.ts
+// does the row → wire mapping + the compose/seed entry.
+app.get('/api/re-read/current', reReadCurrentHandler);
+app.get('/api/re-read/all', reReadAllHandler);
+// GET /api/re-read/?threadEntityId=<uuid> — the current letter for one thread.
+// Missing threadEntityId → 400 (the one hard reject).
+app.get('/api/re-read/', reReadThreadHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
