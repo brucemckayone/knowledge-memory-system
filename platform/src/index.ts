@@ -136,6 +136,17 @@ interface IngestContext {
   walk_question_id?: string;
   onboarding_prompt_id?: string;
   shared_url?: string;
+  // ASK-011 re-read reply context (MNEMO-tcg.6). The PINNED iOS contract sends
+  // these CAMELCASE (re-read.md §"Reply recording"; ReReadLetter.swift docs:
+  // context.letterCompositionId / context.threadFocusEntityIds). The corpus prose
+  // shows the snake_case spelling, and the milestone-1 context fields above are
+  // snake_case — so we accept BOTH spellings (camelCase primary per the pin,
+  // snake_case fallback) and normalise to the typed CaptureContext below. The iOS
+  // reply path also tags source='ios_re_read_reply'.
+  letterCompositionId?: string;
+  threadFocusEntityIds?: string[];
+  letter_composition_id?: string;
+  thread_focus_entity_ids?: string[];
 }
 
 app.post('/ingest', async (c) => {
@@ -225,6 +236,10 @@ app.post('/ingest', async (c) => {
         walkQuestionId: body.context.walk_question_id,
         onboardingPromptId: body.context.onboarding_prompt_id,
         sharedUrl: body.context.shared_url,
+        // ASK-011 re-read reply context — camelCase (PINNED) wins, snake_case
+        // fallback. The post-extraction hook reads these back off the Qdrant payload.
+        letterCompositionId: body.context.letterCompositionId ?? body.context.letter_composition_id,
+        threadFocusEntityIds: body.context.threadFocusEntityIds ?? body.context.thread_focus_entity_ids,
       }
     : undefined;
 

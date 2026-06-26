@@ -57,6 +57,8 @@
 import { sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { getMemory } from './qdrant.js';
+import { linkMemoryToEntity } from './entities.js';
+import { config } from '../config.js';
 import {
   composeVoiceCWithLLMFallback,
   type ComposeInput,
@@ -506,4 +508,194 @@ function deriveEyebrow(sourceCount: number): string {
   const year = now.getFullYear();
   const noun = sourceCount === 1 ? 'entry' : 'entries';
   return `${month} ${year} · ${sourceCount} ${noun}`;
+}
+
+// =============================================================================
+// letter-prep patrol substrate (ASK-011 / re-read async composition, MNEMO-tcg.6)
+//
+// These EXPORTED helpers own the SUBSTRATE QUERIES the scheduler's
+// runLetterPrepPatrol() drives. The split mirrors the source-refs drift patrol
+// (checkSourceRefsDrift lives where the substrate lives, the runner orchestrates):
+// the SQL that decides "which threads are worth a letter this tick" and the query
+// that pulls a thread's source memories belong next to composeReReadLetter, while
+// scheduler.ts owns the cron registration + per-thread try/catch loop.
+// =============================================================================
+
+/** One thread selected for composition (its entity id + a recency-rank signal). */
+export interface ThreadWorthALetter {
+  entityId: string;
+  mentionCount: number;
+}
+
+/**
+ * Select the threads worth (re)composing a letter for THIS patrol tick (the
+ * "trigger 4 + subsumes trigger 3" selection). Returns entity ids as the UNION of
+ * two arms, recency-ranked by mention_count and capped to LETTER_PREP_MAX_PER_TICK:
+ *
+ *   (a) OPEN threads that need a first letter, or whose letter has gone stale —
+ *       an actively-mentioned entity (mention_count >= 3, mentioned within the last
+ *       30 days) that has NO current letter composed in the last 7 days. This is the
+ *       "this thread has accumulated enough to be worth speaking to" trigger.
+ *
+ *   (b) REPLIED threads with an UNANSWERED reply — a current, non-intro letter whose
+ *       prev_reply was recorded AFTER the letter was composed. recordReply() writes
+ *       prev_reply immediately; this arm makes the thread eligible to recompose on
+ *       the next tick so the new letter RESPONDS to the reply (the two-phase dialogue
+ *       beat: reply now, response next tick).
+ *
+ * Scoped to USER_KEY. Ordered mention_count DESC (open-thread arm carries the real
+ * count; the replied arm has no mention_count join, so it sorts with a 0 rank and
+ * lands after open threads of equal-or-higher activity — replies are answered, but
+ * a hot open thread that has never been spoken to is the higher-value compose).
+ */
+export async function selectThreadsWorthALetter(): Promise<ThreadWorthALetter[]> {
+  const limit = config.LETTER_PREP_MAX_PER_TICK;
+  const rows = (await db.execute(sql`
+    -- (a) OPEN threads worth a (first/fresh) letter: actively-mentioned entity with
+    --     no current letter in the last 7 days.
+    SELECT
+      em.entity_id::text AS entity_id,
+      em.mention_count   AS mention_count
+    FROM public.entity_meta em
+    WHERE em.mention_count >= 3
+      AND em.last_mentioned_at > NOW() - INTERVAL '30 days'
+      AND NOT EXISTS (
+        SELECT 1 FROM public.re_read_letters l
+        WHERE l.user_id = ${USER_KEY}
+          AND l.thread_entity_id = em.entity_id
+          AND l.is_current = TRUE
+          AND l.composed_at > NOW() - INTERVAL '7 days'
+      )
+
+    UNION
+
+    -- (b) REPLIED threads with an unanswered reply on the current letter: prev_reply
+    --     recorded AFTER the letter was composed. mention_count is 0 here (no
+    --     entity_meta join) so these sort after the open-thread arm of equal rank.
+    SELECT
+      l.thread_entity_id::text AS entity_id,
+      0                        AS mention_count
+    FROM public.re_read_letters l
+    WHERE l.user_id = ${USER_KEY}
+      AND l.is_current = TRUE
+      AND l.is_intro_letter = FALSE
+      AND l.thread_entity_id IS NOT NULL
+      AND l.prev_reply IS NOT NULL
+      AND (l.prev_reply->>'recordedAt')::timestamptz > l.composed_at
+
+    ORDER BY mention_count DESC
+    LIMIT ${limit}
+  `)) as unknown as Array<{ entity_id: string; mention_count: number }>;
+
+  return rows.map((r) => ({ entityId: r.entity_id, mentionCount: Number(r.mention_count) || 0 }));
+}
+
+/**
+ * The source memories for a thread — the entries composeReReadLetter reads to
+ * synthesize the letter. SELECT the most-recent memory ids linked to the entity
+ * (mirrors entities.ts's `SELECT memory_id FROM memory_entities WHERE entity_id`
+ * query), recency-first, capped to a small window so the compose stays bounded.
+ * A reply just linked via recordReply() (newest created_at) sorts to the FRONT, so
+ * the recomposed letter sees the reply as a source and responds to it.
+ */
+export async function getThreadSourceMemories(entityId: string): Promise<string[]> {
+  const id = entityId?.trim();
+  if (!id) return [];
+  const rows = (await db.execute(sql`
+    SELECT memory_id::text AS memory_id
+      FROM public.memory_entities
+     WHERE entity_id = ${id}::uuid
+     ORDER BY created_at DESC
+     LIMIT 8
+  `)) as unknown as Array<{ memory_id: string }>;
+  return rows.map((r) => r.memory_id).filter((m) => !!m);
+}
+
+// =============================================================================
+// reply-write path (the dialogue loop, immediate prev_reply write)
+// =============================================================================
+
+/**
+ * Record a re-read reply against the letter it answered (ASK-011 reply-write path,
+ * MNEMO-tcg.6). This is the IMMEDIATE half of the two-phase dialogue beat:
+ *
+ *   1. UPDATE prev_reply on the CURRENT letter for the reply's composition so iOS
+ *      shows "your reply" under the letter on the next /current fetch.
+ *   2. Link the reply memory to each thread-focus entity so the NEXT letter-prep
+ *      patrol's getThreadSourceMemories() includes the reply — the recomposed letter
+ *      (eligible via selectThreadsWorthALetter arm (b)) then RESPONDS to it.
+ *
+ * Recompose is NOT done inline (no 5-min-delay primitive): writing prev_reply with
+ * recordedAt > composed_at is exactly the signal arm (b) selects on, so the next
+ * patrol tick produces the responding letter naturally.
+ *
+ * Fire-and-forget from the ingest hook (off the request path — the 202 already
+ * returned). Validates the iOS PrevReply decoder's floor (non-empty replyMemoryId,
+ * non-blank transcript); a degenerate reply is skipped with a warn rather than
+ * writing a prev_reply the read-path would drop to null anyway.
+ */
+export async function recordReply(args: {
+  letterCompositionId: string;
+  replyMemoryId: string;
+  transcript: string;
+  recordedAt: string;
+  threadFocusEntityIds: string[];
+}): Promise<void> {
+  const compositionId = args.letterCompositionId?.trim();
+  const replyMemoryId = args.replyMemoryId?.trim();
+  const transcript = typeof args.transcript === 'string' ? args.transcript : '';
+  // iOS PrevReply rejects blank replyMemoryId / blank transcript. A degenerate reply
+  // would be dropped to null by toPrevReply on read anyway — skip the write.
+  if (!compositionId) {
+    console.warn('[re-read] recordReply: blank letterCompositionId — skipping');
+    return;
+  }
+  if (!replyMemoryId || transcript.trim().length === 0) {
+    console.warn(
+      `[re-read] recordReply: degenerate reply (replyMemoryId="${replyMemoryId}" ` +
+      `transcript.blank=${transcript.trim().length === 0}) for composition=${compositionId} — skipping`,
+    );
+    return;
+  }
+  // Normalize recordedAt to strict ISO-8601 Z (the read-path requires a valid date).
+  const parsedAt = Date.parse(args.recordedAt ?? '');
+  const recordedAt = Number.isNaN(parsedAt) ? new Date().toISOString() : new Date(parsedAt).toISOString();
+
+  const prevReply = { replyMemoryId, transcript, recordedAt };
+
+  // 1. Write prev_reply onto the CURRENT letter for this composition only. If the
+  //    letter was already superseded (a newer current letter exists for the thread),
+  //    this matches 0 rows → no-op + warn (the reply answered a now-archived letter;
+  //    the responding letter is the live one).
+  const updated = (await db.execute(sql`
+    UPDATE public.re_read_letters
+       SET prev_reply = ${JSON.stringify(prevReply)}::jsonb
+     WHERE composition_id = ${compositionId}::uuid
+       AND user_id = ${USER_KEY}
+       AND is_current = TRUE
+    RETURNING letter_id::text AS letter_id
+  `)) as unknown as Array<{ letter_id: string }>;
+
+  if (updated.length === 0) {
+    console.warn(
+      `[re-read] recordReply: no current letter for composition=${compositionId} ` +
+      `(already superseded or unknown) — prev_reply not written`,
+    );
+  }
+
+  // 2. Link the reply memory to each thread-focus entity (best-effort per id) so the
+  //    next patrol's getThreadSourceMemories pulls it in. onConflictDoNothing in
+  //    linkMemoryToEntity makes a re-link idempotent under a retried ingest.
+  for (const raw of args.threadFocusEntityIds ?? []) {
+    const entityId = typeof raw === 'string' ? raw.trim() : '';
+    if (!entityId) continue;
+    try {
+      await linkMemoryToEntity(replyMemoryId, entityId, { text: transcript, relationship: 'mentions' });
+    } catch (err) {
+      console.warn(
+        `[re-read] recordReply: failed to link reply ${replyMemoryId} to entity ${entityId} (continuing):`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
 }

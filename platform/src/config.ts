@@ -82,6 +82,24 @@ const envSchema = z.object({
   // cadences and is honoured only when SOURCE_REFS_DRIFT_PATROL_CRON is unset.
   SOURCE_REFS_DRIFT_PATROL_CRON: z.string().optional(),
   SOURCE_REFS_DRIFT_PATROL_INTERVAL_MIN: z.coerce.number().int().positive().optional(),
+  // Letter-prep patrol (ASK-011 / re-read async composition, MNEMO-tcg.6). The
+  // re-read module's letters are PREGENERATED — iOS reads what is already prepared
+  // and never waits (design/07-modules/re-read.md §"Letters are pregenerated"). This
+  // patrol is the time-driven composer: each tick it selects the threads worth a
+  // letter (open threads that need a first/fresh letter + replied threads whose
+  // current letter has an unanswered reply) and composes IN-PROCESS via
+  // composeReReadLetter. Same precedence shape as the drift/reasoning patrols: a raw
+  // cron expression takes precedence over the minutes-interval convenience knob.
+  // Default cadence is daily (1440 min) — letters are a slow, reflective surface;
+  // composing once a day keeps the prepared set fresh without spamming compositions.
+  // Respects the DISABLE_SCHEDULER gate like every other job.
+  LETTER_PREP_PATROL_CRON: z.string().optional(),
+  LETTER_PREP_PATROL_INTERVAL_MIN: z.coerce.number().int().positive().default(1440),
+  // Per-tick cap on how many threads the letter-prep patrol composes in one pass
+  // (selectThreadsWorthALetter LIMIT). Bounds the compose cost (one LLM compose per
+  // thread) so a backlog of eligible threads drains across ticks rather than firing
+  // a burst of LLM calls in a single tick. Default 10.
+  LETTER_PREP_MAX_PER_TICK: z.coerce.number().int().positive().default(10),
   // Threshold for the post-ingest counter trigger. Once derived_freshness's
   // facts_since_compute crosses this value, topology + clustering compute
   // are fired together (fire-and-forget) and both rows reset.

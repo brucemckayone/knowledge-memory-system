@@ -27,6 +27,11 @@ import cron, { type ScheduledTask } from 'node-cron';
 import { sql } from 'drizzle-orm';
 import { config } from './config.js';
 import { db } from './db/index.js';
+import {
+  selectThreadsWorthALetter,
+  getThreadSourceMemories,
+  composeReReadLetter,
+} from './services/re-read.js';
 
 interface RegisteredJob {
   name: string;
@@ -77,6 +82,10 @@ function resolveDriftCron(): string {
 
 function resolveReasoningCron(): string {
   return resolveCron(config.REASONING_PATROL_CRON, config.REASONING_PATROL_INTERVAL_MIN);
+}
+
+function resolveLetterPrepCron(): string {
+  return resolveCron(config.LETTER_PREP_PATROL_CRON, config.LETTER_PREP_PATROL_INTERVAL_MIN);
 }
 
 /**
@@ -207,6 +216,68 @@ export async function runSourceRefsDriftPatrol(): Promise<void> {
   } catch (err) {
     console.warn('[scheduler] source-refs-drift-patrol failed:', err instanceof Error ? err.message : err);
   }
+}
+
+/**
+ * The letter-prep patrol job (ASK-011 / re-read async composition, MNEMO-tcg.6).
+ *
+ * DB-only + IN-PROCESS — no HTTP fire (mirrors runSourceRefsDriftPatrol, the
+ * in-process patrol precedent, NOT the HTTP-fire drift/reasoning patrols). Each
+ * tick it asks re-read.ts which threads are worth a letter (open threads needing a
+ * first/fresh letter + replied threads with an unanswered reply — see
+ * selectThreadsWorthALetter) and composes each one IN-PROCESS via
+ * composeReReadLetter. The compose supersedes the thread's prior current letter and
+ * inserts a fresh-composition_id current row; a replied thread's new letter carries
+ * the reply as a source (recordReply linked it), so it RESPONDS to the reply.
+ *
+ * try/catch PER THREAD — one bad thread (no readable source content, compose-floor
+ * failure, DB error) must NOT sink the whole tick. A failure lands as a warn and the
+ * loop continues to the next thread. Threads with zero source memories are skipped
+ * with a warn (composeReReadLetter requires at least one source).
+ *
+ * Fire-and-forget; never throws out. A failure selecting the thread set lands as a
+ * console.warn and the next tick proceeds normally.
+ */
+export async function runLetterPrepPatrol(): Promise<void> {
+  let threads: Awaited<ReturnType<typeof selectThreadsWorthALetter>>;
+  try {
+    threads = await selectThreadsWorthALetter();
+  } catch (err) {
+    console.warn('[scheduler] letter-prep-patrol: thread selection failed:', err instanceof Error ? err.message : err);
+    return;
+  }
+  if (threads.length === 0) {
+    console.log('[scheduler] letter-prep-patrol: ok (no threads worth a letter this tick)');
+    return;
+  }
+
+  const start = Date.now();
+  let composed = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const thread of threads) {
+    try {
+      const sourceMemoryIds = await getThreadSourceMemories(thread.entityId);
+      if (sourceMemoryIds.length === 0) {
+        skipped++;
+        console.warn(`[scheduler] letter-prep-patrol: skipping thread ${thread.entityId} — 0 source memories`);
+        continue;
+      }
+      await composeReReadLetter({ threadEntityId: thread.entityId, sourceMemoryIds });
+      composed++;
+    } catch (err) {
+      // PER-THREAD isolation: a bad thread does not sink the tick.
+      failed++;
+      console.warn(
+        `[scheduler] letter-prep-patrol: compose failed for thread ${thread.entityId} (continuing):`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  console.log(
+    `[scheduler] letter-prep-patrol: ok (composed=${composed} skipped=${skipped} failed=${failed} ` +
+    `of ${threads.length} selected, ${Date.now() - start}ms)`,
+  );
 }
 
 /**
@@ -405,6 +476,13 @@ export function startScheduler(): void {
   // unnoticed.
   const sourceRefsDriftCron = resolveSourceRefsDriftCron();
   registerJob('source-refs-drift-patrol', sourceRefsDriftCron, runSourceRefsDriftPatrol);
+  // ASK-011 / MNEMO-tcg.6 — letter-prep patrol. DB-only + in-process: selects the
+  // threads worth a re-read letter (open threads needing a fresh letter + replied
+  // threads with an unanswered reply) and composes each via composeReReadLetter. The
+  // re-read module's letters are pregenerated; this is the cadence that prepares
+  // them so iOS never waits.
+  const letterPrepCron = resolveLetterPrepCron();
+  registerJob('letter-prep-patrol', letterPrepCron, runLetterPrepPatrol);
 }
 
 /**

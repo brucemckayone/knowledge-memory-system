@@ -481,6 +481,14 @@ export interface CaptureContext {
   walkQuestionId?: string;
   onboardingPromptId?: string;
   sharedUrl?: string;
+  // ASK-011 re-read reply context (MNEMO-tcg.6). Carried on an
+  // source='ios_re_read_reply' ingest so the post-extraction hook can record the
+  // reply against the letter it answered. letterCompositionId links the reply to the
+  // specific prepared letter (re-read.md §"Reply recording"); threadFocusEntityIds is
+  // the thread the letter was about (the reply memory is linked to each so the
+  // recomposed letter sees it as a source).
+  letterCompositionId?: string;
+  threadFocusEntityIds?: string[];
 }
 
 export async function store(
@@ -532,6 +540,12 @@ export async function store(
         ...(metadata?.captureContext?.walkQuestionId !== undefined ? { walk_question_id: metadata.captureContext.walkQuestionId } : {}),
         ...(metadata?.captureContext?.onboardingPromptId !== undefined ? { onboarding_prompt_id: metadata.captureContext.onboardingPromptId } : {}),
         ...(metadata?.captureContext?.sharedUrl !== undefined ? { shared_url: metadata.captureContext.sharedUrl } : {}),
+        // ASK-011 re-read reply context — persisted onto the payload so the
+        // post-extraction hook (drainExtraction) can read it back from Qdrant and
+        // record the reply against the letter it answered (the drain has only the
+        // memoryId in scope). snake_case payload keys, mirroring the others above.
+        ...(metadata?.captureContext?.letterCompositionId !== undefined ? { letter_composition_id: metadata.captureContext.letterCompositionId } : {}),
+        ...(metadata?.captureContext?.threadFocusEntityIds !== undefined ? { thread_focus_entity_ids: metadata.captureContext.threadFocusEntityIds } : {}),
       },
     },
     units: units.map((u, i) => ({
@@ -1385,6 +1399,49 @@ async function drainExtraction(): Promise<void> {
           console.warn(
             `[extraction-queue] onboarding evaluateStage failed at stage=${currentStage} (continuing):`,
             onbErr instanceof Error ? onbErr.message : onbErr,
+          );
+        }
+
+        // ASK-011 / MNEMO-tcg.6 — re-read reply-write hook. When the just-ingested
+        // memory is a re-read reply (source='ios_re_read_reply') carrying a
+        // letterCompositionId, record the reply against the letter it answered:
+        // write prev_reply on the current letter NOW (so iOS shows "your reply") and
+        // link the reply memory to the thread-focus entities so the next letter-prep
+        // patrol recomposes a responding letter. The drain has only the memoryId in
+        // scope, so we read the source/content/created_at/context back off the Qdrant
+        // payload (where the /ingest route persisted them via captureContext).
+        // Best-effort + off the request path (the 202 already returned): a failure
+        // here must NEVER fail the extraction (the capture is permanent; the reply
+        // record is a soft surface). Lazy-import to keep re-read off the hot path.
+        try {
+          const point = await getMemory(item.memoryId);
+          const payload = point?.payload;
+          if (payload && payload.source === 'ios_re_read_reply') {
+            const letterCompositionId =
+              typeof payload.letter_composition_id === 'string' ? payload.letter_composition_id : '';
+            if (letterCompositionId.trim().length > 0) {
+              const transcript = typeof payload.content === 'string' ? payload.content : '';
+              const recordedAt =
+                typeof payload.created_at === 'string' && payload.created_at.trim().length > 0
+                  ? payload.created_at
+                  : new Date().toISOString();
+              const threadFocusEntityIds = Array.isArray(payload.thread_focus_entity_ids)
+                ? (payload.thread_focus_entity_ids as unknown[]).filter((v): v is string => typeof v === 'string')
+                : [];
+              const { recordReply } = await import('./services/re-read.js');
+              await recordReply({
+                letterCompositionId,
+                replyMemoryId: item.memoryId,
+                transcript,
+                recordedAt,
+                threadFocusEntityIds,
+              });
+            }
+          }
+        } catch (replyErr) {
+          console.warn(
+            `[extraction-queue] re-read recordReply failed for ${item.memoryId} (continuing):`,
+            replyErr instanceof Error ? replyErr.message : replyErr,
           );
         }
       } catch (err) {
