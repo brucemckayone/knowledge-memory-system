@@ -35,6 +35,7 @@ import {
   untangleFocusHandler,
   renameFocusHandler,
 } from './routes/onboarding.js';
+import { riseHandler } from './routes/rise.js';
 import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
@@ -1281,6 +1282,16 @@ app.post('/api/promises/:fact_id/done', markDoneHandler);
 app.post('/api/promises/:fact_id/let-go', letGoHandler);
 app.post('/api/promises/:fact_id/recategorize', recategorizeHandler);
 app.post('/api/promises/:fact_id/dismiss-completion-suggestion', dismissSuggestionHandler);
+
+// GET /api/rise/:annotationId — the risen plate (ASK-009 degraded v1). iOS
+// passes a SOURCE MEMORY ID; the service composes the iOS RiseData wire shape
+// (a single leaf source + optional canonical-pattern match). An unknown / gone
+// id is the "source has been let go" SUCCESS-shape (200 { sources: [],
+// patternMatch: null, isHardTopic: false }) — NOT a 404 (iOS detects empty
+// sources on the success path). 500 reserved for real failures. The route file
+// (routes/rise.ts) owns ONLY wire concerns; the service (services/rise.ts) does
+// the Qdrant content lift + edge-id / pattern-partner sourcing.
+app.get('/api/rise/:annotationId', riseHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
