@@ -42,6 +42,13 @@ import {
   reReadAllHandler,
   reReadThreadHandler,
 } from './routes/re-read.js';
+import {
+  startWalkHandler,
+  answerWalkHandler,
+  skipWalkHandler,
+  endWalkHandler,
+  walkStateHandler,
+} from './routes/walks.js';
 import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
@@ -1344,6 +1351,23 @@ app.get('/api/re-read/all', reReadAllHandler);
 // GET /api/re-read/?threadEntityId=<uuid> — the current letter for one thread.
 // Missing threadEntityId → 400 (the one hard reject).
 app.get('/api/re-read/', reReadThreadHandler);
+
+// /api/walks/* — the walk session lifecycle (ASK-007). iOS starts a session,
+// answers/skips questions one at a time, ends to a summary letter, and resumes via
+// /state (the ~24h window). composeWalkQuestions (ASK-013, MNEMO-478.1) is the
+// question source; the answer ingest is NON-BLOCKING (store() + off-request-path
+// extraction, mirroring /ingest). The route files (routes/walks.ts) own ONLY wire
+// concerns; services/walk-sessions.ts owns the lifecycle + persistence.
+//
+// ROUTE ORDER: the /:id/answer | /:id/skip | /:id/end | /:id/state routes each carry
+// a distinct trailing segment, so they do not collide with the bare collection POST
+// /api/walks. Hono's matcher resolves the static suffix segment before the param, so
+// these are not shadowed.
+app.post('/api/walks', startWalkHandler);
+app.post('/api/walks/:id/answer', answerWalkHandler);
+app.post('/api/walks/:id/skip', skipWalkHandler);
+app.post('/api/walks/:id/end', endWalkHandler);
+app.get('/api/walks/:id/state', walkStateHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [
