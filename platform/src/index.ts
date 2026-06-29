@@ -11,6 +11,7 @@ import { serve } from '@hono/node-server';
 import { Hono, type Context } from 'hono';
 import { store, extract, ingestBatch, enqueueIngest, enqueueExtraction, getIngestQueueStatus } from './pipeline.js';
 import type { IngestMode } from './services/batch.js';
+import { isSessionLimitError } from './services/session-limit.js';
 import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, captureIdempotency } from './db/index.js';
 import { isNull, sql, eq } from 'drizzle-orm';
@@ -379,7 +380,15 @@ async function handleBatch(c: Context, mode: IngestMode) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/not implemented/i.test(msg)) return c.json({ error: msg }, 501);
-    throw err;
+    // Surface the failure detail in the response BODY rather than re-throwing
+    // into Hono's default handler (which collapses everything to a generic
+    // "Internal Server Error" and strands the detail in the server log). A
+    // batch driver needs to ACT on the message — above all a session/usage
+    // limit, whose reset time rides inside `msg` (llm.py stderr_tail →
+    // agentFetch → here). 503 marks the wait-and-retry-after-reset case
+    // distinctly from a generic 500 so the driver can branch on status alone.
+    const status = isSessionLimitError(err) ? 503 : 500;
+    return c.json({ error: msg }, status);
   }
 }
 

@@ -7,6 +7,8 @@
  * backpressure (it returns HTTP 503 when its queue is full — core/concurrency.py).
  */
 
+import { isSessionLimitError } from './session-limit.js';
+
 /**
  * Run `fn` over `items` with at most `limit` in flight at once, preserving
  * input order in the result array. A shared cursor hands each worker the next
@@ -85,6 +87,15 @@ export function isQueueFull(err: unknown): boolean {
  * attempts, so a genuinely deterministic failure still surfaces after the cap.
  */
 export function isRetryableAgentError(err: unknown): boolean {
+  // A Claude subscription/usage limit resets on a wall-clock schedule HOURS
+  // away (causal-agent.ts surfaces it as `... failed (503/500): ...session
+  // limit ... resets <time>`). In-process backoff can never recover it, and
+  // retrying just burns the attempt budget before the inevitable failure — so
+  // fail FAST and let the resumable driver (scripts/ingest-resumable.ts) catch
+  // it, wait until the reset, and resume. This is checked first precisely
+  // because such an error ALSO carries `rc=1` and would otherwise be misread as
+  // a transient flaky-subprocess failure below.
+  if (isSessionLimitError(err)) return false;
   if (isQueueFull(err)) return true;
   const msg = err instanceof Error ? err.message : String(err);
   return /claude cli failed/i.test(msg) || /\brc=1\b/.test(msg);
