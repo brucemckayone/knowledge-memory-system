@@ -7,7 +7,7 @@
  */
 
 import { randomUUID, createHash } from 'crypto';
-import { ml } from './services/ml-client.js';
+import { ml, isRetryableMlError } from './services/ml-client.js';
 import { storeMemoryWithUnits, getMemory } from './services/qdrant.js';
 import { config } from './config.js';
 import { invokeGraphAgent, invokeGardenerAgent, type ContentType, type EpochContext } from './services/causal-agent.js';
@@ -1071,14 +1071,23 @@ async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<
   const epochId = randomUUID();
 
   // Phase 1: store all chunks (bounded — embeddings hit the Ollama pool too).
+  // store()'s /embed call can hit transient 503 "Service busy" backpressure when
+  // a large batch fans out at `limit`; mlFetch's bounded internal retry (3 attempts,
+  // ~1.5s) is exhausted under sustained pressure, and a single throw here would
+  // reject the whole batch's Promise.all. Layer an app-level withRetry (longer
+  // exponential backoff over the internal one) so a transient 503 retries instead
+  // of failing the batch. Mirrors Phase 2's withRetry on propose() below.
   const stored = await mapWithConcurrency(items, limit, async (item) => ({
-    memoryId: await store(item.text, {
-      source: item.source,
-      sourceId: item.sourceId,
-      chunkIndex: item.chunkIndex,
-      contentType: item.contentType,
-      streamId: item.streamId,
-    }),
+    memoryId: await withRetry(
+      () => store(item.text, {
+        source: item.source,
+        sourceId: item.sourceId,
+        chunkIndex: item.chunkIndex,
+        contentType: item.contentType,
+        streamId: item.streamId,
+      }),
+      { retries: 4, isRetryable: isRetryableMlError, baseDelayMs: 500 },
+    ),
     item,
   }));
 

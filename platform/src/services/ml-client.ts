@@ -78,6 +78,19 @@ export const SEARCH_QUERY_PREFIX = 'search_query: ';
 const RETRY_STATUS_CODES = new Set([429, 502, 503, 504]);
 const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = [500, 1000];
+
+/**
+ * True for transient ML failures worth an APP-LEVEL retry on top of mlFetch's
+ * bounded internal retry: the same retryable status classes (429/502/503/504)
+ * plus status 0 (mlFetch's timeout/network sentinel). Lets a caller layer a
+ * longer exponential backoff over the 3-attempt internal one — e.g. the epoch
+ * store() fan-out, where a large batch at high concurrency keeps /embed in
+ * 503 "Service busy" longer than mlFetch's ~1.5s budget, and a single throw
+ * would otherwise reject the whole batch's Promise.all.
+ */
+export function isRetryableMlError(err: unknown): boolean {
+  return err instanceof MlClientError && (err.status === 0 || RETRY_STATUS_CODES.has(err.status));
+}
 const MAX_RETRY_AFTER_MS = 60_000;
 
 /**
