@@ -223,7 +223,7 @@ app.get('/ingest/queue/status', (c) => {
 // baseline control), epoch (Approach A), optimistic (Approach B). epoch and
 // optimistic return 501 until their orchestrators land (Stage 3/4).
 async function handleBatch(c: Context, mode: IngestMode) {
-  const body = await c.req.json<{ chunks?: string[]; source?: string; contentType?: string; concurrency?: number; stream_id?: string }>();
+  const body = await c.req.json<{ chunks?: string[]; source?: string; sourceId?: string; contentType?: string; concurrency?: number; stream_id?: string }>();
   if (!Array.isArray(body.chunks) || body.chunks.length === 0) {
     return c.json({ error: 'chunks (non-empty array) is required' }, 400);
   }
@@ -236,6 +236,11 @@ async function handleBatch(c: Context, mode: IngestMode) {
   try {
     const result = await ingestBatch(body.chunks, {
       source: body.source,
+      // Stable per-sub-batch source id from the resumable driver's ledger:
+      // threading it through makes store() derive deterministic memory ids, so a
+      // retried sub-batch upserts instead of duplicating. Omitted by ad-hoc
+      // callers → ingestBatch mints a random sourceId (unchanged behaviour).
+      sourceId: body.sourceId,
       contentType: parseContentType(body.contentType),
       mode,
       concurrency,
