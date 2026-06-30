@@ -158,6 +158,13 @@ const envSchema = z.object({
   REASONING_AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
   GRAPH_AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
   GARDENER_AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
+
+  // Cost controls (nmemo-6do, B10). Optional per-request USD ceiling — when set,
+  // a response whose summed estimated cost exceeds it is LOGGED (advisory). The
+  // agentic loop runs inside one opaque claude -p subprocess (max_turns is the
+  // in-loop cap), so this is post-hoc detection, not a mid-flight abort. Unset =
+  // disabled (the default in dev).
+  COST_CEILING_USD: z.coerce.number().nonnegative().optional(),
 });
 
 /**
@@ -218,3 +225,209 @@ function loadConfig(): Config {
 }
 
 export const config = loadConfig();
+
+// ===========================================================================
+// LLM token-usage pricing (token-usage & cost-tracking epic — nmemo-6do, §4.4)
+// ===========================================================================
+// Cost is computed in EXACTLY ONE PLACE — here, in TypeScript. ml-services emits
+// token counts only and never prices. Re-pricing is a one-file edit + a
+// PRICING_VERSION bump; history re-prices from the stored token buckets. Rates
+// are USD per 1,000,000 tokens. Non-Anthropic seed rates are verify-before-billing
+// (verified:'estimated'); Anthropic rows are confirmed from the claude-api skill.
+
+export const PRICING_VERSION = '2026-06-16';
+export const BASELINE_MODEL = 'claude-haiku-4-5';      // stable anchor for blended multipliers
+export const BLENDED_WEIGHTS = { input: 1, output: 2 }; // blended = (in + 2*out)/3 — output-heavy
+
+export interface ModelRate {
+  provider?: string;
+  // standard usage-type keys (USD per MTok); extend with more keys as needed
+  input: number;
+  output: number;
+  cacheRead?: number;
+  cacheWrite5m?: number;   // Anthropic 5-min TTL write (~1.25x base input)
+  cacheWrite1h?: number;   // Anthropic 1-hour TTL write (~2x base input)
+  reasoningOutput?: number;
+  // provenance
+  sourceUrl?: string;
+  asOf?: string;           // ISO date the rate was verified
+  verified?: 'confirmed' | 'estimated';
+}
+
+export const PRICING: Record<string, ModelRate> = {
+  // Anthropic — authoritative (claude-api skill). cache: read 0.1x, 5m write 1.25x, 1h write 2x base input.
+  'claude-haiku-4-5':  { provider: 'anthropic', input: 1.00, output: 5.00,  cacheRead: 0.10, cacheWrite5m: 1.25, cacheWrite1h: 2.00, verified: 'confirmed', asOf: '2026-06-16' },
+  'claude-sonnet-4-6': { provider: 'anthropic', input: 3.00, output: 15.00, cacheRead: 0.30, cacheWrite5m: 3.75, cacheWrite1h: 6.00, verified: 'confirmed', asOf: '2026-06-16' },
+  'claude-opus-4-8':   { provider: 'anthropic', input: 5.00, output: 25.00, cacheRead: 0.50, cacheWrite5m: 6.25, cacheWrite1h: 10.00, verified: 'confirmed', asOf: '2026-06-16' },
+
+  // Candidate routing models — VERIFY before billing use; stamp asOf/sourceUrl per row.
+  'deepseek-v4-flash': { input: 0.14,  output: 0.28, cacheRead: 0.0028, verified: 'estimated' },
+  'deepseek-v4-pro':   { input: 0.435, output: 0.87, cacheRead: 0.0036, verified: 'estimated' }, // promo; confirm permanent
+  'mimo-v2-5-pro':     { input: 0.435, output: 0.87, cacheRead: 0.0036, verified: 'estimated' }, // promo framing expired 2026-05-31; confirm
+  'mimo-v2-5':         { input: 0.14,  output: 0.28, verified: 'estimated', sourceUrl: 'https://openrouter.ai/xiaomi/mimo-v2.5' }, // corrected from 0.40/2.00
+  'qwen-3-6-35b-a3b':  { input: 0.33,  output: 1.95, verified: 'estimated' },
+  'glm-5':             { input: 1.00,  output: 3.20, cacheRead: 0.20, verified: 'estimated' },
+  'kimi-k2-6':         { input: 0.95,  output: 4.00, cacheRead: 0.16, verified: 'estimated' }, // corrected from 0.60/2.50 (was K2.5 input)
+  'minimax-m2-7':      { input: 0.28,  output: 1.20, verified: 'estimated' },
+  'gemini-3-flash':    { provider: 'google', input: 0.50, output: 3.00,  cacheRead: 0.05, verified: 'estimated' },
+  'gemini-3-5-flash':  { provider: 'google', input: 1.50, output: 9.00, verified: 'estimated' },
+  'gemini-3-1-pro':    { provider: 'google', input: 2.00, output: 12.00, verified: 'estimated' },
+  'gpt-5-4-nano':      { provider: 'openai', input: 0.20, output: 1.25, verified: 'estimated' },
+  'gpt-5-4-mini':      { provider: 'openai', input: 0.75, output: 4.50, verified: 'estimated' },
+  'gpt-5-4':           { provider: 'openai', input: 2.50, output: 15.00, verified: 'estimated' },
+
+  // Local — recorded for completeness, zero cost
+  'nomic-embed-text':  { provider: 'ollama', input: 0, output: 0, verified: 'confirmed' },
+};
+
+/**
+ * Operation taxonomy (§4.7) — a closed vocabulary so reports group cleanly,
+ * defined ONCE here and imported by every call site (not scattered string
+ * literals). Split into ACTIVE (on the live call graph — capture is wired in)
+ * vs RESERVED/future (endpoint test-only or not yet live — no capture, so
+ * reports never show empty dimensions). `notify.phrase` is reserved: today
+ * routes/notifications.ts assembles template prose with no LLM call.
+ */
+export const OPERATION_VALUES = [
+  // active
+  'graph_agent', 'reasoning_agent', 'reconciliation_agent', 'gardener_agent',
+  'drift', 'judge', 'embed.document', 'embed.query',
+  // reserved / future
+  'extract.entities', 'extract.relationships', 'extract.facts',
+  'summarize', 'classify', 'notify.phrase',
+] as const;
+export type Operation = typeof OPERATION_VALUES[number];
+
+/** Token buckets a cost is computed from — matches the echoed UsageRecord (snake_case wire shape). */
+export interface UsageTokens {
+  input_tokens?: number;
+  output_tokens?: number;
+  reasoning_output_tokens?: number | null;
+  cache_read_tokens?: number;
+  cache_write_5m_tokens?: number;
+  cache_write_1h_tokens?: number;
+}
+
+export interface CostBreakdown {
+  input_cost_usd: number | null;
+  output_cost_usd: number | null;
+  cache_cost_usd: number | null;
+  saved_cache_cost_usd: number | null;   // cache ROI: what the reads would have cost uncached
+  estimated_usd: number | null;
+  cost_status: 'priced' | 'unknown_model';
+}
+
+const _warnedUnknownModels = new Set<string>();
+
+/**
+ * Per-call cost, keyed off the RESOLVED model (§4.4). Buckets are summed so the
+ * breakdown reconciles to the total. An unknown model yields cost_status
+ * 'unknown_model' with NULL costs (logged once per model) so reports can exclude
+ * it rather than silently summing zero. A gateway-reported total, when present,
+ * takes precedence over the locally-computed sum.
+ *
+ * reasoning_output_tokens is a SUBSET of output_tokens, so it is priced by
+ * SPLITTING output (non-reasoning at rate.output, reasoning at rate.reasoningOutput)
+ * — never added on top, which would double-count.
+ */
+export function computeCost(
+  usage: UsageTokens,
+  resolvedModel: string,
+  opts?: { pricing?: Record<string, ModelRate>; gatewayReportedUsd?: number | null },
+): CostBreakdown {
+  const pricing = opts?.pricing ?? PRICING;
+  // The CLI reports a DATED model id (e.g. claude-haiku-4-5-20251001) while
+  // PRICING is keyed by the alias (claude-haiku-4-5). Try the exact id, then fall
+  // back to the date-suffix-stripped alias. Found by the B11 live E2E.
+  const rate = pricing[resolvedModel] ?? pricing[resolvedModel.replace(/-\d{6,8}$/, '')];
+  if (!rate) {
+    if (!_warnedUnknownModels.has(resolvedModel)) {
+      _warnedUnknownModels.add(resolvedModel);
+      console.warn(
+        `[pricing] unknown resolved_model "${resolvedModel}" — cost left NULL ` +
+        `(cost_status=unknown_model). Add it to PRICING in config.ts.`,
+      );
+    }
+    return {
+      input_cost_usd: null, output_cost_usd: null, cache_cost_usd: null,
+      saved_cache_cost_usd: null, estimated_usd: null, cost_status: 'unknown_model',
+    };
+  }
+
+  const inputTok = usage.input_tokens ?? 0;
+  const outputTok = usage.output_tokens ?? 0;
+  const reasoningTok = usage.reasoning_output_tokens ?? 0;
+  const cacheRead = usage.cache_read_tokens ?? 0;
+  const cw5 = usage.cache_write_5m_tokens ?? 0;
+  const cw1 = usage.cache_write_1h_tokens ?? 0;
+
+  const nonReasoningOutput = Math.max(outputTok - reasoningTok, 0);
+  const input_cost_usd = (inputTok * rate.input) / 1e6;
+  const output_cost_usd =
+    (nonReasoningOutput * rate.output + reasoningTok * (rate.reasoningOutput ?? rate.output)) / 1e6;
+  const cache_cost_usd =
+    (cacheRead * (rate.cacheRead ?? 0)
+      + cw5 * (rate.cacheWrite5m ?? 0)
+      + cw1 * (rate.cacheWrite1h ?? 0)) / 1e6;
+  const saved_cache_cost_usd = (cacheRead * rate.input) / 1e6;
+
+  const gw = opts?.gatewayReportedUsd;
+  const estimated_usd =
+    gw !== undefined && gw !== null ? gw : input_cost_usd + output_cost_usd + cache_cost_usd;
+
+  return { input_cost_usd, output_cost_usd, cache_cost_usd, saved_cache_cost_usd, estimated_usd, cost_status: 'priced' };
+}
+
+/**
+ * Blended $/MTok for a model under BLENDED_WEIGHTS (default 1:2 input:output).
+ * Returns 0 for an unknown model. NOTE: token-mix-blended and CACHE-BLIND —
+ * report input/output/cache multipliers separately where the mix matters.
+ */
+export function blendedRate(model: string, pricing: Record<string, ModelRate> = PRICING): number {
+  const rate = pricing[model];
+  if (!rate) return 0;
+  const { input: wi, output: wo } = BLENDED_WEIGHTS;
+  return (rate.input * wi + rate.output * wo) / (wi + wo);
+}
+
+/**
+ * Blended cost multiplier of `model` versus the baseline (default BASELINE_MODEL).
+ * Returns 1 when both rates compute to 0; 0 when only the baseline is unknown
+ * (no meaningful ratio). Same token-mix / cache-blind caveats as blendedRate.
+ */
+export function multiplier(
+  model: string,
+  baselineModel: string = BASELINE_MODEL,
+  pricing: Record<string, ModelRate> = PRICING,
+): number {
+  const base = blendedRate(baselineModel, pricing);
+  const m = blendedRate(model, pricing);
+  if (base === 0) return m === 0 ? 1 : 0;
+  return m / base;
+}
+
+// ===========================================================================
+// Cost controls (token-usage epic — nmemo-6do, B10). An ADVISORY layer over
+// capture (design §6): capture (B1-B8) works with these absent or disabled, and
+// nothing here ever blocks an insert or a response. True mid-flight USD
+// enforcement is deferred to the future per-call gateway architecture — today
+// each agent endpoint is one opaque subprocess, so the platform only sees a
+// trace's cost AFTER it completes.
+// ===========================================================================
+
+/** Optional per-request USD ceiling (env COST_CEILING_USD). null = disabled. */
+export const COST_CEILING_USD_PER_REQUEST: number | null = config.COST_CEILING_USD ?? null;
+
+export interface OperationBudget {
+  maxUsd: number;
+  maxCalls: number;
+}
+
+/**
+ * Per-operation daily budgets for advisory alerting on llm_usage rollups, keyed
+ * by the `operation` taxonomy. Empty by default — a deployment fills it in. When
+ * a day's rollup for an operation exceeds maxUsd or maxCalls, a structured error
+ * is LOGGED (never blocks). The budget-check helper accepts an override so tests
+ * can inject thresholds.
+ */
+export const OPERATION_DAILY_BUDGETS: Partial<Record<Operation, OperationBudget>> = {};

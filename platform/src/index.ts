@@ -1653,7 +1653,7 @@ app.post('/api/reason/query', async (c) => {
   });
   try {
     const result = await invokeReasoningAgent({ mode: 'query', question: body.question, invocationId, fallbackEvidence });
-    return c.json({ triggered: true, result: result.result, durationMs: Date.now() - start });
+    return c.json({ triggered: true, result: result.result, usage: result.usage, durationMs: Date.now() - start });
   } catch (err) {
     // Bead nmemo-2yv.76: 504 on timeout (see /api/reason for rationale).
     if (err instanceof AgentInvocationTimeoutError) {

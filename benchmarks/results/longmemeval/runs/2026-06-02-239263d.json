@@ -1,0 +1,47 @@
+{
+  "benchmark": "longmemeval",
+  "cut": "LongMemEval_S",
+  "mnemo_git_sha": "239263d8a380ccc9b7cfb5db06d060c60bef1cca",
+  "harness_commit": "9e0b455f4ef0e2ab8f2e582289761153549043fc",
+  "config_path": "benchmarks/longmemeval/config.yaml",
+  "model_under_test": "claude-haiku-4-5-20251001",
+  "judge_model": "claude-sonnet-4-6",
+  "timestamp": "2026-06-02T17:36:15Z",
+  "dataset_size": 21,
+  "scores": {
+    "overall_accuracy": 0.5238,
+    "by_category": {
+      "information_extraction": {
+        "accuracy": 0.5556,
+        "n": 9,
+        "correct": 5
+      },
+      "multi_session_reasoning": {
+        "accuracy": 0.3333,
+        "n": 3,
+        "correct": 1
+      },
+      "temporal_reasoning": {
+        "accuracy": 0.6667,
+        "n": 3,
+        "correct": 2
+      },
+      "knowledge_updates": {
+        "accuracy": 0.3333,
+        "n": 3,
+        "correct": 1
+      },
+      "abstention": {
+        "accuracy": 0.6667,
+        "n": 3,
+        "correct": 2
+      }
+    },
+    "abstention_rate": 0.6667,
+    "sanity_pass": true,
+    "n": 21,
+    "correct": 11
+  },
+  "notes": "nmemo-3f9.4 smoke",
+  "judge_prompt_version": "dry-run"
+}

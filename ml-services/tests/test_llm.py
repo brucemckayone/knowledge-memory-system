@@ -157,9 +157,12 @@ class TestBuildCmd:
         assert "--fallback-model" not in cmd
 
     def test_system_prompt(self):
+        # _build_cmd writes the system prompt to a temp file and passes
+        # --system-prompt-file (long prompts blow the CLI arg length limit).
         cmd = self.provider._build_cmd("x", {"system_prompt": "You are a classifier."})
-        idx = cmd.index("--system-prompt")
-        assert cmd[idx + 1] == "You are a classifier."
+        idx = cmd.index("--system-prompt-file")
+        with open(cmd[idx + 1], encoding="utf-8") as f:
+            assert f.read() == "You are a classifier."
 
     def test_max_turns_override(self):
         cmd = self.provider._build_cmd("x", {"max_turns": 5})
@@ -333,6 +336,25 @@ class TestRun:
             self.provider._run(["claude", "-p", "hi"], options={"task": "classify"})
 
         assert any("cost=$0.0012" in r.message for r in caplog.records)
+
+    @patch("app.core.llm.subprocess.run")
+    def test_cost_logged_real_cli_envelope(self, mock_run, caplog):
+        """Real CLI shape: usage under 'usage', dollar total under 'total_cost_usd'."""
+        envelope = {
+            "result": "hi",
+            "total_cost_usd": 0.05,
+            "usage": {"input_tokens": 1000, "output_tokens": 200},
+        }
+        mock_run.return_value = _cli_result(stdout=json.dumps(envelope))
+
+        import logging
+        with caplog.at_level(logging.INFO, logger="app.core.llm"):
+            self.provider._run(["claude", "-p", "hi"], options={"task": "classify"})
+
+        assert any(
+            "cost=$0.0500" in r.message and "in=1000 out=200" in r.message
+            for r in caplog.records
+        )
 
 
 # ---------------------------------------------------------------------------

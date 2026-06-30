@@ -9,10 +9,10 @@ post-promotion pass.
 Replaces the separate extract_agentic.py and causal_reason.py endpoints.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from .core.llm import llm_client
+from .core.llm import llm_client, UsageAccumulator, UsageEcho, usage_accumulator
 from .core.concurrency import llm_pool, QueueFullError
 from .core.prompt_safety import PROMPT_SAFETY_SYSTEM_CLAUSE, delimit_for_prompt
 from .core.task_utils import get_date_context
@@ -59,6 +59,7 @@ class GraphAgentRequest(BaseModel):
 
 class GraphAgentResponse(BaseModel):
     result: str
+    usage: Optional[UsageEcho] = None
 
 
 # ============================================================
@@ -904,7 +905,10 @@ def _build_proposer_user_prompt(request: GraphAgentRequest) -> str:
 
 
 @router.post("/graph-agent", response_model=GraphAgentResponse)
-async def graph_agent(request: GraphAgentRequest):
+async def graph_agent(
+    request: GraphAgentRequest,
+    accumulator: UsageAccumulator = Depends(usage_accumulator),
+):
     """Invoke the unified graph agent on source text."""
     is_proposer = request.actor == "extraction_proposer"
     prompt = (
@@ -921,7 +925,7 @@ async def graph_agent(request: GraphAgentRequest):
             "tools": "mcp",
             "max_turns": 100,
             "timeout": 600,
-        })
+        }, accumulator=accumulator)
     except QueueFullError:
         raise HTTPException(status_code=503, detail="Service busy, retry later")
     except HTTPException:
@@ -934,4 +938,4 @@ async def graph_agent(request: GraphAgentRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Graph agent failed: {e}")
 
-    return GraphAgentResponse(result=result)
+    return GraphAgentResponse(result=result, usage=accumulator.echo())

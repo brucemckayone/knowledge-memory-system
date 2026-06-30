@@ -26,6 +26,7 @@ import { findSimilarEntities, resolveEntity, linkMemoryToEntity, mergeEntities }
 import { searchMemoriesByUnit, getMemory } from './qdrant.js';
 import { recallViaGraph, flatRetrievalFailed, type FlatHit } from './graph-fallback.js';
 import { db } from '../db/index.js';
+import { insertUsageRows, type EchoedUsageCall, type UsageEcho } from './usage.js';
 import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports, stagingProposedEntities, stagingProposedFacts, arbiterVerdicts, causalEvents } from '../db/schema.js';
 import { resolveExclusiveGroup } from './exclusive-groups.js';
 import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
@@ -3653,6 +3654,9 @@ export async function invokeExtractionAgent(params: ExtractionAgentParams): Prom
 
 export interface GraphAgentResult {
   result: string;
+  /** Echoed token usage for this invocation (§4.2), surfaced for in-memory
+   * benchmark rollups. Optional — absent on older ml-services or error paths. */
+  usage?: UsageEcho;
 }
 
 /**
@@ -3937,7 +3941,11 @@ export async function agentFetch<T>(opts: {
       throw new Error(`${opts.agent} failed (${response.status}): ${detail}`);
     }
 
-    return (await response.json()) as T;
+    const parsed = (await response.json()) as T & { usage?: { calls?: EchoedUsageCall[] } };
+    // Persist the echoed per-call usage, batched + fire-and-forget (B7).
+    // operation = the agent type; this never blocks or fails the response.
+    insertUsageRows(parsed?.usage?.calls, opts.agent);
+    return parsed as T;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new AgentInvocationTimeoutError(opts.agent, opts.timeoutMs);

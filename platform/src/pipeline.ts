@@ -11,6 +11,7 @@ import { ml, isRetryableMlError } from './services/ml-client.js';
 import { storeMemoryWithUnits, getMemory } from './services/qdrant.js';
 import { config } from './config.js';
 import { invokeGraphAgent, invokeGardenerAgent, type ContentType, type EpochContext } from './services/causal-agent.js';
+import type { UsageEcho } from './services/usage.js';
 import { findOrCreateSpeaker } from './services/entities.js';
 import { promote, cleanupAbandonedStaging } from './services/promotion.js';
 import { runCausalPass } from './services/causal-pass.js';
@@ -42,6 +43,13 @@ export interface ExtractResult {
    * detected-vs-reflected gap (nmemo-hm4.5).
    */
   contradictionsDetected: number;
+  /**
+   * Echoed token usage for this extract (§4.2) — the graph_agent invocation's
+   * usage echo. Surfaced so benchmarks read usage.totals IN-MEMORY (it survives
+   * /api/reset, which wipes Postgres between questions). Absent on store-only or
+   * batch-proposer paths (which don't call invokeGraphAgent directly).
+   */
+  usage?: UsageEcho;
 }
 
 // ============================================
@@ -908,7 +916,7 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
     }
   }
 
-  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing, gardener: gardenerResult, reconciliation: reconciliationResult, contradictionsDetected };
+  return { memoryId, entities: resolvedEntities, facts: createdFacts, skipped: [], filtered: [], timing, gardener: gardenerResult, reconciliation: reconciliationResult, contradictionsDetected, usage: agentResult.usage };
 }
 
 /**
