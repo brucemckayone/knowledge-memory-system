@@ -19,10 +19,10 @@ Triggered: manually via /api/reason (patrol) or /api/reason/query (query).
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Literal, Optional
-from .core.llm import llm_client
+from .core.llm import llm_client, UsageAccumulator, UsageEcho, usage_accumulator
 from .core.concurrency import llm_pool, QueueFullError
 from .core.prompt_safety import PROMPT_SAFETY_SYSTEM_CLAUSE
 
@@ -44,6 +44,7 @@ class ReasoningRequest(BaseModel):
 
 class ReasoningResponse(BaseModel):
     result: str
+    usage: Optional[UsageEcho] = None
 
 
 REASONING_SYSTEM_PROMPT = """You are a reasoning agent for a knowledge graph. Your job is to review accumulated knowledge, identify gaps, contradictions, and implicit connections, then enrich the graph with new facts and cleaned-up data, and maintain the existing causal layer (revising and expiring edges). NEW causal edges are minted by the separate post-promotion causal pass (doc 41 §6) — not here.
@@ -440,7 +441,10 @@ def _build_reasoning_prompt(mode: str, question: str | None, invocation_id: str 
 
 
 @router.post("/reasoning-agent", response_model=ReasoningResponse)
-async def reasoning_agent(request: ReasoningRequest):
+async def reasoning_agent(
+    request: ReasoningRequest,
+    accumulator: UsageAccumulator = Depends(usage_accumulator),
+):
     """Invoke the reasoning agent to reason over the knowledge graph."""
     logger.info(
         "[reasoning] request received mode=%s question=%s mcp=%s",
@@ -459,7 +463,7 @@ async def reasoning_agent(request: ReasoningRequest):
             "tools": "mcp",
             "max_turns": 100,
             "timeout": 600,
-        })
+        }, accumulator=accumulator)
     except QueueFullError:
         logger.warning("[reasoning] queue full, returning 503")
         raise HTTPException(status_code=503, detail="Service busy, retry later")
@@ -474,4 +478,4 @@ async def reasoning_agent(request: ReasoningRequest):
         raise HTTPException(status_code=500, detail=f"Reasoning agent failed: {e}")
 
     logger.info("[reasoning] complete, result=%d chars", len(result))
-    return ReasoningResponse(result=result)
+    return ReasoningResponse(result=result, usage=accumulator.echo())

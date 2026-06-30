@@ -7,10 +7,10 @@ Two modes:
                    the harness shape is provable before the real wire-up.
 
   (default)        Real mode: download dataset, replay sessions into Mnemo,
-                   query, judge with Sonnet, score. NOT YET IMPLEMENTED — the
-                   next session wires the ingest+query+judge path against a
-                   running platform. The skeleton is here so the work can
-                   pick up cleanly.
+                   query, judge with Sonnet, score. Implemented in run_real():
+                   ingest each session chunk, query, judge, accumulate per-call
+                   token usage (TokenAccumulator), and write the RunEnvelope
+                   (with token_usage) against a running platform.
 
 Usage from /benchmarks/ root:
 
@@ -35,6 +35,7 @@ if __package__ in (None, ""):
 from _common.client import MnemoClient, MnemoClientError  # noqa: E402
 from _common.config import JUDGE_MODEL, MODEL_UNDER_TEST, PLATFORM_BASE_URL  # noqa: E402
 from _common.judge import JUDGE_PROMPT_VERSION, Judge, JudgeError  # noqa: E402
+from _common.token_accumulator import TokenAccumulator  # noqa: E402
 from _common.results import (  # noqa: E402
     regenerate_dashboard,
     regenerate_markdown,
@@ -288,6 +289,10 @@ def run_real(config: RunConfig, notes: str) -> int:
                 flush=True,
             )
 
+        # Token-usage rollup (B9). In-memory so it survives /api/reset between
+        # questions; read into the RunEnvelope at run end. Records tokens only —
+        # USD is computed downstream from config.ts PRICING.
+        accumulator = TokenAccumulator()
         for idx, q in enumerate(questions):
             progress = f"[{idx + 1}/{len(questions)}]"
             try:
@@ -326,12 +331,13 @@ def run_real(config: RunConfig, notes: str) -> int:
                         # count, and keep going; the query runs against whatever
                         # landed. Question-level abort is reserved for query/judge.
                         try:
-                            client.ingest(
+                            ingest_resp = client.ingest(
                                 chunk,
                                 source=source,
                                 content_type="conversational",
                                 stream_id=q.question_id,
                             )
+                            accumulator.add_response("graph_agent", ingest_resp)
                             ingest_calls += 1
                         except Exception as ie:
                             ingest_failures += 1
@@ -351,9 +357,11 @@ def run_real(config: RunConfig, notes: str) -> int:
                     )
 
                 response = client.query(q.question)
+                accumulator.add_response("reasoning_agent", response)
                 candidate = str(response.get("result") or "")
 
                 verdict = judge.score(q.question, candidate, q.answer)
+                accumulator.add_judge(verdict.cost)
 
                 results.append(
                     QuestionResult(
@@ -399,6 +407,7 @@ def run_real(config: RunConfig, notes: str) -> int:
         notes=notes,
         harness_commit=submodule_sha(UPSTREAM_DIR),
         judge_prompt_version=JUDGE_PROMPT_VERSION,
+        token_usage=accumulator.totals(),
     )
     md_path = regenerate_markdown(config.benchmark)
     dash_path = regenerate_dashboard()

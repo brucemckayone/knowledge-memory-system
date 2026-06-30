@@ -10,9 +10,10 @@ Writes: same_as links (non-destructive), entity merges (destructive), candidate 
 Called automatically from the pipeline when candidates or unconfirmed aliases exist.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from .core.llm import llm_client
+from typing import Optional
+from .core.llm import llm_client, UsageAccumulator, UsageEcho, usage_accumulator
 from .core.concurrency import llm_pool, QueueFullError
 from .core.prompt_safety import (
     PROMPT_SAFETY_SYSTEM_CLAUSE,
@@ -30,6 +31,7 @@ class ReconciliationRequest(BaseModel):
 
 class ReconciliationResponse(BaseModel):
     result: str
+    usage: Optional[UsageEcho] = None
 
 
 RECONCILIATION_AGENT_SYSTEM_PROMPT = """You are a reconciliation agent for a knowledge graph. Your job is to resolve identity questions between entity pairs that may represent the same real-world referent.
@@ -280,7 +282,10 @@ def _build_reconciliation_prompt(candidates: list[dict], recent_reports: list[st
 
 
 @router.post("/reconciliation-agent", response_model=ReconciliationResponse)
-async def reconciliation_agent(request: ReconciliationRequest):
+async def reconciliation_agent(
+    request: ReconciliationRequest,
+    accumulator: UsageAccumulator = Depends(usage_accumulator),
+):
     """Invoke the reconciliation agent to resolve identity questions across entity clusters."""
     prompt = _build_reconciliation_prompt(request.candidates, request.recent_reports)
 
@@ -292,7 +297,7 @@ async def reconciliation_agent(request: ReconciliationRequest):
             "tools": "mcp",
             "max_turns": 50,
             "timeout": 300,
-        })
+        }, accumulator=accumulator)
     except QueueFullError:
         raise HTTPException(status_code=503, detail="Service busy, retry later")
     except HTTPException:
@@ -304,7 +309,7 @@ async def reconciliation_agent(request: ReconciliationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Reconciliation agent failed: {e}")
 
-    return ReconciliationResponse(result=result)
+    return ReconciliationResponse(result=result, usage=accumulator.echo())
 
 
 # ============================================================================

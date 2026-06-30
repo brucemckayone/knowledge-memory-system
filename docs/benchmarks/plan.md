@@ -75,9 +75,27 @@ Every run writes exactly one JSON file. The envelope is the same across all five
   "timestamp": "2026-05-28T14:32:11Z",
   "dataset_size": 500,
   "scores": { ... benchmark-specific ... },
+  "token_usage": {
+    "graph_agent": {
+      "claude-haiku-4-5": { "input": 0, "output": 0, "cache_read": 0, "cache_write_5m": 0, "cache_write_1h": 0, "calls": 0, "tool_calls": 0 }
+    }
+  },
+  "estimated_cost_usd": 0.0,
+  "pricing_version": "",
   "notes": "Baseline. First run on Graph S after nmemo-2yv close-out."
 }
 ```
+
+The three token-usage fields (`token_usage`, `estimated_cost_usd`, `pricing_version`)
+were added by the token-usage & cost-tracking epic (nmemo-6do, B9). All are
+default-valued, so older run JSONs (written before the epic) still deserialize.
+`token_usage` is the in-memory `TokenAccumulator` rollup —
+`{operation: {resolved_model: {input, output, cache_read, cache_write_5m, cache_write_1h, calls, tool_calls}}}` —
+and is the source of truth for benchmark-run usage (llm_usage.trace_id is
+platform-internal only, design §4.5 option b). `estimated_cost_usd` is computed
+downstream from the recorded token buckets via `config.ts` PRICING (the single
+source of truth — no pricing logic in the Python harness); it stays 0.0 unless a
+reporting step fills it.
 
 `notes` is the field where we record *what we expect this run to show* — e.g. "expecting -5% vs run N because we disabled the cross-cluster bridging fallback". That field is what turns a number into a story.
 

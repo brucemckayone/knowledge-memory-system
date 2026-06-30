@@ -13,10 +13,10 @@ Triggered: manually via /api/garden, or automatically every N graph agent runs.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from .core.llm import llm_client
+from .core.llm import llm_client, UsageAccumulator, UsageEcho, usage_accumulator
 from .core.concurrency import llm_pool, QueueFullError
 from .core.prompt_safety import PROMPT_SAFETY_SYSTEM_CLAUSE
 
@@ -33,6 +33,7 @@ class GardenerRequest(BaseModel):
 
 class GardenerResponse(BaseModel):
     result: str
+    usage: Optional[UsageEcho] = None
 
 
 GARDENER_SYSTEM_PROMPT = """You are the Graph Gardener. Your job is to explore, understand, and maintain a knowledge graph. You work AFTER extraction — entities, facts, and causal events already exist. Your job is to look ACROSS the graph and find what was missed: duplicate entities, disconnected islands that should be linked, orphans that need connecting, summaries that need updating, and structural issues that need tidying.
@@ -246,7 +247,10 @@ def _build_gardener_prompt(trigger: str, runs_since_last: int) -> str:
 
 
 @router.post("/gardener-agent", response_model=GardenerResponse)
-async def gardener_agent(request: GardenerRequest):
+async def gardener_agent(
+    request: GardenerRequest,
+    accumulator: UsageAccumulator = Depends(usage_accumulator),
+):
     """Invoke the graph gardener to explore and maintain the knowledge graph."""
     logger.info(
         "[gardener] request received trigger=%s runs_since=%d mcp=%s",
@@ -263,7 +267,7 @@ async def gardener_agent(request: GardenerRequest):
             "tools": "mcp",
             "max_turns": 80,
             "timeout": 600,
-        })
+        }, accumulator=accumulator)
     except QueueFullError:
         logger.warning("[gardener] queue full, returning 503")
         raise HTTPException(status_code=503, detail="Service busy, retry later")
@@ -278,4 +282,4 @@ async def gardener_agent(request: GardenerRequest):
         raise HTTPException(status_code=500, detail=f"Gardener agent failed: {e}")
 
     logger.info("[gardener] complete, result=%d chars", len(result))
-    return GardenerResponse(result=result)
+    return GardenerResponse(result=result, usage=accumulator.echo())

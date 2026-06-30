@@ -36,6 +36,15 @@ class RunEnvelope:
     timestamp: str
     dataset_size: int
     scores: dict[str, Any]
+    # Token-usage & cost tracking (nmemo-6do, B9). All default-valued so older
+    # run JSONs deserialize unchanged. token_usage shape:
+    #   {operation: {resolved_model: {input, output, cache_read,
+    #                cache_write_5m, cache_write_1h, calls, tool_calls}}}
+    # Benchmark-run correlation lives here + in the in-memory accumulator, NOT in
+    # llm_usage.trace_id (design §4.5 option b). Schema mirrored in plan.md §1.4.
+    token_usage: dict[str, Any] = field(default_factory=dict)
+    estimated_cost_usd: float = 0.0
+    pricing_version: str = ""
     notes: str = ""
     judge_prompt_version: str = ""
 
@@ -83,6 +92,9 @@ def write_run(
     notes: str = "",
     harness_commit: str = "unknown",
     judge_prompt_version: str = "",
+    token_usage: dict[str, Any] | None = None,
+    estimated_cost_usd: float = 0.0,
+    pricing_version: str = "",
     timestamp: str | None = None,
 ) -> Path:
     """Write the JSON envelope under results/{benchmark}/runs/{file}.json.
@@ -104,6 +116,9 @@ def write_run(
         timestamp=timestamp,
         dataset_size=dataset_size,
         scores=scores,
+        token_usage=token_usage or {},
+        estimated_cost_usd=estimated_cost_usd,
+        pricing_version=pricing_version,
         notes=notes,
         judge_prompt_version=judge_prompt_version,
     )

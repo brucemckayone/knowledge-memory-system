@@ -25,6 +25,7 @@ import {
   agentFetch,
   getMcpConfigPath,
 } from './causal-agent.js';
+import type { UsageEcho } from './usage.js';
 
 // Re-export so consumers can import the timeout error from the
 // reasoning-agent module directly. The class still lives in causal-agent.ts
@@ -55,6 +56,9 @@ export interface ReasoningAgentParams {
 
 export interface ReasoningAgentResult {
   result: string;
+  /** Echoed token usage for this query invocation (§4.2), surfaced into the
+   * /api/reason/query response for in-memory benchmark rollups. */
+  usage?: UsageEcho;
 }
 
 export async function invokeReasoningAgent(params: ReasoningAgentParams): Promise<ReasoningAgentResult> {
