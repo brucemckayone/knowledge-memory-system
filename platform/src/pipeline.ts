@@ -12,7 +12,7 @@ import { storeMemoryWithUnits, getMemory } from './services/qdrant.js';
 import { config } from './config.js';
 import { invokeGraphAgent, invokeGardenerAgent, type ContentType, type EpochContext } from './services/causal-agent.js';
 import { findOrCreateSpeaker } from './services/entities.js';
-import { promote } from './services/promotion.js';
+import { promote, cleanupAbandonedStaging } from './services/promotion.js';
 import { runCausalPass } from './services/causal-pass.js';
 import { prepareBatch, type BatchItem, type IngestMode } from './services/batch.js';
 import { mapWithConcurrency, withRetry, isRetryableAgentError } from './services/concurrency.js';
@@ -286,6 +286,26 @@ export function splitIntoUnits(
 // from feeding the memoryId into the name. Constant here so the scheme is
 // reproducible across processes.
 const UNIT_ID_NAMESPACE = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
+// Distinct fixed namespace for deterministic memory (window) point ids, so a
+// window id can never collide with a unit id derived from the same name string.
+const WINDOW_ID_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+
+/**
+ * Hand-rolled RFC-4122 v5 (SHA-1 of namespace||name) — no dependency, since the
+ * `uuid` package is not installed and CLAUDE.md sanctions `crypto`. Output is a
+ * canonical lowercase UUID string.
+ */
+function uuidV5(namespace: string, name: string): string {
+  const nsBytes = Buffer.from(namespace.replace(/-/g, ''), 'hex');
+  const nameBytes = Buffer.from(name, 'utf8');
+  const hash = createHash('sha1').update(nsBytes).update(nameBytes).digest();
+  const bytes = hash.subarray(0, 16);
+  // Set version (5) and RFC-4122 variant bits.
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
 
 /**
  * Deterministic unit satellite point id (nmemo-yxj.6 enabler).
@@ -306,15 +326,21 @@ const UNIT_ID_NAMESPACE = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
  * shape Qdrant accepts and fact_units.unit_point_id stores.
  */
 export function unitPointId(memoryId: string, unitIndex: number): string {
-  const nsBytes = Buffer.from(UNIT_ID_NAMESPACE.replace(/-/g, ''), 'hex');
-  const nameBytes = Buffer.from(`${memoryId}:${unitIndex}`, 'utf8');
-  const hash = createHash('sha1').update(nsBytes).update(nameBytes).digest();
-  const bytes = hash.subarray(0, 16);
-  // Set version (5) and RFC-4122 variant bits.
-  bytes[6] = (bytes[6]! & 0x0f) | 0x50;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = bytes.toString('hex');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+  return uuidV5(UNIT_ID_NAMESPACE, `${memoryId}:${unitIndex}`);
+}
+
+/**
+ * Deterministic memory (window) point id for batched ingest. When a chunk
+ * carries a stable (sourceId, chunkIndex) — true for every batch arm
+ * (prepareBatch sets both) — the memoryId becomes a pure function of them, so
+ * re-storing the same chunk UPSERTS the same Qdrant parent + unit points
+ * instead of minting duplicates. The motivating case: a resumable-driver
+ * sub-batch retried after a session-limit pause re-runs store() for its chunks;
+ * without this, every retry leaked a fresh set of orphan memory points. Single
+ * ingest (no sourceId) keeps randomUUID().
+ */
+export function windowPointId(sourceId: string, chunkIndex: number): string {
+  return uuidV5(WINDOW_ID_NAMESPACE, `${sourceId}:${chunkIndex}`);
 }
 
 /** A computed fact->unit evidentiary link (pre-persist shape for fact_units). */
@@ -404,7 +430,15 @@ export async function store(
   text: string,
   metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string; sourceId?: string; chunkIndex?: number }
 ): Promise<string> {
-  const memoryId = randomUUID();
+  // Deterministic memory id when the chunk carries a stable (sourceId,
+  // chunkIndex) — true for every batch arm — so a re-store (e.g. a
+  // resumable-driver sub-batch retried after a session-limit pause) upserts the
+  // same parent + unit points rather than leaking duplicates. Single ingest
+  // (no sourceId) keeps a random id, unchanged.
+  const memoryId =
+    metadata?.sourceId !== undefined && metadata?.chunkIndex !== undefined
+      ? windowPointId(metadata.sourceId, metadata.chunkIndex)
+      : randomUUID();
   const streamId = metadata?.streamId ?? DEFAULT_STREAM_ID;
 
   // Embed the whole window (parent point) and each small unit (satellites) in
@@ -952,6 +986,19 @@ async function propose(
 async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<ExtractResult[]> {
   const limit = concurrency ?? EPOCH_CONCURRENCY;
   const epochId = randomUUID();
+
+  // Sweep abandoned staging from prior failed/old epochs before we start
+  // (best-effort, TTL-guarded so a concurrent epoch's fresh proposals are never
+  // touched). promote() doesn't delete consumed staging, and an epoch that fails
+  // before promote leaves it entirely — without this they accumulate forever.
+  try {
+    const swept = await cleanupAbandonedStaging();
+    if (swept.entities + swept.facts > 0) {
+      console.log(`[epoch ${epochId.slice(0, 8)}] swept abandoned staging: ${swept.entities} entities, ${swept.facts} facts`);
+    }
+  } catch (err) {
+    console.warn('[epoch] abandoned-staging sweep failed (non-fatal):', err instanceof Error ? err.message : err);
+  }
 
   // Phase 1: store all chunks (bounded — embeddings hit the Ollama pool too).
   // Store embeds behind withRetry so a transient embed 503 (ollama pool busy)

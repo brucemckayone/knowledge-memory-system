@@ -18,7 +18,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { stagingProposedEntities, stagingProposedFacts, entities, facts, sameAsLinks } from '../db/schema.js';
 import { ml } from './ml-client.js';
@@ -449,6 +449,33 @@ export async function applyPromotion(
  * Any escalation left without a verdict keeps the planner's conservative default, so
  * promotion always completes deterministically.
  */
+const STAGING_TTL_MS = Number.parseInt(process.env.STAGING_TTL_MS ?? `${60 * 60 * 1000}`, 10);
+
+/**
+ * Delete staging proposals older than `olderThanMs` — abandoned-epoch cleanup.
+ * promote() consumes an epoch's staging into canonical but never deletes it, and
+ * an epoch that fails before promote (e.g. a session-limit pause mid-propose in
+ * the resumable driver) leaves its proposals behind entirely. Both accumulate
+ * (1200+ orphan rows observed after the LOTR run) and clutter the staging viz.
+ * This sweeps anything older than a generous TTL — far longer than any in-flight
+ * epoch, so a concurrent epoch's fresh proposals are never touched. Best-effort:
+ * callers log and continue. Facts are deleted before entities. Returns counts.
+ */
+export async function cleanupAbandonedStaging(
+  olderThanMs: number = STAGING_TTL_MS,
+): Promise<{ entities: number; facts: number }> {
+  const cutoff = new Date(Date.now() - olderThanMs);
+  const deletedFacts = await db
+    .delete(stagingProposedFacts)
+    .where(lt(stagingProposedFacts.createdAt, cutoff))
+    .returning({ id: stagingProposedFacts.stagedFactId });
+  const deletedEntities = await db
+    .delete(stagingProposedEntities)
+    .where(lt(stagingProposedEntities.createdAt, cutoff))
+    .returning({ id: stagingProposedEntities.handle });
+  return { entities: deletedEntities.length, facts: deletedFacts.length };
+}
+
 export async function promote(epochId: string, opts: PromoteOptions = {}): Promise<PromotionResult> {
   const { prior, staged } = await loadPromotionInputs(epochId);
 
