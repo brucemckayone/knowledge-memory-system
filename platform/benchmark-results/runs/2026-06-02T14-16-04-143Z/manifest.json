@@ -1,0 +1,20 @@
+{
+  "runId": "2026-06-02T14-16-04-143Z",
+  "timestamp": "2026-06-02T14:35:07.902Z",
+  "gitCommit": "06d085e",
+  "corpus": "corpus10.json",
+  "chunkCount": 10,
+  "modes": [
+    "epoch"
+  ],
+  "orders": [
+    "forward",
+    "reverse"
+  ],
+  "concurrency": {
+    "epoch": "6",
+    "optimistic": "6"
+  },
+  "model": "pi",
+  "richSchemaVersion": 1
+}

@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
@@ -68,6 +69,7 @@
     "drizzle-kit": "^0.20.13",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
+    "undici": "^8.3.0",
     "vitest": "^4.0.18"
   }
 }

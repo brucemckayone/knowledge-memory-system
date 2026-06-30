@@ -231,6 +231,10 @@ export const factPredicates = pgTable('fact_predicates', {
   isExclusive: boolean('is_exclusive').default(false),
   category: varchar('category', { length: 50 }),
   aliases: text('aliases').array().default([]),
+  // Per-predicate type pair for the multi-signal type-pair-overlap (doc 42 §4).
+  subjectType: varchar('subject_type', { length: 50 }),
+  objectType: varchar('object_type', { length: 50 }),
+  // Note: embedding VECTOR(768) handled directly via SQL (pgvector), not in Drizzle (migration 045)
   isCanonical: boolean('is_canonical').default(true),
   usageCount: integer('usage_count').default(0),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
@@ -384,6 +388,11 @@ export const causalEdges = pgTable('causal_edges', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   expiredAt: timestamp('expired_at', { withTimezone: true }),
   expireReason: text('expire_reason'),
+  // E6 (doc 41 §6, §12 #5): set by causal-promotion when a promoted edge cites an
+  // INVALIDATED fact — the edge is kept (never auto-repointed) but flagged so the
+  // next delta pass re-grounds or expires it. A superseded cited fact is NOT flagged.
+  staleCitation: boolean('stale_citation').default(false).notNull(),
+  staleCitationReason: text('stale_citation_reason'),
 });
 
 export const causalEdgesRelations = relations(causalEdges, ({ one }) => ({
@@ -765,6 +774,120 @@ export const graphStats = pgTable('graph_stats', {
 export type GraphStats = typeof graphStats.$inferSelect;
 export type NewGraphStats = typeof graphStats.$inferInsert;
 
+// ============================================
+// Epoch v2: Propose/Promote staging buffer (doc 41 §3, §8a.4)
+// ============================================
+
+/**
+ * Staging — proposed entities.
+ *
+ * Candidate entities written by extraction proposers (Phase 2) in per-epoch
+ * isolation. NOT canonical: no AGE sync, no audit. `handle` is the server-minted
+ * epoch-local id that proposedFacts reference; `anchorCanonicalId` is set when
+ * the proposer anchored to a known entity (doc 41 §4). Promotion (E3) reads one
+ * epoch's rows, resolves handles → canonical ids, and writes canonical once.
+ * See migration 040_staging_proposals.sql.
+ */
+export const stagingProposedEntities = pgTable('staging_proposed_entities', {
+  handle: uuid('handle').primaryKey().defaultRandom(),
+  epochId: uuid('epoch_id').notNull(),
+  sourceId: uuid('source_id'),
+  name: text('name').notNull(),
+  entityType: text('entity_type').notNull(),
+  summary: text('summary'),
+  anchorCanonicalId: uuid('anchor_canonical_id'),
+  mentionText: text('mention_text'),
+  proposedBy: varchar('proposed_by', { length: 32 }).default('extraction_proposer').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Staging — proposed facts.
+ *
+ * Entity refs are HANDLES, not canonical ids (doc 41 §3) — promotion rewrites
+ * them after identity settles. `exclusiveGroup` is resolved at propose time from
+ * the E1 shared ontology so promotion's group-aware supersession reuses it.
+ * `undated` true ⟺ `validAt` null (DB CHECK). See migration 040.
+ */
+export const stagingProposedFacts = pgTable('staging_proposed_facts', {
+  stagedFactId: uuid('staged_fact_id').primaryKey().defaultRandom(),
+  epochId: uuid('epoch_id').notNull(),
+  sourceId: uuid('source_id'),
+  subjectHandle: uuid('subject_handle').notNull(),
+  predicate: text('predicate').notNull(),
+  objectHandle: uuid('object_handle'),
+  objectValue: text('object_value'),
+  validAt: timestamp('valid_at', { withTimezone: true }),
+  undated: boolean('undated').default(false).notNull(),
+  chunkIndex: integer('chunk_index'),
+  confidence: real('confidence'),
+  reasoning: text('reasoning'),
+  exclusiveGroup: text('exclusive_group'),
+  // VERIFY-phase supersession hint (E4, doc 41 §4): a prior-canonical fact id
+  // this fact claims to supersede. Advisory — promotion cross-checks it against
+  // its deterministic valid_at ordering. No FK (agent-supplied, may be stale).
+  // See migration 042_staging_supersedes_hint.sql.
+  supersedesFactId: uuid('supersedes_fact_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Arbiter verdicts (E5, doc 41 §8a.5, §12 #4) — the promotion-escalation arbiter's
+ * disposal of an escalation, recorded against its dossier for replay reuse.
+ *
+ * Promotion pre-records the dossier (verdict null) keyed by (epochId, escalationKey);
+ * a verdict tool (propose_identity_verdict / propose_conflict_resolution) fills the
+ * verdict. escalationKey is the value-derived stable id of the escalation
+ * (promotion-plan.ts) so a replayed promotion reuses the recorded verdict without
+ * re-invoking the LLM. See migration 043_arbiter_verdicts.sql.
+ */
+export const arbiterVerdicts = pgTable(
+  'arbiter_verdicts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    epochId: uuid('epoch_id').notNull(),
+    escalationKey: text('escalation_key').notNull(),
+    kind: text('kind').notNull(),
+    dossier: jsonb('dossier').notNull(),
+    verdict: jsonb('verdict'),
+    decidedBy: varchar('decided_by', { length: 32 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => ({
+    epochKeyUniq: unique('arbiter_verdict_epoch_key_uniq').on(t.epochId, t.escalationKey),
+    epochIdx: index('idx_arbiter_verdicts_epoch').on(t.epochId),
+  }),
+);
+
+/**
+ * Staging — proposed causal edges (E6, doc 41 §6, §8a.6).
+ *
+ * The post-promotion causal pass's propose_causal_edge buffer: the causal agent
+ * reads SETTLED canonical and proposes edges between SETTLED causal events (minted
+ * by promotion, §12 #5), writing HERE — never canonical. A deterministic
+ * causal-promotion step disposes these into `causalEdges` (ref-resolve, self-loop
+ * drop, dedup, cited-fact branch). Event ids are plain uuids (NOT FK) — ref-resolve
+ * is a disposal step. The doc-01 invariant (non-empty reasoning + source_references)
+ * is enforced structurally (migration 044_causal_pass.sql CHECKs).
+ */
+export const stagingCausalEdges = pgTable(
+  'staging_causal_edges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    epochId: uuid('epoch_id').notNull(),
+    causeEventId: uuid('cause_event_id').notNull(),
+    effectEventId: uuid('effect_event_id').notNull(),
+    reasoning: text('reasoning').notNull(),
+    sourceReferences: jsonb('source_references').notNull(),
+    proposedBy: varchar('proposed_by', { length: 32 }).default('causal_agent').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    epochIdx: index('idx_staging_causal_edges_epoch').on(t.epochId),
+  }),
+);
+
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
@@ -790,3 +913,77 @@ export type FactHistory = typeof factHistory.$inferSelect;
 export type NewFactHistory = typeof factHistory.$inferInsert;
 export type CausalEdgeHistory = typeof causalEdgeHistory.$inferSelect;
 export type NewCausalEdgeHistory = typeof causalEdgeHistory.$inferInsert;
+export type StagingProposedEntity = typeof stagingProposedEntities.$inferSelect;
+export type NewStagingProposedEntity = typeof stagingProposedEntities.$inferInsert;
+export type StagingProposedFact = typeof stagingProposedFacts.$inferSelect;
+export type NewStagingProposedFact = typeof stagingProposedFacts.$inferInsert;
+export type ArbiterVerdictRow = typeof arbiterVerdicts.$inferSelect;
+export type NewArbiterVerdictRow = typeof arbiterVerdicts.$inferInsert;
+export type StagingCausalEdge = typeof stagingCausalEdges.$inferSelect;
+export type NewStagingCausalEdge = typeof stagingCausalEdges.$inferInsert;
+
+// ============================================
+// iOS API v1 — milestone-1 substrate (migration 049_ios_milestone1.sql)
+// ============================================
+
+/**
+ * Capture Idempotency (iOS milestone-1)
+ *
+ * Dedup ledger for POST /api/ingest. The iOS client mints an idempotency_key
+ * per capture and retries the same key on transient failure (capture works
+ * offline, retries on reconnect). A retried ingest with a key already present
+ * returns the prior memory_id instead of running ingest again — at-most-once
+ * ingest under client retries.
+ *
+ * memory_id is the Qdrant memory point id minted by the first successful ingest
+ * (UUID-shaped, stored as text — there is no Postgres memories table to FK to;
+ * memories live in Qdrant). Lookup: SELECT memory_id WHERE idempotency_key = $1.
+ *
+ * Defined in migration 049_ios_milestone1.sql.
+ */
+export const captureIdempotency = pgTable('capture_idempotency', {
+  idempotencyKey: text('idempotency_key').primaryKey(),
+  memoryId: text('memory_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type CaptureIdempotency = typeof captureIdempotency.$inferSelect;
+export type NewCaptureIdempotency = typeof captureIdempotency.$inferInsert;
+
+/**
+ * Notification Cards (iOS milestone-1)
+ *
+ * Backs the iOS NotificationCard wire contract. The backend serves only the
+ * undismissed rows (WHERE dismissed_at IS NULL) ordered by created_at; the
+ * client dismisses a card by stamping dismissed_at (soft-delete — no
+ * hard-delete in v1).
+ *
+ * `id` is the server PK (uuid). `notificationId` is the stable wire id the iOS
+ * client keys on (and references when dismissing). The remaining columns mirror
+ * the NotificationCard fields: kind/meta/title/body/cta plus a target
+ * (target_type + target_id) the card's CTA navigates to, an optional due_at and
+ * severity. Severity/due_at/dismissed_at are nullable.
+ *
+ * Defined in migration 049_ios_milestone1.sql.
+ */
+export const notificationCards = pgTable('notification_cards', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  notificationId: text('notification_id').notNull(),
+  kind: text('kind').notNull(),
+  meta: text('meta'),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  cta: text('cta'),
+  targetType: text('target_type'),
+  targetId: text('target_id'),
+  dueAt: timestamp('due_at', { withTimezone: true }),
+  severity: text('severity'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+}, (t) => ({
+  notificationIdUniq: unique('notification_cards_notification_id_uniq').on(t.notificationId),
+  activeIdx: index('idx_notification_cards_active').on(t.createdAt),
+}));
+
+export type NotificationCard = typeof notificationCards.$inferSelect;
+export type NewNotificationCard = typeof notificationCards.$inferInsert;

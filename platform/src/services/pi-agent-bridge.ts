@@ -232,10 +232,25 @@ async function runAgent(req: BridgeRequest): Promise<BridgeResponse> {
   }
 
   // Create session up-front so the timeout branch can abort + dispose it on hang.
+  //
+  // Tool allow-list: pass the custom tool NAMES as the `tools` allow-list, NOT
+  // `tools: []`. The Pi SDK treats `tools` as an allow-list — "only the listed
+  // tool names are enabled" (sdk.d.ts) — and `isAllowedTool` (agent-session.js)
+  // filters customTools through it too: `(name) => !allowedToolNames ||
+  // allowedToolNames.has(name)`. An empty array is a *provided* (truthy)
+  // allow-list of zero names, so `new Set([])` rejects every tool — including
+  // the 49 customTools we register below. GLM then receives no tools and just
+  // narrates ("I'll call get_graph_topology...") without ever emitting a
+  // tool_use block (turns=1, tools=0), so ingest extracts nothing.
+  //
+  // Listing exactly our graph-tool names keeps all custom tools enabled while
+  // still excluding the built-in read/bash/edit/write tools (absent from the
+  // allow-list) — which is the original `tools: []` intent, done correctly.
+  const toolNames = GRAPH_TOOLS.map((t) => t.name);
   const { session } = await createAgentSession({
     model: resolvedModel,
     thinkingLevel: thinking as any,
-    tools: [], // no built-in tools
+    tools: toolNames,
     customTools: tools,
     sessionManager: SessionManager.inMemory(),
     settingsManager,

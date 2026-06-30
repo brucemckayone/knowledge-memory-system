@@ -20,10 +20,9 @@ describe('B06: Causal MCP server', () => {
 
   // --- MCP tool listing ---
 
-  it('exposes the seven causal-reasoning tools', () => {
+  it('exposes the six causal-reasoning read tools', () => {
     const names = GRAPH_TOOLS.map(t => t.name);
     for (const t of [
-      'create_causal_edge',
       'get_causal_history',
       'get_memory_text',
       'query_entity_facts',
@@ -143,34 +142,23 @@ describe('B06: Causal MCP server', () => {
     expect(parsed.events.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('handleToolCall dispatches create_causal_edge with full traceability', async () => {
-    const reasoning = 'Started new role at the company, which required relocation to Auckland where the office is based';
-    const result = await handleToolCall('create_causal_edge', {
-      cause_event_id: eventId2,
-      effect_event_id: eventId,
-      strength: 0.85,
-      reasoning,
-      source_references: [
-        { type: 'fact', id: factId, relevance: 'relocation fact triggered by employment' },
-        { type: 'entity', id: entityId, relevance: 'subject of both events' },
-      ],
-    });
-
-    const parsed = JSON.parse(result);
-    expect(parsed.edgeId).toBeDefined();
-
-    // Verify edge in DB meets acceptance criteria
-    const [edge] = await testDb`SELECT * FROM causal_edges WHERE id = ${parsed.edgeId}::uuid`;
-    expect(edge).toBeDefined();
-    expect(edge!.reasoning.length).toBeGreaterThan(50);
-    const refs = typeof edge!.source_references === 'string'
-      ? JSON.parse(edge!.source_references)
-      : edge!.source_references;
-    expect(Array.isArray(refs)).toBe(true);
-    expect(refs.length).toBeGreaterThanOrEqual(1);
-    expect(refs[0].type).toBeDefined();
-    expect(refs[0].id).toBeDefined();
-    expect(refs[0].relevance).toBeDefined();
+  it('create_causal_edge is retired: not exposed, not dispatchable (E7, doc 41 §11)', async () => {
+    // The per-chunk CAUSE write path was removed in E7. The tool is gone from
+    // GRAPH_TOOLS and handleToolCall rejects it like any unknown tool. Causal
+    // edges now flow through the post-promotion causal pass (propose_causal_edge
+    // → causal-promotion), never an agent-driven create_causal_edge.
+    expect(GRAPH_TOOLS.map((t) => t.name)).not.toContain('create_causal_edge');
+    await expect(
+      handleToolCall('create_causal_edge', {
+        cause_event_id: eventId2,
+        effect_event_id: eventId,
+        strength: 0.85,
+        reasoning: 'retired path — must not dispatch',
+        source_references: [
+          { type: 'fact', id: factId, relevance: 'subject of both events' },
+        ],
+      }),
+    ).rejects.toThrow(/Unknown tool/);
   });
 
   it('handleToolCall returns error for unknown tool', async () => {

@@ -1,0 +1,22 @@
+-- 042_staging_supersedes_hint.sql
+--
+-- Epoch v2 E4 (doc 41 §4, §8a.3; bead nmemo-vpz.4): the VERIFY-phase
+-- supersession HINT on a staged fact.
+--
+-- During VERIFY a proposer may recognise that a fact it proposed supersedes a
+-- prior-canonical fact in the same exclusive group (surfaced by its reads or by
+-- a propose_fact disposal preview). It records that prior fact's id here.
+--
+-- The hint is ADVISORY. Promotion's group-aware supersession (E1
+-- compareFactPrecedence; doc 41 §5c) stays the authority and the ordering is
+-- LOCKED on valid_at — the hint is cross-checked against the deterministic
+-- outcome by the planner and logged on disagreement, never used to override it.
+--
+-- No FK to public.facts: the id is agent-supplied and may be stale or
+-- hallucinated. A loose column lets promotion VALIDATE it (mirroring the
+-- handle-looseness of doc 41 §3) instead of rejecting the whole staged row at
+-- insert time.
+--
+-- AGE search_path gotcha (CLAUDE.md): explicitly public.-qualified.
+ALTER TABLE public.staging_proposed_facts
+  ADD COLUMN IF NOT EXISTS supersedes_fact_id UUID;

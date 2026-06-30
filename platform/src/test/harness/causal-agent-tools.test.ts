@@ -12,10 +12,11 @@ import { app } from '../../index.js';
 describe('B05: Causal agent — tool definitions', () => {
   // --- Schema validation ---
 
-  it('exposes the seven causal-reasoning tools', () => {
-    // Original B05 seven tools remain; additional extraction/reconciliation/
-    // gardener/reasoning tools were layered on by later phases and are tested
-    // separately.
+  it('exposes the six causal-reasoning read tools', () => {
+    // Original B05 causal tools minus create_causal_edge — the per-chunk CAUSE
+    // write tool was retired in E7 (doc 41 §11). Additional extraction/
+    // reconciliation/gardener/reasoning tools were layered on by later phases
+    // and are tested separately.
     const causalToolNames = [
       'query_entity_facts',
       'query_entity_neighbours',
@@ -23,7 +24,6 @@ describe('B05: Causal agent — tool definitions', () => {
       'search_memories',
       'get_memory_text',
       'get_causal_history',
-      'create_causal_edge',
     ];
     const actualNames = GRAPH_TOOLS.map(t => t.name);
     for (const name of causalToolNames) {
@@ -181,31 +181,14 @@ describe('B05: Causal agent — tool definitions', () => {
     }
   });
 
-  it('create_causal_edge handler creates edge and returns id', async () => {
-    const result = await handleToolCall('create_causal_edge', {
-      cause_event_id: eventId,
-      effect_event_id: eventId2,
-      strength: 0.75,
-      reasoning: 'Job at Test Corp caused relocation to New York office',
-      source_references: [
-        { type: 'fact', id: factId, relevance: 'employment fact' },
-      ],
-    });
-    const parsed = JSON.parse(result);
-    expect(parsed.edgeId).toBeDefined();
-    expect(typeof parsed.edgeId).toBe('string');
-  });
-
   // nmemo-2yv.25: trace_causes / project_trajectory / get_causal_delta are exposed
   // as MCP tools so the reasoning agent can ask "why did this fact become true?" /
   // "what does this fact lead to?" / "what changed causally in this window?".
   //
-  // These tests need an active (eventId → eventId2) edge. The earlier
-  // `create_causal_edge handler creates edge and returns id` test creates one
-  // and the unique partial index (cause_event_id, effect_event_id) WHERE
-  // expired_at IS NULL prevents inserting a duplicate. Reuse whichever active
-  // edge already exists, or insert one fresh if the test order ever drops the
-  // dependency.
+  // These tests need an active (eventId → eventId2) edge. ensureActiveEdge()
+  // below seeds one directly via SQL when absent (the create_causal_edge MCP
+  // handler was retired in E7, doc 41 §11); the unique partial index
+  // (cause_event_id, effect_event_id) WHERE expired_at IS NULL prevents a duplicate.
   async function ensureActiveEdge(): Promise<void> {
     const existing = await testDb`
       SELECT 1 FROM causal_edges

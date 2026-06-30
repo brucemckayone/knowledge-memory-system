@@ -1,0 +1,3454 @@
+{
+  "exact": {
+    "baselineMode": "epoch",
+    "arms": [
+      {
+        "mode": "epoch",
+        "wallClockMs": 1759472,
+        "counts": {
+          "entities": 16,
+          "distinctEntities": 16,
+          "activeFacts": 47,
+          "distinctFacts": 47,
+          "events": 71,
+          "activeEdges": 18,
+          "sameAs": 0
+        },
+        "duplicateEntities": 0,
+        "duplicateFacts": 0,
+        "litmusPass": false,
+        "vsBaseline": null
+      }
+    ]
+  },
+  "semantic": {
+    "epoch": {
+      "determinismF1": null,
+      "litmusF1": {
+        "entity": 0.9375,
+        "fact": 0.23076923076923075
+      },
+      "vsBaselineF1": null
+    }
+  },
+  "invariants": {
+    "epoch.forward": {
+      "results": [
+        {
+          "name": "singleActivePerExclusiveGroup",
+          "description": "At most one active fact per (subject, exclusive predicate group); supersession should expire the rest.",
+          "severity": "error",
+          "pass": false,
+          "violations": [
+            {
+              "kind": "exclusive_group_conflict",
+              "subjectId": "f73eafc6-09cb-402a-b467-47559c316e31",
+              "factIds": [
+                "b85bc8f8-7bc3-4009-8844-aa9730a35e66",
+                "77289b41-13f7-4181-90bf-f3dddb869f1d"
+              ],
+              "detail": "subject f73eafc6-09cb-402a-b467-47559c316e31 holds 2 active facts in exclusive group 'works_at' with distinct objects: 74a498de-2ad8-44ad-af0a-47509d4cfb15, 075b024b-70be-41a9-8d04-b86859da386d"
+            }
+          ]
+        },
+        {
+          "name": "causalJustification",
+          "description": "Every causal edge has non-empty reasoning + source_references and is not a self-loop.",
+          "severity": "error",
+          "pass": true,
+          "violations": []
+        },
+        {
+          "name": "referentialIntegrity",
+          "description": "All fact/event/edge/contradiction/same_as foreign keys resolve to existing rows.",
+          "severity": "error",
+          "pass": true,
+          "violations": []
+        },
+        {
+          "name": "objectValueNotSentence",
+          "description": "Active literal object_values should be values, not sentences (<= 64 chars and <= 12 words).",
+          "severity": "warning",
+          "pass": true,
+          "violations": []
+        },
+        {
+          "name": "orphanEntities",
+          "description": "Entities referenced by no active fact (as subject or object).",
+          "severity": "info",
+          "pass": true,
+          "violations": []
+        }
+      ],
+      "summary": {
+        "total": 5,
+        "passed": 4,
+        "failed": 1,
+        "errorViolations": 1
+      }
+    },
+    "epoch.reverse": {
+      "results": [
+        {
+          "name": "singleActivePerExclusiveGroup",
+          "description": "At most one active fact per (subject, exclusive predicate group); supersession should expire the rest.",
+          "severity": "error",
+          "pass": false,
+          "violations": [
+            {
+              "kind": "exclusive_group_conflict",
+              "subjectId": "473088a7-03a6-45cc-9a3f-25a80e7e9702",
+              "factIds": [
+                "144512a8-cb99-4646-90d8-cebe106fe4c9",
+                "687d2942-f8ef-4f79-9d14-2efcf2684641"
+              ],
+              "detail": "subject 473088a7-03a6-45cc-9a3f-25a80e7e9702 holds 2 active facts in exclusive group 'works_at' with distinct objects: 8b923354-a46a-4f4c-8d8e-0f32bac0a080, e7639627-2b77-4711-84fb-ce2bdad8624c"
+            },
+            {
+              "kind": "exclusive_group_conflict",
+              "subjectId": "473088a7-03a6-45cc-9a3f-25a80e7e9702",
+              "factIds": [
+                "9b1b9ff7-1669-4e75-82d2-fc86749bf377",
+                "edb0bd82-051e-42b2-bebe-ee60b528950e"
+              ],
+              "detail": "subject 473088a7-03a6-45cc-9a3f-25a80e7e9702 holds 2 active facts in exclusive group 'role_title' with distinct objects: 8b923354-a46a-4f4c-8d8e-0f32bac0a080, value:startup CEO"
+            }
+          ]
+        },
+        {
+          "name": "causalJustification",
+          "description": "Every causal edge has non-empty reasoning + source_references and is not a self-loop.",
+          "severity": "error",
+          "pass": true,
+          "violations": []
+        },
+        {
+          "name": "referentialIntegrity",
+          "description": "All fact/event/edge/contradiction/same_as foreign keys resolve to existing rows.",
+          "severity": "error",
+          "pass": true,
+          "violations": []
+        },
+        {
+          "name": "objectValueNotSentence",
+          "description": "Active literal object_values should be values, not sentences (<= 64 chars and <= 12 words).",
+          "severity": "warning",
+          "pass": true,
+          "violations": []
+        },
+        {
+          "name": "orphanEntities",
+          "description": "Entities referenced by no active fact (as subject or object).",
+          "severity": "info",
+          "pass": false,
+          "violations": [
+            {
+              "kind": "orphan_entity",
+              "entityIds": [
+                "d12460e5-83d1-4c12-bd12-a517648e5ab0"
+              ],
+              "detail": "entity d12460e5-83d1-4c12-bd12-a517648e5ab0 (Boston) is referenced by no active fact"
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "total": 5,
+        "passed": 3,
+        "failed": 2,
+        "errorViolations": 2
+      }
+    }
+  },
+  "correctness": {
+    "epoch.forward": {
+      "corpus": "corpus20.json",
+      "entities": {
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "currentFacts": {
+        "precision": 0.0851063829787234,
+        "recall": 0.4,
+        "f1": 0.14035087719298245
+      },
+      "currentStateCorrectness": 0.375,
+      "expectations": [
+        {
+          "subject": "Elena Vasquez",
+          "group": "role_title",
+          "expectedObject": "chief technology officer",
+          "actualObjects": [
+            "helix robotics"
+          ],
+          "pass": false
+        },
+        {
+          "subject": "Elena Vasquez",
+          "group": "works_at",
+          "expectedObject": "Helix Robotics",
+          "actualObjects": [
+            "helix robotics"
+          ],
+          "pass": true
+        },
+        {
+          "subject": "Daniel Okoro",
+          "group": "role_title",
+          "expectedObject": "vp of product",
+          "actualObjects": [
+            "helix robotics"
+          ],
+          "pass": false
+        },
+        {
+          "subject": "Daniel Okoro",
+          "group": "works_at",
+          "expectedObject": "Helix Robotics",
+          "actualObjects": [
+            "helix robotics"
+          ],
+          "pass": true
+        },
+        {
+          "subject": "Sofia Reyes",
+          "group": "role_title",
+          "expectedObject": "partner",
+          "actualObjects": [],
+          "pass": false
+        },
+        {
+          "subject": "Sofia Reyes",
+          "group": "works_at",
+          "expectedObject": "Northwind Capital",
+          "actualObjects": [],
+          "pass": false
+        },
+        {
+          "subject": "Priya Anand",
+          "group": "role_title",
+          "expectedObject": "startup ceo",
+          "actualObjects": [
+            "startup ceo"
+          ],
+          "pass": true
+        },
+        {
+          "subject": "Helix Robotics",
+          "group": "org_hq",
+          "expectedObject": "Austin",
+          "actualObjects": [
+            "boston, massachusetts"
+          ],
+          "pass": false
+        }
+      ],
+      "predicateSprawl": [],
+      "missingEntities": [],
+      "extraEntities": [],
+      "missingFacts": [
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "job_title",
+          "object": "chief technology officer"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "headquartered_in",
+          "object": "Austin"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "raised_funding_from",
+          "object": "Northwind Capital"
+        },
+        {
+          "subject": "Daniel Okoro",
+          "predicate": "job_title",
+          "object": "vp of product"
+        },
+        {
+          "subject": "Sofia Reyes",
+          "predicate": "works_at",
+          "object": "Northwind Capital"
+        },
+        {
+          "subject": "Sofia Reyes",
+          "predicate": "job_title",
+          "object": "partner"
+        }
+      ],
+      "extraFacts": [
+        {
+          "subject": "Priya Anand",
+          "predicate": "works_at",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "company_type",
+          "object": "small startup"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "worked_on",
+          "object": "navigation stack"
+        },
+        {
+          "subject": "Marcus Chen",
+          "predicate": "works_at",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Marcus Chen",
+          "predicate": "left_employment_at",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Marcus Chen",
+          "predicate": "started_own_venture",
+          "object": "true"
+        },
+        {
+          "subject": "Marcus Chen",
+          "predicate": "job_title",
+          "object": "head of engineering"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "education",
+          "object": "PhD in control theory"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "succeeded",
+          "object": "Marcus Chen"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "founded",
+          "object": "Project Atlas"
+        },
+        {
+          "subject": "Project Atlas",
+          "predicate": "description",
+          "object": "autonomous warehouse robot program"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "member_of",
+          "object": "Project Atlas"
+        },
+        {
+          "subject": "Project Atlas",
+          "predicate": "shipped_pilot",
+          "object": "November 2021"
+        },
+        {
+          "subject": "Project Atlas",
+          "predicate": "piloted_at",
+          "object": "Ohio"
+        },
+        {
+          "subject": "Brightway Stores",
+          "predicate": "customer_of",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Brightway Stores",
+          "predicate": "operates_in",
+          "object": "Ohio"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "received_funding",
+          "object": "$40 million Series B round"
+        },
+        {
+          "subject": "Northwind Capital",
+          "predicate": "led_investment_in",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Project Atlas",
+          "predicate": "pilot_outcome",
+          "object": "successful"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "lives_in",
+          "object": "Austin, Texas"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "reports_to",
+          "object": "Marcus Chen"
+        },
+        {
+          "subject": "Priya Anand",
+          "predicate": "works_at",
+          "object": "Cargolux Systems"
+        },
+        {
+          "subject": "Cargolux Systems",
+          "predicate": "company_type",
+          "object": "logistics firm"
+        },
+        {
+          "subject": "Project Atlas",
+          "predicate": "development_phase",
+          "object": "version 2 development started"
+        },
+        {
+          "subject": "Priya Anand",
+          "predicate": "left_employment_at",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Project Atlas",
+          "predicate": "feature",
+          "object": "multi-robot coordination"
+        },
+        {
+          "subject": "Priya Anand",
+          "predicate": "championed",
+          "object": "Project Atlas"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "job_title",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "manages",
+          "object": "Project Atlas"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "has_office_in",
+          "object": "Toronto, Canada"
+        },
+        {
+          "subject": "Daniel Okoro",
+          "predicate": "job_title",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "expansion_reason",
+          "object": "Opened Toronto office to recruit robotics talent"
+        },
+        {
+          "subject": "Project Atlas",
+          "predicate": "shipped_to",
+          "object": "Brightway Stores"
+        },
+        {
+          "subject": "Project Atlas",
+          "predicate": "v2_customer_count",
+          "object": "three new customers"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "employee_count",
+          "object": "roughly 220"
+        },
+        {
+          "subject": "Priya Anand",
+          "predicate": "previously_worked_at",
+          "object": "Cargolux Systems"
+        },
+        {
+          "subject": "Sofia Reyes",
+          "predicate": "partner_at",
+          "object": "Northwind Capital"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "employee_count",
+          "object": "about 30"
+        },
+        {
+          "subject": "Sofia Reyes",
+          "predicate": "board_member_of",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Brightway Stores",
+          "predicate": "piloted",
+          "object": "Project Atlas"
+        },
+        {
+          "subject": "Atlas v2",
+          "predicate": "version_of",
+          "object": "Project Atlas"
+        },
+        {
+          "subject": "Atlas v2",
+          "predicate": "development_phase",
+          "object": "in maintenance"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "headquartered_in",
+          "object": "Boston, Massachusetts"
+        }
+      ]
+    },
+    "epoch.reverse": {
+      "corpus": "corpus20.json",
+      "entities": {
+        "precision": 0.9375,
+        "recall": 0.9375,
+        "f1": 0.9375
+      },
+      "currentFacts": {
+        "precision": 0.07017543859649122,
+        "recall": 0.4,
+        "f1": 0.11940298507462686
+      },
+      "currentStateCorrectness": 0.375,
+      "expectations": [
+        {
+          "subject": "Elena Vasquez",
+          "group": "role_title",
+          "expectedObject": "chief technology officer",
+          "actualObjects": [
+            "helix robotics"
+          ],
+          "pass": false
+        },
+        {
+          "subject": "Elena Vasquez",
+          "group": "works_at",
+          "expectedObject": "Helix Robotics",
+          "actualObjects": [],
+          "pass": false
+        },
+        {
+          "subject": "Daniel Okoro",
+          "group": "role_title",
+          "expectedObject": "vp of product",
+          "actualObjects": [
+            "helix robotics"
+          ],
+          "pass": false
+        },
+        {
+          "subject": "Daniel Okoro",
+          "group": "works_at",
+          "expectedObject": "Helix Robotics",
+          "actualObjects": [
+            "helix robotics"
+          ],
+          "pass": true
+        },
+        {
+          "subject": "Sofia Reyes",
+          "group": "role_title",
+          "expectedObject": "partner",
+          "actualObjects": [
+            "northwind capital"
+          ],
+          "pass": false
+        },
+        {
+          "subject": "Sofia Reyes",
+          "group": "works_at",
+          "expectedObject": "Northwind Capital",
+          "actualObjects": [
+            "northwind capital"
+          ],
+          "pass": true
+        },
+        {
+          "subject": "Priya Anand",
+          "group": "role_title",
+          "expectedObject": "startup ceo",
+          "actualObjects": [
+            "helix robotics",
+            "startup ceo"
+          ],
+          "pass": false
+        },
+        {
+          "subject": "Helix Robotics",
+          "group": "org_hq",
+          "expectedObject": "Austin",
+          "actualObjects": [
+            "austin, texas"
+          ],
+          "pass": true
+        }
+      ],
+      "predicateSprawl": [],
+      "missingEntities": [
+        "Ohio"
+      ],
+      "extraEntities": [
+        "the Atlas program"
+      ],
+      "missingFacts": [
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "works_at",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "job_title",
+          "object": "chief technology officer"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "headquartered_in",
+          "object": "Austin"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "raised_funding_from",
+          "object": "Northwind Capital"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "flagship_project",
+          "object": "Project Helios"
+        },
+        {
+          "subject": "Daniel Okoro",
+          "predicate": "job_title",
+          "object": "vp of product"
+        },
+        {
+          "subject": "Sofia Reyes",
+          "predicate": "job_title",
+          "object": "partner"
+        }
+      ],
+      "extraFacts": [
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "announced",
+          "object": "Project Helios"
+        },
+        {
+          "subject": "Project Helios",
+          "predicate": "description",
+          "object": "drone-based inventory system"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "employee_count",
+          "object": "roughly 220"
+        },
+        {
+          "subject": "Daniel Okoro",
+          "predicate": "job_title",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "the Atlas program",
+          "predicate": "launched_at",
+          "object": "September 2020"
+        },
+        {
+          "subject": "Sofia Reyes",
+          "predicate": "board_member_of",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Brightway Stores",
+          "predicate": "customer_of",
+          "object": "Atlas v2"
+        },
+        {
+          "subject": "Priya Anand",
+          "predicate": "works_at",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Priya Anand",
+          "predicate": "job_title",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "manages",
+          "object": "the Atlas program"
+        },
+        {
+          "subject": "Daniel Okoro",
+          "predicate": "promoted_at",
+          "object": "late 2023"
+        },
+        {
+          "subject": "Project Atlas (version 1)",
+          "predicate": "member_of",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Project Atlas (version 1)",
+          "predicate": "member_of",
+          "object": "the Atlas program"
+        },
+        {
+          "subject": "Priya Anand",
+          "predicate": "works_at",
+          "object": "Cargolux Systems"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "job_title",
+          "object": "Priya Anand"
+        },
+        {
+          "subject": "Atlas v2",
+          "predicate": "has_feature",
+          "object": "multi-robot coordination"
+        },
+        {
+          "subject": "Priya Anand",
+          "predicate": "advocated_for",
+          "object": "Atlas v2"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "received_funding",
+          "object": "new funding round (amount and investor unspecified)"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "received_funding",
+          "object": "$40 million Series B, led by Northwind Capital"
+        },
+        {
+          "subject": "Marcus Chen",
+          "predicate": "works_at",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Marcus Chen",
+          "predicate": "departed_from",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Marcus Chen",
+          "predicate": "founded_venture",
+          "object": "started his own venture (company unspecified)"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "led_team",
+          "object": "the Atlas program"
+        },
+        {
+          "subject": "Project Helios",
+          "predicate": "successor_to",
+          "object": "the Atlas program"
+        },
+        {
+          "subject": "Project Helios",
+          "predicate": "announced_date",
+          "object": "March 2024"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "joined",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "the Atlas program",
+          "predicate": "member_of",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Project Helios",
+          "predicate": "succeeds",
+          "object": "the Atlas program"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "joined_at",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Sofia Reyes",
+          "predicate": "job_title",
+          "object": "Northwind Capital"
+        },
+        {
+          "subject": "Brightway Stores",
+          "predicate": "industry",
+          "object": "retail"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "opened_office_in",
+          "object": "Toronto, Canada"
+        },
+        {
+          "subject": "Sofia Reyes",
+          "predicate": "board_member_since",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Atlas v2",
+          "predicate": "member_of",
+          "object": "the Atlas program"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "oversaw",
+          "object": "the Atlas program"
+        },
+        {
+          "subject": "Priya Anand",
+          "predicate": "previously_worked_at",
+          "object": "Cargolux Systems"
+        },
+        {
+          "subject": "Cargolux Systems",
+          "predicate": "industry",
+          "object": "logistics"
+        },
+        {
+          "subject": "Atlas v2",
+          "predicate": "development_started_at",
+          "object": "2022-08"
+        },
+        {
+          "subject": "Project Atlas (version 1)",
+          "predicate": "status",
+          "object": "deprecated"
+        },
+        {
+          "subject": "Northwind Capital",
+          "predicate": "invested_in",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Project Helios",
+          "predicate": "member_of",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Project Atlas (version 1)",
+          "predicate": "successor_of",
+          "object": "Atlas v2"
+        },
+        {
+          "subject": "Project Helios",
+          "predicate": "project_status",
+          "object": "flagship effort"
+        },
+        {
+          "subject": "Project Atlas (version 1)",
+          "predicate": "deprecated_at",
+          "object": "February 2024"
+        },
+        {
+          "subject": "Atlas v2",
+          "predicate": "member_of",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Atlas v2",
+          "predicate": "project_status",
+          "object": "maintenance"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "replaced",
+          "object": "Marcus Chen"
+        },
+        {
+          "subject": "the Atlas program",
+          "predicate": "program_type",
+          "object": "autonomous warehouse robot program"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "education",
+          "object": "PhD in control theory"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "worked_on",
+          "object": "navigation stack"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "reported_to",
+          "object": "Marcus Chen"
+        },
+        {
+          "subject": "Marcus Chen",
+          "predicate": "job_title",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Elena Vasquez",
+          "predicate": "job_title",
+          "object": "Helix Robotics"
+        },
+        {
+          "subject": "Helix Robotics",
+          "predicate": "headquartered_in",
+          "object": "Austin, Texas"
+        }
+      ]
+    }
+  },
+  "perStep": {
+    "epoch.forward": {
+      "runtimeStats": {
+        "sourceId": "563e93e9-b206-44a2-998f-9ecfb87ff9ed",
+        "mode": "epoch",
+        "chunkCount": 20,
+        "results": [
+          {
+            "memoryId": "541723d1-8d82-4a94-b9cc-26c36e051285",
+            "entities": [
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "1721ef5e-de05-4fcb-996c-f4bcfa1d84fe",
+                "canonicalName": "Boston, Massachusetts",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "06626f4e-3fdc-4a35-b272-665d727c22fd",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "a604259d-a8c0-4336-ba3a-8813585c2d1e",
+                "subject": "Elena Vasquez",
+                "predicate": "works_at",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "b49a3338-b34f-4839-9205-5e817ffd32d5",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "junior software engineer",
+                "confidence": 0.95
+              },
+              {
+                "id": "83f25008-5edb-463e-894f-a6a6b612980a",
+                "subject": "Helix Robotics",
+                "predicate": "lives_in",
+                "object": "Boston, Massachusetts",
+                "confidence": 0.95
+              },
+              {
+                "id": "d2b79476-1a7b-4f8a-8831-581c9b5c48a3",
+                "subject": "Helix Robotics",
+                "predicate": "company_type",
+                "object": "small startup",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 74375,
+              "graphMeta": 52,
+              "reconciliation": 3
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "3546c316-1f95-4449-b564-37a18bd74c07",
+            "entities": [
+              {
+                "id": "06626f4e-3fdc-4a35-b272-665d727c22fd",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "6ccfc150-d2cc-421f-9ae4-7de1e3e4fe1c",
+                "canonicalName": "Marcus Chen",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "f8206f3e-92e8-42c2-8bde-000a8f2a70b1",
+                "canonicalName": "Helix",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "5df5d62f-a991-4b61-b5a1-ac94c89804db",
+                "subject": "Elena Vasquez",
+                "predicate": "worked_on",
+                "object": "navigation stack",
+                "confidence": 0.95
+              },
+              {
+                "id": "8ed15164-640f-4e8b-8633-3fb212c1a4f0",
+                "subject": "Elena Vasquez",
+                "predicate": "reports_to",
+                "object": "Marcus Chen",
+                "confidence": 0.95
+              },
+              {
+                "id": "397491b7-1f82-4e4a-a780-9489ebb54a86",
+                "subject": "Marcus Chen",
+                "predicate": "job_title",
+                "object": "head of engineering",
+                "confidence": 0.95
+              },
+              {
+                "id": "1861e484-c2d4-4cb7-8f22-b27fe32d83c8",
+                "subject": "Marcus Chen",
+                "predicate": "works_at",
+                "object": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 5,
+              "graphAgent": 99626,
+              "graphMeta": 43,
+              "reconciliation": 2
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "bb0862bb-b2d5-4f67-95c8-baeae1198d70",
+            "entities": [
+              {
+                "id": "06626f4e-3fdc-4a35-b272-665d727c22fd",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "afdada05-f328-4a1f-a97b-7856e26214ff",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "senior engineer",
+                "confidence": 0.95
+              },
+              {
+                "id": "904e7e6f-df38-46b9-8b77-56825eb9f6d2",
+                "subject": "Elena Vasquez",
+                "predicate": "education",
+                "object": "PhD in control theory",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 191297,
+              "graphMeta": 58,
+              "reconciliation": 0
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 20s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "273411e6-1dab-4bab-a841-225e839261c6",
+            "entities": [
+              {
+                "id": "06626f4e-3fdc-4a35-b272-665d727c22fd",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "acbadadb-8751-4a30-8c98-bd047f1ce2a4",
+                "canonicalName": "Project Atlas",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "6499d6df-db6c-4b4e-b3b9-57af7001d09d",
+                "subject": "Helix Robotics",
+                "predicate": "founded",
+                "object": "Project Atlas",
+                "confidence": 0.95
+              },
+              {
+                "id": "e846e847-9274-48f3-9bd7-1ba36b00e069",
+                "subject": "Project Atlas",
+                "predicate": "description",
+                "object": "autonomous warehouse robot program",
+                "confidence": 0.95
+              },
+              {
+                "id": "65a6fcd9-ed1a-498c-bdbb-c268acd42cb8",
+                "subject": "Elena Vasquez",
+                "predicate": "member_of",
+                "object": "Project Atlas",
+                "confidence": 0.9
+              },
+              {
+                "id": "0eb27915-e337-46ba-8b92-66b9ac2d60eb",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "Project Atlas",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 404839,
+              "graphMeta": 51,
+              "reconciliation": 2
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "2c0958eb-5ccb-48e5-87c1-a486ca503130",
+            "entities": [
+              {
+                "id": "6ccfc150-d2cc-421f-9ae4-7de1e3e4fe1c",
+                "canonicalName": "Marcus Chen",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "fc7baea5-95b0-48b4-9a5e-aa38e8a7666e",
+                "subject": "Marcus Chen",
+                "predicate": "left_employment_at",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "aa21d962-df09-4e15-a2a9-86d352cf261d",
+                "subject": "Marcus Chen",
+                "predicate": "started_own_venture",
+                "object": "true",
+                "confidence": 0.95
+              },
+              {
+                "id": "b71b932a-5482-4b37-a299-46390fb096f7",
+                "subject": "Marcus Chen",
+                "predicate": "job_title",
+                "object": "head of engineering",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 71423,
+              "graphMeta": 51,
+              "reconciliation": 253347
+            },
+            "reconciliation": {
+              "triggered": true,
+              "candidateCount": 3,
+              "report": "All three candidates resolved. Now let me produce the structured report.\n\n---\n\n### CANDIDATES RESOLVED\n\n| Candidate | Entity A | Entity B | Outcome | Score |\n|-----------|----------|----------|---------|-------|\n| `71c2f385` | Elena Vasquez (person) | Helix Robotics (company) | **DISTINCT** | 0.579 |\n| `037d2422` | Marcus Chen (person) | Helix Robotics (company) | **DISTINCT** | 0.488 |\n| `a0386490` | Elena Vasquez (person) | Marcus Chen (person) | **DISTINCT** | 0.486 |\n\n### DISTINCT CONFIRMATIONS\n\n- **Elena Vasquez ↔ Helix Robotics** — Different entity types (person vs company). Clear employer-employee relationship (Elena `works_at` Helix Robotics). High centroid similarity (0.986) is co-occurrence artifact from shared source texts.\n- **Marcus Chen ↔ Helix Robotics** — Different entity types (person vs company). Clear employment relationship (Marcus `left_employment_at` Helix Robotics). Centroid similarity (0.964) driven by co-occurrence.\n- **Elena Vasquez ↔ Marcus Chen** — Two distinct people with supervisor-subordinate relationship (Elena `reports_to` Marcus, Elena `succeeded` Marcus). Different names, pronouns, career trajectories. Centroid similarity (0.924) from shared Helix Robotics context.\n\n**Root cause for all three:** The candidate scoring system relies heavily on centroid/embedding similarity, which is inflated when entities co-occur frequently in the same source documents. Entity type compatibility checks should be applied upstream to prevent cross-type person↔company pairs from becoming candidates. A structural similarity signal of 0 across all three pairs was the correct signal — but it didn't prevent staging.\n\n### SAME_AS LINKS CREATED\nNone.\n\n### MERGES EXECUTED\nNone.\n\n### UNCONFIRMED ALIASES RESOLVED\nNone — no unconfirmed aliases in the system.\n\n### ORPHANS INVESTIGATED\n\n| Entity | Type | Status |\n|--------|------|--------|\n| Boston, Massachusetts (1721ef5e) | place | False orphan — appears as object of Helix Robotics `lives_in` fact (83f25008). No subject-facts needed for a place entity. |\n| Project Atlas (acbadadb) | project | False orphan — has 4 facts (1 as subject: description; 3 as object: founded by Helix, Elena member_of, Elena job_title). Orphan detector undercounted due to subject-only counting. |\n\n### EXTRACTION REPORT REFERENCES PROCESSED\n\n| Observation | Action |\n|-------------|--------|\n| Report 1: \"his\" → Marcus Chen | Already handled — alias exists on Marcus Chen entity |\n| Report 2: \"She\" → Elena Vasquez | Already handled — alias \"Elena (she/her in 2019 Helix context)\" exists |\n| Report 2: \"Helix\" ↔ Helix Robotics same_as | Already created (f8206f3e ↔ 74a498de) per Report 2's SAME-AS LINKS section |\n| Report 2: \"head of engineering at Helix\" → Marcus Chen | Already handled — role alias exists on Marcus Chen entity |\n| Report 3: No pronouns to process | N/A |\n\n### BRIDGE FACTS NOTED\nNone needed — the graph is well-connected. Elena, Marcus, and Helix Robotics form a complete subgraph with employment, reporting, succession, and causal relationships.\n\n### SKIPPED / UNCERTAIN\nNone — all three candidates were clearly distinct with high confidence.\n\n### SIGNAL FOR IMPROVEMENT\n\nThe candidate generation pipeline produced 3 cross-type false positives (2 person↔company, 1 person↔person) due to over-reliance on centroid similarity. **Recommendation:** Add an entity type compatibility gate before staging — person↔company pairs should be filtered out unless accompanied by strong alias overlap or explicit same_as signals. The structural similarity (0.0 for all three) was the correct discriminant but was overridden by the embedding signal."
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "a7a3d533-03a0-4d7e-a729-d8e2d1e9bf58",
+            "entities": [
+              {
+                "id": "06626f4e-3fdc-4a35-b272-665d727c22fd",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "6ccfc150-d2cc-421f-9ae4-7de1e3e4fe1c",
+                "canonicalName": "Marcus Chen",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "587a4e84-682e-4cc2-bc0b-209cffa968f8",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "engineering lead",
+                "confidence": 0.95
+              },
+              {
+                "id": "9765bb26-0720-4640-b10c-e26c97c358a6",
+                "subject": "Elena Vasquez",
+                "predicate": "succeeded",
+                "object": "Marcus Chen",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 148236,
+              "graphMeta": 52,
+              "gardener": 415938,
+              "reconciliation": 3
+            },
+            "gardener": {
+              "triggered": true,
+              "report": "---\n\n### GARDENING PATROL REPORT — 2026-06-09\n\nReport ID: `81df0710`\n\n---\n\n## TOPOLOGY OVERVIEW\n- **9 entities** across **2 connected components** (8 in main cluster, 1 isolate)\n- **13 active fact edges**, 12 causal edges\n- **1 isolate:** Boston, Massachusetts\n- **2 orphans:** Boston, Massachusetts; Ohio (entities with 0 facts as subject)\n- **4 sparse leaves:** Austin, Texas (degree 1); Northwind Capital (degree 1); Brightway Stores (degree 2); Ohio (degree 2)\n- **0 contradictions**, 0 same_as links, 0 open merge candidates\n- Largest component: Elena Vasquez, Helix Robotics, Marcus Chen, Project Atlas, Brightway Stores, Ohio, Northwind Capital, Austin, Texas\n- Graph grew from 5 to 9 entities during this session due to concurrent extraction agents\n\n---\n\n## ISLANDS INVESTIGATED\nNo disconnected islands found. All entities except Boston are in the main connected component.\n\n---\n\n## CONSOLIDATIONS\n- **No merges needed** — no duplicate entities found across all 9 entities\n- **No same_as links needed** — no entities representing the same referent from different perspectives\n\n---\n\n## FACTS MODIFIED\n1. **Invalidated:** Elena Vasquez `reports_to` Marcus Chen (id `8ed15164`) — set `invalid_at = 2021-03-01`\n   - **Reasoning:** Three corroborating facts establish the reporting relationship ended: Marcus left Helix (Jan 2021), Elena succeeded him (March 2021), Elena became engineering lead (March 2021). An active `reports_to` fact alongside an active `succeeded` fact is a contradiction — Elena cannot both report to Marcus and have succeeded him. Both extraction agents recognized this but deferred. The fact remains historically valid for 2019-2021 with the invalidation timestamp marking the endpoint.\n\n---\n\n## SUMMARIES UPDATED\n1. **Northwind Capital** (`af997901`) — was empty, now describes the firm's role leading Helix's $40M Series B\n2. **Helix Robotics** (`74a498de`) — was stale (only covered 2019 founding era), updated twice: first to add Project Atlas, promotions, funding, customer; second to reflect the concurrent relocation to Austin, Texas\n\n---\n\n## ORPHANS\n| Orphan | Status | Outcome |\n|--------|--------|---------|\n| Boston, Massachusetts | **ISOLATE** (lost only connection during session) | Data quality issue — `lives_in` fact was expired rather than invalidated with temporal bounds, losing the historical record that Helix was based in Boston 2019-2022 |\n| Ohio | Connected (degree 2 via Brightway and Project Atlas) | Healthy for a place entity — 0 facts as subject is expected for locations |\n\n---\n\n## STRUCTURAL OBSERVATIONS\n\n### System-Level Issues (require code fixes, not gardening)\n1. **Expiry vs Invalidation for relocations** (HIGH) — The extraction agent expired Helix's `lives_in → Boston` when creating `lives_in → Austin`. Should have invalidated with `invalid_at = 2022-05-01` to preserve historical accuracy. The `restore_fact` tool cannot restore with temporal bounds, making this unrecoverable through gardening alone.\n2. **Exclusive `job_title` predicate** (MEDIUM) — Elena's company-wide \"engineering lead\" was superseded by project-specific \"perception team lead\". Different scopes should coexist. System needs scoped predicates or multi-value support.\n3. **Marcus's head_of_engineering role invisible** (LOW) — Fact exists with `invalid_at = 2021-01-01` but `query_entity_facts` filters it out. Historically valid facts should be visible with temporal markers.\n4. **Predicate normalization** (LOW) — `based_in` → `lives_in` is semantically wrong for companies. Need domain-aware normalization mappings.\n5. **Helix stale_write bug** (LOW) — Summary updates consistently fail with `stale_write` despite matching timestamps. Multiple agents affected. Back-compat path (omitting guard) works as workaround.\n\n### Extraction Gaps\nSource memories exist for 2023-2024 events mentioning **Priya Anand** (VP Product), **Daniel Okoro** (internal hire), **Project Helios** (flagship effort), and **Atlas v2** — none yet extracted.\n\n---\n\n## SKIPPED / UNCERTAIN\n- **Boston reconnection** — Cannot restore the expired `lives_in → Boston` fact with proper temporal bounds using available tools. Would need a `restore_fact_with_bounds` capability or manual DB intervention.\n- **Elena's dual job_title** — Recognized that \"engineering lead\" and \"perception team lead\" should coexist but restoring the expired engineering lead fact would conflict with the exclusive predicate system and create more problems.\n- **Helix `founded` predicate for Project Atlas** — Semantically odd (companies launch projects, not \"found\" them) but was created by the extraction system's predicate normalization. Not gardening's remit to change."
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "6091623c-f9a8-4d25-bb2a-80c0b85a68f8",
+            "entities": [
+              {
+                "id": "acbadadb-8751-4a30-8c98-bd047f1ce2a4",
+                "canonicalName": "Project Atlas",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "2b78ccaa-56f4-486e-a334-ce782ef4590c",
+                "canonicalName": "Brightway Stores",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "118ec460-fbee-4515-8f05-d01b9c9c4e94",
+                "canonicalName": "Ohio",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "302ad11e-ee97-4bbf-83b0-e93c07b00622",
+                "subject": "Project Atlas",
+                "predicate": "shipped_pilot",
+                "object": "November 2021",
+                "confidence": 0.95
+              },
+              {
+                "id": "0ac21bb7-1573-4c32-ba3f-27f8be7c965f",
+                "subject": "Project Atlas",
+                "predicate": "piloted_at",
+                "object": "Ohio",
+                "confidence": 0.9
+              },
+              {
+                "id": "5188e6f5-27bd-44c1-a81e-f59250cf6546",
+                "subject": "Brightway Stores",
+                "predicate": "customer_of",
+                "object": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "confidence": 0.85
+              },
+              {
+                "id": "61a0a233-5db7-405e-87fb-e2c6d7796dfa",
+                "subject": "Brightway Stores",
+                "predicate": "operates_in",
+                "object": "Ohio",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 15,
+              "graphAgent": 76086,
+              "graphMeta": 40,
+              "reconciliation": 2
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "2924b7fb-356d-413f-9bfd-467eb8eea093",
+            "entities": [
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "acbadadb-8751-4a30-8c98-bd047f1ce2a4",
+                "canonicalName": "Project Atlas",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "af997901-dce5-4c8b-9aa1-3c98bf333301",
+                "canonicalName": "Northwind Capital",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "6d8afc9d-22fc-4922-8c3a-c529ebe3e75a",
+                "subject": "Helix Robotics",
+                "predicate": "received_funding",
+                "object": "$40 million Series B round",
+                "confidence": 0.95
+              },
+              {
+                "id": "c7c0a32e-81b0-4744-b2cf-c65aedb9c1ce",
+                "subject": "Northwind Capital",
+                "predicate": "led_investment_in",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "4025d9e9-4ad3-4735-a8b0-092f5c13ed52",
+                "subject": "Project Atlas",
+                "predicate": "pilot_outcome",
+                "object": "successful",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 115812,
+              "graphMeta": 60,
+              "reconciliation": 2
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "47d3c2d4-623d-4e3f-bcad-488d42b39c0e",
+            "entities": [
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "08100262-8726-4198-a80d-5564c228bece",
+                "canonicalName": "Austin, Texas",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "1721ef5e-de05-4fcb-996c-f4bcfa1d84fe",
+                "canonicalName": "Boston, Massachusetts",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "9598ced9-434c-48a0-92d0-f656c544c6e5",
+                "subject": "Helix Robotics",
+                "predicate": "lives_in",
+                "object": "Austin, Texas",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 170217,
+              "graphMeta": 41,
+              "reconciliation": 2
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "39bbad8c-c032-4ec7-b27e-59b4a13ad124",
+            "entities": [
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "075b024b-70be-41a9-8d04-b86859da386d",
+                "canonicalName": "Cargolux Systems",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "f73eafc6-09cb-402a-b467-47559c316e31",
+                "canonicalName": "Priya Anand",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "b85bc8f8-7bc3-4009-8844-aa9730a35e66",
+                "subject": "Priya Anand",
+                "predicate": "works_at",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "95a629a4-3d3e-4763-ae53-ad1879a621bb",
+                "subject": "Priya Anand",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "77289b41-13f7-4181-90bf-f3dddb869f1d",
+                "subject": "Priya Anand",
+                "predicate": "works_at",
+                "object": "Cargolux Systems",
+                "confidence": 0.85
+              },
+              {
+                "id": "e260cc3c-628c-431b-8081-f8ce81bdd482",
+                "subject": "Cargolux Systems",
+                "predicate": "company_type",
+                "object": "logistics firm",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 161391,
+              "graphMeta": 52,
+              "gardener": 354448,
+              "reconciliation": 0
+            },
+            "gardener": {
+              "triggered": true,
+              "report": "## GARDENING PATROL COMPLETE\n\n### Session Summary\n\n**Graph before:** 13 entities, 4 components, 3 isolates, 5 sparse leaves, 3 unresolved contradictions\n\n**Actions taken (18 tool calls):**\n\n| Action | Detail |\n|--------|--------|\n| **2 merges** | \"Dr. Elena Vasquez\" → Elena Vasquez, \"Atlas program\" → Project Atlas (both dead extraction artifacts with zero facts/sources) |\n| **3 facts created** | Helix `headquartered_in` Boston (bi-temporal 2019–2022), Priya Anand `previously_worked_at` Cargolux Systems, Brightway Stores `piloted` Project Atlas |\n| **1 summary updated** | Boston Massachusetts enriched with founding/relocation context |\n| **3 contradictions resolved** | 1 expired-but-cited dismissed (fact was superseded, not false), 2 temporal-impossible dismissed (sub-second parallel extraction race conditions) |\n\n**Graph after:** ~11 entities, ~2 components (main cluster + Boston now connected), ~1 isolate (none — Boston bridged), reduced sparse leaves\n\n**Key observations for future runs:**\n1. **Predicate inconsistency** — Helix uses `lives_in` for Austin (company), I used `headquartered_in` for Boston. Need predicate standardization for org-location relationships.\n2. **Orphan detection false positives** — Ohio and Austin Texas have zero subject-facts but are well-connected as objects. Topology labels them orphans misleadingly.\n3. **Elena Vasquez summary** — still missing CTO appointment (2023); concurrent write race blocked the update. Will retry next session."
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 177s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "6f40bd12-f09c-4e19-a045-a36357dd301e",
+            "entities": [
+              {
+                "id": "f73eafc6-09cb-402a-b467-47559c316e31",
+                "canonicalName": "Priya Anand",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "acbadadb-8751-4a30-8c98-bd047f1ce2a4",
+                "canonicalName": "Project Atlas",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "b0e3acae-c4c0-4d40-86c9-97885dd2c533",
+                "subject": "Project Atlas",
+                "predicate": "development_phase",
+                "object": "version 2 development started",
+                "confidence": 0.95
+              },
+              {
+                "id": "e3c1ce5c-45e5-4e18-8471-3c8807b5ed44",
+                "subject": "Project Atlas",
+                "predicate": "feature",
+                "object": "multi-robot coordination",
+                "confidence": 0.95
+              },
+              {
+                "id": "1c492258-a606-4a3f-98da-4fa297d8cc94",
+                "subject": "Priya Anand",
+                "predicate": "championed",
+                "object": "Project Atlas",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 90865,
+              "graphMeta": 45,
+              "reconciliation": 3,
+              "decay": 5,
+              "contradictions": 4
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 3
+          },
+          {
+            "memoryId": "19211c3b-f388-4934-a9a8-50c0f704ad16",
+            "entities": [
+              {
+                "id": "06626f4e-3fdc-4a35-b272-665d727c22fd",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "acbadadb-8751-4a30-8c98-bd047f1ce2a4",
+                "canonicalName": "Project Atlas",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "9b31019d-b86f-4b56-ae9e-26e455a52ae6",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "509554cb-4086-4b37-bbbb-22b6ed6d6732",
+                "subject": "Elena Vasquez",
+                "predicate": "manages",
+                "object": "Project Atlas",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 98235,
+              "graphMeta": 60,
+              "reconciliation": 1
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "90d9059a-9a0a-4b42-83cc-17f14873f41c",
+            "entities": [
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "3babfc8b-15c3-4e25-9573-a4c96adfe8f2",
+                "canonicalName": "Toronto, Canada",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "e1392e82-fde9-413e-b233-b7fb797f0ec4",
+                "subject": "Helix Robotics",
+                "predicate": "has_office_in",
+                "object": "Toronto, Canada",
+                "confidence": 0.95
+              },
+              {
+                "id": "b94053c6-ee2e-4784-9610-e3f387b90f13",
+                "subject": "Helix Robotics",
+                "predicate": "expansion_reason",
+                "object": "Opened Toronto office to recruit robotics talent",
+                "confidence": 0.85
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 1,
+              "graphAgent": 143328,
+              "graphMeta": 39,
+              "reconciliation": 2
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "b59b48ec-b40c-4867-8102-bc14582eac1b",
+            "entities": [
+              {
+                "id": "2b78ccaa-56f4-486e-a334-ce782ef4590c",
+                "canonicalName": "Brightway Stores",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "acbadadb-8751-4a30-8c98-bd047f1ce2a4",
+                "canonicalName": "Project Atlas",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "481a3747-8fb3-45e1-8615-43e54d533800",
+                "subject": "Project Atlas",
+                "predicate": "shipped_to",
+                "object": "Brightway Stores",
+                "confidence": 0.95
+              },
+              {
+                "id": "27fa1ed7-c4b6-4874-bd0c-ed05db2817a6",
+                "subject": "Project Atlas",
+                "predicate": "v2_customer_count",
+                "object": "three new customers",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 79173,
+              "graphMeta": 40,
+              "reconciliation": 275724
+            },
+            "reconciliation": {
+              "triggered": true,
+              "candidateCount": 1,
+              "report": "Report saved. Here is the structured reconciliation report:\n\n---\n\n### CANDIDATES RESOLVED\n- **deccde74 (Entity A: ? ↔ Entity B: ?)** → DISTINCT — Broken candidate record with null entity IDs, score=0.00, all signals NULL. Closed as unresolvable. The actual duplicate it may have referenced (\"Atlas v2\" → \"Project Atlas\") was handled directly.\n\n### SAME_AS LINKS CREATED\nNone. No entity pairs serve different narrative perspectives on the same identity.\n\n### MERGES EXECUTED\n- **\"Atlas v2\" (28eeb10b) → Project Atlas (acbadadb)** — False duplicate created by `resolve_entity` failing to match the registered alias \"Atlas v2\". Orphan had zero facts, zero aliases, zero sources, zero mentions. Confidence: 0.95.\n\n### DISTINCT CONFIRMATIONS\n- **deccde74** — Broken candidate with null entity IDs, no investigation possible.\n\n### UNCONFIRMED ALIASES RESOLVED\nNone found in the reconciliation context (the `get_reconciliation_context` tool errored with a SQL cast bug, so unconfirmed aliases were not surfaced). However, all aliases mentioned in extraction reports (\"Atlas v2\", \"Atlas program\", \"Dr. Elena Vasquez\") are already registered as confirmed aliases on their respective entities.\n\n### ORPHANS INVESTIGATED\n- **28eeb10b (\"Atlas v2\")** — Isolate with zero facts/aliases/sources. **Merged** into Project Atlas (see above).\n- **Boston, Massachusetts (1721ef5e)** — Had mentions (2) but zero subject facts. **Bridge fact created**: Helix Robotics `headquartered_in` Boston (valid 2019-01 to 2022-05), supported by two source memories.\n- **Ohio (118ec460)** — Has 2 facts as object entity (Brightway `operates_in` Ohio, Atlas `piloted_at` Ohio). Not truly orphan — connected as relationship target. No action needed.\n- **Austin, Texas (08100262)** — Has 1 fact as object entity (Helix `lives_in` Austin). Connected as relationship target. No action needed.\n- **Toronto, Canada (3babfc8b)** — Has 1 fact as object entity (Helix `has_office_in` Toronto). Connected as relationship target. No action needed.\n\n### EXTRACTION REPORT REFERENCES PROCESSED\n- **Report 1**: \"Atlas v2\" → Project Atlas — **SKIPPED** (alias already registered, orphan duplicate merged separately)\n- **Report 2**: No pronouns or new aliases — nothing to process\n- **Report 3**: \"Dr. Elena Vasquez\" → Elena Vasquez, \"Atlas program\" → Project Atlas — **SKIPPED** (both aliases already registered; the duplicate entities c234aa22 and 969e9b89 from resolve_entity do not exist in the graph — likely never persisted)\n- **Report 4**: \"Atlas v2\" → Project Atlas — **SKIPPED** (alias already registered)\n- **Report 5**: \"Helix\" → Helix Robotics, \"Priya\" → Priya Anand — **SKIPPED** (both aliases already registered)\n\n### BRIDGE FACTS NOTED\n- **Created**: Helix Robotics `headquartered_in` Boston, Massachusetts (2019-01 to 2022-05) — supported by source memories 541723d1 (\"small startup based in Boston\") and 47d3c2d4 (\"relocated headquarters from Boston to Austin\")\n- **Noted but not created**: The `lives_in` predicate on Helix→Austin is semantically odd for a company (companies are headquartered, not living). The new `headquartered_in` fact with proper temporal bounds (invalid_at=2022-05) correctly captures the Boston era, while `lives_in` Austin captures the Austin era. Consider a future reconciliation pass to unify these under a single `headquartered_in` predicate with appropriate temporal bounds.\n\n### SKIPPED / UNCERTAIN\n- **Summary updates blocked**: 3 summary updates (Elena Vasquez, Project Atlas, Boston) all failed with the persistent `stale_write` bug — timestamps match exactly but the handler rejects writes. This has been reported in 5+ consecutive sessions by extraction agents. Elena's summary is stale (missing CTO role, Atlas management). Project Atlas summary is stale (missing v2 timeline, Priya, Brightway shipping). Boston summary is stale (missing the new headquartered_in fact). Root cause likely a concurrent writer or a timestamp comparison bug in the handler.\n- **`get_reconciliation_context` SQL bug**: Tool errored with `cannot cast type record to uuid[]` — the SQL query likely has a parameter type mismatch. This blocked access to unconfirmed aliases and the full candidate list."
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "28f10784-54e9-4dc5-909c-9d5904e16cca",
+            "entities": [
+              {
+                "id": "4289d89a-8798-406f-ab94-5cd57e74e42b",
+                "canonicalName": "Sofia Reyes",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "af997901-dce5-4c8b-9aa1-3c98bf333301",
+                "canonicalName": "Northwind Capital",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "7a2f8419-0b10-44a9-937f-48d0c8006430",
+                "subject": "Sofia Reyes",
+                "predicate": "partner_at",
+                "object": "Northwind Capital",
+                "confidence": 0.95
+              },
+              {
+                "id": "cf096de5-82e8-4613-927d-ddf5d52c41b5",
+                "subject": "Sofia Reyes",
+                "predicate": "board_member_of",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 1,
+              "graphAgent": 90139,
+              "graphMeta": 49,
+              "gardener": 263003,
+              "reconciliation": 10
+            },
+            "gardener": {
+              "triggered": true,
+              "report": "Gardening session complete. Here is the structured report:\n\n---\n\n### TOPOLOGY OVERVIEW\n- **14 entities** across **2 connected components** (main cluster of 13 + 1 isolate)\n- **1 isolate:** \"Atlas v2\" (empty phantom entity)\n- **4 flagged orphans:** Ohio, Austin Texas, Boston Massachusetts, Toronto Canada — only 1 was a true orphan\n- **7 sparse leaves** — all appropriately connected after investigation\n- **0 contradictions**, **0 causal ghosts**\n\n### ACTIONS TAKEN\n\n**Fact created:**\n- `Helix Robotics → Boston, Massachusetts` [`headquartered_in`] — valid 2019-01-01 to 2022-05-01 (conf 0.95). This filled the only true orphan gap: Boston had 2 source mentions but zero facts.\n\n**Alias registered:**\n- \"Boston\" added to Boston, Massachusetts entity (was mentioned as just \"Boston\" in the relocation source text)\n\n### ISLANDS\n- **Atlas v2** (isolate): Completely empty — 0 facts, 0 mentions, 0 sources. The concept is already captured as attribute facts on \"Project Atlas\". This is a false extraction artifact. Flagged for cleanup; no mechanism available to delete empty entities.\n\n### SKIPPED\n- **Elena Vasquez summary** — stale (says \"engineering lead\", missing CTO appointment Jan 2023). Two write attempts rejected by concurrent extraction agents. Deferred to next session.\n- **Helix→Austin predicate** — uses `lives_in` (person predicate) instead of `headquartered_in`. Inconsistent with the Boston fact just created. Needs a predicate migration tool.\n\n### STRUCTURAL OBSERVATIONS\n1. Topology \"orphan\" detection overcounts — 3 of 4 \"orphans\" had facts as objects. Detection likely only counts facts-as-subject.\n2. Empty phantom entities (\"Atlas v2\") need a cleanup mechanism — automatic deletion after a grace period, or extraction pipeline self-cleanup."
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "5397bda1-76e0-4a82-8a08-18154347a72d",
+            "entities": [
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "d91f7bfa-250e-4945-9c5b-111676413a35",
+                "canonicalName": "Daniel Okoro",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "f73eafc6-09cb-402a-b467-47559c316e31",
+                "canonicalName": "Priya Anand",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "6bbf36ea-46ed-4f56-a15e-0250c0b0d674",
+                "subject": "Priya Anand",
+                "predicate": "left_employment_at",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "a865edcc-2638-445e-8943-7b28c92844e8",
+                "subject": "Priya Anand",
+                "predicate": "job_title",
+                "object": "startup CEO",
+                "confidence": 0.9
+              },
+              {
+                "id": "d0d60827-1227-48fb-8a2b-2c1e0edafaa2",
+                "subject": "Daniel Okoro",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "25ede6f6-fa28-43a3-a9cd-f91c16f0ff1a",
+                "subject": "Daniel Okoro",
+                "predicate": "works_at",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 1,
+              "graphAgent": 196543,
+              "graphMeta": 59,
+              "reconciliation": 128388
+            },
+            "reconciliation": {
+              "triggered": true,
+              "candidateCount": 1,
+              "report": "Candidate resolved. Now let me write my structured report.\n\n---\n\n### CANDIDATES RESOLVED\n\n- **Candidate 87079273** (Entity A: ?, Entity B: ?) → **DISTINCT** — Corrupted candidate record with null entity IDs on both sides, score=0.00, and all similarity signals NULL. No actionable entity references. Closed as distinct to clear the stale record.\n\n### SAME_AS LINKS CREATED\n\nNone. No entity pairs in this session warranted a same_as link.\n\n### MERGES EXECUTED\n\nNone. No entity pairs met the 0.9+ confidence threshold for destructive merge.\n\n### DISTINCT CONFIRMATIONS\n\n- **Candidate 87079273** → Distinct (corrupted record, null entity IDs, unresolvable)\n\n### UNCONFIRMED ALIASES RESOLVED\n\nNone found. The reconciliation context tool errored (`cannot cast type record to uuid[]`), but the extraction reports contained no unconfirmed alias references. Report 3 created a \"Northwind Capital partner\" (role) alias on Sofia Reyes, which was already confirmed during extraction.\n\n### ORPHANS INVESTIGATED\n\nAll 4 orphans are **false positives** — they are geographic entities with zero facts as SUBJECT but valid connections as OBJECTS in other entities' facts:\n\n| Entity | Type | Connections (as object) | Verdict |\n|---|---|---|---|\n| **Ohio** (118ec460) | place | Brightway Stores `operates_in` Ohio; Project Atlas `piloted_at` Ohio | False orphan. Well-connected, good summary. |\n| **Austin, Texas** (08100262) | place | Helix Robotics `lives_in` Austin (HQ relocation, May 2022) | False orphan. Well-connected, good summary. |\n| **Toronto, Canada** (3babfc8b) | place | Helix Robotics `has_office_in` Toronto (Apr 2023) | False orphan. Well-connected, good summary. |\n| **Boston, Massachusetts** (1721ef5e) | place | Former Helix HQ (invalidated fact), 2 source mentions | False orphan. Degree=1 from invalidated fact. Good summary. No new facts needed — temporal history captured by invalidation record and summary. |\n\nNo action taken on any orphan. These are properly connected entities that happen to only appear as fact objects, not subjects.\n\n### EXTRACTION REPORT REFERENCES PROCESSED\n\nAll 5 extraction reports were scanned. Findings:\n\n- **Reports 1–5**: All state \"No pronouns in this chunk — all references use proper nouns.\" No PRONOUNS RESOLVED sections with cross-entity references to investigate.\n- **Report 3**: ALIASES CREATED — \"Northwind Capital partner\" (role) on Sofia Reyes. Already created by extraction agent. No reconciliation action needed.\n- **Report 4**: Notes duplicate entity `28eeb10b` created by `resolve_entity` for \"Atlas v2\" (orphan, zero facts). This entity does not appear in the current topology (14 entities counted). Either already cleaned up or never persisted. No action needed.\n- **Report 5**: No aliases created. No cross-references.\n\n### BRIDGE FACTS NOTED\n\nNone identified. All geographic entities' relationships are already captured from the subject side (Helix Robotics has_office_in / lives_in / operates_in the various places).\n\n### SKIPPED / UNCERTAIN\n\nNone.\n\n### OBSERVATIONS\n\n- **`get_reconciliation_context` bug**: The tool errors with `cannot cast type record to uuid[]`. This blocked loading unconfirmed aliases and extraction report metadata programmatically. Worked around by using the inline reconciliation context from the prompt.\n- **Stale Helix Robotics summary**: Reports 2, 3, and 5 all flag a persistent `stale_write` race condition when updating the Helix Robotics entity summary. The summary is missing the Toronto office, Sofia Reyes board appointment, Daniel Okoro VP Product, and employee count growth. Facts are correct — only the living summary is affected. This is an extraction/summary-update issue, not a reconciliation concern.\n- **`lives_in` predicate misuse**: The fact connecting Helix Robotics to Austin, Texas uses predicate `lives_in` (9598ced9) for a corporate HQ relocation. This is semantically incorrect for a company — `headquartered_in` or `has_office_in` would be more appropriate. Noted for future extraction quality improvement; outside reconciliation scope."
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "d1085414-0283-4a64-a2ce-82df197777e5",
+            "entities": [
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "06626f4e-3fdc-4a35-b272-665d727c22fd",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "2150ed0c-8ba7-4740-9dd9-3b67a5a35547",
+                "subject": "Helix Robotics",
+                "predicate": "employee_count",
+                "object": "roughly 220",
+                "confidence": 0.9
+              },
+              {
+                "id": "21f10798-01d4-44ae-8f30-f6fd7f4ab21c",
+                "subject": "Helix Robotics",
+                "predicate": "employee_count",
+                "object": "about 30",
+                "confidence": 0.85
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 26,
+              "graphAgent": 70590,
+              "graphMeta": 42,
+              "reconciliation": 1
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "b433365e-3e72-4a30-8a81-527ac368a7a9",
+            "entities": [],
+            "facts": [],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 121933
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "47ad7068-e3e7-43f9-955e-71ec7f8705b5",
+            "entities": [],
+            "facts": [],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 95408
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "2d9d57a4-1d8f-4dc0-9070-628fda037d92",
+            "entities": [
+              {
+                "id": "74a498de-2ad8-44ad-af0a-47509d4cfb15",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "08100262-8726-4198-a80d-5564c228bece",
+                "canonicalName": "Austin, Texas",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "06626f4e-3fdc-4a35-b272-665d727c22fd",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "301346bc-6943-40c4-921b-eb4a228b567d",
+                "canonicalName": "Project Helios",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "74d92445-e849-41c1-a211-6a5894434734",
+                "canonicalName": "Atlas v2",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "4a3c0a7b-dc15-41a3-9920-c75b4ceaa860",
+                "subject": "Helix Robotics",
+                "predicate": "flagship_project",
+                "object": "Project Helios",
+                "confidence": 0.95
+              },
+              {
+                "id": "8c571f92-c14b-4394-8986-92dc2930c85f",
+                "subject": "Atlas v2",
+                "predicate": "version_of",
+                "object": "acbadadb-8751-4a30-8c98-bd047f1ce2a4",
+                "confidence": 0.85
+              },
+              {
+                "id": "29353948-b0f2-4646-94f7-07fc7637d131",
+                "subject": "Atlas v2",
+                "predicate": "development_phase",
+                "object": "in maintenance",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 3,
+              "graphAgent": 223233,
+              "graphMeta": 129,
+              "reconciliation": 0
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 290s < 300s"
+            },
+            "contradictionsDetected": 0
+          }
+        ],
+        "timing": {
+          "total": 1759452
+        }
+      },
+      "snapshot": {
+        "contradictions": {
+          "total": 3,
+          "byType": {
+            "expired_but_cited": 1,
+            "temporal_impossible": 2
+          },
+          "resolved": 3,
+          "dismissed": 0,
+          "active": 0
+        },
+        "supersession": {
+          "expiredFacts": 10,
+          "activeFacts": 47,
+          "byExpireReason": {
+            "Cascade: superseded by new fact for (6ccfc150-d2cc-421f-9ae4-7de1e3e4fe1c, job_title)": 1,
+            "Cascade: superseded by new fact for (06626f4e-3fdc-4a35-b272-665d727c22fd, job_title)": 4,
+            "Cascade: superseded by new fact for (74a498de-2ad8-44ad-af0a-47509d4cfb15, lives_in)": 1,
+            "Cascade: superseded by new fact for (f73eafc6-09cb-402a-b467-47559c316e31, job_title)": 1,
+            "Cascade: superseded by new fact for (74a498de-2ad8-44ad-af0a-47509d4cfb15, headquartered_in)": 3
+          }
+        },
+        "causalEdges": {
+          "total": 20,
+          "active": 18,
+          "expired": 2
+        },
+        "sameAs": 0,
+        "entities": 16,
+        "facts": 57
+      },
+      "contradictions": {
+        "detectedDuringIngest": 3,
+        "reflectedInFinalTable": 3,
+        "gap": 0
+      }
+    },
+    "epoch.reverse": {
+      "runtimeStats": {
+        "sourceId": "6f1d9f9b-5a55-4bb8-9433-50570ab91efe",
+        "mode": "epoch",
+        "chunkCount": 20,
+        "results": [
+          {
+            "memoryId": "e05adaac-031f-4bed-81ab-20877cebe80a",
+            "entities": [
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "4294b633-cc70-41ee-a5f7-e4ba7b63a988",
+                "canonicalName": "Austin, Texas",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "004a0491-2708-4ec4-9573-79f81975b032",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "324fa54c-572b-4648-afd6-55158caf7984",
+                "canonicalName": "Project Helios",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8f5d51b1-eae5-4dbf-9397-0416d2f87293",
+                "canonicalName": "Atlas v2",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "8d57b444-986e-4e41-9b9e-de5a84c16489",
+                "subject": "Helix Robotics",
+                "predicate": "headquartered_in",
+                "object": "Austin, Texas",
+                "confidence": 0.95
+              },
+              {
+                "id": "32bea9f5-88ca-4edd-b112-0067e66a34b1",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "3356980a-0ee0-43a7-8b2a-cf967699bf3e",
+                "subject": "Project Helios",
+                "predicate": "member_of",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "fdfe55ce-5a0e-400b-8b8f-6ba7b00b854d",
+                "subject": "Project Helios",
+                "predicate": "project_status",
+                "object": "flagship effort",
+                "confidence": 0.95
+              },
+              {
+                "id": "556ff55a-a6dc-4e14-8474-34b2ad5b2d75",
+                "subject": "Atlas v2",
+                "predicate": "member_of",
+                "object": "Helix Robotics",
+                "confidence": 0.9
+              },
+              {
+                "id": "15f93e9c-effa-4267-9a9a-149d4fc6e8d7",
+                "subject": "Atlas v2",
+                "predicate": "project_status",
+                "object": "maintenance",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 3,
+              "graphAgent": 87701,
+              "graphMeta": 63,
+              "gardener": 461282,
+              "reconciliation": 159524
+            },
+            "gardener": {
+              "triggered": true,
+              "report": "---\n\n## GARDENING SESSION REPORT\n\n### TOPOLOGY OVERVIEW\n| Metric | Before | After |\n|---|---|---|\n| Entities | 7 | 11 |\n| Connected components | 2 | **1** |\n| Fact edges | 5 | 17 |\n| Isolates | 1 | **0** |\n| Sparse leaves | 5 | 6 (4 new entities added by concurrent extraction) |\n\n### KEY ACTIONS\n\n**Island resolved:** \"the Atlas program\" was a completely disconnected isolate with 0 facts and 0 connections. Investigation showed it's the umbrella initiative at Helix Robotics (launched Sept 2020), distinct from the version-specific \"Project Atlas (version 1)\". Created 4 bridge facts linking it to Helix Robotics, Project Helios (successor), and Elena Vasquez (perception team lead). Also added 2 aliases (\"Atlas\", \"Project Atlas\").\n\n**Sparse leaf cross-linked:** Elena Vasquez went from degree 1 (only job_title at Helix) to degree 4 by adding facts for: announcing Project Helios, leading the Atlas program perception team, and joining Helix in 2019. Priya Anand went from degree 1 (orphaned \"startup CEO\" fact) to connected via bi-temporal `works_at` and `job_title` facts at Helix Robotics.\n\n**8 facts created, 2 aliases added, 2 summaries updated.** Zero merges or same_as links needed — no duplicate entities found.\n\n### STRUCTURAL OBSERVATIONS\n1. **Predicate ambiguity:** The `successor_of` edge between Project Atlas v1 and Atlas v2 reads backwards. Recommend renaming to `has_successor`.\n2. **Extraction pipeline active:** 4 new entities appeared during the session (Sofia Reyes, Daniel Okoro, Northwind Capital, Priya Anand). Some arrived with incomplete fact coverage.\n3. **Missing entities from source:** Marcus Chen, Cargolux Systems, and Toronto office referenced in source material but not yet extracted.\n\n**Tool calls used: ~53 / 80 budget.**"
+            },
+            "reconciliation": {
+              "triggered": true,
+              "candidateCount": 3,
+              "report": "Reconciliation patrol complete. Here is my structured report:\n\n---\n\n### CANDIDATES RESOLVED\n- Candidate 0119be91 ↔ [null] → **DISTINCT** — Stale staging row with null entity IDs on both sides. No actionable content. Closed to clear queue.\n- Candidate e8284ab6 ↔ [null] → **DISTINCT** — Stale staging row with null entity IDs on both sides. No actionable content. Closed to clear queue.\n- Candidate 3580e71f ↔ [null] → **DISTINCT** — Stale staging row with null entity IDs on both sides. No actionable content. Closed to clear queue.\n\n### SAME_AS LINKS CREATED\nNone. No new identity links warranted this session.\n\n### MERGES EXECUTED\nNone. No destructive merges warranted.\n\n### DISTINCT CONFIRMATIONS\n- **\"the Atlas program\" (11d834e2) vs \"Project Atlas (version 1)\" (46a5ce8b)** — Flagged by extraction Report 5 and confirmed DISTINCT by prior reasoning patrol (44d4c623). The Atlas program is the umbrella initiative (launched Sept 2020, encompasses both v1 and v2, succeeded by Project Helios). Project Atlas v1 is a specific deprecated version. Different abstraction levels, not same identity. 4 bridge facts already connect the umbrella to the main graph.\n\n### UNCONFIRMED ALIASES RESOLVED\nNo unconfirmed aliases surfaced in the reconciliation context.\n\n### ORPHANS INVESTIGATED\n4 entities flagged by topology as orphans — all are **false positives** (orphan detection only counts subject-side facts):\n- **Northwind Capital** (619a98bc) — degree=2 via object-side facts (Sofia Reyes works_at, job_title). Real entity, already connected.\n- **Toronto, Canada** (f34f7dca) — degree=1 via object-side fact (Helix opened_office_in). Real entity, already connected.\n- **Austin, Texas** (4294b633) — degree=1 via object-side fact (Helix headquartered_in). Real entity, already connected.\n- **the Atlas program** (11d834e2) — degree=4 via 5 object-side facts. Already connected by prior patrol. Not orphaned.\n\n### EXTRACTION REPORT REFERENCES PROCESSED\nScanned all 7 extraction reports for `### PRONOUNS RESOLVED` and `### ALIASES CREATED`:\n- Reports 1-5: No cross-entity pronoun references. All aliases were self-referential (entity aliased to its own surface form).\n- Report 5 difficulty note (\"the Atlas program may need reconciliation with version-specific entities\") — investigated above, confirmed distinct by prior patrol.\n\n### BRIDGE FACTS NOTED\nNo new bridge facts needed. The prior reasoning patrol already created the key bridge facts connecting \"the Atlas program\" to the main graph (member_of Helix, launched_at, successor_to from Helios, Elena's perception team lead role).\n\n### SKIPPED / UNCERTAIN\nNone. All candidates and extraction report references were fully resolvable. The graph is in clean state: 14 entities, 1 connected component, 20 fact edges, 1 same_as link. The 3 stale candidate rows have been cleared."
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "56b5a9a1-c6df-4476-aa87-94601836ec55",
+            "entities": [
+              {
+                "id": "324fa54c-572b-4648-afd6-55158caf7984",
+                "canonicalName": "Project Helios",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "11d834e2-4e54-472d-88bd-bd3099712f8d",
+                "canonicalName": "the Atlas program",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "004a0491-2708-4ec4-9573-79f81975b032",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "020d1b7f-3754-4633-b7e2-76e790161f6d",
+                "subject": "Elena Vasquez",
+                "predicate": "announced",
+                "object": "Project Helios",
+                "confidence": 0.95
+              },
+              {
+                "id": "0de6ce5d-906b-474d-a7fb-5d3493d9f5ed",
+                "subject": "Project Helios",
+                "predicate": "description",
+                "object": "drone-based inventory system",
+                "confidence": 0.95
+              },
+              {
+                "id": "36144f1b-297a-4f5e-b6c4-c272eb6b3507",
+                "subject": "Project Helios",
+                "predicate": "successor_to",
+                "object": "the Atlas program",
+                "confidence": 0.9
+              },
+              {
+                "id": "52453e51-cd04-455c-b6f6-411d2b50c42a",
+                "subject": "Project Helios",
+                "predicate": "announced_date",
+                "object": "March 2024",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 1,
+              "graphAgent": 154235,
+              "graphMeta": 57,
+              "reconciliation": 300100
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "error"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "99543feb-f229-4d6b-9f22-57b6fad68bb7",
+            "entities": [
+              {
+                "id": "46a5ce8b-586e-4ea6-980f-cd0aeba4d0ed",
+                "canonicalName": "Project Atlas (version 1)",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8f5d51b1-eae5-4dbf-9397-0416d2f87293",
+                "canonicalName": "Atlas v2",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "efba341a-1064-491d-a853-01a2fa98d04f",
+                "subject": "Project Atlas (version 1)",
+                "predicate": "status",
+                "object": "deprecated",
+                "confidence": 0.95
+              },
+              {
+                "id": "db0ee9dd-c741-4b20-bf97-dcf83ed9c3f6",
+                "subject": "Project Atlas (version 1)",
+                "predicate": "successor_of",
+                "object": "Atlas v2",
+                "confidence": 0.95
+              },
+              {
+                "id": "80e19a9e-d227-47b4-bc6c-1f3cc20c52da",
+                "subject": "Project Atlas (version 1)",
+                "predicate": "deprecated_at",
+                "object": "February 2024",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 3,
+              "graphAgent": 76569,
+              "graphMeta": 28,
+              "reconciliation": 0
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 235s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "1357ddca-894d-43b9-acd3-9ab282b518dc",
+            "entities": [
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "004a0491-2708-4ec4-9573-79f81975b032",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "ec16d1aa-d065-4c4b-8ff5-b230bbf8691a",
+                "subject": "Helix Robotics",
+                "predicate": "employee_count",
+                "object": "roughly 220",
+                "confidence": 0.95
+              },
+              {
+                "id": "663ea08e-5f42-4763-ad1e-e26bd95fc97f",
+                "subject": "Elena Vasquez",
+                "predicate": "joined",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 115082,
+              "graphMeta": 48,
+              "reconciliation": 0,
+              "decay": 6,
+              "contradictions": 12
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 37s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "7b9826ce-8edd-476c-91da-e68714176128",
+            "entities": [
+              {
+                "id": "f506e019-114e-4749-85e7-6a1a4945652b",
+                "canonicalName": "Daniel Okoro",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "473088a7-03a6-45cc-9a3f-25a80e7e9702",
+                "canonicalName": "Priya Anand",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "56f23005-746c-463d-ad7b-5370ddc40dc5",
+                "subject": "Priya Anand",
+                "predicate": "works_at",
+                "object": "Helix Robotics",
+                "confidence": 0.9
+              },
+              {
+                "id": "9a9b42bb-a926-4c55-bc2e-5868c53b4f14",
+                "subject": "Daniel Okoro",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "d2b48497-a6f1-42a6-b525-29a1d17ea814",
+                "subject": "Daniel Okoro",
+                "predicate": "works_at",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "edb0bd82-051e-42b2-bebe-ee60b528950e",
+                "subject": "Priya Anand",
+                "predicate": "job_title",
+                "object": "startup CEO",
+                "confidence": 0.85
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 112777,
+              "graphMeta": 47,
+              "reconciliation": 0
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 150s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "b59fa816-00dc-4d64-aace-0a2329923e35",
+            "entities": [
+              {
+                "id": "619a98bc-0616-4a3d-ba94-d91c15f1455f",
+                "canonicalName": "Northwind Capital",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "ffe9c657-bce2-4a9c-856a-1fde0810443e",
+                "canonicalName": "Sofia Reyes",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "ae2d56a3-be91-4df0-b20c-25a9c87e5141",
+                "subject": "Sofia Reyes",
+                "predicate": "works_at",
+                "object": "Northwind Capital",
+                "confidence": 0.9
+              },
+              {
+                "id": "4d969501-9995-4cf5-a9a5-2e35d7ce7a04",
+                "subject": "Sofia Reyes",
+                "predicate": "board_member_of",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "136ead2f-9815-472b-93c4-87d6ff9a7f5a",
+                "subject": "Sofia Reyes",
+                "predicate": "job_title",
+                "object": "Northwind Capital",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 73840,
+              "graphMeta": 54,
+              "reconciliation": 0
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 224s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "f8777f76-e0ea-4633-9a6c-1addeb5819da",
+            "entities": [
+              {
+                "id": "468694c6-6b36-469b-a522-f00c3acfa57b",
+                "canonicalName": "Brightway Stores",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8f5d51b1-eae5-4dbf-9397-0416d2f87293",
+                "canonicalName": "Atlas v2",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "89c9813c-21ee-4b47-a67a-4b4236a53e7c",
+                "subject": "Brightway Stores",
+                "predicate": "customer_of",
+                "object": "Atlas v2",
+                "confidence": 0.9
+              },
+              {
+                "id": "cf869c95-c008-4bbd-ae0d-c66386359b75",
+                "subject": "Brightway Stores",
+                "predicate": "industry",
+                "object": "retail",
+                "confidence": 0.85
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 132880,
+              "graphMeta": 52,
+              "gardener": 330900,
+              "reconciliation": 0
+            },
+            "gardener": {
+              "triggered": true,
+              "report": "---\n\n## Gardening Report\n\n### TOPOLOGY CHANGE\n\n| Metric | Before | After | Delta |\n|---|---|---|---|\n| Entities | 13 | 14 | +1 (Cargolux Systems from new source) |\n| Fact edges | 20 | 29 | **+9** |\n| Components | 1 | 1 | stable |\n| Isolates | 0 | 0 | stable |\n| Sparse leaves | 7 | 6 | -1 (Project Atlas v1 graduated) |\n| Orphans | 3 | 3 | unchanged |\n\n### ACTIONS TAKEN\n\n**3 merges** — eliminated duplicate entities created by name variants and concurrent extraction:\n- \"Dr. Elena Vasquez\" → Elena Vasquez\n- \"Atlas version 2\" → Atlas v2\n- \"Helix\" → Helix Robotics\n\n**10 facts created** — filled the Atlas program-version hierarchy gap, added missing temporal facts (CTO appointment, board date, promotion date), and connected the newly-extracted Cargolux Systems entity.\n\n**8 summaries updated** — all major entities now reflect the enriched fact set.\n\n**3 aliases registered** — surviving entities carry the merged names for future resolution.\n\n### KEY STRUCTURAL IMPROVEMENT\n\nThe **Atlas program-version hierarchy** was the biggest structural gap: \"the Atlas program\" (umbrella), \"Project Atlas (version 1)\", and \"Atlas v2\" were all loosely connected with no explicit `part_of` or `member_of` links. Now the tree is explicit: Atlas program contains v1 (deprecated) and v2 (maintenance), both are members of Helix Robotics.\n\n### REMAINING CONCERNS\n\n- **Stale write detection bug** — `update_entity_summary` with matching `expected_summary_updated_at` still returned `stale_write`. Omitting the parameter worked. Likely a timezone or precision mismatch in the comparison.\n- **3 orphans** (Northwind Capital, Austin, Toronto) have 0 facts as subject but are legitimate fact objects. No action needed — they're structurally appropriate.\n- **Northwind Capital investor inference** — strongly implied by Sofia Reyes' board seat but never explicitly stated in source. Held back."
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 293s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "44693dd8-606f-4a62-8c59-d09707921aaa",
+            "entities": [
+              {
+                "id": "f34f7dca-2c07-463b-b4e8-2654bfe378ba",
+                "canonicalName": "Toronto, Canada",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "0abf6c51-d2f3-479d-b5f8-5e5a7bf07508",
+                "subject": "Helix Robotics",
+                "predicate": "opened_office_in",
+                "object": "Toronto, Canada",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 3,
+              "graphAgent": 97303,
+              "graphMeta": 45,
+              "reconciliation": 0
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 2s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "82181b67-cfbf-4bda-971b-2b2d4fe72755",
+            "entities": [
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "11d834e2-4e54-472d-88bd-bd3099712f8d",
+                "canonicalName": "the Atlas program",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "004a0491-2708-4ec4-9573-79f81975b032",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "a2ed0bcd-ae20-42ea-b66f-842a5735800b",
+                "subject": "Elena Vasquez",
+                "predicate": "manages",
+                "object": "the Atlas program",
+                "confidence": 0.9
+              },
+              {
+                "id": "e1e71c78-61ac-460e-84b8-c3ca1371852b",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "6f358b24-81bd-46ce-97a2-205dbd9b5e81",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 135121,
+              "graphMeta": 58,
+              "reconciliation": 0
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 137s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "f81d4c78-6c4f-4609-920b-94d03a0e8147",
+            "entities": [
+              {
+                "id": "473088a7-03a6-45cc-9a3f-25a80e7e9702",
+                "canonicalName": "Priya Anand",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8f5d51b1-eae5-4dbf-9397-0416d2f87293",
+                "canonicalName": "Atlas v2",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "2aee3d06-4296-4bbb-8c41-f8e7ef99fe3b",
+                "subject": "Atlas v2",
+                "predicate": "has_feature",
+                "object": "multi-robot coordination",
+                "confidence": 0.9
+              },
+              {
+                "id": "4edd2ca6-0d8e-4695-b52f-1e4adea8c05d",
+                "subject": "Priya Anand",
+                "predicate": "advocated_for",
+                "object": "Atlas v2",
+                "confidence": 0.9
+              },
+              {
+                "id": "20d6c325-3402-410e-8113-5565c5293ef8",
+                "subject": "Atlas v2",
+                "predicate": "development_started_at",
+                "object": "2022-08",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 1,
+              "graphAgent": 166967,
+              "graphMeta": 35,
+              "reconciliation": 195295
+            },
+            "reconciliation": {
+              "triggered": true,
+              "candidateCount": 2,
+              "report": "---\n\n### CANDIDATES RESOLVED\n\n| Candidate | Entity A | Entity B | Score | Outcome | Reasoning |\n|---|---|---|---|---|---|\n| 1455a7ad | Elena Vasquez (004a0491) | the Atlas program (11d834e2) | 0.48 | **DISTINCT** | Person vs project. Elena manages the Atlas program but they are different entity types. |\n| 31ddf96a | the Atlas program (11d834e2) | Project Helios (324fa54c) | 0.46 | **DISTINCT** | Temporal succession — Helios succeeds Atlas program. Different projects at different lifecycle stages. |\n| 312fa3a8 | Project Helios (324fa54c) | Austin, Texas (4294b633) | 0.41 | **DISTINCT** | Project vs city. No identity overlap. |\n\nAll three are false positives from topological similarity — pairs connected through the Helix Robotics hub but clearly distinct identities.\n\n### SAME_AS LINKS CREATED\nNone. No new identity links warranted.\n\n### MERGES EXECUTED\nNone. All candidates confirmed distinct.\n\n### DISTINCT CONFIRMATIONS\nAll 3 candidates confirmed distinct (see table above).\n\n### UNCONFIRMED ALIASES RESOLVED\nNone found in this session.\n\n### ORPHANS INVESTIGATED\nNone flagged. Prior patrol (31752727) confirmed all \"orphan\" entities (Northwind Capital, Toronto, Austin, the Atlas program) have object-side facts connecting them — orphan detection only counts subject-side facts. No action needed.\n\n### EXTRACTION REPORT REFERENCES PROCESSED\n- **Report 1:** \"Atlas version 2\" → Atlas v2 — **already resolved** (same_as + merge done by prior patrol)\n- **Report 2:** \"Helix\" → Helix Robotics — **already resolved** (same_as + merge done by prior patrol)\n- **Report 3:** \"Dr. Elena Vasquez\" → Elena Vasquez — **already resolved** (same_as + merge done by prior patrol)\n- **Report 4:** No identity issues (Toronto, Canada is genuinely new)\n- **Report 5:** No identity issues (Brightway Stores is genuinely new)\n\n### BRIDGE FACTS NOTED\nNo new bridge facts needed. Prior patrols already created bridge facts connecting the Atlas program umbrella to its sub-projects (Atlas v1 `part_of`, Atlas v2 `part_of`, Helios `succeeds`).\n\n### SKIPPED / UNCERTAIN\nNone. All candidates were clearly resolvable.\n\n### BUG NOTED\n`get_reconciliation_context` errors with `cannot cast type record to uuid[]`, returning null entity IDs. Workaround: direct DB query via `docker exec`. Root cause likely a type mismatch in the SQL function parameter — should be investigated."
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "90d6c8d0-5b5b-4ff6-ad31-3020668dfbc6",
+            "entities": [
+              {
+                "id": "473088a7-03a6-45cc-9a3f-25a80e7e9702",
+                "canonicalName": "Priya Anand",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "e7639627-2b77-4711-84fb-ce2bdad8624c",
+                "canonicalName": "Cargolux Systems",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "144512a8-cb99-4646-90d8-cebe106fe4c9",
+                "subject": "Priya Anand",
+                "predicate": "works_at",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "9b1b9ff7-1669-4e75-82d2-fc86749bf377",
+                "subject": "Priya Anand",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "687d2942-f8ef-4f79-9d14-2efcf2684641",
+                "subject": "Priya Anand",
+                "predicate": "works_at",
+                "object": "Cargolux Systems",
+                "confidence": 0.85
+              },
+              {
+                "id": "8b4acb45-fd77-4589-a51a-1ac774556ae4",
+                "subject": "Helix Robotics",
+                "predicate": "job_title",
+                "object": "Priya Anand",
+                "confidence": 0.9
+              },
+              {
+                "id": "d2bbe476-f1a1-48f7-99f5-3430ee80a3c0",
+                "subject": "Priya Anand",
+                "predicate": "previously_worked_at",
+                "object": "Cargolux Systems",
+                "confidence": 0.9
+              },
+              {
+                "id": "bebaaf94-b49b-4421-895e-4abf4d38c75d",
+                "subject": "Cargolux Systems",
+                "predicate": "industry",
+                "object": "logistics",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 11,
+              "graphAgent": 82567,
+              "graphMeta": 43,
+              "reconciliation": 0
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 242s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "ec9c706d-86f8-40ee-80ac-91bcc07ed665",
+            "entities": [
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "d12460e5-83d1-4c12-bd12-a517648e5ab0",
+                "canonicalName": "Boston",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "4294b633-cc70-41ee-a5f7-e4ba7b63a988",
+                "canonicalName": "Austin, Texas",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "d9985015-ba8b-4e39-b9cf-524d0f37894a",
+                "subject": "Helix Robotics",
+                "predicate": "received_funding",
+                "object": "new funding round (amount and investor unspecified)",
+                "confidence": 0.8
+              },
+              {
+                "id": "736a5899-bcb9-41ea-9184-5ea6744c1546",
+                "subject": "Helix Robotics",
+                "predicate": "headquartered_in",
+                "object": "Boston",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 120666,
+              "graphMeta": 46,
+              "gardener": 190476,
+              "reconciliation": 0
+            },
+            "gardener": {
+              "triggered": true,
+              "report": "Gardening session complete. Here is the structured report:\n\n---\n\n### GARDENING SESSION REPORT — 2026-06-09\n\n**Session ID:** 5a4af14a\n**Tool calls used:** 26 / 80\n\n---\n\n### TOPOLOGY OVERVIEW\n- **15 entities** across **1 connected component** (no islands, no isolates)\n- **32 fact edges** (31 at start + 1 created)\n- **4 orphans** (zero subject-facts, but all object-side connected): Boston, Northwind Capital, Toronto, Austin\n- **7 sparse leaves** (degree 1-2)\n- **0 contradictions**, **0 same_as links**\n\n### ISLANDS INVESTIGATED\nNone — single connected component.\n\n### ORPHANS INVESTIGATED (4)\nAll 4 are **false positives** of orphan detection. They have zero subject-facts but are properly connected as fact objects. The detection system counts only subject-side facts.\n- **Boston**, **Northwind Capital**, **Toronto**, **Austin** — all confirmed real entities with source-verified object-side connections.\n\n### FACTS CREATED (1)\n| Fact | Confidence | Temporal |\n|------|-----------|----------|\n| Helix Robotics → `headquartered_in` → Boston | 0.95 | Valid 2019, Invalid 2022-05 |\n\n**Reasoning:** Graph recorded Austin as current HQ but had no record of Boston as the former HQ. Source explicitly states the May 2022 relocation. This was the only genuinely missing fact found — 3 prior patrols had already been thorough.\n\n### SUMMARIES UPDATED (1)\n- **Helix Robotics** — enriched with Boston as former HQ, relocation date, Toronto office, board composition.\n\n### CONSOLIDATIONS\n- **0 merges, 0 same_as links** — prior patrols already performed 3 merges and fully consolidated the graph.\n\n### PREDICATE AMBIGUITY FLAGGED\n- Fact `db0ee9dd`: Project Atlas v1 → `successor_of` → Atlas v2 — direction is ambiguous under two predicate conventions. Did NOT expire due to ambiguity. Requires convention clarification.\n\n### STRUCTURAL OBSERVATIONS\n1. **Orphan detection false positives** — counts subject-facts only, missing object-side connectivity common for place entities.\n2. **Stale write timestamp precision issue** — `expected_summary_updated_at` matching to milliseconds still triggered stale_write. Possible microsecond precision mismatch.\n3. **Graph is mature** — 3 prior patrols have thoroughly built and connected all 15 entities. Remaining sparse leaves are natural leaf nodes, not missed connections.\n\n### SKIPPED\n- **Northwind Capital → investor_in → Helix**: Strongly implied by board seat but not explicitly in source text.\n- **successor_of predicate direction**: Flagged but deferred pending convention clarification."
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 248s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "4e887eab-cb8f-4c3e-854e-a201d34e14b2",
+            "entities": [
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "619a98bc-0616-4a3d-ba94-d91c15f1455f",
+                "canonicalName": "Northwind Capital",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "11d834e2-4e54-472d-88bd-bd3099712f8d",
+                "canonicalName": "the Atlas program",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "904c3216-3ec2-40c4-a054-487dc514f973",
+                "subject": "Helix Robotics",
+                "predicate": "received_funding",
+                "object": "$40 million Series B, led by Northwind Capital",
+                "confidence": 0.95
+              },
+              {
+                "id": "d67376cd-58bd-406c-920d-b13b878dde83",
+                "subject": "Northwind Capital",
+                "predicate": "invested_in",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 4,
+              "graphAgent": 222601,
+              "graphMeta": 47,
+              "reconciliation": 0,
+              "decay": 3,
+              "contradictions": 14
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 211s < 300s"
+            },
+            "contradictionsDetected": 4
+          },
+          {
+            "memoryId": "d3959059-59de-4b46-94e5-8ca02a41295c",
+            "entities": [],
+            "facts": [],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 4,
+              "graphAgent": 52749
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "53fdc604-91c8-494b-819b-6b9d2bb791d1",
+            "entities": [
+              {
+                "id": "004a0491-2708-4ec4-9573-79f81975b032",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "71dfd7ea-a3c1-4972-abc4-6a5199be4d0d",
+                "canonicalName": "Marcus Chen",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "782ab9bc-7581-4541-b46a-350af37f029d",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "38701889-a6d0-43c4-a619-9c87004cefc9",
+                "subject": "Marcus Chen",
+                "predicate": "works_at",
+                "object": "Helix Robotics",
+                "confidence": 0.85
+              },
+              {
+                "id": "4c3754c9-2822-426c-9186-d2ee9818f74d",
+                "subject": "Marcus Chen",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.9
+              },
+              {
+                "id": "d937f0c8-4403-49e9-9f5b-a887389e3827",
+                "subject": "Elena Vasquez",
+                "predicate": "replaced",
+                "object": "Marcus Chen",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 1,
+              "graphAgent": 82876,
+              "graphMeta": 57,
+              "reconciliation": 0
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 294s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "a8236193-3190-4af7-a957-7686cc6eb0a8",
+            "entities": [
+              {
+                "id": "71dfd7ea-a3c1-4972-abc4-6a5199be4d0d",
+                "canonicalName": "Marcus Chen",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "20280b0d-5dab-44d9-8978-dd6abdec5c6f",
+                "subject": "Marcus Chen",
+                "predicate": "departed_from",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "bec96974-f146-4034-b5f8-a7a88a243156",
+                "subject": "Marcus Chen",
+                "predicate": "founded_venture",
+                "object": "started his own venture (company unspecified)",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 81598,
+              "graphMeta": 43,
+              "reconciliation": 2
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "0573c4ab-edc4-468e-921c-3bfa151d2909",
+            "entities": [
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "004a0491-2708-4ec4-9573-79f81975b032",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "11d834e2-4e54-472d-88bd-bd3099712f8d",
+                "canonicalName": "the Atlas program",
+                "entityType": "project",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "f8e50a84-28c0-4648-ba71-d7ebdec032d0",
+                "subject": "the Atlas program",
+                "predicate": "launched_at",
+                "object": "September 2020",
+                "confidence": 0.95
+              },
+              {
+                "id": "ec25cd72-d243-4b5e-bac1-a2e86d31b543",
+                "subject": "46a5ce8b-586e-4ea6-980f-cd0aeba4d0ed",
+                "predicate": "member_of",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "d42c8475-1450-4825-bff5-db7baa0e0fd0",
+                "subject": "46a5ce8b-586e-4ea6-980f-cd0aeba4d0ed",
+                "predicate": "member_of",
+                "object": "the Atlas program",
+                "confidence": 0.95
+              },
+              {
+                "id": "13a4097f-0c6e-4aa9-8ee0-da31460c0366",
+                "subject": "Elena Vasquez",
+                "predicate": "led_team",
+                "object": "the Atlas program",
+                "confidence": 0.95
+              },
+              {
+                "id": "d2692bb3-b7ad-45eb-b0f5-7424c39010d7",
+                "subject": "the Atlas program",
+                "predicate": "member_of",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "986064a6-d8f6-42ce-ad60-6e224d63477d",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "the Atlas program",
+                "confidence": 0.9
+              },
+              {
+                "id": "a431ddcb-0d20-4773-a37c-8fc76ef15e45",
+                "subject": "the Atlas program",
+                "predicate": "program_type",
+                "object": "autonomous warehouse robot program",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 3,
+              "graphAgent": 125230,
+              "graphMeta": 73,
+              "reconciliation": 3
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "50a11c66-9b2f-44d6-8837-5173bf1265ee",
+            "entities": [
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "004a0491-2708-4ec4-9573-79f81975b032",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "c75d1e61-8b91-41f4-9662-b9b913d293b3",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "cf41591d-1d5c-4325-8d7f-04ffaa2cd0a9",
+                "subject": "Elena Vasquez",
+                "predicate": "education",
+                "object": "PhD in control theory",
+                "confidence": 0.95
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 3,
+              "graphAgent": 213457,
+              "graphMeta": 53,
+              "gardener": 339941,
+              "reconciliation": 0
+            },
+            "gardener": {
+              "triggered": true,
+              "report": "Gardening session complete. Here is the structured report:\n\n---\n\n## GARDENING REPORT — 2026-06-09\n\n### TOPOLOGY OVERVIEW\n| Metric | Before | After |\n|--------|--------|-------|\n| Entities | 21 | 17 |\n| Fact edges | 37 | ~37 (+1 created, +1 invalidated) |\n| Connected components | 5 | 1 |\n| Isolates | 4 | 0 |\n| Unresolved contradictions | 4 | 0 |\n\nMain cluster: **Helix Robotics** hub (degree 20), 17 entities. No islands.\n\n---\n\n### CONSOLIDATIONS (4 merges)\n\n| Source | Target | Confidence | Reasoning |\n|--------|--------|------------|-----------|\n| **Dr. Elena Vasquez** (ecc8f2ea) | Elena Vasquez (004a0491) | 0.95 | Honorific title variant. 0 facts, 0 sources, empty summary. Second instance of this duplicate. |\n| **Elena** (e9b7ee15) | Elena Vasquez (004a0491) | 0.95 | Partial first name. Only one \"Elena\" in graph context. 0 facts, 0 sources. |\n| **Boston, Massachusetts** (84b5f544) | Boston (d12460e5) | 0.95 | Full formal name of \"Boston\". Target already has \"Boston, Massachusetts\" alias. System flagged it as duplicate. |\n| **Helix** (0caf2fe5) | Helix Robotics (8b923354) | 0.95 | Company abbreviation. Source: \"worked on navigation stack at Helix\" = Helix Robotics. Second instance. |\n\n---\n\n### FACTS CREATED (1)\n- **Helix Robotics → Austin, Texas**: `headquartered_in` (valid 2022-05-01, conf=0.95) — from memory ec9c706d. Filled gap where Austin was mentioned as current HQ but had no connecting fact.\n\n### FACTS INVALIDATED (1)\n- **Helix Robotics → Boston**: `headquartered_in` (fact 9b97ebfe, set invalid_at=2022-05-01) — Relocation to Austin ended the Boston HQ period.\n\n---\n\n### CONTRADICTIONS RESOLVED (4)\n\n| Type | Resolution | Reasoning |\n|------|-----------|-----------|\n| temporal_impossible (3s inversion) | Dismissed | Pipeline timing artifact — cause recorded 3s after effect |\n| temporal_impossible (63ms inversion) | Dismissed | Pipeline timing artifact — sub-second processing order |\n| opposing_object: received_funding | Reconciled | Same event: \"$40M Series B\" = \"new funding\" that triggered relocation |\n| opposing_object: member_of (Atlas v2) | Both valid | Company ownership vs program umbrella — different relationship dimensions |\n\n---\n\n### SPARSE LEAVES (5 investigated, all adequate)\n- **Brightway Stores** — only retailer in graph, connected as Atlas v2 customer\n- **Cargolux Systems** — only logistics firm, connected via Priya Anand work history\n- **Daniel Okoro** — connected via works_at + job_title + promoted_at\n- **Boston** — historical connection via invalidated headquartered_in fact\n- **Toronto, Canada** — connected via opened_office_in fact\n\n---\n\n### STRUCTURAL OBSERVATIONS\n1. **Recurring duplicate extraction** — The same 3 duplicate types (Dr. Elena Vasquez, Helix, Boston, Massachusetts) have appeared across multiple extraction runs. Entity resolution needs tuning.\n2. **Unconfirmed alias artifact** — Boston has a circular self-referencing unconfirmed alias from the reconciliation detector. Harmless but messy.\n3. **High fact churn on headquartered_in** — This fact went through 4 create/expire cycles before stabilizing. Pipeline should check for existing facts before creating duplicates.\n\n---\n\n**Tool calls used: 22/80** | Report ID: bff87ef6-3a29-43cf-b4a2-571eb0feebde"
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "cooldown 203s < 300s"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "8039f758-095c-4ebb-a068-a3f7234aa92e",
+            "entities": [
+              {
+                "id": "71dfd7ea-a3c1-4972-abc4-6a5199be4d0d",
+                "canonicalName": "Marcus Chen",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "004a0491-2708-4ec4-9573-79f81975b032",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "0caf2fe5-919e-4341-b162-b6240af4d214",
+                "canonicalName": "Helix",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "714dc82e-4670-47b3-9295-0f4eaa0fc33d",
+                "subject": "Elena Vasquez",
+                "predicate": "worked_on",
+                "object": "navigation stack",
+                "confidence": 0.9
+              },
+              {
+                "id": "90075274-a7e9-4d07-8c14-afe2081d895b",
+                "subject": "Elena Vasquez",
+                "predicate": "reported_to",
+                "object": "Marcus Chen",
+                "confidence": 0.95
+              },
+              {
+                "id": "6b1bd0e3-fb07-44b8-91cd-cd0cd36830f4",
+                "subject": "Marcus Chen",
+                "predicate": "job_title",
+                "object": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 217732,
+              "graphMeta": 52,
+              "reconciliation": 2
+            },
+            "reconciliation": {
+              "triggered": false,
+              "skippedReason": "no_pending_work"
+            },
+            "contradictionsDetected": 0
+          },
+          {
+            "memoryId": "16819d03-f8c0-4f43-a06b-ad8f8957722b",
+            "entities": [
+              {
+                "id": "d12460e5-83d1-4c12-bd12-a517648e5ab0",
+                "canonicalName": "Boston",
+                "entityType": "place",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "004a0491-2708-4ec4-9573-79f81975b032",
+                "canonicalName": "Elena Vasquez",
+                "entityType": "person",
+                "isNew": false,
+                "confidence": 0.8
+              },
+              {
+                "id": "8b923354-a46a-4f4c-8d8e-0f32bac0a080",
+                "canonicalName": "Helix Robotics",
+                "entityType": "company",
+                "isNew": false,
+                "confidence": 0.8
+              }
+            ],
+            "facts": [
+              {
+                "id": "cdd17a9c-9b6f-4ab9-a23a-c355b247dbeb",
+                "subject": "Elena Vasquez",
+                "predicate": "job_title",
+                "object": "Helix Robotics",
+                "confidence": 0.95
+              },
+              {
+                "id": "9b97ebfe-78d2-42fe-8f8e-577c6142094c",
+                "subject": "Helix Robotics",
+                "predicate": "headquartered_in",
+                "object": "Boston",
+                "confidence": 0.9
+              }
+            ],
+            "skipped": [],
+            "filtered": [],
+            "timing": {
+              "priorReportFetch": 2,
+              "graphAgent": 270597,
+              "graphMeta": 57,
+              "reconciliation": 157887
+            },
+            "reconciliation": {
+              "triggered": true,
+              "candidateCount": 1,
+              "report": "---\n\n### CANDIDATES RESOLVED\n\n- **Candidate 73703fa6** → SKIPPED — entity IDs unresolvable (`?` for both A and B). The `get_reconciliation_context` tool errored with `cannot cast type record to uuid[]`, preventing candidate investigation. This is likely a SQL type mismatch in the reconciliation MCP service's merge candidates subquery. Needs a code fix before this candidate can be processed.\n\n### SAME_AS LINKS CREATED\n\nNone. All investigated entities were zero-fact orphans suitable for destructive merge, not non-destructive same_as linking.\n\n### MERGES EXECUTED\n\n| Source | Target | Reason |\n|--------|--------|--------|\n| **Atlas** (8fe8e724) | **the Atlas program** (11d834e2) | Zero facts, one mention alias \"Atlas\" already carried by canonical. Orphan from prior resolve_entity failure. |\n\n### DISTINCT CONFIRMATIONS\n\nNone. All investigated entities were confirmed duplicates, not distinct entities.\n\n### UNCONFIRMED ALIASES RESOLVED\n\n- **\"Boston, Massachusetts (duplicate, likely same as Boston d12460e5)\"** on Boston (d12460e5) — the source entity (84b5f544) no longer exists (already merged). This unconfirmed alias is now stale/cosmetic. The canonical Boston already carries \"Boston, Massachusetts\" as a confirmed `name` alias. No action needed — the unconfirmed alias is redundant but harmless.\n\n### ORPHANS INVESTIGATED\n\n| Orphan | Status | Action |\n|--------|--------|--------|\n| **Boston, Massachusetts** (84b5f544) | Already merged | Entity not found — prior reconciliation pass cleaned it up |\n| **Helix** (0caf2fe5) | Already merged | Entity not found — prior pass cleaned it up |\n| **Dr. Elena Vasquez** (ecc8f2ea) | Already merged | Entity not found — prior pass cleaned it up |\n| **Atlas** (8fe8e724) | Merged now | Zero facts, mention alias already on canonical → merged into the Atlas program |\n| **Elena** (e9b7ee15) | Already merged | Entity not found — prior pass cleaned it up |\n\n### EXTRACTION REPORT REFERENCES PROCESSED\n\nScanned all 10 extraction reports' `### PRONOUNS RESOLVED` and `### ALIASES CREATED` sections:\n\n- **Report 1** — \"Boston, Massachusetts\" → Boston d12460e5 → SKIPPED (alias already exists as confirmed `name`)\n- **Report 1** — \"Boston, Massachusetts (duplicate...)\" → spurious 84b5f544 → SKIPPED (entity already deleted)\n- **Report 2** — \"She\" → Elena Vasquez → SKIPPED (pronoun already resolved during extraction)\n- **Report 2** — \"she (compare-epoch context...)\" → Elena Vasquez → SKIPPED (alias already registered)\n- **Report 3** — \"she\" → Elena Vasquez → SKIPPED (pronoun already resolved during extraction)\n- **Report 4** — \"Elena\" (short form) → Elena Vasquez → SKIPPED (name alias already registered)\n- **Report 5** — No cross-entity references to process\n\nNo new same_as links were needed. All extraction agent observations were already acted on during extraction or in prior reconciliation passes.\n\n### BRIDGE FACTS NOTED\n\nNone identified. All cross-cluster relationships are already captured in existing facts.\n\n### SKIPPED / UNCERTAIN\n\n- **Merge candidate 73703fa6** — Cannot investigate due to `get_reconciliation_context` tool bug (`cannot cast type record to uuid[]`). The entity IDs render as `?` in the context payload. A code fix in the reconciliation MCP service's SQL query is needed before this candidate can be evaluated. The bug is likely in the `merge_candidates` CTE or the function that casts the candidate row to UUIDs."
+            },
+            "contradictionsDetected": 0
+          }
+        ],
+        "timing": {
+          "total": 1874008
+        }
+      },
+      "snapshot": {
+        "contradictions": {
+          "total": 4,
+          "byType": {
+            "temporal_impossible": 2,
+            "opposing_object": 2
+          },
+          "resolved": 4,
+          "dismissed": 0,
+          "active": 0
+        },
+        "supersession": {
+          "expiredFacts": 12,
+          "activeFacts": 57,
+          "byExpireReason": {
+            "Cascade: superseded by new fact for (004a0491-2708-4ec4-9573-79f81975b032, job_title)": 6,
+            "Cascade: superseded by new fact for (473088a7-03a6-45cc-9a3f-25a80e7e9702, works_at)": 1,
+            "Cascade: superseded by new fact for (8b923354-a46a-4f4c-8d8e-0f32bac0a080, headquartered_in)": 4,
+            "Cascade: superseded by new fact for (71dfd7ea-a3c1-4972-abc4-6a5199be4d0d, job_title)": 1
+          }
+        },
+        "causalEdges": {
+          "total": 13,
+          "active": 13,
+          "expired": 0
+        },
+        "sameAs": 0,
+        "entities": 16,
+        "facts": 69
+      },
+      "contradictions": {
+        "detectedDuringIngest": 4,
+        "reflectedInFinalTable": 4,
+        "gap": 0
+      }
+    }
+  },
+  "reportsReview": {
+    "epoch.forward": {
+      "discrepancies": [
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "4f29b743-6a01-42fd-875e-586a7c240efe",
+          "detail": "reasoning report 4f29b743-6a01-42fd-875e-586a7c240efe references missing entity 28eeb10b-5e74-4d41-9dda-60c4cbce82b4"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "91b4f93d-c4c3-44bb-9eac-6f336467510e",
+          "detail": "reasoning report 91b4f93d-c4c3-44bb-9eac-6f336467510e references missing entity c234aa22-0230-494f-89ce-5eed1a437604"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "91b4f93d-c4c3-44bb-9eac-6f336467510e",
+          "detail": "reasoning report 91b4f93d-c4c3-44bb-9eac-6f336467510e references missing entity 969e9b89-d779-4704-b433-9a376a717d8c"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "96147a55-a541-421a-aee3-d8d745397638",
+          "detail": "reasoning report 96147a55-a541-421a-aee3-d8d745397638 references missing entity 28eeb10b-5e74-4d41-9dda-60c4cbce82b4"
+        }
+      ],
+      "characterization": {
+        "extractionCount": 20,
+        "gardeningCount": 3,
+        "reasoningCount": 8,
+        "reasoningByMode": {
+          "patrol": 8
+        },
+        "thinReasoningReports": 3,
+        "gardeningActionsTotal": 0
+      }
+    },
+    "epoch.reverse": {
+      "discrepancies": [
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "11fb7e72-51f2-4a83-bc18-e48e0d09ae93",
+          "detail": "reasoning report 11fb7e72-51f2-4a83-bc18-e48e0d09ae93 references missing entity 45f18c7c-32c7-4216-9ff4-e08d1574fa09"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "11fb7e72-51f2-4a83-bc18-e48e0d09ae93",
+          "detail": "reasoning report 11fb7e72-51f2-4a83-bc18-e48e0d09ae93 references missing entity 705bc448-d1d0-4867-8fba-167689737ca1"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "11fb7e72-51f2-4a83-bc18-e48e0d09ae93",
+          "detail": "reasoning report 11fb7e72-51f2-4a83-bc18-e48e0d09ae93 references missing entity c9a18c65-65f1-43ce-a746-731b17098066"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "89db78c3-fc61-4ce5-ba7b-fae78b584763",
+          "detail": "reasoning report 89db78c3-fc61-4ce5-ba7b-fae78b584763 references missing entity 84b5f544-b56f-4c37-afb7-7a6e042a47ce"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "89db78c3-fc61-4ce5-ba7b-fae78b584763",
+          "detail": "reasoning report 89db78c3-fc61-4ce5-ba7b-fae78b584763 references missing entity 0caf2fe5-919e-4341-b162-b6240af4d214"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "89db78c3-fc61-4ce5-ba7b-fae78b584763",
+          "detail": "reasoning report 89db78c3-fc61-4ce5-ba7b-fae78b584763 references missing entity ecc8f2ea-c404-4306-9f5d-1af432e059dd"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "89db78c3-fc61-4ce5-ba7b-fae78b584763",
+          "detail": "reasoning report 89db78c3-fc61-4ce5-ba7b-fae78b584763 references missing entity 8fe8e724-8033-48e2-9088-47a06b330002"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "89db78c3-fc61-4ce5-ba7b-fae78b584763",
+          "detail": "reasoning report 89db78c3-fc61-4ce5-ba7b-fae78b584763 references missing entity e9b7ee15-82c2-40f1-82b3-85d3bd63767b"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "bff87ef6-3a29-43cf-b4a2-571eb0feebde",
+          "detail": "reasoning report bff87ef6-3a29-43cf-b4a2-571eb0feebde references missing entity ecc8f2ea-c404-4306-9f5d-1af432e059dd"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "bff87ef6-3a29-43cf-b4a2-571eb0feebde",
+          "detail": "reasoning report bff87ef6-3a29-43cf-b4a2-571eb0feebde references missing entity e9b7ee15-82c2-40f1-82b3-85d3bd63767b"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "bff87ef6-3a29-43cf-b4a2-571eb0feebde",
+          "detail": "reasoning report bff87ef6-3a29-43cf-b4a2-571eb0feebde references missing entity 84b5f544-b56f-4c37-afb7-7a6e042a47ce"
+        },
+        {
+          "kind": "dangling_reference",
+          "reportType": "reasoning",
+          "reportId": "bff87ef6-3a29-43cf-b4a2-571eb0feebde",
+          "detail": "reasoning report bff87ef6-3a29-43cf-b4a2-571eb0feebde references missing entity 0caf2fe5-919e-4341-b162-b6240af4d214"
+        },
+        {
+          "kind": "sameas_overclaim",
+          "reportType": "gardening",
+          "reportId": "4a5f2c7a-ee56-4b4f-8d7e-bb0e019859b8",
+          "detail": "gardening report 4a5f2c7a-ee56-4b4f-8d7e-bb0e019859b8 claims 1 same_as created but graph holds 0 (counts may be cumulative across runs)"
+        }
+      ],
+      "characterization": {
+        "extractionCount": 20,
+        "gardeningCount": 4,
+        "reasoningCount": 10,
+        "reasoningByMode": {
+          "patrol": 10
+        },
+        "thinReasoningReports": 3,
+        "gardeningActionsTotal": 0
+      }
+    }
+  }
+}

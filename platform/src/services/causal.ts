@@ -138,6 +138,50 @@ async function applyCorroboration(
  *
  * Validates reasoning, source references, and event existence on all paths.
  */
+/** Graph S → Graph C transition vocabulary for a minted causal event. */
+export type CausalTransitionType = 'created' | 'strengthened' | 'weakened' | 'expired' | 'invalidated';
+
+export interface MintCausalEventParams {
+  factId: string;
+  transitionType: CausalTransitionType;
+  subjectEntityId: string;
+  predicate: string;
+  deltaConfidence?: number | null;
+  sourceMemoryId?: string | null;
+  sourceText?: string | null;
+}
+
+/**
+ * Mint a causal event for a SETTLED Graph S fact transition, inside the caller's
+ * transaction (doc 41 §12 #5; bead nmemo-vpz.6 / E6).
+ *
+ * Promotion calls this for every settled active-fact mutation it applies, keyed to
+ * the stable fact id — so the post-promotion causal pass only ever sees settled
+ * event ids and the repointing / `expired_but_cited` debt is designed out, not
+ * patched. Unlike the fire-and-forget `createCausalEvent` in facts.ts (the legacy
+ * lazy path), this runs ON the promotion tx and PROPAGATES failure: a bad mint
+ * rolls the whole promotion back, because minting is part of the deterministic
+ * backbone, not best-effort. (Consolidate facts.ts:createCausalEvent into this when
+ * the legacy create_fact path retires — E7.)
+ */
+export async function mintCausalEvent(tx: Tx, params: MintCausalEventParams): Promise<string> {
+  const result = await tx
+    .insert(causalEvents)
+    .values({
+      factId: params.factId,
+      transitionType: params.transitionType,
+      subjectEntityId: params.subjectEntityId,
+      predicate: params.predicate,
+      deltaConfidence: params.deltaConfidence ?? null,
+      sourceMemoryId: params.sourceMemoryId ?? null,
+      sourceText: params.sourceText ?? null,
+    })
+    .returning({ id: causalEvents.id });
+  const id = result[0]?.id;
+  if (!id) throw new Error('mintCausalEvent: INSERT returned no row');
+  return id;
+}
+
 export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<string> {
   // --- Validation ---
 
