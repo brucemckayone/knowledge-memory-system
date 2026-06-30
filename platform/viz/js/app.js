@@ -3,7 +3,7 @@
 // overlays/, panels/, and agents/ subtrees plus state/api/poll/util.
 
 import { state } from './state.js';
-import { getUnified } from './api.js';
+import { getUnified, getStaging } from './api.js';
 import { register, startAll, stopAll } from './poll.js';
 import { initSvg } from './canvas/simulation.js';
 import { renderAll } from './canvas/render.js';
@@ -33,6 +33,24 @@ export async function fetchData() {
   try {
     const unified = await getUnified();
 
+    // Staging overlay: merge the current epoch's proposed (pre-promote) nodes
+    // and edges in, flagged `_staged`. Best-effort — a staging fetch failure
+    // must not break the canonical view.
+    if (state.showStaging) {
+      try {
+        const staging = await getStaging();
+        unified.nodes = unified.nodes.concat(staging.nodes);
+        unified.edges = unified.edges.concat(staging.edges);
+        state.stagingMeta = staging.meta;
+      } catch (err) {
+        console.warn('[staging] fetch failed:', err);
+        state.stagingMeta = null;
+      }
+    } else {
+      state.stagingMeta = null;
+    }
+    updateStagingLabel();
+
     // Preserve simulation positions across refresh.
     const posMap = {};
     for (const n of state.data.nodes) {
@@ -59,6 +77,26 @@ function bindAutoRefresh() {
   checkbox.addEventListener('change', () => {
     if (checkbox.checked) startAll();
     else stopAll();
+  });
+}
+
+function updateStagingLabel() {
+  const label = document.getElementById('stagingToggleLabel');
+  if (!label) return;
+  const span = label.querySelector('.staging-text');
+  if (!span) return;
+  const m = state.stagingMeta;
+  span.textContent = state.showStaging && m
+    ? `Staging ${m.renderedNodes}◍ (${m.proposedEntities}e/${m.proposedFacts}f, ${m.chunksSeen} chunks${m.capped ? ', capped' : ''})`
+    : 'Staging';
+}
+
+function bindStagingToggle() {
+  const checkbox = document.getElementById('stagingToggle');
+  if (!checkbox) return;
+  checkbox.addEventListener('change', () => {
+    state.showStaging = checkbox.checked;
+    fetchData(); // immediate refresh so the overlay appears/clears at once
   });
 }
 
@@ -104,6 +142,7 @@ bindScrubber();
 bindLayoutToggle();
 bindBackgroundClick();
 bindAutoRefresh();
+bindStagingToggle();
 bindResize();
 bindIngestPanel();
 bindQueryPanel();

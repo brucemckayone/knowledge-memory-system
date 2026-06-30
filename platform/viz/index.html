@@ -359,6 +359,9 @@ svg { flex: 1; }
   <label class="auto-toggle">
     <input type="checkbox" id="autoRefresh" checked> Auto 5s
   </label>
+  <label class="auto-toggle" id="stagingToggleLabel" title="Overlay the current epoch's proposed (pre-promote) staging graph — entities & facts as they're extracted, grouped by name+type. Amber = staged. Disappears once promote commits to canonical.">
+    <input type="checkbox" id="stagingToggle"> <span class="staging-text">Staging</span>
+  </label>
   <div class="action-group">
     <button class="action-btn" id="btnIngestToggle" title="Paste text to ingest into the graph">Ingest</button>
     <button class="action-btn" id="btnGarden" title="Trigger the graph gardener to explore topology, find islands, and consolidate entities">Garden</button>
