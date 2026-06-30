@@ -16,6 +16,10 @@ routing architecture.
    SOTA-backed strengthenings, new risks, and a revised open-questions list. Kept
    as the standing record of the review; the design doc (00) has since been
    revised to fold in all of its corrections and risks.
+3. [`02-usage-record-spec.md`](./02-usage-record-spec.md)
+   — the `UsageRecord` normalisation contract (implemented in B1 / `nmemo-6do.1`):
+   the 16 fields, the per-provider adapter rules, and the OpenAI uncached-remainder
+   rule with a worked example. Expands 00 §4.1 / §9.2.
 
 ## Status
 

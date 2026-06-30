@@ -987,3 +987,62 @@ export const notificationCards = pgTable('notification_cards', {
 
 export type NotificationCard = typeof notificationCards.$inferSelect;
 export type NewNotificationCard = typeof notificationCards.$inferInsert;
+
+/**
+ * LLM Usage (token-usage & cost tracking epic — nmemo-6do)
+ *
+ * One row per LLM call: requested + resolved model, provider, the five token
+ * buckets (input is the UNCACHED remainder; cache writes split by 5m/1h TTL),
+ * per-bucket cost, and status flags (cost_source/cost_status/token_source) so a
+ * NULL or zero cost is auditable, never silent. Priced off resolved_model from
+ * config.ts PRICING (B6); rows written batched fire-and-forget from the HTTP
+ * wrappers (B7). Hand-synced with migration 050_llm_usage.sql — a schema-drift
+ * test (src/test/harness/llm-usage-schema.test.ts) asserts the column sets match.
+ * /api/reset does NOT clear it (observability data, not app state).
+ *
+ * Defined in migration 050_llm_usage.sql. OTel GenAI field mapping: see that
+ * migration's header (design §4.8).
+ */
+export const llmUsage = pgTable('llm_usage', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  operation: varchar('operation', { length: 50 }).notNull(),
+  requestedModel: varchar('requested_model', { length: 120 }).notNull(),
+  resolvedModel: varchar('resolved_model', { length: 120 }).notNull(),
+  modelGroup: varchar('model_group', { length: 120 }),
+  provider: varchar('provider', { length: 60 }).default('unknown').notNull(),
+  inputTokens: integer('input_tokens').default(0).notNull(),
+  outputTokens: integer('output_tokens').default(0).notNull(),
+  reasoningOutputTokens: integer('reasoning_output_tokens'),
+  cacheReadTokens: integer('cache_read_tokens').default(0).notNull(),
+  cacheWrite5mTokens: integer('cache_write_5m_tokens').default(0).notNull(),
+  cacheWrite1hTokens: integer('cache_write_1h_tokens').default(0).notNull(),
+  totalTokens: integer('total_tokens').default(0).notNull(),
+  toolCalls: integer('tool_calls'),
+  turns: integer('turns'),
+  latencyMs: integer('latency_ms'),
+  inputCostUsd: doublePrecision('input_cost_usd'),
+  outputCostUsd: doublePrecision('output_cost_usd'),
+  cacheCostUsd: doublePrecision('cache_cost_usd'),
+  savedCacheCostUsd: doublePrecision('saved_cache_cost_usd'),
+  estimatedUsd: doublePrecision('estimated_usd'),
+  gatewayReportedUsd: doublePrecision('gateway_reported_usd'),
+  costSource: varchar('cost_source', { length: 12 }).default('local').notNull(),
+  costStatus: varchar('cost_status', { length: 20 }).default('priced').notNull(),
+  tokenSource: varchar('token_source', { length: 12 }).default('provider').notNull(),
+  pricingVersion: varchar('pricing_version', { length: 20 }).default('unknown').notNull(),
+  traceId: varchar('trace_id', { length: 120 }),
+  gatewayRequestId: varchar('gateway_request_id', { length: 120 }),
+  requestId: varchar('request_id', { length: 120 }),
+  memoryId: uuid('memory_id'),
+  source: varchar('source', { length: 255 }),
+}, (t) => ({
+  createdIdx: index('idx_llm_usage_created').on(t.createdAt),
+  resolvedIdx: index('idx_llm_usage_resolved').on(t.resolvedModel),
+  operationIdx: index('idx_llm_usage_operation').on(t.operation),
+  providerIdx: index('idx_llm_usage_provider').on(t.provider),
+  costStatusIdx: index('idx_llm_usage_coststatus').on(t.costStatus),
+}));
+
+export type LlmUsage = typeof llmUsage.$inferSelect;
+export type NewLlmUsage = typeof llmUsage.$inferInsert;

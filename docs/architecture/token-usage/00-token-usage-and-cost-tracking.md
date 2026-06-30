@@ -169,6 +169,12 @@ usage.
 A single provider-agnostic shape that every LLM call produces. This is the
 contract that survives the multi-model migration.
 
+> **Implemented (B1 / `nmemo-6do.1`).** The reference spec — the 16 fields, the
+> per-provider adapter rules, and a worked OpenAI remainder example — is
+> [`02-usage-record-spec.md`](./02-usage-record-spec.md). The canonical
+> definition is `ml-services/app/core/llm.py` (`UsageRecord` + the three
+> `_parse_*` adapter methods), tested in `ml-services/tests/test_usage_parsing.py`.
+
 ```
 UsageRecord = {
   requested_model:        str          # model id we asked for (alias/group ok)
@@ -270,8 +276,11 @@ echoed responses during the run, never read back from the table after the fact.
 
 ### 4.3 Persistence — the `llm_usage` table
 
-The latest migration on `feat/cognitive-platform-v1` is
-`039_age_sync_no_localtimestamp.sql`, so the next is **`040_llm_usage.sql`**.
+The latest migration (after the `feat/cognitive-platform-v2` merge) is
+`049_ios_milestone1.sql`, so the next is **`050_llm_usage.sql`**. (The earlier
+draft said `040`, written against `feat/cognitive-platform-v1` where `039` was
+the head; on the v2 line `040_staging_proposals.sql` already exists and the AGE
+sync migration was renumbered to `048`.)
 
 It follows the AGE search_path rule (`CLAUDE.md`): `001_consolidated.sql` sets the
 session search_path to `ag_catalog, public, "$user"`, so **all DDL is explicitly
@@ -298,7 +307,7 @@ only a structured non-content identifier (e.g. a benchmark source path) and is
 optional; `memory_id` is a foreign-key-style id, never content. This keeps the
 table consistent with the ZDR goal even though `/api/reset` never prunes it.
 
-**SQL — `platform/src/db/migrations/040_llm_usage.sql`:**
+**SQL — `platform/src/db/migrations/050_llm_usage.sql`:**
 
 ```sql
 -- 040_llm_usage.sql — per-call LLM token usage + estimated cost.
