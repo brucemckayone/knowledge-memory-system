@@ -72,9 +72,13 @@ export function renderAll() {
     label: d => `≡ ${(d.confidence || 0).toFixed(2)}`,
   });
 
-  // Fact edges
+  // Fact edges — staged (pre-promote) facts render amber + dashed.
   renderEdges(groups.factEdges, visibleEdges.filter(e => e._edgeType === 'fact'), {
-    stroke: '#3d444d', width: 1, opacity: 0.4, marker: 'url(#arrow-fact)',
+    stroke: d => d._staged ? '#d29922' : '#3d444d',
+    width: d => d._staged ? 1.2 : 1,
+    opacity: d => d._staged ? 0.5 : 0.4,
+    dash: d => d._staged ? '5,4' : null,
+    marker: 'url(#arrow-fact)',
   });
   renderLabels(groups.factLabels, visibleEdges.filter(e => e._edgeType === 'fact'), d => d.predicate || '');
 
@@ -111,15 +115,17 @@ export function renderAll() {
     hideLabel: true,
   });
 
-  // Entity nodes (color via resolveEntityColor — driven by state.colorMode)
+  // Entity nodes (color via resolveEntityColor — driven by state.colorMode).
+  // Staged (pre-promote) entities render amber + translucent to read as
+  // provisional, regardless of colorMode.
   renderNodes(groups.entityNodes, visibleNodes.filter(n => n._nodeType === 'entity'), {
-    fill: d => resolveEntityColor(d),
-    stroke: d => d.id === state.selectedId ? '#fff' : '#21262d',
+    fill: d => d._staged ? '#d29922' : resolveEntityColor(d),
+    stroke: d => d.id === state.selectedId ? '#fff' : (d._staged ? '#8a6d1a' : '#21262d'),
     strokeWidth: d => d.id === state.selectedId ? 3 : 1.5 + Math.min((d.factCount || 0), 10) * 0.2,
     // Soft cluster_probability (viz.3): when colorMode === 'cluster' the
     // border opacity reads as crisp on hard membership / faded on soft.
-    opacity: d => resolveEntityStrokeOpacity(d),
-    labelColor: '#c9d1d9', fontSize: '11px', fontWeight: '500',
+    opacity: d => d._staged ? 0.55 : resolveEntityStrokeOpacity(d),
+    labelColor: d => d._staged ? '#e0b050' : '#c9d1d9', fontSize: '11px', fontWeight: '500',
   });
 
   // Cluster hulls (viz.3 — only visible when colorMode === 'cluster' and the

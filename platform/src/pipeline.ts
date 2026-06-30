@@ -834,12 +834,16 @@ export interface BatchIngestResult {
 async function runSerialBatch(items: BatchItem[], _concurrency?: number): Promise<ExtractResult[]> {
   const results: ExtractResult[] = [];
   for (const item of items) {
-    const memoryId = await store(item.text, {
+    const memoryId = await withRetry(() => store(item.text, {
       source: item.source,
       sourceId: item.sourceId,
       chunkIndex: item.chunkIndex,
       contentType: item.contentType,
       streamId: item.streamId,
+    }), {
+      retries: 4,
+      isRetryable: isRetryableAgentError,
+      baseDelayMs: 500,
     });
     results.push(
       await withRetry(() => extract(memoryId, { contentType: item.contentType }), {
@@ -950,13 +954,20 @@ async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<
   const epochId = randomUUID();
 
   // Phase 1: store all chunks (bounded — embeddings hit the Ollama pool too).
+  // Store embeds behind withRetry so a transient embed 503 (ollama pool busy)
+  // backs off + retries instead of aborting the whole batch — same backpressure
+  // contract propose() already has (isRetryableAgentError covers the 503).
   const stored = await mapWithConcurrency(items, limit, async (item) => ({
-    memoryId: await store(item.text, {
+    memoryId: await withRetry(() => store(item.text, {
       source: item.source,
       sourceId: item.sourceId,
       chunkIndex: item.chunkIndex,
       contentType: item.contentType,
       streamId: item.streamId,
+    }), {
+      retries: 4,
+      isRetryable: isRetryableAgentError,
+      baseDelayMs: 500,
     }),
     item,
   }));
@@ -1053,13 +1064,19 @@ const OPTIMISTIC_RECONCILE_INTERVAL_MS = Number.parseInt(
 async function runOptimisticBatch(items: BatchItem[], concurrency?: number): Promise<ExtractResult[]> {
   const limit = concurrency ?? OPTIMISTIC_CONCURRENCY;
   // Phase 1: store all chunks (bounded).
+  // Store embeds behind withRetry: same 503-backpressure contract as propose()
+  // below — a transient ollama-pool 503 backs off + retries, never aborts the batch.
   const stored = await mapWithConcurrency(items, limit, async (item) => ({
-    memoryId: await store(item.text, {
+    memoryId: await withRetry(() => store(item.text, {
       source: item.source,
       sourceId: item.sourceId,
       chunkIndex: item.chunkIndex,
       contentType: item.contentType,
       streamId: item.streamId,
+    }), {
+      retries: 4,
+      isRetryable: isRetryableAgentError,
+      baseDelayMs: 500,
     }),
     item,
   }));
