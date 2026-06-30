@@ -8,11 +8,15 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve, sep } from 'node:path';
 import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
-import { ingest, store, extract, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
+import { Hono, type Context } from 'hono';
+import { ingest, store, extract, ingestBatch, enqueueIngest, getIngestQueueStatus } from './pipeline.js';
+import type { IngestMode } from './services/batch.js';
+import { isSessionLimitError } from './services/session-limit.js';
 import { config } from './config.js';
-import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports } from './db/index.js';
-import { isNull, sql, eq } from 'drizzle-orm';
+import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, captureIdempotency, stagingProposedEntities, stagingProposedFacts } from './db/index.js';
+import { isNull, sql, eq, desc } from 'drizzle-orm';
+import { heroRoute } from './routes/hero.js';
+import { notificationsHandler } from './routes/notifications.js';
 import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
@@ -24,11 +28,56 @@ import { triggerCrossClusterAfterCompute } from './services/cross-cluster-genera
 import { getTopologySnapshot, getComponentEntities } from './services/topology.js';
 import { getClustersSnapshot, getClusterEntities } from './services/clustering.js';
 import { getDriftEvents, getDriftState } from './services/drift.js';
+import { exportCanonicalGraph, exportRichGraph } from './services/graph-canonical-query.js';
+import { Agent, setGlobalDispatcher } from 'undici';
+
+// The platform makes long synchronous fetches to the ml-services agent endpoints
+// (graph / reconciliation / gardener — each a `claude -p` subprocess that can run
+// minutes). undici's default 300s headersTimeout fires before our per-call
+// AbortController watchdog, surfacing as UND_ERR_HEADERS_TIMEOUT ("fetch failed")
+// and aborting batch post-processing (e.g. the optimistic arm's reconcile/gardener
+// auto-trigger -> 500). Disable the client response timeouts process-wide; the
+// AbortController in agentFetch/mlFetch still bounds each call. Mirrors the
+// comparison driver's dispatcher. See nmemo-1tc.
+setGlobalDispatcher(new Agent({ headersTimeout: 0, bodyTimeout: 0 }));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const vizHtmlPath = join(__dirname, '../viz/index.html');
 
 export const app = new Hono();
+
+// ============================================
+// iOS API v1 — bearer auth over /api/* (ASK milestone-1)
+// ============================================
+// Scoped to the /api/* prefix ONLY. /health and the pipeline routes
+// (/ingest, /store, /extract) are intentionally NOT under /api and stay
+// tokenless — dev over http and every existing endpoint test keep working.
+//
+// Policy (env-driven, read at request time so tests can flip it per-case):
+//   AUTH_REQUIRED unset/false (dev & test default) -> pass through, no auth.
+//   AUTH_REQUIRED true -> require `Authorization: Bearer <MNEMO_API_TOKEN>`;
+//   on missing/mismatched token respond 401 with EXACT body {"error":"unauthorized"}.
+// Keeping this off the zod config schema (read straight from process.env) means
+// no existing test that constructs `config` is perturbed.
+function authRequired(): boolean {
+  const v = (process.env.AUTH_REQUIRED ?? '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
+app.use('/api/*', async (c, next) => {
+  if (!authRequired()) return next();
+  const expected = process.env.MNEMO_API_TOKEN ?? '';
+  const header = c.req.header('authorization') ?? '';
+  const match = /^Bearer\s+(.+)$/i.exec(header);
+  const token = match?.[1]?.trim();
+  // A non-empty expected token must match exactly. An empty/unset expected
+  // token while AUTH_REQUIRED is on is a misconfiguration — reject all to fail
+  // closed rather than silently accept every caller.
+  if (expected.length === 0 || token !== expected) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+  return next();
+});
 
 app.get('/health', async (c) => {
   const [db, mlOk, qdrantOk] = await Promise.all([
@@ -52,18 +101,91 @@ export function parseContentType(v: unknown): ContentTypeBody | undefined {
   return undefined;
 }
 
+// iOS milestone-1 capture context (ASK-016 / onboarding). All fields optional;
+// persisted with the memory where natural. onboarding_prompt_id is the one field
+// the bead pins as must-not-drop — it threads onboarding-context ingests so the
+// onboarding arc can attribute substrate growth to the prompt that elicited it.
+interface IngestContext {
+  seed_entity_id?: string;
+  walk_session_id?: string;
+  walk_question_id?: string;
+  onboarding_prompt_id?: string;
+  shared_url?: string;
+}
+
 app.post('/ingest', async (c) => {
-  const body = await c.req.json<{ text: string; source?: string; contentType?: string; stream_id?: string }>();
+  const body = await c.req.json<{
+    text: string;
+    source?: string;
+    contentType?: string;
+    stream_id?: string;
+    // iOS milestone-1 OPTIONAL additions — pre-iOS callers omit both.
+    idempotency_key?: string;
+    context?: IngestContext;
+  }>();
   if (!body.text) return c.json({ error: 'text is required' }, 400);
+
+  const idempotencyKey =
+    typeof body.idempotency_key === 'string' && body.idempotency_key.trim().length > 0
+      ? body.idempotency_key.trim()
+      : undefined;
+
+  // Idempotent replay: a retried POST with a key already in capture_idempotency
+  // returns the prior memory_id WITHOUT re-ingesting (at-most-once under client
+  // retries — capture works offline and retries on reconnect). 202 signals "we
+  // already have this; nothing new ran".
+  if (idempotencyKey) {
+    const prior = await db
+      .select({ memoryId: captureIdempotency.memoryId })
+      .from(captureIdempotency)
+      .where(eq(captureIdempotency.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (prior[0]) {
+      return c.json({ memory_id: prior[0].memoryId, idempotent: true }, 202);
+    }
+  }
+
+  // Persist the onboarding prompt id with the memory where natural: fold it into
+  // the source tag so it travels with the Qdrant payload (the bead's "at minimum
+  // do not drop onboarding_prompt_id"). The remaining context fields are accepted
+  // and currently ride alongside via the same source-tag channel; richer
+  // per-field columns are a documented follow-up.
+  const promptId = body.context?.onboarding_prompt_id;
+  const source =
+    promptId && (!body.source || !body.source.includes('onboarding_prompt:'))
+      ? `${body.source ?? 'ios'}|onboarding_prompt:${promptId}`
+      : body.source;
+
   const result = await ingest(body.text, {
-    source: body.source,
+    source,
     contentType: parseContentType(body.contentType),
     // nmemo-3f9.2: optional stream scope for speaker identity. Absent ->
     // implicit single stream (back-compat). No participants array is accepted;
     // speakers are discovered from data, never declared.
     streamId: body.stream_id,
   });
-  return c.json(result);
+
+  // Record the idempotency ledger row AFTER a successful ingest so a failed
+  // ingest is retryable under the same key. ON CONFLICT DO NOTHING tolerates a
+  // racing concurrent retry that already inserted the key.
+  if (idempotencyKey) {
+    try {
+      await db
+        .insert(captureIdempotency)
+        .values({ idempotencyKey, memoryId: result.memoryId })
+        .onConflictDoNothing();
+    } catch (err) {
+      console.warn(
+        '[ingest] failed to record idempotency key (continuing):',
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  // Keep the response body decodable for the iOS client: surface memory_id
+  // alongside the existing ExtractResult fields (additive — pre-iOS callers
+  // already read the rest of the shape unchanged).
+  return c.json({ ...result, memory_id: result.memoryId });
 });
 
 app.post('/store', async (c) => {
@@ -95,6 +217,57 @@ app.get('/ingest/queue/status', (c) => {
   // generator polls this to know when a queued chunk has finished ingesting.
   return c.json(getIngestQueueStatus());
 });
+
+// Batch ingestion (doc 38) — one batched source, chunks tagged with source_id +
+// chunk_index. `mode` selects the pipeline arm under comparison: serial (the
+// baseline control), epoch (Approach A), optimistic (Approach B). epoch and
+// optimistic return 501 until their orchestrators land (Stage 3/4).
+async function handleBatch(c: Context, mode: IngestMode) {
+  const body = await c.req.json<{ chunks?: string[]; source?: string; sourceId?: string; contentType?: string; concurrency?: number; stream_id?: string }>();
+  if (!Array.isArray(body.chunks) || body.chunks.length === 0) {
+    return c.json({ error: 'chunks (non-empty array) is required' }, 400);
+  }
+  // Per-run concurrency override for the parallel arms (epoch/optimistic); only a
+  // positive integer is honoured, else the arm falls back to its env default.
+  const concurrency =
+    typeof body.concurrency === 'number' && Number.isInteger(body.concurrency) && body.concurrency > 0
+      ? body.concurrency
+      : undefined;
+  try {
+    const result = await ingestBatch(body.chunks, {
+      source: body.source,
+      // Stable per-sub-batch source id from the resumable driver's ledger:
+      // threading it through makes store() derive deterministic memory ids, so a
+      // retried sub-batch upserts instead of duplicating. Omitted by ad-hoc
+      // callers → ingestBatch mints a random sourceId (unchanged behaviour).
+      sourceId: body.sourceId,
+      contentType: parseContentType(body.contentType),
+      mode,
+      concurrency,
+      // nmemo-3f9.2: thread the batch-level stream scope so every chunk's
+      // store()/extract()/propose() resolves the same per-stream USER/ASSISTANT
+      // speakers across all three arms (one batch = one stream).
+      streamId: body.stream_id,
+    });
+    return c.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/not implemented/i.test(msg)) return c.json({ error: msg }, 501);
+    // Surface the failure detail in the response BODY rather than re-throwing
+    // into Hono's default handler (which collapses everything to a generic
+    // "Internal Server Error" and strands the detail in the server log). A
+    // batch driver needs to ACT on the message — above all a session/usage
+    // limit, whose reset time rides inside `msg` (llm.py stderr_tail →
+    // agentFetch → here). 503 marks the wait-and-retry-after-reset case
+    // distinctly from a generic 500 so the driver can branch on status alone.
+    const status = isSessionLimitError(err) ? 503 : 500;
+    return c.json({ error: msg }, status);
+  }
+}
+
+app.post('/ingest/batch/serial', (c) => handleBatch(c, 'serial'));
+app.post('/ingest/batch/epoch', (c) => handleBatch(c, 'epoch'));
+app.post('/ingest/batch/optimistic', (c) => handleBatch(c, 'optimistic'));
 
 // ============================================
 // Viz routes
@@ -423,6 +596,131 @@ app.get('/api/viz/unified', async (c) => {
   }
 
   return c.json({ nodes, edges });
+});
+
+// Content-addressed canonical graph (doc 38) — the parallel-ingestion harness
+// fetches this after each run to diff structure (determinism/litmus) + counts.
+// UUID/timestamp-free, so two runs of the same corpus are comparable.
+app.get('/api/graph/canonical', async (c) => {
+  return c.json(await exportCanonicalGraph());
+});
+
+// Rich graph dump (doc 39 §3.1) — the validity & quality harness fetches this:
+// expired facts (supersession audit), causal edge reasoning + source_references,
+// contradictions, same_as, and the agents' reports. A superset of
+// /api/graph/canonical, which intentionally strips those for byte-comparability.
+app.get('/api/graph/full', async (c) => {
+  return c.json(await exportRichGraph());
+});
+
+// Staging preview — live view of the current epoch's proposed (pre-promote)
+// graph. The epoch path holds every proposal in staging and only writes
+// canonical at promote (end of batch — pipeline.ts runEpochBatch), so the
+// canonical viz stays flat for the whole run. This surfaces the most-recently
+// filling epoch's staged entities/facts — collapsed to one node per normalized
+// (name, type) so the one-handle-per-mention sprawl (pre-identity-resolution)
+// becomes watchable — in the SAME node/edge shape /api/viz/unified emits,
+// flagged `_staged` for the viz to style as provisional. Read-only.
+app.get('/api/viz/staging', async (c) => {
+  const STAGING_NODE_CAP = 200;
+  const STAGING_EDGE_CAP = 600;
+  const empty = {
+    epochId: null, nodes: [], edges: [],
+    meta: { proposedEntities: 0, proposedFacts: 0, groupedEntities: 0, renderedNodes: 0, renderedEdges: 0, chunksSeen: 0, capped: false },
+  };
+
+  // Most-recently-written staging row = the epoch currently (or last) filling.
+  const latest = await db
+    .select({ epochId: stagingProposedEntities.epochId })
+    .from(stagingProposedEntities)
+    .orderBy(desc(stagingProposedEntities.createdAt))
+    .limit(1);
+  if (latest.length === 0) return c.json(empty);
+  const epochId = latest[0]!.epochId;
+
+  const [ents, fcts] = await Promise.all([
+    db.select({
+      handle: stagingProposedEntities.handle,
+      name: stagingProposedEntities.name,
+      entityType: stagingProposedEntities.entityType,
+    }).from(stagingProposedEntities).where(eq(stagingProposedEntities.epochId, epochId)),
+    db.select({
+      id: stagingProposedFacts.stagedFactId,
+      subjectHandle: stagingProposedFacts.subjectHandle,
+      predicate: stagingProposedFacts.predicate,
+      objectHandle: stagingProposedFacts.objectHandle,
+      objectValue: stagingProposedFacts.objectValue,
+      confidence: stagingProposedFacts.confidence,
+      chunkIndex: stagingProposedFacts.chunkIndex,
+      createdAt: stagingProposedFacts.createdAt,
+    }).from(stagingProposedFacts).where(eq(stagingProposedFacts.epochId, epochId)),
+  ]);
+
+  // Collapse mention-level handles into one node per (normalized name, type).
+  const handleToId: Record<string, string> = {};
+  const groups: Record<string, { id: string; label: string; entityType: string; proposalCount: number }> = {};
+  for (const e of ents) {
+    const id = `stg:e:${e.name.trim().toLowerCase()} ${e.entityType}`;
+    handleToId[e.handle] = id;
+    const g = groups[id];
+    if (g) g.proposalCount++;
+    else groups[id] = { id, label: e.name, entityType: e.entityType, proposalCount: 1 };
+  }
+
+  // Over the cap, keep the most-proposed groups (densest = most central).
+  const kept = Object.values(groups).sort((a, b) => b.proposalCount - a.proposalCount).slice(0, STAGING_NODE_CAP);
+  const keptIds = new Set(kept.map((g) => g.id));
+  const nodes: Record<string, unknown>[] = kept.map((g) => ({
+    id: g.id, _nodeType: 'entity', _staged: true,
+    label: g.label, entityType: g.entityType, proposalCount: g.proposalCount,
+  }));
+
+  // Fact edges between kept nodes (or to a value node), deduped by triple.
+  const edges: Record<string, unknown>[] = [];
+  const seenTriple = new Set<string>();
+  const valueNodeIds = new Set<string>();
+  const chunks = new Set<number>();
+  for (const f of fcts) {
+    if (f.chunkIndex != null) chunks.add(f.chunkIndex);
+    if (edges.length >= STAGING_EDGE_CAP) continue;
+    const source = handleToId[f.subjectHandle];
+    if (!source || !keptIds.has(source)) continue;
+    let target: string | null = null;
+    let valueLabel: string | null = null;
+    if (f.objectHandle) {
+      const t = handleToId[f.objectHandle];
+      if (t && keptIds.has(t)) target = t;
+    } else if (f.objectValue) {
+      target = `stg:v:${f.objectValue.trim().toLowerCase()}`;
+      valueLabel = f.objectValue.length > 30 ? f.objectValue.slice(0, 30) + '...' : f.objectValue;
+    }
+    if (!target) continue;
+    const triple = `${source} ${f.predicate} ${target}`;
+    if (seenTriple.has(triple)) continue;
+    seenTriple.add(triple);
+    if (valueLabel && !valueNodeIds.has(target)) {
+      valueNodeIds.add(target);
+      nodes.push({ id: target, _nodeType: 'value', _staged: true, label: valueLabel });
+    }
+    edges.push({
+      id: `stg:f:${f.id}`, _edgeType: 'fact', _staged: true,
+      source, target, predicate: f.predicate,
+      confidence: f.confidence, createdAt: f.createdAt, chunkIndex: f.chunkIndex,
+    });
+  }
+
+  return c.json({
+    epochId, nodes, edges,
+    meta: {
+      proposedEntities: ents.length,
+      proposedFacts: fcts.length,
+      groupedEntities: Object.keys(groups).length,
+      renderedNodes: nodes.length,
+      renderedEdges: edges.length,
+      chunksSeen: chunks.size,
+      capped: Object.keys(groups).length > STAGING_NODE_CAP || edges.length >= STAGING_EDGE_CAP,
+    },
+  });
 });
 
 app.get('/api/viz/merge-candidates', async (c) => {
@@ -915,6 +1213,25 @@ app.get('/api/entity/:id/profile', async (c) => {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
 });
+
+// ============================================
+// iOS API v1 — home surfaces (ASK-017 hero, ASK-018 notifications)
+// ============================================
+
+// GET /api/hero?nodeId=<entityId> — home hero composition (ASK-017). nodeId is
+// OPTIONAL (passed through to the handler); absent => the user's self entity
+// (ASK-006). Sparse-data / fresh DB => { active: null } (200) so iOS renders the
+// pre-data stub. An EXPLICIT nodeId that does not resolve => 404 (iOS "still
+// listening" fallback). Any other failure => 500 (same fallback). The route file
+// (routes/hero.ts) owns the wire normalization (toHeroResponse) and status map.
+app.get('/api/hero', heroRoute);
+
+// GET /api/notifications — active, already-composed notification cards (ASK-018).
+// Backend owns composition/persistence/age-out; iOS owns selection/sort/4-card
+// cap. Optional ?limit caps the rows read (default 20). The route file
+// (routes/notifications.ts) owns compose+persist and the encode-boundary
+// discipline (kind == target.type, no blank fields, unique notificationId).
+app.get('/api/notifications', notificationsHandler);
 
 /** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
 const CLEARABLE_TABLES = [

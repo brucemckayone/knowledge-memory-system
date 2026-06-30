@@ -47,3 +47,11 @@ scikit-learn>=1.3
 # is the verified API for this range. Pure-python; mismatched river_version
 # on unpickle resets per-entity state with a warning.
 river>=0.21,<1.0
+
+# Living predicate ontology (truth-graph doc 42, PC3). Jaro-Winkler string
+# similarity is the 0.10 surface-form signal in the multi-signal predicate score
+# (resolve_predicate.py / predicate_scoring.py). Without it that term silently
+# drops to 0.0 and B9 multi-signal NL mapping falls below the 0.85 gate.
+# spaCy (en_core_web_sm) is OPTIONAL — lemmatize_predicate falls back to a
+# rule-based lemmatizer when it is absent.
+jellyfish>=1.0,<2.0

@@ -7,9 +7,11 @@
  *
  * Agent invocations (invokeGraphAgent, invokeReconciliationAgent, etc.) call the
  * corresponding ML service endpoints, which shell out to Claude Code with the
- * MCP config and the agent's system prompt. The unified graph agent handles
- * causal reasoning inline as a CAUSE phase — there is no longer a standalone
- * causal agent invocation.
+ * MCP config and the agent's system prompt. Causal reasoning is NOT done inline
+ * by the per-chunk extraction agent (the CAUSE phase + create_causal_edge tool
+ * were retired in E7, doc 41 §11). It runs as a separate post-promotion pass —
+ * invokeCausalAgent (Phase 4, §8a.6) — which proposes edges into staging that
+ * causal-promotion disposes.
  */
 
 import path from 'path';
@@ -24,10 +26,11 @@ import { findSimilarEntities, resolveEntity, linkMemoryToEntity, mergeEntities }
 import { searchMemoriesByUnit, getMemory } from './qdrant.js';
 import { recallViaGraph, flatRetrievalFailed, type FlatHit } from './graph-fallback.js';
 import { db } from '../db/index.js';
-import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports } from '../db/schema.js';
+import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports, stagingProposedEntities, stagingProposedFacts, arbiterVerdicts, causalEvents } from '../db/schema.js';
+import { resolveExclusiveGroup } from './exclusive-groups.js';
 import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
-import { getEntityCausalHistory, createCausalEdge, expireCausalEdge, reviseCausalEdge, traceCauses, projectTrajectory, getCausalDelta, type SourceReference as CausalSourceRef } from './causal.js';
-import { getFactHistory, getEdgeHistory, type Actor } from './audit.js';
+import { getEntityCausalHistory, expireCausalEdge, reviseCausalEdge, traceCauses, projectTrajectory, getCausalDelta, type SourceReference as CausalSourceRef } from './causal.js';
+import { getFactHistory, getEdgeHistory, jsonbLiteral, unwrapRows, type Actor } from './audit.js';
 import {
   getContradictions,
   resolveContradiction,
@@ -52,6 +55,7 @@ import {
 import { ml } from './ml-client.js';
 import { config } from '../config.js';
 import { normalizePredicate } from './predicates.js';
+import { searchPredicates } from './predicate-resolve.js';
 import { RESOLUTION_VALUES } from './enums.js';
 import { capAndSanitize, delimitForPrompt } from './prompt-safety.js';
 
@@ -298,62 +302,6 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
       required: ['from', 'to'],
     },
   },
-  {
-    name: 'create_causal_edge',
-    description:
-      'Assert a causal link between two causal events with detailed reasoning and source references. Every edge must be auditable — provide thorough reasoning and list all sources that informed the conclusion.',
-    mutates: true,
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        cause_event_id: {
-          type: 'string',
-          description: 'UUID of the causal event that is the cause',
-        },
-        effect_event_id: {
-          type: 'string',
-          description: 'UUID of the causal event that is the effect',
-        },
-        strength: {
-          type: 'number',
-          description: 'Confidence in the causal link, 0.0-1.0. Use 0.3-0.6 for inferred causality, 0.7-1.0 for explicitly stated.',
-        },
-        reasoning: {
-          type: 'string',
-          description: 'Detailed justification for this causal assertion. Must explain WHY the cause led to the effect.',
-        },
-        source_references: {
-          type: 'array',
-          description: 'Every source that informed this conclusion',
-          items: {
-            type: 'object',
-            properties: {
-              type: {
-                type: 'string',
-                enum: ['memory', 'fact', 'entity'],
-                description: 'Type of source reference',
-              },
-              id: {
-                type: 'string',
-                description: 'UUID of the memory, fact, or entity',
-              },
-              relevance: {
-                type: 'string',
-                description: 'How this source informed the causal conclusion',
-              },
-            },
-            required: ['type', 'id', 'relevance'],
-          },
-        },
-        temporal_span: {
-          type: 'string',
-          description: 'Optional estimated delay between cause and effect (ISO 8601 duration, e.g. "P7D" for 7 days)',
-        },
-      },
-      required: ['cause_event_id', 'effect_event_id', 'strength', 'reasoning', 'source_references'],
-    },
-  },
-
   // --- Extraction tools ---
 
   {
@@ -533,6 +481,26 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: 'search_predicates',
+    description:
+      'Search the canonical predicate registry for existing relationship predicates similar to a relation you are about to propose, so you REUSE an existing canonical instead of inventing a near-duplicate (e.g. find that "is employed by" should be "works_at"). Returns ranked {predicate, description, similarity}. Use during RELATE before propose_fact whenever you are unsure which predicate label to use.',
+    mutates: false,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The relationship phrase or candidate predicate to look up (e.g. "works for", "is employed by", "lives in").',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max results to return (default 8).',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
     name: 'update_entity_summary',
     description:
       'Update the living summary for an entity. Call this after creating facts to keep the entity profile current. The summary should describe who/what the entity is, their current state, narrative role, known aliases/references, and any unresolved ambiguities. Keep summary under 2000 characters; inputs over 3000 characters are rejected. For race safety, pass the summary_updated_at value you observed in a prior read (query_entity_facts / search_entity_aliases / get_neighbourhood_profile) as expected_summary_updated_at — if a concurrent writer has updated the row since you read it, the handler returns {updated:false, reason:"stale_write", current_summary, current_summary_updated_at} so you can refetch and decide whether to merge or skip.',
@@ -691,6 +659,87 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
       },
       required: [],
+    },
+  },
+
+  // --- Promotion-escalation arbiter verdict tools (E5, doc 41 §8a.5) ---
+  // The arbiter DECIDES via these; promotion EXECUTES (execute_merge /
+  // create_same_as_link / resolve_contradiction left the agent surface). Each
+  // attaches a verdict to a pre-recorded escalation dossier (arbiter_verdicts),
+  // keyed by the escalation_key promotion pushed — an agent can only dispose of an
+  // escalation promotion actually raised, never invent one.
+  {
+    name: 'propose_identity_verdict',
+    description:
+      'Record your verdict on an IDENTITY escalation from the dossier: are the candidate canonical entities the same? ONE decision per call. decision="merge" (they are one — promotion destructively merges the other candidates into canonical_target), "same_as" (related identities kept as separate rows, linked to canonical_target), or "distinct" (genuinely different — promotion keeps the proposed cluster as a new entity). canonical_target is REQUIRED for merge/same_as and must be one of the candidate ids. Pass escalation_key from the dossier verbatim. You decide; promotion executes.',
+    mutates: true,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        escalation_key: {
+          type: 'string',
+          description: 'The escalationKey from the dossier this verdict resolves (verbatim).',
+        },
+        decision: {
+          type: 'string',
+          enum: ['merge', 'same_as', 'distinct'],
+          description: 'merge (destructive unify), same_as (link, keep rows), or distinct (different entities).',
+        },
+        canonical_target: {
+          type: 'string',
+          description: 'Survivor candidate id the cluster binds to. Required for merge/same_as; omit for distinct.',
+        },
+        members: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'The candidate canonical ids this verdict covers (from the dossier).',
+        },
+        reasoning: {
+          type: 'string',
+          description: 'Why — grounded in the candidates’ facts, aliases, and sources.',
+        },
+      },
+      required: ['escalation_key', 'decision', 'reasoning'],
+    },
+  },
+  {
+    name: 'propose_conflict_resolution',
+    description:
+      'Record your verdict on a CONFLICT escalation from the dossier: an exclusive-group collision valid_at ordering could not break (co-equal dates, different objects). Decide which fact(s) to expire via expire=[{factId, reason}] (the losers), OR set not_exclusive=true when the facts are NOT actually mutually exclusive (promotion keeps them all). Optionally correct a wrong date via corrected_valid_at={factId: ISO8601}. Pass escalation_key from the dossier verbatim. You decide; promotion executes the expiries.',
+    mutates: true,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        escalation_key: {
+          type: 'string',
+          description: 'The escalationKey from the dossier this verdict resolves (verbatim).',
+        },
+        expire: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              factId: { type: 'string', description: 'Fact id to expire (a staged or prior fact id from the dossier).' },
+              reason: { type: 'string', description: 'Why this fact loses.' },
+            },
+            required: ['factId', 'reason'],
+          },
+          description: 'The loser facts to expire, with reasons. Empty when not_exclusive=true.',
+        },
+        not_exclusive: {
+          type: 'boolean',
+          description: 'True when the facts are not actually mutually exclusive — promotion keeps every member active.',
+        },
+        corrected_valid_at: {
+          type: 'object',
+          description: 'Optional date corrections {factId: ISO8601} applied to surviving facts.',
+        },
+        reasoning: {
+          type: 'string',
+          description: 'Why this resolution — grounded in the facts and sources.',
+        },
+      },
+      required: ['escalation_key', 'reasoning'],
     },
   },
 
@@ -1170,6 +1219,104 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
       required: ['pattern_id'],
     },
   },
+
+  // ── Epoch v2 propose tools (doc 41 §8a.4) ────────────────────────────────
+  // The extraction proposer's WRITE surface. These write to staging only;
+  // canonical never changes until promotion (E3). Available to the
+  // `extraction_proposer` actor (and reads to all); the allow-list keeps them
+  // off legacy agents' surfaces.
+  {
+    name: 'resolve_anchor',
+    description:
+      'Resolve a mention against the epoch-start canonical entity registry. Returns the matched canonical entity if the mention is a KNOWN entity (anchor it), or matched=false if it is new (propose it). One deterministic call — replaces the search_similar_entities + search_entity_aliases dance. Match order: exact canonical name, then alias, then high-confidence semantic similarity.',
+    mutates: false,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        mention: {
+          type: 'string',
+          description: 'The entity mention text to resolve (e.g. "Dr. Elena Vasquez", "Helix").',
+        },
+        type: {
+          type: 'string',
+          description: 'Optional entity type filter (e.g. "person", "organization").',
+        },
+      },
+      required: ['mention'],
+    },
+  },
+  {
+    name: 'propose_entity',
+    description:
+      'Propose a candidate entity into the epoch staging buffer. Returns a server-minted, epoch-local handle to reference in propose_fact. Use for BOTH new entities (omit anchorCanonicalId) and known entities you resolved via resolve_anchor (pass its canonicalId as anchorCanonicalId). Never invent id strings — always go through this tool so promotion gets one handle→canonical map.',
+    mutates: true,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        name: { type: 'string', description: 'The entity name as it appears / its canonical form.' },
+        type: { type: 'string', description: 'Entity type (e.g. "person", "organization", "location").' },
+        summary: { type: 'string', description: 'Optional one-line description of the entity.' },
+        anchorCanonicalId: {
+          type: 'string',
+          description: 'When this entity matched a known canonical entity (from resolve_anchor), its canonical UUID. Omit for a new entity.',
+        },
+        mentionText: { type: 'string', description: 'Optional exact mention text from the source.' },
+      },
+      required: ['name', 'type'],
+    },
+  },
+  {
+    name: 'propose_fact',
+    description:
+      'Propose a candidate fact into the epoch staging buffer, using entity HANDLES (from propose_entity) — not canonical ids. Returns the exclusive group this predicate belongs to and the prior-canonical active facts in that group (the disposal preview), so VERIFY can flag supersession. Provide an explicit validAt for time-sensitive facts, or set undated=true — never omit silently. In VERIFY, when this fact supersedes a prior-canonical fact in that group, pass that prior fact id as supersedesFactId as a hint to promotion.',
+    mutates: true,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        subjectHandle: { type: 'string', description: 'Handle of the subject entity (from propose_entity).' },
+        predicate: { type: 'string', description: 'The relationship/attribute predicate (e.g. "works_at", "job_title").' },
+        objectHandle: { type: 'string', description: 'Handle of the object entity, when the object is an entity. Mutually exclusive with objectValue.' },
+        objectValue: { type: 'string', description: 'Literal object value, when the object is a scalar (e.g. a title, a place name). Mutually exclusive with objectHandle.' },
+        validAt: { type: 'string', description: 'ISO 8601 timestamp the fact became valid. Omit and set undated=true if the source gives no date.' },
+        undated: { type: 'boolean', description: 'Set true when the fact has no date in the source. Required when validAt is omitted.' },
+        confidence: { type: 'number', minimum: 0, maximum: 1, description: 'Extraction confidence 0.0-1.0.' },
+        reasoning: { type: 'string', description: 'Brief justification grounded in the source text.' },
+        supersedesFactId: {
+          type: 'string',
+          description: 'Hint to promotion: id of a prior-canonical fact in this exclusive group (from your reads or a prior propose_fact preview) that this fact supersedes. Advisory; promotion still orders by valid_at.',
+        },
+      },
+      required: ['subjectHandle', 'predicate'],
+    },
+  },
+  {
+    name: 'propose_causal_edge',
+    description:
+      'Propose a causal edge between two SETTLED causal events into the causal pass staging buffer. The events were minted by promotion (stable ids) — pass their UUIDs as causeEventId / effectEventId. You do NOT write canonical: a deterministic causal-promotion step disposes proposals (ref-resolve, self-loop drop, dedup, cited-fact branch). The return previews disposal: refsResolve (whether each event id resolves) and citedFactStatus (the live status of every FACT you cite as a source reference: active | superseded | invalidated) — a superseded or invalidated cited fact is a WARNING you are grounding on a shaky fact. Every edge MUST carry non-empty reasoning and at least one source reference (doc 01 invariant).',
+    mutates: true,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        causeEventId: { type: 'string', description: 'UUID of the settled causal event that is the cause.' },
+        effectEventId: { type: 'string', description: 'UUID of the settled causal event that is the effect.' },
+        reasoning: { type: 'string', description: 'Detailed justification — WHY the cause led to the effect. Must be specific and non-empty.' },
+        sourceReferences: {
+          type: 'array',
+          description: 'Every source that informed this conclusion. At least one required.',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['memory', 'fact', 'entity'], description: 'Type of source reference.' },
+              id: { type: 'string', description: 'UUID of the memory, fact, or entity.' },
+              relevance: { type: 'string', description: 'How this source informed the causal conclusion.' },
+            },
+            required: ['type', 'id', 'relevance'],
+          },
+        },
+      },
+      required: ['causeEventId', 'effectEventId', 'reasoning', 'sourceReferences'],
+    },
+  },
 ];
 
 /**
@@ -1223,22 +1370,175 @@ let toolCallCount = 0;
 export interface ToolCallContext {
   agent: Actor;
   reasoningReportId?: string | null;
+  /**
+   * Epoch v2 (doc 41 §8a.4): the promotion-scope + narration-order metadata the
+   * propose_* tools stamp onto staging rows. INJECTED BY THE HARNESS (env or
+   * explicit context), never by the agent — the proposer cannot choose its own
+   * epoch or chunk position. `epochId` is the promotion partition (one promotion
+   * consumes one epoch's rows); `sourceId` carries the per-source boundary
+   * (§12 #2); `chunkIndex` is the undated-fact ordering fallback (§5c).
+   */
+  epochId?: string | null;
+  sourceId?: string | null;
+  chunkIndex?: number | null;
 }
 
 /**
- * Seven-actor allow-list mirrors the DB CHECK in migration 009.
+ * Valid MCP actors.
  *
  * Exported so the pi-agent-bridge `/run` boundary can reject untrusted
  * actor strings at the HTTP edge (bead nmemo-2yv.117) — without this the
  * cast at the bridge is TypeScript-only and any string would propagate
- * into audit columns. The `Actor` type stays 7-wide (graph_agent,
- * reasoning_agent, gardener_agent, reconciliation_agent, user,
- * system_trigger, cascade); the bridge only cares about the runtime check.
+ * into audit columns.
+ *
+ * Seven of these mirror migration 009's audit-actor CHECK (graph_agent,
+ * reasoning_agent, gardener_agent, reconciliation_agent, user, system_trigger,
+ * cascade). `extraction_proposer` (epoch v2, doc 41 §8a.4) and `causal_agent`
+ * (epoch v2 E6, doc 41 §8a.6) are staging-only MCP actors — valid for tool-scoping
+ * but DELIBERATELY absent from the audit CHECK: they write staging, never canonical,
+ * so they must never reach an audit column.
  */
 export const VALID_ACTORS = new Set<Actor>([
   'graph_agent', 'reasoning_agent', 'gardener_agent',
   'reconciliation_agent', 'user', 'system_trigger', 'cascade',
+  'extraction_proposer', 'causal_agent',
 ]);
+
+/**
+ * Per-actor tool allow-list (doc 41 §8a.2, §9.5) — the structural enforcement
+ * of each actor's read/write posture. Built from the `mutates` flag so it can
+ * never silently drift from the tool definitions.
+ *
+ * The propose/promote split (doc 41 §1) means the extraction proposer LOSES
+ * every canonical-write tool (create_fact, resolve_entity, execute_merge,
+ * expire_fact, invalidate_fact, create_same_as_link, update_entity_summary, …)
+ * — those become promotion/disposal code. It keeps all reads plus the two
+ * staging writes. Legacy agent actors keep the FULL surface (every tool), so the
+ * serial/epoch/optimistic arms are completely unaffected until E3 points the new
+ * path at `extraction_proposer`. Only `extraction_proposer` is restricted — the
+ * one new actor — which is why transport-parity (default actor = graph_agent)
+ * still advertises the full GRAPH_TOOLS set.
+ *
+ * Enforced server-side (graph-mcp.ts ListTools filter + handleToolCall reject),
+ * NOT via Claude Code's `--allowedTools` — that flag is a wildcard
+ * (`mcp__mnemo-graph__*`, ml-services/app/core/llm.py) and resolves to whatever
+ * the per-actor server advertises.
+ */
+const READ_ONLY_TOOL_NAMES = new Set(
+  GRAPH_TOOLS.filter((t) => !t.mutates).map((t) => t.name),
+);
+
+/** The two staging-write tools an extraction proposer may call (doc 41 §8a.4). */
+const PROPOSER_STAGE_WRITES = ['propose_entity', 'propose_fact'] as const;
+
+/**
+ * The extraction proposer's surface: every read tool (incl. resolve_anchor,
+ * which is read-only) + the two staging writes. Everything canonical-write is
+ * absent — a structural property, not a prompt instruction.
+ */
+const PROPOSER_SURFACE = new Set<string>([
+  ...READ_ONLY_TOOL_NAMES,
+  ...PROPOSER_STAGE_WRITES,
+]);
+
+/**
+ * Canonical-write tools RETIRED from every agent surface in E5 (doc 41 §8a.2,
+ * §8a.5): "the arbiter decides, promotion executes." `execute_merge`,
+ * `create_same_as_link`, and `resolve_contradiction` are now promotion code
+ * (promotion.ts calls mergeEntities / inserts same_as / expires via the planner).
+ * They remain defined in GRAPH_TOOLS (handlers retired in E7) but no actor — agent
+ * OR promotion — may reach them via MCP. This is acceptance criterion (2): absent
+ * from EVERY agent allow-list.
+ */
+const RETIRED_TO_PROMOTION = new Set<string>([
+  'execute_merge',
+  'create_same_as_link',
+  'resolve_contradiction',
+]);
+
+/**
+ * Legacy surface = every tool EXCEPT the E5-retired canonical-write tools and the
+ * arbiter-only verdict tools. Legacy agents keep their other writes (the
+ * serial/optimistic arms are otherwise unaffected) but can no longer merge/link/
+ * resolve-contradiction directly — those moved to promotion.
+ */
+const ARBITER_VERDICT_TOOLS = ['propose_identity_verdict', 'propose_conflict_resolution'] as const;
+
+const LEGACY_SURFACE = new Set<string>(
+  GRAPH_TOOLS.map((t) => t.name).filter(
+    (n) => !RETIRED_TO_PROMOTION.has(n) && !(ARBITER_VERDICT_TOOLS as readonly string[]).includes(n),
+  ),
+);
+
+/**
+ * The promotion-escalation arbiter surface (reconciliation_agent recast, doc 41
+ * §8a.5): every read tool to "talk to the real graph" + the two verdict tools.
+ * The pushed dossier subsumes `get_reconciliation_context` (the old pull-everything
+ * entry point), so it is excluded. No canonical-write tools — the arbiter proposes
+ * verdicts; promotion disposes.
+ */
+const ARBITER_SURFACE = new Set<string>([
+  ...[...READ_ONLY_TOOL_NAMES].filter((n) => n !== 'get_reconciliation_context'),
+  ...ARBITER_VERDICT_TOOLS,
+]);
+
+/**
+ * The causal agent's surface (E6, doc 41 §8a.6): it READS the settled canonical
+ * graph broadly (every read-only tool — `get_causal_delta` scopes the pass, the
+ * rest gather source_references and check cited-fact status) and PROPOSES causal
+ * edges into staging via `propose_causal_edge`. It holds NO canonical causal-write
+ * tool: `create_causal_edge` was removed entirely in E7 (the per-chunk CAUSE path),
+ * and `expire_causal_edge` / `revise_causal_edge` remain mutating tools (so absent
+ * from the read set) reachable only by legacy/reasoning actors. Canonical causal
+ * writes flow through causal-promotion code — the agent proposes, causal-promotion
+ * disposes. §8a.6 names the expected causal read subset; granting the full read
+ * surface is structurally safe (reads never touch canonical).
+ */
+const CAUSAL_AGENT_STAGE_WRITES = ['propose_causal_edge'] as const;
+const CAUSAL_SURFACE = new Set<string>([
+  ...READ_ONLY_TOOL_NAMES,
+  ...CAUSAL_AGENT_STAGE_WRITES,
+]);
+
+export const ACTOR_TOOL_ALLOWLIST: Record<Actor, ReadonlySet<string>> = {
+  extraction_proposer: PROPOSER_SURFACE,
+  // Post-promotion causal pass (E6): reads + propose_causal_edge only (no canonical
+  // causal-write tools — those are causal-promotion code).
+  causal_agent: CAUSAL_SURFACE,
+  graph_agent: LEGACY_SURFACE,
+  reasoning_agent: LEGACY_SURFACE,
+  gardener_agent: LEGACY_SURFACE,
+  // Recast as the promotion-escalation arbiter (E5): reads + verdict tools only.
+  reconciliation_agent: ARBITER_SURFACE,
+  // Non-agent actors never spawn an MCP server; map them defensively to the
+  // legacy surface so the record is total and a stray call is not silently denied.
+  user: LEGACY_SURFACE,
+  system_trigger: LEGACY_SURFACE,
+  cascade: LEGACY_SURFACE,
+  // Deterministic promotion code (doc 41 §5) — writes canonical via the service
+  // layer, never via MCP, so it never spawns a server. Mapped defensively to the
+  // legacy surface to keep the record total.
+  promotion: LEGACY_SURFACE,
+};
+
+/**
+ * The set of tools an actor is permitted to call. Falls back to the proposer
+ * surface (most restrictive that still functions) for an unknown actor rather
+ * than the full surface — deny-by-default on drift.
+ */
+export function allowlistFor(actor: Actor): ReadonlySet<string> {
+  return ACTOR_TOOL_ALLOWLIST[actor] ?? PROPOSER_SURFACE;
+}
+
+/**
+ * Resolve the MCP actor from the process env (the per-actor server reads
+ * MNEMO_AGENT_ACTOR at startup). Mirrors resolveContext's actor logic for the
+ * transport layer (graph-mcp.ts ListTools) which has no ToolCallContext.
+ */
+export function resolveActorFromEnv(): Actor {
+  const envActor = process.env.MNEMO_AGENT_ACTOR as Actor | undefined;
+  return envActor && VALID_ACTORS.has(envActor) ? envActor : 'graph_agent';
+}
 
 /**
  * Resolve the agent actor for an MCP tool call. Priority:
@@ -1254,7 +1554,19 @@ function resolveContext(ctx?: ToolCallContext): ToolCallContext {
   const envActor = process.env.MNEMO_AGENT_ACTOR as Actor | undefined;
   const agent = envActor && VALID_ACTORS.has(envActor) ? envActor : 'graph_agent';
   const reasoningReportId = process.env.MNEMO_REASONING_REPORT_ID || null;
-  return { agent, reasoningReportId };
+  // Epoch v2 harness-injected context (doc 41 §8a.4). The per-actor MCP server
+  // process reads these from its env (set by the invoke* wrapper, E3); the MCP
+  // transport calls handleToolCall without a context, so env is the carrier.
+  const chunkIndexRaw = process.env.MNEMO_CHUNK_INDEX;
+  const chunkIndex =
+    chunkIndexRaw != null && chunkIndexRaw !== '' ? Number(chunkIndexRaw) : null;
+  return {
+    agent,
+    reasoningReportId,
+    epochId: process.env.MNEMO_EPOCH_ID || null,
+    sourceId: process.env.MNEMO_SOURCE_ID || null,
+    chunkIndex: Number.isFinite(chunkIndex) ? chunkIndex : null,
+  };
 }
 
 export async function handleToolCall(
@@ -1264,6 +1576,23 @@ export async function handleToolCall(
 ): Promise<string> {
   toolCallCount++;
   const resolved = resolveContext(context);
+
+  // Per-actor tool allow-list (doc 41 §8a.2, §9.5). Structural enforcement of
+  // read/write posture: an off-list call fails here regardless of transport
+  // (MCP or Pi bridge) and regardless of what --allowedTools the client sent.
+  // This is what makes "the extraction proposer cannot write canonical" a
+  // property of the tool set, not the prompt. Unknown tools fall through to the
+  // dispatcher's own "Unknown tool" error.
+  if (
+    GRAPH_TOOLS.some((t) => t.name === toolName) &&
+    !allowlistFor(resolved.agent).has(toolName)
+  ) {
+    throw new Error(
+      `Tool "${toolName}" is not permitted for actor "${resolved.agent}". ` +
+        `Permitted: ${[...allowlistFor(resolved.agent)].sort().join(', ')}.`,
+    );
+  }
+
   const inputSummary = Object.entries(toolInput)
     .map(([k, v]) => `${k}=${typeof v === 'string' ? v.slice(0, 40) : v}`)
     .join(', ');
@@ -1559,25 +1888,6 @@ async function _handleToolCallInner(
       });
     }
 
-    case 'create_causal_edge': {
-      const refs = toolInput.source_references as Array<{
-        type: 'memory' | 'fact' | 'entity';
-        id: string;
-        relevance: string;
-      }>;
-      const edgeId = await createCausalEdge({
-        causeEventId: toolInput.cause_event_id as string,
-        effectEventId: toolInput.effect_event_id as string,
-        strength: toolInput.strength as number,
-        reasoning: toolInput.reasoning as string,
-        sourceReferences: refs,
-        temporalSpan: toolInput.temporal_span as string | undefined,
-        actor: context.agent,
-        reasoningReportId: context.reasoningReportId ?? null,
-      });
-      return JSON.stringify({ edgeId });
-    }
-
     // --- Extraction tool handlers ---
 
     case 'resolve_entity': {
@@ -1718,6 +2028,13 @@ async function _handleToolCallInner(
         })
         .onConflictDoNothing();
       return JSON.stringify({ added: true });
+    }
+
+    case 'search_predicates': {
+      const query = toolInput.query as string;
+      const limit = typeof toolInput.limit === 'number' ? toolInput.limit : 8;
+      const matches = await searchPredicates(query, limit);
+      return JSON.stringify({ predicates: matches });
     }
 
     case 'search_entity_aliases': {
@@ -2772,6 +3089,354 @@ async function _handleToolCallInner(
       return JSON.stringify({ instances: rows });
     }
 
+    // ── Epoch v2 propose tools (doc 41 §8a.4) ──────────────────────────────
+    case 'resolve_anchor': {
+      const mention = ((toolInput.mention as string) ?? '').trim();
+      const typeFilter = toolInput.type as string | undefined;
+      if (!mention) return JSON.stringify({ matched: false });
+
+      const aliasesFor = async (entityId: string): Promise<string[]> => {
+        const rows = await db
+          .select({ alias: entityAliases.alias })
+          .from(entityAliases)
+          .where(eq(entityAliases.entityId, entityId));
+        return rows.map((r) => r.alias);
+      };
+
+      // 1. Exact canonical-name match (ilike with no wildcard = case-insensitive equality).
+      const nameConds = [ilike(entitiesTable.canonicalName, mention)];
+      if (typeFilter) nameConds.push(eq(entitiesTable.entityType, typeFilter));
+      const exact = await db
+        .select({ id: entitiesTable.id, name: entitiesTable.canonicalName, type: entitiesTable.entityType })
+        .from(entitiesTable)
+        .where(and(...nameConds))
+        .limit(1);
+      if (exact[0]) {
+        return JSON.stringify({
+          matched: true,
+          canonicalId: exact[0].id,
+          name: exact[0].name,
+          type: exact[0].type,
+          aliases: await aliasesFor(exact[0].id),
+          confidence: 1.0,
+        });
+      }
+
+      // 2. Alias match.
+      const aliasHit = await db
+        .select({ entityId: entityAliases.entityId })
+        .from(entityAliases)
+        .where(ilike(entityAliases.alias, mention))
+        .limit(1);
+      if (aliasHit[0]) {
+        const ent = await db
+          .select({ id: entitiesTable.id, name: entitiesTable.canonicalName, type: entitiesTable.entityType })
+          .from(entitiesTable)
+          .where(eq(entitiesTable.id, aliasHit[0].entityId))
+          .limit(1);
+        if (ent[0] && (!typeFilter || ent[0].type === typeFilter)) {
+          return JSON.stringify({
+            matched: true,
+            canonicalId: ent[0].id,
+            name: ent[0].name,
+            type: ent[0].type,
+            aliases: await aliasesFor(ent[0].id),
+            confidence: 0.95,
+          });
+        }
+      }
+
+      // 3. High-confidence semantic-similarity fallback. Degrades to matched:false
+      // if ML is unavailable — resolve_anchor stays usable on name/alias alone.
+      try {
+        const embedResult = await ml.embed(mention);
+        const similar = await findSimilarEntities(embedResult.vector, {
+          threshold: 0.85,
+          limit: 1,
+          type: typeFilter,
+        });
+        if (similar[0]) {
+          return JSON.stringify({
+            matched: true,
+            canonicalId: similar[0].id,
+            name: similar[0].canonicalName,
+            type: similar[0].entityType,
+            aliases: await aliasesFor(similar[0].id),
+            confidence: similar[0].similarity,
+          });
+        }
+      } catch (err) {
+        console.error(`[resolve_anchor] semantic fallback skipped: ${err}`);
+      }
+
+      return JSON.stringify({ matched: false });
+    }
+
+    case 'propose_entity': {
+      if (!context.epochId) {
+        throw new Error('propose_entity requires an epoch context (MNEMO_EPOCH_ID) — injected by the harness.');
+      }
+      const inserted = await db
+        .insert(stagingProposedEntities)
+        .values({
+          epochId: context.epochId,
+          sourceId: context.sourceId ?? null,
+          name: toolInput.name as string,
+          entityType: toolInput.type as string,
+          summary: (toolInput.summary as string) ?? null,
+          anchorCanonicalId: (toolInput.anchorCanonicalId as string) ?? null,
+          mentionText: (toolInput.mentionText as string) ?? null,
+          proposedBy: context.agent,
+        })
+        .returning({ handle: stagingProposedEntities.handle });
+      return JSON.stringify({ handle: inserted[0]!.handle });
+    }
+
+    case 'propose_fact': {
+      if (!context.epochId) {
+        throw new Error('propose_fact requires an epoch context (MNEMO_EPOCH_ID) — injected by the harness.');
+      }
+      const subjectHandle = toolInput.subjectHandle as string;
+      const predicate = toolInput.predicate as string;
+      const objectHandle = (toolInput.objectHandle as string) ?? null;
+      const objectValue = (toolInput.objectValue as string) ?? null;
+      // Exactly one of objectHandle / objectValue (mirrors the DB CHECK).
+      if ((objectHandle == null) === (objectValue == null)) {
+        throw new Error('propose_fact requires exactly one of objectHandle or objectValue.');
+      }
+
+      // valid_at is the source of truth (doc 41 §12 #7): a present date wins and
+      // sets undated=false; its absence is an explicit undated fact. Satisfies
+      // the staging biconditional CHECK (undated = valid_at IS NULL).
+      const validAtRaw = toolInput.validAt as string | undefined;
+      const hasDate = validAtRaw != null && validAtRaw !== '';
+      const validAt = hasDate ? new Date(validAtRaw as string) : null;
+
+      const exclusiveGroup = resolveExclusiveGroup(predicate);
+
+      // Disposal preview — PRIOR CANONICAL ONLY, never peer in-flight proposals
+      // (isolation, doc 41 §8a.4). Resolvable only when the subject anchored to a
+      // known canonical entity and the predicate is in an exclusive group;
+      // otherwise there is no prior canonical to preview.
+      let priorCanonicalActiveInGroup: Array<Record<string, unknown>> = [];
+      if (exclusiveGroup) {
+        const subjRows = await db
+          .select({ anchor: stagingProposedEntities.anchorCanonicalId })
+          .from(stagingProposedEntities)
+          .where(eq(stagingProposedEntities.handle, subjectHandle))
+          .limit(1);
+        const anchor = subjRows[0]?.anchor ?? null;
+        if (anchor) {
+          const active = await getEntityFacts(anchor, { asSubject: true, asObject: false });
+          priorCanonicalActiveInGroup = active
+            .filter((f) => resolveExclusiveGroup(f.predicate) === exclusiveGroup)
+            .map((f) => ({
+              factId: f.id,
+              predicate: f.predicate,
+              object: f.objectValue ?? f.objectEntityId,
+              validAt: f.validAt,
+              confidence: f.confidence,
+            }));
+        }
+      }
+
+      const inserted = await db
+        .insert(stagingProposedFacts)
+        .values({
+          epochId: context.epochId,
+          sourceId: context.sourceId ?? null,
+          subjectHandle,
+          predicate,
+          objectHandle,
+          objectValue,
+          validAt,
+          undated: !hasDate,
+          chunkIndex: context.chunkIndex ?? null,
+          confidence: (toolInput.confidence as number) ?? null,
+          reasoning: (toolInput.reasoning as string) ?? null,
+          exclusiveGroup,
+          // VERIFY-phase supersession hint (E4, doc 41 §4). Stored raw — promotion
+          // validates it against the actual prior-canonical actives (no FK; the
+          // id is agent-supplied and may be stale).
+          supersedesFactId: (toolInput.supersedesFactId as string) ?? null,
+        })
+        .returning({ stagedFactId: stagingProposedFacts.stagedFactId });
+
+      return JSON.stringify({
+        stagedFactId: inserted[0]!.stagedFactId,
+        exclusiveGroup,
+        priorCanonicalActiveInGroup,
+      });
+    }
+
+    // --- Causal pass propose tool (E6, doc 41 §6, §8a.6) ---
+    // The causal agent proposes edges between SETTLED canonical events (minted by
+    // promotion) into staging_causal_edges; a deterministic causal-promotion step
+    // disposes them. The return previews disposal: refsResolve (do the event ids
+    // resolve) + citedFactStatus (live status of each cited fact) — both WARN the
+    // agent BEFORE the cited-fact branch runs (superseded → keep, invalidated → stale).
+
+    case 'propose_causal_edge': {
+      if (!context.epochId) {
+        throw new Error('propose_causal_edge requires an epoch context (MNEMO_EPOCH_ID) — injected by the harness (the causal pass partitions staging by the promotion epoch).');
+      }
+      const causeEventId = toolInput.causeEventId as string;
+      const effectEventId = toolInput.effectEventId as string;
+      const reasoning = (toolInput.reasoning as string) ?? '';
+      const sourceReferences =
+        (toolInput.sourceReferences as Array<{ type: string; id: string; relevance: string }>) ?? [];
+
+      // doc-01 invariant enforced at the propose boundary (the 044 CHECKs back it
+      // up): every causal edge carries non-empty reasoning + >=1 source reference.
+      if (!causeEventId || !effectEventId) {
+        throw new Error('propose_causal_edge requires causeEventId and effectEventId.');
+      }
+      if (!reasoning.trim()) {
+        throw new Error('propose_causal_edge requires non-empty reasoning (doc 01 invariant).');
+      }
+      if (!Array.isArray(sourceReferences) || sourceReferences.length === 0) {
+        throw new Error('propose_causal_edge requires a non-empty sourceReferences array (doc 01 invariant).');
+      }
+
+      // refsResolve — do the cited cause/effect EVENT ids resolve to settled
+      // canonical events? A soft signal (causal-promotion DROPS an edge whose event
+      // id does not resolve); surfacing it here lets the agent self-correct.
+      const evRows = await db
+        .select({ id: causalEvents.id })
+        .from(causalEvents)
+        .where(inArray(causalEvents.id, [causeEventId, effectEventId]));
+      const evIds = new Set(evRows.map((r) => r.id));
+      const refsResolve = { cause: evIds.has(causeEventId), effect: evIds.has(effectEventId) };
+
+      // citedFactStatus — the live status of every FACT this edge cites as a source
+      // reference (doc 41 §6): active | superseded (expired_at set, a newer value
+      // landed) | invalidated (invalid_at set, it was wrong). Warns the agent it is
+      // grounding on a shaky fact BEFORE causal-promotion's cited-fact branch runs.
+      const citedFactIds = sourceReferences.filter((r) => r.type === 'fact' && r.id).map((r) => r.id);
+      let citedFactStatus: Array<{ factId: string; status: 'active' | 'superseded' | 'invalidated' }> = [];
+      if (citedFactIds.length > 0) {
+        const factRows = await db
+          .select({ id: factsTable.id, expiredAt: factsTable.expiredAt, invalidAt: factsTable.invalidAt })
+          .from(factsTable)
+          .where(inArray(factsTable.id, citedFactIds));
+        citedFactStatus = factRows.map((f) => ({
+          factId: f.id,
+          status: f.invalidAt ? 'invalidated' : f.expiredAt ? 'superseded' : 'active',
+        }));
+      }
+
+      // jsonb ARRAY values are stringified by drizzle `.values()` (Drizzle 0.29 +
+      // postgres.js 3.4) — they then fail the 044 jsonb_typeof='array' CHECK. Insert
+      // via a raw template with jsonbLiteral (JSON-encoded once, cast ::jsonb
+      // server-side), the same workaround createCausalEdge uses for source_references.
+      const inserted = await db.execute(sql`
+        INSERT INTO public.staging_causal_edges
+          (epoch_id, cause_event_id, effect_event_id, reasoning, source_references, proposed_by)
+        VALUES (
+          ${context.epochId}::uuid,
+          ${causeEventId}::uuid,
+          ${effectEventId}::uuid,
+          ${reasoning},
+          ${jsonbLiteral(sourceReferences)},
+          ${context.agent}
+        )
+        RETURNING id
+      `);
+      const stagedEdgeId = unwrapRows<{ id: string }>(inserted)[0]!.id;
+
+      return JSON.stringify({
+        stagedEdgeId,
+        refsResolve,
+        citedFactStatus,
+      });
+    }
+
+    // --- Promotion-escalation arbiter verdict tools (E5, doc 41 §8a.5) ---
+    // The arbiter attaches its decision to a dossier promotion pre-recorded in
+    // arbiter_verdicts (verdict null), keyed by (epoch_id, escalation_key, kind).
+    // The decision JSONB holds only the decision fields — kind + escalation_key are
+    // the row columns (promotion-arbiter.rowToVerdict reassembles the Verdict).
+
+    case 'propose_identity_verdict': {
+      if (!context.epochId) {
+        throw new Error('propose_identity_verdict requires an epoch context (MNEMO_EPOCH_ID) — pushed by promotion.');
+      }
+      const escKey = toolInput.escalation_key as string;
+      const decision = toolInput.decision as string;
+      const canonicalTarget = (toolInput.canonical_target as string) ?? null;
+      if ((decision === 'merge' || decision === 'same_as') && !canonicalTarget) {
+        throw new Error(`propose_identity_verdict: decision="${decision}" requires canonical_target (a candidate id).`);
+      }
+      const verdict = {
+        members: (toolInput.members as string[]) ?? [],
+        decision,
+        canonicalTarget,
+        reasoning: toolInput.reasoning as string,
+      };
+      const updated = await db
+        .update(arbiterVerdicts)
+        .set({ verdict, decidedBy: context.agent, decidedAt: new Date() })
+        .where(
+          and(
+            eq(arbiterVerdicts.epochId, context.epochId),
+            eq(arbiterVerdicts.escalationKey, escKey),
+            eq(arbiterVerdicts.kind, 'identity'),
+          ),
+        )
+        .returning({ id: arbiterVerdicts.id });
+      if (updated.length === 0) {
+        return JSON.stringify({
+          recorded: false,
+          reason: `no pending identity escalation with key "${escKey}" for this epoch (check the dossier's escalation_key)`,
+        });
+      }
+      return JSON.stringify({
+        recorded: true,
+        decision,
+        willExecute:
+          decision === 'merge'
+            ? 'promotion merges the other candidates into canonical_target'
+            : decision === 'same_as'
+              ? 'promotion links the candidates same_as'
+              : 'promotion keeps the proposed cluster distinct',
+      });
+    }
+
+    case 'propose_conflict_resolution': {
+      if (!context.epochId) {
+        throw new Error('propose_conflict_resolution requires an epoch context (MNEMO_EPOCH_ID) — pushed by promotion.');
+      }
+      const escKey = toolInput.escalation_key as string;
+      const verdict = {
+        expire: (toolInput.expire as Array<{ factId: string; reason: string }>) ?? [],
+        correctedValidAt: (toolInput.corrected_valid_at as Record<string, string> | null) ?? null,
+        notExclusive: toolInput.not_exclusive === true,
+        reasoning: toolInput.reasoning as string,
+      };
+      const updated = await db
+        .update(arbiterVerdicts)
+        .set({ verdict, decidedBy: context.agent, decidedAt: new Date() })
+        .where(
+          and(
+            eq(arbiterVerdicts.epochId, context.epochId),
+            eq(arbiterVerdicts.escalationKey, escKey),
+            eq(arbiterVerdicts.kind, 'conflict'),
+          ),
+        )
+        .returning({ id: arbiterVerdicts.id });
+      if (updated.length === 0) {
+        return JSON.stringify({
+          recorded: false,
+          reason: `no pending conflict escalation with key "${escKey}" for this epoch (check the dossier's escalation_key)`,
+        });
+      }
+      return JSON.stringify({
+        recorded: true,
+        notExclusive: verdict.notExclusive,
+        expireCount: verdict.expire.length,
+      });
+    }
+
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -2809,7 +3474,25 @@ export function getGraphMcpScriptPath(): string {
  *
  * Prefers `process.env` (set by test setup or runtime) over `.env` file.
  */
-export function getMcpEnv(actor: Actor): Record<string, string> {
+/**
+ * Epoch v2 harness context (doc 41 §8a.4) threaded into a proposer's MCP server
+ * env so its propose_* tools stamp the right epoch/source/chunk onto staging
+ * rows. Supplied by E3's runEpochBatch when spawning an extraction_proposer;
+ * omitted for every legacy invocation (the env keys are simply absent).
+ */
+export interface EpochContext {
+  epochId?: string;
+  sourceId?: string;
+  chunkIndex?: number;
+  /**
+   * Total chunks in this source's batch (E4, doc 41 §4). Passed to the proposer
+   * prompt as the "M" in "chunk N of M" so the agent knows its narration
+   * position. Not stamped onto staging rows — purely a prompt input.
+   */
+  totalChunks?: number;
+}
+
+export function getMcpEnv(actor: Actor, epoch?: EpochContext): Record<string, string> {
   const platformRoot = path.resolve(__dirname, '..', '..');
   const envFile = dotenv.config({ path: path.resolve(platformRoot, '.env') });
   const env: Record<string, string> = { MNEMO_AGENT_ACTOR: actor };
@@ -2817,15 +3500,25 @@ export function getMcpEnv(actor: Actor): Record<string, string> {
     const val = process.env[key] || envFile.parsed?.[key];
     if (val) env[key] = val;
   }
+  if (epoch?.epochId) env.MNEMO_EPOCH_ID = epoch.epochId;
+  if (epoch?.sourceId) env.MNEMO_SOURCE_ID = epoch.sourceId;
+  if (epoch?.chunkIndex != null) env.MNEMO_CHUNK_INDEX = String(epoch.chunkIndex);
   return env;
 }
 
-export function getMcpConfigPath(actor: Actor = 'graph_agent'): string {
+export function getMcpConfigPath(actor: Actor = 'graph_agent', epoch?: EpochContext): string {
   const platformRoot = path.resolve(__dirname, '..', '..');
   // One config file per actor so invoke* calls don't clobber each other's
   // MNEMO_AGENT_ACTOR when running concurrently (e.g., a patrol kicked off
-  // while an extraction is still in flight).
-  const configPath = path.resolve(platformRoot, `.graph-mcp-config.${actor}.json`);
+  // while an extraction is still in flight). When an epoch context is supplied,
+  // the chunk position further disambiguates the filename so PARALLEL proposers
+  // (E3 — one per chunk) don't share a config and overwrite each other's
+  // MNEMO_CHUNK_INDEX.
+  const suffix =
+    epoch?.epochId != null && epoch?.chunkIndex != null
+      ? `.${epoch.epochId}.c${epoch.chunkIndex}`
+      : '';
+  const configPath = path.resolve(platformRoot, `.graph-mcp-config.${actor}${suffix}.json`);
 
   // Use absolute path to the MCP server script — Claude Code does not
   // respect the cwd field when spawning MCP servers, so the script path
@@ -2838,7 +3531,7 @@ export function getMcpConfigPath(actor: Actor = 'graph_agent'): string {
         command: 'npx',
         args: ['tsx', serverScript],
         cwd: platformRoot,
-        env: getMcpEnv(actor),
+        env: getMcpEnv(actor, epoch),
       },
     },
   };
@@ -2894,6 +3587,21 @@ export interface ExtractionAgentParams {
    * absent means no pre-resolved speakers to announce.
    */
   participants?: string;
+  /**
+   * Epoch v2 (doc 41 §4, §8a.4; bead nmemo-vpz.3 / E3). When set the agent runs
+   * as this actor instead of the default `graph_agent` — the propose→promote path
+   * spawns it as `extraction_proposer`, whose server-side allow-list (E2) exposes
+   * only reads + the staging `propose_*` writes. Omitted for every legacy
+   * invocation (serial/optimistic), which keep the full canonical-write surface.
+   */
+  actor?: Actor;
+  /**
+   * Epoch v2 (E3). Per-chunk epoch context baked into the spawned MCP server's
+   * env (via {@link getMcpConfigPath}) so the proposer's `propose_*` tools stamp
+   * the right epoch/source/chunk onto staging rows and parallel proposers get
+   * distinct config files.
+   */
+  epoch?: EpochContext;
 }
 
 export interface ExtractionAgentResult {
@@ -2968,6 +3676,95 @@ export async function invokeReconciliationAgent(params: {
   }
 
   return response.json() as Promise<ReconciliationAgentResult>;
+}
+
+// ============================================
+// Promotion-escalation Arbiter Invocation (E5, doc 41 §8a.5)
+// ============================================
+
+export interface ArbiterAgentResult {
+  result: string;
+}
+
+/**
+ * Invoke the promotion-escalation arbiter (reconciliation_agent recast, Haiku).
+ * Promotion PUSHES the dossiers; the agent reads them, optionally goes deeper via
+ * its read tools, then records a verdict per escalation via propose_identity_verdict
+ * / propose_conflict_resolution. The MCP server is spawned with this epoch's context
+ * (MNEMO_EPOCH_ID) so those tools can locate the pre-recorded dossier rows.
+ *
+ * Bound lazily by promotion-arbiter.ts (dynamic import) to keep promotion free of a
+ * static dependency on this module. `dossiers` are JSON-serialised verbatim into the
+ * ml-services request — typed `unknown[]` here to avoid importing the dossier type
+ * (and a static import cycle).
+ */
+export async function invokeArbiterAgent(
+  epochId: string,
+  dossiers: unknown[],
+): Promise<ArbiterAgentResult> {
+  const mcpConfigPath = getMcpConfigPath('reconciliation_agent', { epochId });
+
+  const response = await fetch(`${config.ML_SERVICES_URL}/arbiter-agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      epoch_id: epochId,
+      dossiers,
+      mcp_config_path: mcpConfigPath,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => response.statusText);
+    throw new Error(`Arbiter agent failed (${response.status}): ${detail}`);
+  }
+
+  return response.json() as Promise<ArbiterAgentResult>;
+}
+
+// ============================================
+// Causal-pass Agent Invocation (E6, doc 41 §6, §8a.6)
+// ============================================
+
+export interface CausalAgentResult {
+  result: string;
+}
+
+/**
+ * The seam causal-pass.ts injects (default = {@link invokeCausalAgent}). DB tests
+ * supply a fake invoker that writes staging_causal_edges directly, exercising the
+ * dispose side without an LLM (mirrors promotion-arbiter's ArbiterInvoker, E5).
+ */
+export type CausalAgentInvoker = (epochId: string, scope: unknown) => Promise<void>;
+
+/**
+ * Invoke the post-promotion causal agent (Haiku) for one epoch (doc 41 §6, §8a.6).
+ * The causal pass PUSHES the settled delta scope (minted events + the touched
+ * entities' causal neighbourhood); the agent reads it, goes deeper via its read tools
+ * if needed, and records edges via propose_causal_edge into staging_causal_edges —
+ * causal-promotion then disposes them. The MCP server is spawned with this epoch's
+ * context (MNEMO_EPOCH_ID) so propose_causal_edge stamps the right epoch. Mirror of
+ * {@link invokeArbiterAgent}; the /causal-agent endpoint is added in ml-services (E6 Step 7).
+ */
+export async function invokeCausalAgent(epochId: string, scope: unknown): Promise<CausalAgentResult> {
+  const mcpConfigPath = getMcpConfigPath('causal_agent', { epochId });
+
+  const response = await fetch(`${config.ML_SERVICES_URL}/causal-agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      epoch_id: epochId,
+      scope,
+      mcp_config_path: mcpConfigPath,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => response.statusText);
+    throw new Error(`Causal agent failed (${response.status}): ${detail}`);
+  }
+
+  return response.json() as Promise<CausalAgentResult>;
 }
 
 // ============================================
@@ -3187,7 +3984,11 @@ export async function invokeGardenerAgent(params: {
 }
 
 export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<GraphAgentResult> {
-  const mcpConfigPath = getMcpConfigPath('graph_agent');
+  const actor = params.actor ?? 'graph_agent';
+  // The actor's identity (audit stamp + tool allow-list) rides the MCP config
+  // env; agentFetch's `agent` is only a telemetry/timeout label, so the narrow
+  // 'graph_agent' label is kept for the proposer (same endpoint + timeout).
+  const mcpConfigPath = getMcpConfigPath(actor, params.epoch);
 
   return agentFetch<GraphAgentResult>({
     agent: 'graph_agent',
@@ -3206,6 +4007,11 @@ export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<G
       // absent so the Python endpoint branches on absence without a sentinel.
       stream_id: params.streamId ?? null,
       participants: params.participants ?? null,
+      // Epoch v2 E4 (doc 41 §4): the actor selects the proposer prompt branch;
+      // chunk position becomes "chunk N of M" in narration order for that prompt.
+      actor,
+      chunk_index: params.epoch?.chunkIndex ?? null,
+      total_chunks: params.epoch?.totalChunks ?? null,
     },
     timeoutMs: config.GRAPH_AGENT_TIMEOUT_MS,
   });

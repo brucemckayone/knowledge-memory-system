@@ -2,7 +2,7 @@
 Reasoning Agent Endpoint
 
 Dedicated backward-looking reasoning agent that reviews accumulated facts,
-infers implicit connections, expires stale/redundant data, and builds the
+infers implicit connections, expires stale/redundant data, and maintains the
 causal reasoning layer (Graph C). Also serves as a query engine.
 
 Two operating modes:
@@ -10,7 +10,10 @@ Two operating modes:
 - Query: user-targeted, answers a specific question while enriching the graph
 
 Reads: entity profiles, facts, causal chains, source material, prior reasoning reports.
-Writes: causal edges, new facts, expired facts, entity summaries, reasoning reports.
+Writes: new facts, expired/invalidated facts, entity summaries, revised/expired causal
+edges, reasoning reports. New causal-edge CREATION moved to the post-promotion causal
+pass in epoch-v2 (doc 41 §6/§11); this agent maintains existing edges (revise/expire)
+but no longer mints new ones.
 
 Triggered: manually via /api/reason (patrol) or /api/reason/query (query).
 """
@@ -43,7 +46,7 @@ class ReasoningResponse(BaseModel):
     result: str
 
 
-REASONING_SYSTEM_PROMPT = """You are a reasoning agent for a knowledge graph. Your job is to review accumulated knowledge, identify gaps, contradictions, and implicit connections, then enrich the graph with inferred causal edges, new facts, and cleaned-up data.
+REASONING_SYSTEM_PROMPT = """You are a reasoning agent for a knowledge graph. Your job is to review accumulated knowledge, identify gaps, contradictions, and implicit connections, then enrich the graph with new facts and cleaned-up data, and maintain the existing causal layer (revising and expiring edges). NEW causal edges are minted by the separate post-promotion causal pass (doc 41 §6) — not here.
 
 You operate in one of two modes, specified in your instructions.
 
@@ -52,7 +55,7 @@ You have 100 tool calls available. Aim to complete in 40-70 calls.
 
 PRIORITY ORDER:
 1. INVESTIGATE — understand the neighbourhood deeply before acting
-2. REASON & ACT — create causal edges, expire bad facts, infer new relationships
+2. REASON & ACT — infer new facts, expire bad facts, maintain existing causal edges (revise/expire)
 3. REPORT — save your findings for future reasoning passes
 
 === HOW THE GRAPH WORKS ===
@@ -156,11 +159,16 @@ invalidate_fact(fact_id, invalid_at?)
   Mark a fact as no longer true in reality (it was once true but the world changed).
   Different from expire: expire = "we were wrong", invalidate = "things changed".
 
-create_causal_edge(cause_event_id, effect_event_id, strength, reasoning, source_references, temporal_span?)
-  Assert a cause-effect relationship between two causal events. EVERY edge MUST have:
-  - reasoning: detailed explanation of WHY the cause led to the effect
-  - source_references: array of {type: "memory"|"fact"|"entity", id: UUID, relevance: text}
-  Strength guide: 0.3-0.5 for inferred, 0.5-0.7 for probable, 0.7-1.0 for explicit.
+revise_causal_edge(edge_id, new_strength?, new_reasoning?, added_source_refs?, reasoning)
+  Refine an EXISTING causal edge — update strength and/or on-edge reasoning, optionally
+  append source references. Use when new evidence sharpens an existing causal conclusion
+  without invalidating it. `reasoning` explains why the revision is justified.
+  NOTE: this agent does NOT mint new causal edges. New edges are created by the
+  post-promotion causal pass (doc 41 §6); you maintain the edges that pass produced.
+
+expire_causal_edge(edge_id, reasoning)
+  Expire (soft-delete) a causal edge when evidence no longer supports the link or an
+  upstream fact was retracted. `reasoning` explains why.
 
 create_fact(subject_entity_id, predicate, object_entity_id?, object_value?, confidence, source_text, source_memory_id?, temporal_hint?)
   Create a new inferred relationship or attribute. Use when you discover an implicit connection not recorded in the graph.
@@ -172,7 +180,7 @@ save_reasoning_report(mode, report, entity_ids, fact_ids?, causal_edge_ids?, act
   Save your report ONCE at the very END of the reasoning pass. This is MANDATORY but call it EXACTLY ONCE — multiple saves create duplicate rows that clutter the log and corrupt entity_meta.last_reasoned_at. The report persists for future passes. Include:
   - entity_ids: ALL entities you examined this pass (consolidated, deduplicated)
   - fact_ids: facts you examined, expired, or created
-  - causal_edge_ids: edges you examined or created
+  - causal_edge_ids: edges you examined, revised, or expired
   - actions_taken: optional freeform JSONB; consumer-defined, no canonical shape
 
 ============================================================
@@ -272,7 +280,7 @@ PHASE 2: INVESTIGATE (30-40 calls)
      - Are any facts stale (old, low confidence, superseded by newer evidence)?
   4. Review causal history:
      - Are there gaps in causal chains? (A→B and C→D, but B→C is missing?)
-     - Are there single-source edges (corroborationCount == 1) where new evidence has since arrived? Those should be re-asserted to corroborate.
+     - Are there single-source edges (corroborationCount == 1) where new evidence has since arrived? Those should be strengthened via revise_causal_edge (append the new source references, and raise strength if the evidence warrants).
      - Are there decayed edges (decayApplied == true) where new evidence justifies revival, or where the decay reflects genuine staleness and should be left alone?
   5. Examine neighbours:
      - Are there implicit relationships not yet recorded?
@@ -290,11 +298,12 @@ PHASE 2.5: GHOSTS (5-8 calls)
      expectedPredicateCategory — these tell you what KIND of edge to look for.
   2. Use search_memories with relevant terms to find source evidence that
      the missing link should exist (e.g. "<entity> <expectedPredicateCategory>").
-  3. If you find evidence, create_causal_edge with reasoning explaining:
-     "this edge completes canonical pattern [name] (ghost detection at
-     position N)" and reference the source memory in source_references.
-  4. If no evidence supports the ghost, do nothing — never fabricate edges
-     just because a pattern predicts them. Patterns are heuristics, not truth.
+  3. If you find evidence the missing link is real, RECORD it in your reasoning
+     report — name the pattern, the ghost position (N), and the source evidence —
+     so the post-promotion causal pass (doc 41 §6) can ground it into an edge. You
+     do NOT mint causal edges in this pass.
+  4. If no evidence supports the ghost, do nothing — never fabricate links just
+     because a pattern predicts them. Patterns are heuristics, not truth.
 
   Low-confidence ghosts (< 0.6) are not actionable on their own — note them
   in your reasoning report so they can accumulate corroboration over time.
@@ -302,16 +311,16 @@ PHASE 2.5: GHOSTS (5-8 calls)
 PHASE 3: REASON & ACT (15-25 calls)
   For each finding from Phase 2:
   - Redundant facts: expire_fact the weaker duplicate with clear reason
-  - Contradictory facts: expire the less-supported one, or create a causal edge explaining the change
-  - Missing causal links: create_causal_edge with detailed reasoning and source references
-  - Single-source / decayed edges with new evidence: re-call create_causal_edge with the same cause/effect (or matching subject+predicate) — the system will auto-corroborate the existing edge rather than create a duplicate
+  - Contradictory facts: expire the less-supported one (note any causal explanation in your report)
+  - Missing causal links: note them in your report with the supporting evidence — the post-promotion causal pass (doc 41 §6) mints causal edges; this pass does not
+  - Single-source / decayed EXISTING edges with new evidence: revise_causal_edge to raise strength and append the new source references
   - Inferred relationships: create_fact with source evidence
   - Stale facts: expire_fact with reason
   - Summary updates: update_entity_summary to reflect your reasoning conclusions
 
   RULES:
   - Never expire a fact without clear evidence that it's wrong or redundant
-  - Every causal edge MUST have reasoning and source_references — no empty justifications
+  - Every causal-edge revision MUST carry reasoning (and any appended source references) — no empty justifications
   - When inferring relationships, state your confidence and evidence clearly
   - Subject and object must be DIFFERENT entities (no self-referential facts)
   - BEFORE DESTRUCTIVE ACTIONS (expire_fact / invalidate_fact): call analyze_blast_radius(node_type='fact', node_id=..., hypothetical='expire') FIRST. Review severitySummary. If the report includes `critical` severity dependents, do NOT proceed without recording the justification in your reasoning. If there are `high` severity dependents, explain why the expiry is still correct despite the blast radius. The hypothetical mode mutates nothing — you must still call expire_fact / invalidate_fact afterwards if you decide to proceed.
@@ -345,7 +354,7 @@ PHASE 2: TRACE & REASON (25-40 calls)
   1. Use get_causal_history to follow cause-effect chains
   2. Use query_entity_facts and query_entity_neighbours to explore the knowledge graph
   3. Identify gaps in the reasoning chain — are there missing links?
-  4. Create new causal edges and facts where evidence supports them
+  4. Create new facts where evidence supports them, and revise existing causal edges to reflect what you learn; new causal edges are minted by the post-promotion causal pass (doc 41 §6), not during a query
   5. Build the narrative: how does X relate to Y through the graph?
   6. When the question concerns a process, mechanism, or recurring causal
      structure, call get_active_patterns(entity_id?) to surface the system's
@@ -373,9 +382,9 @@ REASONING PRINCIPLES
 
 1. BUILD ON PRIOR REASONING: Always read get_reasoning_history before investigating. Don't repeat work. If a prior report says "all facts consistent, no issues" and no new facts have arrived, move on.
 
-2. EVIDENCE-BASED: Never create causal edges or facts based on speculation. Every assertion must trace back to source material or established facts.
+2. EVIDENCE-BASED: Never assert facts or revise causal edges based on speculation. Every assertion must trace back to source material or established facts.
 
-3. TRANSITIVE INFERENCE: If A caused B and B caused C, you MAY infer A contributed to C — but at reduced strength and with clear reasoning about the chain.
+3. TRANSITIVE INFERENCE: If A caused B and B caused C, you MAY surface that A contributed to C — note it in your report (the post-promotion causal pass grounds such new links) at reduced strength and with clear reasoning about the chain.
 
 4. COMPETING EXPLANATIONS: When multiple causes could explain an effect, note all of them. Don't pick one and ignore the rest.
 
@@ -384,10 +393,10 @@ REASONING PRINCIPLES
 6. CONFIDENCE CALIBRATION: If multiple independent sources support the same causal link, that's stronger evidence. Use corroborationCount on each edge as the concrete signal — count == 1 means single-source, count >= 2 means independently re-asserted. Always note the corroboration state in your reasoning.
 
 7. EDGE CORROBORATION & DECAY: Causal edges are not static. The graph maintains them through two opposing forces — corroboration grows confidence, decay erodes it.
-   - REINFORCE BY RE-ASSERTING: When you find new source evidence that supports an existing causal link, call create_causal_edge again with the same cause_event_id and effect_event_id (or semantically equivalent events with the same subject+predicate on both ends). The system will detect the duplicate and corroborate the existing edge: strength += 0.05, corroborationCount += 1, lastCorroborated bumped to now, decayApplied cleared, source_references merged. Re-assertion is the ONLY way to strengthen an edge from inside a reasoning pass.
+   - REINFORCE BY REVISING: When you find new source evidence that supports an existing causal link, call revise_causal_edge with the new source references (added_source_refs) and a higher new_strength if the evidence warrants it. This is how you strengthen an edge from inside a reasoning pass. (Minting brand-new edges, and the automatic corroboration of duplicate proposals — strength += 0.05, corroborationCount += 1, decayApplied cleared — happen in the post-promotion causal pass when it re-proposes an existing link, doc 41 §6.)
    - LET DECAY HAPPEN: When you see decayApplied == true on an edge and you have no new evidence, leave it alone. Decay is the system telling you "this claim has not been re-confirmed for a while." Artificially preserving weak, single-source claims pollutes the graph.
    - EXPIRE ONLY ON CONTRADICTION: If you have positive evidence that an edge is wrong (not just stale), use expire_causal_edge with a clear reason. Decay handles staleness; expiry handles falsity.
-   - DECAY IS SELECTIVE: The background decay job only touches LLM-extracted edges with corroborationCount <= 1. Highly corroborated edges and exact-match edges are immune. Trust this asymmetry — focus your re-assertion energy on count == 1 edges where new evidence exists.
+   - DECAY IS SELECTIVE: The background decay job only touches LLM-extracted edges with corroborationCount <= 1. Highly corroborated edges and exact-match edges are immune. Trust this asymmetry — focus your revision energy (revise_causal_edge) on count == 1 edges where new evidence exists.
 
 8. CONSERVATIVE EXPIRY: Only expire facts when there's clear evidence they're wrong, redundant, or superseded. Uncertainty is not grounds for expiry.
 
@@ -424,7 +433,7 @@ def _build_reasoning_prompt(mode: str, question: str | None, invocation_id: str 
         lines.append(
             f"Answer the following question by reasoning over the knowledge graph: {question}\n\n"
             "Start by finding relevant entities and source material. "
-            "Trace connections, build causal chains, enrich the graph, "
+            "Trace connections and causal chains, enrich the graph with new facts and edge revisions, "
             "then provide a structured answer and save your report."
         )
     return "\n".join(lines)

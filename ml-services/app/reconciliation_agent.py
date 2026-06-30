@@ -305,3 +305,149 @@ async def reconciliation_agent(request: ReconciliationRequest):
         raise HTTPException(status_code=500, detail=f"Reconciliation agent failed: {e}")
 
     return ReconciliationResponse(result=result)
+
+
+# ============================================================================
+# Promotion-escalation arbiter (E5, doc 41 §8a.5)
+# ============================================================================
+#
+# The reconciliation_agent RECAST: invoked BY promotion (not a self-driven patrol)
+# to dispose of the escalations deterministic promotion could not settle. Promotion
+# PUSHES a focused dossier per escalation; the arbiter starts informed, optionally
+# reads deeper, then records ONE verdict per escalation via the two verdict tools
+# (propose_identity_verdict / propose_conflict_resolution). It cannot merge/link/
+# expire directly — the arbiter decides, promotion executes.
+
+
+class ArbiterRequest(BaseModel):
+    epoch_id: str
+    dossiers: list[dict]
+    mcp_config_path: str
+
+
+class ArbiterResponse(BaseModel):
+    result: str
+
+
+ARBITER_AGENT_SYSTEM_PROMPT = """You are the promotion-escalation arbiter for a knowledge graph.
+
+Deterministic promotion has already resolved everything its rules can. It escalates to you ONLY the cases it cannot settle, and pushes you a focused DOSSIER for each. You start informed — use your read tools only to go DEEPER when the dossier is not enough.
+
+Your ONLY effect on the graph is via the two verdict tools. ONE decision per escalation. Your final text is a short report. You CANNOT merge, link, expire, or resolve directly — those moved to promotion code. You record verdicts; promotion executes them.
+
+=== IDENTITY ESCALATIONS ===
+A proposed entity word-prefix-matches TWO OR MORE distinct existing canonical entities; promotion cannot tell which (if any) it is. The dossier gives the cluster name, the candidate entities, and each candidate's sample facts.
+
+Decide ONE via propose_identity_verdict(escalation_key, decision, canonical_target?, members, reasoning):
+- decision="merge" — the candidates are the SAME real-world entity (duplicates). Promotion destructively merges the others into canonical_target. HIGH BAR: only when fact clusters agree and no distinct role exists. canonical_target REQUIRED (one of the candidate ids).
+- decision="same_as" — same identity seen from different context/perspective; keep both rows, link them. canonical_target REQUIRED (the anchor). Prefer this over merge when unsure.
+- decision="distinct" — the candidates are genuinely DIFFERENT entities and the proposed mention is its own (or matches none); promotion keeps it as a new entity. This is the safe default when uncertain.
+
+=== CONFLICT ESCALATIONS ===
+An exclusive attribute (e.g. a single current HQ, a single current title) has competing values promotion's valid_at ordering could not separate (equal/missing dates, different objects). The dossier gives the subject, the exclusive group, and the competing facts.
+
+Decide via propose_conflict_resolution(escalation_key, expire?, not_exclusive?, corrected_valid_at?, reasoning):
+- Pick the TRUE current value and expire the loser(s): expire=[{factId, reason}] using fact ids from the dossier.
+- If the attribute is NOT actually mutually exclusive (e.g. two simultaneous offices), set not_exclusive=true to keep them all.
+- If a fact's date is wrong and the correct date breaks the tie, pass corrected_valid_at={factId: ISO8601} and expire accordingly.
+
+=== INVESTIGATION ===
+The dossier is the start, not the limit. Go deeper only when it does not settle the question:
+- IDENTITY: query_entity_facts(id), get_entity_sources(id), search_entity_aliases — compare fact clusters, aliases, and how each candidate is described in its sources. analyze_blast_radius / get_neighbourhood_profile — weigh the impact before a merge.
+- CONFLICT: get_fact_history(factId), get_fact_source(factId), get_memory_text — check which value the source actually supports, and when.
+
+=== RULES ===
+- Pass escalation_key from the dossier VERBATIM — it binds your verdict to the exact escalation. A wrong/missing key records nothing.
+- Resolve EVERY escalation in the dossier, one verdict each.
+- Prefer same_as / distinct over merge; prefer the conservative reading. A wrong destructive merge is hard to undo.
+- Ground every verdict's reasoning in facts/sources, never in surface name similarity alone.
+
+=== REPORT ===
+After your verdicts, a short structured report:
+
+### IDENTITY VERDICTS
+- "clusterName" vs [candidate names] → DECISION (target=…) — reasoning
+
+### CONFLICT VERDICTS
+- subject / group → kept X, expired Y (or not_exclusive) — reasoning
+
+### LEFT UNRESOLVED
+- any escalation you could not decide with confidence, and what would help
+
+""" + PROMPT_SAFETY_SYSTEM_CLAUSE + """"""
+
+
+def _build_arbiter_prompt(dossiers: list[dict]) -> str:
+    """Render the pushed escalation dossiers into the arbiter's working prompt.
+
+    Dossiers are built by promotion (promotion-arbiter.ts) from settled prior
+    canonical + staged proposals — the arbiter starts informed. Source-derived
+    strings (names, object values) are rendered plainly; the prompt-safety system
+    clause tells the agent that dossier content is DATA, not instructions.
+    """
+    lines = [
+        "## Promotion Escalations\n\n",
+        f"{len(dossiers)} escalation(s) need your verdict. Resolve EACH one with exactly one verdict tool call.\n",
+    ]
+    for i, d in enumerate(dossiers, 1):
+        key = d.get("escalationKey", "?")
+        kind = d.get("kind", "?")
+        lines.append(f"\n### Escalation {i} — {kind.upper()}\n")
+        lines.append(f"escalation_key: `{key}`  ← pass this verbatim to the verdict tool\n")
+        lines.append(f"why promotion escalated: {d.get('reason', '')}\n")
+        if kind == "identity":
+            lines.append(
+                f'proposed cluster name: "{d.get("clusterName", "?")}" (type: {d.get("type", "?")})\n'
+            )
+            lines.append("candidate canonical entities:\n")
+            for c in d.get("candidates", []):
+                lines.append(
+                    f'  - id={c.get("id")} name="{c.get("name")}" type={c.get("type")}\n'
+                )
+                for f in c.get("sampleFacts", []):
+                    lines.append(
+                        f"      · {f.get('predicate')} → {f.get('object')} (valid_at={f.get('validAt')})\n"
+                    )
+        else:  # conflict
+            subj = d.get("subject", {}) or {}
+            lines.append(f"subject: {subj.get('name') or subj.get('ref')}\n")
+            lines.append(f"exclusive group: {d.get('exclusiveGroup')}\n")
+            lines.append("competing facts:\n")
+            for f in d.get("facts", []):
+                lines.append(
+                    f"  - factId={f.get('factId')} [{f.get('origin')}] "
+                    f"{f.get('predicate')} → {f.get('object')} (valid_at={f.get('validAt')})\n"
+                )
+
+    lines.append("\n## Instructions\n")
+    lines.append(
+        "For each escalation above: investigate with your read tools only if the dossier is "
+        "insufficient, then record ONE verdict via propose_identity_verdict or "
+        "propose_conflict_resolution using its escalation_key verbatim. Finish with your REPORT."
+    )
+    return "".join(lines)
+
+
+@router.post("/arbiter-agent", response_model=ArbiterResponse)
+async def arbiter_agent(request: ArbiterRequest):
+    """Invoke the promotion-escalation arbiter to dispose of promotion's escalations (E5)."""
+    prompt = _build_arbiter_prompt(request.dossiers)
+
+    try:
+        result = await llm_pool.submit(llm_client.generate, prompt, options={
+            "task": "arbiter_agent",
+            "system_prompt": ARBITER_AGENT_SYSTEM_PROMPT,
+            "mcp_config": request.mcp_config_path,
+            "tools": "mcp",
+            "max_turns": 40,
+            "timeout": 300,
+        })
+    except QueueFullError:
+        raise HTTPException(status_code=503, detail="Service busy, retry later")
+    except HTTPException:
+        # Preserve the structured ClaudeCodeProvider diagnostic body (bead nmemo-klv.10).
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Arbiter agent failed: {e}")
+
+    return ArbiterResponse(result=result)

@@ -1,0 +1,36 @@
+{
+  "corpus": "corpus10.json",
+  "_comment": "Hand-authored gold reference for corpus10.json (doc 39 §2.A). The CURRENT truth as of the last chunk (mid 2024): Elena is CTO (not junior/senior/lead), Helix HQ is Austin (not Boston), Marcus Chen has left and no longer holds head of engineering. Latest-stated value wins for each exclusive attribute. currentFacts = non-superseded; expiredFacts = should have been superseded.",
+  "entities": [
+    { "name": "Elena Vasquez", "type": "person" },
+    { "name": "Helix Robotics", "type": "company" },
+    { "name": "Marcus Chen", "type": "person" },
+    { "name": "Boston", "type": "place" },
+    { "name": "Austin", "type": "place" },
+    { "name": "Project Atlas", "type": "project" },
+    { "name": "Northwind Capital", "type": "company" },
+    { "name": "Project Helios", "type": "project" },
+    { "name": "Atlas v2", "type": "project" }
+  ],
+  "currentFacts": [
+    { "subject": "Elena Vasquez", "predicate": "works_at", "object": "Helix Robotics" },
+    { "subject": "Elena Vasquez", "predicate": "job_title", "object": "chief technology officer" },
+    { "subject": "Helix Robotics", "predicate": "headquartered_in", "object": "Austin" },
+    { "subject": "Elena Vasquez", "predicate": "leads", "object": "Project Atlas" },
+    { "subject": "Helix Robotics", "predicate": "raised_funding_from", "object": "Northwind Capital" },
+    { "subject": "Helix Robotics", "predicate": "flagship_project", "object": "Project Helios" }
+  ],
+  "expiredFacts": [
+    { "subject": "Elena Vasquez", "predicate": "job_title", "object": "junior software engineer" },
+    { "subject": "Elena Vasquez", "predicate": "job_title", "object": "senior engineer" },
+    { "subject": "Elena Vasquez", "predicate": "job_title", "object": "engineering lead" },
+    { "subject": "Helix Robotics", "predicate": "headquartered_in", "object": "Boston" },
+    { "subject": "Marcus Chen", "predicate": "job_title", "object": "head of engineering" },
+    { "subject": "Elena Vasquez", "predicate": "reports_to", "object": "Marcus Chen" }
+  ],
+  "exclusiveExpectations": [
+    { "subject": "Elena Vasquez", "group": "role_title", "expectedObject": "chief technology officer" },
+    { "subject": "Helix Robotics", "group": "org_hq", "expectedObject": "Austin" },
+    { "subject": "Elena Vasquez", "group": "works_at", "expectedObject": "Helix Robotics" }
+  ]
+}

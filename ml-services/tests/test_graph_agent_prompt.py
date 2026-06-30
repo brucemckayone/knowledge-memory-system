@@ -56,9 +56,9 @@ def _build_graph_agent_prompt(
 
     prompt += (
         "## Instructions\n"
-        "Process the source text above through all five phases of the workflow.\n"
+        "Process the source text above through all phases of the workflow.\n"
         f"Use MEMORY_ID={memory_id} for ALL link_entity_to_memory and create_fact(source_memory_id=...) calls.\n"
-        "Follow the phases in order: ORIENT → EXTRACT → RELATE → CAUSE → VERIFY.\n"
+        "Follow the phases in order: ORIENT → EXTRACT → RELATE → VERIFY.\n"
         "Remember: your ONLY output is via MCP tool calls."
     )
     return prompt
