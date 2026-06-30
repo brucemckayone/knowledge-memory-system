@@ -51,6 +51,13 @@ export interface SubBatch {
   chunkEnd: number;
   status: SubBatchStatus;
   attempts: number;
+  /**
+   * Stable per-sub-batch source id, minted once at job creation. The driver
+   * passes it on EVERY attempt so store() derives deterministic memory ids
+   * (windowPointId) — a retried sub-batch then upserts the same Qdrant points
+   * instead of leaking duplicates.
+   */
+  sourceId: string;
 }
 
 function rows(result: unknown): Array<Record<string, unknown>> {
@@ -164,9 +171,12 @@ export async function createOrLoadJob(opts: {
     VALUES (${id}, ${opts.name}, ${hash}, ${opts.mode}, ${opts.subBatchSize}, ${plan.length}, 'running')
   `);
   for (const p of plan) {
+    // source_id is minted ONCE here and reused on every attempt of this
+    // sub-batch (see SubBatch.sourceId) — it is the stable key behind
+    // deterministic, idempotent re-store.
     await db.execute(sql`
-      INSERT INTO public.ingest_sub_batches (id, job_id, seq, chunk_start, chunk_end)
-      VALUES (${randomUUID()}, ${id}, ${p.seq}, ${p.chunkStart}, ${p.chunkEnd})
+      INSERT INTO public.ingest_sub_batches (id, job_id, seq, chunk_start, chunk_end, source_id)
+      VALUES (${randomUUID()}, ${id}, ${p.seq}, ${p.chunkStart}, ${p.chunkEnd}, ${randomUUID()})
     `);
   }
   return {
@@ -192,7 +202,7 @@ export async function createOrLoadJob(opts: {
 export async function nextPendingSubBatch(jobId: string): Promise<SubBatch | null> {
   const r = rows(
     await db.execute(sql`
-      SELECT seq, chunk_start, chunk_end, status, attempts
+      SELECT seq, chunk_start, chunk_end, status, attempts, source_id
       FROM public.ingest_sub_batches
       WHERE job_id = ${jobId} AND status <> 'done'
       ORDER BY seq ASC LIMIT 1
@@ -206,6 +216,7 @@ export async function nextPendingSubBatch(jobId: string): Promise<SubBatch | nul
     chunkEnd: Number(row.chunk_end),
     status: row.status as SubBatchStatus,
     attempts: Number(row.attempts),
+    sourceId: row.source_id as string,
   };
 }
 
@@ -217,10 +228,12 @@ export async function markSubBatchStarted(jobId: string, seq: number): Promise<v
   `);
 }
 
-export async function markSubBatchDone(jobId: string, seq: number, sourceId: string | null): Promise<void> {
+export async function markSubBatchDone(jobId: string, seq: number): Promise<void> {
+  // source_id is set at creation and never changed (it is the stable re-store
+  // key), so completion only flips status + stamps the time.
   await db.execute(sql`
     UPDATE public.ingest_sub_batches
-    SET status = 'done', source_id = ${sourceId}, completed_at = now(), last_error = NULL
+    SET status = 'done', completed_at = now(), last_error = NULL
     WHERE job_id = ${jobId} AND seq = ${seq}
   `);
 }

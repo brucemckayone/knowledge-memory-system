@@ -160,6 +160,10 @@ async function main(): Promise<void> {
       res = await post(`/ingest/batch/${mode}`, {
         chunks,
         source: `${job.name}-sb${sb.seq}`,
+        // Stable ledger-minted source id → deterministic memory ids in store(),
+        // so retrying this sub-batch after a pause upserts the same Qdrant
+        // points instead of leaking duplicates.
+        sourceId: sb.sourceId,
         ...(concurrency !== undefined ? { concurrency } : {}),
         ...(streamId !== undefined ? { stream_id: streamId } : {}),
         ...(contentType !== undefined ? { contentType } : {}),
@@ -179,7 +183,7 @@ async function main(): Promise<void> {
       };
       const ents = result.results?.reduce((s, r) => s + (r.entities?.length ?? 0), 0) ?? 0;
       const facts = result.results?.reduce((s, r) => s + (r.facts?.length ?? 0), 0) ?? 0;
-      await markSubBatchDone(job.id, sb.seq, result.sourceId ?? null);
+      await markSubBatchDone(job.id, sb.seq);
       const prog = await jobProgress(job.id);
       log(`  ✓ promoted (sourceId=${result.sourceId ?? '?'} ents=${ents} facts=${facts}) — ${prog.done}/${prog.total} done`);
       continue;

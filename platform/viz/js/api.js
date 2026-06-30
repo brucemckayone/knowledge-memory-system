@@ -21,6 +21,10 @@ async function postJson(url, body = null) {
 // ---- Core graph data ----
 export const getStats = () => getJson('/api/viz/stats');
 export const getUnified = () => getJson('/api/viz/unified');
+// Live pre-promote view: the current epoch's staged (proposed) entities/facts,
+// grouped by normalized (name, type). Same node/edge shape as unified, flagged
+// `_staged`. Lets you watch the propose phase fill before promote commits.
+export const getStaging = () => getJson('/api/viz/staging');
 
 // ---- Graph stats singleton (mig 013) ----
 export const getGraphStats = () => getJson('/api/graph-stats');

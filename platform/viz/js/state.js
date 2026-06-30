@@ -36,6 +36,12 @@ export const state = {
     loaded: false,
   },
   showClusterHulls: false,
+  // Staging overlay (live pre-promote view). When on, fetchData merges the
+  // current epoch's staged proposals (from /api/viz/staging) into state.data,
+  // flagged `_staged` so render.js styles them amber/dashed. stagingMeta holds
+  // the latest counts for the toggle label.
+  showStaging: false,
+  stagingMeta: null,
   // viz.4 — unified merge candidates (bead nmemo-2yv.47 — subsumes legacy
   // cross-cluster panel). mergeCandidatesSourceFilter is one of the keys in
   // panels/merge-candidates.js:SOURCE_FILTERS ('all' default).

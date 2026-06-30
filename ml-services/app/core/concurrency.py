@@ -20,8 +20,16 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Configuration (env vars, per uvicorn worker process)
 # ---------------------------------------------------------------------------
-OLLAMA_WORKERS = int(os.getenv("ML_OLLAMA_WORKERS", "4"))
-OLLAMA_BUFFER = int(os.getenv("ML_OLLAMA_BUFFER", "100"))
+# Buffer must absorb the burst from a parallel epoch batch: each store() fans
+# out embedDocument(window) + N unit embeds via Promise.all, and the epoch
+# runner stores up to EPOCH_CONCURRENCY (8) chunks at once -> 150-250
+# simultaneous /embed calls. At buffer=100 that overflowed -> 503 -> the
+# platform's bounded retries exhausted and the rejection killed the run
+# (observed on LOTR --full, 197 chunks). 2000 lets the queue hold the burst so
+# backpressure degrades to "wait in queue", not "reject"; 6 workers drains it a
+# little faster. Both still overridable via env.
+OLLAMA_WORKERS = int(os.getenv("ML_OLLAMA_WORKERS", "6"))
+OLLAMA_BUFFER = int(os.getenv("ML_OLLAMA_BUFFER", "2000"))
 
 LLM_WORKERS = int(os.getenv("ML_LLM_WORKERS", "6"))
 LLM_BUFFER = int(os.getenv("ML_LLM_BUFFER", "100"))

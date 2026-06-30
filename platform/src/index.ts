@@ -13,8 +13,8 @@ import { store, extract, ingestBatch, enqueueIngest, enqueueExtraction, getInges
 import type { IngestMode } from './services/batch.js';
 import { isSessionLimitError } from './services/session-limit.js';
 import { config } from './config.js';
-import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, captureIdempotency } from './db/index.js';
-import { isNull, sql, eq } from 'drizzle-orm';
+import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, captureIdempotency, stagingProposedEntities, stagingProposedFacts } from './db/index.js';
+import { isNull, sql, eq, desc } from 'drizzle-orm';
 import { heroRoute } from './routes/hero.js';
 import { notificationsHandler } from './routes/notifications.js';
 import { recentHandler } from './routes/recent.js';
@@ -355,7 +355,7 @@ app.get('/ingest/queue/status', (c) => {
 // baseline control), epoch (Approach A), optimistic (Approach B). epoch and
 // optimistic return 501 until their orchestrators land (Stage 3/4).
 async function handleBatch(c: Context, mode: IngestMode) {
-  const body = await c.req.json<{ chunks?: string[]; source?: string; contentType?: string; concurrency?: number; stream_id?: string }>();
+  const body = await c.req.json<{ chunks?: string[]; source?: string; sourceId?: string; contentType?: string; concurrency?: number; stream_id?: string }>();
   if (!Array.isArray(body.chunks) || body.chunks.length === 0) {
     return c.json({ error: 'chunks (non-empty array) is required' }, 400);
   }
@@ -368,6 +368,11 @@ async function handleBatch(c: Context, mode: IngestMode) {
   try {
     const result = await ingestBatch(body.chunks, {
       source: body.source,
+      // Stable per-sub-batch source id from the resumable driver's ledger:
+      // threading it through makes store() derive deterministic memory ids, so a
+      // retried sub-batch upserts instead of duplicating. Omitted by ad-hoc
+      // callers → ingestBatch mints a random sourceId (unchanged behaviour).
+      sourceId: body.sourceId,
       contentType: parseContentType(body.contentType),
       mode,
       concurrency,
@@ -738,6 +743,116 @@ app.get('/api/graph/canonical', async (c) => {
 // /api/graph/canonical, which intentionally strips those for byte-comparability.
 app.get('/api/graph/full', async (c) => {
   return c.json(await exportRichGraph());
+});
+
+// Staging preview — live view of the current epoch's proposed (pre-promote)
+// graph. The epoch path holds every proposal in staging and only writes
+// canonical at promote (end of batch — pipeline.ts runEpochBatch), so the
+// canonical viz stays flat for the whole run. This surfaces the most-recently
+// filling epoch's staged entities/facts — collapsed to one node per normalized
+// (name, type) so the one-handle-per-mention sprawl (pre-identity-resolution)
+// becomes watchable — in the SAME node/edge shape /api/viz/unified emits,
+// flagged `_staged` for the viz to style as provisional. Read-only.
+app.get('/api/viz/staging', async (c) => {
+  const STAGING_NODE_CAP = 200;
+  const STAGING_EDGE_CAP = 600;
+  const empty = {
+    epochId: null, nodes: [], edges: [],
+    meta: { proposedEntities: 0, proposedFacts: 0, groupedEntities: 0, renderedNodes: 0, renderedEdges: 0, chunksSeen: 0, capped: false },
+  };
+
+  // Most-recently-written staging row = the epoch currently (or last) filling.
+  const latest = await db
+    .select({ epochId: stagingProposedEntities.epochId })
+    .from(stagingProposedEntities)
+    .orderBy(desc(stagingProposedEntities.createdAt))
+    .limit(1);
+  if (latest.length === 0) return c.json(empty);
+  const epochId = latest[0]!.epochId;
+
+  const [ents, fcts] = await Promise.all([
+    db.select({
+      handle: stagingProposedEntities.handle,
+      name: stagingProposedEntities.name,
+      entityType: stagingProposedEntities.entityType,
+    }).from(stagingProposedEntities).where(eq(stagingProposedEntities.epochId, epochId)),
+    db.select({
+      id: stagingProposedFacts.stagedFactId,
+      subjectHandle: stagingProposedFacts.subjectHandle,
+      predicate: stagingProposedFacts.predicate,
+      objectHandle: stagingProposedFacts.objectHandle,
+      objectValue: stagingProposedFacts.objectValue,
+      confidence: stagingProposedFacts.confidence,
+      chunkIndex: stagingProposedFacts.chunkIndex,
+      createdAt: stagingProposedFacts.createdAt,
+    }).from(stagingProposedFacts).where(eq(stagingProposedFacts.epochId, epochId)),
+  ]);
+
+  // Collapse mention-level handles into one node per (normalized name, type).
+  const handleToId: Record<string, string> = {};
+  const groups: Record<string, { id: string; label: string; entityType: string; proposalCount: number }> = {};
+  for (const e of ents) {
+    const id = `stg:e:${e.name.trim().toLowerCase()} ${e.entityType}`;
+    handleToId[e.handle] = id;
+    const g = groups[id];
+    if (g) g.proposalCount++;
+    else groups[id] = { id, label: e.name, entityType: e.entityType, proposalCount: 1 };
+  }
+
+  // Over the cap, keep the most-proposed groups (densest = most central).
+  const kept = Object.values(groups).sort((a, b) => b.proposalCount - a.proposalCount).slice(0, STAGING_NODE_CAP);
+  const keptIds = new Set(kept.map((g) => g.id));
+  const nodes: Record<string, unknown>[] = kept.map((g) => ({
+    id: g.id, _nodeType: 'entity', _staged: true,
+    label: g.label, entityType: g.entityType, proposalCount: g.proposalCount,
+  }));
+
+  // Fact edges between kept nodes (or to a value node), deduped by triple.
+  const edges: Record<string, unknown>[] = [];
+  const seenTriple = new Set<string>();
+  const valueNodeIds = new Set<string>();
+  const chunks = new Set<number>();
+  for (const f of fcts) {
+    if (f.chunkIndex != null) chunks.add(f.chunkIndex);
+    if (edges.length >= STAGING_EDGE_CAP) continue;
+    const source = handleToId[f.subjectHandle];
+    if (!source || !keptIds.has(source)) continue;
+    let target: string | null = null;
+    let valueLabel: string | null = null;
+    if (f.objectHandle) {
+      const t = handleToId[f.objectHandle];
+      if (t && keptIds.has(t)) target = t;
+    } else if (f.objectValue) {
+      target = `stg:v:${f.objectValue.trim().toLowerCase()}`;
+      valueLabel = f.objectValue.length > 30 ? f.objectValue.slice(0, 30) + '...' : f.objectValue;
+    }
+    if (!target) continue;
+    const triple = `${source} ${f.predicate} ${target}`;
+    if (seenTriple.has(triple)) continue;
+    seenTriple.add(triple);
+    if (valueLabel && !valueNodeIds.has(target)) {
+      valueNodeIds.add(target);
+      nodes.push({ id: target, _nodeType: 'value', _staged: true, label: valueLabel });
+    }
+    edges.push({
+      id: `stg:f:${f.id}`, _edgeType: 'fact', _staged: true,
+      source, target, predicate: f.predicate,
+      confidence: f.confidence, createdAt: f.createdAt, chunkIndex: f.chunkIndex,
+    });
+  }
+
+  return c.json({
+    epochId, nodes, edges,
+    meta: {
+      proposedEntities: ents.length,
+      proposedFacts: fcts.length,
+      groupedEntities: Object.keys(groups).length,
+      renderedNodes: nodes.length,
+      renderedEdges: edges.length,
+      chunksSeen: chunks.size,
+      capped: Object.keys(groups).length > STAGING_NODE_CAP || edges.length >= STAGING_EDGE_CAP,
+    },
+  });
 });
 
 app.get('/api/viz/merge-candidates', async (c) => {
