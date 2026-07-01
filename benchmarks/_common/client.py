@@ -54,8 +54,14 @@ class MnemoClient:
         content_type: ContentType | None = None,
         stream_id: str | None = None,
     ) -> dict[str, Any]:
-        """POST /ingest — runs the synchronous pipeline (store + extract +
-        optional causal agent) and returns the full IngestResult.
+        """POST /ingest — stores the memory synchronously and ENQUEUES extraction
+        off the request path, returning {"memory_id": ...}.
+
+        Status contract: the success response is **202 Accepted** (the memory is
+        stored + idempotent; entity/relationship/fact extraction runs in the
+        background and surfaces shortly). 200 is also accepted for back-compat.
+        We treat any 2xx as success — a hard `== 200` check would (and did) reject
+        the legitimate 202 once /ingest moved extraction async.
 
         `stream_id` (snake_case in the body, per the platform /ingest handler
         wired in nmemo-3f9.2) scopes speaker identity: speakers are resolved
@@ -71,7 +77,7 @@ class MnemoClient:
         if stream_id is not None:
             payload["stream_id"] = stream_id
         r = self._http.post("/ingest", json=payload)
-        if r.status_code != 200:
+        if not (200 <= r.status_code < 300):
             raise MnemoClientError(f"ingest failed: {r.status_code} {r.text[:200]}")
         return r.json()
 
