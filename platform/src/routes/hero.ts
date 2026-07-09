@@ -10,7 +10,7 @@
  *                         any other failure => 500
  *   - FAIL-LOUD wire normalization the iOS JSONDecoder requires:
  *       * "active" key ALWAYS present (value object or null)
- *       * neighbors / edges / secondDegreeStubs ALWAYS arrays, never null
+ *       * neighbors / edges / secondDegree / secondDegreeStubs ALWAYS arrays
  *       * active.type and neighbor.type are CLAMPED to the iOS enum
  *         "entity" | "thread" | "entry" — any unknown backend entity_type
  *         maps to "entity" (an unknown literal makes iOS throw on decode)
@@ -79,6 +79,11 @@ export function toHeroResponse(hero: HeroComposition): HeroComposition {
     edges: (hero.edges ?? []).map((e) => ({
       ...e,
       strength: clamp01(e.strength),
+    })),
+    secondDegree: (hero.secondDegree ?? []).map((n) => ({
+      ...n,
+      type: safeNodeType(n.type),
+      edgeStrength: clamp01(n.edgeStrength),
     })),
     secondDegreeStubs: (hero.secondDegreeStubs ?? []).map((s) => ({
       ...s,

@@ -53,6 +53,19 @@ export interface HeroSecondDegreeStub {
   directionHint: number;
 }
 
+/**
+ * A real 2-hop node connected to a shown 1-hop neighbor — full identity plus the
+ * parent it hangs off, so iOS renders it as a connected, labelable ghost pearl
+ * (double-hop depth). Mirrors the explore surface's ExploreSecondDegreeNode.
+ */
+export interface HeroSecondDegreeNode {
+  entityId: string;
+  type: string;
+  name: string;
+  parentEntityId: string;
+  edgeStrength: number;
+}
+
 export interface HeroActive {
   entityId: string;
   type: 'entity' | 'thread' | 'entry';
@@ -76,6 +89,7 @@ export interface HeroComposition {
   active: HeroActive | null;
   neighbors: HeroNeighbor[];
   edges: HeroEdge[];
+  secondDegree: HeroSecondDegreeNode[];
   secondDegreeStubs: HeroSecondDegreeStub[];
 }
 
@@ -108,7 +122,7 @@ async function articulationFlags(entityIds: string[]): Promise<Set<string>> {
  */
 export class HeroNodeNotFoundError extends Error {}
 
-const EMPTY: HeroComposition = { active: null, neighbors: [], edges: [], secondDegreeStubs: [] };
+const EMPTY: HeroComposition = { active: null, neighbors: [], edges: [], secondDegree: [], secondDegreeStubs: [] };
 
 export async function composeHero(nodeId?: string): Promise<HeroComposition> {
   // 1. Resolve the seed. Explicit nodeId wins; else the self entity.
@@ -210,6 +224,37 @@ export async function composeHero(nodeId?: string): Promise<HeroComposition> {
     .filter((n) => n.entityId !== seedId && !oneHopIds.has(n.entityId))
     .map((n) => ({ fromEntityId: n.entityId, directionHint: directionHint(n.entityId) }));
 
+  // secondDegree: the same 2-hop nodes, promoted to REAL connected nodes — each
+  // carries its identity (id/name/type), the 1-hop neighbor it hangs off
+  // (parentEntityId, found via a shared edge in the depth-2 subgraph), and a
+  // unit edgeStrength (the AGE subgraph has no per-edge weight in v1, same as
+  // neighbors/edges). iOS renders these as connected ghost pearls beyond the
+  // 1-hop ring (double-hop depth). A 2-hop node with no edge to a shown neighbor
+  // is omitted — there is nothing to anchor it to.
+  const secondDegree: HeroSecondDegreeNode[] = [];
+  const placedSecondDegree = new Set<string>();
+  for (const n of twoHop.nodes) {
+    if (n.entityId === seedId || oneHopIds.has(n.entityId)) continue;
+    if (placedSecondDegree.has(n.entityId)) continue;
+    const parentEdge = twoHop.edges.find(
+      (e) =>
+        (e.fromEntityId === n.entityId && oneHopIds.has(e.toEntityId)) ||
+        (e.toEntityId === n.entityId && oneHopIds.has(e.fromEntityId)),
+    );
+    if (!parentEdge) continue;
+    const parentEntityId = oneHopIds.has(parentEdge.fromEntityId)
+      ? parentEdge.fromEntityId
+      : parentEdge.toEntityId;
+    placedSecondDegree.add(n.entityId);
+    secondDegree.push({
+      entityId: n.entityId,
+      type: n.type,
+      name: n.name,
+      parentEntityId,
+      edgeStrength: 1.0,
+    });
+  }
+
   const active: HeroActive = {
     entityId: seedId,
     type: 'entity',
@@ -231,7 +276,7 @@ export async function composeHero(nodeId?: string): Promise<HeroComposition> {
     },
   };
 
-  return { active, neighbors, edges, secondDegreeStubs };
+  return { active, neighbors, edges, secondDegree, secondDegreeStubs };
 }
 
 /** Deterministic [0,1) hint from a uuid's leading hex digits. */
