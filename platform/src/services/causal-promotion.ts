@@ -128,6 +128,12 @@ export async function applyCausalPromotion(epochId: string): Promise<CausalPromo
         sourceReferences: p.sourceReferences,
         extractionMethod: 'causal_promotion',
         actor: CAUSAL_PROMOTION_ACTOR,
+        // PC-3 (bead nmemo-uhp.4): the staged-row id is the stable corroboration
+        // identity. Re-dispatching this same epoch's staging (retry, re-promotion)
+        // re-presents the same id → corroboration is a no-op, so corroboration_count
+        // and strength stay put. A genuinely new proposal carries a new id and still
+        // corroborates. See mig 051 + causal_edge_corroborations.
+        corroborationKey: p.stagedEdgeId,
       });
     } catch (err) {
       dropped.push({

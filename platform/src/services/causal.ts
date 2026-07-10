@@ -37,6 +37,13 @@ export interface CreateCausalEdgeParams {
   // Phase 1 audit context — REQUIRED.
   actor: Actor;
   reasoningReportId?: string | null;
+
+  // PC-3 (bead nmemo-uhp.4): stable identity for replay-idempotent corroboration.
+  // When supplied (applyCausalPromotion passes the staged-row id), a corroboration
+  // bumps corroboration_count/strength at most once per key — re-dispatching the
+  // same staged row is a no-op. A UUID; absent → the legacy unconditional-bump
+  // path. See mig 051 + the causal_edge_corroborations ledger.
+  corroborationKey?: string | null;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -86,6 +93,24 @@ async function applyCorroboration(
   existing: { id: string; strength: number; source_references: unknown },
   params: CreateCausalEdgeParams,
 ): Promise<string> {
+  // PC-3 (bead nmemo-uhp.4; mig 051): scope the bump to a stable identity so
+  // epoch-replay is idempotent. Claim (edge_id, corroboration_key) in the ledger
+  // ON CONFLICT DO NOTHING — in THIS tx, so the claim and the bump commit atomically.
+  // If the row already existed (a re-dispatch of the same staged proposal), the
+  // insert returns nothing → skip the bump, audit, and ref-merge entirely and
+  // return the edge unchanged. Absent a key, keep the legacy unconditional bump.
+  if (params.corroborationKey) {
+    const claim = await tx.execute(sql`
+      INSERT INTO public.causal_edge_corroborations (edge_id, corroboration_key)
+      VALUES (${existing.id}::uuid, ${params.corroborationKey}::uuid)
+      ON CONFLICT (edge_id, corroboration_key) DO NOTHING
+      RETURNING edge_id
+    `);
+    if (unwrapRows<{ edge_id: string }>(claim).length === 0) {
+      return existing.id;
+    }
+  }
+
   const prevRefs = Array.isArray(existing.source_references)
     ? (existing.source_references as SourceReference[])
     : [];
@@ -324,6 +349,17 @@ export async function createCausalEdge(params: CreateCausalEdgeParams): Promise<
 
     const edgeId = unwrapRows<{ id: string }>(inserted)[0]?.id;
     if (!edgeId) throw new Error('createCausalEdge: INSERT returned no row');
+
+    // PC-3 (mig 051): record the staged-row identity that MINTED this edge, in the
+    // same tx as the insert. On replay this staged row hits the exact-match branch
+    // above; the ledger row it planted here makes that a no-op instead of a bump.
+    if (params.corroborationKey) {
+      await tx.execute(sql`
+        INSERT INTO public.causal_edge_corroborations (edge_id, corroboration_key)
+        VALUES (${edgeId}::uuid, ${params.corroborationKey}::uuid)
+        ON CONFLICT (edge_id, corroboration_key) DO NOTHING
+      `);
+    }
 
     await recordEdgeChange({
       edgeId,

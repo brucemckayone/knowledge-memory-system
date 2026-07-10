@@ -871,6 +871,27 @@ export const arbiterVerdicts = pgTable(
  * is a disposal step. The doc-01 invariant (non-empty reasoning + source_references)
  * is enforced structurally (migration 044_causal_pass.sql CHECKs).
  */
+// PC-3 (bead nmemo-uhp.4; mig 051): replay-idempotent corroboration ledger.
+// One row per (canonical edge, corroboration identity). applyCorroboration
+// inserts (edge_id, corroboration_key) ON CONFLICT DO NOTHING in the same tx as
+// the count bump and only bumps when the insert is new — so re-dispatching the
+// same staged row (the corroboration_key = staging_causal_edges.id) is a no-op
+// on corroboration_count/strength. Absent a key, the legacy unconditional-bump
+// path is unchanged. Rows cascade-delete with their edge.
+export const causalEdgeCorroborations = pgTable(
+  'causal_edge_corroborations',
+  {
+    edgeId: uuid('edge_id')
+      .notNull()
+      .references(() => causalEdges.id, { onDelete: 'cascade' }),
+    corroborationKey: uuid('corroboration_key').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.edgeId, t.corroborationKey] }),
+  }),
+);
+
 export const stagingCausalEdges = pgTable(
   'staging_causal_edges',
   {
