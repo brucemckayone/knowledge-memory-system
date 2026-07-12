@@ -18,9 +18,9 @@ failure rolls back the entire transaction — the in-progress clustering_compute
 row is rolled back alongside the rest, so failures leave no row behind. Only
 successful completions persist.
 
-Algorithm: HDBSCAN (Campello-Moulavi-Sander, PAKDD 2013) via the `hdbscan`
-PyPI package, cosine distance metric. min_cluster_size and min_samples are
-env-tunable (HDBSCAN_MIN_CLUSTER_SIZE, HDBSCAN_MIN_SAMPLES).
+Algorithm: HDBSCAN (Campello-Moulavi-Sander, PAKDD 2013) via
+sklearn.cluster.HDBSCAN, cosine distance metric. min_cluster_size and
+min_samples are env-tunable (HDBSCAN_MIN_CLUSTER_SIZE, HDBSCAN_MIN_SAMPLES).
 
 Key contracts (per doc 24.1 §2.3 + master §10 lock B):
 - Reads live entity_meta.centroid; writes a stable centroid_snapshot to
@@ -77,8 +77,14 @@ COMPUTATION_VERSION = 1
 RUN_TIMEOUT_SECONDS = 300
 
 # Doc 24.1 §2.2 — hyperparameters, env-tunable.
-DEFAULT_MIN_CLUSTER_SIZE = 5
-DEFAULT_MIN_SAMPLES = 5
+# Lowered from 5/5 to 3/2: a personal onboarding graph is SMALL (a handful of
+# entities per theme). At min_cluster_size=5 HDBSCAN marks a ~15-20 entity graph
+# entirely as noise, so the onboarding stage machine can never see ≥2 clusters
+# and stalls at stage_2. 3/2 reliably yields ≥2 clusters at this scale while
+# still requiring genuine density. Override via HDBSCAN_MIN_CLUSTER_SIZE /
+# HDBSCAN_MIN_SAMPLES for larger corpora.
+DEFAULT_MIN_CLUSTER_SIZE = 3
+DEFAULT_MIN_SAMPLES = 2
 
 
 def _hdbscan_min_cluster_size() -> int:
@@ -249,11 +255,10 @@ def compute_hdbscan(
 
     Returns: dict mapping entity_id -> ClusterAssignment(cluster_id, prob, snapshot).
 
-    Algorithm: hdbscan.HDBSCAN with cosine distance. The hdbscan package's
-    cosine support varies by version — to keep it robust we precompute a
-    pairwise cosine distance matrix and pass metric='precomputed'. This also
-    sidesteps the boolean-features warning some hdbscan versions emit on
-    direct cosine calls (per doc 24.1 §3.1 "defer to doc 24.1 §3" gotcha).
+    Algorithm: sklearn.cluster.HDBSCAN with cosine distance. sklearn's HDBSCAN
+    supports metric='precomputed' but not 'cosine' directly, so we precompute a
+    pairwise cosine distance matrix and pass metric='precomputed' (this path is
+    also what the standalone hdbscan package needed for robust cosine support).
 
     Edge cases (doc 24.1 §6):
       - 0 entities: return {} (caller writes nothing).
@@ -283,9 +288,12 @@ def compute_hdbscan(
             for i, eid in enumerate(entity_ids)
         }
 
-    # Lazy import — hdbscan brings in numba on first import; we don't want to
-    # pay for it when callers only need the canonicalisation helpers.
-    import hdbscan  # noqa: PLC0415
+    # Lazy import kept for parity with the canonicalisation-only callers. Uses
+    # the built-in sklearn.cluster.HDBSCAN (added in scikit-learn 1.3) rather
+    # than the standalone `hdbscan` PyPI package: sklearn's implementation needs
+    # no numba/llvmlite (which does not build on this Python 3.13 venv), and is a
+    # drop-in for our precomputed-distance path (same labels_/probabilities_).
+    from sklearn.cluster import HDBSCAN  # noqa: PLC0415
 
     # Precomputed cosine distance matrix. cosine_distance = 1 - cosine_similarity.
     # We L2-normalise first so the dot product equals cosine similarity.
@@ -304,13 +312,17 @@ def compute_hdbscan(
     distance = (distance + distance.T) / 2.0
     distance = distance.astype(np.float64)
 
-    clusterer = hdbscan.HDBSCAN(
+    clusterer = HDBSCAN(
         min_cluster_size=min_cluster_size,
         min_samples=min_samples,
         metric="precomputed",
-        # core_dist_n_jobs=1 keeps the run deterministic / single-threaded for
-        # reproducible test output.
-        core_dist_n_jobs=1,
+        # n_jobs=1 keeps the run deterministic / single-threaded for
+        # reproducible test output (sklearn's equivalent of the hdbscan
+        # package's core_dist_n_jobs).
+        n_jobs=1,
+        # copy=True: do not mutate the caller's precomputed matrix in place
+        # (also pins the sklearn>=1.9 behaviour whose default flips in 1.10).
+        copy=True,
     )
     raw_labels = [int(x) for x in clusterer.fit_predict(distance)]
     raw_probs = clusterer.probabilities_

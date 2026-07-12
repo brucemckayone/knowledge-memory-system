@@ -97,14 +97,37 @@ export async function updateEntityMeta(entityIds: string[]): Promise<void> {
       }
     }
 
-    // Temporal span
-    const timestamps = mentions
-      .map(m => m.createdAt)
-      .filter((t): t is Date => t != null)
-      .sort((a, b) => a.getTime() - b.getTime());
-
-    const firstMentioned = timestamps[0] ?? null;
-    const lastMentioned = timestamps[timestamps.length - 1] ?? null;
+    // Temporal span. Prefer the memory's CAPTURE time (memory_index.created_at,
+    // which store() sets from the client `captured_at`) over memory_entities.created_at
+    // (stamped at EXTRACTION wall-clock). This makes first_mentioned_at — and the
+    // entities.first_seen_at backfill below — reflect WHEN the user captured, not
+    // when the async graph agent happened to run. The onboarding stability proxy
+    // (services/onboarding.ts gatherStableClusters) reads entities.first_seen_at,
+    // so without this an established user's freshly-extracted graph reads as
+    // brand-new and stalls onboarding at stage_2.
+    let firstMentioned: Date | null = null;
+    let lastMentioned: Date | null = null;
+    if (memoryIds.length > 0) {
+      const span = (await db.execute(sql`
+        SELECT MIN(created_at) AS first_at, MAX(created_at) AS last_at
+        FROM memory_index
+        WHERE memory_id IN (${sql.join(memoryIds.map((m) => sql`${m}`), sql`, `)})
+      `)) as unknown as Array<{ first_at: Date | string | null; last_at: Date | string | null }>;
+      const toDate = (v: Date | string | null): Date | null =>
+        v instanceof Date ? v : typeof v === 'string' ? new Date(v) : null;
+      firstMentioned = toDate(span[0]?.first_at ?? null);
+      lastMentioned = toDate(span[0]?.last_at ?? null);
+    }
+    // Fallback: if these memories have no memory_index row (best-effort recency
+    // index — may be absent), use the memory_entities link timestamps.
+    if (firstMentioned === null || lastMentioned === null) {
+      const linkTs = mentions
+        .map((m) => m.createdAt)
+        .filter((t): t is Date => t != null)
+        .sort((a, b) => a.getTime() - b.getTime());
+      firstMentioned = firstMentioned ?? linkTs[0] ?? null;
+      lastMentioned = lastMentioned ?? linkTs[linkTs.length - 1] ?? null;
+    }
 
     // Upsert entity_meta
     if (centroidArray) {
@@ -133,6 +156,18 @@ export async function updateEntityMeta(entityIds: string[]): Promise<void> {
           first_mentioned_at = ${firstMentioned},
           last_mentioned_at = ${lastMentioned},
           updated_at = NOW()
+      `);
+    }
+
+    // Backfill entities.first_seen_at to the earliest CAPTURE time. LEAST never
+    // moves it later, so an already-earlier value (or a re-run) is preserved.
+    // This is the exact column the onboarding stability proxy reads, so the
+    // stage machine can advance organically once captured_at reflects real history.
+    if (firstMentioned !== null) {
+      await db.execute(sql`
+        UPDATE entities
+        SET first_seen_at = LEAST(first_seen_at, ${firstMentioned})
+        WHERE id = ${entityId}
       `);
     }
   }

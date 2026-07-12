@@ -60,6 +60,7 @@ import { db } from '../db/index.js';
 import { getClustersSnapshot } from './clustering.js';
 import { getTopologySnapshot } from './topology.js';
 import { getDriftEvents } from './drift.js';
+import { getSelfEntity } from './entities.js';
 import { assertVoiceC } from './voice-c-composer.js';
 
 // =============================================================================
@@ -328,6 +329,11 @@ interface EntityRow {
   clusterId: number | null;
   clusterProbability: number | null;
   communityId: number | null;
+  /** True for the SELF entity ("me") — the default-stream USER speaker,
+   *  resolved via the stream_participants join (same as /api/hero), NOT the
+   *  unreliable entities.properties.is_self flag. Self is kept as a cluster
+   *  member but is never a cluster representative / focus candidate. */
+  isSelf: boolean;
 }
 
 /**
@@ -341,6 +347,10 @@ interface EntityRow {
 async function gatherEntities(): Promise<EntityRow[]> {
   const clusters = await getClustersSnapshot();
   const topo = await getTopologySnapshot();
+  // Resolve the SELF entity the same way /api/hero does — the (default, user)
+  // stream_participants join (getSelfEntity), not the properties.is_self flag.
+  const self = await getSelfEntity();
+  const selfId = self?.id ?? null;
   const clusterByEntity = new Map<
     string,
     { clusterId: number; clusterProbability: number | null }
@@ -383,6 +393,7 @@ async function gatherEntities(): Promise<EntityRow[]> {
       clusterId: c?.clusterId ?? null,
       clusterProbability: c?.clusterProbability ?? null,
       communityId: communityByEntity.get(r.entity_id) ?? null,
+      isSelf: selfId !== null && r.entity_id === selfId,
     } satisfies EntityRow;
   });
 }
@@ -449,7 +460,14 @@ async function gatherStableClusters(
       }
       return a.canonicalName.localeCompare(b.canonicalName);
     });
-    const representative = members[0]!;
+    // The SELF entity ("me") is the most-mentioned node in any cluster it lands
+    // in, but it must never be the cluster's FACE: the stage-3 themed prompt and
+    // the awaiting_confirmation inferredFocus both cite the representative, and
+    // "you mentioned user (stream default)" / "…is that right?" over "me" is
+    // nonsense. Keep self as a MEMBER (it still counts toward supportingEntries)
+    // but pick the strongest NON-self entity as representative; fall back to
+    // members[0] only for the degenerate self-only cluster.
+    const representative = members.find((m) => !m.isSelf) ?? members[0]!;
 
     // Supporting entries = sum of member source_memory_count (distinct-memory
     // rollup; minor double-count risk across co-mentioning entities is
@@ -766,7 +784,7 @@ export async function evaluateStage(now: Date = new Date()): Promise<OnboardingS
     .map((c) => normalizeName(c.representative.canonicalName));
   const representativeName =
     entities
-      .slice()
+      .filter((e) => !e.isSelf) // never cite "me" in the stage_2 entity-citing prompt
       .sort((a, b) => b.sourceMemoryCount - a.sourceMemoryCount)[0]?.canonicalName;
 
   const prompt = composePrompt(targetStage, {
@@ -818,7 +836,7 @@ async function reissueCurrentStagePrompt(
   now: Date,
 ): Promise<void> {
   const representativeName = entities
-    .slice()
+    .filter((e) => !e.isSelf) // never cite "me" when re-issuing an entity-citing prompt
     .sort((a, b) => b.sourceMemoryCount - a.sourceMemoryCount)[0]?.canonicalName;
   const prompt = composePrompt(
     stage,
