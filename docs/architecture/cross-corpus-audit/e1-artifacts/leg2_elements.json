@@ -1,0 +1,380 @@
+[
+  {
+    "id": "E002",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 35,
+    "code": "  29  | // so call sites read naturally and the suppression lives in one place only.\n  30  | // The parameter cannot be const: `getpeername` writes the peer address through the\n  31  | // returned pointer, so casting away const here would be undefined behaviour.\n  32  | sockaddr* asSockAddr(sockaddr_in* addr) noexcept \n  33  | {\n  35 >|    return reinterpret_cast<sockaddr*>(addr); \n  36  | }\n  37  | } // namespace\n  38  | \n  39  | TcpClient::TcpClient(std::string address, uint16_t const port)\n  40  |    : ITcpClient()\n  41  |    , m_serverAddress{std::move(address)}\n  42  |    , m_serverPort(port)"
+  },
+  {
+    "id": "E004",
+    "file": "lib_common/include/Utility/ByteBufferOps.hpp",
+    "line": 32,
+    "code": "  26  | ///\n  27  | inline void\n  28  | shiftBytesToFront(uint8_t* const buffer, const std::size_t srcOffset, const std::size_t size)\n  29  | {\n  30  |    // Pointer arithmetic safe by caller-validated bounds precondition.\n  32 >|    static_cast<void>(std::memmove(buffer, buffer + srcOffset, size));\n  33  | }\n  34  | \n  35  | } // namespace Alpha\n  36  | \n  37  | #endif\n  38  | "
+  },
+  {
+    "id": "E006",
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 54,
+    "code": "  48  |    // std::istream::read only accepts char*, but our buffers are uint8_t. Casting\n  49  |    // between them is safe: the C++ standard lets you view any object as a sequence\n  50  |    // of bytes (char, unsigned char, or std::byte), and uint8_t is just unsigned\n  51  |    // char on every platform we support. This helper keeps the cast (and its\n  54 >|    stream.read(reinterpret_cast<char*>(data), static_cast<std::streamsize>(size));\n  55  |    return stream.gcount();\n  56  | }\n  57  | \n  58  | /// @brief Reads from a char-oriented input stream into a byte buffer at the\n  59  | /// given offset.\n  60  | ///\n  61  | /// Convenience overload that centralises the offset pointer arithmetic for"
+  },
+  {
+    "id": "E008",
+    "file": "lib_positioning_engine/src/Core/EngineImpl.hpp",
+    "line": 419,
+    "code": " 413  | \n 414  | template <OperatingMode MODE>\n 415  | ErrorCode PositioningEngine<MODE>::EngineImpl::provideSatellitePositions(\n 416  |    const std::pair<\n 417  |       GnssKey,\n 419 >|       std::shared_ptr<const Polynomial<ORBIT_POLYNOMIAL_DEGREE, DIMENSION_3D>>> satellitePositions)\n 420  | {\n 421  |    ErrorCode result{ErrorCode::Success};\n 422  | \n 423  |    try\n 424  |    {\n 425  |       if (!m_distribution.process(satellitePositions))\n 426  |       {"
+  },
+  {
+    "id": "E010",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 35,
+    "code": "  29  | // -------------------------------------------------------------------------------------------------\n  30  | // OPERATING_MODE_1 Initial variance scalars\n  31  | // -------------------------------------------------------------------------------------------------\n  32  | \n  34  | template <>\n  35 >| inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Ambiguity> = 1.0e16; // [cyc^2]\n  36  | \n  38  | template <>\n  39  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Coordinates> = 1.0e16; // [m^2]\n  40  | \n  42  | template <>"
+  },
+  {
+    "id": "E012",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 43,
+    "code": "  38  | template <>\n  39  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Coordinates> = 1.0e16; // [m^2]\n  40  | \n  42  | template <>\n  43 >| inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Ionosphere> = 1e16;\n  44  | // 625.0 / TEC_CONVERSION_FACTOR_SQUARED; // [TECU^2]\n  45  | \n  47  | template <>\n  48  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PhaserangeSignalBias> = 1e16;\n  49  | // (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]\n  50  | "
+  },
+  {
+    "id": "E014",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 53,
+    "code": "  47  | template <>\n  48  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PhaserangeSignalBias> = 1e16;\n  49  | // (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]\n  50  | \n  52  | template <>\n  53 >| inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PseudorangeSignalBias> = 1e16;\n  54  | // (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]\n  55  | \n  57  | template <>\n  58  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, ReceiverClock> = 1e16;\n  59  | // (0.05 * SPEED_OF_LIGHT) * (0.05 * SPEED_OF_LIGHT); // [m^2]\n  60  | "
+  },
+  {
+    "id": "E016",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp",
+    "line": 189,
+    "code": " 183  |    }\n 184  | \n 185  |    // -------------------------------------------------------------------------\n 186  |    // MEMBER VARIABLES\n 187  |    // -------------------------------------------------------------------------\n 188  |    const std::shared_ptr<T_STRATEGY>\n 189 >|       m_strategyModule; \n 190  | };\n 191  | \n 192  | } // namespace Alpha\n 193  | \n 194  | #endif // !SYNCHRONIZER_HPP\n 195  | "
+  },
+  {
+    "id": "E018",
+    "file": "test/alpha_conversion/Managers/FileManagerTest.cpp",
+    "line": 90,
+    "code": "  84  |       REQUIRE(fm2.fillToMinimum(buffer, validBytes, 5));\n  85  |       REQUIRE(validBytes >= 5);\n  86  | \n  87  |       // Check that the buffer contains \"HelloWorld\" at the start\n  88  |       // byte-to-char buffer interop\n  90 >|       std::string readData(reinterpret_cast<char*>(buffer.data()), 10);\n  91  |       REQUIRE(readData == \"HelloWorld\");\n  92  | \n  93  |       // Repeatedly fill the buffer until EOF\n  94  |       while (fm2.fillBuffer(buffer, validBytes))\n  95  |       {\n  96  |          // keep reading\n  97  |       }"
+  },
+  {
+    "id": "E020",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 34,
+    "code": "  28  |    if (!m_isOpen)\n  29  |    {\n  30  |       throw FileException(\"Mock file writer is not open\");\n  31  |    }\n  32  |    // Iterator range over byte buffer\n  34 >|    m_writtenData.insert(m_writtenData.end(), data, data + size);\n  35  | }\n  36  | \n  37  | void MockFileWriter::write(const char* data, uint32_t size)\n  38  | {\n  40  |    write(reinterpret_cast<const uint8_t*>(data), size);\n  41  | }"
+  },
+  {
+    "id": "E022",
+    "file": "test/alpha_replayer/Utility/EngineFactoryTest.cpp",
+    "line": 22,
+    "code": "  16  | {\n  17  | // checks that vector contains a one of each variants of engine (checks size and uniqueness)\n  18  | bool isUniqueFullVariantSet(const std::vector<Alpha::Replay::EngineFactory::EngineVariant>& vec)\n  19  | {\n  20  |    // clang-tidy false positive on constexpr with variant_size_v\n  22 >|    constexpr std::size_t numTypes\n  23  |       = std::variant_size_v<Alpha::Replay::EngineFactory::EngineVariant>;\n  24  | \n  25  |    if (vec.size() != numTypes)\n  26  |    {\n  27  |       return false; // Must be exactly one of each type\n  28  |    }\n  29  | "
+  },
+  {
+    "id": "E024",
+    "file": "test/lib_positioning_engine/Core/Api/TimeTest.cpp",
+    "line": 9,
+    "code": "   3  | #include <Core/Api/StochasticScalar.hpp>\n   4  | \n   5  | #include <catch2/catch_test_macros.hpp>\n   6  | #include <catch2/matchers/catch_matchers.hpp>\n   7  | #include <catch2/matchers/catch_matchers_floating_point.hpp>\n   8  | \n   9 >| #define TEST_NS \"Core::Api::Time: \" \n  10  | \n  11  | namespace Alpha::Test\n  12  | {\n  13  | \n  14  | constexpr double TEST_SECONDS_PER_WEEK = 604800.0;\n  15  | constexpr double TEST_SECONDS_PER_HOUR = 3600.0;\n  16  | constexpr double EPSILON = 1e-9;"
+  },
+  {
+    "id": "E026",
+    "file": "test/lib_positioning_engine/Core/PositioningEngineTest.cpp",
+    "line": 39,
+    "code": "  33  | \n  34  | #include <cstdint>\n  35  | #include <memory>\n  36  | #include <optional>\n  37  | #include <utility>\n  38  | \n  39 >| #define TEST_NS \"Core::PositioningEngine::\" \n  40  | \n  41  | \n  42  | namespace Alpha::Test\n  43  | {\n  44  | \n  45  | class SolutionAcceptorStub : public ISolutionAcceptor\n  46  | {"
+  },
+  {
+    "id": "E028",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 25,
+    "code": "  19  | #include <sstream>\n  20  | #include <string>\n  21  | #include <vector>\n  22  | \n  23  | #include <Core/Utility/ApiFormatters.hpp> \n  24  | \n  25 >| #define TEST_NS \"Logging::Logger::\" \n  26  | \n  27  | namespace Alpha\n  28  | {\n  29  | namespace Test\n  30  | {\n  31  | \n  32  | // Captures logs and checks patterns verifying correct logging output"
+  },
+  {
+    "id": "E030",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 65,
+    "code": "  61  |    m_lastError = TCP_NO_ERROR;\n  62  | \n  63  |    if (!isConnected())\n  64  |    {\n  65 >|       m_sock = socket(AF_INET, static_cast<int32_t>(SOCK_STREAM), 0);\n  66  | \n  67  |       if (m_sock == INVALID_SOCKET)\n  68  |       {\n  69  |          m_lastError = \"TcpClient: socket() error: \" + std::to_string(errno);"
+  },
+  {
+    "id": "E032",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 106,
+    "code": " 102  |       }\n 103  | \n 104  |       // Set connection as non-blocking - throw on failure (like Windows ioctlsocket)\n 105  |       uint32_t opts = static_cast<uint32_t>(fcntl(m_sock, F_GETFL));\n 106 >|       opts = (opts | static_cast<uint32_t>(O_NONBLOCK));\n 107  | \n 108  |       if (fcntl(m_sock, F_SETFL, opts) < 0)\n 109  |       {\n 110  |          m_lastError = \"TcpClient: fcntl() error: \" + std::to_string(errno);"
+  },
+  {
+    "id": "E034",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 85,
+    "code": "  81  |                                 ? 1.0 / INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, T_STATE_TYPE>\n  82  |                                 : INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, T_STATE_TYPE>;\n  83  | \n  84  |       const Index idx = state.template insert<T_STATE_TYPE>(key);\n  85 >|       using StateMatrix = typename T_STATE::StateMatrix;\n  86  |       StateMatrix& stateMatrix = state.getModifiableMatrix();\n  87  |       constexpr unsigned int dim = T_STATE_TYPE::DIM;\n  88  |       stateMatrix.template block<dim, dim>(idx, idx)\n  89  |          = StateMatrix::Identity(dim, dim) * diagonalElement;"
+  },
+  {
+    "id": "E036",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp",
+    "line": 35,
+    "code": "  31  | public:\n  32  |    // -------------------------------------------------------------------------\n  33  |    // TYPEDEFS & ALIASES\n  34  |    // -------------------------------------------------------------------------\n  35 >|    using ThisOutput = typename T_STRATEGY::Output;\n  36  | \n  37  |    // -------------------------------------------------------------------------\n  38  |    // CONSTRUCTOR / DESTRUCTOR & OPERATORS\n  39  |    // -------------------------------------------------------------------------"
+  },
+  {
+    "id": "E038",
+    "file": "lib_positioning_engine/src/Logging/Logger.hpp",
+    "line": 91,
+    "code": "  87  |    /// @brief Size(bytes) required for one null terminator character('\\0').\n  88  |    static constexpr size_t NULL_TERMINATOR_LEN = 1U;\n  89  | \n  90  |    /// @brief Maximum size of the charater array used to store the thread name.\n  91 >|    static constexpr size_t THREAD_NAME_LEN = 10U;\n  92  | \n  93  |    /// @brief Name of the thread on which the log entry was generated.\n  94  |    using ThreadName = std::array<char, THREAD_NAME_LEN + NULL_TERMINATOR_LEN>;\n  95  | "
+  },
+  {
+    "id": "E040",
+    "file": "test/alpha_conversion/Managers/FileManagerTest.cpp",
+    "line": 53,
+    "code": "  49  |          = FileManager::enumerateFiles(config.inputFolderPath, config.outputFolderPath);\n  50  |       // Only the .xml and .hlf files should be detected.\n  51  |       REQUIRE(results.size() == 2);\n  52  |       // Verify that each pair's first element exists and second element has the opposite extension\n  53 >|       for (const auto& [inPath, outPath] : results)\n  54  |       {\n  55  |          REQUIRE(fs::exists(inPath));\n  56  |          const auto inExt = inPath.extension().string();\n  57  |          const auto outExt = outPath.extension().string();"
+  },
+  {
+    "id": "E042",
+    "file": "test/alpha_replayer/Logging/EngineErrorLoggerTest.cpp",
+    "line": 22,
+    "code": "  18  | {\n  19  |    MockFileWriter writer;\n  20  |    writer.open(\"test.log\");\n  21  |    const std::string content = \"hello world\";\n  22 >|    writer.write(content.data(), static_cast<uint32_t>(content.size()));\n  23  | \n  24  |    CHECK(writer.writtenDataAsString() == content);\n  25  | }\n  26  | "
+  },
+  {
+    "id": "E044",
+    "file": "test/alpha_replayer/Utility/EngineFactoryTest.cpp",
+    "line": 62,
+    "code": "  58  | \n  59  |    for (uint16_t i = 1; i < 2; i++)\n  60  |    {\n  61  |       variants.push_back(\n  62 >|          Alpha::Replay::EngineFactory::create(i, static_cast<uint16_t>(i - 1), solutionAcceptor));\n  63  |    }\n  64  | \n  65  |    // all instances\n  66  |    CHECK(isUniqueFullVariantSet(variants));"
+  },
+  {
+    "id": "E046",
+    "file": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp",
+    "line": 138,
+    "code": " 134  |    std::sort(vecDistValueAndIndex.begin(), vecDistValueAndIndex.end(), SComparePairScalarIndex());\n 135  |    Eigen::PermutationMatrix<Eigen::Dynamic> matPermutation(iNumCandidates);\n 136  |    for (std::size_t idx = 0; idx < candidateCount; ++idx)\n 137  |    {\n 138 >|       const TPermutationIndex idxEigen = static_cast<TPermutationIndex>(idx);\n 139  |       matPermutation.indices()[idxEigen] = vecDistValueAndIndex[idx].second;\n 140  |    }\n 141  |    rmatIlsCandidates = rmatIlsCandidates * matPermutation;\n 142  | }"
+  },
+  {
+    "id": "E048",
+    "file": "test/lib_positioning_engine/Core/Api/TimeTest.cpp",
+    "line": 135,
+    "code": " 131  |       }\n 132  |       SECTION(\"Total seconds difference consistency between normalized times\")\n 133  |       {\n 134  |          auto getTotalSeconds = [](const Time& time) -> double {\n 135 >|             return (static_cast<double>(time.weeks) * TEST_SECONDS_PER_WEEK) + time.seconds.value;\n 136  |          };\n 137  | \n 138  |          double expectedOverflowTotal\n 139  |             = (static_cast<double>(2333 + 10) * TEST_SECONDS_PER_WEEK) + TEST_SECONDS_PER_HOUR;"
+  },
+  {
+    "id": "E050",
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 76,
+    "code": "  72  | class WorkerTask : public ThreadBase<WorkerDetail::InputVariant>\n  73  | {\n  74  | public:\n  75  |    /// @brief Input types supported by this worker.\n  76 >|    using InputVariant = WorkerDetail::InputVariant;\n  77  | \n  78  |    /// @brief Constructor.\n  79  |    /// @param instanceId Engine Instance ID.\n  80  |    /// @param outputSolutionCallback Callback to accept a Solution."
+  },
+  {
+    "id": "E052",
+    "file": "test/lib_positioning_engine/Core/PositioningEngineTest.cpp",
+    "line": 331,
+    "code": " 327  |       StochasticScalar{512800.0, 0.0}\n 328  |    };\n 329  |    satellitePositionPolynomial.data.discontinuityCounter = 53;\n 330  |    satellitePositionPolynomial.data.timespanHalfValidity = 1500.0;\n 331 >|    for (auto& order : satellitePositionPolynomial.data.coefficients)\n 332  |    {\n 333  |       for (auto& component : order)\n 334  |       {\n 335  |          component = 1.2;"
+  },
+  {
+    "id": "E054",
+    "file": "test/lib_positioning_engine/Core/PositioningEngineTest.cpp",
+    "line": 517,
+    "code": " 513  |    expectedPeriod.data.minimum = 0.5;\n 514  |    alphaEngine.setGnssMeasurementsExpectedPeriod(expectedPeriod);\n 515  | \n 516  |    constexpr uint32_t expectedNumberOfHeaderRecords = 6;\n 517 >|    constexpr uint32_t expectedNumberOfDataRecords = 1;\n 518  |    constexpr uint32_t expectedNumberOfRecords\n 519  |       = expectedNumberOfHeaderRecords + expectedNumberOfDataRecords;\n 520  | \n 521  |    logCounter.waitFor(expectedNumberOfRecords);"
+  },
+  {
+    "id": "E056",
+    "file": "test/lib_positioning_engine/Core/PositionReconstruction/PositionAndVelocityReconstructionTest.cpp",
+    "line": 904,
+    "code": " 900  | TEST_CASE(TEST_NS \"Thread Safety Stress Test\", \"[reconstruction][threads][stress]\")\n 901  | {\n 902  |    constexpr double testDurationSec = 1.3;\n 903  |    constexpr double absoluteRateHz = 10.0;\n 904 >|    constexpr double incrementalRateHz = 100.0;\n 905  |    constexpr int absoluteIntervalMs = static_cast<int>(1000 / absoluteRateHz);\n 906  |    constexpr int incrementalIntervalMs = static_cast<int>(1000 / incrementalRateHz);\n 907  | \n 908  | "
+  },
+  {
+    "id": "E058",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 67,
+    "code": "  63  |       const std::string& expectedLogLevel,\n  64  |       const FacilityCode expectedFacilityCode,\n  65  |       const std::string& expectedMessage) const\n  66  |    {\n  67 >|       const auto expectedFacility = static_cast<uint16_t>(expectedFacilityCode);\n  68  | \n  69  |       std::ostringstream patternStream;\n  70  | \n  71  |       // Format regular expression to match log string based on the given parameters"
+  },
+  {
+    "id": "E060",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 450,
+    "code": " 446  |    LogCapture capture{};\n 447  | \n 448  |    Logger::setThreadContext(0, \"main\");\n 449  | \n 450 >|    Logger::registerCallback([&](const uint8_t level, const char* data, const size_t size) {\n 451  |       capture.capture(level, data, size);\n 452  |    });\n 453  | \n 454  |    constexpr size_t numInstances = 10;"
+  },
+  {
+    "id": "E062",
+    "file": "test/lib_positioning_engine/Utility/LinearAlgebraTest.cpp",
+    "line": 89,
+    "code": "  85  |       std::pmr::get_default_resource(),\n  86  |       \"DefaultConstruction\"};\n  87  |    LargeDynamicMatrix<MAX_SIZE_50, MAX_SIZE_50> matrix(&memResource);\n  88  |    REQUIRE(matrix.rows() == static_cast<Eigen::Index>(MAX_SIZE_50));\n  89 >|    REQUIRE(matrix.cols() == static_cast<Eigen::Index>(MAX_SIZE_50));\n  90  | }\n  91  | \n  92  | TEST_CASE(TEST_NS \"LargeDynamicMatrix Sized Construction\", \"[LinearAlgebra]\")\n  93  | {"
+  },
+  {
+    "id": "E001",
+    "file": "alpha_conversion/src/Utility/NumericParsing.hpp",
+    "line": 39,
+    "code": "  33  | {\n  34  |    static_assert(std::is_arithmetic_v<T>, \"parseNumericValue requires an arithmetic type\");\n  35  | \n  36  |    const std::string_view view{text};\n  37  |    // std::from_chars requires [first, last) pointers; view.data() is contiguous, bounded by size().\n  39 >|    const auto* const last = view.data() + view.size();\n  40  | \n  41  |    const auto result = std::from_chars(text, last, value);\n  42  | \n  43  |    return (result.ec == std::errc{}) && (result.ptr == last);\n  44  | }\n  45  | \n  46  | } // namespace Alpha::Conversion"
+  },
+  {
+    "id": "E003",
+    "file": "lib_common/include/Utility/ArgvToVector.hpp",
+    "line": 29,
+    "code": "  23  | ///\n  24  | inline std::vector<std::string>\n  25  | argvToVector(const std::size_t argc, const char* const* const argv, const std::size_t offset = 0U)\n  26  | {\n  27  |    // Caller-verified: offset <= argc\n  29 >|    return std::vector<std::string>{argv + offset, argv + argc};\n  30  | }\n  31  | \n  32  | } // namespace Alpha\n  33  | \n  34  | #endif\n  35  | "
+  },
+  {
+    "id": "E005",
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 33,
+    "code": "  27  |    // std::ostream::write only accepts char*, but our buffers are uint8_t. Casting\n  28  |    // between them is safe: the C++ standard lets you view any object as a sequence\n  29  |    // of bytes (char, unsigned char, or std::byte), and uint8_t is just unsigned\n  30  |    // char on every platform we support. This helper keeps the cast (and its\n  33 >|    stream.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(size));\n  34  | }\n  35  | \n  36  | /// @brief Reads from a char-oriented input stream into a byte buffer.\n  37  | ///\n  38  | /// Companion to writeBytes(). Centralises the byte/char reinterpret_cast\n  39  | /// required by std::istream's char* API.\n  40  | ///"
+  },
+  {
+    "id": "E007",
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 79,
+    "code": "  73  |    uint8_t* const data,\n  74  |    const std::size_t offset,\n  75  |    const std::size_t size)\n  76  | {\n  77  |    // Pointer arithmetic safe by caller-validated bounds precondition.\n  79 >|    return readBytes(stream, data + offset, size);\n  80  | }\n  81  | \n  82  | } // namespace Alpha\n  83  | \n  84  | #endif\n  85  | "
+  },
+  {
+    "id": "E009",
+    "file": "lib_positioning_engine/src/Core/PositioningEngine.cpp",
+    "line": 78,
+    "code": "  72  | \n  73  | template <OperatingMode MODE>\n  74  | ErrorCode PositioningEngine<MODE>::provideSatellitePositions(\n  75  |    const std::pair<\n  76  |       GnssKey,\n  78 >|       std::shared_ptr<const PositionPolynomial>> satellitePositions)\n  79  | {\n  80  |    return m_engineImpl->provideSatellitePositions(satellitePositions);\n  81  | }\n  82  | \n  83  | template <OperatingMode MODE>\n  84  | ErrorCode PositioningEngine<MODE>::reset()\n  85  | {"
+  },
+  {
+    "id": "E011",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 39,
+    "code": "  34  | template <>\n  35  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Ambiguity> = 1.0e16; // [cyc^2]\n  36  | \n  38  | template <>\n  39 >| inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Coordinates> = 1.0e16; // [m^2]\n  40  | \n  42  | template <>\n  43  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Ionosphere> = 1e16;\n  44  | // 625.0 / TEC_CONVERSION_FACTOR_SQUARED; // [TECU^2]\n  45  | "
+  },
+  {
+    "id": "E013",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 48,
+    "code": "  42  | template <>\n  43  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Ionosphere> = 1e16;\n  44  | // 625.0 / TEC_CONVERSION_FACTOR_SQUARED; // [TECU^2]\n  45  | \n  47  | template <>\n  48 >| inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PhaserangeSignalBias> = 1e16;\n  49  | // (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]\n  50  | \n  52  | template <>\n  53  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PseudorangeSignalBias> = 1e16;\n  54  | // (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]\n  55  | "
+  },
+  {
+    "id": "E015",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 58,
+    "code": "  52  | template <>\n  53  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PseudorangeSignalBias> = 1e16;\n  54  | // (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]\n  55  | \n  57  | template <>\n  58 >| inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, ReceiverClock> = 1e16;\n  59  | // (0.05 * SPEED_OF_LIGHT) * (0.05 * SPEED_OF_LIGHT); // [m^2]\n  60  | \n  62  | template <>\n  63  | inline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Troposphere> = 1e16;\n  64  | // 1.5625e-9; // [m^2]\n  65  | "
+  },
+  {
+    "id": "E017",
+    "file": "lib_positioning_engine/src/Logging/Logger.hpp",
+    "line": 351,
+    "code": " 345  |       if (!s_callback)\n 346  |       {\n 347  |          return;\n 348  |       }\n 349  | \n 350  |       // Unnecessary and sub-optimal to zero-initialize the entire buffer on every call\n 351 >|       LogBuffer buffer; \n 352  | \n 353  |       // Format metadata fields preceding the message\n 354  |       const std::size_t metadataLength\n 355  |          = formatMetadata(buffer.data(), buffer.size(), instanceId, level, facility);\n 356  | \n 357  |       // Calculate remaining buffer size leaving space for null terminator\n 358  |       const auto remainingBufferSize = buffer.size() - metadataLength - 1U;"
+  },
+  {
+    "id": "E019",
+    "file": "test/alpha_replayer/Logging/EngineErrorLoggerTest.cpp",
+    "line": 34,
+    "code": "  28  | {\n  29  |    MockFileWriter writer;\n  30  |    writer.open(\"test.log\");\n  31  |    const std::string content = \"binary\\x01\\x02\\x03\";\n  32  |    writer.write(\n  34 >|       reinterpret_cast<const uint8_t*>(content.data()),\n  35  |       static_cast<uint32_t>(content.size()));\n  36  | \n  37  |    CHECK(writer.writtenDataAsString() == content);\n  38  | }\n  39  | \n  40  | TEST_CASE(\"Logging::MockFileWriter::tracks open and close state\", \"[AlphaReplay][Logging]\")\n  41  | {"
+  },
+  {
+    "id": "E021",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 40,
+    "code": "  34  |    m_writtenData.insert(m_writtenData.end(), data, data + size);\n  35  | }\n  36  | \n  37  | void MockFileWriter::write(const char* data, uint32_t size)\n  38  | {\n  40 >|    write(reinterpret_cast<const uint8_t*>(data), size);\n  41  | }\n  42  | \n  43  | bool MockFileWriter::isOpen() const noexcept\n  44  | {\n  45  |    return m_isOpen;\n  46  | }\n  47  | "
+  },
+  {
+    "id": "E023",
+    "file": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp",
+    "line": 106,
+    "code": " 100  |       = Eigen::VectorXd::Constant(iNumCandidates, std::numeric_limits<double>::max());\n 101  |    Eigen::LDLT<T_MATRIX> ldltCov(crmatFloatCov);\n 102  | \n 103  |    double dMaxDist = std::numeric_limits<double>::max();\n 104  |    TPermutationIndex unIdxCandidateToStore = 0;\n 105  | \n 106 >|    do \n 107  |    {\n 108  |       // next candidate integer vector\n 109  |       vecCandidate = vecCentralCandidate + vecSteps.cast<double>();\n 110  |       const double cdNewDistance\n 111  |          = computeMahalanobisDistance<T_VECTOR, T_MATRIX>(crvecFloatAmbs - vecCandidate, ldltCov);\n 112  | \n 113  |       // found a new candidate to store"
+  },
+  {
+    "id": "E025",
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 25,
+    "code": "  19  | #include <string>\n  20  | #include <thread>\n  21  | #include <utility>\n  22  | #include <variant>\n  23  | #include <vector>\n  24  | \n  25 >| #define TEST_NS \"Core::Distributor::\" \n  26  | \n  27  | namespace Alpha::Test\n  28  | {\n  29  | \n  30  | using std::chrono_literals::operator\"\"ms;\n  31  | \n  32  | /// @brief Defines actions that can be sent to the workers as part of a test."
+  },
+  {
+    "id": "E027",
+    "file": "test/lib_positioning_engine/Core/PositionReconstruction/PositionAndVelocityReconstructionTest.cpp",
+    "line": 29,
+    "code": "  23  | #include <chrono>\n  24  | #include <memory>\n  25  | #include <mutex>\n  26  | #include <thread>\n  27  | #include <vector>\n  28  | \n  29 >| #define TEST_NS \"Core::PositionReconstruction:: \" \n  30  | \n  31  | namespace Alpha::Test\n  32  | {\n  33  | Matrix<DIMENSION_3D, DIMENSION_3D> getFullCovariance(\n  34  |    const std::array<double, Position::COVARIANCE_DIMENSION>& covariance)\n  35  | {\n  36  |    Matrix<DIMENSION_3D, DIMENSION_3D> cov;"
+  },
+  {
+    "id": "E029",
+    "file": "test/lib_positioning_engine/Utility/LinearAlgebraTest.cpp",
+    "line": 15,
+    "code": "   9  | #include <catch2/catch_test_macros.hpp>\n  10  | #include <chrono>\n  11  | #include <cstddef>\n  12  | #include <memory_resource>\n  13  | #include <utility>\n  14  | \n  15 >| #define TEST_NS \"Utility::LinearAlgebra::\" \n  16  | \n  17  | namespace Alpha::Test::LinearAlgebraTest\n  18  | {\n  19  | \n  20  | static constexpr unsigned int MAX_SIZE_50 = 50;\n  21  | \n  22  | TEST_CASE("
+  },
+  {
+    "id": "E031",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 85,
+    "code": "  81  |          throw TcpException(m_lastError);\n  82  |       }\n  83  | \n  84  |       static_cast<void>(memset(&m_socketAddress, 0, sizeof(m_socketAddress)));\n  85 >|       m_socketAddress.sin_family = static_cast<uint16_t>(AF_INET);\n  86  |       m_socketAddress.sin_port = htons(m_serverPort);\n  87  | \n  88  |       // Validate address - return false on failure (like Windows getaddrinfo)\n  89  |       if (inet_pton(AF_INET, m_serverAddress.c_str(), &m_socketAddress.sin_addr) <= 0)"
+  },
+  {
+    "id": "E033",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 22,
+    "code": "  18  | namespace Alpha\n  19  | {\n  20  | /// @brief Initial variance scaling scalar, indexed by operating mode and state type.\n  21  | template <OperatingMode OPERATING_MODE, typename T>\n  22 >| inline constexpr double INITIAL_VARIANCE_SCALAR = []() -> double {\n  23  |    static_assert(\n  24  |       sizeof(T) == 0,\n  25  |       \"No initial variance scalar defined for this operating mode and state type.\");\n  26  |    return 0.0;"
+  },
+  {
+    "id": "E035",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 87,
+    "code": "  83  | \n  84  |       const Index idx = state.template insert<T_STATE_TYPE>(key);\n  85  |       using StateMatrix = typename T_STATE::StateMatrix;\n  86  |       StateMatrix& stateMatrix = state.getModifiableMatrix();\n  87 >|       constexpr unsigned int dim = T_STATE_TYPE::DIM;\n  88  |       stateMatrix.template block<dim, dim>(idx, idx)\n  89  |          = StateMatrix::Identity(dim, dim) * diagonalElement;\n  90  |    }\n  91  | };"
+  },
+  {
+    "id": "E037",
+    "file": "lib_positioning_engine/src/Logging/Logger.hpp",
+    "line": 88,
+    "code": "  84  | class Logger\n  85  | {\n  86  | public:\n  87  |    /// @brief Size(bytes) required for one null terminator character('\\0').\n  88 >|    static constexpr size_t NULL_TERMINATOR_LEN = 1U;\n  89  | \n  90  |    /// @brief Maximum size of the charater array used to store the thread name.\n  91  |    static constexpr size_t THREAD_NAME_LEN = 10U;\n  92  | "
+  },
+  {
+    "id": "E039",
+    "file": "lib_positioning_engine/src/Logging/Logger.hpp",
+    "line": 94,
+    "code": "  90  |    /// @brief Maximum size of the charater array used to store the thread name.\n  91  |    static constexpr size_t THREAD_NAME_LEN = 10U;\n  92  | \n  93  |    /// @brief Name of the thread on which the log entry was generated.\n  94 >|    using ThreadName = std::array<char, THREAD_NAME_LEN + NULL_TERMINATOR_LEN>;\n  95  | \n  96  |    /// @brief Registers the host callback function. The provided callback will be invoked by the\n  97  |    ///        internal log methods.\n  98  |    ///"
+  },
+  {
+    "id": "E041",
+    "file": "test/alpha_conversion/Managers/FileManagerTest.cpp",
+    "line": 190,
+    "code": " 186  |    cfg.direction = Direction::ToXml;\n 187  | \n 188  |    auto pairs = FileManager::enumerateFiles(cfg.inputFolderPath, cfg.outputFolderPath);\n 189  |    REQUIRE(pairs.size() == 2);\n 190 >|    for (const auto& [inP, outP] : pairs)\n 191  |    {\n 192  |       if (inP.extension() == \".xml\")\n 193  |       {\n 194  |          REQUIRE(outP.extension() == \".hlf\");"
+  },
+  {
+    "id": "E043",
+    "file": "test/alpha_replayer/Utility/EngineFactoryTest.cpp",
+    "line": 32,
+    "code": "  28  |    }\n  29  | \n  30  |    std::unordered_set<std::type_index> seen;\n  31  | \n  32 >|    for (const auto& variant : vec)\n  33  |    {\n  34  |       std::type_index type = std::visit(\n  35  |          [](auto&& value) {\n  36  |             return std::type_index(typeid(value));"
+  },
+  {
+    "id": "E045",
+    "file": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp",
+    "line": 43,
+    "code": "  39  |    static_assert(T_INTEGER_VECTOR::ColsAtCompileTime == 1);\n  40  |    static_assert(T_INTEGER_VECTOR::MaxColsAtCompileTime == 1);\n  41  |    static_assert(std::is_integral<typename T_INTEGER_VECTOR::Scalar>::value);\n  42  | \n  43 >|    using TIndex = typename T_INTEGER_VECTOR::Index;\n  44  |    const TIndex dim = rvecSteps.size();\n  45  | \n  46  |    for (TIndex level = 0; level < dim; ++level)\n  47  |    {"
+  },
+  {
+    "id": "E047",
+    "file": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp",
+    "line": 168,
+    "code": " 164  | \n 165  |    CALN::CCalIbsEstimator<TMatrix> oIbsEstimator;\n 166  |    CALN::CCalIlsSearch<TMatrix> oIlsSearch;\n 167  |    using TVectorCandidates = typename CALN::CCalIlsSearch<TMatrix>::TVectorCandidates;\n 168 >|    using TMatrixCandidates = typename CALN::CCalIlsSearch<TMatrix>::TMatrixCandidates;\n 169  | \n 170  |    CALN::CCalLambdaReductionLd<TMatrix> oLambdaReduction;\n 171  | \n 172  |    TVector vecFloatAmbs;"
+  },
+  {
+    "id": "E049",
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 66,
+    "code": "  62  | \n  63  | namespace WorkerDetail\n  64  | {\n  65  | /// @brief Input types for the worker tasks.\n  66 >| using InputVariant = std::variant<std::shared_ptr<const TestCommand>, ResetAction>;\n  67  | } // namespace WorkerDetail\n  68  | \n  69  | /// @brief WorkerTask used to test the Distributor's reset mechanism.\n  70  | /// @tparam T Type to support differentiation of workers using tag dispatch."
+  },
+  {
+    "id": "E051",
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 374,
+    "code": " 370  |    {\n 371  |       threads.emplace_back(threadAction);\n 372  |    }\n 373  | \n 374 >|    for (auto& thread : threads)\n 375  |    {\n 376  |       thread.join();\n 377  |    }\n 378  | "
+  },
+  {
+    "id": "E053",
+    "file": "test/lib_positioning_engine/Core/PositioningEngineTest.cpp",
+    "line": 333,
+    "code": " 329  |    satellitePositionPolynomial.data.discontinuityCounter = 53;\n 330  |    satellitePositionPolynomial.data.timespanHalfValidity = 1500.0;\n 331  |    for (auto& order : satellitePositionPolynomial.data.coefficients)\n 332  |    {\n 333 >|       for (auto& component : order)\n 334  |       {\n 335  |          component = 1.2;\n 336  |       }\n 337  |    }"
+  },
+  {
+    "id": "E055",
+    "file": "test/lib_positioning_engine/Core/PositionReconstruction/PositionAndVelocityReconstructionTest.cpp",
+    "line": 903,
+    "code": " 899  | }\n 900  | TEST_CASE(TEST_NS \"Thread Safety Stress Test\", \"[reconstruction][threads][stress]\")\n 901  | {\n 902  |    constexpr double testDurationSec = 1.3;\n 903 >|    constexpr double absoluteRateHz = 10.0;\n 904  |    constexpr double incrementalRateHz = 100.0;\n 905  |    constexpr int absoluteIntervalMs = static_cast<int>(1000 / absoluteRateHz);\n 906  |    constexpr int incrementalIntervalMs = static_cast<int>(1000 / incrementalRateHz);\n 907  | "
+  },
+  {
+    "id": "E057",
+    "file": "test/lib_positioning_engine/Core/PositionReconstruction/PositionAndVelocityReconstructionTest.cpp",
+    "line": 905,
+    "code": " 901  | {\n 902  |    constexpr double testDurationSec = 1.3;\n 903  |    constexpr double absoluteRateHz = 10.0;\n 904  |    constexpr double incrementalRateHz = 100.0;\n 905 >|    constexpr int absoluteIntervalMs = static_cast<int>(1000 / absoluteRateHz);\n 906  |    constexpr int incrementalIntervalMs = static_cast<int>(1000 / incrementalRateHz);\n 907  | \n 908  | \n 909  |    auto preciseSleepUntil = [](auto wakeTime) {"
+  },
+  {
+    "id": "E059",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 174,
+    "code": " 170  | \n 171  | TEST_CASE(TEST_NS \"warn_logging validates thread context and instance ID overrides\", \"[Logger]\")\n 172  | {\n 173  |    LogCapture capture{};\n 174 >|    Logger::registerCallback([&](const uint8_t level, const char* data, const size_t size) {\n 175  |       capture.capture(level, data, size);\n 176  |    });\n 177  | \n 178  |    Logger::setThreadContext(2, \"main\");"
+  },
+  {
+    "id": "E061",
+    "file": "test/lib_positioning_engine/Utility/LinearAlgebraTest.cpp",
+    "line": 37,
+    "code": "  33  | TEST_CASE(TEST_NS \"Matrix: Dimensions at compile time for fixed-size matrix\", \"[Linear Algebra]\")\n  34  | {\n  35  |    constexpr unsigned int numberOfRows = 3;\n  36  |    constexpr unsigned int numberOfCols = 7;\n  37 >|    using TestMatrix = Alpha::Matrix<numberOfRows, numberOfCols>;\n  38  |    REQUIRE(TestMatrix::RowsAtCompileTime == numberOfRows);\n  39  |    REQUIRE(TestMatrix::MaxRowsAtCompileTime == numberOfRows);\n  40  |    REQUIRE(TestMatrix::ColsAtCompileTime == numberOfCols);\n  41  |    REQUIRE(TestMatrix::MaxColsAtCompileTime == numberOfCols);"
+  },
+  {
+    "id": "E063",
+    "file": "test/lib_positioning_engine/Utility/LinearAlgebraTest.cpp",
+    "line": 298,
+    "code": " 294  |    constexpr unsigned int maxDim = 7;\n 295  | \n 296  |    // type definition of 1xN and Nx1 re-sizable matrix\n 297  |    using Matrix1xN = Alpha::DynamicMatrix<oneDim, maxDim>;\n 298 >|    using MatrixNx1 = Alpha::DynamicMatrix<maxDim, oneDim>;\n 299  | \n 300  |    SECTION(\"Storage order of an 1xN matrix defaults to RowMajor, just like underlying Eigen\")\n 301  |    {\n 302  |       constexpr int options1xN = Matrix1xN::Options;"
+  }
+]

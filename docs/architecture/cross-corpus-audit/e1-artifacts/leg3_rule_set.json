@@ -1,0 +1,26 @@
+[
+  {
+    "id": "R.3",
+    "text": "A raw pointer (T*) is non-owning; do not OWN a resource through a raw pointer — use a smart pointer / RAII for ownership."
+  },
+  {
+    "id": "C.131",
+    "text": "Avoid trivial getters and setters — an accessor that only returns or assigns a member, adding no value."
+  },
+  {
+    "id": "F.2",
+    "text": "A function should perform a single logical operation; avoid functions that do several unrelated things."
+  },
+  {
+    "id": "ES.1",
+    "text": "Prefer the standard library to hand-crafted code; use standard algorithms instead of reimplementing them with raw loops."
+  },
+  {
+    "id": "C.4",
+    "text": "Make a function a member only if it needs the representation; a member function using no instance state should be static or free."
+  },
+  {
+    "id": "C.35",
+    "text": "A base class destructor should be either public and virtual, or protected and non-virtual."
+  }
+]

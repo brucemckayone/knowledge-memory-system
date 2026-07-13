@@ -1,0 +1,248 @@
+[
+  {
+    "id": "E002",
+    "file": "alpha_conversion/src/Managers/FileManager.hpp",
+    "line": 106,
+    "code": " 100  | \n 101  | private:\n 102  |    static constexpr const char* XML_FOLDER_NAME = \"xml\";\n 103  |    static constexpr const char* HLF_FOLDER_NAME = \"hlf\";\n 104  |    static constexpr std::size_t ZERO_SIZE_T = 0U;\n 105  | \n 106 >|    std::ifstream m_stream;\n 107  |    std::size_t m_fileSize{0};\n 108  | \n 109  |    std::ofstream m_outputStream;\n 110  | };\n 111  | \n 112  | } // namespace Alpha::Conversion\n 113  | \n 114  | #endif // FILE_MANAGER_HPP\n 115  | "
+  },
+  {
+    "id": "E004",
+    "file": "lib_positioning_engine/include/Core/Api/GnssMeasurementsCollection.hpp",
+    "line": 31,
+    "code": "  25  |       std::pmr::memory_resource* memoryResource = std::pmr::get_default_resource())\n  26  |       : pseudorangeMeasurements(memoryResource)\n  27  |       , phaserangeMeasurements(memoryResource)\n  28  |       , dopplerMeasurements(memoryResource)\n  29  |    {}\n  30  | \n  31 >|    GnssKeyMap<T_PSEUDORANGE_MEASUREMENT> pseudorangeMeasurements;\n  32  |    GnssKeyMap<T_PHASERANGE_MEASUREMENT> phaserangeMeasurements;\n  33  |    GnssKeyMap<T_DOPPLER_MEASUREMENT> dopplerMeasurements;\n  34  | };\n  35  | \n  36  | using GnssMeasurementsData\n  37  |    = GnssMeasurementsCollection<PseudorangeMeasurement, PhaserangeMeasurement, DopplerMeasurement>;\n  38  | \n  39  | using GnssMeasurements = SourceAndTimeData<GnssMeasurementsData>;\n  40  | \n  41  | using GnssMeasurementsStatusData = GnssMeasurementsCollection<Status, Status, Status>;\n  42  | \n  43  | using GnssMeasurementsStatus = SourceAndTimeData<GnssMeasurementsStatusData>;\n  44  | \n  45  | } // namespace Alpha"
+  },
+  {
+    "id": "E006",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 120,
+    "code": " 118  |    }\n 119  | \n 120 >|    uint16_t getStreamId() const\n 121  |    {\n 122  |       std::lock_guard<std::mutex> lock(m_testData.mtx);\n 123  |       return m_testData.streamId;\n 124  |    }\n 125  | \n 126  |    MockTcpClient* getMockClient() const\n 127  |    {\n 128  |       return m_mockClient;"
+  },
+  {
+    "id": "E008",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 144,
+    "code": " 142  |    }\n 143  | \n 144 >|    bool waitForData()\n 145  |    {\n 146  |       std::unique_lock<std::mutex> lock(m_testData.mtx);\n 147  |       return m_testData.cv.wait_for(lock, std::chrono::seconds(5), [this]() {\n 148  |          return m_testData.received;\n 149  |       });\n 150  |    }\n 151  | \n 152  |    Alpha::Replay::ByteArray getData() const"
+  },
+  {
+    "id": "E010",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 95,
+    "code": "  91  |    // Default IP address is localhost\n  92  |    static constexpr std::string_view DEFAULT_IP_ADDRESS = \"127.0.0.1\";\n  93  | \n  94  |    // IP address of HLF Replayer\n  95 >|    const std::string m_ipAddress;\n  96  | \n  97  |    // Timeout for no data, in seconds\n  98  |    const uint32_t m_noDataTimeout;\n  99  | "
+  },
+  {
+    "id": "E012",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 101,
+    "code": "  97  |    // Timeout for no data, in seconds\n  98  |    const uint32_t m_noDataTimeout;\n  99  | \n 100  |    // Callback function to receive data from TCP manager\n 101 >|    const DataCallbackFunction m_callback;\n 102  | \n 103  |    // Callback function to output messages\n 104  |    const PrintHandler::PrintCallbackFunction m_printCallback;\n 105  | "
+  },
+  {
+    "id": "E014",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 107,
+    "code": " 103  |    // Callback function to output messages\n 104  |    const PrintHandler::PrintCallbackFunction m_printCallback;\n 105  | \n 106  |    // Factory for creating ITcpClient instances (null means use platform default)\n 107 >|    const TcpClientFactory m_clientFactory;\n 108  | \n 109  |    // The map of clients\n 110  |    std::unordered_map<uint16_t, std::unique_ptr<TcpClientReceivingService>> m_clientStreamMap;\n 111  | "
+  },
+  {
+    "id": "E016",
+    "file": "alpha_replayer/src/Logging/FileWriter.hpp",
+    "line": 48,
+    "code": "  42  |    /// @param size Number of bytes.\n  43  |    /// @throws FileException is thrown when an error has occured.\n  44  |    void write(const char* data, uint32_t size) override;\n  45  | \n  46  | private:\n  47  |    std::filesystem::path m_filePath;\n  48 >|    std::ofstream m_file;\n  49  | \n  50  |    FileWriter(const FileWriter&) = delete;\n  51  |    FileWriter& operator=(const FileWriter&) = delete;\n  52  |    FileWriter(FileWriter&&) noexcept = delete;\n  53  |    FileWriter& operator=(FileWriter&&) noexcept = delete;\n  54  | };\n  55  | \n  56  | } // namespace Alpha::Replay\n  57  | \n  58  | #endif // FILE_WRITER_HPP\n  59  | "
+  },
+  {
+    "id": "E018",
+    "file": "alpha_conversion/src/Managers/FileManager.hpp",
+    "line": 57,
+    "code": "  52  |    /// @return A vector of <inputPath, outputPath> pairs ready for conversion.\n  53  |    static std::vector<std::pair<std::filesystem::path, std::filesystem::path>>\n  54  |    enumerateFiles(const std::string& inputFolderPath, const std::string& outputFolderPath);\n  55  | \n  56  |    // Instance-level file control ----------------------------------\n  57 >|    void open(const std::string& filePath);\n  58  | \n  59  |    void openOutput(const std::string& filePath, bool truncate = true);\n  60  | \n  61  |    /// @brief Write text data to the output stream.\n  62  |    /// @param text The text to write."
+  },
+  {
+    "id": "E020",
+    "file": "alpha_conversion/src/Managers/FileManager.hpp",
+    "line": 99,
+    "code": "  94  |    fillToMinimum(std::vector<uint8_t>& buffer, std::size_t& validBytes, std::size_t requiredBytes);\n  95  | \n  96  |    /// @brief Write binary data to the output stream.\n  97  |    /// @param data The data to write.\n  98  |    /// @param size The size of the data to write.\n  99 >|    void write(const uint8_t* data, std::size_t size);\n 100  | \n 101  | private:\n 102  |    static constexpr const char* XML_FOLDER_NAME = \"xml\";\n 103  |    static constexpr const char* HLF_FOLDER_NAME = \"hlf\";\n 104  |    static constexpr std::size_t ZERO_SIZE_T = 0U;"
+  },
+  {
+    "id": "E022",
+    "file": "alpha_replayer/src/Logging/FileWriter.hpp",
+    "line": 32,
+    "code": "  27  |    /// @throws FileException is thrown when an error has occured.\n  28  |    void open(const std::filesystem::path& filePath) override;\n  29  | \n  30  |    /// @brief Closes the file.\n  31  |    /// @throws FileException is thrown when an error has occured.\n  32 >|    void close() override;\n  33  | \n  34  |    /// @brief Writes the given data to file.\n  35  |    /// @param data Bytes to write.\n  36  |    /// @param size Number of bytes.\n  37  |    /// @throws FileException is thrown when an error has occured."
+  },
+  {
+    "id": "E024",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 29,
+    "code": "  24  | \n  25  | namespace Alpha::Replay\n  26  | {\n  27  | \n  28  | /// @brief Factory function type for creating ITcpClient instances.\n  29 >| using TcpClientFactory = std::function<std::unique_ptr<ITcpClient>(const std::string&, uint16_t)>;\n  30  | \n  31  | /// @class TcpManager\n  32  | /// @brief Manages TCP client connections for data streaming.\n  33  | /// @details Responsible for creating, starting, stopping, and accessing TCP clients associated with\n  34  | /// data streams."
+  },
+  {
+    "id": "E026",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 80,
+    "code": "  75  |    void stopAllClients();\n  76  | \n  77  |    /// @brief Gets a reference to a TCP client by stream ID.\n  78  |    /// @param streamId The stream ID of the client.\n  79  |    /// @return Reference to the TcpClientReceivingService instance.\n  80 >|    TcpClientReceivingService& getClient(uint16_t streamId);\n  81  | \n  82  | private:\n  83  | #ifdef NDEBUG\n  84  |    // Timeout active on Release build\n  85  |    static constexpr uint32_t DEFAULT_NO_DATA_TIMEOUT = 30U;"
+  },
+  {
+    "id": "E028",
+    "file": "lib_positioning_engine/include/Core/Api/CorrectionsCollection.hpp",
+    "line": 88,
+    "code": "  83  |    PseudorangeBias,\n  84  |    PhaseBias,\n  85  |    PiecewiseContinuousVariable,\n  86  |    PhaseCenter>;\n  87  | \n  88 >| using Corrections = SourceAndTimeData<CorrectionsData>;\n  89  | \n  90  | using CorrectionsStatusData = CorrectionsCollection<\n  91  |    TimeData<Status>,\n  92  |    TimeData<Status>,\n  93  |    TimeData<Status>,"
+  },
+  {
+    "id": "E030",
+    "file": "lib_positioning_engine/include/Core/Api/GnssMeasurementsCollection.hpp",
+    "line": 39,
+    "code": "  34  | };\n  35  | \n  36  | using GnssMeasurementsData\n  37  |    = GnssMeasurementsCollection<PseudorangeMeasurement, PhaserangeMeasurement, DopplerMeasurement>;\n  38  | \n  39 >| using GnssMeasurements = SourceAndTimeData<GnssMeasurementsData>;\n  40  | \n  41  | using GnssMeasurementsStatusData = GnssMeasurementsCollection<Status, Status, Status>;\n  42  | \n  43  | using GnssMeasurementsStatus = SourceAndTimeData<GnssMeasurementsStatusData>;\n  44  | "
+  },
+  {
+    "id": "E032",
+    "file": "lib_positioning_engine/include/Core/Api/GnssMeasurementsCollection.hpp",
+    "line": 43,
+    "code": "  38  | \n  39  | using GnssMeasurements = SourceAndTimeData<GnssMeasurementsData>;\n  40  | \n  41  | using GnssMeasurementsStatusData = GnssMeasurementsCollection<Status, Status, Status>;\n  42  | \n  43 >| using GnssMeasurementsStatus = SourceAndTimeData<GnssMeasurementsStatusData>;\n  44  | \n  45  | } // namespace Alpha\n  46  | \n  47  | #endif\n  48  | "
+  },
+  {
+    "id": "E034",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 110,
+    "code": " 105  |       if (received.size() != data.size())\n 106  |       {\n 107  |          return false;\n 108  |       }\n 109  | \n 110 >|       for (size_t i = 0; i < data.size(); ++i)\n 111  |       {\n 112  |          if (static_cast<uint8_t>(data[i]) != received[i])\n 113  |          {\n 114  |             return false;\n 115  |          }"
+  },
+  {
+    "id": "E036",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.hpp",
+    "line": 29,
+    "code": "  24  |    /// @brief Destructor.\n  25  |    ~MockFileWriter() override = default;\n  26  | \n  27  |    /// @brief Records the file path and marks the writer as open.\n  28  |    /// @param filePath Path to the file being opened.\n  29 >|    void open(const std::filesystem::path& filePath) override;\n  30  | \n  31  |    /// @brief Marks the writer as closed.\n  32  |    void close() override;\n  33  | \n  34  |    /// @brief Appends raw bytes to the captured output."
+  },
+  {
+    "id": "E038",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.hpp",
+    "line": 48,
+    "code": "  43  |    /// @throws FileException if the writer is not open.\n  44  |    void write(const char* data, uint32_t size) override;\n  45  | \n  46  |    /// @brief Returns whether the writer is currently open.\n  47  |    /// @return true if open, false otherwise.\n  48 >|    [[nodiscard]] bool isOpen() const noexcept;\n  49  | \n  50  |    /// @brief Returns the path passed to the last open() call.\n  51  |    /// @return Reference to the stored file path.\n  52  |    [[nodiscard]] const std::filesystem::path& filePath() const noexcept;\n  53  | "
+  },
+  {
+    "id": "E040",
+    "file": "test/alpha_replayer/Managers/TcpManagerTest.cpp",
+    "line": 366,
+    "code": " 361  |    }\n 362  | \n 363  |    SECTION(\"Resource management test\")\n 364  |    {\n 365  |       // Add many clients to test resource handling\n 366 >|       for (uint16_t i = 0; i < 10; ++i)\n 367  |       {\n 368  |          CHECK_NOTHROW(tcpManager.addClient(i, static_cast<uint16_t>(12100 + i)));\n 369  |       }\n 370  | \n 371  |       // Start all clients"
+  },
+  {
+    "id": "E001",
+    "file": "alpha_conversion/src/Config/ConverterConfig.hpp",
+    "line": 27,
+    "code": "  21  | /// @brief Configuration parameters for the converter functionality\n  22  | /// @details Defines converter behavior including input/output paths and direction\n  23  | struct ConverterConfig\n  24  | {\n  25  |    bool enabled = true;\n  26  |    Direction direction{}; // default constructed\n  27 >|    std::string inputFilePath;\n  28  |    std::string inputFolderPath;\n  29  |    std::string outputFolderPath = DEFAULT_OUTPUT_FOLDER;\n  30  |    std::string outputFilePath;\n  31  | };\n  32  | } // namespace Alpha::Conversion\n  33  | #endif // CONVERTER_CONFIG_HPP\n  34  | "
+  },
+  {
+    "id": "E003",
+    "file": "lib_positioning_engine/include/Core/Api/CorrectionsCollection.hpp",
+    "line": 68,
+    "code": "  62  |    {}\n  63  | \n  64  |    // For traceability / reporting.\n  65  |    std::array<char, CORRECTIONS_SOURCE_NAME_LENGTH> correctionName{};\n  66  | \n  67  |    // 3D displacement correction\n  68 >|    GnssKeyMap<T_SATELLITE_POSITION> satellitePosition;\n  69  | \n  70  |    // Line of sight corrections:\n  71  |    GnssKeyMap<T_SATELLITE_CLOCK> satelliteClock;\n  72  |    GnssKeyMap<T_PSEUDORANGE_BIAS> pseudorangeBias;\n  73  |    GnssKeyMap<T_PHASE_BIAS> phaserangeBias;\n  74  |    GnssKeyMap<T_PIECEWISE_CONTINUOUS> slantIonosphere;\n  75  |    GnssKeyMap<T_PIECEWISE_CONTINUOUS> slantTroposphere;\n  76  |    GnssKeyMap<T_PHASE_CENTER> pseudorangePhaseCenter;\n  77  |    GnssKeyMap<T_PHASE_CENTER> phaserangePhaseCenter;\n  78  | };\n  79  | \n  80  | using CorrectionsData = CorrectionsCollection<\n  81  |    Polynomial<ORBIT_CORRECTION_POLYNOMIAL_DEGREE, DIMENSION_3D>,\n  82  |    Polynomial<CLOCK_POLYNOMIAL_DEGREE, DIMENSION_1D>,"
+  },
+  {
+    "id": "E005",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 52,
+    "code": "  50  |    TcpServiceTestHandler& operator=(TcpServiceTestHandler&&) = delete;\n  51  | \n  52 >|    void onDataReceived(uint16_t incomingStreamId, const Alpha::Replay::ByteArray& receivedData)\n  53  |    {\n  54  |       std::lock_guard<std::mutex> lock(m_testData.mtx);\n  55  |       m_testData.data = receivedData;\n  56  |       m_testData.streamId = incomingStreamId;\n  57  |       m_testData.received = true;\n  58  |       m_testData.cv.notify_all();\n  59  |    }\n  60  | "
+  },
+  {
+    "id": "E007",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 136,
+    "code": " 134  |    std::unique_ptr<Alpha::Replay::TcpClientReceivingService> m_service = nullptr;\n 135  | \n 136 >|    void reset()\n 137  |    {\n 138  |       std::lock_guard<std::mutex> lock(m_testData.mtx);\n 139  |       m_testData.received = false;\n 140  |       m_testData.data.clear();\n 141  |       m_testData.streamId = 0;\n 142  |    }\n 143  | \n 144  |    bool waitForData()"
+  },
+  {
+    "id": "E009",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 152,
+    "code": " 150  |    }\n 151  | \n 152 >|    Alpha::Replay::ByteArray getData() const\n 153  |    {\n 154  |       std::lock_guard<std::mutex> lock(m_testData.mtx);\n 155  |       return m_testData.data;\n 156  |    }\n 157  | \n 158  |    bool waitForConnection()\n 159  |    {\n 160  |       // MockTcpClient connects instantly — give service thread time to start and connect"
+  },
+  {
+    "id": "E011",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 98,
+    "code": "  94  |    // IP address of HLF Replayer\n  95  |    const std::string m_ipAddress;\n  96  | \n  97  |    // Timeout for no data, in seconds\n  98 >|    const uint32_t m_noDataTimeout;\n  99  | \n 100  |    // Callback function to receive data from TCP manager\n 101  |    const DataCallbackFunction m_callback;\n 102  | "
+  },
+  {
+    "id": "E013",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 104,
+    "code": " 100  |    // Callback function to receive data from TCP manager\n 101  |    const DataCallbackFunction m_callback;\n 102  | \n 103  |    // Callback function to output messages\n 104 >|    const PrintHandler::PrintCallbackFunction m_printCallback;\n 105  | \n 106  |    // Factory for creating ITcpClient instances (null means use platform default)\n 107  |    const TcpClientFactory m_clientFactory;\n 108  | "
+  },
+  {
+    "id": "E015",
+    "file": "test/alpha_replayer/Managers/TcpManagerTest.cpp",
+    "line": 26,
+    "code": "  20  | \n  21  | // Mock callback function to capture received data\n  22  | class MockDataCallback\n  23  | {\n  24  | public:\n  25  |    std::atomic<int> callCount{0};\n  26 >|    std::vector<uint16_t> receivedStreamIds;\n  27  |    std::vector<ByteArray> receivedData;\n  28  |    mutable std::mutex dataMutex;\n  29  | \n  30  |    void operator()(uint16_t streamId, const ByteArray& rawData)\n  31  |    {\n  32  |       std::lock_guard<std::mutex> lock(dataMutex);\n  33  |       callCount++;\n  34  |       receivedStreamIds.push_back(streamId);\n  35  |       receivedData.push_back(rawData);\n  36  |    }\n  37  | \n  38  |    void reset()\n  39  |    {\n  40  |       std::lock_guard<std::mutex> lock(dataMutex);"
+  },
+  {
+    "id": "E017",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.hpp",
+    "line": 70,
+    "code": "  64  |    MockFileWriter& operator=(const MockFileWriter&) = delete;\n  65  |    MockFileWriter(MockFileWriter&&) noexcept = delete;\n  66  |    MockFileWriter& operator=(MockFileWriter&&) noexcept = delete;\n  67  | \n  68  |    bool m_isOpen = false;\n  69  |    std::filesystem::path m_filePath;\n  70 >|    std::vector<uint8_t> m_writtenData;\n  71  | };\n  72  | \n  73  | } // namespace Alpha::Replay::Test\n  74  | \n  75  | #endif // MOCK_FILE_WRITER_HPP\n  76  | "
+  },
+  {
+    "id": "E019",
+    "file": "alpha_conversion/src/Managers/FileManager.hpp",
+    "line": 71,
+    "code": "  66  |    /// @param text The text to write.\n  67  |    /// @param size Number of bytes to write.\n  68  |    void writeText(const char* const text, const std::size_t size);\n  69  | \n  70  |    /// @brief Close both input and output streams if open.\n  71 >|    void safeClose();\n  72  | \n  73  |    /// @brief Check if the input stream has reached the end of file.\n  74  |    /// @return True if the input stream has reached the end of file, false otherwise.\n  75  |    bool eof() const;\n  76  | "
+  },
+  {
+    "id": "E021",
+    "file": "alpha_replayer/src/Logging/FileWriter.hpp",
+    "line": 28,
+    "code": "  23  |    ~FileWriter() override;\n  24  | \n  25  |    /// @brief Opens the file to write data to.\n  26  |    /// @param filePath Path to file.\n  27  |    /// @throws FileException is thrown when an error has occured.\n  28 >|    void open(const std::filesystem::path& filePath) override;\n  29  | \n  30  |    /// @brief Closes the file.\n  31  |    /// @throws FileException is thrown when an error has occured.\n  32  |    void close() override;\n  33  | "
+  },
+  {
+    "id": "E023",
+    "file": "alpha_replayer/src/Logging/FileWriter.hpp",
+    "line": 38,
+    "code": "  33  | \n  34  |    /// @brief Writes the given data to file.\n  35  |    /// @param data Bytes to write.\n  36  |    /// @param size Number of bytes.\n  37  |    /// @throws FileException is thrown when an error has occured.\n  38 >|    void write(const uint8_t* data, uint32_t size) override;\n  39  | \n  40  |    /// @brief Writes the given data to file.\n  41  |    /// @param data Bytes to write.\n  42  |    /// @param size Number of bytes.\n  43  |    /// @throws FileException is thrown when an error has occured."
+  },
+  {
+    "id": "E025",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 68,
+    "code": "  63  |    /// @param streamId The stream id of the client used to identify the client.\n  64  |    void startClient(uint16_t streamId);\n  65  | \n  66  |    /// @brief Stops a client.\n  67  |    /// @param streamId The stream id of the client used to identify the client.\n  68 >|    void stopClient(uint16_t streamId);\n  69  | \n  70  |    /// @brief Waits for all clients to complete.\n  71  |    void awaitAllClients();\n  72  | \n  73  |    /// @brief Signals all clients to stop (non-blocking)."
+  },
+  {
+    "id": "E027",
+    "file": "lib_positioning_engine/include/Core/Api/CorrectionsCollection.hpp",
+    "line": 80,
+    "code": "  75  |    GnssKeyMap<T_PIECEWISE_CONTINUOUS> slantTroposphere;\n  76  |    GnssKeyMap<T_PHASE_CENTER> pseudorangePhaseCenter;\n  77  |    GnssKeyMap<T_PHASE_CENTER> phaserangePhaseCenter;\n  78  | };\n  79  | \n  80 >| using CorrectionsData = CorrectionsCollection<\n  81  |    Polynomial<ORBIT_CORRECTION_POLYNOMIAL_DEGREE, DIMENSION_3D>,\n  82  |    Polynomial<CLOCK_POLYNOMIAL_DEGREE, DIMENSION_1D>,\n  83  |    PseudorangeBias,\n  84  |    PhaseBias,\n  85  |    PiecewiseContinuousVariable,"
+  },
+  {
+    "id": "E029",
+    "file": "lib_positioning_engine/include/Core/Api/CorrectionsCollection.hpp",
+    "line": 90,
+    "code": "  85  |    PiecewiseContinuousVariable,\n  86  |    PhaseCenter>;\n  87  | \n  88  | using Corrections = SourceAndTimeData<CorrectionsData>;\n  89  | \n  90 >| using CorrectionsStatusData = CorrectionsCollection<\n  91  |    TimeData<Status>,\n  92  |    TimeData<Status>,\n  93  |    TimeData<Status>,\n  94  |    TimeData<Status>,\n  95  |    TimeData<Status>,"
+  },
+  {
+    "id": "E031",
+    "file": "lib_positioning_engine/include/Core/Api/GnssMeasurementsCollection.hpp",
+    "line": 41,
+    "code": "  36  | using GnssMeasurementsData\n  37  |    = GnssMeasurementsCollection<PseudorangeMeasurement, PhaserangeMeasurement, DopplerMeasurement>;\n  38  | \n  39  | using GnssMeasurements = SourceAndTimeData<GnssMeasurementsData>;\n  40  | \n  41 >| using GnssMeasurementsStatusData = GnssMeasurementsCollection<Status, Status, Status>;\n  42  | \n  43  | using GnssMeasurementsStatus = SourceAndTimeData<GnssMeasurementsStatusData>;\n  44  | \n  45  | } // namespace Alpha\n  46  | "
+  },
+  {
+    "id": "E033",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 54,
+    "code": "  49  |    TcpServiceTestHandler(TcpServiceTestHandler&&) = delete;\n  50  |    TcpServiceTestHandler& operator=(TcpServiceTestHandler&&) = delete;\n  51  | \n  52  |    void onDataReceived(uint16_t incomingStreamId, const Alpha::Replay::ByteArray& receivedData)\n  53  |    {\n  54 >|       std::lock_guard<std::mutex> lock(m_testData.mtx);\n  55  |       m_testData.data = receivedData;\n  56  |       m_testData.streamId = incomingStreamId;\n  57  |       m_testData.received = true;\n  58  |       m_testData.cv.notify_all();\n  59  |    }"
+  },
+  {
+    "id": "E035",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 138,
+    "code": " 133  |    MockTcpClient* m_mockClient = nullptr;\n 134  |    std::unique_ptr<Alpha::Replay::TcpClientReceivingService> m_service = nullptr;\n 135  | \n 136  |    void reset()\n 137  |    {\n 138 >|       std::lock_guard<std::mutex> lock(m_testData.mtx);\n 139  |       m_testData.received = false;\n 140  |       m_testData.data.clear();\n 141  |       m_testData.streamId = 0;\n 142  |    }\n 143  | "
+  },
+  {
+    "id": "E037",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.hpp",
+    "line": 38,
+    "code": "  33  | \n  34  |    /// @brief Appends raw bytes to the captured output.\n  35  |    /// @param data Bytes to write.\n  36  |    /// @param size Number of bytes.\n  37  |    /// @throws FileException if the writer is not open.\n  38 >|    void write(const uint8_t* data, uint32_t size) override;\n  39  | \n  40  |    /// @brief Appends character data to the captured output.\n  41  |    /// @param data Characters to write.\n  42  |    /// @param size Number of characters.\n  43  |    /// @throws FileException if the writer is not open."
+  },
+  {
+    "id": "E039",
+    "file": "test/alpha_replayer/Managers/TcpManagerTest.cpp",
+    "line": 32,
+    "code": "  27  |    std::vector<ByteArray> receivedData;\n  28  |    mutable std::mutex dataMutex;\n  29  | \n  30  |    void operator()(uint16_t streamId, const ByteArray& rawData)\n  31  |    {\n  32 >|       std::lock_guard<std::mutex> lock(dataMutex);\n  33  |       callCount++;\n  34  |       receivedStreamIds.push_back(streamId);\n  35  |       receivedData.push_back(rawData);\n  36  |    }\n  37  | "
+  },
+  {
+    "id": "E041",
+    "file": "test/alpha_replayer/Managers/TcpManagerTest.cpp",
+    "line": 378,
+    "code": " 373  |       {\n 374  |          CHECK_NOTHROW(tcpManager.startClient(i));\n 375  |       }\n 376  | \n 377  |       // Verify all clients are accessible\n 378 >|       for (uint16_t i = 0; i < 10; ++i)\n 379  |       {\n 380  |          CHECK_NOTHROW(tcpManager.getClient(i));\n 381  |       }\n 382  | \n 383  |       for (uint16_t i = 0; i < 10; ++i)"
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "id": "E010",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 35,
+    "oracle": "ES.45",
+    "system": "none",
+    "check": "readability-magic-numbers"
+  },
+  {
+    "id": "E017",
+    "file": "lib_positioning_engine/src/Logging/Logger.hpp",
+    "line": 351,
+    "oracle": "C.48",
+    "system": "ES.20",
+    "check": "cppcoreguidelines-pro-type-member-init"
+  },
+  {
+    "id": "E022",
+    "file": "test/alpha_replayer/Utility/EngineFactoryTest.cpp",
+    "line": 22,
+    "oracle": "ES.20",
+    "system": "none",
+    "check": "cppcoreguidelines-init-variables"
+  },
+  {
+    "id": "E055",
+    "file": "test/lib_positioning_engine/Core/PositionReconstruction/PositionAndVelocityReconstructionTest.cpp",
+    "line": 903,
+    "oracle": "none",
+    "system": "ES.45"
+  }
+]

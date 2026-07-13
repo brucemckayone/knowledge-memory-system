@@ -1,0 +1,56 @@
+[
+  {
+    "id": "E011",
+    "pair": "C4-4",
+    "twin": "violating",
+    "oracle": "C.4",
+    "system": "C.131",
+    "rule_family": "C.4",
+    "code": "class SatelliteTracker {\npublic:\n    double elevationMaskDefaultDeg() const { return 10.0; }\nprivate:\n    double elevationMaskDeg_ = 10.0;\n    std::vector<int> trackedPrns_;\n};"
+  },
+  {
+    "id": "E018",
+    "pair": "C35-5",
+    "twin": "compliant",
+    "oracle": "none",
+    "system": "R.3",
+    "rule_family": "C.35",
+    "code": "class CorrectionSource {\npublic:\n    virtual std::vector<uint8_t> fetchNextMessage() = 0;\n    virtual bool isConnected() const = 0;\n    virtual ~CorrectionSource() = default;\n};\nclass NtripCorrectionSource : public CorrectionSource {\npublic:\n    std::vector<uint8_t> fetchNextMessage() override {\n        return readFromSocket();\n    }\n    bool isConnected() const override { return connected_; }\n\nprivate:\n    std::vector<uint8_t> readFromSocket() { return {}; }\n    bool connected_ = false;\n};\nvoid releaseSource(CorrectionSource* source) {\n    delete source;\n}"
+  },
+  {
+    "id": "E024",
+    "pair": "C131-3",
+    "twin": "compliant",
+    "oracle": "none",
+    "system": "C.131",
+    "rule_family": "C.131",
+    "code": "class KalmanFilterState {\npublic:\n    const Eigen::MatrixXd& getCovariance() const { return covariance_; }\n    void setCovariance(const Eigen::MatrixXd& p) {\n        // Numerical noise can break symmetry; enforce the invariant here.\n        covariance_ = 0.5 * (p + p.transpose());\n    }\nprivate:\n    Eigen::MatrixXd covariance_;\n};"
+  },
+  {
+    "id": "E027",
+    "pair": "C35-4",
+    "twin": "compliant",
+    "oracle": "none",
+    "system": "R.3",
+    "rule_family": "C.35",
+    "code": "class EphemerisSource {\npublic:\n    virtual NavMessage load(int prn) = 0;\n    virtual ~EphemerisSource() = default;\n};\n\nclass GpsEphemerisSource : public EphemerisSource {\npublic:\n    GpsEphemerisSource() : cache_(new NavMessage[32]) {}\n    NavMessage load(int prn) override { return cache_[prn % 32]; }\n    ~GpsEphemerisSource() override { delete[] cache_; }\nprivate:\n    NavMessage* cache_;\n};"
+  },
+  {
+    "id": "E046",
+    "pair": "F2-6",
+    "twin": "violating",
+    "oracle": "F.2",
+    "system": "none",
+    "rule_family": "F.2",
+    "code": "struct RtcmMessage { int messageType; std::vector<uint8_t> payload; };\nint connectToCaster(const std::string& host, int port);\nclass RtcmStreamReader {\npublic:\n    std::optional<RtcmMessage> readNextMessage() {\n        uint8_t header[3];\n        if (recv(socketFd_, header, sizeof(header), MSG_WAITALL) <= 0) {\n            close(socketFd_);\n            socketFd_ = connectToCaster(host_, port_);\n            reconnectAttempts_++;\n            return std::nullopt;\n        }\n        if (header[0] != 0xD3) return std::nullopt;\n        uint16_t length = ((header[1] & 0x03) << 8) | header[2];\n        std::vector<uint8_t> payload(length);\n        recv(socketFd_, payload.data(), length, MSG_WAITALL);\n        return RtcmMessage{(payload[0] << 4) | (payload[1] >> 4), std::move(payload)};\n    }\n\nprivate:\n    int socketFd_;\n    std::string host_;\n    int port_;\n    int reconnectAttempts_ = 0;\n};"
+  },
+  {
+    "id": "E049",
+    "pair": "C131-5",
+    "twin": "compliant",
+    "oracle": "none",
+    "system": "C.131",
+    "rule_family": "C.131",
+    "code": "class SatelliteMeasurement {\npublic:\n    explicit SatelliteMeasurement(double pseudorange) : pseudorange_(pseudorange) {\n        isPlausible_ = pseudorange_ > 1.0e7 && pseudorange_ < 1.0e8;\n    }\n\n    double pseudorange() const { return pseudorange_; }\n    void setPseudorange(double value) {\n        pseudorange_ = value;\n        isPlausible_ = value > 1.0e7 && value < 1.0e8;\n    }\n\n    bool isPlausible() const { return isPlausible_; }\n\nprivate:\n    double pseudorange_;\n    bool isPlausible_;\n};\nvoid applyClockCorrection(SatelliteMeasurement& measurement, double clockBiasMeters) {\n    measurement.setPseudorange(measurement.pseudorange() - clockBiasMeters);\n}"
+  }
+]

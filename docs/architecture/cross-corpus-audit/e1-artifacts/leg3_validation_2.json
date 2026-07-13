@@ -1,0 +1,90 @@
+[
+  {
+    "pair_id": "F2-5",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "Parse+stats+logging fused in one call; compliant cleanly splits into three single-purpose methods."
+  },
+  {
+    "pair_id": "F2-6",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "Message decoding bundled with socket reconnect logic on failure; compliant separates read from reconnect()."
+  },
+  {
+    "pair_id": "F2-7",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "Kalman update mixed with stdout diagnostics and disk checkpointing every call; compliant splits into three methods."
+  },
+  {
+    "pair_id": "C4-5",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "Body uses a local WGS84 constant, never semiMajorAxis_, so result is instance-independent; compliant uses both members."
+  },
+  {
+    "pair_id": "C4-6",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "computeChecksum XORs only its parameter, never talkerId_; compliant folds the member's bytes into the checksum."
+  },
+  {
+    "pair_id": "C4-7",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "isValidWeekNumber checks fixed literal bounds, ignoring referenceGpsWeek_; compliant ties the bound to the instance's reference."
+  },
+  {
+    "pair_id": "C35-5",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "Polymorphic base deleted via base pointer has public non-virtual dtor; compliant marks it virtual, no giveaway."
+  },
+  {
+    "pair_id": "C35-6",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "Base stored in unique_ptr<Base> lacks virtual on defaulted dtor (one-word diff); compliant adds virtual. Good subtlety."
+  },
+  {
+    "pair_id": "C35-7",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "Dispatcher deletes listeners through public non-virtual base dtor, skipping derived ofstream cleanup; compliant makes dtor protected and drops ownership."
+  },
+  {
+    "pair_id": "C131-5",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "get/set pair is bare pass-through, used externally to do the correction; compliant setter now maintains a real invariant."
+  },
+  {
+    "pair_id": "C131-6",
+    "violating_ok": true,
+    "compliant_ok": true,
+    "realistic": true,
+    "keep": true,
+    "reason": "Raw offset getter forces every caller to redo the rotation subtraction; compliant exposes applyTo() with real behavior."
+  }
+]

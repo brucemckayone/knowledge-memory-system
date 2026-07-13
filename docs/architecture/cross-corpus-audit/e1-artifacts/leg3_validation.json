@@ -1,0 +1,31 @@
+[
+  {"pair_id":"R3-1","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Owning raw pointer with manual new[]/delete[] vs vector RAII; clean realistic scratch-buffer contrast, no giveaways."},
+  {"pair_id":"R3-2","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Factory returns owning raw pointer vs unique_ptr; classic R.3 ownership-transfer pattern, realistic domain code."},
+  {"pair_id":"R3-3","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Manual new[]/delete[] array member vs vector; standard, realistic R.3 violation/fix pair."},
+  {"pair_id":"R3-4","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Internally-constructed owned pointer vs externally-supplied non-owning pointer; textbook R.3 contrast, realistic."},
+
+  {"pair_id":"C131-1","violating_ok":true,"compliant_ok":true,"realistic":false,"keep":false,"reason":"Compliant silently drops longitude entirely, so it isn't a real GeodeticPosition fix -- distorted, unrealistic twin."},
+  {"pair_id":"C131-2","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Trivial get/set with no invariant vs public field struct; simple but genuine, realistic C.131 pair."},
+  {"pair_id":"C131-3","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Plain copy accessors vs symmetry-enforcing setter; adds a real invariant, realistic Kalman-filter domain example."},
+  {"pair_id":"C131-4","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Pure passthrough vs nanosecond-internal representation with unit conversion; genuine added value, realistic."},
+
+  {"pair_id":"F2-1","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Parse+checksum+store+log bundled vs composed single-purpose functions; name hints only partially, still realistic."},
+  {"pair_id":"F2-2","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Read+parse+validate+cache-update+log bundled vs split helpers; realistic, no naming or comment giveaways."},
+  {"pair_id":"F2-3","violating_ok":true,"compliant_ok":true,"realistic":false,"keep":false,"reason":"Name 'connectAndAuthenticateAndSubscribe' literally enumerates all three violated steps -- too on-the-nose to be realistic."},
+  {"pair_id":"F2-4","violating_ok":true,"compliant_ok":true,"realistic":false,"keep":false,"reason":"Name 'computeFixAndLogAndUpdateUi' spells out most of the bundled operations; giveaway naming, not realistic."},
+
+  {"pair_id":"ES1-1","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Hand-rolled indexed search loop vs std::find_if; clean, realistic ES.1 pair, no giveaways."},
+  {"pair_id":"ES1-2","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Manual sum-of-squares loop vs std::accumulate; realistic residual-RMS code, correctly matched."},
+  {"pair_id":"ES1-3","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Hand-rolled max-tracking loop vs std::max_element with comparator; realistic, faithfully equivalent."},
+  {"pair_id":"ES1-4","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Hand-rolled any-below-mask loop with early exit vs std::any_of; realistic, no giveaway."},
+
+  {"pair_id":"C4-1","violating_ok":true,"compliant_ok":true,"realistic":false,"keep":false,"reason":"Comment '// unused by this method' names the exact defect inline -- unrealistic self-defeating giveaway."},
+  {"pair_id":"C4-2","violating_ok":true,"compliant_ok":true,"realistic":false,"keep":false,"reason":"Comment '// prefix_ never used' states the violation verbatim; giveaway, not something a real engineer ships."},
+  {"pair_id":"C4-3","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"isPowerOfTwo touches no members vs isFull using both; realistic ring-buffer helper, no giveaway."},
+  {"pair_id":"C4-4","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Hardcoded constant ignoring the member vs isAboveMask using it; subtle, realistic, no comment giveaway."},
+
+  {"pair_id":"C35-1","violating_ok":true,"compliant_ok":true,"realistic":false,"keep":false,"reason":"Comment '// not virtual' plus trailing bug narration spoon-feeds the exact UB mechanism -- unrealistic."},
+  {"pair_id":"C35-2","violating_ok":true,"compliant_ok":true,"realistic":false,"keep":false,"reason":"Comment '// always resolves to ~CorrectionSource' narrates the precise defect; giveaway, no engineer ships this."},
+  {"pair_id":"C35-3","violating_ok":true,"compliant_ok":true,"realistic":false,"keep":false,"reason":"Trailing comment states 'fd_ is never closed', explaining the UB outcome outright; giveaway, unrealistic."},
+  {"pair_id":"C35-4","violating_ok":true,"compliant_ok":true,"realistic":true,"keep":true,"reason":"Base virtual dtor skipped via releaseSource on derived pointer; no narrating comments, clean realistic pair."}
+]

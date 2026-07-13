@@ -310,3 +310,73 @@ Ran per §14. **Verdict: PASS against the pre-registered bar, but scoped to what
 - **Phase A stays gated.** This does not unblock Phase A on the crux. It de-risks the plumbing and clears the floor; the load-bearing claim is owed to **Leg 3** (no-checker judgment rules; ground truth by construction or human label; must include a judgment rule like C.4 that keyword-spotting can't shortcut, with a diverse, non-cloned positive set — not six copies of one idiom).
 
 **Single most defensible claim from this run:** *on the linter-checkable slice, blind Haiku given a marker-stripped code element reproduces clang-tidy's rule+verdict at precision 0.93 / recall 0.90 and correctly declines matched compliant near-misses — so the adjudication mechanism and its specificity are sound where a checker already works; adjudication of no-checker judgment rules remains untested.*
+
+---
+
+## 16. Leg 3 — PRE-REGISTRATION: the crux — no-checker judgment rules by construction (2026-07-13)
+
+Written **before the harness runs**; thresholds fixed here, not to be moved (same discipline as §12–15: ill-posed → void + new pre-registration, never a silent pivot). This is the leg Legs 1–2 could not reach: rules with **no deterministic checker**, where the verdict is genuine semantic judgment, not a visible token. There is by definition no linter oracle here — so ground truth must be **constructed** (known by how each example was built), which is the only non-circular option, at the cost of a representativeness caveat handled in §16.4.
+
+### 16.1 The question (unchanged in spirit, now on the hard slice)
+Given a code element, does blind Haiku emit the correct governing guideline and verdict — precision *and* recall, including compliant controls — for **judgment rules a linter cannot decide**? This is the feature's load-bearing claim (the T2/T3 majority).
+
+### 16.2 Target rules (no clang-tidy checker; judgment, not keyword)
+Chosen because each requires reasoning about *meaning*, not spotting a token, and none has a clang-tidy check that decides it:
+- **R.3** — a raw pointer (`T*`) is non-owning (owning raw pointer = violation).
+- **C.131** — avoid trivial getters/setters (a getter that only returns a member).
+- **F.2** — a function should perform one logical operation (a function doing several = violation).
+- **ES.1** — prefer the standard library to hand-crafted loops that reimplement an algorithm.
+- **C.4** — a member function that uses no instance state should be static/free — **clean constructed cases only** (no `fmt::formatter`-style API-exception confound; the method plainly does or does not touch members).
+- **C.35 / F.mutable** or one more, at the planter's discretion, to reach ≥ 5 rules with diverse sites.
+
+### 16.3 Construction, independence, and anti-caricature (four distinct parties)
+- **Planter (subagent, party 1):** produces, per rule, **matched pairs** — a *violating* example and a *compliant* twin — as realistic C++ in the Maverick GNSS/positioning idiom (grounded on real files for style; subtle, not caricatured). Seals which twin violates.
+- **Validator (subagent, party 2, independent of planter):** for each pair confirms (a) the "violating" one genuinely violates the named rule per the actual guideline, (b) the "compliant" twin genuinely does not, (c) both are realistic (a competent dev could plausibly write them). Pairs failing any check are **dropped** — this is the guard against caricature and invalid plants.
+- **System under test (subagent, party 3):** blind Haiku, adjudicates each element (violating and compliant twins interleaved, unlabelled) over the rule set. element→rule.
+- **Scorer (party 4):** mechanical match to the sealed key + an independent subagent for rule-equivalence; plus an independent **hostile adversary** on the result (mandatory, per §13/§15 — a clean pass triggers the adversary, not celebration).
+- **Builder (me):** orchestrates + pre-registers; does **not** author plants, labels, or scores.
+
+### 16.4 Metrics and the PRE-REGISTERED bar
+- **Recall** = of violating examples, fraction flagged with the correct (or adjudicated-equivalent) guideline. **Precision** = of the system's violation findings, fraction that are genuine (a compliant twin flagged = false positive). **Paired discrimination** = fraction of pairs where the system flags the violating twin and clears its compliant twin (the sharpest test — same rule, minimal contrast).
+- **PASS iff `precision ≥ 0.70` AND `recall ≥ 0.60`** on **≥ 40 elements** (≥ 5 rules, ≥ 3 validated pairs each), rule-equivalence by an independent scorer. **HARD FAIL if `precision < 0.50` or `recall < 0.40`.** (Same bar as §12.5/§14.4 — unchanged so it cannot be accused of tuning.)
+- **Honest caveat, stated up front:** constructed examples may be cleaner/more separable than violations occurring naturally in real code, which would make this *optimistic*. The validator's realism check and the paired-contrast design mitigate but do not eliminate this; a pass here is "the model can adjudicate constructed no-checker judgment cases," and generalisation to violations in the wild is the remaining risk after this leg. No natural-corpus oracle exists to close it — that gap is inherent to no-checker rules.
+
+### 16.5 What each outcome buys
+- **PASS:** the adjudication mechanism handles no-checker judgment rules on constructed, validated, realistic cases → the feature's load-bearing claim has direct (if construction-bounded) support; combined with §15's checkable-slice floor, deterministic-first for code v1 is supported and Phase A can be unblocked, with in-the-wild generalisation recorded as the residual risk.
+- **FAIL:** the model cannot adjudicate judgment rules even on clean constructed cases → the T2/T3 majority is not reliably automatable by this mechanism; deterministic-first must lean harder on human review for the non-checkable slice, and that reshapes the Phase-C cost/automation story. Cheaper to learn now.
+
+---
+
+## 17. Leg 3 run — RESULT: PASS on the constructed-case floor for judgment rules (2026-07-13)
+
+Ran per §16 through the four-party pipeline (planter → validator → blind Haiku → scorer + independent adjudicator + hostile adversary). **The bar is cleared, but — exactly as in §15 — the honest verdict is scoped, not a bare "crux PASS."** An independent adversary (un-seeded, verified the process) forced the scoping and surfaced a base-rate reality the raw number hides.
+
+### 17.1 The pipeline and the sample
+Planter (Sonnet) wrote matched violating/compliant twin pairs for 6 no-checker judgment rules; an independent validator dropped 8/24 in batch 1 for giveaway tells (on-the-nose names/comments), a top-up batch was added to meet the pre-registered N (11/11 kept). Final: **27 validated pairs = 54 elements** (27 violating + 27 compliant), balanced, ground truth **by construction**, leak-checked (no rule ids/markers in snippets). Blind Haiku adjudicated element→rule over the 6-rule set.
+
+### 17.2 The numbers — and why recall, not precision, is the real signal
+- **Raw:** rule-level precision 0.83, recall 0.93; paired discrimination 21/27 (0.78 — flagged the violating twin with the correct rule AND cleared its compliant twin). Per-rule recall: R.3 4/4, C.131 5/5, C.35 4/4, ES.1 4/4, C.4 4/5, F.2 4/5.
+- **A harness defect, found and corrected symmetrically.** The validator (§16.3) checked each twin only against *its* target rule, so it missed **cross-rule contamination**. A full re-audit of all 27 compliant twins against all 6 rules found **3 contaminated**: C35-4 and C35-5 own a raw pointer (R.3), C4-6 hand-rolls a checksum (ES.1). Relabelling all three (both directions): the two R.3 cases were Haiku *correctly* catching the contamination (raw counted them as false positives — they were not), and the ES.1 case was a **hidden Haiku miss** that the disagreement-only audit could never have seen (Haiku and the wrong label both said "none"). **Corrected: precision 0.90, recall 0.90** (TP 27, FP 3, FN 3, TN 22; TPR 0.90, FPR 0.12).
+- **The base-rate reality (the finding that matters).** All the above is at the test's **50/50 prevalence**. Precision is prevalence-dependent; recall (0.90) is not. Projected to field prevalence from the corrected TPR/FPR:
+
+  | prevalence | field precision |
+  |---|---|
+  | 50% (the test) | 0.88 |
+  | 10% | 0.45 |
+  | 5% | 0.28 |
+  | 2% | 0.13 |
+
+  At realistic prevalence the adjudicator, run alone over every element, **over-flags** — precision falls below the hard-fail floor. This is not a failure of the model's judgment (recall is genuinely high); it is the structural fact that a decent-but-imperfect classifier at low base rate produces mostly false positives.
+
+### 17.3 What it honestly establishes
+- **Real, new signal Legs 1–2 never reached:** on clean, independently-validated, minimal-contrast twins across six *no-linter judgment* rules, blind Haiku attributes the correct guideline and clears the matched compliant twin in 21/27 pairs — **genuine judgment, not keyword-spotting.** The adjudication *capability* on judgment rules is real.
+- **Architectural implication (the useful part):** because precision collapses at field prevalence, the LLM adjudicator **cannot** be pointed at every element; it must sit behind a **candidate-generation prefilter** (the mechanical/enumeration + embedding recall layer) that raises effective prevalence before adjudication. Leg 2 showed that enumeration layer works on the checkable slice; Leg 3 shows the adjudicator behind it has real judgment. The two legs compose into the intended architecture — and they relocate the load-bearing risk onto **prefilter quality**, not adjudication capability.
+
+### 17.4 Named, unmet gaps (do not ratify past these)
+1. **Field precision is unproven and likely poor** at real prevalence without a strong prefilter (0.13–0.28 at 2–5%). The gate tested the balanced set, not the operating point.
+2. **Construction ≠ the field task.** Minimal-contrast, single-issue, ~10-line snippets with a 6-rule candidate set are *easier* than a violation buried in 500 lines with ~100 candidate guidelines. Generalisation to real elements in a real repo is untested — there are still **zero** real-code judgment-rule data points (Leg 2's one judgment rule, C.4, contributed zero positives).
+3. **Shared-prior fidelity unknown.** Planter/validator/adjudicator are all Sonnet, system is Haiku (one lab). Ground-truth-by-construction defeats Leg 1's circularity *for recall of positives* (we know the violation was written), and the compliant-twin specificity is real — but difficulty calibration and rule attribution are Sonnet's reading, a proxy of unknown fidelity for how a human reviewer grades in the field.
+4. **Negative-set integrity was defective** (3/27 contaminated) and is only trustworthy now because of a full re-audit; the original single-rule validation was insufficient.
+
+### 17.5 Verdict and consequence
+**PASS on the constructed-case floor for judgment rules** — not "PASS on the crux." Combined with §15 (checkable-slice floor) the picture is: enumeration works where a checker exists; the LLM adjudicator has genuine judgment on no-checker rules; **but field precision depends on a prefilter that is not yet built or measured.** This **de-risks the adjudication mechanism** (a real milestone after Legs 1–2 established nothing) and clarifies that the remaining bet is **candidate-generation quality at field prevalence** plus **in-the-wild generalisation** — both owed before Phase C. Recommendation: Phase A may proceed on the schema/plumbing (the mechanism is sound), but no automation/coverage claim may be made until a field-prevalence, real-code run closes gaps 1–2.

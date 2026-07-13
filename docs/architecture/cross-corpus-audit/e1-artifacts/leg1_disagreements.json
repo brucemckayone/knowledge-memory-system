@@ -1,0 +1,101 @@
+[
+  {
+    "id": "E001",
+    "file": "alpha_conversion/src/Config/ConverterConfig.hpp",
+    "line": 27,
+    "oracle": "C.48",
+    "system": "none",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: inputFilePath, inputFolderPath, outputFilePath"
+  },
+  {
+    "id": "E002",
+    "file": "alpha_conversion/src/Managers/FileManager.hpp",
+    "line": 106,
+    "oracle": "C.48",
+    "system": "none",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: m_stream, m_outputStream"
+  },
+  {
+    "id": "E004",
+    "file": "lib_positioning_engine/include/Core/Api/GnssMeasurementsCollection.hpp",
+    "line": 31,
+    "oracle": "C.48",
+    "system": "none",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: pseudorangeMeasurements, phaserangeMeasurements, dopplerMeasurements"
+  },
+  {
+    "id": "E005",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 52,
+    "oracle": "C.4",
+    "system": "none",
+    "check": "readability-convert-member-functions-to-static",
+    "msg": "method 'onDataReceived' can be made static"
+  },
+  {
+    "id": "E006",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 120,
+    "oracle": "C.4",
+    "system": "none",
+    "check": "readability-convert-member-functions-to-static",
+    "msg": "method 'getStreamId' can be made static"
+  },
+  {
+    "id": "E007",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 136,
+    "oracle": "C.4",
+    "system": "none",
+    "check": "readability-convert-member-functions-to-static",
+    "msg": "method 'reset' can be made static"
+  },
+  {
+    "id": "E008",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 144,
+    "oracle": "C.4",
+    "system": "none",
+    "check": "readability-convert-member-functions-to-static",
+    "msg": "method 'waitForData' can be made static"
+  },
+  {
+    "id": "E009",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 152,
+    "oracle": "C.4",
+    "system": "none",
+    "check": "readability-convert-member-functions-to-static",
+    "msg": "method 'getData' can be made static"
+  },
+  {
+    "id": "E015",
+    "file": "test/alpha_replayer/Managers/TcpManagerTest.cpp",
+    "line": 26,
+    "oracle": "C.48",
+    "system": "none",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: receivedStreamIds, receivedData"
+  },
+  {
+    "id": "E016",
+    "file": "alpha_replayer/src/Logging/FileWriter.hpp",
+    "line": 48,
+    "oracle": "C.48",
+    "system": "none",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: m_file"
+  },
+  {
+    "id": "E017",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.hpp",
+    "line": 70,
+    "oracle": "C.48",
+    "system": "none",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: m_writtenData"
+  }
+]

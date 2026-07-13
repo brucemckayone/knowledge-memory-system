@@ -1,0 +1,46 @@
+[
+  {
+    "id": "Type.1",
+    "text": "Avoid reinterpret_cast; do not use unsafe casts."
+  },
+  {
+    "id": "ES.42",
+    "text": "Keep pointer use simple; avoid pointer arithmetic."
+  },
+  {
+    "id": "ES.30",
+    "text": "Do not use macros for constants or functions; prefer constexpr/inline."
+  },
+  {
+    "id": "ES.45",
+    "text": "Avoid \"magic\" constants; use symbolic/named constants."
+  },
+  {
+    "id": "C.4",
+    "text": "A member function that uses no instance state should be static or free (make a function a member only if it needs the object)."
+  },
+  {
+    "id": "F.16",
+    "text": "For \"in\" parameters, pass cheaply-copied types by value and others by reference to const; avoid unnecessary by-value copies."
+  },
+  {
+    "id": "C.48",
+    "text": "Initialize all data members."
+  },
+  {
+    "id": "ES.20",
+    "text": "Always initialize an object/variable."
+  },
+  {
+    "id": "ES.75",
+    "text": "Avoid do-while loops."
+  },
+  {
+    "id": "C.12",
+    "text": "Do not make data members const or references in a copyable/movable type."
+  },
+  {
+    "id": "SL.con.1",
+    "text": "Prefer std::array or std::vector to C-style arrays."
+  }
+]

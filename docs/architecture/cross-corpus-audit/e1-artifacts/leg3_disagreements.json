@@ -1,0 +1,44 @@
+[
+  {
+    "id": "E011",
+    "pair": "C4-4",
+    "twin": "violating",
+    "oracle": "C.4",
+    "system": "C.131"
+  },
+  {
+    "id": "E018",
+    "pair": "C35-5",
+    "twin": "compliant",
+    "oracle": "none",
+    "system": "R.3"
+  },
+  {
+    "id": "E024",
+    "pair": "C131-3",
+    "twin": "compliant",
+    "oracle": "none",
+    "system": "C.131"
+  },
+  {
+    "id": "E027",
+    "pair": "C35-4",
+    "twin": "compliant",
+    "oracle": "none",
+    "system": "R.3"
+  },
+  {
+    "id": "E046",
+    "pair": "F2-6",
+    "twin": "violating",
+    "oracle": "F.2",
+    "system": "none"
+  },
+  {
+    "id": "E049",
+    "pair": "C131-5",
+    "twin": "compliant",
+    "oracle": "none",
+    "system": "C.131"
+  }
+]

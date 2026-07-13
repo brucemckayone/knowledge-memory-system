@@ -1,0 +1,306 @@
+{
+  "E001": {
+    "truth": "violation",
+    "guideline": "C.48",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: inputFilePath, inputFolderPath, outputFilePath",
+    "file": "alpha_conversion/src/Config/ConverterConfig.hpp",
+    "line": 27
+  },
+  "E002": {
+    "truth": "violation",
+    "guideline": "C.48",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: m_stream, m_outputStream",
+    "file": "alpha_conversion/src/Managers/FileManager.hpp",
+    "line": 106
+  },
+  "E003": {
+    "truth": "violation",
+    "guideline": "C.48",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: satellitePosition, satelliteClock, pseudorangeBias, phaserangeBias, slantIonosphere, slantTroposphere, pseudorangePhaseCenter, phaserangePhaseCenter",
+    "file": "lib_positioning_engine/include/Core/Api/CorrectionsCollection.hpp",
+    "line": 68
+  },
+  "E004": {
+    "truth": "violation",
+    "guideline": "C.48",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: pseudorangeMeasurements, phaserangeMeasurements, dopplerMeasurements",
+    "file": "lib_positioning_engine/include/Core/Api/GnssMeasurementsCollection.hpp",
+    "line": 31
+  },
+  "E005": {
+    "truth": "violation",
+    "guideline": "C.4",
+    "check": "readability-convert-member-functions-to-static",
+    "msg": "method 'onDataReceived' can be made static",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 52
+  },
+  "E006": {
+    "truth": "violation",
+    "guideline": "C.4",
+    "check": "readability-convert-member-functions-to-static",
+    "msg": "method 'getStreamId' can be made static",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 120
+  },
+  "E007": {
+    "truth": "violation",
+    "guideline": "C.4",
+    "check": "readability-convert-member-functions-to-static",
+    "msg": "method 'reset' can be made static",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 136
+  },
+  "E008": {
+    "truth": "violation",
+    "guideline": "C.4",
+    "check": "readability-convert-member-functions-to-static",
+    "msg": "method 'waitForData' can be made static",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 144
+  },
+  "E009": {
+    "truth": "violation",
+    "guideline": "C.4",
+    "check": "readability-convert-member-functions-to-static",
+    "msg": "method 'getData' can be made static",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 152
+  },
+  "E010": {
+    "truth": "violation",
+    "guideline": "C.12",
+    "check": "cppcoreguidelines-avoid-const-or-ref-data-members",
+    "msg": "member 'm_ipAddress' of type 'const std::string' (aka 'const basic_string<char>') is const qualified",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 95
+  },
+  "E011": {
+    "truth": "violation",
+    "guideline": "C.12",
+    "check": "cppcoreguidelines-avoid-const-or-ref-data-members",
+    "msg": "member 'm_noDataTimeout' of type 'const uint32_t' (aka 'const unsigned int') is const qualified",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 98
+  },
+  "E012": {
+    "truth": "violation",
+    "guideline": "C.12",
+    "check": "cppcoreguidelines-avoid-const-or-ref-data-members",
+    "msg": "member 'm_callback' of type 'const DataCallbackFunction' (aka 'const function<void (unsigned short, const vector<unsigned char> &)>') is const qualified",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 101
+  },
+  "E013": {
+    "truth": "violation",
+    "guideline": "C.12",
+    "check": "cppcoreguidelines-avoid-const-or-ref-data-members",
+    "msg": "member 'm_printCallback' of type 'const PrintHandler::PrintCallbackFunction' (aka 'const function<void (const Alpha::Replay::PrintHandler::PrintLevel, const basic_string<char> &)>') is const qualified",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 104
+  },
+  "E014": {
+    "truth": "violation",
+    "guideline": "C.12",
+    "check": "cppcoreguidelines-avoid-const-or-ref-data-members",
+    "msg": "member 'm_clientFactory' of type 'const TcpClientFactory' (aka 'const function<unique_ptr<ITcpClient> (const basic_string<char> &, unsigned short)>') is const qualified",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 107
+  },
+  "E015": {
+    "truth": "violation",
+    "guideline": "C.48",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: receivedStreamIds, receivedData",
+    "file": "test/alpha_replayer/Managers/TcpManagerTest.cpp",
+    "line": 26
+  },
+  "E016": {
+    "truth": "violation",
+    "guideline": "C.48",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: m_file",
+    "file": "alpha_replayer/src/Logging/FileWriter.hpp",
+    "line": 48
+  },
+  "E017": {
+    "truth": "violation",
+    "guideline": "C.48",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "msg": "constructor does not initialize these fields: m_writtenData",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.hpp",
+    "line": 70
+  },
+  "E018": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "alpha_conversion/src/Managers/FileManager.hpp",
+    "line": 57
+  },
+  "E019": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "alpha_conversion/src/Managers/FileManager.hpp",
+    "line": 71
+  },
+  "E020": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "alpha_conversion/src/Managers/FileManager.hpp",
+    "line": 99
+  },
+  "E021": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "alpha_replayer/src/Logging/FileWriter.hpp",
+    "line": 28
+  },
+  "E022": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "alpha_replayer/src/Logging/FileWriter.hpp",
+    "line": 32
+  },
+  "E023": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "alpha_replayer/src/Logging/FileWriter.hpp",
+    "line": 38
+  },
+  "E024": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 29
+  },
+  "E025": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 68
+  },
+  "E026": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "alpha_replayer/src/Managers/TcpManager.hpp",
+    "line": 80
+  },
+  "E027": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "lib_positioning_engine/include/Core/Api/CorrectionsCollection.hpp",
+    "line": 80
+  },
+  "E028": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "lib_positioning_engine/include/Core/Api/CorrectionsCollection.hpp",
+    "line": 88
+  },
+  "E029": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "lib_positioning_engine/include/Core/Api/CorrectionsCollection.hpp",
+    "line": 90
+  },
+  "E030": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "lib_positioning_engine/include/Core/Api/GnssMeasurementsCollection.hpp",
+    "line": 39
+  },
+  "E031": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "lib_positioning_engine/include/Core/Api/GnssMeasurementsCollection.hpp",
+    "line": 41
+  },
+  "E032": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "lib_positioning_engine/include/Core/Api/GnssMeasurementsCollection.hpp",
+    "line": 43
+  },
+  "E033": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 54
+  },
+  "E034": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "loop",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 110
+  },
+  "E035": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 138
+  },
+  "E036": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.hpp",
+    "line": 29
+  },
+  "E037": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.hpp",
+    "line": 38
+  },
+  "E038": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.hpp",
+    "line": 48
+  },
+  "E039": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "method",
+    "file": "test/alpha_replayer/Managers/TcpManagerTest.cpp",
+    "line": 32
+  },
+  "E040": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "loop",
+    "file": "test/alpha_replayer/Managers/TcpManagerTest.cpp",
+    "line": 366
+  },
+  "E041": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "loop",
+    "file": "test/alpha_replayer/Managers/TcpManagerTest.cpp",
+    "line": 378
+  }
+}

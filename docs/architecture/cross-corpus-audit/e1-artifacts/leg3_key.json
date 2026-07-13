@@ -1,0 +1,380 @@
+{
+  "E001": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "ES1-2",
+    "twin": "compliant",
+    "rule_family": "ES.1"
+  },
+  "E002": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C4-7",
+    "twin": "compliant",
+    "rule_family": "C.4"
+  },
+  "E003": {
+    "truth": "violation",
+    "guideline": "C.4",
+    "pair_id": "C4-7",
+    "twin": "violating",
+    "rule_family": "C.4"
+  },
+  "E004": {
+    "truth": "violation",
+    "guideline": "C.4",
+    "pair_id": "C4-3",
+    "twin": "violating",
+    "rule_family": "C.4"
+  },
+  "E005": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C4-3",
+    "twin": "compliant",
+    "rule_family": "C.4"
+  },
+  "E006": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C4-6",
+    "twin": "compliant",
+    "rule_family": "C.4"
+  },
+  "E007": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C4-5",
+    "twin": "compliant",
+    "rule_family": "C.4"
+  },
+  "E008": {
+    "truth": "violation",
+    "guideline": "C.4",
+    "pair_id": "C4-6",
+    "twin": "violating",
+    "rule_family": "C.4"
+  },
+  "E009": {
+    "truth": "violation",
+    "guideline": "C.4",
+    "pair_id": "C4-5",
+    "twin": "violating",
+    "rule_family": "C.4"
+  },
+  "E010": {
+    "truth": "violation",
+    "guideline": "R.3",
+    "pair_id": "R3-3",
+    "twin": "violating",
+    "rule_family": "R.3"
+  },
+  "E011": {
+    "truth": "violation",
+    "guideline": "C.4",
+    "pair_id": "C4-4",
+    "twin": "violating",
+    "rule_family": "C.4"
+  },
+  "E012": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C131-2",
+    "twin": "compliant",
+    "rule_family": "C.131"
+  },
+  "E013": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C35-6",
+    "twin": "compliant",
+    "rule_family": "C.35"
+  },
+  "E014": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C4-4",
+    "twin": "compliant",
+    "rule_family": "C.4"
+  },
+  "E015": {
+    "truth": "violation",
+    "guideline": "C.131",
+    "pair_id": "C131-2",
+    "twin": "violating",
+    "rule_family": "C.131"
+  },
+  "E016": {
+    "truth": "violation",
+    "guideline": "C.131",
+    "pair_id": "C131-6",
+    "twin": "violating",
+    "rule_family": "C.131"
+  },
+  "E017": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "R3-3",
+    "twin": "compliant",
+    "rule_family": "R.3"
+  },
+  "E018": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C35-5",
+    "twin": "compliant",
+    "rule_family": "C.35"
+  },
+  "E019": {
+    "truth": "violation",
+    "guideline": "C.35",
+    "pair_id": "C35-6",
+    "twin": "violating",
+    "rule_family": "C.35"
+  },
+  "E020": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C131-6",
+    "twin": "compliant",
+    "rule_family": "C.131"
+  },
+  "E021": {
+    "truth": "violation",
+    "guideline": "C.131",
+    "pair_id": "C131-3",
+    "twin": "violating",
+    "rule_family": "C.131"
+  },
+  "E022": {
+    "truth": "violation",
+    "guideline": "C.35",
+    "pair_id": "C35-5",
+    "twin": "violating",
+    "rule_family": "C.35"
+  },
+  "E023": {
+    "truth": "violation",
+    "guideline": "C.35",
+    "pair_id": "C35-4",
+    "twin": "violating",
+    "rule_family": "C.35"
+  },
+  "E024": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C131-3",
+    "twin": "compliant",
+    "rule_family": "C.131"
+  },
+  "E025": {
+    "truth": "violation",
+    "guideline": "F.2",
+    "pair_id": "F2-5",
+    "twin": "violating",
+    "rule_family": "F.2"
+  },
+  "E026": {
+    "truth": "violation",
+    "guideline": "R.3",
+    "pair_id": "R3-1",
+    "twin": "violating",
+    "rule_family": "R.3"
+  },
+  "E027": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C35-4",
+    "twin": "compliant",
+    "rule_family": "C.35"
+  },
+  "E028": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "R3-2",
+    "twin": "compliant",
+    "rule_family": "R.3"
+  },
+  "E029": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "ES1-1",
+    "twin": "compliant",
+    "rule_family": "ES.1"
+  },
+  "E030": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "F2-5",
+    "twin": "compliant",
+    "rule_family": "F.2"
+  },
+  "E031": {
+    "truth": "violation",
+    "guideline": "ES.1",
+    "pair_id": "ES1-4",
+    "twin": "violating",
+    "rule_family": "ES.1"
+  },
+  "E032": {
+    "truth": "violation",
+    "guideline": "F.2",
+    "pair_id": "F2-1",
+    "twin": "violating",
+    "rule_family": "F.2"
+  },
+  "E033": {
+    "truth": "violation",
+    "guideline": "R.3",
+    "pair_id": "R3-4",
+    "twin": "violating",
+    "rule_family": "R.3"
+  },
+  "E034": {
+    "truth": "violation",
+    "guideline": "R.3",
+    "pair_id": "R3-2",
+    "twin": "violating",
+    "rule_family": "R.3"
+  },
+  "E035": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "R3-1",
+    "twin": "compliant",
+    "rule_family": "R.3"
+  },
+  "E036": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "ES1-4",
+    "twin": "compliant",
+    "rule_family": "ES.1"
+  },
+  "E037": {
+    "truth": "violation",
+    "guideline": "ES.1",
+    "pair_id": "ES1-1",
+    "twin": "violating",
+    "rule_family": "ES.1"
+  },
+  "E038": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "R3-4",
+    "twin": "compliant",
+    "rule_family": "R.3"
+  },
+  "E039": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "F2-1",
+    "twin": "compliant",
+    "rule_family": "F.2"
+  },
+  "E040": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C131-4",
+    "twin": "compliant",
+    "rule_family": "C.131"
+  },
+  "E041": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C35-7",
+    "twin": "compliant",
+    "rule_family": "C.35"
+  },
+  "E042": {
+    "truth": "violation",
+    "guideline": "C.131",
+    "pair_id": "C131-4",
+    "twin": "violating",
+    "rule_family": "C.131"
+  },
+  "E043": {
+    "truth": "violation",
+    "guideline": "C.131",
+    "pair_id": "C131-5",
+    "twin": "violating",
+    "rule_family": "C.131"
+  },
+  "E044": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "F2-6",
+    "twin": "compliant",
+    "rule_family": "F.2"
+  },
+  "E045": {
+    "truth": "violation",
+    "guideline": "C.35",
+    "pair_id": "C35-7",
+    "twin": "violating",
+    "rule_family": "C.35"
+  },
+  "E046": {
+    "truth": "violation",
+    "guideline": "F.2",
+    "pair_id": "F2-6",
+    "twin": "violating",
+    "rule_family": "F.2"
+  },
+  "E047": {
+    "truth": "violation",
+    "guideline": "F.2",
+    "pair_id": "F2-2",
+    "twin": "violating",
+    "rule_family": "F.2"
+  },
+  "E048": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "ES1-3",
+    "twin": "compliant",
+    "rule_family": "ES.1"
+  },
+  "E049": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "C131-5",
+    "twin": "compliant",
+    "rule_family": "C.131"
+  },
+  "E050": {
+    "truth": "violation",
+    "guideline": "ES.1",
+    "pair_id": "ES1-3",
+    "twin": "violating",
+    "rule_family": "ES.1"
+  },
+  "E051": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "F2-2",
+    "twin": "compliant",
+    "rule_family": "F.2"
+  },
+  "E052": {
+    "truth": "violation",
+    "guideline": "ES.1",
+    "pair_id": "ES1-2",
+    "twin": "violating",
+    "rule_family": "ES.1"
+  },
+  "E053": {
+    "truth": "violation",
+    "guideline": "F.2",
+    "pair_id": "F2-7",
+    "twin": "violating",
+    "rule_family": "F.2"
+  },
+  "E054": {
+    "truth": "none",
+    "guideline": null,
+    "pair_id": "F2-7",
+    "twin": "compliant",
+    "rule_family": "F.2"
+  }
+}

@@ -1,0 +1,443 @@
+{
+  "E001": {
+    "truth": "violation",
+    "guideline": "ES.42",
+    "check": "cppcoreguidelines-pro-bounds-pointer-arithmetic",
+    "file": "alpha_conversion/src/Utility/NumericParsing.hpp",
+    "line": 39
+  },
+  "E002": {
+    "truth": "violation",
+    "guideline": "Type.1",
+    "check": "cppcoreguidelines-pro-type-reinterpret-cast",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 35
+  },
+  "E003": {
+    "truth": "violation",
+    "guideline": "ES.42",
+    "check": "cppcoreguidelines-pro-bounds-pointer-arithmetic",
+    "file": "lib_common/include/Utility/ArgvToVector.hpp",
+    "line": 29
+  },
+  "E004": {
+    "truth": "violation",
+    "guideline": "ES.42",
+    "check": "cppcoreguidelines-pro-bounds-pointer-arithmetic",
+    "file": "lib_common/include/Utility/ByteBufferOps.hpp",
+    "line": 32
+  },
+  "E005": {
+    "truth": "violation",
+    "guideline": "Type.1",
+    "check": "cppcoreguidelines-pro-type-reinterpret-cast",
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 33
+  },
+  "E006": {
+    "truth": "violation",
+    "guideline": "Type.1",
+    "check": "cppcoreguidelines-pro-type-reinterpret-cast",
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 54
+  },
+  "E007": {
+    "truth": "violation",
+    "guideline": "ES.42",
+    "check": "cppcoreguidelines-pro-bounds-pointer-arithmetic",
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 79
+  },
+  "E008": {
+    "truth": "violation",
+    "guideline": "F.16",
+    "check": "performance-unnecessary-value-param",
+    "file": "lib_positioning_engine/src/Core/EngineImpl.hpp",
+    "line": 419
+  },
+  "E009": {
+    "truth": "violation",
+    "guideline": "F.16",
+    "check": "performance-unnecessary-value-param",
+    "file": "lib_positioning_engine/src/Core/PositioningEngine.cpp",
+    "line": 78
+  },
+  "E010": {
+    "truth": "violation",
+    "guideline": "ES.45",
+    "check": "readability-magic-numbers",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 35
+  },
+  "E011": {
+    "truth": "violation",
+    "guideline": "ES.45",
+    "check": "readability-magic-numbers",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 39
+  },
+  "E012": {
+    "truth": "violation",
+    "guideline": "ES.45",
+    "check": "readability-magic-numbers",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 43
+  },
+  "E013": {
+    "truth": "violation",
+    "guideline": "ES.45",
+    "check": "readability-magic-numbers",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 48
+  },
+  "E014": {
+    "truth": "violation",
+    "guideline": "ES.45",
+    "check": "readability-magic-numbers",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 53
+  },
+  "E015": {
+    "truth": "violation",
+    "guideline": "ES.45",
+    "check": "readability-magic-numbers",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 58
+  },
+  "E016": {
+    "truth": "violation",
+    "guideline": "C.12",
+    "check": "cppcoreguidelines-avoid-const-or-ref-data-members",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp",
+    "line": 189
+  },
+  "E017": {
+    "truth": "violation",
+    "guideline": "C.48",
+    "check": "cppcoreguidelines-pro-type-member-init",
+    "file": "lib_positioning_engine/src/Logging/Logger.hpp",
+    "line": 351
+  },
+  "E018": {
+    "truth": "violation",
+    "guideline": "Type.1",
+    "check": "cppcoreguidelines-pro-type-reinterpret-cast",
+    "file": "test/alpha_conversion/Managers/FileManagerTest.cpp",
+    "line": 90
+  },
+  "E019": {
+    "truth": "violation",
+    "guideline": "Type.1",
+    "check": "cppcoreguidelines-pro-type-reinterpret-cast",
+    "file": "test/alpha_replayer/Logging/EngineErrorLoggerTest.cpp",
+    "line": 34
+  },
+  "E020": {
+    "truth": "violation",
+    "guideline": "ES.42",
+    "check": "cppcoreguidelines-pro-bounds-pointer-arithmetic",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 34
+  },
+  "E021": {
+    "truth": "violation",
+    "guideline": "Type.1",
+    "check": "cppcoreguidelines-pro-type-reinterpret-cast",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 40
+  },
+  "E022": {
+    "truth": "violation",
+    "guideline": "ES.20",
+    "check": "cppcoreguidelines-init-variables",
+    "file": "test/alpha_replayer/Utility/EngineFactoryTest.cpp",
+    "line": 22
+  },
+  "E023": {
+    "truth": "violation",
+    "guideline": "ES.75",
+    "check": "cppcoreguidelines-avoid-do-while",
+    "file": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp",
+    "line": 106
+  },
+  "E024": {
+    "truth": "violation",
+    "guideline": "ES.30",
+    "check": "cppcoreguidelines-macro-usage",
+    "file": "test/lib_positioning_engine/Core/Api/TimeTest.cpp",
+    "line": 9
+  },
+  "E025": {
+    "truth": "violation",
+    "guideline": "ES.30",
+    "check": "cppcoreguidelines-macro-usage",
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 25
+  },
+  "E026": {
+    "truth": "violation",
+    "guideline": "ES.30",
+    "check": "cppcoreguidelines-macro-usage",
+    "file": "test/lib_positioning_engine/Core/PositioningEngineTest.cpp",
+    "line": 39
+  },
+  "E027": {
+    "truth": "violation",
+    "guideline": "ES.30",
+    "check": "cppcoreguidelines-macro-usage",
+    "file": "test/lib_positioning_engine/Core/PositionReconstruction/PositionAndVelocityReconstructionTest.cpp",
+    "line": 29
+  },
+  "E028": {
+    "truth": "violation",
+    "guideline": "ES.30",
+    "check": "cppcoreguidelines-macro-usage",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 25
+  },
+  "E029": {
+    "truth": "violation",
+    "guideline": "ES.30",
+    "check": "cppcoreguidelines-macro-usage",
+    "file": "test/lib_positioning_engine/Utility/LinearAlgebraTest.cpp",
+    "line": 15
+  },
+  "E030": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "static_cast",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 65
+  },
+  "E031": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "static_cast",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 85
+  },
+  "E032": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "static_cast",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 106
+  },
+  "E033": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "named-const",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 22
+  },
+  "E034": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 85
+  },
+  "E035": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "named-const",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 87
+  },
+  "E036": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp",
+    "line": 35
+  },
+  "E037": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "named-const",
+    "file": "lib_positioning_engine/src/Logging/Logger.hpp",
+    "line": 88
+  },
+  "E038": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "named-const",
+    "file": "lib_positioning_engine/src/Logging/Logger.hpp",
+    "line": 91
+  },
+  "E039": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "lib_positioning_engine/src/Logging/Logger.hpp",
+    "line": 94
+  },
+  "E040": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "range-for",
+    "file": "test/alpha_conversion/Managers/FileManagerTest.cpp",
+    "line": 53
+  },
+  "E041": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "range-for",
+    "file": "test/alpha_conversion/Managers/FileManagerTest.cpp",
+    "line": 190
+  },
+  "E042": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "static_cast",
+    "file": "test/alpha_replayer/Logging/EngineErrorLoggerTest.cpp",
+    "line": 22
+  },
+  "E043": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "range-for",
+    "file": "test/alpha_replayer/Utility/EngineFactoryTest.cpp",
+    "line": 32
+  },
+  "E044": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "static_cast",
+    "file": "test/alpha_replayer/Utility/EngineFactoryTest.cpp",
+    "line": 62
+  },
+  "E045": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp",
+    "line": 43
+  },
+  "E046": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "static_cast",
+    "file": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp",
+    "line": 138
+  },
+  "E047": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp",
+    "line": 168
+  },
+  "E048": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "static_cast",
+    "file": "test/lib_positioning_engine/Core/Api/TimeTest.cpp",
+    "line": 135
+  },
+  "E049": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 66
+  },
+  "E050": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 76
+  },
+  "E051": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "range-for",
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 374
+  },
+  "E052": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "range-for",
+    "file": "test/lib_positioning_engine/Core/PositioningEngineTest.cpp",
+    "line": 331
+  },
+  "E053": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "range-for",
+    "file": "test/lib_positioning_engine/Core/PositioningEngineTest.cpp",
+    "line": 333
+  },
+  "E054": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "named-const",
+    "file": "test/lib_positioning_engine/Core/PositioningEngineTest.cpp",
+    "line": 517
+  },
+  "E055": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "named-const",
+    "file": "test/lib_positioning_engine/Core/PositionReconstruction/PositionAndVelocityReconstructionTest.cpp",
+    "line": 903
+  },
+  "E056": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "named-const",
+    "file": "test/lib_positioning_engine/Core/PositionReconstruction/PositionAndVelocityReconstructionTest.cpp",
+    "line": 904
+  },
+  "E057": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "static_cast",
+    "file": "test/lib_positioning_engine/Core/PositionReconstruction/PositionAndVelocityReconstructionTest.cpp",
+    "line": 905
+  },
+  "E058": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "static_cast",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 67
+  },
+  "E059": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "func-def",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 174
+  },
+  "E060": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "func-def",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 450
+  },
+  "E061": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "test/lib_positioning_engine/Utility/LinearAlgebraTest.cpp",
+    "line": 37
+  },
+  "E062": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "static_cast",
+    "file": "test/lib_positioning_engine/Utility/LinearAlgebraTest.cpp",
+    "line": 89
+  },
+  "E063": {
+    "truth": "none",
+    "guideline": null,
+    "kind": "using",
+    "file": "test/lib_positioning_engine/Utility/LinearAlgebraTest.cpp",
+    "line": 298
+  }
+}
