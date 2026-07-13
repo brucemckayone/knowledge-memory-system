@@ -1,0 +1,102 @@
+[
+  {
+    "id": "R.3",
+    "text": "A raw pointer (T*) is non-owning; do not own a resource through a raw pointer."
+  },
+  {
+    "id": "R.11",
+    "text": "Avoid calling new and delete explicitly."
+  },
+  {
+    "id": "R.20",
+    "text": "Use unique_ptr or shared_ptr to represent ownership."
+  },
+  {
+    "id": "C.4",
+    "text": "Make a function a member only if it needs the representation; a method using no instance state should be static/free."
+  },
+  {
+    "id": "C.12",
+    "text": "Do not make data members const or references in a copyable/movable type."
+  },
+  {
+    "id": "C.35",
+    "text": "A base class destructor should be public+virtual or protected+non-virtual."
+  },
+  {
+    "id": "C.131",
+    "text": "Avoid trivial getters and setters (an accessor that only returns/assigns a member)."
+  },
+  {
+    "id": "C.21",
+    "text": "If you define or delete any copy/move/destructor, define or delete them all (rule of five)."
+  },
+  {
+    "id": "C.46",
+    "text": "By default, declare single-argument constructors explicit."
+  },
+  {
+    "id": "F.2",
+    "text": "A function should perform a single logical operation."
+  },
+  {
+    "id": "F.16",
+    "text": "For \"in\" parameters, pass cheaply-copied types by value, others by reference to const."
+  },
+  {
+    "id": "F.21",
+    "text": "To return multiple values, prefer a struct/tuple over many out-parameters."
+  },
+  {
+    "id": "ES.1",
+    "text": "Prefer the standard library to hand-crafted code (use std algorithms over raw loops)."
+  },
+  {
+    "id": "ES.20",
+    "text": "Always initialize an object/variable."
+  },
+  {
+    "id": "ES.42",
+    "text": "Keep pointer use simple; avoid pointer arithmetic."
+  },
+  {
+    "id": "ES.45",
+    "text": "Avoid \"magic\" numeric constants; use symbolic/named constants."
+  },
+  {
+    "id": "ES.46",
+    "text": "Avoid lossy/implicit arithmetic conversions."
+  },
+  {
+    "id": "ES.48",
+    "text": "Avoid casts; especially reinterpret_cast and C-style casts."
+  },
+  {
+    "id": "ES.71",
+    "text": "Prefer a range-for to a plain index for-loop where possible."
+  },
+  {
+    "id": "ES.75",
+    "text": "Avoid do-while loops."
+  },
+  {
+    "id": "ES.78",
+    "text": "Do not rely on implicit fallthrough in switch statements."
+  },
+  {
+    "id": "Type.1",
+    "text": "Avoid reinterpret_cast and unsafe casts."
+  },
+  {
+    "id": "I.23",
+    "text": "Keep the number of function arguments low."
+  },
+  {
+    "id": "ES.30",
+    "text": "Do not use macros for constants or functions."
+  },
+  {
+    "id": "C.9",
+    "text": "Minimize exposure of members (avoid needless public data)."
+  }
+]

@@ -21,5 +21,12 @@ Ground truth by construction; four independent parties (planter/validator/system
 - `build_leg3.mjs`, `generate_batches_leg3.mjs`, `score_leg3.mjs`, `score_leg3_corrected.mjs`
 - `leg3_{rule_set,elements,key,responses,disagreements,disagreements_detail,compliant_twins}.json`
 
+## Leg 4 — real-code field-prevalence run → CONFIRMS the base-rate concern (doc §18–§19)
+140 random real functions (full context) + NOLINT anchors; blind Haiku over 25 guidelines; every flag independently adjudicated + a non-flagged spot-check. Headline field precision 0.68 is **C.131-padded** (13/15 true positives are trivial getters); stripped to genuine no-checker judgment rules it is **1/7 = 0.14 at ~2% real prevalence** — reproducing §17's projection, not refuting it. The adjudicator is a sound local judge but an unusable global scanner → the candidate-generation prefilter is mandatory.
+- `build_leg4.mjs` (brace-matching function extractor + seeded sample), `generate_batches_leg4.mjs`, `score_leg4.mjs`
+- `leg4_{rule_set,elements,meta,flags}.json` — sample, blind system flags, in_random/anchor metadata.
+- `leg4_flag_adjudication{,_input}.json` — independent real/false verdict on every flag.
+- `leg4_spotcheck{,_input}.json` — independent check of non-flagged functions for missed violations.
+
 ## Status
-`nmemo-uhp.6` open; Phase A schema/plumbing may proceed (adjudication mechanism sound), but no automation/coverage claim until a **field-prevalence, real-code** run closes the named gaps in §17.4.
+`nmemo-uhp.6` open; Phase A schema/plumbing may proceed (adjudication mechanism sound), but **no automation/coverage claim** until (1) a candidate-generation **prefilter** exists and is measured, and (2) a **human-labelled** (not LLM-adjudicated) field sample removes the shared-prior caveat. Next empirical target = the prefilter, not the adjudicator.

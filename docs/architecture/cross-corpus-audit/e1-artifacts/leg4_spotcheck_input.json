@@ -1,0 +1,122 @@
+[
+  {
+    "id": "E064",
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/DopplerMeasurementXmlDeserializer.cpp",
+    "code": "void DopplerMeasurementXmlDeserializer::deserialize(\n   mxml_node_t* const dmNode,\n   DopplerMeasurement& dplMeasurement)\n{\n   if (getAttributeValue(dmNode, AT_NAM_WAVELENGTH, dplMeasurement.wavelength))\n   {\n      mxml_node_t* const childNode = getElementNodeFromPath(dmNode, EL_DOPPLER);\n\n      if (childNode != nullptr)\n      {\n         StochasticVariableXmlDeserializer::deserialize(childNode, dplMeasurement.doppler);\n      }\n      else\n      {\n         throw XmlSerializationException(\n            \"DopplerMeasurementXmlDeserializer: Child element missing: \" + std::string(EL_DOPPLER));\n      }\n   }\n   else\n   {\n      throw XmlSerializationException(\n         \"DopplerMeasurementXmlDeserializer: Attribute missing or wrong type: \"\n         + std::string(AT_NAM_WAVELENGTH));\n   }\n}"
+  },
+  {
+    "id": "E010",
+    "file": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp",
+    "code": "public:\n   static GnssKey sanitizedStateKeySetKey([[maybe_unused]] const GnssKey& key)\n   {\n      return key;\n   }"
+  },
+  {
+    "id": "E043",
+    "file": "lib_positioning_engine/src/Core/SolutionReconstruction/ISolutionReconstruction.hpp",
+    "code": "/**\n    * @brief Performs the reconstruction process and returns the result (Absolute data).\n    *\n    * This method forwards the call to the derived class's `reconstructImpl` method, which uses\n    * absolute data and incremental data to reconstruct the absolute data for the current epoch.\n    *\n    * @return The reconstructed absolute data.\n    */\n   typename ReconstructionTraits<T_DERIVED>::AbsoluteData reconstruct()\n   {\n      return static_cast<T_DERIVED*>(this)->reconstructImpl();\n   }"
+  },
+  {
+    "id": "E039",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "code": "void setNumInstances(size_t n)\n   {\n      std::lock_guard<std::mutex> lock(m_mutex);\n      m_numInstances = n;\n      m_bgCount = 0;\n      m_fgCount = 0;\n      m_apiCount = 0;\n   }"
+  },
+  {
+    "id": "E081",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp",
+    "code": "/// @brief Find a package with an epoch time that matches exactly with the one attached to a\n   ///        data-point.\n   ///\n   /// @param iterator The iterator pointing to the first package that corresponds to a time-stamp\n   ///                 that is not less than the data time-stamp.\n   /// @param time     The time-stamp of the data to be inserted.\n   ///\n   /// @return An iterator pointing to the package in which the data can be inserted, or end() if we\n   ///         cannot match based on this time requirement.\n   ///\n   Iterator handleAsOnTime(const Iterator& iterator, const Time& time)\n   {\n      // If the iterator points to a package with the same time, we can insert data into it.\n      return (iterator != m_packages.end() && compareEqual(iterator->getTime(), time))\n              ? iterator\n              : m_packages.end();\n   }"
+  },
+  {
+    "id": "E014",
+    "file": "lib_common/src/ApiLogging/Serialization/TimeDataSerializer.cpp",
+    "code": "void serialize(BufferWriter& writer, TimeData<PiecewiseContinuousVariableData> const& timeData)\n{\n   TimeSerializer::serialize(writer, timeData.time);\n   PiecewiseContinuousVariableDataSerializer::serialize(writer, timeData.data);\n}"
+  },
+  {
+    "id": "E027",
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/SourceIdXmlDeserializer.cpp",
+    "code": "void SourceIdXmlDeserializer::deserialize(mxml_node_t* const sourceIdNode, SourceId& sourceId)\n{\n   if (!getAttributeValue(sourceIdNode, AT_NAM_ID, sourceId.value))\n   {\n      throw XmlSerializationException(\n         \"SourceIdXmlDeserializer: Attribute missing or wrong type: \" + std::string(AT_NAM_ID));\n   }\n}"
+  },
+  {
+    "id": "E093",
+    "file": "lib_positioning_engine/src/ApiLogging/ApiLogger.cpp",
+    "code": "uint64_t ApiLogger::getMicrosecondsSinceEpoch(\n   std::chrono::time_point<std::chrono::steady_clock> const& timepoint)\n{\n   int64_t const microseconds{\n      std::chrono::duration_cast<std::chrono::microseconds>(timepoint.time_since_epoch()).count()};\n\n   return static_cast<uint64_t>(microseconds);\n}"
+  },
+  {
+    "id": "E041",
+    "file": "test/lib_positioning_engine/Core/Estimators/GnssEstimatorTest.cpp",
+    "code": "static GnssMeasurements generateMeasurements(const Time& time)\n   {\n      GnssMeasurements measurements;\n      measurements.time = time;\n      measurements.data.pseudorangeMeasurements = Test::constructPseudorangeMeasurements();\n      measurements.data.phaserangeMeasurements = Test::constructPhaserangeMeasurements();\n      return measurements;\n   }"
+  },
+  {
+    "id": "E122",
+    "file": "alpha_conversion/src/Utility/Errors.cpp",
+    "code": "int& errorStateRef()\n{\n   static int s_state = 0;\n   return s_state;\n}"
+  },
+  {
+    "id": "E035",
+    "file": "lib_common/include/ApiLogging/Serialization/SourceAndTimeDataSerializer.hpp",
+    "code": "public:\n   /// @brief Serializes SourceAndTimeData<T> Objects to a provided buffer\n   /// @tparam T_DATA can be type ExpectedPeriodData, StochasticVector3d or Status\n   /// @param writer Buffer to write to\n   /// @param sourceAndTimeData SourceAndTimeData<T> to serialize\n   template <typename T_DATA>\n   static void serialize(BufferWriter& writer, SourceAndTimeData<T_DATA> const& sourceAndTimeData)\n   {\n      SourceIdSerializer::serialize(writer, sourceAndTimeData.sourceId);\n      TimeSerializer::serialize(writer, sourceAndTimeData.time);\n      serializeData(writer, sourceAndTimeData.data);\n   }"
+  },
+  {
+    "id": "E104",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp",
+    "code": "void HlfStartTimeHeaderRecord::encodePayload(BufferWriter& writer) const\n{\n   // HLF Start Time Header payload consists of:\n   // - Sub Type:              1 byte\n   // - Recording Start Time:  20 bytes\n   // - Start Uptime:          8 bytes\n\n   uint8_t const subType{static_cast<uint8_t>(getSubType())};\n\n   // Encode payload fields\n   writer.write(&subType, sizeof(uint8_t));\n   encodeIso8601(writer, m_recordingStartTime);\n   writer.write(&m_startUptime, sizeof(uint64_t));\n}"
+  },
+  {
+    "id": "E117",
+    "file": "test/lib_positioning_engine/Utility/ThreadSafeQueueTests.cpp",
+    "code": "void consumer(ThreadSafeQueue<std::shared_ptr<int>>* queue, std::atomic<int>* itemsPopped)\n{\n   std::cout << \"Consumer started\" << '\\n';\n   while (*itemsPopped < TOTAL_ITEMS)\n   {\n      std::shared_ptr<int> popped;\n      if (queue->tryPop(popped))\n      {\n         // Validate the pointer is not null\n         REQUIRE(popped != nullptr);\n         (*itemsPopped)++;\n      }\n      else\n      {\n         // Nothing to pop yet, yield so producers can enqueue\n         std::this_thread::yield();\n      }\n   }\n}"
+  },
+  {
+    "id": "E026",
+    "file": "alpha_replayer/src/Managers/CallManager.cpp",
+    "code": "CallManager::CallManager()\n{\n   initializeCommands();\n}"
+  },
+  {
+    "id": "E092",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.cpp",
+    "code": "std::optional<SatelliteCorrections> getSatelliteCorrections(\n   const GnssKey& sanitizedKey,\n   const Corrections& corrections,\n   const Time& measurementTime,\n   const PseudorangeMeasurement& pseudorange,\n   const GnssKeyMap<ClockAndCounter>& cachedClocks)\n{\n   // First check if all mandatory satellite-level corrections are available and valid.\n\n   // Satellite clock correction is mandatory and must be time-valid for the measurement.\n   auto clock = getClock(sanitizedKey, cachedClocks, corrections, measurementTime, pseudorange);\n   if (!clock)\n   {\n      return std::nullopt;\n   }\n\n   // Satellite position correction is mandatory\n   const auto satPosIter = corrections.data.satellitePosition.find(sanitizedKey);\n   if (satPosIter == corrections.data.satellitePosition.end())\n   {\n      return std::nullopt;\n   }\n\n   // Slant troposphere correction is mandatory\n   const auto tropoIter = corrections.data.slantTroposphere.find(sanitizedKey);\n   if (tropoIter == corrections.data.slantTroposphere.end())\n   {\n      return std::nullopt;\n   }\n\n   // Slant ionosphere correction is mandatory\n   const auto ionoIter = corrections.data.slantIonosphere.find(sanitizedKey);\n   if (ionoIter == corrections.data.slantIonosphere.end())\n   {\n      return std::nullopt;\n   }\n\n   // Having checked that all mandatory corrections are available, populate the output structure.\n\n   SatelliteCorrections result;\n   result.clockDiscontinuityCounter = clock->discontinuityCounter;\n   result.satellitePosition = satPosIter->second;\n   result.satelliteLineOfSightCorrections = std::make_tuple(\n      clock->clock,\n      TroposphereCorrection{tropoIter->second.data.bias, tropoIter->second.time});\n   result.iono = IonosphereCorrection{ionoIter->second.data.bias, ionoIter->second.time};\n   return result;\n}"
+  },
+  {
+    "id": "E088",
+    "file": "alpha_conversion/src/Serialization/Xml/ApiData/Deserializers/ApiInvocationXmlDeserializer.cpp",
+    "code": "std::shared_ptr<ProvideCorrectionsInvocation>\nApiInvocationXmlDeserializer::createProvideCorrectionsInvocation(\n   mxml_node_t* const apiInvocationNode,\n   uint16_t streamId,\n   ErrorCode errorCode)\n{\n   std::shared_ptr<ProvideCorrectionsInvocation> provideCorrectionsInvocation = nullptr;\n\n\n   if (\n      mxml_node_t* const correctionsNode\n      = getElementNodeFromPath(apiInvocationNode, PATH_CORRECTIONS))\n   {\n      auto correctionsPtr = std::make_shared<Corrections>();\n\n      // The deserialize takes a reference, so need to convert\n      Corrections& corrections = *correctionsPtr;\n\n      CorrectionsCollectionXmlDeserializer::deserialize(correctionsNode, corrections);\n\n      provideCorrectionsInvocation\n         = std::make_shared<ProvideCorrectionsInvocation>(streamId, errorCode, correctionsPtr);\n   }\n   else\n   {\n      throw XmlSerializationException(\n         \"ApiInvocationXmlDeserializer: Could not find Element: \" + std::string(PATH_CORRECTIONS));\n   }\n\n   return provideCorrectionsInvocation;\n}"
+  },
+  {
+    "id": "E063",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfEndTimeHeaderRecord.cpp",
+    "code": "void HlfEndTimeHeaderRecord::decodePayload(BufferReader& reader)\n{\n   // HLF End Time Header payload consists of:\n   // - Sub Type:   1 byte\n   // - End Uptime: 8 bytes\n\n   // Read and verify sub-type is correct for this record type\n   uint8_t subType{0U};\n   reader.read(&subType, sizeof(uint8_t));\n\n   if (subType == static_cast<uint8_t>(getSubType()))\n   {\n      // Decode header-specific fields\n      reader.read(&m_endUptime, sizeof(uint64_t));\n   }\n}"
+  },
+  {
+    "id": "E123",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "code": "Alpha::Replay::ByteArray getData() const\n   {\n      std::lock_guard<std::mutex> lock(m_testData.mtx);\n      return m_testData.data;\n   }"
+  },
+  {
+    "id": "E017",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp",
+    "code": "HlfHeaderRecord::HlfString HlfHeaderRecord::initHlfString(const std::string_view src)\n{\n   HlfString dst;\n\n   if (src.data() == nullptr)\n   {\n      throw NullPtrException(\"HlfHeaderRecord\");\n   }\n\n   if (src.size() + NUL_CHAR_LEN < dst.size())\n   {\n      // Whole string\n      static_cast<void>(src.copy(dst.data(), src.size()));\n      dst.at(src.size()) = '\\0';\n   }\n   else\n   {\n      // Truncate\n      static_cast<void>(src.copy(dst.data(), dst.size()));\n      dst.back() = '\\0';\n   }\n\n   return dst;\n}"
+  },
+  {
+    "id": "E059",
+    "file": "lib_common/include/ApiLogging/Serialization/GnssKeyMapDeserializer.hpp",
+    "code": "/// @brief Deserialization to a DopplerMeasurement object.\n   static void deserializeMapValue(BufferReader& reader, DopplerMeasurement& mapValue)\n   {\n      DopplerMeasurementDeserializer::deserialize(reader, mapValue);\n   }"
+  },
+  {
+    "id": "E105",
+    "file": "alpha_conversion/src/Managers/ConversionManager.cpp",
+    "code": "void ConversionManager::convertToHlf()\n{\n   const auto converterConfig = RuntimeConfig::getConverterConfig();\n   const std::filesystem::path& inputFilePath = converterConfig.inputFilePath;\n\n   // Ensure the input file exists and is not empty before starting.\n   if (!std::filesystem::exists(inputFilePath))\n   {\n      throw FileException(\"Input file does not exist: \" + inputFilePath.string());\n   }\n\n   if (std::filesystem::file_size(inputFilePath) == 0)\n   {\n      throw FileException(\"Input file is empty: \" + inputFilePath.string());\n   }\n\n   m_fileManager.safeClose();\n   m_fileManager.openOutput(converterConfig.outputFilePath, true);\n\n   m_validBytes = ZERO_SIZE; // Reset the scratch buffer state.\n\n   // Initialize deserialization status to a known state before starting\n   m_deserializeStatus = IHlfRecordDeserializable::HlfDeserializeStatus::Success;\n\n   m_textToHlfDeserializer->setFileToDecode(inputFilePath.string());\n\n   m_writerRunning.store(true);\n   std::thread writerThread(&ConversionManager::writeHlfToFile, this);\n\n   m_textToHlfDeserializer->parseTextFile();\n\n   bool waitingForWriter = true;\n\n   // Wait for the writer thread to finish\n   while (waitingForWriter)\n   {\n      {\n         std::scoped_lock<std::mutex> lock(m_hlfRecordsMutex);\n         waitingForWriter = !m_hlfRecords.empty();\n      }\n\n      std::this_thread::sleep_for(std::chrono::milliseconds(WRITER_POLL_INTERVAL_MS));\n   }\n\n   m_writerRunning.store(false);\n   writerThread.join();\n\n   m_fileManager.safeClose();\n\n   // Check if the deserialization process has completed with an error.\n   if (m_deserializeStatus == IHlfRecordDeserializable::HlfDeserializeStatus::Error)\n   {\n      throw GeneralException(m_deserializeError);\n   }\n}"
+  },
+  {
+    "id": "E115",
+    "file": "lib_common/src/ApiLogging/Crc/Crc32.cpp",
+    "code": "constexpr std::uint32_t Crc32::reflect(std::uint32_t data, const std::uint8_t nBits) noexcept\n{\n   std::uint32_t reflection = 0U;\n\n   for (std::uint8_t bit = 0U; bit < nBits; ++bit)\n   {\n      if ((data & ONE) != ZERO)\n      {\n         reflection |= (ONE << (nBits - ONE - bit));\n      }\n      data >>= ONE;\n   }\n\n   return reflection;\n}"
+  },
+  {
+    "id": "E038",
+    "file": "lib_positioning_engine/src/Core/PositionReconstruction/PositionReconstruction.cpp",
+    "code": "void PositionReconstruction::addAbsoluteDataImpl(\n   const ReconstructionTraits<PositionReconstruction>::AbsoluteData& data)\n{\n   std::lock_guard<std::mutex> lock(m_absoluteDataMutex);\n   manageBuffer(m_absolutePositions, m_maxAbsolutePositionsSize);\n   m_absolutePositions.push_back(data);\n   m_lastReconstructedPosition.reset();\n}"
+  },
+  {
+    "id": "E005",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp",
+    "code": "// -------------------------------------------------------------------------\n   // CONSTRUCTOR / DESTRUCTOR & OPERATORS\n   // -------------------------------------------------------------------------\n   IntegerPackage()\n      : m_time()\n   {}"
+  }
+]

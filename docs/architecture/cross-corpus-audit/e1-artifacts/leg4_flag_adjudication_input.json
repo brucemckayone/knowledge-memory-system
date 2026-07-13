@@ -1,0 +1,258 @@
+[
+  {
+    "id": "E078",
+    "rule": "C.131",
+    "why": "trivial setter only assigns member",
+    "in_random": true,
+    "file": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp",
+    "code": "void HlfRecordXmlDeserializer::setFileToDecode(const std::string& filename)\n{\n   m_filename = filename;\n}"
+  },
+  {
+    "id": "E085",
+    "rule": "C.131",
+    "why": "trivial getter returns member",
+    "in_random": true,
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideGnssMeasurementsInvocation.cpp",
+    "code": "std::shared_ptr<const GnssMeasurements> ProvideGnssMeasurementsInvocation::getGnssMeasurements()\n   const\n{\n   return m_gnssMeasurements;\n}"
+  },
+  {
+    "id": "E141",
+    "rule": "ES.42",
+    "why": "argv + offset and argv + argc",
+    "in_random": false,
+    "file": "lib_common/include/Utility/ArgvToVector.hpp",
+    "code": "/// @brief Copies C-style command-line arguments into a std::vector<std::string>.\n///\n/// Centralises the pointer arithmetic required to iterate a raw argv array so\n/// that call sites do not need to suppress cppcoreguidelines-pro-bounds-pointer-arithmetic.\n/// Caller is responsible for validating @p argv is non-null before invocation.\n///\n/// @param argc   Number of elements in @p argv.\n/// @param argv   Pointer to an array of @p argc C-strings.\n/// @param offset Optional number of leading elements to skip (e.g. 1 to drop the program name).\n/// @return A std::vector<std::string> containing argv[offset..argc).\n///\ninline std::vector<std::string>\nargvToVector(const std::size_t argc, const char* const* const argv, const std::size_t offset = 0U)\n{\n   // Caller-verified: offset <= argc\n   \n   return std::vector<std::string>{argv + offset, argv + argc};\n}"
+  },
+  {
+    "id": "E148",
+    "rule": "ES.48",
+    "why": "reinterpret_cast<char*>",
+    "in_random": false,
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "code": "/// @brief Reads from a char-oriented input stream into a byte buffer.\n///\n/// Companion to writeBytes(). Centralises the byte/char reinterpret_cast\n/// required by std::istream's char* API.\n///\n/// @param stream Input stream to read from.\n/// @param data   Pointer to byte buffer to read into.\n/// @param size   Maximum number of bytes to read.\n/// @return The number of bytes actually read (see std::istream::gcount()).\n///\ninline std::streamsize readBytes(std::istream& stream, uint8_t* const data, const std::size_t size)\n{\n   // std::istream::read only accepts char*, but our buffers are uint8_t. Casting\n   // between them is safe: the C++ standard lets you view any object as a sequence\n   // of bytes (char, unsigned char, or std::byte), and uint8_t is just unsigned\n   // char on every platform we support. This helper keeps the cast (and its\n   \n   \n   stream.read(reinterpret_cast<char*>(data), static_cast<std::streamsize>(size));\n   return stream.gcount();\n}"
+  },
+  {
+    "id": "E148",
+    "rule": "Type.1",
+    "why": "reinterpret_cast",
+    "in_random": false,
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "code": "/// @brief Reads from a char-oriented input stream into a byte buffer.\n///\n/// Companion to writeBytes(). Centralises the byte/char reinterpret_cast\n/// required by std::istream's char* API.\n///\n/// @param stream Input stream to read from.\n/// @param data   Pointer to byte buffer to read into.\n/// @param size   Maximum number of bytes to read.\n/// @return The number of bytes actually read (see std::istream::gcount()).\n///\ninline std::streamsize readBytes(std::istream& stream, uint8_t* const data, const std::size_t size)\n{\n   // std::istream::read only accepts char*, but our buffers are uint8_t. Casting\n   // between them is safe: the C++ standard lets you view any object as a sequence\n   // of bytes (char, unsigned char, or std::byte), and uint8_t is just unsigned\n   // char on every platform we support. This helper keeps the cast (and its\n   \n   \n   stream.read(reinterpret_cast<char*>(data), static_cast<std::streamsize>(size));\n   return stream.gcount();\n}"
+  },
+  {
+    "id": "E058",
+    "rule": "C.131",
+    "why": "trivial setter m_time = time",
+    "in_random": true,
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "code": "/// @brief Sets the current time associated with the state.\n   /// @param time The time to set.\n   void setTime(const Time& time)\n   {\n      m_time = time;\n   }"
+  },
+  {
+    "id": "E065",
+    "rule": "Type.1",
+    "why": "reinterpret_cast",
+    "in_random": true,
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "code": "// POSIX sockets C API takes `sockaddr*`. Confine the reinterpret_cast to a single helper\n// so call sites read naturally and the suppression lives in one place only.\n// The parameter cannot be const: `getpeername` writes the peer address through the\n// returned pointer, so casting away const here would be undefined behaviour.\nsockaddr* asSockAddr(sockaddr_in* addr) noexcept \n{\n   \n   return reinterpret_cast<sockaddr*>(addr); \n}"
+  },
+  {
+    "id": "E065",
+    "rule": "ES.48",
+    "why": "reinterpret_cast",
+    "in_random": true,
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "code": "// POSIX sockets C API takes `sockaddr*`. Confine the reinterpret_cast to a single helper\n// so call sites read naturally and the suppression lives in one place only.\n// The parameter cannot be const: `getpeername` writes the peer address through the\n// returned pointer, so casting away const here would be undefined behaviour.\nsockaddr* asSockAddr(sockaddr_in* addr) noexcept \n{\n   \n   return reinterpret_cast<sockaddr*>(addr); \n}"
+  },
+  {
+    "id": "E135",
+    "rule": "C.131",
+    "why": "trivial getter returns m_apiDataType",
+    "in_random": true,
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "code": "ApiDataType ApiData::getApiDataType() const\n{\n   return m_apiDataType;\n}"
+  },
+  {
+    "id": "E142",
+    "rule": "ES.42",
+    "why": "data + size",
+    "in_random": false,
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "code": "void MockFileWriter::write(const uint8_t* data, uint32_t size)\n{\n   if (!m_isOpen)\n   {\n      throw FileException(\"Mock file writer is not open\");\n   }\n   // Iterator range over byte buffer\n   \n   m_writtenData.insert(m_writtenData.end(), data, data + size);\n}"
+  },
+  {
+    "id": "E149",
+    "rule": "ES.42",
+    "why": "data + offset",
+    "in_random": false,
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "code": "/// @brief Reads from a char-oriented input stream into a byte buffer at the\n/// given offset.\n///\n/// Convenience overload that centralises the offset pointer arithmetic for\n/// callers that need to fill the tail of a pre-allocated contiguous buffer.\n///\n/// @param stream Input stream to read from.\n/// @param data   Pointer to a contiguous byte buffer of at least\n///               @p offset + @p size bytes.\n/// @param offset Index at which to start writing within the buffer.\n/// @param size   Maximum number of bytes to read.\n/// @return The number of bytes actually read (see std::istream::gcount()).\n///\ninline std::streamsize readBytes(\n   std::istream& stream,\n   uint8_t* const data,\n   const std::size_t offset,\n   const std::size_t size)\n{\n   // Pointer arithmetic safe by caller-validated bounds precondition.\n   \n   return readBytes(stream, data + offset, size);\n}"
+  },
+  {
+    "id": "E031",
+    "rule": "ES.45",
+    "why": "hardcoded test fixture constants",
+    "in_random": true,
+    "file": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp",
+    "code": "// Test data for evaluateSatelliteClockCorrections: Invalid satellite position polynomial\nSatelliteClockTestCase getSatelliteClockInvalidSatPolyCase()\n{\n   return SatelliteClockTestCase(\n      Time{\n         2298,\n         StochasticScalar{484920.0, 0.0}\n   },\n      GnssKey{Constellation::Gps, SatelliteId{16}, Signal::Rinex1C},\n      PseudorangeMeasurement{{22702377.725000001, 0.052441000938415527}, 0.19029367279836487},\n      Time{2298, StochasticScalar{484800.0, 0.0}},\n      10,\n      50,\n      std::array<double, 5>{\n         -0.00011065809815407066,\n         -1.2152742399398151e-11,\n         1.4293296996710173e-17,\n         4.5875304495994327e-21,\n         1.3552504133952147e-24},\n      Time{2298, StochasticScalar{484919.5, 0.0}},\n      10,\n      200.0,\n      std::nullopt);\n}"
+  },
+  {
+    "id": "E108",
+    "rule": "C.131",
+    "why": "trivial getter returns member reference",
+    "in_random": true,
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "code": "/// @brief Gets a const reference to the tuple of state key sets for all state element types.\n   /// @return Const reference to the state key sets tuple.\n   const StateKeySetsType& getKeySets() const\n   {\n      return m_keySets;\n   }"
+  },
+  {
+    "id": "E129",
+    "rule": "C.131",
+    "why": "trivial getter returns member value",
+    "in_random": true,
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "code": "std::string RuntimeConfig::getCommandFlag()\n{\n   return s_commandFlag;\n}"
+  },
+  {
+    "id": "E143",
+    "rule": "ES.42",
+    "why": "buffer + srcOffset",
+    "in_random": false,
+    "file": "lib_common/include/Utility/ByteBufferOps.hpp",
+    "code": "/// @brief Shifts bytes within a single byte buffer towards the front.\n///\n/// Equivalent to `std::memmove(buffer, buffer + srcOffset, size)`. Centralises\n/// the clang-tidy suppressions required by this idiom on raw byte buffers\n/// (`cppcoreguidelines-pro-bounds-pointer-arithmetic` for the source offset\n/// pointer arithmetic, `bugprone-not-null-terminated-result` for the memmove\n/// call) into a single named operation, so call sites do not have to suppress\n/// either rule.\n///\n/// @param buffer    Pointer to a contiguous byte buffer of at least\n///                  @p srcOffset + @p size bytes.\n/// @param srcOffset Index of the first source byte to shift.\n/// @param size      Number of bytes to shift.\n///\ninline void\nshiftBytesToFront(uint8_t* const buffer, const std::size_t srcOffset, const std::size_t size)\n{\n   // Pointer arithmetic safe by caller-validated bounds precondition.\n   \n   static_cast<void>(std::memmove(buffer, buffer + srcOffset, size));\n}"
+  },
+  {
+    "id": "E060",
+    "rule": "C.131",
+    "why": "trivial getter",
+    "in_random": true,
+    "file": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp",
+    "code": "HlfRecordSubType HlfHeaderRecord::getSubType() const\n{\n   return m_subType;\n}"
+  },
+  {
+    "id": "E109",
+    "rule": "C.131",
+    "why": "trivial getter",
+    "in_random": true,
+    "file": "alpha_conversion/src/Managers/FileManager.cpp",
+    "code": "std::size_t FileManager::fileSize() const\n{\n   return m_fileSize;\n}"
+  },
+  {
+    "id": "E116",
+    "rule": "C.131",
+    "why": "trivial getter",
+    "in_random": true,
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "code": "uint16_t ApiData::getStream() const\n{\n   return m_streamId;\n}"
+  },
+  {
+    "id": "E137",
+    "rule": "F.16",
+    "why": "cheaply-copied double by value",
+    "in_random": true,
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Serializers/TimeDataXmlSerializer.cpp",
+    "code": "void TimeDataXmlSerializer::serializeData(mxml_node_t* const node, const double& timeData)\n{\n   setAttributeValue(node, AT_NAM_VALUE, timeData);\n}"
+  },
+  {
+    "id": "E144",
+    "rule": "Type.1",
+    "why": "reinterpret_cast in string ctor",
+    "in_random": false,
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "code": "std::string MockFileWriter::writtenDataAsString() const\n{\n   // byte-to-char buffer interop\n   \n   return {reinterpret_cast<const char*>(m_writtenData.data()), m_writtenData.size()};\n}"
+  },
+  {
+    "id": "E040",
+    "rule": "ES.45",
+    "why": "magic constant 0.5",
+    "in_random": true,
+    "file": "test/lib_positioning_engine/Core/States/StateTraitsTest.cpp",
+    "code": "static typename State::StateVector delta()\n   {\n\n      return (State::StateVector(3) << 0.5, 0.5, 0.5).finished();\n   }"
+  },
+  {
+    "id": "E061",
+    "rule": "C.21",
+    "why": "destructor defined; copy/move not explicit",
+    "in_random": true,
+    "file": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp",
+    "code": "HlfRecordXmlDeserializer::~HlfRecordXmlDeserializer()\n{\n   // Close the file.\n   if (m_inputFile.is_open())\n   {\n      m_inputFile.close();\n   }\n}"
+  },
+  {
+    "id": "E068",
+    "rule": "C.131",
+    "why": "trivial getter",
+    "in_random": true,
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "code": "/// @brief Returns the key set associated with the ambiguity state.\n   [[nodiscard]] const StateKeySet<Ambiguity>& keySet() const noexcept\n   {\n      return m_keySet;\n   }"
+  },
+  {
+    "id": "E076",
+    "rule": "C.131",
+    "why": "trivial getter",
+    "in_random": true,
+    "file": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp",
+    "code": "Api ApiInvocation::getApi() const\n{\n   return m_api;\n}"
+  },
+  {
+    "id": "E146",
+    "rule": "ES.48",
+    "why": "reinterpret_cast char/uint8_t",
+    "in_random": false,
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "code": "void MockFileWriter::write(const char* data, uint32_t size)\n{\n   \n   write(reinterpret_cast<const uint8_t*>(data), size);\n}"
+  },
+  {
+    "id": "E146",
+    "rule": "Type.1",
+    "why": "reinterpret_cast",
+    "in_random": false,
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "code": "void MockFileWriter::write(const char* data, uint32_t size)\n{\n   \n   write(reinterpret_cast<const uint8_t*>(data), size);\n}"
+  },
+  {
+    "id": "E021",
+    "rule": "C.131",
+    "why": "trivial getter",
+    "in_random": true,
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "code": "VersionConfig RuntimeConfig::getVersionConfig()\n{\n   return s_version;\n}"
+  },
+  {
+    "id": "E049",
+    "rule": "ES.45",
+    "why": "magic sentinel -1.0",
+    "in_random": true,
+    "file": "lib_positioning_engine/src/Utility/TimeComparison.hpp",
+    "code": "/// @brief Check if lhs is less than rhs within epsilon tolerance\n/// @param epsilon Tolerance for comparison (uses default if negative)\ninline bool compareLess(const Time& lhs, const Time& rhs, double epsilon = -1.0)\n{\n   if (epsilon < 0)\n   {\n      epsilon = TIME_COMPARISON_EPSILON;\n   }\n   return (lhs - rhs).value < -epsilon;\n}"
+  },
+  {
+    "id": "E084",
+    "rule": "C.131",
+    "why": "trivial getter",
+    "in_random": true,
+    "file": "test/test_support/WaitableCounter.cpp",
+    "code": "uint32_t WaitableCounter::count() const\n{\n   return m_count.load();\n}"
+  },
+  {
+    "id": "E091",
+    "rule": "F.16",
+    "why": "int passed by const ref not value",
+    "in_random": true,
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "code": "private:\n   void processData(const int& data) override\n   {\n      (void)data; // Avoid unused variable warning\n      Logger::info(FacilityCode::Initialization, \"bg process\");\n      ThreadSynchronizer::getInstance().setBgComplete();\n   }"
+  },
+  {
+    "id": "E112",
+    "rule": "C.131",
+    "why": "trivial getter",
+    "in_random": true,
+    "file": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp",
+    "code": "ExpectedPeriod SetVelocityMeasurementExpectedPeriodInvocation::getExpectedPeriod() const\n{\n   return m_expectedPeriod;\n}"
+  },
+  {
+    "id": "E119",
+    "rule": "ES.45",
+    "why": "magic constants 6371e3, 506.7e3, 0.9782",
+    "in_random": true,
+    "file": "lib_positioning_engine/src/Core/Utility/ModelUtility.cpp",
+    "code": "double calculateMslmMapping(const double elevationAngleRadians)\n{\n   // Reference: Schaer, S. Mapping and Predicting the Earth's Ionosphere Using the Global\n   // Positioning System. Ph.D. Thesis, University of Berne, Bern, Switzerland, 1999.\n   const double zenithAngle = bmc::half_pi<double>() - elevationAngleRadians;\n   constexpr double radiusRatio = (6371e3 / (6371e3 + 506.7e3));\n   constexpr double alpha = 0.9782;\n   return 1.0 / std::sqrt(1.0 - square(radiusRatio * std::sin(alpha * zenithAngle)));\n}"
+  }
+]

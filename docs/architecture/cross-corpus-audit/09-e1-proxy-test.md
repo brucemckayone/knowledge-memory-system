@@ -380,3 +380,67 @@ Planter (Sonnet) wrote matched violating/compliant twin pairs for 6 no-checker j
 
 ### 17.5 Verdict and consequence
 **PASS on the constructed-case floor for judgment rules** — not "PASS on the crux." Combined with §15 (checkable-slice floor) the picture is: enumeration works where a checker exists; the LLM adjudicator has genuine judgment on no-checker rules; **but field precision depends on a prefilter that is not yet built or measured.** This **de-risks the adjudication mechanism** (a real milestone after Legs 1–2 established nothing) and clarifies that the remaining bet is **candidate-generation quality at field prevalence** plus **in-the-wild generalisation** — both owed before Phase C. Recommendation: Phase A may proceed on the schema/plumbing (the mechanism is sound), but no automation/coverage claim may be made until a field-prevalence, real-code run closes gaps 1–2.
+
+---
+
+## 18. Leg 4 — PRE-REGISTRATION: real-code field-prevalence characterization (2026-07-13)
+
+Written **before the run**. This is a **characterization**, not a pass/fail gate — but the metric definitions and the interpretation rules below are fixed here so the reading cannot be chosen after the fact. It exists to close the two gaps §17.4 named: **(1) field precision at natural prevalence** and **(2) generalisation to real elements with full context and a large candidate set** — the two conditions the constructed Leg 3 could not have.
+
+### 18.1 What it measures
+Run blind Haiku over **whole functions extracted from real Maverick code** (full context, not snippets), against a **large candidate rule set** (~25 guidelines, not 6), at the code's **natural violation prevalence** (random sample, not balanced). Then:
+- **Field precision** = of every (function, rule) the system flags, the fraction an independent adjudicator confirms is a genuine violation.
+- **Measured prevalence** = fraction of sampled functions containing ≥1 genuine violation (from NOLINT anchors + adjudication) — the real base rate, which the §17 base-rate table only *assumed* (2–5%).
+- **In-context recall (checkable rules)** = for NOLINT-anchored known violations that fall in the sample, did the system flag the right rule in the full-context function? Compared against Leg 2's 0.90 stripped-snippet recall — a drop quantifies the context/candidate-set penalty.
+- **Per-rule false-positive breakdown** = which rules the system over-flags.
+
+### 18.2 Corpus, sample, candidate set
+- Corpus: `ALPHA-2570-base-classes` @ pinned `b59d5d73`. Functions extracted by brace-matching (Allman style); heuristic, imperfect — mangled extractions are dropped, not scored.
+- Sample: a **deterministic random** draw (seeded, no cherry-pick) of ~120–160 functions across src and test, at natural composition.
+- Candidate set: ~25 Core Guidelines spanning checkable + judgment (the ones used in Legs 2–3 plus more), shown to the system in full — the large-candidate-set condition.
+
+### 18.3 Independence and the ground-truth honesty
+- Non-LLM anchors: NOLINT sites (human + linter) map to their enclosing functions → known checkable positives.
+- **Flag adjudication:** an independent adjudicator (fresh subagent, blind to the system's rationale) reads each flagged function and rules genuine/false. Judgment-rule flags have **no non-LLM oracle** — adjudication is LLM-based; this is the irreducible caveat (recorded, not hidden), mitigated by surfacing borderline/high-stakes calls for optional human (domain-expert) review.
+- **Symmetric guard (per the §13/§17 lesson):** a random subset of **non-flagged** functions is also adjudicated, to catch violations the system *missed* and to estimate true prevalence — so the audit is not asymmetric (auditing only what hurts/helps).
+- Builder samples mechanically + pre-registers; adversary runs at the end on whatever the result is.
+
+### 18.4 Pre-stated interpretation (fixed now)
+- **If field precision is low (< ~0.5) at the measured prevalence** → confirms the adjudicator cannot be run unfiltered over all code; a candidate-generation **prefilter is mandatory** before any automation. This *hardens* §17's inference into a measured fact.
+- **If measured prevalence of judgment issues is high** (unenforced no-checker rules turn out common in real code) → the base-rate collapse is *less* severe than the assumed 2–5%, and field precision may already be usable; this would *soften* the §17 concern and is a genuine possible outcome, not a failure.
+- **If in-context recall ≪ 0.90** → full context + large candidate set materially degrade the model (gap #2 is real and must be designed around); **if ≈ 0.90** → the clean-snippet capability holds up in context.
+- **Honest limits:** judgment-rule ground truth in the wild is LLM-adjudicated (no oracle exists — inherent to no-checker rules); function extraction is heuristic; one codebase, one domain. The number is directional for design, not a shippable precision figure.
+
+---
+
+## 19. Leg 4 run — RESULT: the field number CONFIRMS the base-rate concern (2026-07-13)
+
+Ran per §18: 140 random real functions (full context) + 9 NOLINT-anchored, blind Haiku over 25 guidelines, independent adjudication of every flag + a spot-check of non-flagged. Artifacts committed under `e1-artifacts/` (`leg4_*`). **An honest reading — forced by an independent adversary that caught the author mid-launder — is that this run does NOT soften §17's pessimism; stripped of one padding rule, it reproduces it.**
+
+### 19.1 The raw numbers, and the trap in them
+- 22/140 functions flagged (16%). **Field precision 0.68** (function-level 15/22; claim-level 16/23 = 0.70). Measured prevalence ~14%. In-context anchor recall 8/10.
+- The seductive first read was: "prevalence is ~14%, not the assumed 2%, so precision is 0.68 not 0.13 — the fear was overblown." **This is wrong, and the way it's wrong is instructive.**
+
+### 19.2 Why it confirms rather than refutes — strip the padding rule
+**13 of the 15 true-positive functions are C.131 trivial getters.** C.131 is (a) keyword-spottable (`return m_x;`), not judgment; (b) oracle-free and here adjudicated by a second LLM sharing the first's prior — "precision 0.93 on C.131" is two models agreeing `return m_x;` is a trivial getter; (c) a style rule with large legitimate carve-outs that many teams do not treat as a defect. It is doing all the work on *both* sides of the optimistic argument — most of the prevalence *and* most of the true positives. Remove it:
+
+| slice | precision | prevalence |
+|---|---|---|
+| headline (as run) | 0.70 (95% CI 0.49–0.84) | ~11–14% |
+| non-C.131 rules | **3/9 = 0.33** | — |
+| genuine no-checker judgment (ES.45+C.21+F.16) | **1/7 = 0.14** | ~2/140 ≈ **1.4%** |
+
+Two facts settle it. The headline's own **95% CI lower bound (0.47) is already below the pre-registered 0.50 hard-fail floor**. And feeding the stripped ~2% prevalence into the Leg-3 projection model (TPR 0.90 / FPR 0.12) predicts field precision **0.13** — the measured judgment-rule precision is **0.14**. The base-rate collapse §17 projected is *reproduced*, not overturned; the "softening" existed only while a stylistic, keyword-spottable rule was counted as a defect. This is the hollow-metric trap (§10, §17.4) recurring: "14% prevalence" measures *trivial getters exist*, not *defects worth flagging exist*.
+
+### 19.3 Statistical honesty
+Every per-rule and recall figure here is n-starved and reported as such, not as a rate: ES.45 0/4 (CI 0–0.49), C.21 0/1, F.16 1/2, reinterpret/pointer-arith 1/1 each, anchor recall 8/10 (CI 0.49–0.94, overlaps Leg-2's 0.90 — the "0.90→0.80 context penalty" is a single-function flip, **not** a measurement), spot-check misses 1/24 (and a Sonnet spot-checker is structurally blind to missed *judgment*-rule violations — the same shared-prior asymmetry as §13). Function extraction drops mangled (complex) functions, which plausibly over-retains short getters and biases prevalence up — unquantifiable, disclosed.
+
+### 19.4 Conclusions — what is cut, what survives
+- **CUT:** "precision is usable-ish (0.68) because prevalence is ~14%." Numerator and prevalence are the same oracle-free rule; stripped judgment precision (0.14) matches the pessimistic projection.
+- **CUT:** "over-flagging is rule-specific, so per-rule calibration replaces the prefilter." The direction (false positives cluster in ES.45/C.21/F.16) is real texture but n=4/1/2, and it cuts the *other* way — the rules that "work" are the ones a linter/keyword already handles; the rules needing genuine judgment are exactly the ones that over-flag. That is an argument **for** the prefilter (§17.3), not against it.
+- **CUT:** "context + big candidate set cost only ~10 recall points." n=10, one flip; CIs overlap.
+- **SURVIVES (narrow):** run over real, full-context functions with a 25-rule set, the blind adjudicator flags ~16% and does **not** blanket-flag — its misfires appear to localize to a few semantic rules (magic-numbers especially). A plumbing/direction observation, n-limited, and a pre-registered follow-up hypothesis — not a precision result.
+- **SURVIVES (the load-bearing finding):** at real prevalence, the LLM adjudicator run over all code is **not** field-precise on the judgment rules that matter (~0.14). This is now **measured on real code**, not projected. It **confirms** that the adjudicator is a sound *local* judge (Leg 3) but an unusable *global* scanner — the candidate-generation **prefilter is mandatory**, not optional, and prefilter quality is the load-bearing risk for the feature.
+
+### 19.5 Consequence
+§17's recommendation stands, hardened by real-code evidence: Phase A schema/plumbing may proceed; **no automation/coverage claim** until a prefilter exists and is measured. The next empirical target is **not** the adjudicator (its capability and its field-precision ceiling are both now characterised) — it is the **prefilter**: can candidate-generation raise effective prevalence on the judgment rules enough that adjudication precision clears a usable bar? That, plus a proper human-labelled (not LLM-adjudicated) field sample to remove the shared-prior caveat, are what remain owed.

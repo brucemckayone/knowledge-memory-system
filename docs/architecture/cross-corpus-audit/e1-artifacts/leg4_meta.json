@@ -1,0 +1,1214 @@
+{
+  "E001": {
+    "file": "alpha_conversion/src/HlfSplitter/HlfSplitter.cpp",
+    "line": 65,
+    "name": "createOutputDirectory",
+    "nlines": 19,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E002": {
+    "file": "lib_positioning_engine/src/Core/ForegroundTask.hpp",
+    "line": 33,
+    "name": "ForegroundTask",
+    "nlines": 10,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E003": {
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 67,
+    "name": "decodePayload",
+    "nlines": 28,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E004": {
+    "file": "alpha_conversion/src/Managers/ConversionManager.cpp",
+    "line": 195,
+    "name": "writeXmlStringsToFile",
+    "nlines": 29,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E005": {
+    "file": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp",
+    "line": 32,
+    "name": "IntegerPackage",
+    "nlines": 6,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E006": {
+    "file": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfDataRecordXmlDeserializer.cpp",
+    "line": 17,
+    "name": "deserialize",
+    "nlines": 40,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E007": {
+    "file": "lib_positioning_engine/src/ApiLogging/ApiLoggerFactory.cpp",
+    "line": 59,
+    "name": "create",
+    "nlines": 21,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E008": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/CorrectionsCollectionXmlDeserializer.hpp",
+    "line": 51,
+    "name": "deserialize",
+    "nlines": 57,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E009": {
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 165,
+    "name": "reset",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E010": {
+    "file": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp",
+    "line": 64,
+    "name": "sanitizedStateKeySetKey",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E011": {
+    "file": "alpha_conversion/src/Utility/ArgumentValidator.cpp",
+    "line": 22,
+    "name": "getValidFlags",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E012": {
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 59,
+    "name": "setup",
+    "nlines": 19,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E013": {
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 242,
+    "name": "processOutputFlag",
+    "nlines": 36,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E014": {
+    "file": "lib_common/src/ApiLogging/Serialization/TimeDataSerializer.cpp",
+    "line": 55,
+    "name": "serialize",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E015": {
+    "file": "test/lib_positioning_engine/Core/Tasks/BgwfTestUtilities.cpp",
+    "line": 25,
+    "name": "createDummyMeasurement",
+    "nlines": 15,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E016": {
+    "file": "lib_positioning_engine/src/Core/PositioningEngineTypeAliases.hpp",
+    "line": 26,
+    "name": "TaggedExpectedPeriod",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E017": {
+    "file": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp",
+    "line": 27,
+    "name": "initHlfString",
+    "nlines": 24,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E018": {
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 423,
+    "name": "injectData",
+    "nlines": 7,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E019": {
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 184,
+    "name": "processConfigFlag",
+    "nlines": 12,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E020": {
+    "file": "lib_positioning_engine/src/Core/Estimators/FloatEstimatorPolicies.hpp",
+    "line": 214,
+    "name": "createMeasurementsAndModel",
+    "nlines": 35,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E021": {
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 96,
+    "name": "getVersionConfig",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E022": {
+    "file": "alpha_conversion/src/HlfNormalizer/HlfNormalizer.cpp",
+    "line": 100,
+    "name": "checkValues",
+    "nlines": 42,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E023": {
+    "file": "lib_common/src/ApiLogging/Serialization/Deserializer.cpp",
+    "line": 45,
+    "name": "deserializeInt8",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E024": {
+    "file": "lib_positioning_engine/src/Core/Distributor.hpp",
+    "line": 220,
+    "name": "notifyResetComplete",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E025": {
+    "file": "alpha_conversion/src/Managers/ConversionManager.cpp",
+    "line": 225,
+    "name": "writeHlfToFile",
+    "nlines": 28,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E026": {
+    "file": "alpha_replayer/src/Managers/CallManager.cpp",
+    "line": 17,
+    "name": "CallManager",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E027": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/SourceIdXmlDeserializer.cpp",
+    "line": 13,
+    "name": "deserialize",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E028": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/StochasticVariableXmlDeserializer.cpp",
+    "line": 13,
+    "name": "deserialize",
+    "nlines": 26,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E029": {
+    "file": "alpha_conversion/src/Utility/ArgumentParser.cpp",
+    "line": 62,
+    "name": "getOptionValues",
+    "nlines": 9,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E030": {
+    "file": "test/lib_common/ApiLogging/Hlf/HlfTimeUtilTests.cpp",
+    "line": 15,
+    "name": "setTimezone",
+    "nlines": 10,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E031": {
+    "file": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp",
+    "line": 396,
+    "name": "getSatelliteClockInvalidSatPolyCase",
+    "nlines": 24,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E032": {
+    "file": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp",
+    "line": 52,
+    "name": "encodeVarLengthShortString",
+    "nlines": 16,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E033": {
+    "file": "lib_common/src/ApiLogging/Serialization/Deserializer.cpp",
+    "line": 9,
+    "name": "deserializeUint8",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E034": {
+    "file": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp",
+    "line": 15,
+    "name": "SetCorrectionsExpectedPeriodInvocation",
+    "nlines": 3,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E035": {
+    "file": "lib_common/include/ApiLogging/Serialization/SourceAndTimeDataSerializer.hpp",
+    "line": 23,
+    "name": "serialize",
+    "nlines": 12,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E036": {
+    "file": "lib_common/src/ApiLogging/ApiData/ResetInvocation.cpp",
+    "line": 14,
+    "name": "ResetInvocation",
+    "nlines": 3,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E037": {
+    "file": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfHeaderRecordXmlDeserializer.cpp",
+    "line": 293,
+    "name": "convertToHlfDataType",
+    "nlines": 15,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E038": {
+    "file": "lib_positioning_engine/src/Core/PositionReconstruction/PositionReconstruction.cpp",
+    "line": 177,
+    "name": "addAbsoluteDataImpl",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E039": {
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 277,
+    "name": "setNumInstances",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E040": {
+    "file": "test/lib_positioning_engine/Core/States/StateTraitsTest.cpp",
+    "line": 34,
+    "name": "delta",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E041": {
+    "file": "test/lib_positioning_engine/Core/Estimators/GnssEstimatorTest.cpp",
+    "line": 31,
+    "name": "generateMeasurements",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E042": {
+    "file": "test/lib_positioning_engine/Core/TestUtilities/TestUtilities.cpp",
+    "line": 95,
+    "name": "constructSatellitePositions",
+    "nlines": 34,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E043": {
+    "file": "lib_positioning_engine/src/Core/SolutionReconstruction/ISolutionReconstruction.hpp",
+    "line": 52,
+    "name": "reconstruct",
+    "nlines": 12,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E044": {
+    "file": "alpha_replayer/src/Utility/ArgumentParser.cpp",
+    "line": 77,
+    "name": "hasOptionId",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E045": {
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp",
+    "line": 16,
+    "name": "validate",
+    "nlines": 55,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E046": {
+    "file": "alpha_conversion/src/HlfSplitter/HlfSplitter.cpp",
+    "line": 185,
+    "name": "writeDataRecord",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E047": {
+    "file": "lib_positioning_engine/src/Core/Corrector/ICorrector.hpp",
+    "line": 60,
+    "name": "getCorrectionsMetaData",
+    "nlines": 14,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E048": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/GnssKeyMapXmlDeserializer.hpp",
+    "line": 98,
+    "name": "deserializeMapValue",
+    "nlines": 23,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E049": {
+    "file": "lib_positioning_engine/src/Utility/TimeComparison.hpp",
+    "line": 119,
+    "name": "compareLess",
+    "nlines": 10,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E050": {
+    "file": "lib_positioning_engine/src/Utility/ThreadBase.hpp",
+    "line": 31,
+    "name": "ThreadBase",
+    "nlines": 18,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E051": {
+    "file": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp",
+    "line": 18,
+    "name": "HlfStartTimeHeaderRecord",
+    "nlines": 7,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E052": {
+    "file": "lib_positioning_engine/src/Core/Estimators/FloatEstimatorPolicies.hpp",
+    "line": 411,
+    "name": "createUpdateMeasurements",
+    "nlines": 57,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E053": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/GnssKeyXmlDeserializer.cpp",
+    "line": 53,
+    "name": "stringToConstellation",
+    "nlines": 21,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E054": {
+    "file": "test/alpha_dll/AlphaDllTests.cpp",
+    "line": 38,
+    "name": "makeGpsL1Key",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E055": {
+    "file": "lib_positioning_engine/src/Core/PositionReconstruction/PositionReconstruction.cpp",
+    "line": 282,
+    "name": "reconstructFromLast",
+    "nlines": 37,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E056": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/TimeDataXmlDeserializer.cpp",
+    "line": 20,
+    "name": "deserializeData",
+    "nlines": 25,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E057": {
+    "file": "test/test_support/TestData/VelocityMeasurementDataSets.hpp",
+    "line": 20,
+    "name": "getVelocityMeasurementStatusDataSet",
+    "nlines": 11,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E058": {
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 69,
+    "name": "setTime",
+    "nlines": 6,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E059": {
+    "file": "lib_common/include/ApiLogging/Serialization/GnssKeyMapDeserializer.hpp",
+    "line": 71,
+    "name": "deserializeMapValue",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E060": {
+    "file": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp",
+    "line": 22,
+    "name": "getSubType",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E061": {
+    "file": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp",
+    "line": 27,
+    "name": "~HlfRecordXmlDeserializer",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E062": {
+    "file": "alpha_conversion/src/Managers/FileManager.cpp",
+    "line": 150,
+    "name": "safeClose",
+    "nlines": 14,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E063": {
+    "file": "lib_common/src/ApiLogging/Hlf/HlfEndTimeHeaderRecord.cpp",
+    "line": 35,
+    "name": "decodePayload",
+    "nlines": 16,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E064": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/DopplerMeasurementXmlDeserializer.cpp",
+    "line": 13,
+    "name": "deserialize",
+    "nlines": 25,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E065": {
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 27,
+    "name": "asSockAddr",
+    "nlines": 9,
+    "nolint_rules": [
+      "Type.1"
+    ],
+    "in_random": true
+  },
+  "E066": {
+    "file": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp",
+    "line": 209,
+    "name": "computeLdFactorizationInPlace",
+    "nlines": 41,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E067": {
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecord.cpp",
+    "line": 70,
+    "name": "decodeGenericRecord",
+    "nlines": 14,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E068": {
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "line": 55,
+    "name": "keySet",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E069": {
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 13,
+    "name": "open",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E070": {
+    "file": "alpha_conversion/src/Utility/FileOperations.cpp",
+    "line": 17,
+    "name": "deriveOutputFilePath",
+    "nlines": 59,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E071": {
+    "file": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp",
+    "line": 295,
+    "name": "handleAsPrimary",
+    "nlines": 68,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E072": {
+    "file": "test/test_support/TestData/VelocityMeasurementDataSets.hpp",
+    "line": 44,
+    "name": "getVelocityMeasurementDataSet1",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E073": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/GnssMeasurementsCollectionXmlDeserializer.hpp",
+    "line": 38,
+    "name": "deserialize",
+    "nlines": 18,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E074": {
+    "file": "test/lib_positioning_engine/Core/Estimators/FloatEstimatorTest.cpp",
+    "line": 45,
+    "name": "generateMeasurements",
+    "nlines": 7,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E075": {
+    "file": "test/alpha_replayer/Utility/ApiInvokerTest.cpp",
+    "line": 163,
+    "name": "deserialize",
+    "nlines": 2,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E076": {
+    "file": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp",
+    "line": 50,
+    "name": "getApi",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E077": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/GnssKeyMapXmlDeserializer.cpp",
+    "line": 145,
+    "name": "deserializeMapValue",
+    "nlines": 14,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E078": {
+    "file": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp",
+    "line": 36,
+    "name": "setFileToDecode",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E079": {
+    "file": "lib_positioning_engine/src/Core/States/PseudorangeSignalBias.hpp",
+    "line": 26,
+    "name": "sanitizedStateKeySetKey",
+    "nlines": 10,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E080": {
+    "file": "lib_positioning_engine/src/Core/Distributor.hpp",
+    "line": 182,
+    "name": "dispatchResetAndWait",
+    "nlines": 37,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E081": {
+    "file": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp",
+    "line": 364,
+    "name": "handleAsOnTime",
+    "nlines": 17,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E082": {
+    "file": "lib_common/include/ApiLogging/Serialization/SolutionPVDataDeserializer.hpp",
+    "line": 14,
+    "name": "deserialize",
+    "nlines": 27,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E083": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Serializers/GnssKeyMapXmlSerializer.hpp",
+    "line": 53,
+    "name": "serializeMapValue",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E084": {
+    "file": "test/test_support/WaitableCounter.cpp",
+    "line": 27,
+    "name": "count",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E085": {
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideGnssMeasurementsInvocation.cpp",
+    "line": 57,
+    "name": "getGnssMeasurements",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E086": {
+    "file": "alpha_replayer/src/Logging/EngineErrorLogger.cpp",
+    "line": 24,
+    "name": "~EngineErrorLogger",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E087": {
+    "file": "test/lib_positioning_engine/Core/Synchronizer/TestUtilities.hpp",
+    "line": 42,
+    "name": "TypeTraitToGnssTime",
+    "nlines": 6,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E088": {
+    "file": "alpha_conversion/src/Serialization/Xml/ApiData/Deserializers/ApiInvocationXmlDeserializer.cpp",
+    "line": 165,
+    "name": "createProvideCorrectionsInvocation",
+    "nlines": 31,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E089": {
+    "file": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp",
+    "line": 33,
+    "name": "setValue",
+    "nlines": 11,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E090": {
+    "file": "lib_positioning_engine/src/Utility/ThreadSafeQueue.hpp",
+    "line": 71,
+    "name": "isEmpty",
+    "nlines": 9,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E091": {
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 340,
+    "name": "processData",
+    "nlines": 7,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E092": {
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.cpp",
+    "line": 108,
+    "name": "getSatelliteCorrections",
+    "nlines": 48,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E093": {
+    "file": "lib_positioning_engine/src/ApiLogging/ApiLogger.cpp",
+    "line": 341,
+    "name": "getMicrosecondsSinceEpoch",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E094": {
+    "file": "lib_positioning_engine/src/Core/Models/TropoGpt2.cpp",
+    "line": 111,
+    "name": "getGPT2Point",
+    "nlines": 66,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E095": {
+    "file": "lib_positioning_engine/src/ApiLogging/ApiLogger.cpp",
+    "line": 250,
+    "name": "writeStartTimeHeader",
+    "nlines": 12,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E096": {
+    "file": "alpha_conversion/src/HlfNormalizer/HlfNormalizer.cpp",
+    "line": 320,
+    "name": "writeNormalizedFile",
+    "nlines": 48,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E097": {
+    "file": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp",
+    "line": 81,
+    "name": "parse",
+    "nlines": 7,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E098": {
+    "file": "lib_positioning_engine/include/Core/Api/GnssKey.hpp",
+    "line": 18,
+    "name": "GnssKey",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E099": {
+    "file": "alpha_conversion/src/HlfSplitter/HlfSplitter.cpp",
+    "line": 258,
+    "name": "updateInputBuffer",
+    "nlines": 32,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E100": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Serializers/TimeDataXmlSerializer.cpp",
+    "line": 23,
+    "name": "serializeData",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E101": {
+    "file": "lib_common/src/ApiLogging/Serialization/TimeDataSerializer.cpp",
+    "line": 49,
+    "name": "serialize",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E102": {
+    "file": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp",
+    "line": 369,
+    "name": "getSatelliteClockValidCase",
+    "nlines": 26,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E103": {
+    "file": "lib_common/include/ApiLogging/Serialization/ExpectedPeriodDataDeserializer.hpp",
+    "line": 13,
+    "name": "deserialize",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E104": {
+    "file": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp",
+    "line": 26,
+    "name": "encodePayload",
+    "nlines": 14,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E105": {
+    "file": "alpha_conversion/src/Managers/ConversionManager.cpp",
+    "line": 139,
+    "name": "convertToHlf",
+    "nlines": 55,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E106": {
+    "file": "lib_positioning_engine/src/Core/Utility/GnssKeySatelliteHasher.hpp",
+    "line": 63,
+    "name": "operator",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E107": {
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 286,
+    "name": "setBgComplete",
+    "nlines": 6,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E108": {
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 256,
+    "name": "getKeySets",
+    "nlines": 6,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E109": {
+    "file": "alpha_conversion/src/Managers/FileManager.cpp",
+    "line": 170,
+    "name": "fileSize",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E110": {
+    "file": "alpha_conversion/src/HlfNormalizer/HlfNormalizer.cpp",
+    "line": 37,
+    "name": "parseStartTimeHeader",
+    "nlines": 9,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E111": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Serializers/GnssKeyMapXmlSerializer.hpp",
+    "line": 111,
+    "name": "serializeMapValue",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E112": {
+    "file": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp",
+    "line": 45,
+    "name": "getExpectedPeriod",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E113": {
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 91,
+    "name": "~WorkerTask",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E114": {
+    "file": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp",
+    "line": 13,
+    "name": "BufferWriter",
+    "nlines": 14,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E115": {
+    "file": "lib_common/src/ApiLogging/Crc/Crc32.cpp",
+    "line": 12,
+    "name": "reflect",
+    "nlines": 15,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E116": {
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 46,
+    "name": "getStream",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E117": {
+    "file": "test/lib_positioning_engine/Utility/ThreadSafeQueueTests.cpp",
+    "line": 146,
+    "name": "consumer",
+    "nlines": 19,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E118": {
+    "file": "alpha_replayer/src/Utility/System.cpp",
+    "line": 43,
+    "name": "init",
+    "nlines": 12,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E119": {
+    "file": "lib_positioning_engine/src/Core/Utility/ModelUtility.cpp",
+    "line": 17,
+    "name": "calculateMslmMapping",
+    "nlines": 9,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E120": {
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 57,
+    "name": "checkLogPattern",
+    "nlines": 37,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E121": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/TimeDataXmlDeserializer.cpp",
+    "line": 61,
+    "name": "deserializeData",
+    "nlines": 17,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E122": {
+    "file": "alpha_conversion/src/Utility/Errors.cpp",
+    "line": 9,
+    "name": "errorStateRef",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E123": {
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 150,
+    "name": "getData",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E124": {
+    "file": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp",
+    "line": 86,
+    "name": "encodeIso8601",
+    "nlines": 11,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E125": {
+    "file": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp",
+    "line": 209,
+    "name": "synchronizePackagePeriod",
+    "nlines": 36,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E126": {
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 203,
+    "name": "eraseSanitizedKey",
+    "nlines": 32,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E127": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Serializers/GnssKeyMapXmlSerializer.hpp",
+    "line": 105,
+    "name": "serializeMapValue",
+    "nlines": 5,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E128": {
+    "file": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp",
+    "line": 1,
+    "name": "isSquare",
+    "nlines": 18,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E129": {
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 101,
+    "name": "getCommandFlag",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E130": {
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideGnssMeasurementsInvocation.cpp",
+    "line": 36,
+    "name": "serialize",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E131": {
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideVelocityMeasurementInvocation.cpp",
+    "line": 36,
+    "name": "serialize",
+    "nlines": 8,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E132": {
+    "file": "lib_positioning_engine/src/Core/Utility/SatellitePolynomialCache.cpp",
+    "line": 17,
+    "name": "reset",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E133": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/ExpectedPeriodDataXmlDeserializer.cpp",
+    "line": 13,
+    "name": "deserialize",
+    "nlines": 28,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E134": {
+    "file": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlParser.cpp",
+    "line": 255,
+    "name": "readXmlUntilChar",
+    "nlines": 41,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E135": {
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 41,
+    "name": "getApiDataType",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E136": {
+    "file": "lib_positioning_engine/src/Core/EngineImpl.hpp",
+    "line": 133,
+    "name": "apiLog",
+    "nlines": 18,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E137": {
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Serializers/TimeDataXmlSerializer.cpp",
+    "line": 28,
+    "name": "serializeData",
+    "nlines": 4,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E138": {
+    "file": "lib_common/src/ApiLogging/Hlf/Linux/HlfTimeUtil.cpp",
+    "line": 27,
+    "name": "iso8601ToTimeT",
+    "nlines": 25,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E139": {
+    "file": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp",
+    "line": 19,
+    "name": "serialize",
+    "nlines": 10,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E140": {
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 124,
+    "name": "processNormalizeFlag",
+    "nlines": 27,
+    "nolint_rules": [],
+    "in_random": true
+  },
+  "E141": {
+    "file": "lib_common/include/Utility/ArgvToVector.hpp",
+    "line": 11,
+    "name": "argvToVector",
+    "nlines": 18,
+    "nolint_rules": [
+      "ES.42"
+    ],
+    "in_random": false
+  },
+  "E142": {
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 24,
+    "name": "write",
+    "nlines": 10,
+    "nolint_rules": [
+      "ES.42"
+    ],
+    "in_random": false
+  },
+  "E143": {
+    "file": "lib_common/include/Utility/ByteBufferOps.hpp",
+    "line": 11,
+    "name": "shiftBytesToFront",
+    "nlines": 21,
+    "nolint_rules": [
+      "ES.42"
+    ],
+    "in_random": false
+  },
+  "E144": {
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 56,
+    "name": "writtenDataAsString",
+    "nlines": 6,
+    "nolint_rules": [
+      "Type.1"
+    ],
+    "in_random": false
+  },
+  "E145": {
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 13,
+    "name": "writeBytes",
+    "nlines": 20,
+    "nolint_rules": [
+      "Type.1"
+    ],
+    "in_random": false
+  },
+  "E146": {
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 35,
+    "name": "write",
+    "nlines": 5,
+    "nolint_rules": [
+      "Type.1"
+    ],
+    "in_random": false
+  },
+  "E147": {
+    "file": "test/alpha_replayer/Utility/EngineFactoryTest.cpp",
+    "line": 16,
+    "name": "isUniqueFullVariantSet",
+    "nlines": 31,
+    "nolint_rules": [
+      "ES.20"
+    ],
+    "in_random": false
+  },
+  "E148": {
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 34,
+    "name": "readBytes",
+    "nlines": 21,
+    "nolint_rules": [
+      "Type.1"
+    ],
+    "in_random": false
+  },
+  "E149": {
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 56,
+    "name": "readBytes",
+    "nlines": 23,
+    "nolint_rules": [
+      "ES.42"
+    ],
+    "in_random": false
+  }
+}
