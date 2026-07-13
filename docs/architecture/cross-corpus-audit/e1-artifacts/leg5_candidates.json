@@ -1,0 +1,261 @@
+[
+  {
+    "net": "C.131",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 86,
+    "name": "getSplitConfig",
+    "code": "SplitConfig RuntimeConfig::getSplitConfig()\n{\n   return s_split;\n}"
+  },
+  {
+    "net": "C.131",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp",
+    "line": 210,
+    "name": "computeNextPackageImpl",
+    "code": "/// @copydoc IStrategy::computeNextPackage\n   Output computeNextPackageImpl()\n   {\n      // Get the next package from the assembler.\n      return m_assembler.nextPackage();\n   }"
+  },
+  {
+    "net": "C.131",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "line": 43,
+    "name": "values",
+    "code": "/// @brief Returns the ambiguity state vector.\n   [[nodiscard]] const Ambiguities& values() const noexcept\n   {\n      return m_values;\n   }"
+  },
+  {
+    "net": "C.131",
+    "file": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp",
+    "line": 64,
+    "name": "sanitizedStateKeySetKey",
+    "code": "public:\n   static GnssKey sanitizedStateKeySetKey([[maybe_unused]] const GnssKey& key)\n   {\n      return key;\n   }"
+  },
+  {
+    "net": "C.131",
+    "file": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp",
+    "line": 59,
+    "name": "longitude",
+    "code": "/**\n    * @brief Gets the longitude coordinate.\n    *\n    * @return Longitude in radians, guaranteed to be in range [-PI, PI]\n    */\n   double longitude() const\n   {\n      return m_longitude;\n   }"
+  },
+  {
+    "net": "C.131",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp",
+    "line": 58,
+    "name": "chiSquareTest",
+    "code": "!chiSquareTest(delta, projectedToValidateCovariance, threshold)  // Sigma_0\n       || !chiSquareTest(delta, projectedAgainstCovariance, threshold)) // Sigma_1\n   {\n      return false;\n   }"
+  },
+  {
+    "net": "C.131",
+    "file": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp",
+    "line": 51,
+    "name": "getModel",
+    "code": "/// @brief Returns a const reference to the model.\n   /// @return Const reference to the model.\n   const Model& getModel() const\n   {\n      return m_model;\n   }"
+  },
+  {
+    "net": "C.131",
+    "file": "test/alpha_replayer/Io/MockTcpClient.cpp",
+    "line": 89,
+    "name": "getSocketAddress",
+    "code": "std::string MockTcpClient::getSocketAddress()\n{\n   return m_socketAddress;\n}"
+  },
+  {
+    "net": "C.131",
+    "file": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp",
+    "line": 59,
+    "name": "value",
+    "code": "/// @brief Get a immutable reference to the value of the state.\n   /// @return Immutable reference to the value of the state.\n   ///\n   const Value& value() const\n   {\n      return m_value;\n   }"
+  },
+  {
+    "net": "C.131",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/SynchUtilitiesTest.cpp",
+    "line": 219,
+    "name": "getTime",
+    "code": "// ---------------------------------------\n      // MEMBER METHODS\n      // ---------------------------------------\n      const Time& getTime() const\n      {\n         return time;\n      }"
+  },
+  {
+    "net": "C.131",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "line": 49,
+    "name": "covariance",
+    "code": "/// @brief Returns the ambiguity covariance matrix.\n   [[nodiscard]] const Covariance& covariance() const noexcept\n   {\n      return m_covariance;\n   }"
+  },
+  {
+    "net": "C.131",
+    "file": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp",
+    "line": 52,
+    "name": "parse",
+    "code": "/// @brief Parser for format specifiers.\n   /// @param context The fmt context.\n   /// @return Iterator to the beginning of the format string.\n   constexpr auto parse(fmt::format_parse_context& context)\n   {\n      return context.begin();\n   }"
+  },
+  {
+    "net": "C.4",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideGnssMeasurementsInvocation.cpp",
+    "line": 18,
+    "name": "ProvideGnssMeasurementsInvocation",
+    "code": "ProvideGnssMeasurementsInvocation::ProvideGnssMeasurementsInvocation()\n   : ApiInvocation(Api::ProvideGnssMeasurements, 0U, ErrorCode::Success)\n{}"
+  },
+  {
+    "net": "C.4",
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Serializers/TimeDataXmlSerializer.cpp",
+    "line": 33,
+    "name": "serializeData",
+    "code": "void TimeDataXmlSerializer::serializeData(mxml_node_t* const node, const PhaseBiasData& timeData)\n{\n   PhaseBiasDataXmlSerializer::serialize(node, timeData);\n}"
+  },
+  {
+    "net": "C.4",
+    "file": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp",
+    "line": 20,
+    "name": "parse",
+    "code": "/// @brief Parser for format specifiers.\n   /// @param context The fmt context.\n   /// @return Iterator to the beginning of the format string.\n   constexpr auto parse(fmt::format_parse_context& context)\n   {\n      return context.begin();\n   }"
+  },
+  {
+    "net": "C.4",
+    "file": "test/lib_common/ApiLogging/Serialization/CrossPlatformDataSetsVerificationTests.cpp",
+    "line": 1,
+    "name": "getBinDir",
+    "code": "// (c) Copyright 2025 Hexagon AB and/or its subsidiaries and affiliates. All rights reserved.\n\n#include <ApiLogging/Buffer/BufferReader.hpp>\n#include <ApiLogging/Buffer/BufferWriter.hpp>\n#include <ApiLogging/Serialization/CorrectionsCollectionDeserializer.hpp>\n#include <ApiLogging/Serialization/GnssMeasurementsCollectionDeserializer.hpp>\n#include <ApiLogging/Serialization/SolutionDeserializer.hpp>\n#include <ApiLogging/Serialization/SourceAndTimeDataDeserializer.hpp>\n#include <ApiLogging/Serialization/TimeDataDeserializer.hpp>\n#include <Core/Api/Constants.hpp>\n#include <Core/Api/CorrectionsCollection.hpp>\n#include <Core/Api/GnssMeasurementsCollection.hpp>\n#include <Core/Api/MeasurementTypeAliases.hpp>\n#include <Core/Api/PolynomialData.hpp>\n#include <Core/Api/Solution.hpp>\n\n#include <Equality/AlphaEqualityOperators.hpp>\n#include <ExecutablePath.hpp>\n#include <TestData/CorrectionsDataSets.hpp>\n#include <TestData/GnssMeasurementsDataSets.hpp>\n#include <TestData/PositionMeasurementDataSets.hpp>\n#include <TestData/SatellitePositionsDataSets.hpp>\n#include <TestData/SolutionDataSets.hpp>\n#include <TestData/VelocityMeasurementDataSets.hpp>\n#include <Utility/ByteStreamIo.hpp>\n\n#include <catc"
+  },
+  {
+    "net": "C.4",
+    "file": "alpha_conversion/src/HlfSplitter/HlfSplitter.cpp",
+    "line": 258,
+    "name": "updateInputBuffer",
+    "code": "bool HlfSplitter::updateInputBuffer(\n   FileManager& fileManager,\n   std::vector<uint8_t>& buffer,\n   const std::size_t bytesProcessed,\n   std::size_t& bytesToProcess)\n{\n   bool isEndOfFile = false;\n\n   if (bytesProcessed < bytesToProcess)\n   {\n      const size_t remaining = bytesToProcess - bytesProcessed;\n\n      shiftBytesToFront(buffer.data(), bytesProcessed, remaining);\n\n      bytesToProcess = remaining;\n\n      static_cast<void>(fileManager.fillBuffer(buffer, bytesToProcess));\n   }\n   else\n   {\n      // We have consumed all currently buffered data.\n      bytesToProcess = 0U;\n\n      // Try to refill the buffer - if this returns false we are truly at EOF.\n      if (!fileManager.fillBuffer(buffer, bytesToProcess))\n      {\n         isEndOfFile = true;\n      }\n   }\n\n   return isEndOfFile;\n}"
+  },
+  {
+    "net": "C.4",
+    "file": "lib_positioning_engine/src/Utility/LinearAlgebra.hpp",
+    "line": 189,
+    "name": "LargeDynamicMatrix",
+    "code": "/// @brief This constructor allows you to construct LargeDynamicMatrix from Eigen expressions\n   ///\n   /// Allocates a buffer of size MAX_ROWS * MAX_COLS using the provided memory resource,\n   /// and copies the data from the given Eigen::Map.\n   ///\n   /// @param other The Eigen::Map object to copy from.\n   /// @param memoryResource Optional pointer to a polymorphic memory resource for allocation.\n   LargeDynamicMatrix(\n      const Map& other,\n      std::pmr::memory_resource* memoryResource = std::pmr::get_default_resource())\n      : Map{nullptr, 0, 0}"
+  },
+  {
+    "net": "C.4",
+    "file": "lib_positioning_engine/src/Core/Utility/GnssKeySatelliteHasher.hpp",
+    "line": 32,
+    "name": "operator",
+    "code": "public:\n   /**\n    * @brief Computes a hash value for a given GNSS key.\n    *\n    * The hash is computed by combining the hash of the GNSS constellation type and\n    * the satellite ID. A bit shift operation is used to avoid collisions.\n    *\n    * @param key The GNSS key to hash.\n    * @return A hash value for the given GNSS key.\n    */\n   std::size_t operator()(const GnssKey& key) const\n   {\n      const std::size_t hash1 = std::hash<int>{}(static_cast<int>(key.constellation));\n      const std::size_t hash2 = std::hash<int>{}(key.satelliteId.value);\n\n      static constexpr std::size_t SATELLITE_SHIFT = 1;\n\n      return hash1 ^ (hash2 << SATELLITE_SHIFT);\n   }"
+  },
+  {
+    "net": "C.4",
+    "file": "lib_positioning_engine/src/Core/AmbiguityRefinement/ArFormatters.cpp",
+    "line": 32,
+    "name": "toString",
+    "code": "std::string_view toString(const ArComputationInfo info)\n{\n   const auto index = static_cast<std::size_t>(info);\n\n   if (index < AR_COMPUTATION_LOOKUP.size())\n   {\n      return AR_COMPUTATION_LOOKUP.at(index);\n   }\n\n   return \"Unknown\";\n}"
+  },
+  {
+    "net": "C.4",
+    "file": "alpha_replayer/src/Utility/ArgumentValidator.cpp",
+    "line": 203,
+    "name": "validateApiLogFilePath",
+    "code": "void ArgumentValidator::validateApiLogFilePath(\n   const std::string& flag,\n   const std::vector<std::string>& args)\n{\n   requireArgCount(flag, args, EXPECTED_SINGLE_ARG, MSG_API_LOG_PATH_ARG_COUNT);\n   const std::filesystem::path apiLogPath{args[0]};\n   requireFileExtension(flag, apiLogPath, MSG_FILE_EXTENSION_REQUIRED);\n   requireNotDirectory(flag, apiLogPath, MSG_API_LOG_PATH_NOT_DIR);\n}"
+  },
+  {
+    "net": "C.4",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 152,
+    "name": "processSplitFlag",
+    "code": "void RuntimeConfig::processSplitFlag(const std::vector<std::string>& optArgs)\n{\n   if (optArgs.empty())\n   {\n      throw InvalidArgumentsException(\"No file provided for --split/-s flag\");\n   }\n\n   const std::filesystem::path hlfFile{optArgs.at(0)};\n\n   if (!hlfFile.has_extension() || (hlfFile.extension().string() != HLF_EXTENSION))\n   {\n      throw InvalidArgumentsException(\n         \"Unrecognized input file extension: \" + hlfFile.extension().string());\n   }\n\n   if (!std::filesystem::exists(hlfFile))\n   {\n      throw InvalidArgumentsException(\"Input file does not exist: \" + hlfFile.string());\n   }\n\n   s_split.inputFile = hlfFile;\n\n   s_convert.enabled = false;\n   s_version.enabled = false;\n   s_help.enabled = false;\n   s_commandFlag = SPLIT_FLAG;\n}"
+  },
+  {
+    "net": "C.4",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityValidator.cpp",
+    "line": 124,
+    "name": "hasInsufficientAmbiguities",
+    "code": "bool AmbiguityValidator::hasInsufficientAmbiguities(const AmbiguityStateWithKeySet& ambiguityState)\n{\n   return static_cast<std::size_t>(ambiguityState.values().size()) < MIN_AMBIGUITIES;\n}"
+  },
+  {
+    "net": "C.4",
+    "file": "lib_common/src/ApiLogging/Serialization/Deserializer.cpp",
+    "line": 27,
+    "name": "deserializeUint32",
+    "code": "uint32_t Deserializer::deserializeUint32(BufferReader& reader)\n{\n   uint32_t value{0U};\n\n   reader.read(&value, sizeof(value));\n\n   return value;\n}"
+  },
+  {
+    "net": "R.3/R.11",
+    "file": "lib_positioning_engine/src/Utility/LinearAlgebra.hpp",
+    "line": 281,
+    "name": "resize",
+    "code": "/// @brief Resize the matrix to new dimensions.\n   ///\n   /// Changes the logical size of the matrix without reallocating the buffer.\n   /// The new size must not exceed the maximum capacity specified in the template parameters.\n   ///\n   /// @param rows New number of rows.\n   /// @param newCols New number of columns.\n   ///\n   void resize(int newRows, int newCols)\n   {\n      if (newRows <= 0 || newCols <= 0)\n      {\n         throw InvalidArgumentException(\"Rows and columns must be positive\");\n      }\n\n      if ((newRows == this->rows()) && (newCols == this->cols()))\n      {\n         return;\n      }\n\n      if (newRows > static_cast<int>(MAX_ROWS) || newCols > static_cast<int>(MAX_COLS))\n      {\n         throw InvalidArgumentException(\n            \"Source map dimensions exceed maximum allowed by template parameters\");\n      }\n\n      new (static_cast<Map*>(this)) Map(m_buffer, newRows, newCols);\n   }"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "lib_positioning_engine/src/Core/Models/GeometryUtilities.cpp",
+    "line": 19,
+    "name": "transformWgs84",
+    "code": "GeodeticCoordinates transformWgs84(const CartesianCoordinates& cartesian)\n{\n   double latitude = 0.0;\n   const double longitude = std::atan2(cartesian.y, cartesian.x);\n   double height = 0.0;\n   double horizontalDistance = std::sqrt((cartesian.x * cartesian.x) + (cartesian.y * cartesian.y));\n   if (horizontalDistance < XY_POSITION_EPSILON) // Close to a pole\n   {\n      const double temp\n         = bmc::half_pi<double>() - (horizontalDistance / SEMI_MINOR_AXIS); // avoid redundant code\n      if (cartesian.z > 0.0)                                                // North pole\n      {\n         latitude = temp;\n      }\n      else if (cartesian.z < 0.0) // South pole\n      {\n         latitude = -1.0 * temp;\n      }\n      else // Center of coordinate system\n      {\n         throw InvalidArgumentException(\n            \"Cannot convert coordinates at origin (0,0,0) to geodetic coordinates.\");\n      }\n      height = fabs(cartesian.z) - SEMI_MINOR_AXIS;\n      return GeodeticCoordinates{latitude, longitude, height};\n   }\n\n   // Reference: Panou, G., Korakitis, R., & Delikaraoglou, D.\n   // \"Cartesian to Geodetic Coordinates Conversion by an Iterative Geometrical Method\"\n   // Available at:\n   /"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/SolutionMetadataXmlDeserializer.cpp",
+    "line": 16,
+    "name": "deserialize",
+    "code": "void SolutionMetadataXmlDeserializer::deserialize(\n   mxml_node_t* const solutionMetadataNode,\n   SolutionMetadata& solutionMetadata)\n{\n   if (solutionMetadataNode == nullptr)\n   {\n      throw XmlSerializationException(\n         \"SolutionMetadataXmlDeserializer: solutionMetadataNode is NULL \");\n   }\n\n   // Get latestCorrectionAge attribute\n   if (!getAttributeValue(\n          solutionMetadataNode,\n          AT_NAM_LATEST_CORRECTION_AGE,\n          solutionMetadata.latestCorrectionAge))\n   {\n      throw XmlSerializationException(\n         \"SolutionMetadataXmlDeserializer: Attribute missing or wrong type: \"\n         + std::string(AT_NAM_LATEST_CORRECTION_AGE));\n   }\n\n   // Corrections Status\n   mxml_node_t* node = getElementNodeFromPath(solutionMetadataNode, EL_CORRECTIONS_STATUS);\n\n   if (node == nullptr)\n   {\n      throw XmlSerializationException(\n         \"SolutionMetadataXmlDeserializer: Could not find Element: \"\n         + std::string(EL_CORRECTIONS_STATUS));\n   }\n\n   CorrectionsCollectionXmlDeserializer::deserialize(node, solutionMetadata.corrections);\n\n   // GNSS Measurements Status\n   node = getElementNodeFromPath(solutionMetadataNode, EL_GNSS_MEASUREMENTS_STATUS);\n\n   if (nod"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "alpha_conversion/src/Managers/CallManager.cpp",
+    "line": 35,
+    "name": "initializeCommands",
+    "code": "void CallManager::initializeCommands()\n{\n   m_commandMap[HELP_FLAG_SHORT] = []() {\n      PrintHandler::help();\n   };\n   m_commandMap[HELP_FLAG] = m_commandMap[HELP_FLAG_SHORT];\n\n   m_commandMap[VERSION_FLAG_SHORT] = []() {\n      PrintHandler::version();\n   };\n   m_commandMap[VERSION_FLAG] = m_commandMap[VERSION_FLAG_SHORT];\n\n   m_commandMap[NORMALIZE_FLAG_SHORT] = []() {\n      const auto normalizerConfig = RuntimeConfig::getNormalizerConfig();\n      HlfNormalizer::normalize(normalizerConfig.inputFile);\n   };\n   m_commandMap[NORMALIZE_FLAG] = m_commandMap[NORMALIZE_FLAG_SHORT];\n\n   m_commandMap[SPLIT_FLAG_SHORT] = []() {\n      const auto splitConfig = RuntimeConfig::getSplitConfig();\n      HlfSplitter::split(\n         splitConfig.inputFile,\n         splitConfig.subFileSizeMegabytes * BYTES_PER_MEGABYTE);\n   };\n   m_commandMap[SPLIT_FLAG] = m_commandMap[SPLIT_FLAG_SHORT];\n\n   // default command\n   m_commandMap[CONVERT_FLAG_SHORT] = [this]() {\n      m_conversionManager.start();\n   };\n   m_commandMap[CONVERT_FLAG] = m_commandMap[CONVERT_FLAG_SHORT];\n}"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/PseudorangeMeasurementXmlDeserializer.cpp",
+    "line": 12,
+    "name": "deserialize",
+    "code": "void PseudorangeMeasurementXmlDeserializer::deserialize(\n   mxml_node_t* const prmNode,\n   PseudorangeMeasurement& prMeasurement)\n{\n   if (getAttributeValue(prmNode, AT_NAM_WAVELENGTH, prMeasurement.wavelength))\n   {\n      mxml_node_t* const childNode = getElementNodeFromPath(prmNode, EL_PSEUDO_RANGE);\n\n      if (childNode != nullptr)\n      {\n         StochasticVariableXmlDeserializer::deserialize(childNode, prMeasurement.pseudorange);\n      }\n      else\n      {\n         throw XmlSerializationException(\n            \"PseudorangeMeasurementXmlDeserializer: Child element missing: \"\n            + std::string(EL_PSEUDO_RANGE));\n      }\n   }\n   else\n   {\n      throw XmlSerializationException(\n         \"PseudorangeMeasurementXmlDeserializer: Attribute missing or wrong type: \"\n         + std::string(AT_NAM_WAVELENGTH));\n   }\n}"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "lib_positioning_engine/src/Core/Utility/SatellitePolynomialCache.cpp",
+    "line": 69,
+    "name": "doTimeUpdate",
+    "code": "void SatellitePolynomialCache::doTimeUpdate(const Time& time, const double windowToKeepSeconds)\n{\n   if (windowToKeepSeconds < TIME_COMPARISON_EPSILON)\n   {\n      return;\n   }\n\n   // Iterate over all nodes and clear those that are too old\n   for (auto& [key, node] : m_data)\n   {\n      if (node.empty())\n      {\n         continue;\n      }\n\n      const std::shared_ptr<const PositionPolynomial>& latestPolynomial = node.back();\n      Time upperBound = latestPolynomial->time;\n      upperBound.seconds.value += latestPolynomial->data.timespanHalfValidity;\n\n      const double timeDifference = (time - upperBound).value;\n      // Positive and greater than window -> upper bound too far in past\n      if (timeDifference > windowToKeepSeconds)\n      {\n         node.clear();\n      }\n   }\n}"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "lib_positioning_engine/src/Core/PositionReconstruction/PositionReconstruction.cpp",
+    "line": 126,
+    "name": "findIncrementAtTime",
+    "code": "/**\n * @brief Finds the position increment that contains the requested time.\n *\n * This function searches through a deque of position increments to find the first\n * increment whose time span contains the specified `requestTime`. The search is\n * performed in reverse order to efficiently locate the most recent matching increment.\n *\n * If no matching increment is found, the function returns the end iterator of the deque.\n *\n * @param requestTime The time for which the corresponding position increment is searched.\n * @param positionIncrements The deque of position increments to search within.\n * @return An iterator pointing to the position increment containing `requestTime`,\n *         or `positionIncrements.end()` if no such increment is found.\n */\nDequeIncIterator findIncrementAtTime(\n   const Alpha::Time& requestTime,\n   std::deque<Alpha::ReconstructionTraits<Alpha::PositionReconstruction>::IncrementalData>&\n      positionIncrements)\n{\n   if (positionIncrements.empty())\n   {\n      return positionIncrements.end();\n   }\n   // Reverse search to find first increment with startTime <= requestTime\n   const auto rit = std::lower_bound(\n      positionIncrements.rbegin(),\n      positionIn"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "alpha_replayer/src/Io/TcpClientReceivingService.cpp",
+    "line": 192,
+    "name": "handleDataReception",
+    "code": "bool TcpClientReceivingService::handleDataReception()\n{\n   std::vector<uint8_t> buffer;\n   buffer.resize(TCP_BUFFER_SIZE);\n\n   if (!m_tcpClient->receiveData(buffer))\n   {\n      std::string const tcpError = m_tcpClient->getLastErrorDescription();\n\n      print(\n         PrintLevel::Info,\n         \"Connection error to \" + m_tcpClient->getSocketAddress() + \" (reason: \" + tcpError\n            + \") - attempting to reconnect\");\n\n      m_tcpClient->disconnect();\n      m_state = ServiceState::Reconnecting;\n      m_connectionMessagePrinted = false;\n      m_dataReceivedMessagePrinted = false;\n      return false;\n   }\n\n   // Connection was closed\n   if (!m_tcpClient->isConnected() && buffer.empty())\n   {\n      m_keepRunning.store(false);\n   }\n\n   if (buffer.empty())\n   {\n      return false;\n   }\n\n   if (m_noDataReceivedReported)\n   {\n      m_noDataReceivedReported = false;\n   }\n\n   m_timeDataLastReceived = std::chrono::steady_clock::now();\n\n   if (!m_dataReceivedMessagePrinted)\n   {\n      print(PrintLevel::Info, \"Data is being received on stream \" + std::to_string(m_streamId));\n\n      m_dataReceivedMessagePrinted = true;\n   }\n\n   m_callback(m_streamId, buffer);\n   return true;\n}"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "test/test_support/TestData/CorrectionsDataSets.hpp",
+    "line": 22,
+    "name": "getCorrectionsStatusDataSet1",
+    "code": "/// @brief Fills a provided CorrectionsStatus with Test Data\n/// @param correctionsStatus CorrectionsStatus to fill with data\ninline void getCorrectionsStatusDataSet1(CorrectionsStatus& correctionsStatus)\n{\n   GnssKey const key1{Constellation{2}, SatelliteId{3}, Signal::Rinex1E};\n   GnssKey const key2{Constellation{3}, SatelliteId{4}, Signal::Rinex1B};\n\n   GnssKeyMap<TimeData<Status>> satPosMap;\n   GnssKeyMap<TimeData<Status>> satClockMap;\n   GnssKeyMap<TimeData<Status>> pseudoBiasMap;\n   GnssKeyMap<TimeData<Status>> phaseBiasMap;\n   GnssKeyMap<TimeData<Status>> slantIonoMap;\n   GnssKeyMap<TimeData<Status>> slantTropMap;\n   GnssKeyMap<TimeData<Status>> pseudoPhaseMap;\n   GnssKeyMap<TimeData<Status>> phaserPhaseMap;\n\n   satPosMap[key1] = {\n      Time{1, StochasticScalar{3.4, 2.0}},\n      Status::Used\n   };\n\n   satPosMap[key2] = {\n      Time{1, StochasticScalar{3.4, 2.0}},\n      Status::Outlier\n   };\n\n   satClockMap[key1] = {\n      Time{1, StochasticScalar{3.4, 2.0}},\n      Status::NotUsed\n   };\n\n   pseudoBiasMap[key1] = {\n      Time{1, StochasticScalar{3.4, 2.0}},\n      Status::NotUsed\n   };\n\n   phaseBiasMap[key1] = {\n      Time{1, StochasticScalar{3.4, 2.0}},\n      Status::NotUsed\n"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp",
+    "line": 417,
+    "name": "checkPublishingIntervals",
+    "code": "/// @brief Check the publishing intervals for the next package based on the current time.\n   ///\n   /// @param time The time to check the publishing intervals against.\n   void checkPublishingIntervals(const Time& time)\n   {\n      // Temporary variables.\n      Time thresholdTime = time;\n      thresholdTime += StochasticScalar{m_minDelay, 0.0};\n      // If this is the first package we are publishing, set the minimum and maximum time-stamps\n      // and account for the delay\n      if (!m_minNextPubTime)\n      {\n         // Set the minimum time-stamp for the next package.\n         m_minNextPubTime = time;\n         (*m_minNextPubTime) += StochasticScalar{(-m_createPackageHalfInterval), 0.0};\n         // Ensure that we have satisfied the minimum delay for the next package, otherwise incremnt\n         // on it until we meet the requirement.\n         m_minNextPubTime\n            = incrementTimePastThreshold(thresholdTime, (*m_minNextPubTime), m_packageCreatePeriod);\n         // Increment past the time of the last created package -- we only need to do it under these\n         // conditions (first package after a resynchronization) because it will always be ahead\n         // other wise and lo"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "alpha_conversion/src/HlfSplitter/HlfSplitter.cpp",
+    "line": 221,
+    "name": "newSplitFile",
+    "code": "std::size_t HlfSplitter::newSplitFile(\n   std::ofstream& splitFile,\n   std::filesystem::path& splitFilePath,\n   const std::filesystem::path& outputDirectoryPath,\n   const std::string& nextFilename,\n   const HeaderInfo& headerInfo)\n{\n   // Finish off and close previous HLF file if it exists\n   if (splitFile.is_open())\n   {\n      finalizeHlfFile(splitFile, splitFilePath, headerInfo, headerInfo.currentUptime);\n   }\n\n   // Create the next sub HLF file\n   try\n   {\n      splitFilePath = createHlfFile(splitFile, outputDirectoryPath, nextFilename);\n\n      // Write the headers\n      return writeHeaderRecords(splitFile, headerInfo);\n   }\n   catch (const std::exception& ex)\n   {\n      throw FileException(\"Failed to write file: \" + std::string(ex.what()));\n   }\n}"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp",
+    "line": 166,
+    "name": "computeUdFactorizationInPlace",
+    "code": "//!  Description : Method performing an in-place UD-factorization of the square matrix *this without pivoting.\n//!                Since the factorization is performed without pivoting, the matrix *this is required to be symmetric positive definite.\n//!                Note that only the upper triangular part of *this is accessed and modified.\n//!                If the method returns Success, then the unit upper triangular part of *this\n//!                contains the matrix U and the diagonal elements of *this the diagonal elements of the matrix D. \n//!                In all other cases, the decomposition is not usable and the upper triangular part of *this has possibly been destroyed.\n//!               \n//!  Results     : Success - in case of no errors. \n//!                InvalidInput - if *this is not a square matrix.\n//!                NumericalIssue - if *this is not positive definite and/or nearly singular.\n//\nComputationInfo computeUdFactorizationInPlace()\n{\n    if( !(this->isSquare()) )\n    {\n        return InvalidInput;\n    }\n\n    const Index cDim = (*this).derived().rows();\n    \n    if(cDim <= 1)\n    {\n        // if cDim == 0 or cDim == 1 there is nothing to do\n        ret"
+  },
+  {
+    "net": "F.2(hollow)",
+    "file": "test/alpha_replayer/Utility/EngineFactoryTest.cpp",
+    "line": 16,
+    "name": "isUniqueFullVariantSet",
+    "code": "// checks that vector contains a one of each variants of engine (checks size and uniqueness)\nbool isUniqueFullVariantSet(const std::vector<Alpha::Replay::EngineFactory::EngineVariant>& vec)\n{\n   // clang-tidy false positive on constexpr with variant_size_v\n   // NOLINTNEXTLINE(cppcoreguidelines-init-variables)\n   constexpr std::size_t numTypes\n      = std::variant_size_v<Alpha::Replay::EngineFactory::EngineVariant>;\n\n   if (vec.size() != numTypes)\n   {\n      return false; // Must be exactly one of each type\n   }\n\n   std::unordered_set<std::type_index> seen;\n\n   for (const auto& variant : vec)\n   {\n      std::type_index type = std::visit(\n         [](auto&& value) {\n            return std::type_index(typeid(value));\n         },\n         variant);\n\n      if (!seen.insert(type).second)\n      {\n         return false; // Duplicate type found\n      }\n   }\n\n   return seen.size() == numTypes;\n}"
+  }
+]

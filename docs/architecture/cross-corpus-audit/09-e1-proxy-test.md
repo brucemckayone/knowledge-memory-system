@@ -444,3 +444,55 @@ Every per-rule and recall figure here is n-starved and reported as such, not as 
 
 ### 19.5 Consequence
 §17's recommendation stands, hardened by real-code evidence: Phase A schema/plumbing may proceed; **no automation/coverage claim** until a prefilter exists and is measured. The next empirical target is **not** the adjudicator (its capability and its field-precision ceiling are both now characterised) — it is the **prefilter**: can candidate-generation raise effective prevalence on the judgment rules enough that adjudication precision clears a usable bar? That, plus a proper human-labelled (not LLM-adjudicated) field sample to remove the shared-prior caveat, are what remain owed.
+
+---
+
+## 20. Leg 5 — PRE-REGISTRATION: does a prefilter rescue field precision? (2026-07-13)
+
+Written **before the run**. Characterization with fixed interpretation. Leg 4 measured the adjudicator run *over everything* → 0.14 field precision on judgment rules at ~2% prevalence. This tests the fix §17.3/§19.4 pointed to: a **mechanical candidate-generation net** per rule that enumerates likely-violation sites, so the adjudicator only sees a **prevalence-enriched** candidate stream.
+
+### 20.1 The quantity that decides it
+For a rule, the net's **precision among its candidates = the effective prevalence** the adjudicator then operates at. Feed that into the same operating-point transform (adjudicator TPR≈0.90 / FPR≈0.12): a net that surfaces candidates at, say, 40–50% real makes end-to-end precision ~0.85; a net that surfaces at 2% changes nothing. So per rule we measure: **(a) candidate count** (does the net concentrate to a tractable set?), **(b) net precision** (of candidates, fraction that are genuine violations — the effective prevalence), and **(c) projected end-to-end precision** at that prevalence.
+
+### 20.2 Rules and nets (structural shadow vs hollow)
+Reusing the 1,273 real functions extracted in Leg 4 (`ALPHA-2570` @ `b59d5d73`). Nets authored **rule-level and codebase-agnostic in form** (the §4 anti-confirmation discipline — a net is "enumerate all X," never "find the answer"):
+- **C.131** — net: methods whose body is a single `return <member>;`.
+- **C.4** — net: non-static, non-virtual, non-override methods whose body references no member/`this`.
+- **R.11 / R.3** — net: functions containing explicit `new`/`delete` (candidate owning-raw-pointer / manual-resource sites).
+- **C.35** — net: classes that declare `virtual` methods but have a public non-virtual (or implicit) destructor. *(class-level; may be run separately.)*
+- **F.2 (hollow control)** — net: functions above a size/branch threshold. Included precisely to **demonstrate a hollow net** (weak structural shadow → low precision) — the honest negative that marks which rules a prefilter *cannot* serve.
+
+### 20.3 Adjudication and honesty
+Net candidates are adjudicated genuine/false by an independent subagent reading the code (the structural rules — trivial-getter, uses-no-member, owns-via-raw-pointer — are close to objectively checkable, which limits the shared-prior problem more than Leg 4's fuzzy calls). The **shared-prior caveat still applies** and the definitive removal is the **human-labelled** capstone (owed, needs a domain reviewer, not an LLM). Adversary runs on the result.
+
+### 20.4 Pre-stated interpretation
+- **If structural-rule nets show high precision (candidates mostly real)** → the prefilter raises effective prevalence and end-to-end precision to usable levels **for those rules** → the recall-prefilter→adjudicate architecture is validated where a net exists; deterministic-first for code v1 is supported for the net-able rule set.
+- **If the F.2 (hollow) net shows low precision** → confirms semantic rules with weak structural shadow **cannot** be prefiltered → they are human-review-only, and the feature must not claim automation on them. Both outcomes are expected and both are informative.
+- **Honest limit:** net *recall* (does the net miss real violations?) is not measurable here without exhaustive labels — a net can be precise yet miss much. This leg measures whether the prefilter concentrates (precision/effective-prevalence); net recall is a separate owed measurement.
+
+---
+
+## 21. Leg 5 run — RESULT: prefilter helps precision, but "architecture validated" is CUT (2026-07-13)
+
+Ran per §20 and measured the full net→adjudicate pipeline directly (not projected). The favorable headline did not survive the adversary — the honest result is narrow.
+
+### 21.1 What was measured
+Nets over 1,297 real functions → candidate counts C.131 119 (9.2%), C.4 450 (34.7%), R.3/R.11 1 (0.1%), F.2(hollow) 231 (17.8%). Sampled ~12/net, independently adjudicated → **net precision (effective prevalence): C.131 0.58, C.4 0.42, R.3/R.11 0/1, F.2 0/12.** Then Haiku adjudicated the same candidates → **end-to-end precision 12/14 = 0.86** (C.131 0.88, C.4 0.83); Haiku flagged 0/12 of the hollow-F.2 candidates.
+
+### 21.2 What an independent adversary cut (and why it's right)
+- **CUT: "recall 1.0."** That is adjudicator recall *conditional on the net surfacing the candidate*. **System recall = net_recall × adjudicator_recall, and net_recall is unmeasured on every rule.** The `return member;` net demonstrably misses `return value;`, `return obj.field;`, const-ref/attributed/multi-line getters — coverage loss is real and uncounted. Precision may have been bought by discarding most true violations.
+- **CUT: "0.14 → 0.86 lift."** Different denominators (Leg-4 full population vs Leg-5 net-selected subset) — not a like-for-like quantity. Most of the rise is Bayes: enrich prevalence ~2%→~50% and precision rises mechanically. Arithmetic, not an architectural discovery.
+- **n is an anecdote.** 12/14 → Wilson 95% CI **[0.60, 0.96]**; C.4 5/6 → [0.44, 0.97] (lower bound below a coin flip). Two label flips move the headline ~0.14.
+- **AST-decidable self-own.** C.131 ("body is a trivial getter") and C.4 ("uses no instance state") are AST-decidable. Either a plain static query decides them — so the LLM adjudicator (and the fuzzy regex net) earn nothing and 0.86 shows nothing about LLM *judgment* — or they are subjective, and 0.86 is Haiku agreeing with Sonnet's shared prior (the Leg-4 problem). No AST baseline was run, so this is unresolved.
+- **C.4 undercuts the thesis.** A "prefilter" admitting 34.7% of functions at 0.42 precision does not concentrate the stream; the result is the adjudicator re-doing Leg-4 adjudication on a barely-reduced feed. "Adjudicator rescues the crude net" = "the net failed to concentrate."
+- **One rule carried it.** R.3/R.11 n=1 (RAII codebase, rule absent), F.2 hollow by construction, C.4 barely filters — leaving **C.131 (n=8), a keyword-spottable style rule a linter already handles**, as the only rule that both filtered and passed. "Route all judgment rules by net existence" is n=1 → policy.
+
+### 21.3 What survives
+- **The one clean result: the adjudicator discriminates, it does not rubber-stamp** — it rejected 12/12 hollow-F.2 candidates (a genuine negative control) and pruned the crude net's false positives. Combined with Leg 3, the LLM's *local judgment* is real and it doesn't blindly confirm a net's suggestions.
+- **"Enrichment raises precision" as a hypothesis** — mechanically true (Bayes); the open question is whether a net can enrich *without* sacrificing coverage.
+
+### 21.4 Consequence — the load-bearing unknown is now coverage, and whether an LLM is even needed
+"Prefilter architecture validated" is **not** established. After six runs the honest state: the adjudicator is a sound *local* judge (Leg 3), unusable as a *global* scanner (Leg 4, 0.14), and a prefilter *can* raise precision on what it surfaces (Leg 5) — but **net recall / system coverage is unmeasured**, and on the rules where a net works, an LLM may be unnecessary (AST would do). The feature's judgment-rule value proposition remains **unproven on coverage**, not just precision.
+
+### 21.5 The one experiment that would settle it (pre-registered target for next time)
+Draw a **random sample of the full function population** (same denominator as Leg 4); obtain **independent ground truth** for one net-able rule — **AST-derived plus a human**, not the net and not the adjudicator; run the **full net→adjudicator pipeline** on that same sample; report the complete confusion matrix. This yields **net recall, system recall, and precision on one population simultaneously** — an honest like-for-like vs Leg 4 — and exposes whether coverage was quietly sacrificed. Add a **plain-AST baseline** on the same sample to learn whether the LLM earns its place at all. Until that runs, no automation/coverage claim for judgment rules; Phase A plumbing may still proceed (the schema/graph work does not depend on this number).

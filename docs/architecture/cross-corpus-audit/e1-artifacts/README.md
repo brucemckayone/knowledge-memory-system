@@ -28,5 +28,9 @@ Ground truth by construction; four independent parties (planter/validator/system
 - `leg4_flag_adjudication{,_input}.json` — independent real/false verdict on every flag.
 - `leg4_spotcheck{,_input}.json` — independent check of non-flagged functions for missed violations.
 
+## Leg 5 — prefilter/net experiment → "architecture validated" CUT (doc §20–§21)
+Nets per rule over 1,297 real functions, candidates adjudicated, then the full net→Haiku pipeline measured. Net precision C.131 0.58 / C.4 0.42 / F.2(hollow) 0.00; end-to-end 12/14 = 0.86 (CI [0.60, 0.96]). Adversary cut the headline: **net recall/system coverage is unmeasured** ("recall 1.0" is conditional-on-net, not system coverage); the 0.14→0.86 comparison changes the denominator (mostly Bayes); C.131/C.4 are AST-decidable (no AST baseline run — LLM may be unnecessary); C.4's net barely filters; only C.131 (n=8, keyword-spottable) really tested it. Survives: the adjudicator discriminates (rejected 12/12 hollow-F.2 candidates).
+- `build_leg5.mjs` (net harness), `leg5_netstats.json` (candidate counts/concentration), `leg5_candidates.json` (sampled candidates), `leg5_net_adjudication.json` (independent real/false), `leg5_e2e.json` (Haiku end-to-end flags).
+
 ## Status
-`nmemo-uhp.6` open; Phase A schema/plumbing may proceed (adjudication mechanism sound), but **no automation/coverage claim** until (1) a candidate-generation **prefilter** exists and is measured, and (2) a **human-labelled** (not LLM-adjudicated) field sample removes the shared-prior caveat. Next empirical target = the prefilter, not the adjudicator.
+`nmemo-uhp.6` open; Phase A schema/plumbing may proceed (local adjudication is sound), but **no automation/coverage claim** for judgment rules. The load-bearing unknown is now **coverage (net recall / system recall)**, plus whether an LLM beats a plain AST query on net-able rules. Settling experiment (doc §21.5): random full-population sample + independent AST+human ground truth + full net→adjudicator pipeline + AST baseline → net recall, system recall, precision on one population, honest like-for-like vs Leg 4.

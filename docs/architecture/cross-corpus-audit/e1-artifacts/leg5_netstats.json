@@ -1,0 +1,26 @@
+{
+  "C.131": {
+    "total_funcs": 1297,
+    "candidates": 119,
+    "concentration": 0.09175019275250579,
+    "sampled": 12
+  },
+  "C.4": {
+    "total_funcs": 1297,
+    "candidates": 450,
+    "concentration": 0.3469545104086353,
+    "sampled": 12
+  },
+  "R.3/R.11": {
+    "total_funcs": 1297,
+    "candidates": 1,
+    "concentration": 0.0007710100231303007,
+    "sampled": 1
+  },
+  "F.2(hollow)": {
+    "total_funcs": 1297,
+    "candidates": 231,
+    "concentration": 0.17810331534309945,
+    "sampled": 12
+  }
+}
