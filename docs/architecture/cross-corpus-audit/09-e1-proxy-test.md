@@ -569,3 +569,28 @@ The core question — *does the LLM have unique, deterministic-tool-beating valu
 **Net:** the feature's judgment-rule value proposition is **unproven** — not on precision (Leg 4), not on coverage (Legs 5–6), and the one clean positive (local judgment) has never been shown to survive contact with *both* field prevalence *and* a deterministic baseline on a rule where coverage is measurable. Equally, the opposite claim ("an LLM is useless / always dominated") is **also unproven** — I twice drifted toward it and it was cut both times. The mirror-wall hypothesis (coverage works only where the LLM is unnecessary; the LLM is needed only where coverage collapses) is **suggestive across Legs 5–6 but not demonstrated** — no single leg measured LLM value and coverage together on a genuinely semantic rule.
 
 **The one experiment that would actually settle it** (unchanged from §21.5, now with the setter/AST gaps named): pick a genuinely **no-structural-shadow judgment rule**; obtain **human** ground truth on a random full-population sample; measure net recall (coverage), adjudicator precision, AND a **built** full-AST baseline — together, on one population. Until then: **Phase A schema/plumbing may proceed** (it does not depend on this number); **no automation or coverage claim** for judgment rules; and the honest disposition is that this is a **human-in-the-loop assist**, not an autonomous auditor.
+
+## 25. Leg 7 — PRE-REGISTRATION: the settling experiment, **F.2 with HUMAN ground truth** (2026-07-13)
+
+The missing cell. Every prior leg either tested a rule with a structural/checker shadow (Legs 1, 2, 6), used constructed truth (Leg 3), or used LLM-built truth (Legs 4–5). None measured LLM value on a **genuinely semantic, no-shadow rule** against **human** truth at **field prevalence**. This leg does exactly that, on **F.2 — "a function should perform a single logical operation."** F.2 has no checker, no NOLINT, and no non-circular construction; it was the hollow-net that scored 0.00 precision in Leg 5. The only valid ground truth is a human reading the code — so the human labeller (the repo owner) is the oracle, and no LLM builds truth here (rule 19).
+
+**Population.** The 1,297 functions at `b59d5d73` (same denominator as Legs 4–6).
+
+**Ground truth = HUMAN, labelled BLIND.** The labeller verdicts a random sample **before** seeing any LLM output or the structural baseline. Rubric given to the labeller: a function VIOLATES F.2 if it performs more than one logical operation / carries more than one responsibility / mixes abstraction levels / cannot be named without "and"; it is OK if it does one coherent thing (helper calls at one abstraction level are still "one thing"). Verdict ∈ {VIOLATION, OK, SKIP (not a real function / cannot judge)}, plus confidence H/M/L.
+
+**Staged sampling (pre-committed, so N is not HARKed):**
+1. **Pilot n=30** (random, seeded shuffle of the population). Labeller verdicts → estimate prevalence p̂ and skip-rate.
+2. **Set full additional N** so total expected VIOLATION labels ≥ **25** (gives a recall Wilson CI half-width ≲ 0.15 at recall≈0.8), **capped at the labelling budget**. If the budget caps positives below 25, report the wider CI honestly and make **no precise recall claim** — state the floor only.
+
+**System under test = blind Haiku** (the field model, per prior legs): reads each sampled function in full, flags F.2 violation / not, blind to the human labels. (A capable-model run may be reported alongside as a ceiling, clearly labelled.)
+
+**Deterministic baseline (pre-registered, fixed threshold): a structural proxy** — flag F.2 violation if body has **> 20 non-blank lines OR > 3 control-flow keywords** (`if/for/while/switch/case/catch`). Because tuning a baseline post-hoc is exactly the Leg-6 sin, I ALSO report the proxy's **best-threshold F1 across the full sweep** as an *optimistic ceiling* for any structural heuristic — clearly labelled as an upper bound, not the fixed result. (A "real AST/linter" has no F.2 check at all; the structural proxy is the most generous stand-in.)
+
+**Metrics (all raw, with Wilson 95% CIs):** human prevalence; Haiku precision & recall vs human; baseline precision & recall (fixed + ceiling); the **gap = Haiku minus baseline** on precision and recall, with a difference CI; field-prevalence-adjusted precision curve.
+
+**Pre-registered bar (frozen; will not move — rules 1, 5, 7, 26):**
+- **The LLM has demonstrable unique value on a semantic rule ⟺ Haiku beats the structural-proxy *ceiling* on BOTH precision and recall with a difference CI that excludes 0.** If Haiku does not CI-separately beat the *best-possible* structural threshold, the LLM adds nothing a length heuristic wouldn't.
+- Report field-prevalence-adjusted precision (rule 13). A pass at the sample's prevalence that collapses at field prevalence is a field failure.
+- **The truth is one human's judgment** on a subjective rule; the human-agreement *ceiling* is unmeasured unless a second labeller or test-retest is added — stated as a limitation, and Haiku's "accuracy" is framed as *agreement with this auditor*, not objective correctness.
+- Recall power is bounded by labelling budget; CIs reported, no generalization beyond this rule/codebase (rule 25).
+- Independent hostile adversary on the result (rule 17), hardest if favorable — in EITHER direction (rule 29).
