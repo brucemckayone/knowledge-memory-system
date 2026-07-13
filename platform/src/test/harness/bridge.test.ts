@@ -252,13 +252,14 @@ describe('bridge — composeBridgeCurrent (service)', () => {
       expect(typeof s.isNewThisMonth).toBe('boolean');
     }
 
-    // narrativeAnnotations: bare-array-under-{annotations}, every span in-bounds
-    // over narrativeText (the iOS decoder rejects out-of-bounds), and the
-    // underlined substring matches the prose.
-    expect(Array.isArray(n.narrativeAnnotations.annotations)).toBe(true);
-    expect(n.narrativeAnnotations.annotations.length).toBeGreaterThan(0);
+    // narrativeAnnotations: a bare array (the iOS AnnotationBlock wire shape —
+    // NOT wrapped in {annotations}), every span in-bounds over narrativeText
+    // (the iOS decoder rejects out-of-bounds), and the underlined substring
+    // matches the prose.
+    expect(Array.isArray(n.narrativeAnnotations)).toBe(true);
+    expect(n.narrativeAnnotations.length).toBeGreaterThan(0);
     const utf16Len = n.narrativeText.length; // JS length === UTF-16 code units
-    for (const ann of n.narrativeAnnotations.annotations) {
+    for (const ann of n.narrativeAnnotations) {
       expect(ann.start).toBeGreaterThanOrEqual(0);
       expect(ann.end).toBeGreaterThan(ann.start);
       expect(ann.end).toBeLessThanOrEqual(utf16Len);
@@ -399,8 +400,8 @@ describe('bridge — composeExploreNode (service)', () => {
     expect(res.node.isNewThisMonth).toBe(false); // first mentioned in january
     expect(res.node.drawerText.trim().length).toBeGreaterThan(0);
     expect(res.node.drawerText).toBe(res.node.drawerText.toLowerCase());
-    expect(Array.isArray(res.node.drawerAnnotations.annotations)).toBe(true);
-    expect(res.node.drawerAnnotations.annotations.length).toBeGreaterThan(0);
+    expect(Array.isArray(res.node.drawerAnnotations)).toBe(true);
+    expect(res.node.drawerAnnotations.length).toBeGreaterThan(0);
     expect(res.node.meta.threadsCount).toBe(1);
     expect(res.node.meta.entriesCount).toBe(12);
 

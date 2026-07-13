@@ -98,7 +98,7 @@ export interface BridgeNarrative {
   bridgeEntityName: string;
   isMe: boolean;
   narrativeText: string;
-  narrativeAnnotations: AnnotationBlock;
+  narrativeAnnotations: VoiceCAnnotation[];
   clusterSpokes: ClusterSpoke[];
   composedAt: string;
 }
@@ -122,7 +122,7 @@ export interface ExploreNode {
   isSelf: boolean;
   isNewThisMonth: boolean;
   drawerText: string;
-  drawerAnnotations: AnnotationBlock;
+  drawerAnnotations: VoiceCAnnotation[];
   meta: NodeMeta;
 }
 
@@ -441,7 +441,7 @@ export async function composeBridgeCurrent(now: Date = new Date()): Promise<Brid
     bridgeEntityName: bridgeName,
     isMe,
     narrativeText: text,
-    narrativeAnnotations: { annotations },
+    narrativeAnnotations: annotations,
     clusterSpokes: spokes,
     composedAt: now.toISOString(),
   };
@@ -592,7 +592,7 @@ export async function composeExploreNode(
     isSelf,
     isNewThisMonth,
     drawerText: composed.text,
-    drawerAnnotations: { annotations: composed.annotations },
+    drawerAnnotations: composed.annotations,
     meta: { threadsCount, entriesCount },
   };
 
