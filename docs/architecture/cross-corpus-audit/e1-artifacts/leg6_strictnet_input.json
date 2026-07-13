@@ -1,0 +1,835 @@
+[
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:62:getTime",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 62,
+    "name": "getTime",
+    "code": "/// @brief Gets the current time associated with the state.\n   /// @return The current time.\n   const Time& getTime() const\n   {\n      return m_time;\n   }"
+  },
+  {
+    "id": "alpha_conversion/src/Utility/Errors.cpp:15:getErrorState",
+    "file": "alpha_conversion/src/Utility/Errors.cpp",
+    "line": 15,
+    "name": "getErrorState",
+    "code": "// namespace\n\nint getErrorState()\n{\n   return errorStateRef();\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Utility/ArgumentParser.cpp:46:getActiveFlags",
+    "file": "alpha_conversion/src/Utility/ArgumentParser.cpp",
+    "line": 46,
+    "name": "getActiveFlags",
+    "code": "std::vector<std::string> ArgumentParser::getActiveFlags() const\n{\n   return m_activeFlags;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp:74:getSatellitePositions",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp",
+    "line": 74,
+    "name": "getSatellitePositions",
+    "code": "std::shared_ptr<const Polynomial<ORBIT_POLYNOMIAL_DEGREE, DIMENSION_3D>>\nProvideSatellitePositionsInvocation::getSatellitePositions() const\n{\n   return m_satellitePositions;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvidePositionMeasurementInvocation.cpp:57:getPositionMeasurement",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvidePositionMeasurementInvocation.cpp",
+    "line": 57,
+    "name": "getPositionMeasurement",
+    "code": "std::shared_ptr<const PositionMeasurement>\nProvidePositionMeasurementInvocation::getPositionMeasurement() const\n{\n   return m_positionMeasurement;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:96:getVersionConfig",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 96,
+    "name": "getVersionConfig",
+    "code": "VersionConfig RuntimeConfig::getVersionConfig()\n{\n   return s_version;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiOutput.cpp:41:getOutputDataType",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiOutput.cpp",
+    "line": 41,
+    "name": "getOutputDataType",
+    "code": "OutputDataType ApiOutput::getOutputDataType() const\n{\n   return m_outputDataType;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:61:getThreadId",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 61,
+    "name": "getThreadId",
+    "code": "uint32_t ApiData::getThreadId() const\n{\n   return m_threadId;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Windows/TcpClient.cpp:197:getLastErrorDescription",
+    "file": "alpha_replayer/src/Io/Windows/TcpClient.cpp",
+    "line": 197,
+    "name": "getLastErrorDescription",
+    "code": "std::string TcpClient::getLastErrorDescription()\n{\n   return m_lastError;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "file": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp",
+    "line": 45,
+    "name": "getExpectedPeriod",
+    "code": "ExpectedPeriod SetCorrectionsExpectedPeriodInvocation::getExpectedPeriod() const\n{\n   return m_expectedPeriod;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Linux/TcpClient.cpp:197:getLastErrorDescription",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 197,
+    "name": "getLastErrorDescription",
+    "code": "std::string TcpClient::getLastErrorDescription()\n{\n   return m_lastError;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:101:getCommandFlag",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 101,
+    "name": "getCommandFlag",
+    "code": "std::string RuntimeConfig::getCommandFlag()\n{\n   return s_commandFlag;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:91:getHelpConfig",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 91,
+    "name": "getHelpConfig",
+    "code": "HelpConfig RuntimeConfig::getHelpConfig()\n{\n   return s_help;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp:69:getKey",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp",
+    "line": 69,
+    "name": "getKey",
+    "code": "GnssKey ProvideSatellitePositionsInvocation::getKey() const\n{\n   return m_key;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:41:getApiDataType",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 41,
+    "name": "getApiDataType",
+    "code": "ApiDataType ApiData::getApiDataType() const\n{\n   return m_apiDataType;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Utility/ArgumentParser.cpp:52:getActiveOptionIds",
+    "file": "alpha_replayer/src/Utility/ArgumentParser.cpp",
+    "line": 52,
+    "name": "getActiveOptionIds",
+    "code": "std::vector<std::string> ArgumentParser::getActiveOptionIds() const\n{\n   return m_activeOptionIds;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:88:getVersionConfig",
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 88,
+    "name": "getVersionConfig",
+    "code": "VersionConfig RuntimeConfig::getVersionConfig()\n{\n   return s_version;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:86:getSplitConfig",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 86,
+    "name": "getSplitConfig",
+    "code": "SplitConfig RuntimeConfig::getSplitConfig()\n{\n   return s_split;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/FileManager.cpp:165:eof",
+    "file": "alpha_conversion/src/Managers/FileManager.cpp",
+    "line": 165,
+    "name": "eof",
+    "code": "bool FileManager::eof() const\n{\n   return m_stream.eof();\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:93:getCommandFlag",
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 93,
+    "name": "getCommandFlag",
+    "code": "std::string RuntimeConfig::getCommandFlag()\n{\n   return s_commandFlag;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp:55:getErrorCode",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp",
+    "line": 55,
+    "name": "getErrorCode",
+    "code": "ErrorCode ApiInvocation::getErrorCode() const\n{\n   return m_errorCode;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideGnssMeasurementsInvocation.cpp:57:getGnssMeasurements",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideGnssMeasurementsInvocation.cpp",
+    "line": 57,
+    "name": "getGnssMeasurements",
+    "code": "std::shared_ptr<const GnssMeasurements> ProvideGnssMeasurementsInvocation::getGnssMeasurements()\n   const\n{\n   return m_gnssMeasurements;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:51:getTimestamp",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 51,
+    "name": "getTimestamp",
+    "code": "uint64_t ApiData::getTimestamp() const\n{\n   return m_timestamp;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/FileManager.cpp:170:fileSize",
+    "file": "alpha_conversion/src/Managers/FileManager.cpp",
+    "line": 170,
+    "name": "fileSize",
+    "code": "std::size_t FileManager::fileSize() const\n{\n   return m_fileSize;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "file": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp",
+    "line": 45,
+    "name": "getExpectedPeriod",
+    "code": "ExpectedPeriod SetVelocityMeasurementExpectedPeriodInvocation::getExpectedPeriod() const\n{\n   return m_expectedPeriod;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:78:getLoggingConfig",
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 78,
+    "name": "getLoggingConfig",
+    "code": "LoggingConfig RuntimeConfig::getLoggingConfig()\n{\n   return s_logging;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:73:getReplayConfig",
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 73,
+    "name": "getReplayConfig",
+    "code": "ReplayConfig RuntimeConfig::getReplayConfig()\n{\n   return s_replay;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:76:getConverterConfig",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 76,
+    "name": "getConverterConfig",
+    "code": "ConverterConfig RuntimeConfig::getConverterConfig()\n{\n   return s_convert;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideVelocityMeasurementInvocation.cpp:57:getVelocityMeasurement",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideVelocityMeasurementInvocation.cpp",
+    "line": 57,
+    "name": "getVelocityMeasurement",
+    "code": "std::shared_ptr<const VelocityMeasurement>\nProvideVelocityMeasurementInvocation::getVelocityMeasurement() const\n{\n   return m_velocityMeasurement;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:46:getStream",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 46,
+    "name": "getStream",
+    "code": "uint16_t ApiData::getStream() const\n{\n   return m_streamId;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:81:getNormalizerConfig",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 81,
+    "name": "getNormalizerConfig",
+    "code": "NormalizerConfig RuntimeConfig::getNormalizerConfig()\n{\n   return s_normalizer;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp:50:getApi",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp",
+    "line": 50,
+    "name": "getApi",
+    "code": "Api ApiInvocation::getApi() const\n{\n   return m_api;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideCorrectionsInvocation.cpp:56:getCorrections",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideCorrectionsInvocation.cpp",
+    "line": 56,
+    "name": "getCorrections",
+    "code": "std::shared_ptr<const Corrections> ProvideCorrectionsInvocation::getCorrections() const\n{\n   return m_corrections;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "file": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp",
+    "line": 45,
+    "name": "getExpectedPeriod",
+    "code": "ExpectedPeriod SetGnssMeasurementsExpectedPeriodInvocation::getExpectedPeriod() const\n{\n   return m_expectedPeriod;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:83:getHelpConfig",
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 83,
+    "name": "getHelpConfig",
+    "code": "HelpConfig RuntimeConfig::getHelpConfig()\n{\n   return s_help;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetPositionMeasurementExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "file": "lib_common/src/ApiLogging/ApiData/SetPositionMeasurementExpectedPeriodInvocation.cpp",
+    "line": 45,
+    "name": "getExpectedPeriod",
+    "code": "ExpectedPeriod SetPositionMeasurementExpectedPeriodInvocation::getExpectedPeriod() const\n{\n   return m_expectedPeriod;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:101:getDataType",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 101,
+    "name": "getDataType",
+    "code": "HlfDataType HlfInputDescriptionHeaderRecord::getDataType() const\n{\n   return m_dataType;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:49:covariance",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "line": 49,
+    "name": "covariance",
+    "code": "/// @brief Returns the ambiguity covariance matrix.\n   [[nodiscard]] const Covariance& covariance() const noexcept\n   {\n      return m_covariance;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:76:getMatrix",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 76,
+    "name": "getMatrix",
+    "code": "/// @brief Gets a const reference to the state matrix.\n   /// @return Const reference to the state matrix.\n   const StateMatrix& getMatrix() const\n   {\n      return m_matrix;\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:64:sanitizedStateKeySetKey",
+    "file": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp",
+    "line": 64,
+    "name": "sanitizedStateKeySetKey",
+    "code": "public:\n   static GnssKey sanitizedStateKeySetKey([[maybe_unused]] const GnssKey& key)\n   {\n      return key;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfApplicationConfigurationHeaderRecord.cpp:58:getConfiguration",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfApplicationConfigurationHeaderRecord.cpp",
+    "line": 58,
+    "name": "getConfiguration",
+    "code": "HlfHeaderRecord::HlfString HlfApplicationConfigurationHeaderRecord::getConfiguration() const\n{\n   return m_configuration;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:73:end",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 73,
+    "name": "end",
+    "code": "/// @brief Returns a const iterator to the end of the set.\n   /// @return Const iterator to one past the last element.\n   ConstIterator end() const\n   {\n      return m_keySet.cend();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:43:values",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "line": 43,
+    "name": "values",
+    "code": "/// @brief Returns the ambiguity state vector.\n   [[nodiscard]] const Ambiguities& values() const noexcept\n   {\n      return m_values;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp:65:data",
+    "file": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp",
+    "line": 65,
+    "name": "data",
+    "code": "uint8_t const* BufferWriter::data() const\n{\n   return m_bufferData;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecord.cpp:17:getRecordType",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecord.cpp",
+    "line": 17,
+    "name": "getRecordType",
+    "code": "uint16_t HlfRecord::getRecordType() const\n{\n   return m_recordType;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp:50:getIndex",
+    "file": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp",
+    "line": 50,
+    "name": "getIndex",
+    "code": "size_t BufferReader::getIndex() const\n{\n   return m_index;\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:51:writtenData",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 51,
+    "name": "writtenData",
+    "code": "const std::vector<uint8_t>& MockFileWriter::writtenData() const noexcept\n{\n   return m_writtenData;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:52:begin",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 52,
+    "name": "begin",
+    "code": "/// @brief Returns an iterator to the beginning of the set.\n   /// @return Iterator to the first element.\n   Iterator begin()\n   {\n      return m_keySet.begin();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:44:getMeasurements",
+    "file": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp",
+    "line": 44,
+    "name": "getMeasurements",
+    "code": "/// @brief Returns a const reference to the measurements.\n   /// @return Const reference to the measurements.\n   const Measurements& getMeasurements() const\n   {\n      return m_measurements;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp:52:parse",
+    "file": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp",
+    "line": 52,
+    "name": "parse",
+    "code": "/// @brief Parser for format specifiers.\n   /// @param context The fmt context.\n   /// @return Iterator to the beginning of the format string.\n   constexpr auto parse(fmt::format_parse_context& context)\n   {\n      return context.begin();\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingDescriptionHeaderRecord.cpp:58:getDescription",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecordingDescriptionHeaderRecord.cpp",
+    "line": 58,
+    "name": "getDescription",
+    "code": "HlfHeaderRecord::HlfString HlfRecordingDescriptionHeaderRecord::getDescription() const\n{\n   return m_description;\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:46:filePath",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 46,
+    "name": "filePath",
+    "code": "const std::filesystem::path& MockFileWriter::filePath() const noexcept\n{\n   return m_filePath;\n}"
+  },
+  {
+    "id": "test/test_support/WaitableCounter.cpp:27:count",
+    "file": "test/test_support/WaitableCounter.cpp",
+    "line": 27,
+    "name": "count",
+    "code": "uint32_t WaitableCounter::count() const\n{\n   return m_count.load();\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp:46:end",
+    "file": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp",
+    "line": 46,
+    "name": "end",
+    "code": "/**\n    * @brief Gets the end time of the span.\n    *\n    * @return The end time of the span.\n    */\n   [[nodiscard]] Time end() const\n   {\n      return m_end;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SolutionOutput.cpp:52:getSolution",
+    "file": "lib_common/src/ApiLogging/ApiData/SolutionOutput.cpp",
+    "line": 52,
+    "name": "getSolution",
+    "code": "std::shared_ptr<const Solution> SolutionOutput::getSolution() const\n{\n   return m_solution;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:121:getDescription",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 121,
+    "name": "getDescription",
+    "code": "HlfHeaderRecord::HlfString HlfInputDescriptionHeaderRecord::getDescription() const\n{\n   return m_description;\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp:124:getMockClient",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 124,
+    "name": "getMockClient",
+    "code": "MockTcpClient* getMockClient() const\n   {\n      return m_mockClient;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp:36:start",
+    "file": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp",
+    "line": 36,
+    "name": "start",
+    "code": "/**\n    * @brief Gets the start time of the span.\n    *\n    * @return The start time of the span.\n    */\n   [[nodiscard]] Time start() const\n   {\n      return m_start;\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTest.cpp:55:getStochasticScalar",
+    "file": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTest.cpp",
+    "line": 55,
+    "name": "getStochasticScalar",
+    "code": "static StochasticScalar& getStochasticScalar(Test::MockMeasurement& obj)\n   {\n      return obj.mockValue;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp:22:getSubType",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp",
+    "line": 22,
+    "name": "getSubType",
+    "code": "HlfRecordSubType HlfHeaderRecord::getSubType() const\n{\n   return m_subType;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:118:getDimension",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 118,
+    "name": "getDimension",
+    "code": "/// @brief Gets the current dimension (size) of the state vector.\n   /// @return The dimension of the state.\n   Index getDimension() const\n   {\n      return m_vector.size();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrector.cpp:172:getCorrectionsMetaDataImpl",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrector.cpp",
+    "line": 172,
+    "name": "getCorrectionsMetaDataImpl",
+    "code": "CorrectorTraits<GnssCorrector>::CorrectionsMetaData GnssCorrector::getCorrectionsMetaDataImpl()\n   const\n{\n   return m_correctionsMetaData;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:96:getTypeId",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 96,
+    "name": "getTypeId",
+    "code": "uint16_t HlfInputDescriptionHeaderRecord::getTypeId() const\n{\n   return m_typeId;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:58:getTime",
+    "file": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp",
+    "line": 58,
+    "name": "getTime",
+    "code": "/// @brief Returns the reference time of the measurements.\n   /// @return The reference time.\n   const Time& getTime() const\n   {\n      return m_time;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:97:getModifiableVector",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 97,
+    "name": "getModifiableVector",
+    "code": "/// @brief Gets a modifiable reference to the state vector.\n   /// @return Reference to the state vector.\n   StateVector& getModifiableVector()\n   {\n      return m_vector;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp:338:getStateImpl",
+    "file": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp",
+    "line": 338,
+    "name": "getStateImpl",
+    "code": "/// @copydoc IFilter::getState\n   /// @details The state is returned in information form.\n   const State& getStateImpl() const\n   {\n      return m_state;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:83:getModifiableMatrix",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 83,
+    "name": "getModifiableMatrix",
+    "code": "/// @brief Gets a modifiable reference to the state matrix.\n   /// @return Reference to the state matrix.\n   StateMatrix& getModifiableMatrix()\n   {\n      return m_matrix;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:51:covariance",
+    "file": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp",
+    "line": 51,
+    "name": "covariance",
+    "code": "/// @brief Get a modifiable reference to the covariance of the state.\n   /// @return Modifiable reference to the covariance of the state.\n   ///\n   Covariance& covariance()\n   {\n      return m_covariance;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp:43:get",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp",
+    "line": 43,
+    "name": "get",
+    "code": "// -------------------------------------------------------------------------\n   // METHODS\n   // -------------------------------------------------------------------------\n\n   /// @brief Gets the current requirement value.\n   ///\n   /// @return The current requirement value.\n   ///\n   T_ENUM_REQUIREMENT get() const\n   {\n      return m_value;\n   }"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:41:isOpen",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 41,
+    "name": "isOpen",
+    "code": "bool MockFileWriter::isOpen() const noexcept\n{\n   return m_isOpen;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:82:getRecordingVersion",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp",
+    "line": 82,
+    "name": "getRecordingVersion",
+    "code": "HlfHeaderRecord::HlfString HlfRecordingInformationHeaderRecord::getRecordingVersion() const\n{\n   return m_recordingVersion;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:69:height",
+    "file": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp",
+    "line": 69,
+    "name": "height",
+    "code": "/**\n    * @brief Gets the height coordinate.\n    *\n    * @return Height in meters\n    */\n   double height() const\n   {\n      return m_height;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:277:getDiscontinuity",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp",
+    "line": 277,
+    "name": "getDiscontinuity",
+    "code": "/// @brief Access the discontinuity counter of the PhaserangeMeasurement object.\n   /// @param obj Const reference to the PhaserangeMeasurement object.\n   /// @return Const reference to the `discontinuityCounter` member of the object.\n   static const unsigned int& getDiscontinuity(const PhaserangeMeasurement& obj)\n   {\n      return obj.discontinuityCounter;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp:58:chiSquareTest",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp",
+    "line": 58,
+    "name": "chiSquareTest",
+    "code": "!chiSquareTest(delta, projectedToValidateCovariance, threshold)  // Sigma_0\n       || !chiSquareTest(delta, projectedAgainstCovariance, threshold)) // Sigma_1\n   {\n      return false;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:256:getKeySets",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 256,
+    "name": "getKeySets",
+    "code": "/// @brief Gets a const reference to the tuple of state key sets for all state element types.\n   /// @return Const reference to the state key sets tuple.\n   const StateKeySetsType& getKeySets() const\n   {\n      return m_keySets;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:110:parse",
+    "file": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp",
+    "line": 110,
+    "name": "parse",
+    "code": "/// @brief Parser for format specifiers.\n   /// @param context The fmt context.\n   /// @return Iterator to the beginning of the format string.\n   constexpr auto parse(format_parse_context& context)\n   {\n      return context.begin();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:59:value",
+    "file": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp",
+    "line": 59,
+    "name": "value",
+    "code": "/// @brief Get a immutable reference to the value of the state.\n   /// @return Immutable reference to the value of the state.\n   ///\n   const Value& value() const\n   {\n      return m_value;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp:88:time",
+    "file": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp",
+    "line": 88,
+    "name": "time",
+    "code": "/// @brief Get const reference to the time of the measurement.\n      ///\n      /// @return Const reference to the time of the measurement.\n      ///\n      const Time& time() const\n      {\n         return m_time;\n      }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:87:getRecorderId",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp",
+    "line": 87,
+    "name": "getRecorderId",
+    "code": "HlfRecordingInformationHeaderRecord::Uuid HlfRecordingInformationHeaderRecord::getRecorderId() const\n{\n   return m_recorderId;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:104:getLinearizationPoint",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 104,
+    "name": "getLinearizationPoint",
+    "code": "/// @brief Gets a const reference to the linearization point of the state.\n   /// @return Const reference to the linearization point.\n   const StateVector& getLinearizationPoint() const\n   {\n      return m_linearizationPoint;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:59:begin",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 59,
+    "name": "begin",
+    "code": "/// @brief Returns a const iterator to the beginning of the set.\n   /// @return Const iterator to the first element.\n   ConstIterator begin() const\n   {\n      return m_keySet.cbegin();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:67:covariance",
+    "file": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp",
+    "line": 67,
+    "name": "covariance",
+    "code": "/// @brief Get a immutable reference to the covariance of the state.\n   /// @return Immutable reference to the covariance of the state.\n   ///\n   const Covariance& covariance() const\n   {\n      return m_covariance;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:51:getModel",
+    "file": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp",
+    "line": 51,
+    "name": "getModel",
+    "code": "/// @brief Returns a const reference to the model.\n   /// @return Const reference to the model.\n   const Model& getModel() const\n   {\n      return m_model;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:255:getStochasticScalar",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp",
+    "line": 255,
+    "name": "getStochasticScalar",
+    "code": "/// @brief Access the stochastic scalar of the PseudorangeMeasurement object.\n   /// @param obj Reference to the PseudorangeMeasurement object.\n   /// @return Reference to the `pseudorange` member of the object.\n   static StochasticScalar& getStochasticScalar(PseudorangeMeasurement& obj)\n   {\n      return obj.pseudorange;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp:65:getStartUptime",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp",
+    "line": 65,
+    "name": "getStartUptime",
+    "code": "uint64_t HlfStartTimeHeaderRecord::getStartUptime() const\n{\n   return m_startUptime;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:66:end",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 66,
+    "name": "end",
+    "code": "/// @brief Returns an iterator to the end of the set.\n   /// @return Iterator to one past the last element.\n   Iterator end()\n   {\n      return m_keySet.end();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:43:value",
+    "file": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp",
+    "line": 43,
+    "name": "value",
+    "code": "/// @brief Get a modifiable reference to the value of the state.\n   /// @return Modifiable reference to the value of the state.\n   ///\n   Value& value()\n   {\n      return m_value;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp:210:computeNextPackageImpl",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp",
+    "line": 210,
+    "name": "computeNextPackageImpl",
+    "code": "/// @copydoc IStrategy::computeNextPackage\n   Output computeNextPackageImpl()\n   {\n      // Get the next package from the assembler.\n      return m_assembler.nextPackage();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:292:getDiscontinuity",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp",
+    "line": 292,
+    "name": "getDiscontinuity",
+    "code": "/// @brief Access the discontinuity counter of the PhaseBias object.\n   /// @param obj Const reference to the PhaseBias object.\n   /// @return Const reference to the `discontinuityCounter` member within the `data` structure of\n   /// the object.\n   static const unsigned int& getDiscontinuity(const PhaseBias& obj)\n   {\n      return obj.data.discontinuityCounter;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp:97:measurements",
+    "file": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp",
+    "line": 97,
+    "name": "measurements",
+    "code": "/// @brief Get reference to the measurements container.\n      ///\n      /// @return Reference to the measurements container.\n      ///\n      MeasurementsContainer& measurements()\n      {\n         return m_measurements;\n      }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp:90:getUptime",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp",
+    "line": 90,
+    "name": "getUptime",
+    "code": "uint64_t HlfDataRecord::getUptime() const\n{\n   return m_uptime;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:270:getStochasticScalar",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp",
+    "line": 270,
+    "name": "getStochasticScalar",
+    "code": "/// @brief Access the stochastic scalar of the PhaserangeMeasurement object.\n   /// @param obj Reference to the PhaserangeMeasurement object.\n   /// @return Reference to the `phaseRange` member of the object.\n   static StochasticScalar& getStochasticScalar(PhaserangeMeasurement& obj)\n   {\n      return obj.phaseRange;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfEndTimeHeaderRecord.cpp:52:getEndUptime",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfEndTimeHeaderRecord.cpp",
+    "line": 52,
+    "name": "getEndUptime",
+    "code": "uint64_t HlfEndTimeHeaderRecord::getEndUptime() const\n{\n   return m_endUptime;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp:95:getData",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp",
+    "line": 95,
+    "name": "getData",
+    "code": "std::shared_ptr<const ApiData> HlfDataRecord::getData() const\n{\n   return m_data;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:59:longitude",
+    "file": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp",
+    "line": 59,
+    "name": "longitude",
+    "code": "/**\n    * @brief Gets the longitude coordinate.\n    *\n    * @return Longitude in radians, guaranteed to be in range [-PI, PI]\n    */\n   double longitude() const\n   {\n      return m_longitude;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:77:getRecordingApplication",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp",
+    "line": 77,
+    "name": "getRecordingApplication",
+    "code": "HlfHeaderRecord::HlfString HlfRecordingInformationHeaderRecord::getRecordingApplication() const\n{\n   return m_recordingApplication;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:111:getOriginalPort",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 111,
+    "name": "getOriginalPort",
+    "code": "uint16_t HlfInputDescriptionHeaderRecord::getOriginalPort() const\n{\n   return m_originalPort;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp:65:data",
+    "file": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp",
+    "line": 65,
+    "name": "data",
+    "code": "uint8_t const* BufferReader::data() const\n{\n   return m_bufferData;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:87:size",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 87,
+    "name": "size",
+    "code": "/// @brief Returns the number of elements in the set.\n   /// @return The size of the set.\n   Size size() const\n   {\n      return m_keySet.size();\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:92:getRecordingId",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp",
+    "line": 92,
+    "name": "getRecordingId",
+    "code": "HlfRecordingInformationHeaderRecord::Uuid HlfRecordingInformationHeaderRecord::getRecordingId()\n   const\n{\n   return m_recordingId;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/GnssPackage.hpp:62:getTimeImpl",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/GnssPackage.hpp",
+    "line": 62,
+    "name": "getTimeImpl",
+    "code": "// -------------------------------------------------------------------------\n   // METHODS\n   // -------------------------------------------------------------------------\n\n   /// @copydoc IPackage::getTime()\n   Time getTimeImpl() const\n   {\n      return m_time;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:116:getName",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 116,
+    "name": "getName",
+    "code": "HlfHeaderRecord::HlfString HlfInputDescriptionHeaderRecord::getName() const\n{\n   return m_name;\n}"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp:70:getTimeImpl",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp",
+    "line": 70,
+    "name": "getTimeImpl",
+    "code": "Time getTimeImpl() const\n   {\n      return m_time;\n   }"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:89:getSocketAddress",
+    "file": "test/alpha_replayer/Io/MockTcpClient.cpp",
+    "line": 89,
+    "name": "getSocketAddress",
+    "code": "std::string MockTcpClient::getSocketAddress()\n{\n   return m_socketAddress;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:90:getVector",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 90,
+    "name": "getVector",
+    "code": "/// @brief Gets a const reference to the state vector.\n   /// @return Const reference to the state vector.\n   const StateVector& getVector() const\n   {\n      return m_vector;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/Ambiguity.hpp:23:sanitizedStateKeySetKey",
+    "file": "lib_positioning_engine/src/Core/States/Ambiguity.hpp",
+    "line": 23,
+    "name": "sanitizedStateKeySetKey",
+    "code": "// [m^2]\n\n   /// @brief Adjusts GNSS key for state map entries, controlling state vector/matrix dimensions.\n   /// @details Returns original key unchanged since ambiguities are unique per\n   /// constellation-satellite-signal.\n   /// @param key The original GNSS key to be sanitized.\n   /// @return The original GNSS key unchanged for unique state key set entries.\n   static GnssKey sanitizedStateKeySetKey(const GnssKey& key)\n   {\n      return key;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:55:keySet",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "line": 55,
+    "name": "keySet",
+    "code": "/// @brief Returns the key set associated with the ambiguity state.\n   [[nodiscard]] const StateKeySet<Ambiguity>& keySet() const noexcept\n   {\n      return m_keySet;\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Models/AggregateModelTest.cpp:40:sanitizedStateKeySetKey",
+    "file": "test/lib_positioning_engine/Core/Models/AggregateModelTest.cpp",
+    "line": 40,
+    "name": "sanitizedStateKeySetKey",
+    "code": "static GnssKey sanitizedStateKeySetKey([[maybe_unused]] GnssKey key)\n   {\n      return GnssKey();\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp:50:getIndex",
+    "file": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp",
+    "line": 50,
+    "name": "getIndex",
+    "code": "size_t BufferWriter::getIndex() const\n{\n   return m_index;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:106:getOriginalIp",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 106,
+    "name": "getOriginalIp",
+    "code": "HlfHeaderRecord::HlfString HlfInputDescriptionHeaderRecord::getOriginalIp() const\n{\n   return m_originalIp;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/PositionReconstruction/VelocityEstimator.hpp:50:getLastPositionIncrement",
+    "file": "lib_positioning_engine/src/Core/PositionReconstruction/VelocityEstimator.hpp",
+    "line": 50,
+    "name": "getLastPositionIncrement",
+    "code": "/**\n    * @brief Retrieves the most recently stored position increment data.\n    *\n    * This method returns the last position increment that was added to the storage, if any.\n    * If no data has been added, an empty `std::optional` is returned.\n    *\n    * @return An `std::optional` containing the most recent position increment, or an empty\n    *         optional if no data has been stored.\n    */\n   std::optional<ReconstructionTraits<PositionReconstruction>::IncrementalData>\n   getLastPositionIncrement() const\n   {\n      return m_lastPositionIncrement;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp:169:getRequirements",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp",
+    "line": 169,
+    "name": "getRequirements",
+    "code": "/// @brief Get the requirements for the package.\n   ///\n   /// @return The requirements for the package.\n   ///\n   Requirements getRequirements() const\n   {\n      return m_packageReqs;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp:60:getRecordingStartTime",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp",
+    "line": 60,
+    "name": "getRecordingStartTime",
+    "code": "time_t HlfStartTimeHeaderRecord::getRecordingStartTime() const\n{\n   return m_recordingStartTime;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:81:parse",
+    "file": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp",
+    "line": 81,
+    "name": "parse",
+    "code": "/// @brief Parser for format specifiers.\n   /// @param context The fmt context.\n   /// @return Iterator to the beginning of the format string.\n   constexpr auto parse(format_parse_context& context)\n   {\n      return context.begin();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:49:latitude",
+    "file": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp",
+    "line": 49,
+    "name": "latitude",
+    "code": "/**\n    * @brief Gets the latitude coordinate.\n    *\n    * @return Latitude in radians, guaranteed to be in range [-PI/2, PI/2]\n    */\n   double latitude() const\n   {\n      return m_latitude;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:111:getModifiableLinearizationPoint",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 111,
+    "name": "getModifiableLinearizationPoint",
+    "code": "/// @brief Gets a modifiable reference to the linearization point of the state.\n   /// @return Reference to the linearization point.\n   StateVector& getModifiableLinearizationPoint()\n   {\n      return m_linearizationPoint;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:80:empty",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 80,
+    "name": "empty",
+    "code": "/// @brief Checks if the set is empty.\n   /// @return True if the set is empty, false otherwise.\n   bool empty() const\n   {\n      return m_keySet.empty();\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/SynchUtilitiesTest.cpp:219:getTime",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/SynchUtilitiesTest.cpp",
+    "line": 219,
+    "name": "getTime",
+    "code": "// ---------------------------------------\n      // MEMBER METHODS\n      // ---------------------------------------\n      const Time& getTime() const\n      {\n         return time;\n      }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp:20:parse",
+    "file": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp",
+    "line": 20,
+    "name": "parse",
+    "code": "/// @brief Parser for format specifiers.\n   /// @param context The fmt context.\n   /// @return Iterator to the beginning of the format string.\n   constexpr auto parse(fmt::format_parse_context& context)\n   {\n      return context.begin();\n   }"
+  }
+]

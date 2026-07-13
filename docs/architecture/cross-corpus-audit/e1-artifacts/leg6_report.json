@@ -1,0 +1,150 @@
+{
+  "population": 1297,
+  "superset_size": 265,
+  "true_C131_in_superset": 107,
+  "field_prevalence_in_population": 0.08249807247494217,
+  "classifiers": {
+    "dumb": {
+      "label": "dumb-AST (strict net)",
+      "predicted": 119,
+      "tp": 95,
+      "fp": 24,
+      "fn": 12,
+      "precision": 0.7983193277310925,
+      "recall": 0.8878504672897196,
+      "prec_ci": "[71.7, 86.1]",
+      "rec_ci": "[81.4, 93.5]"
+    },
+    "smart": {
+      "label": "smart-AST v2 (post-hoc)",
+      "predicted": 102,
+      "tp": 95,
+      "fp": 7,
+      "fn": 12,
+      "precision": 0.9313725490196079,
+      "recall": 0.8878504672897196,
+      "prec_ci": "[86.5, 96.6]",
+      "rec_ci": "[81.4, 93.5]"
+    },
+    "pipeline": {
+      "label": "net -> Haiku pipeline",
+      "predicted": 103,
+      "tp": 95,
+      "fp": 8,
+      "fn": 12,
+      "precision": 0.9223300970873787,
+      "recall": 0.8878504672897196,
+      "prec_ci": "[85.4, 96.0]",
+      "rec_ci": "[81.4, 93.5]"
+    }
+  },
+  "llm_marginal": {
+    "smartAST_precision": 0.9313725490196079,
+    "pipeline_precision": 0.9223300970873787,
+    "precision_lift_LLM_over_smartAST": -0.00904245193222919,
+    "smartAST_recall": 0.8878504672897196,
+    "pipeline_recall": 0.8878504672897196,
+    "note": "pipeline recall <= dumb recall by construction (LLM only filters the net)",
+    "dumb_recall": 0.8878504672897196
+  },
+  "cross_model": {
+    "strictnet_n": 119,
+    "haiku_vs_truth_agreement": 0.9327731092436975,
+    "confusion_haiku_truth": {
+      "vv": 95,
+      "vn": 8,
+      "nv": 0,
+      "nn": 16
+    },
+    "agreement_ci": "[87.3, 96.6]"
+  },
+  "superset_incompleteness": {
+    "spot_sampled": 40,
+    "spot_violations": 0,
+    "nonsuperset_total": 1032,
+    "est_getters_missed_by_superset": 0,
+    "corrected_true_count": 107,
+    "dumb_recall_corrected": 0.8878504672897196,
+    "pipeline_recall_corrected": 0.8878504672897196
+  },
+  "dumb_FP_taxonomy": {
+    "call": 16,
+    "literal": 1,
+    "param_or_local_return": 7,
+    "other": 0,
+    "all_AST_decidable": true,
+    "note": "call+literal removable by pure syntax; param/local-return removable by AST symbol resolution (FieldDecl vs ParmVarDecl); none require semantic judgment"
+  },
+  "prereg_vs_posthoc": {
+    "prereg": {
+      "label": "smart-AST PRE-REGISTERED",
+      "predicted": 88,
+      "tp": 88,
+      "fp": 0,
+      "fn": 19,
+      "precision": 1,
+      "recall": 0.822429906542056,
+      "prec_ci": "[95.8, 100.0]",
+      "rec_ci": "[73.9, 88.3]"
+    },
+    "posthoc_v2": {
+      "label": "smart-AST v2 (post-hoc)",
+      "predicted": 102,
+      "tp": 95,
+      "fp": 7,
+      "fn": 12,
+      "precision": 0.9313725490196079,
+      "recall": 0.8878504672897196,
+      "prec_ci": "[86.5, 96.6]",
+      "rec_ci": "[81.4, 93.5]"
+    },
+    "diff_prereg_minus_pipeline": {
+      "diff": 0.07766990291262132,
+      "lo": 0.025979843608011956,
+      "hi": 0.1293599622172307
+    },
+    "diff_v2_minus_pipeline": {
+      "diff": 0.00904245193222919,
+      "lo": -0.06222590833638736,
+      "hi": 0.08031081220084574
+    }
+  },
+  "prevalence_projection": [
+    {
+      "label": "dumb-AST (strict net)",
+      "TPR": 0.8878504672897196,
+      "FPR": 0.020168067226890758,
+      "p@2%": 0.47324620523940697,
+      "p@5%": 0.6985207795257103,
+      "p@8.2%": 0.7983193277310925,
+      "p@50%": 0.97778892559982
+    },
+    {
+      "label": "smart-AST PRE-REGISTERED",
+      "TPR": 0.822429906542056,
+      "FPR": 0,
+      "p@2%": 1,
+      "p@5%": 1,
+      "p@8.2%": 1,
+      "p@50%": 1
+    },
+    {
+      "label": "smart-AST v2 (post-hoc)",
+      "TPR": 0.8878504672897196,
+      "FPR": 0.0058823529411764705,
+      "p@2%": 0.7549198335904268,
+      "p@5%": 0.8881922675026124,
+      "p@8.2%": 0.9313725490196079,
+      "p@50%": 0.9934182198437597
+    },
+    {
+      "label": "net -> Haiku pipeline",
+      "TPR": 0.8878504672897196,
+      "FPR": 0.0067226890756302525,
+      "p@2%": 0.7293830728931442,
+      "p@5%": 0.8742286218042903,
+      "p@8.2%": 0.9223300970873787,
+      "p@50%": 0.992485031517216
+    }
+  ]
+}

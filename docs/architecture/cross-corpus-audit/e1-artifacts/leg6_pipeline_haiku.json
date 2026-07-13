@@ -1,0 +1,716 @@
+[
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:62:getTime",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_conversion/src/Utility/Errors.cpp:15:getErrorState",
+    "verdict": "not_violation",
+    "confidence": "med",
+    "reason": "Unclear pattern"
+  },
+  {
+    "id": "alpha_conversion/src/Utility/ArgumentParser.cpp:46:getActiveFlags",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp:74:getSatellitePositions",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvidePositionMeasurementInvocation.cpp:57:getPositionMeasurement",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:96:getVersionConfig",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiOutput.cpp:41:getOutputDataType",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:61:getThreadId",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Windows/TcpClient.cpp:197:getLastErrorDescription",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Linux/TcpClient.cpp:197:getLastErrorDescription",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:101:getCommandFlag",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:91:getHelpConfig",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp:69:getKey",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:41:getApiDataType",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_replayer/src/Utility/ArgumentParser.cpp:52:getActiveOptionIds",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:88:getVersionConfig",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:86:getSplitConfig",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/FileManager.cpp:165:eof",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:93:getCommandFlag",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp:55:getErrorCode",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideGnssMeasurementsInvocation.cpp:57:getGnssMeasurements",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:51:getTimestamp",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/FileManager.cpp:170:fileSize",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:78:getLoggingConfig",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:73:getReplayConfig",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:76:getConverterConfig",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideVelocityMeasurementInvocation.cpp:57:getVelocityMeasurement",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:46:getStream",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:81:getNormalizerConfig",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp:50:getApi",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideCorrectionsInvocation.cpp:56:getCorrections",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:83:getHelpConfig",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetPositionMeasurementExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:101:getDataType",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:49:covariance",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:76:getMatrix",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:64:sanitizedStateKeySetKey",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfApplicationConfigurationHeaderRecord.cpp:58:getConfiguration",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:73:end",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:43:values",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp:65:data",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecord.cpp:17:getRecordType",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp:50:getIndex",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:51:writtenData",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:52:begin",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:44:getMeasurements",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp:52:parse",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingDescriptionHeaderRecord.cpp:58:getDescription",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:46:filePath",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "test/test_support/WaitableCounter.cpp:27:count",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp:46:end",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SolutionOutput.cpp:52:getSolution",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:121:getDescription",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp:124:getMockClient",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp:36:start",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTest.cpp:55:getStochasticScalar",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp:22:getSubType",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:118:getDimension",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrector.cpp:172:getCorrectionsMetaDataImpl",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:96:getTypeId",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:58:getTime",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:97:getModifiableVector",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp:338:getStateImpl",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:83:getModifiableMatrix",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:51:covariance",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp:43:get",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:41:isOpen",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:82:getRecordingVersion",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:69:height",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:277:getDiscontinuity",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp:58:chiSquareTest",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:256:getKeySets",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:110:parse",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:59:value",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp:88:time",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:87:getRecorderId",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:104:getLinearizationPoint",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:59:begin",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:67:covariance",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:51:getModel",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:255:getStochasticScalar",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp:65:getStartUptime",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:66:end",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:43:value",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp:210:computeNextPackageImpl",
+    "verdict": "not_violation",
+    "confidence": "med",
+    "reason": "Unclear pattern"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:292:getDiscontinuity",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp:97:measurements",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp:90:getUptime",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:270:getStochasticScalar",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfEndTimeHeaderRecord.cpp:52:getEndUptime",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp:95:getData",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:59:longitude",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:77:getRecordingApplication",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:111:getOriginalPort",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp:65:data",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:87:size",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:92:getRecordingId",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/GnssPackage.hpp:62:getTimeImpl",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:116:getName",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp:70:getTimeImpl",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:89:getSocketAddress",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:90:getVector",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/Ambiguity.hpp:23:sanitizedStateKeySetKey",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:55:keySet",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Models/AggregateModelTest.cpp:40:sanitizedStateKeySetKey",
+    "verdict": "not_violation",
+    "confidence": "med",
+    "reason": "Unclear pattern"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp:50:getIndex",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:106:getOriginalIp",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/PositionReconstruction/VelocityEstimator.hpp:50:getLastPositionIncrement",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp:169:getRequirements",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp:60:getRecordingStartTime",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:81:parse",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:49:latitude",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:111:getModifiableLinearizationPoint",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:80:empty",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/SynchUtilitiesTest.cpp:219:getTime",
+    "verdict": "violation",
+    "confidence": "high",
+    "reason": "Trivial getter only"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp:20:parse",
+    "verdict": "not_violation",
+    "confidence": "high",
+    "reason": "Calls member function"
+  }
+]

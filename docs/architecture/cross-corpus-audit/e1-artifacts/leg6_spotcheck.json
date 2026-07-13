@@ -1,0 +1,242 @@
+[
+ {
+  "id": "test/alpha_conversion/HlfNormalizer/HlfNormalizerTest.cpp:38:createFile",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "factory constructs object, not a data member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:22:HlfRecordingInformationHeaderRecord",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "alpha_conversion/src/Serialization/Xml/Hlf/Serializers/HlfRecordXmlSerializer.cpp:143:xmlToFile",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.cpp:134:toString",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlParser.cpp:255:readXmlUntilChar",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Serialization/TimeDataSerializer.cpp:49:serialize",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Serialization/GnssKeySerializer.cpp:11:serialize",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/AmbiguityValidation/NullAmbiguityValidator.hpp:28:reset",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Tasks/BgwfTestUtilities.cpp:125:makeTroposphereCorrection",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Uuid/Uuid.cpp:63:formatUuid",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "assigns constant/default, not a param-setter"
+ },
+ {
+  "id": "test/alpha_replayer/Managers/TcpManagerTest.cpp:57:makeMockFactory",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "factory constructs object, not a data member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/Windows/HlfTimeUtil.cpp:55:timeTToIso8601",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorTest.cpp:136:validateSatellitePositions",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_common/include/ApiLogging/Serialization/PiecewiseContinuousVariableDataDeserializer.hpp:14:deserialize",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/BackgroundTask.hpp:65:~BackgroundTask",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "destructor, not an accessor"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp:27:serialize",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "alpha_conversion/src/HlfNormalizer/HlfNormalizer.cpp:302:writeEndUptime",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Utility/PolynomialEvaluatorTest.hpp:38:fillSatelliteClockPolynomials",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "alpha_conversion/src/Serialization/Xml/XmlDeserializerBase.cpp:209:getAttributeValue",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "assigns constant/default, not a param-setter"
+ },
+ {
+  "id": "alpha_conversion/src/Serialization/Xml/Hlf/Serializers/HlfRecordXmlSerializer.cpp:78:encodeHeaderRecord",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "cast/atomic access, not a bare member"
+ },
+ {
+  "id": "test/lib_positioning_engine/ApiLogging/ApiLoggerBufferSizingTests.cpp:128:makeMaxProvideCorrections",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "factory constructs object, not a data member"
+ },
+ {
+  "id": "alpha_conversion/src/Handlers/PrintHandler.cpp:27:info",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Serialization/TimeDeserializer.cpp:11:deserialize",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityValidationUtilities.hpp:22:eraseStaleKeysFromBuffer",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "assigns constant/default, not a param-setter"
+ },
+ {
+  "id": "alpha_conversion/src/Serialization/Xml/XmlDeserializerBase.cpp:89:getAttributeValue",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "assigns constant/default, not a param-setter"
+ },
+ {
+  "id": "alpha_conversion/src/Serialization/Xml/Core/Deserializers/GnssKeyMapXmlDeserializer.cpp:145:deserializeMapValue",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrector.hpp:40:GnssCorrector",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.cpp:299:updatePhaserangeDiscontinuityCounters",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/SatellitePolynomialCache.cpp:22:process",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "alpha_replayer/src/Logging/FileWriter.cpp:62:write",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/Linux/HlfTimeUtil.cpp:53:timeTToIso8601",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp:13:ApiInvocation",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:196:processInputFlag",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:81:reconstructMatrixFromUdInPlace",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp:35:TypeToRequirement",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Filters/GenericIterativeFilter.hpp:82:reinitializeImpl",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "alpha_replayer/src/Utility/ArgumentValidator.cpp:223:requireNoArgs",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp:19:SetGnssMeasurementsExpectedPeriodInvocation",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "alpha_conversion/src/Serialization/Xml/ApiData/Deserializers/ApiInvocationXmlDeserializer.cpp:518:stringToErrorCode",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/ZenithToSlantIonoModel.hpp:43:ZenithToSlantIonoModel",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ }
+]

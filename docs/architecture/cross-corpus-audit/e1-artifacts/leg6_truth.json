@@ -1,0 +1,1592 @@
+[
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:210:sanitizeKey",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/State.hpp:62:getTime",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_conversion/src/Utility/Errors.cpp:15:getErrorState",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "alpha_replayer/src/Utility/ArgumentParser.cpp:77:hasOptionId",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "alpha_conversion/src/Utility/ArgumentParser.cpp:46:getActiveFlags",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp:74:getSatellitePositions",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Utility/ArgumentValidator.cpp:85:end",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ProvidePositionMeasurementInvocation.cpp:57:getPositionMeasurement",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp:15:SetCorrectionsExpectedPeriodInvocation",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:96:getVersionConfig",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ApiOutput.cpp:41:getOutputDataType",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Utility/ArgumentParser.cpp:71:end",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:61:getThreadId",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/include/ApiLogging/Serialization/SourceAndTimeDataDeserializer.hpp:49:deserializeData",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "alpha_conversion/src/Managers/ConversionManager.cpp:527:encodeDataRecordToXml",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "alpha_replayer/src/Io/Windows/TcpClient.cpp:197:getLastErrorDescription",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Utility/Errors.hpp:30:getErrorState",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "cast/atomic access, not a bare member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:56:setTimestamp",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp:15:SetGnssMeasurementsExpectedPeriodInvocation",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Io/Linux/TcpClient.cpp:197:getLastErrorDescription",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:101:getCommandFlag",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:91:getHelpConfig",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp:69:getKey",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:41:getApiDataType",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp:41:setHlfRecordCallback",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Utility/ArgumentParser.cpp:52:getActiveOptionIds",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:88:getVersionConfig",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:86:getSplitConfig",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Utility/ApiInvoker.hpp:99:end",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "alpha_conversion/src/Utility/Errors.cpp:20:setErrorState",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "lib_common/include/ApiLogging/Serialization/SourceIdDeserializer.hpp:13:deserialize",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "alpha_replayer/src/Io/Linux/TcpClient.cpp:192:getSocketAddress",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "alpha_replayer/src/Io/Windows/TcpClient.cpp:192:getSocketAddress",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "alpha_conversion/src/Managers/FileManager.cpp:165:eof",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:93:getCommandFlag",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Io/Windows/TcpClient.cpp:187:isConnected",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "alpha_conversion/src/Utility/ArgumentParser.cpp:66:end",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp:55:getErrorCode",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp:36:setFileToDecode",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Utility/Errors.hpp:37:setErrorState",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "cast/atomic access, not a bare member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SetPositionMeasurementExpectedPeriodInvocation.cpp:15:SetPositionMeasurementExpectedPeriodInvocation",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "alpha_replayer/src/Io/Linux/TcpClient.cpp:187:isConnected",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ProvideGnssMeasurementsInvocation.cpp:57:getGnssMeasurements",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/include/Utility/ArgvToVector.hpp:11:argvToVector",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "assigns constant/default, not a param-setter"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:51:getTimestamp",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_conversion/src/Managers/FileManager.cpp:170:fileSize",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_conversion/src/Serialization/Xml/ApiData/Deserializers/ApiInvocationXmlDeserializer.cpp:354:createResetInvocation",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "factory constructs object, not a data member"
+ },
+ {
+  "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:78:getLoggingConfig",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:73:getReplayConfig",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Io/Linux/TcpClient.cpp:27:asSockAddr",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "cast/atomic access, not a bare member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:66:setThreadId",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "lib_common/include/ApiLogging/Serialization/GnssKeyComparator.hpp:16:operator",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:76:getConverterConfig",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_conversion/src/Utility/ArgumentParser.cpp:72:hasFlag",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp:15:SetVelocityMeasurementExpectedPeriodInvocation",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "alpha_replayer/src/Io/DataTracker.cpp:19:DataTracker",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ProvideVelocityMeasurementInvocation.cpp:57:getVelocityMeasurement",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:46:getStream",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:81:getNormalizerConfig",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/include/Utility/ByteStreamIo.hpp:56:readBytes",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp:50:getApi",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/ProvideCorrectionsInvocation.cpp:56:getCorrections",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/include/ApiLogging/Serialization/GnssKeyMapDeserializer.hpp:77:deserializeMapValue",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "alpha_replayer/src/Managers/EngineManager.cpp:58:end",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "alpha_conversion/src/Managers/ConversionManager.cpp:76:empty",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:83:getHelpConfig",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SetPositionMeasurementExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/alpha_replayer/Io/MockTcpClient.cpp:113:setReceiveError",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "has locking/notification, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:178:erase",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:101:getDataType",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:49:covariance",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/State.hpp:76:getMatrix",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:300:setApiComplete",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "has locking/notification, not a bare accessor"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:64:sanitizedStateKeySetKey",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfApplicationConfigurationHeaderRecord.cpp:58:getConfiguration",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/Ionosphere.hpp:22:sanitizedStateKeySetKey",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:271:getInstance",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/IPredictionModel.hpp:76:cself",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "test/alpha_replayer/Io/MockTcpClient.cpp:94:getLastErrorDescription",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "has locking/notification, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:73:end",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:43:values",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp:65:data",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/alpha_replayer/Handlers/PrintHandlerTest.cpp:13:stringContains",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfRecord.cpp:17:getRecordType",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/alpha_conversion/Handlers/PrintHandlerTest.cpp:8:stringContains",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp:50:getIndex",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:51:writtenData",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:52:begin",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:44:getMeasurements",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp:52:parse",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingDescriptionHeaderRecord.cpp:58:getDescription",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/alpha_replayer/Io/MockTcpClient.cpp:107:setConnectionShouldSucceed",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "has locking/notification, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.cpp:63:setPseudorangeCorrectionStatus",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp:76:initialize",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:46:filePath",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/alpha_replayer/Utility/ApiInvokerTest.cpp:128:createResetInvocation",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "factory constructs object, not a data member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/SolutionReconstruction/DataWithMeta.hpp:23:DataWithMeta",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/ICorrector.hpp:60:getCorrectionsMetaData",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/States/StateTraitsTest.cpp:34:delta",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp:75:setTimeImpl",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "test/test_support/WaitableCounter.cpp:27:count",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "cast/atomic access, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:224:isTimeValid",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Uuid/EntropyCollector.cpp:55:rotateLeft",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp:46:end",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/IUpdateModel.hpp:11:differentiate",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/SolutionReconstruction/DataWithMeta.hpp:26:DataWithMeta",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:56:writtenDataAsString",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "cast/atomic access, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp:56:set",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/ApiData/SolutionOutput.cpp:52:getSolution",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Tasks/BgwfTestUtilities.cpp:109:fillSignalBias",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:121:getDescription",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp:124:getMockClient",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp:36:start",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTest.cpp:55:getStochasticScalar",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp:22:getSubType",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/State.hpp:118:getDimension",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Uuid/Uuid.cpp:127:generate",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrector.cpp:172:getCorrectionsMetaDataImpl",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/IUpdateModel.hpp:41:cself",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "test/test_support/TestData/VelocityMeasurementDataSets.hpp:44:getVelocityMeasurementDataSet1",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/IStrategy.hpp:41:computeNextPackage",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:96:getTypeId",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:58:getTime",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/State.hpp:97:getModifiableVector",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/ModelUtility.cpp:27:tecuToMeters",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/TestUtilities/TestUtilities.cpp:41:constructMeasurement",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "test/test_support/TestData/VelocityMeasurementDataSets.hpp:50:getVelocityMeasurementStatusDataSet1",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp:338:getStateImpl",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.cpp:70:setPhaserangeCorrectionStatus",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/SolutionReconstruction/StochasticEigenVector3d.hpp:44:vector3dToArray",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp:421:getSatelliteClockInvalidSatClockCase",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/TypeRegistry.hpp:105:getMinimumExpectedPeriod",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/State.hpp:83:getModifiableMatrix",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:51:covariance",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp:43:get",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/GnssPackage.hpp:87:setTimeImpl",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:41:isOpen",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/IPredictionModel.hpp:17:differentiateWithRespectToState",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/DistributorResetTest.cpp:165:reset",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "assigns constant/default, not a param-setter"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:82:getRecordingVersion",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Filters/GenericIterativeFilter.hpp:148:getStateImpl",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:27:isNormalized",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:66:format",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:69:height",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Distributor.hpp:63:T",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp:113:reinitializeImpl",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp:369:getSatelliteClockValidCase",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "test/lib_positioning_engine/ApiLogging/ApiLoggerBufferSizingTests.cpp:204:makeReset",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "factory constructs object, not a data member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp:45:getRemainingCapacity",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:277:getDiscontinuity",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "test/alpha_dll/AlphaDllTests.cpp:38:makeGpsL1Key",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:13:getValue",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp:58:chiSquareTest",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:79:getCovariance",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/State.hpp:256:getKeySets",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:110:parse",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/IPackage.hpp:46:setTime",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:24:isTraceless",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp:63:isReadyImpl",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Memory/LoggingMemoryResource.hpp:53:do_is_equal",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp:45:getRemainingCapacity",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:59:value",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/AmbiguityValidation/NullAmbiguityValidator.hpp:40:validate",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/MathUtility.hpp:28:getRotationMatAroundZ",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "test/test_support/TestData/PositionMeasurementDataSets.hpp:50:getPositionMeasurementStatusDataSet1",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:17:getCovariance",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp:88:time",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/include/Core/Api/GnssKey.hpp:35:constellationMatches",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/IUpdateModel.hpp:35:self",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/States/StateTraitsTest.cpp:73:delta",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/Coordinates.hpp:22:sanitizedStateKeySetKey",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:87:getRecorderId",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/State.hpp:104:getLinearizationPoint",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp:104:reset",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "assigns constant/default, not a param-setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:59:begin",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp:141:setupDataStreams",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/include/Core/Api/GnssKey.hpp:40:signalMatches",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/SolutionReconstruction/ISolutionReconstruction.hpp:52:reconstruct",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:67:covariance",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:51:getModel",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Filters/GenericIterativeFilter.hpp:68:reset",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "assigns constant/default, not a param-setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:255:getStochasticScalar",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp:65:getStartUptime",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/State.hpp:69:setTime",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/Troposphere.hpp:25:sanitizedStateKeySetKey",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/PhaserangeSignalBias.hpp:22:sanitizedStateKeySetKey",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Logging/Logger.cpp:71:registerCallback",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:66:end",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:43:value",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp:210:computeNextPackageImpl",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:292:getDiscontinuity",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Filters/IFilter.hpp:85:self",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:71:getValue",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "test/alpha_replayer/Io/MockTcpClient.cpp:127:setSocketAddress",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:19:close",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "assigns constant/default, not a param-setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp:97:measurements",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/GnssKeySatelliteHasher.hpp:63:operator",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "test/lib_common/ApiLogging/Serialization/CrossPlatformDataSetsVerificationTests.cpp:68:makeRefPath",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp:396:getSatelliteClockInvalidSatPolyCase",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp:90:getUptime",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:12:getValue",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:270:getStochasticScalar",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfEndTimeHeaderRecord.cpp:52:getEndUptime",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/TypeRegistry.hpp:96:getExpectedPeriod",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp:95:getData",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:59:longitude",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp:364:handleAsOnTime",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:77:getRecordingApplication",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:111:getOriginalPort",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/ReceiverClock.hpp:25:sanitizedStateKeySetKey",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Synchronizer/TestUtilities.hpp:42:TypeTraitToGnssTime",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp:65:data",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp:77:operator",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp:150:getData",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "has locking/notification, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:21:isSkewSymmetric",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:293:setFgComplete",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "has locking/notification, not a bare accessor"
+ },
+ {
+  "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:330:BackgroundTask",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructor initializer list, not an accessor"
+ },
+ {
+  "id": "test/alpha_replayer/Io/MockTcpClient.cpp:120:setConnected",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "has locking/notification, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:87:size",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:92:getRecordingId",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/GnssPackage.hpp:62:getTimeImpl",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:116:getName",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp:70:getTimeImpl",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Filters/IFilter.hpp:91:cself",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/PseudorangeSignalBias.hpp:26:sanitizedStateKeySetKey",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Logging/Logger.cpp:65:getThreadContext",
+  "verdict": "not_violation",
+  "confidence": "med",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/IPackage.hpp:20:getTime",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp:118:getStreamId",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "has locking/notification, not a bare accessor"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Synchronizer/RequirementBasedStrategySimulator.hpp:217:checkPackageRequirements",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "test/alpha_replayer/Io/MockTcpClient.cpp:89:getSocketAddress",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/State.hpp:90:getVector",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/Ambiguity.hpp:23:sanitizedStateKeySetKey",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityValidator.cpp:124:hasInsufficientAmbiguities",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:54:getValue",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:55:keySet",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:1:isSquare",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "test/alpha_replayer/Io/MockTcpClient.cpp:83:isConnected",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "has locking/notification, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/PositionReconstruction/VelocityEstimator.hpp:35:addIncrementalData",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "assigns parameter to data member, no additional logic"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Models/AggregateModelTest.cpp:40:sanitizedStateKeySetKey",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp:50:getIndex",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:106:getOriginalIp",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/PositionReconstruction/VelocityEstimator.hpp:50:getLastPositionIncrement",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/SynchUtilities.hpp:23:isLeftCloserInTime",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp:169:getRequirements",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp:60:getRecordingStartTime",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:81:parse",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:49:latitude",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/State.hpp:111:getModifiableLinearizationPoint",
+  "verdict": "violation",
+  "confidence": "high",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:80:empty",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Synchronizer/TestUtilities.hpp:27:operator",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "free function or non-accessor body"
+ },
+ {
+  "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:286:setBgComplete",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "has locking/notification, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:61:empty",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns member's method result, not the member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Utility/EstimatorUtilitiesTest.cpp:26:createTestPhaserangeMeasurement",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Models/IPredictionModel.hpp:70:self",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "CRTP/derived delegation, not a bare accessor"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/ModelUtility.hpp:47:getModifiedJulianDateSince2000",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:18:isSymmetric",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "computed/derived value, not a bare member"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:45:getCovariance",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "test/test_support/TestData/PositionMeasurementDataSets.hpp:44:getPositionMeasurementDataSet1",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:62:getCovariance",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "constructs/returns object, not a bare member"
+ },
+ {
+  "id": "test/lib_positioning_engine/Core/Synchronizer/SynchUtilitiesTest.cpp:219:getTime",
+  "verdict": "violation",
+  "confidence": "med",
+  "reason": "returns data member directly, no additional logic"
+ },
+ {
+  "id": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp:20:parse",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "returns param/constructed value, not a member"
+ },
+ {
+  "id": "test/lib_common/ApiLogging/Serialization/GenerateCrossPlatformReferenceBinary.cpp:63:withPlatformSuffix",
+  "verdict": "not_violation",
+  "confidence": "high",
+  "reason": "not a trivial member getter/setter"
+ }
+]

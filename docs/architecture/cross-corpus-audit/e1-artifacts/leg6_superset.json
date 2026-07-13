@@ -1,0 +1,1857 @@
+[
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:210:sanitizeKey",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp",
+    "line": 210,
+    "name": "sanitizeKey",
+    "code": "/// @brief Sanitizes a GNSS key by setting its signal type to a generic value.\n///\n/// This function takes a GNSS key and modifies it by replacing the signal type\n/// with a generic value (`Signal::Any`). This is useful in cases where the signal\n/// type is not relevant for the operation being performed, allowing the key to\n/// represent any signal for the specified constellation and satellite.\n///\n/// @param key The original GNSS key containing constellation, satellite ID, and signal type.\n/// @return A sanitized GNSS key with the signal type set to `Signal::Any`.\ninline GnssKey sanitizeKey(const GnssKey& key)\n{\n   return {key.constellation, key.satelliteId, Signal::Any};\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:62:getTime",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 62,
+    "name": "getTime",
+    "code": "/// @brief Gets the current time associated with the state.\n   /// @return The current time.\n   const Time& getTime() const\n   {\n      return m_time;\n   }"
+  },
+  {
+    "id": "alpha_conversion/src/Utility/Errors.cpp:15:getErrorState",
+    "file": "alpha_conversion/src/Utility/Errors.cpp",
+    "line": 15,
+    "name": "getErrorState",
+    "code": "// namespace\n\nint getErrorState()\n{\n   return errorStateRef();\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Utility/ArgumentParser.cpp:77:hasOptionId",
+    "file": "alpha_replayer/src/Utility/ArgumentParser.cpp",
+    "line": 77,
+    "name": "hasOptionId",
+    "code": "bool ArgumentParser::hasOptionId(const std::string& optionId) const\n{\n   return m_options.find(optionId) != std::end(m_options);\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Utility/ArgumentParser.cpp:46:getActiveFlags",
+    "file": "alpha_conversion/src/Utility/ArgumentParser.cpp",
+    "line": 46,
+    "name": "getActiveFlags",
+    "code": "std::vector<std::string> ArgumentParser::getActiveFlags() const\n{\n   return m_activeFlags;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp:74:getSatellitePositions",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp",
+    "line": 74,
+    "name": "getSatellitePositions",
+    "code": "std::shared_ptr<const Polynomial<ORBIT_POLYNOMIAL_DEGREE, DIMENSION_3D>>\nProvideSatellitePositionsInvocation::getSatellitePositions() const\n{\n   return m_satellitePositions;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Utility/ArgumentValidator.cpp:85:end",
+    "file": "alpha_replayer/src/Utility/ArgumentValidator.cpp",
+    "line": 85,
+    "name": "end",
+    "code": "iter != m_validatorConfig.end() && m_parser.hasOptionId(optionId)) // has valid option id\n      {\n         // Call the corresponding validator function for this option id\n         iter->second(m_parser.getOptionValues(optionId));\n      }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvidePositionMeasurementInvocation.cpp:57:getPositionMeasurement",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvidePositionMeasurementInvocation.cpp",
+    "line": 57,
+    "name": "getPositionMeasurement",
+    "code": "std::shared_ptr<const PositionMeasurement>\nProvidePositionMeasurementInvocation::getPositionMeasurement() const\n{\n   return m_positionMeasurement;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp:15:SetCorrectionsExpectedPeriodInvocation",
+    "file": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp",
+    "line": 15,
+    "name": "SetCorrectionsExpectedPeriodInvocation",
+    "code": "SetCorrectionsExpectedPeriodInvocation::SetCorrectionsExpectedPeriodInvocation()\n   : ApiInvocation(Api::SetCorrectionsExpectedPeriod, 0U, ErrorCode::Success)\n{}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:96:getVersionConfig",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 96,
+    "name": "getVersionConfig",
+    "code": "VersionConfig RuntimeConfig::getVersionConfig()\n{\n   return s_version;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiOutput.cpp:41:getOutputDataType",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiOutput.cpp",
+    "line": 41,
+    "name": "getOutputDataType",
+    "code": "OutputDataType ApiOutput::getOutputDataType() const\n{\n   return m_outputDataType;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Utility/ArgumentParser.cpp:71:end",
+    "file": "alpha_replayer/src/Utility/ArgumentParser.cpp",
+    "line": 71,
+    "name": "end",
+    "code": "iter != m_options.end() && !iter->second.empty())\n   {\n      return iter->second;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:61:getThreadId",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 61,
+    "name": "getThreadId",
+    "code": "uint32_t ApiData::getThreadId() const\n{\n   return m_threadId;\n}"
+  },
+  {
+    "id": "lib_common/include/ApiLogging/Serialization/SourceAndTimeDataDeserializer.hpp:49:deserializeData",
+    "file": "lib_common/include/ApiLogging/Serialization/SourceAndTimeDataDeserializer.hpp",
+    "line": 49,
+    "name": "deserializeData",
+    "code": "/// @brief Deserialization to a Status object.\n   static void deserializeData(BufferReader& reader, Status& data)\n   {\n      data = static_cast<Status>(Deserializer::deserializeInt32(reader));\n   }"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/ConversionManager.cpp:527:encodeDataRecordToXml",
+    "file": "alpha_conversion/src/Managers/ConversionManager.cpp",
+    "line": 527,
+    "name": "encodeDataRecordToXml",
+    "code": "std::string ConversionManager::encodeDataRecordToXml(const HlfDataRecord& record)\n{\n   return HlfRecordXmlSerializer::encodeDataRecord(record);\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Windows/TcpClient.cpp:197:getLastErrorDescription",
+    "file": "alpha_replayer/src/Io/Windows/TcpClient.cpp",
+    "line": 197,
+    "name": "getLastErrorDescription",
+    "code": "std::string TcpClient::getLastErrorDescription()\n{\n   return m_lastError;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Utility/Errors.hpp:30:getErrorState",
+    "file": "alpha_replayer/src/Utility/Errors.hpp",
+    "line": 30,
+    "name": "getErrorState",
+    "code": "public:\n   /// @brief Get the error state\n   /// @return The error state\n   static int getErrorState()\n   {\n      return static_cast<int>(s_errorState.load());\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:56:setTimestamp",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 56,
+    "name": "setTimestamp",
+    "code": "void ApiData::setTimestamp(const uint64_t timestamp)\n{\n   m_timestamp = timestamp;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp:15:SetGnssMeasurementsExpectedPeriodInvocation",
+    "file": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp",
+    "line": 15,
+    "name": "SetGnssMeasurementsExpectedPeriodInvocation",
+    "code": "SetGnssMeasurementsExpectedPeriodInvocation::SetGnssMeasurementsExpectedPeriodInvocation()\n   : ApiInvocation(Api::SetGnssMeasurementsExpectedPeriod, 0U, ErrorCode::Success)\n{}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "file": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp",
+    "line": 45,
+    "name": "getExpectedPeriod",
+    "code": "ExpectedPeriod SetCorrectionsExpectedPeriodInvocation::getExpectedPeriod() const\n{\n   return m_expectedPeriod;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Linux/TcpClient.cpp:197:getLastErrorDescription",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 197,
+    "name": "getLastErrorDescription",
+    "code": "std::string TcpClient::getLastErrorDescription()\n{\n   return m_lastError;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:101:getCommandFlag",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 101,
+    "name": "getCommandFlag",
+    "code": "std::string RuntimeConfig::getCommandFlag()\n{\n   return s_commandFlag;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:91:getHelpConfig",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 91,
+    "name": "getHelpConfig",
+    "code": "HelpConfig RuntimeConfig::getHelpConfig()\n{\n   return s_help;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp:69:getKey",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideSatellitePositionsInvocation.cpp",
+    "line": 69,
+    "name": "getKey",
+    "code": "GnssKey ProvideSatellitePositionsInvocation::getKey() const\n{\n   return m_key;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:41:getApiDataType",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 41,
+    "name": "getApiDataType",
+    "code": "ApiDataType ApiData::getApiDataType() const\n{\n   return m_apiDataType;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp:41:setHlfRecordCallback",
+    "file": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp",
+    "line": 41,
+    "name": "setHlfRecordCallback",
+    "code": "void HlfRecordXmlDeserializer::setHlfRecordCallback(\n   const std::function<void(\n      const std::shared_ptr<HlfRecord> hlfRecord,\n      const HlfDeserializeStatus decodeStatus,\n      const std::string& errorString)>& hlfCallback)\n{\n   m_hlfCallback = hlfCallback;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Utility/ArgumentParser.cpp:52:getActiveOptionIds",
+    "file": "alpha_replayer/src/Utility/ArgumentParser.cpp",
+    "line": 52,
+    "name": "getActiveOptionIds",
+    "code": "std::vector<std::string> ArgumentParser::getActiveOptionIds() const\n{\n   return m_activeOptionIds;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:88:getVersionConfig",
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 88,
+    "name": "getVersionConfig",
+    "code": "VersionConfig RuntimeConfig::getVersionConfig()\n{\n   return s_version;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:86:getSplitConfig",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 86,
+    "name": "getSplitConfig",
+    "code": "SplitConfig RuntimeConfig::getSplitConfig()\n{\n   return s_split;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Utility/ApiInvoker.hpp:99:end",
+    "file": "alpha_replayer/src/Utility/ApiInvoker.hpp",
+    "line": 99,
+    "name": "end",
+    "code": "iter != HANDLERS.end())\n      {\n         return iter->second(std::forward<ENGINE_PTR>(enginePtr), data);\n      }"
+  },
+  {
+    "id": "alpha_conversion/src/Utility/Errors.cpp:20:setErrorState",
+    "file": "alpha_conversion/src/Utility/Errors.cpp",
+    "line": 20,
+    "name": "setErrorState",
+    "code": "void setErrorState(const int state)\n{\n   errorStateRef() = state;\n}"
+  },
+  {
+    "id": "lib_common/include/ApiLogging/Serialization/SourceIdDeserializer.hpp:13:deserialize",
+    "file": "lib_common/include/ApiLogging/Serialization/SourceIdDeserializer.hpp",
+    "line": 13,
+    "name": "deserialize",
+    "code": "/// @brief Deserializes from a provided buffer to a SourceId object\n/// @param reader Buffer of serialized data to read from\n/// @param sourceId SourceId object to deserialize to\ninline void deserialize(BufferReader& reader, SourceId& sourceId)\n{\n   sourceId.value = Deserializer::deserializeInt32(reader);\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Linux/TcpClient.cpp:192:getSocketAddress",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 192,
+    "name": "getSocketAddress",
+    "code": "std::string TcpClient::getSocketAddress()\n{\n   return m_serverAddress + \":\" + std::to_string(static_cast<int32_t>(m_serverPort));\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Windows/TcpClient.cpp:192:getSocketAddress",
+    "file": "alpha_replayer/src/Io/Windows/TcpClient.cpp",
+    "line": 192,
+    "name": "getSocketAddress",
+    "code": "std::string TcpClient::getSocketAddress()\n{\n   return m_serverAddress + \":\" + std::to_string(static_cast<int32_t>(m_serverPort));\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/FileManager.cpp:165:eof",
+    "file": "alpha_conversion/src/Managers/FileManager.cpp",
+    "line": 165,
+    "name": "eof",
+    "code": "bool FileManager::eof() const\n{\n   return m_stream.eof();\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:93:getCommandFlag",
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 93,
+    "name": "getCommandFlag",
+    "code": "std::string RuntimeConfig::getCommandFlag()\n{\n   return s_commandFlag;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Windows/TcpClient.cpp:187:isConnected",
+    "file": "alpha_replayer/src/Io/Windows/TcpClient.cpp",
+    "line": 187,
+    "name": "isConnected",
+    "code": "bool TcpClient::isConnected()\n{\n   return m_connectSocket != INVALID_SOCKET;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Utility/ArgumentParser.cpp:66:end",
+    "file": "alpha_conversion/src/Utility/ArgumentParser.cpp",
+    "line": 66,
+    "name": "end",
+    "code": "iter != m_options.end() && !iter->second.empty())\n   {\n      return iter->second;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp:55:getErrorCode",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp",
+    "line": 55,
+    "name": "getErrorCode",
+    "code": "ErrorCode ApiInvocation::getErrorCode() const\n{\n   return m_errorCode;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp:36:setFileToDecode",
+    "file": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp",
+    "line": 36,
+    "name": "setFileToDecode",
+    "code": "void HlfRecordXmlDeserializer::setFileToDecode(const std::string& filename)\n{\n   m_filename = filename;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Utility/Errors.hpp:37:setErrorState",
+    "file": "alpha_replayer/src/Utility/Errors.hpp",
+    "line": 37,
+    "name": "setErrorState",
+    "code": "/// @brief Set the error state\n   /// @param errorState The error state to set\n   static void setErrorState(ErrorCode errorState)\n   {\n      s_errorState.store(errorState);\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetPositionMeasurementExpectedPeriodInvocation.cpp:15:SetPositionMeasurementExpectedPeriodInvocation",
+    "file": "lib_common/src/ApiLogging/ApiData/SetPositionMeasurementExpectedPeriodInvocation.cpp",
+    "line": 15,
+    "name": "SetPositionMeasurementExpectedPeriodInvocation",
+    "code": "SetPositionMeasurementExpectedPeriodInvocation::SetPositionMeasurementExpectedPeriodInvocation()\n   : ApiInvocation(Api::SetPositionMeasurementExpectedPeriod, 0U, ErrorCode::Success)\n{}"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Linux/TcpClient.cpp:187:isConnected",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 187,
+    "name": "isConnected",
+    "code": "bool TcpClient::isConnected()\n{\n   return m_sock != INVALID_SOCKET;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideGnssMeasurementsInvocation.cpp:57:getGnssMeasurements",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideGnssMeasurementsInvocation.cpp",
+    "line": 57,
+    "name": "getGnssMeasurements",
+    "code": "std::shared_ptr<const GnssMeasurements> ProvideGnssMeasurementsInvocation::getGnssMeasurements()\n   const\n{\n   return m_gnssMeasurements;\n}"
+  },
+  {
+    "id": "lib_common/include/Utility/ArgvToVector.hpp:11:argvToVector",
+    "file": "lib_common/include/Utility/ArgvToVector.hpp",
+    "line": 11,
+    "name": "argvToVector",
+    "code": "/// @brief Copies C-style command-line arguments into a std::vector<std::string>.\n///\n/// Centralises the pointer arithmetic required to iterate a raw argv array so\n/// that call sites do not need to suppress cppcoreguidelines-pro-bounds-pointer-arithmetic.\n/// Caller is responsible for validating @p argv is non-null before invocation.\n///\n/// @param argc   Number of elements in @p argv.\n/// @param argv   Pointer to an array of @p argc C-strings.\n/// @param offset Optional number of leading elements to skip (e.g. 1 to drop the program name).\n/// @return A std::vector<std::string> containing argv[offset..argc).\n///\ninline std::vector<std::string>\nargvToVector(const std::size_t argc, const char* const* const argv, const std::size_t offset = 0U)\n{\n   // Caller-verified: offset <= argc\n   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)\n   return std::vector<std::string>{argv + offset, argv + argc};\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:51:getTimestamp",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 51,
+    "name": "getTimestamp",
+    "code": "uint64_t ApiData::getTimestamp() const\n{\n   return m_timestamp;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/FileManager.cpp:170:fileSize",
+    "file": "alpha_conversion/src/Managers/FileManager.cpp",
+    "line": 170,
+    "name": "fileSize",
+    "code": "std::size_t FileManager::fileSize() const\n{\n   return m_fileSize;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "file": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp",
+    "line": 45,
+    "name": "getExpectedPeriod",
+    "code": "ExpectedPeriod SetVelocityMeasurementExpectedPeriodInvocation::getExpectedPeriod() const\n{\n   return m_expectedPeriod;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Serialization/Xml/ApiData/Deserializers/ApiInvocationXmlDeserializer.cpp:354:createResetInvocation",
+    "file": "alpha_conversion/src/Serialization/Xml/ApiData/Deserializers/ApiInvocationXmlDeserializer.cpp",
+    "line": 354,
+    "name": "createResetInvocation",
+    "code": "std::shared_ptr<ResetInvocation>\nApiInvocationXmlDeserializer::createResetInvocation(uint16_t streamId, ErrorCode errorCode)\n{\n   // Reset has no extra XML information, so just need to create and return the object\n   return std::make_shared<ResetInvocation>(streamId, errorCode);\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:78:getLoggingConfig",
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 78,
+    "name": "getLoggingConfig",
+    "code": "LoggingConfig RuntimeConfig::getLoggingConfig()\n{\n   return s_logging;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:73:getReplayConfig",
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 73,
+    "name": "getReplayConfig",
+    "code": "ReplayConfig RuntimeConfig::getReplayConfig()\n{\n   return s_replay;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Io/Linux/TcpClient.cpp:27:asSockAddr",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 27,
+    "name": "asSockAddr",
+    "code": "// POSIX sockets C API takes `sockaddr*`. Confine the reinterpret_cast to a single helper\n// so call sites read naturally and the suppression lives in one place only.\n// The parameter cannot be const: `getpeername` writes the peer address through the\n// returned pointer, so casting away const here would be undefined behaviour.\nsockaddr* asSockAddr(sockaddr_in* addr) noexcept // NOSONAR: parameter must be non-const, see above\n{\n   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)\n   return reinterpret_cast<sockaddr*>(addr); // NOSONAR: POSIX C API\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:66:setThreadId",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 66,
+    "name": "setThreadId",
+    "code": "void ApiData::setThreadId(const uint32_t threadId)\n{\n   m_threadId = threadId;\n}"
+  },
+  {
+    "id": "lib_common/include/ApiLogging/Serialization/GnssKeyComparator.hpp:16:operator",
+    "file": "lib_common/include/ApiLogging/Serialization/GnssKeyComparator.hpp",
+    "line": 16,
+    "name": "operator",
+    "code": "/// @brief Compares two GNSS keys.\n   /// @param lhs First GNSS key.\n   /// @param rhs Second GNSS key.\n   /// @return True if the first key is less than the second, otherwise false.\n   bool operator()(const GnssKey& lhs, const GnssKey& rhs) const\n   {\n      return std::tie(lhs.constellation, lhs.satelliteId.value, lhs.signal)\n           < std::tie(rhs.constellation, rhs.satelliteId.value, rhs.signal);\n   }"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:76:getConverterConfig",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 76,
+    "name": "getConverterConfig",
+    "code": "ConverterConfig RuntimeConfig::getConverterConfig()\n{\n   return s_convert;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Utility/ArgumentParser.cpp:72:hasFlag",
+    "file": "alpha_conversion/src/Utility/ArgumentParser.cpp",
+    "line": 72,
+    "name": "hasFlag",
+    "code": "bool ArgumentParser::hasFlag(const std::string& flag) const\n{\n   return m_options.find(flag) != std::end(m_options);\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp:15:SetVelocityMeasurementExpectedPeriodInvocation",
+    "file": "lib_common/src/ApiLogging/ApiData/SetVelocityMeasurementExpectedPeriodInvocation.cpp",
+    "line": 15,
+    "name": "SetVelocityMeasurementExpectedPeriodInvocation",
+    "code": "SetVelocityMeasurementExpectedPeriodInvocation::SetVelocityMeasurementExpectedPeriodInvocation()\n   : ApiInvocation(Api::SetVelocityMeasurementExpectedPeriod, 0U, ErrorCode::Success)\n{}"
+  },
+  {
+    "id": "alpha_replayer/src/Io/DataTracker.cpp:19:DataTracker",
+    "file": "alpha_replayer/src/Io/DataTracker.cpp",
+    "line": 19,
+    "name": "DataTracker",
+    "code": "DataTracker::DataTracker(ApiDataDeserializeFunc apiDataDeserializeFunc)\n   : m_apiDataDeserializeFunc(std::move(apiDataDeserializeFunc))\n{}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideVelocityMeasurementInvocation.cpp:57:getVelocityMeasurement",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideVelocityMeasurementInvocation.cpp",
+    "line": 57,
+    "name": "getVelocityMeasurement",
+    "code": "std::shared_ptr<const VelocityMeasurement>\nProvideVelocityMeasurementInvocation::getVelocityMeasurement() const\n{\n   return m_velocityMeasurement;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:46:getStream",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiData.cpp",
+    "line": 46,
+    "name": "getStream",
+    "code": "uint16_t ApiData::getStream() const\n{\n   return m_streamId;\n}"
+  },
+  {
+    "id": "alpha_conversion/src/Config/RuntimeConfig.cpp:81:getNormalizerConfig",
+    "file": "alpha_conversion/src/Config/RuntimeConfig.cpp",
+    "line": 81,
+    "name": "getNormalizerConfig",
+    "code": "NormalizerConfig RuntimeConfig::getNormalizerConfig()\n{\n   return s_normalizer;\n}"
+  },
+  {
+    "id": "lib_common/include/Utility/ByteStreamIo.hpp:56:readBytes",
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 56,
+    "name": "readBytes",
+    "code": "/// @brief Reads from a char-oriented input stream into a byte buffer at the\n/// given offset.\n///\n/// Convenience overload that centralises the offset pointer arithmetic for\n/// callers that need to fill the tail of a pre-allocated contiguous buffer.\n///\n/// @param stream Input stream to read from.\n/// @param data   Pointer to a contiguous byte buffer of at least\n///               @p offset + @p size bytes.\n/// @param offset Index at which to start writing within the buffer.\n/// @param size   Maximum number of bytes to read.\n/// @return The number of bytes actually read (see std::istream::gcount()).\n///\ninline std::streamsize readBytes(\n   std::istream& stream,\n   uint8_t* const data,\n   const std::size_t offset,\n   const std::size_t size)\n{\n   // Pointer arithmetic safe by caller-validated bounds precondition.\n   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)\n   return readBytes(stream, data + offset, size);\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp:50:getApi",
+    "file": "lib_common/src/ApiLogging/ApiData/ApiInvocation.cpp",
+    "line": 50,
+    "name": "getApi",
+    "code": "Api ApiInvocation::getApi() const\n{\n   return m_api;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/ProvideCorrectionsInvocation.cpp:56:getCorrections",
+    "file": "lib_common/src/ApiLogging/ApiData/ProvideCorrectionsInvocation.cpp",
+    "line": 56,
+    "name": "getCorrections",
+    "code": "std::shared_ptr<const Corrections> ProvideCorrectionsInvocation::getCorrections() const\n{\n   return m_corrections;\n}"
+  },
+  {
+    "id": "lib_common/include/ApiLogging/Serialization/GnssKeyMapDeserializer.hpp:77:deserializeMapValue",
+    "file": "lib_common/include/ApiLogging/Serialization/GnssKeyMapDeserializer.hpp",
+    "line": 77,
+    "name": "deserializeMapValue",
+    "code": "/// @brief Deserialization to a Status object.\n   static void deserializeMapValue(BufferReader& reader, Status& mapValue)\n   {\n      mapValue = static_cast<Status>(Deserializer::deserializeInt32(reader));\n   }"
+  },
+  {
+    "id": "alpha_replayer/src/Managers/EngineManager.cpp:58:end",
+    "file": "alpha_replayer/src/Managers/EngineManager.cpp",
+    "line": 58,
+    "name": "end",
+    "code": "iter != m_engineStreamMap.end())\n   {\n      return iter->second;\n   }"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/ConversionManager.cpp:76:empty",
+    "file": "alpha_conversion/src/Managers/ConversionManager.cpp",
+    "line": 76,
+    "name": "empty",
+    "code": "!converterConfig.inputFolderPath.empty())\n   {\n      processBatchConversion(converterConfig);\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "file": "lib_common/src/ApiLogging/ApiData/SetGnssMeasurementsExpectedPeriodInvocation.cpp",
+    "line": 45,
+    "name": "getExpectedPeriod",
+    "code": "ExpectedPeriod SetGnssMeasurementsExpectedPeriodInvocation::getExpectedPeriod() const\n{\n   return m_expectedPeriod;\n}"
+  },
+  {
+    "id": "alpha_replayer/src/Config/RuntimeConfig.cpp:83:getHelpConfig",
+    "file": "alpha_replayer/src/Config/RuntimeConfig.cpp",
+    "line": 83,
+    "name": "getHelpConfig",
+    "code": "HelpConfig RuntimeConfig::getHelpConfig()\n{\n   return s_help;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetPositionMeasurementExpectedPeriodInvocation.cpp:45:getExpectedPeriod",
+    "file": "lib_common/src/ApiLogging/ApiData/SetPositionMeasurementExpectedPeriodInvocation.cpp",
+    "line": 45,
+    "name": "getExpectedPeriod",
+    "code": "ExpectedPeriod SetPositionMeasurementExpectedPeriodInvocation::getExpectedPeriod() const\n{\n   return m_expectedPeriod;\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:113:setReceiveError",
+    "file": "test/alpha_replayer/Io/MockTcpClient.cpp",
+    "line": 113,
+    "name": "setReceiveError",
+    "code": "void MockTcpClient::setReceiveError(bool error)\n{\n   std::lock_guard<std::mutex> lock(m_mutex);\n   m_receiveError = error;\n   m_dataAvailable.notify_one();\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:178:erase",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 178,
+    "name": "erase",
+    "code": "/// @brief Removes a GNSS key from the set if it exists.\n   /// @param key The GNSS key to remove.\n   /// @return Iterator to the element following the erased one, or end() if not found.\n   /// @post Iterators (including the end() iterator) and references to the elements at or after the\n   /// point of the erase are invalidated.\n   Iterator erase(const GnssKey& key)\n   {\n      return eraseSanitizedKey(T_STATETYPE::sanitizedStateKeySetKey(key));\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:101:getDataType",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 101,
+    "name": "getDataType",
+    "code": "HlfDataType HlfInputDescriptionHeaderRecord::getDataType() const\n{\n   return m_dataType;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:49:covariance",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "line": 49,
+    "name": "covariance",
+    "code": "/// @brief Returns the ambiguity covariance matrix.\n   [[nodiscard]] const Covariance& covariance() const noexcept\n   {\n      return m_covariance;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:76:getMatrix",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 76,
+    "name": "getMatrix",
+    "code": "/// @brief Gets a const reference to the state matrix.\n   /// @return Const reference to the state matrix.\n   const StateMatrix& getMatrix() const\n   {\n      return m_matrix;\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:300:setApiComplete",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 300,
+    "name": "setApiComplete",
+    "code": "void setApiComplete()\n   {\n      std::lock_guard<std::mutex> lock(m_mutex);\n      m_apiCount++;\n      m_cv.notify_all();\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:64:sanitizedStateKeySetKey",
+    "file": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp",
+    "line": 64,
+    "name": "sanitizedStateKeySetKey",
+    "code": "public:\n   static GnssKey sanitizedStateKeySetKey([[maybe_unused]] const GnssKey& key)\n   {\n      return key;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfApplicationConfigurationHeaderRecord.cpp:58:getConfiguration",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfApplicationConfigurationHeaderRecord.cpp",
+    "line": 58,
+    "name": "getConfiguration",
+    "code": "HlfHeaderRecord::HlfString HlfApplicationConfigurationHeaderRecord::getConfiguration() const\n{\n   return m_configuration;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/Ionosphere.hpp:22:sanitizedStateKeySetKey",
+    "file": "lib_positioning_engine/src/Core/States/Ionosphere.hpp",
+    "line": 22,
+    "name": "sanitizedStateKeySetKey",
+    "code": "/// @brief Adjusts GNSS key for state key set entries, controlling state vector/matrix\n   /// dimensions.\n   /// @details Groups by constellation and satellite; standardizes signal for satellite-specific\n   /// delays.\n   /// @param key The original GNSS key to be sanitized.s\n   /// @return A sanitized GNSS key with constellation and satellite ID preserved, signal\n   /// standardized.\n   ///\n   static GnssKey sanitizedStateKeySetKey(const GnssKey& key)\n   {\n      return {key.constellation, key.satelliteId, Signal::Any};\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:271:getInstance",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 271,
+    "name": "getInstance",
+    "code": "static ThreadSynchronizer& getInstance()\n   {\n      static ThreadSynchronizer s_instance;\n      return s_instance;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/IPredictionModel.hpp:76:cself",
+    "file": "lib_positioning_engine/src/Core/Models/IPredictionModel.hpp",
+    "line": 76,
+    "name": "cself",
+    "code": "const T_DERIVED& cself() const\n   {\n      return static_cast<const T_DERIVED&>(*this);\n   }"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:94:getLastErrorDescription",
+    "file": "test/alpha_replayer/Io/MockTcpClient.cpp",
+    "line": 94,
+    "name": "getLastErrorDescription",
+    "code": "std::string MockTcpClient::getLastErrorDescription()\n{\n   std::lock_guard<std::mutex> lock(m_mutex);\n   return m_lastError;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:73:end",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 73,
+    "name": "end",
+    "code": "/// @brief Returns a const iterator to the end of the set.\n   /// @return Const iterator to one past the last element.\n   ConstIterator end() const\n   {\n      return m_keySet.cend();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:43:values",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "line": 43,
+    "name": "values",
+    "code": "/// @brief Returns the ambiguity state vector.\n   [[nodiscard]] const Ambiguities& values() const noexcept\n   {\n      return m_values;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp:65:data",
+    "file": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp",
+    "line": 65,
+    "name": "data",
+    "code": "uint8_t const* BufferWriter::data() const\n{\n   return m_bufferData;\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Handlers/PrintHandlerTest.cpp:13:stringContains",
+    "file": "test/alpha_replayer/Handlers/PrintHandlerTest.cpp",
+    "line": 13,
+    "name": "stringContains",
+    "code": "static bool stringContains(const std::string& check, const std::string& output)\n{\n   return output.find(check) != std::string::npos;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecord.cpp:17:getRecordType",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecord.cpp",
+    "line": 17,
+    "name": "getRecordType",
+    "code": "uint16_t HlfRecord::getRecordType() const\n{\n   return m_recordType;\n}"
+  },
+  {
+    "id": "test/alpha_conversion/Handlers/PrintHandlerTest.cpp:8:stringContains",
+    "file": "test/alpha_conversion/Handlers/PrintHandlerTest.cpp",
+    "line": 8,
+    "name": "stringContains",
+    "code": "static bool stringContains(const std::string& check, const std::string& output)\n{\n   return output.find(check) != std::string::npos;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp:50:getIndex",
+    "file": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp",
+    "line": 50,
+    "name": "getIndex",
+    "code": "size_t BufferReader::getIndex() const\n{\n   return m_index;\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:51:writtenData",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 51,
+    "name": "writtenData",
+    "code": "const std::vector<uint8_t>& MockFileWriter::writtenData() const noexcept\n{\n   return m_writtenData;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:52:begin",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 52,
+    "name": "begin",
+    "code": "/// @brief Returns an iterator to the beginning of the set.\n   /// @return Iterator to the first element.\n   Iterator begin()\n   {\n      return m_keySet.begin();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:44:getMeasurements",
+    "file": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp",
+    "line": 44,
+    "name": "getMeasurements",
+    "code": "/// @brief Returns a const reference to the measurements.\n   /// @return Const reference to the measurements.\n   const Measurements& getMeasurements() const\n   {\n      return m_measurements;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp:52:parse",
+    "file": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp",
+    "line": 52,
+    "name": "parse",
+    "code": "/// @brief Parser for format specifiers.\n   /// @param context The fmt context.\n   /// @return Iterator to the beginning of the format string.\n   constexpr auto parse(fmt::format_parse_context& context)\n   {\n      return context.begin();\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingDescriptionHeaderRecord.cpp:58:getDescription",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecordingDescriptionHeaderRecord.cpp",
+    "line": 58,
+    "name": "getDescription",
+    "code": "HlfHeaderRecord::HlfString HlfRecordingDescriptionHeaderRecord::getDescription() const\n{\n   return m_description;\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:107:setConnectionShouldSucceed",
+    "file": "test/alpha_replayer/Io/MockTcpClient.cpp",
+    "line": 107,
+    "name": "setConnectionShouldSucceed",
+    "code": "void MockTcpClient::setConnectionShouldSucceed(bool shouldSucceed)\n{\n   std::lock_guard<std::mutex> lock(m_mutex);\n   m_connectionShouldSucceed = shouldSucceed;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.cpp:63:setPseudorangeCorrectionStatus",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.cpp",
+    "line": 63,
+    "name": "setPseudorangeCorrectionStatus",
+    "code": "void setPseudorangeCorrectionStatus(const GnssKey& gnssKey, CorrectionsStatus& correctionsMetaData)\n{\n   // Satellite and signal specific corrections\n   correctionsMetaData.data.pseudorangeBias[gnssKey].data = Status::Used;\n   correctionsMetaData.data.pseudorangePhaseCenter[gnssKey].data = Status::Used;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp:76:initialize",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp",
+    "line": 76,
+    "name": "initialize",
+    "code": "// -------------------------------------------------------------------------\n   // METHODS\n   // -------------------------------------------------------------------------\n\n   /// @brief Initialize the synchronizer by setting up data stream subscriptions.\n   ///\n   /// @return A boolean indicating whether the initialization was successful.\n   ///\n   bool initialize()\n   {\n      // --------------------------------------------------------------------------\n      // TODO: connect/subscribe to InterfaceExpectedPeriod -- Integration Pending\n      // --------------------------------------------------------------------------\n      return setupDataStreams<typename T_STRATEGY::SupportedTypes>(\n         std::make_index_sequence<T_STRATEGY::NUM_TYPES>{});\n   }"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:46:filePath",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 46,
+    "name": "filePath",
+    "code": "const std::filesystem::path& MockFileWriter::filePath() const noexcept\n{\n   return m_filePath;\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Utility/ApiInvokerTest.cpp:128:createResetInvocation",
+    "file": "test/alpha_replayer/Utility/ApiInvokerTest.cpp",
+    "line": 128,
+    "name": "createResetInvocation",
+    "code": "static std::shared_ptr<ResetInvocation> createResetInvocation(\n      uint16_t streamId = TestConstants::DEFAULT_STREAM_ID,\n      Alpha::ErrorCode errorCode = Alpha::ErrorCode::Success)\n   {\n      return std::make_shared<ResetInvocation>(streamId, errorCode);\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/SolutionReconstruction/DataWithMeta.hpp:23:DataWithMeta",
+    "file": "lib_positioning_engine/src/Core/SolutionReconstruction/DataWithMeta.hpp",
+    "line": 23,
+    "name": "DataWithMeta",
+    "code": "explicit DataWithMeta(T_DATA val)\n      : value(std::move(val))\n   {}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/ICorrector.hpp:60:getCorrectionsMetaData",
+    "file": "lib_positioning_engine/src/Core/Corrector/ICorrector.hpp",
+    "line": 60,
+    "name": "getCorrectionsMetaData",
+    "code": "/**\n    * @brief Retrieve metadata about the corrections.\n    *\n    * This function delegates the retrieval of correction metadata to the derived class\n    * by calling its `getCorrectionsMetaDataImpl` method. The derived class must implement this\n    * method.\n    *\n    * @return Metadata about the corrections, as defined by the `CorrectorTraits` of the derived\n    * class.\n    */\n   typename CorrectorTraits<T_DERIVED>::CorrectionsMetaData getCorrectionsMetaData() const\n   {\n      return static_cast<const T_DERIVED*>(this)->getCorrectionsMetaDataImpl();\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/States/StateTraitsTest.cpp:34:delta",
+    "file": "test/lib_positioning_engine/Core/States/StateTraitsTest.cpp",
+    "line": 34,
+    "name": "delta",
+    "code": "static typename State::StateVector delta()\n   {\n\n      return (State::StateVector(3) << 0.5, 0.5, 0.5).finished();\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp:75:setTimeImpl",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp",
+    "line": 75,
+    "name": "setTimeImpl",
+    "code": "void setTimeImpl(const Time& time)\n   {\n      // Set the time for the package\n      m_time = time;\n   }"
+  },
+  {
+    "id": "test/test_support/WaitableCounter.cpp:27:count",
+    "file": "test/test_support/WaitableCounter.cpp",
+    "line": 27,
+    "name": "count",
+    "code": "uint32_t WaitableCounter::count() const\n{\n   return m_count.load();\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:224:isTimeValid",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp",
+    "line": 224,
+    "name": "isTimeValid",
+    "code": "/// @brief Checks whether a time difference is within a valid range.\n///\n/// This function determines whether the difference between a reference time and a target time\n/// is within a specified half-validity timespan, with a small epsilon margin for comparison\n/// accuracy.\n///\n/// @param timeDifferenceSeconds The pre-computed time difference in seconds\n///                              (e.g. `(referenceTime - targetTime).value`).\n/// @param timespanHalfValidity The half-validity timespan (in seconds)\n///                             that defines the valid range around the reference time.\n/// @return true if the absolute time difference is less than the half-validity timespan\n///         (plus a small epsilon). Otherwise, false.\ninline bool isTimeValid(const double timeDifferenceSeconds, const double timespanHalfValidity)\n{\n   return std::fabs(timeDifferenceSeconds) < (timespanHalfValidity + TIME_COMPARISON_EPSILON);\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Uuid/EntropyCollector.cpp:55:rotateLeft",
+    "file": "lib_common/src/ApiLogging/Uuid/EntropyCollector.cpp",
+    "line": 55,
+    "name": "rotateLeft",
+    "code": "uint64_t rotateLeft(const uint64_t input, const uint32_t value)\n{\n   return (input << value) | (input >> (UINT64_BIT_WIDTH - value));\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp:46:end",
+    "file": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp",
+    "line": 46,
+    "name": "end",
+    "code": "/**\n    * @brief Gets the end time of the span.\n    *\n    * @return The end time of the span.\n    */\n   [[nodiscard]] Time end() const\n   {\n      return m_end;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/IUpdateModel.hpp:11:differentiate",
+    "file": "lib_positioning_engine/src/Core/Models/IUpdateModel.hpp",
+    "line": 11,
+    "name": "differentiate",
+    "code": "public:\n   /// @brief Computes the derivative (Jacobian) of the measurement model with respect to the state.\n   /// @tparam T_MEASUREMENT Type of the measurement.\n   /// @tparam T_STATE Type of the state.\n   /// @param measurement The measurement data.\n   /// @param state The state object.\n   /// @return The Jacobian matrix of the measurement model.\n   template <typename T_MEASUREMENT, typename T_STATE>\n   auto differentiate(const T_MEASUREMENT& measurement, const T_STATE& state) const\n   {\n      return cself().differentiateImpl(measurement, state);\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/SolutionReconstruction/DataWithMeta.hpp:26:DataWithMeta",
+    "file": "lib_positioning_engine/src/Core/SolutionReconstruction/DataWithMeta.hpp",
+    "line": 26,
+    "name": "DataWithMeta",
+    "code": "DataWithMeta(T_DATA val, std::shared_ptr<SolutionMetadata> meta)\n      : value(std::move(val))\n      , metaData(std::move(meta))\n   {}"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:56:writtenDataAsString",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 56,
+    "name": "writtenDataAsString",
+    "code": "std::string MockFileWriter::writtenDataAsString() const\n{\n   // byte-to-char buffer interop\n   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)\n   return {reinterpret_cast<const char*>(m_writtenData.data()), m_writtenData.size()};\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp:56:set",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp",
+    "line": 56,
+    "name": "set",
+    "code": "/// @brief Sets the requirement value.\n   ///\n   /// @param value New value for the requirement.\n   ///\n   void set(const T_ENUM_REQUIREMENT value)\n   {\n      m_value = value;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SolutionOutput.cpp:52:getSolution",
+    "file": "lib_common/src/ApiLogging/ApiData/SolutionOutput.cpp",
+    "line": 52,
+    "name": "getSolution",
+    "code": "std::shared_ptr<const Solution> SolutionOutput::getSolution() const\n{\n   return m_solution;\n}"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Tasks/BgwfTestUtilities.cpp:109:fillSignalBias",
+    "file": "test/lib_positioning_engine/Core/Tasks/BgwfTestUtilities.cpp",
+    "line": 109,
+    "name": "fillSignalBias",
+    "code": "void fillSignalBias(double& dst, const double value, [[maybe_unused]] const double covariance)\n{\n   dst = value;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:121:getDescription",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 121,
+    "name": "getDescription",
+    "code": "HlfHeaderRecord::HlfString HlfInputDescriptionHeaderRecord::getDescription() const\n{\n   return m_description;\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp:124:getMockClient",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 124,
+    "name": "getMockClient",
+    "code": "MockTcpClient* getMockClient() const\n   {\n      return m_mockClient;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp:36:start",
+    "file": "lib_positioning_engine/src/Core/SolutionReconstruction/Span.hpp",
+    "line": 36,
+    "name": "start",
+    "code": "/**\n    * @brief Gets the start time of the span.\n    *\n    * @return The start time of the span.\n    */\n   [[nodiscard]] Time start() const\n   {\n      return m_start;\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTest.cpp:55:getStochasticScalar",
+    "file": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTest.cpp",
+    "line": 55,
+    "name": "getStochasticScalar",
+    "code": "static StochasticScalar& getStochasticScalar(Test::MockMeasurement& obj)\n   {\n      return obj.mockValue;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp:22:getSubType",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp",
+    "line": 22,
+    "name": "getSubType",
+    "code": "HlfRecordSubType HlfHeaderRecord::getSubType() const\n{\n   return m_subType;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:118:getDimension",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 118,
+    "name": "getDimension",
+    "code": "/// @brief Gets the current dimension (size) of the state vector.\n   /// @return The dimension of the state.\n   Index getDimension() const\n   {\n      return m_vector.size();\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Uuid/Uuid.cpp:127:generate",
+    "file": "lib_common/src/ApiLogging/Uuid/Uuid.cpp",
+    "line": 127,
+    "name": "generate",
+    "code": "UuidString generate() noexcept\n{\n   return formatUuid(generateBinaryUuid());\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrector.cpp:172:getCorrectionsMetaDataImpl",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrector.cpp",
+    "line": 172,
+    "name": "getCorrectionsMetaDataImpl",
+    "code": "CorrectorTraits<GnssCorrector>::CorrectionsMetaData GnssCorrector::getCorrectionsMetaDataImpl()\n   const\n{\n   return m_correctionsMetaData;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/IUpdateModel.hpp:41:cself",
+    "file": "lib_positioning_engine/src/Core/Models/IUpdateModel.hpp",
+    "line": 41,
+    "name": "cself",
+    "code": "const T_DERIVED& cself() const\n   {\n      return static_cast<const T_DERIVED&>(*this);\n   }"
+  },
+  {
+    "id": "test/test_support/TestData/VelocityMeasurementDataSets.hpp:44:getVelocityMeasurementDataSet1",
+    "file": "test/test_support/TestData/VelocityMeasurementDataSets.hpp",
+    "line": 44,
+    "name": "getVelocityMeasurementDataSet1",
+    "code": "/// @brief Alias for getVelocityMeasurementDataSet (backward compatibility)\ninline void getVelocityMeasurementDataSet1(VelocityMeasurement& velMeas)\n{\n   getVelocityMeasurementDataSet(velMeas);\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/IStrategy.hpp:41:computeNextPackage",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/IStrategy.hpp",
+    "line": 41,
+    "name": "computeNextPackage",
+    "code": "/// @brief Get the next available shared package of data.\n   ///\n   /// @return A shared package containing the next set of matched/synchronized data.\n   ///\n   auto computeNextPackage()\n   {\n      // Delegate the call to the derived class\n      return static_cast<T_DERIVED*>(this)->computeNextPackageImpl();\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:96:getTypeId",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 96,
+    "name": "getTypeId",
+    "code": "uint16_t HlfInputDescriptionHeaderRecord::getTypeId() const\n{\n   return m_typeId;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:58:getTime",
+    "file": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp",
+    "line": 58,
+    "name": "getTime",
+    "code": "/// @brief Returns the reference time of the measurements.\n   /// @return The reference time.\n   const Time& getTime() const\n   {\n      return m_time;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:97:getModifiableVector",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 97,
+    "name": "getModifiableVector",
+    "code": "/// @brief Gets a modifiable reference to the state vector.\n   /// @return Reference to the state vector.\n   StateVector& getModifiableVector()\n   {\n      return m_vector;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/ModelUtility.cpp:27:tecuToMeters",
+    "file": "lib_positioning_engine/src/Core/Utility/ModelUtility.cpp",
+    "line": 27,
+    "name": "tecuToMeters",
+    "code": "double tecuToMeters(const double wavelength)\n{\n   return square(wavelength) * TEC_CONVERSION_FACTOR;\n}"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/TestUtilities/TestUtilities.cpp:41:constructMeasurement",
+    "file": "test/lib_positioning_engine/Core/TestUtilities/TestUtilities.cpp",
+    "line": 41,
+    "name": "constructMeasurement",
+    "code": "static double\nconstructMeasurement(double rawMeasurement, double satelliteClock, double externalBias)\n{\n   return rawMeasurement + satelliteClock + externalBias;\n}"
+  },
+  {
+    "id": "test/test_support/TestData/VelocityMeasurementDataSets.hpp:50:getVelocityMeasurementStatusDataSet1",
+    "file": "test/test_support/TestData/VelocityMeasurementDataSets.hpp",
+    "line": 50,
+    "name": "getVelocityMeasurementStatusDataSet1",
+    "code": "/// @brief Alias for getVelocityMeasurementStatusDataSet (backward compatibility)\ninline void getVelocityMeasurementStatusDataSet1(MeasurementStatus& vmStatus)\n{\n   getVelocityMeasurementStatusDataSet(vmStatus);\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp:338:getStateImpl",
+    "file": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp",
+    "line": 338,
+    "name": "getStateImpl",
+    "code": "/// @copydoc IFilter::getState\n   /// @details The state is returned in information form.\n   const State& getStateImpl() const\n   {\n      return m_state;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.cpp:70:setPhaserangeCorrectionStatus",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.cpp",
+    "line": 70,
+    "name": "setPhaserangeCorrectionStatus",
+    "code": "void setPhaserangeCorrectionStatus(const GnssKey& gnssKey, CorrectionsStatus& correctionsMetaData)\n{\n   // Satellite and signal specific corrections\n   correctionsMetaData.data.phaserangeBias[gnssKey].data = Status::Used;\n   correctionsMetaData.data.phaserangePhaseCenter[gnssKey].data = Status::Used;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/SolutionReconstruction/StochasticEigenVector3d.hpp:44:vector3dToArray",
+    "file": "lib_positioning_engine/src/Core/SolutionReconstruction/StochasticEigenVector3d.hpp",
+    "line": 44,
+    "name": "vector3dToArray",
+    "code": "/**\n    * @brief Converts the 3D vector to a standard array.\n    *\n    * @return A standard array containing the vector components.\n    */\n   std::array<double, DIMENSION_3D> vector3dToArray() const\n   {\n      return {value.x(), value.y(), value.z()};\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp:421:getSatelliteClockInvalidSatClockCase",
+    "file": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp",
+    "line": 421,
+    "name": "getSatelliteClockInvalidSatClockCase",
+    "code": "// Test data for evaluateSatelliteClockCorrections: Invalid Satellite clock polynomial\nSatelliteClockTestCase getSatelliteClockInvalidSatClockCase()\n{\n   return SatelliteClockTestCase(\n      Time{\n         2298,\n         StochasticScalar{484920.0, 0.0}\n   },\n      GnssKey{Constellation::Gps, SatelliteId{16}, Signal::Rinex1C},\n      PseudorangeMeasurement{{22702377.725000001, 0.052441000938415527}, 0.19029367279836487},\n      Time{2298, StochasticScalar{484919.5, 0.0}},\n      10,\n      900.0,\n      std::array<double, 5>{\n         -0.00011065809815407066,\n         -1.2152742399398151e-11,\n         1.4293296996710173e-17,\n         4.5875304495994327e-21,\n         1.3552504133952147e-24},\n      Time{2298, StochasticScalar{484800.0, 0.0}},\n      10,\n      0.05,\n      std::nullopt);\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/TypeRegistry.hpp:105:getMinimumExpectedPeriod",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/TypeRegistry.hpp",
+    "line": 105,
+    "name": "getMinimumExpectedPeriod",
+    "code": "/// @brief Get the minimum expected period configured for the data stored in this registry.\n   ///\n   /// @return An optional containing the minimum expected period if it is set, otherwise\n   ///         std::nullopt.\n   std::optional<const double> getMinimumExpectedPeriod() const\n   {\n      return (m_expectedPeriod) ? std::optional<const double>(m_expectedPeriod->data.minimum)\n                                : std::nullopt;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:83:getModifiableMatrix",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 83,
+    "name": "getModifiableMatrix",
+    "code": "/// @brief Gets a modifiable reference to the state matrix.\n   /// @return Reference to the state matrix.\n   StateMatrix& getModifiableMatrix()\n   {\n      return m_matrix;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:51:covariance",
+    "file": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp",
+    "line": 51,
+    "name": "covariance",
+    "code": "/// @brief Get a modifiable reference to the covariance of the state.\n   /// @return Modifiable reference to the covariance of the state.\n   ///\n   Covariance& covariance()\n   {\n      return m_covariance;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp:43:get",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp",
+    "line": 43,
+    "name": "get",
+    "code": "// -------------------------------------------------------------------------\n   // METHODS\n   // -------------------------------------------------------------------------\n\n   /// @brief Gets the current requirement value.\n   ///\n   /// @return The current requirement value.\n   ///\n   T_ENUM_REQUIREMENT get() const\n   {\n      return m_value;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/GnssPackage.hpp:87:setTimeImpl",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/GnssPackage.hpp",
+    "line": 87,
+    "name": "setTimeImpl",
+    "code": "/// @copydoc IPackage::setTime()\n   void setTimeImpl(const Time& time)\n   {\n      m_time = time;\n   }"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:41:isOpen",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 41,
+    "name": "isOpen",
+    "code": "bool MockFileWriter::isOpen() const noexcept\n{\n   return m_isOpen;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/IPredictionModel.hpp:17:differentiateWithRespectToState",
+    "file": "lib_positioning_engine/src/Core/Models/IPredictionModel.hpp",
+    "line": 17,
+    "name": "differentiateWithRespectToState",
+    "code": "public:\n   /// @brief Computes the derivative (Jacobian) of the prediction model with respect to the state,\n   ///        evaluated at the given measurement(s) and state.\n   ///\n   /// @tparam T_MEASUREMENT Type of the measurement.\n   /// @tparam T_STATE       Type of the state.\n   ///\n   /// @param measurement The measurement data.\n   /// @param state       The state object.\n   ///\n   /// @return The Jacobian matrix of the prediction model with respect to the state.\n   ///\n   template <typename T_MEASUREMENT, typename T_STATE>\n   auto differentiateWithRespectToState(const T_MEASUREMENT& measurement, const T_STATE& state)\n      const\n   {\n      return cself().differentiateWithRespectToStateImpl(measurement, state);\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/DistributorResetTest.cpp:165:reset",
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 165,
+    "name": "reset",
+    "code": "// The worker's reset implementation\n   void reset()\n   {\n      m_counter = 0U;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:82:getRecordingVersion",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp",
+    "line": 82,
+    "name": "getRecordingVersion",
+    "code": "HlfHeaderRecord::HlfString HlfRecordingInformationHeaderRecord::getRecordingVersion() const\n{\n   return m_recordingVersion;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Filters/GenericIterativeFilter.hpp:148:getStateImpl",
+    "file": "lib_positioning_engine/src/Core/Filters/GenericIterativeFilter.hpp",
+    "line": 148,
+    "name": "getStateImpl",
+    "code": "/// @copydoc IFilter::getState\n   /// @details Depending on the base filter type, the returned state may be in information or\n   /// covariance form.\n   const State& getStateImpl() const\n   {\n      return m_filter.template getState<State>();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:27:isNormalized",
+    "file": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp",
+    "line": 27,
+    "name": "isNormalized",
+    "code": "//! Tells whether is normalized (i.e. the norm is one)\ninline bool isNormalized(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const { return internal::isApprox(this->norm(), Scalar(1), prec); }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:66:format",
+    "file": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp",
+    "line": 66,
+    "name": "format",
+    "code": "/// @brief Formats a satellite Id.\n   /// @param satelliteId The satellite Id to format.\n   /// @param context The fmt context.\n   /// @return Output iterator to next write position.\n   auto format(const Alpha::SatelliteId& satelliteId, fmt::format_context& context) const\n   {\n      // Delegate to the base formatter<int>\n      return fmt::formatter<int>::format(satelliteId.value, context);\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:69:height",
+    "file": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp",
+    "line": 69,
+    "name": "height",
+    "code": "/**\n    * @brief Gets the height coordinate.\n    *\n    * @return Height in meters\n    */\n   double height() const\n   {\n      return m_height;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Distributor.hpp:63:T",
+    "file": "lib_positioning_engine/src/Core/Distributor.hpp",
+    "line": 63,
+    "name": "T",
+    "code": "/// @brief Conversion operator returning a prvalue that can be materialized directly into the\n   /// target object without a copy or move.\n   operator T() const\n   {\n      return T(\n         instanceIdvalue,\n         outputSolutionValue,\n         resetCompleteValue); // prvalue for guaranteed copy elision\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp:113:reinitializeImpl",
+    "file": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp",
+    "line": 113,
+    "name": "reinitializeImpl",
+    "code": "/// @copydoc IFilter::reinitialize\n   void reinitializeImpl(const State& state)\n   {\n      m_state = state;\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp:369:getSatelliteClockValidCase",
+    "file": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp",
+    "line": 369,
+    "name": "getSatelliteClockValidCase",
+    "code": "// Test data for evaluateSatelliteClockCorrections: Valid case\nSatelliteClockTestCase getSatelliteClockValidCase()\n{\n   return SatelliteClockTestCase(\n      Time{\n         2298,\n         StochasticScalar{484920.0, 0.0}\n   },\n      GnssKey{Constellation::Gps, SatelliteId{16}, Signal::Rinex1C},\n      PseudorangeMeasurement{{22702377.725000001, 0.052441000938415527}, 0.19029367279836487},\n      Time{2298, StochasticScalar{484919.5, 0.0}},\n      10,\n      900.0,\n      std::array<double, 5>{\n         -0.00011065809815407066,\n         -1.2152742399398151e-11,\n         1.4293296996710173e-17,\n         4.5875304495994327e-21,\n         1.3552504133952147e-24},\n      Time{2298, StochasticScalar{484919.5, 0.0}},\n      10,\n      200.0,\n      ClockCorrection{\n         StochasticScalar{-33174.464788967831, 0.0},\n         Time{2298, StochasticScalar{484919.5, 0.0}}});\n}"
+  },
+  {
+    "id": "test/lib_positioning_engine/ApiLogging/ApiLoggerBufferSizingTests.cpp:204:makeReset",
+    "file": "test/lib_positioning_engine/ApiLogging/ApiLoggerBufferSizingTests.cpp",
+    "line": 204,
+    "name": "makeReset",
+    "code": "std::shared_ptr<const ApiData> makeReset()\n{\n   return std::make_shared<ResetInvocation>(TEST_STREAM_ID, ErrorCode::Success);\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp:45:getRemainingCapacity",
+    "file": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp",
+    "line": 45,
+    "name": "getRemainingCapacity",
+    "code": "size_t BufferWriter::getRemainingCapacity() const\n{\n   return (m_bufferSize - m_index);\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:277:getDiscontinuity",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp",
+    "line": 277,
+    "name": "getDiscontinuity",
+    "code": "/// @brief Access the discontinuity counter of the PhaserangeMeasurement object.\n   /// @param obj Const reference to the PhaserangeMeasurement object.\n   /// @return Const reference to the `discontinuityCounter` member of the object.\n   static const unsigned int& getDiscontinuity(const PhaserangeMeasurement& obj)\n   {\n      return obj.discontinuityCounter;\n   }"
+  },
+  {
+    "id": "test/alpha_dll/AlphaDllTests.cpp:38:makeGpsL1Key",
+    "file": "test/alpha_dll/AlphaDllTests.cpp",
+    "line": 38,
+    "name": "makeGpsL1Key",
+    "code": "/// @brief Constructs a GnssKey for a GPS satellite on the L1C signal.\nAlpha::GnssKey makeGpsL1Key(const int prn)\n{\n   return {Alpha::Constellation::Gps, Alpha::SatelliteId{prn}, Alpha::Signal::Rinex1C};\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:13:getValue",
+    "file": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp",
+    "line": 13,
+    "name": "getValue",
+    "code": "/// @brief Returns the value vector for a pseudorange measurement.\n/// @param pair The pseudorange measurement pair.\n/// @return The value as a DynamicMatrix.\nDynamicMatrix<DIMENSION_1D, DIMENSION_1D> getValue(const GnssKeyPair<PseudorangeMeasurement>& pair)\n{\n   return DynamicMatrix<DIMENSION_1D, DIMENSION_1D>({{pair.second.pseudorange.value}});\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp:58:chiSquareTest",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp",
+    "line": 58,
+    "name": "chiSquareTest",
+    "code": "!chiSquareTest(delta, projectedToValidateCovariance, threshold)  // Sigma_0\n       || !chiSquareTest(delta, projectedAgainstCovariance, threshold)) // Sigma_1\n   {\n      return false;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:79:getCovariance",
+    "file": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp",
+    "line": 79,
+    "name": "getCovariance",
+    "code": "/// @brief Returns the uncertainty matrix for a PiecewiseContinuousVariable measurement.\n/// @param pair The PiecewiseContinuousVariable measurement pair.\n/// @return The uncertainty as a DynamicMatrix.\nDynamicMatrix<DIMENSION_1D, DIMENSION_1D> getCovariance(const GnssKeyPair<StochasticScalar>& pair)\n{\n   return DynamicMatrix<DIMENSION_1D, DIMENSION_1D>({{pair.second.covariance}});\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:256:getKeySets",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 256,
+    "name": "getKeySets",
+    "code": "/// @brief Gets a const reference to the tuple of state key sets for all state element types.\n   /// @return Const reference to the state key sets tuple.\n   const StateKeySetsType& getKeySets() const\n   {\n      return m_keySets;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:110:parse",
+    "file": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp",
+    "line": 110,
+    "name": "parse",
+    "code": "/// @brief Parser for format specifiers.\n   /// @param context The fmt context.\n   /// @return Iterator to the beginning of the format string.\n   constexpr auto parse(format_parse_context& context)\n   {\n      return context.begin();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/IPackage.hpp:46:setTime",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/IPackage.hpp",
+    "line": 46,
+    "name": "setTime",
+    "code": "/// @brief Set the epoch time for the package.\n   ///\n   void setTime(const Time& time)\n   {\n      static_cast<T_DERIVED*>(this)->setTimeImpl(time);\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:24:isTraceless",
+    "file": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp",
+    "line": 24,
+    "name": "isTraceless",
+    "code": "//! Tells whether is traceless (i.e. the trace is much smaller than the norm)\ninline bool isTraceless(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const { return internal::isMuchSmallerThan(this->trace(), this->norm(), prec); }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp:63:isReadyImpl",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp",
+    "line": 63,
+    "name": "isReadyImpl",
+    "code": "bool isReadyImpl([[maybe_unused]] const Requirements& requirements) const\n   {\n      // Check if the package is ready for publishing\n      // In this case, we assume that the package is always ready\n      return (m_package.size() == std::size_t(2));\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Memory/LoggingMemoryResource.hpp:53:do_is_equal",
+    "file": "test/lib_positioning_engine/Core/Memory/LoggingMemoryResource.hpp",
+    "line": 53,
+    "name": "do_is_equal",
+    "code": "bool do_is_equal(const memory_resource& other) const noexcept override\n   {\n      return m_upstream->is_equal(other);\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp:45:getRemainingCapacity",
+    "file": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp",
+    "line": 45,
+    "name": "getRemainingCapacity",
+    "code": "size_t BufferReader::getRemainingCapacity() const\n{\n   return (m_bufferSize - m_index);\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:59:value",
+    "file": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp",
+    "line": 59,
+    "name": "value",
+    "code": "/// @brief Get a immutable reference to the value of the state.\n   /// @return Immutable reference to the value of the state.\n   ///\n   const Value& value() const\n   {\n      return m_value;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/NullAmbiguityValidator.hpp:40:validate",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/NullAmbiguityValidator.hpp",
+    "line": 40,
+    "name": "validate",
+    "code": "[[nodiscard]] static ValidationResult validate(const AmbiguityStateWithKeySet& currentCandidate)\n   {\n      return {AvComputationInfo::Success, currentCandidate};\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/MathUtility.hpp:28:getRotationMatAroundZ",
+    "file": "lib_positioning_engine/src/Core/Utility/MathUtility.hpp",
+    "line": 28,
+    "name": "getRotationMatAroundZ",
+    "code": "/// @brief Gets the rotation matrix for a rotation about the Z-axis.\n/// @param theta Angle of rotation in radians.\n/// @return A 3x3 rotation matrix representing the rotation about the Z-axis by the given angle.\ninline Matrix<DIMENSION_3D, DIMENSION_3D> getRotationMatAroundZ(double theta)\n{\n   return AngleAxis(theta, Vector<DIMENSION_3D>::UnitZ()).toRotationMatrix();\n}"
+  },
+  {
+    "id": "test/test_support/TestData/PositionMeasurementDataSets.hpp:50:getPositionMeasurementStatusDataSet1",
+    "file": "test/test_support/TestData/PositionMeasurementDataSets.hpp",
+    "line": 50,
+    "name": "getPositionMeasurementStatusDataSet1",
+    "code": "/// @brief Alias for getPositionMeasurementStatusDataSet (backward compatibility)\ninline void getPositionMeasurementStatusDataSet1(MeasurementStatus& pmStatus)\n{\n   getPositionMeasurementStatusDataSet(pmStatus);\n}"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:17:getCovariance",
+    "file": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp",
+    "line": 17,
+    "name": "getCovariance",
+    "code": "DynamicMatrix<DIMENSION_1D, DIMENSION_1D> getCovariance(const MockMeasurement& pair)\n{\n   return DynamicMatrix<DIMENSION_1D, DIMENSION_1D>({{pair.second}});\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp:88:time",
+    "file": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp",
+    "line": 88,
+    "name": "time",
+    "code": "/// @brief Get const reference to the time of the measurement.\n      ///\n      /// @return Const reference to the time of the measurement.\n      ///\n      const Time& time() const\n      {\n         return m_time;\n      }"
+  },
+  {
+    "id": "lib_positioning_engine/include/Core/Api/GnssKey.hpp:35:constellationMatches",
+    "file": "lib_positioning_engine/include/Core/Api/GnssKey.hpp",
+    "line": 35,
+    "name": "constellationMatches",
+    "code": "bool constellationMatches(Constellation otherConstellation) const\n   {\n      return (constellation == Constellation::Any) || (otherConstellation == Constellation::Any)\n          || (constellation == otherConstellation);\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/IUpdateModel.hpp:35:self",
+    "file": "lib_positioning_engine/src/Core/Models/IUpdateModel.hpp",
+    "line": 35,
+    "name": "self",
+    "code": "private:\n   T_DERIVED& self()\n   {\n      return static_cast<T_DERIVED&>(*this);\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/States/StateTraitsTest.cpp:73:delta",
+    "file": "test/lib_positioning_engine/Core/States/StateTraitsTest.cpp",
+    "line": 73,
+    "name": "delta",
+    "code": "static typename State::StateVector delta()\n   {\n      return (State::StateVector(3) << 0.5, 0.5, 0.5).finished();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/Coordinates.hpp:22:sanitizedStateKeySetKey",
+    "file": "lib_positioning_engine/src/Core/States/Coordinates.hpp",
+    "line": 22,
+    "name": "sanitizedStateKeySetKey",
+    "code": "/// @brief Adjusts GNSS key for state map entries, controlling state vector/matrix dimensions.\n   /// @details Standardizes to generic values since Coordinates represents a single global\n   /// parameter.\n   /// @param key The original GNSS key to be sanitized.\n   /// @return A sanitized GNSS key with standardized values for state key set indexing.\n   static GnssKey sanitizedStateKeySetKey([[maybe_unused]] const GnssKey& key)\n   {\n      return {Constellation::Any, SatelliteId{SatelliteId::ANY_SATELLITE_ID}, Signal::Any};\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:87:getRecorderId",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp",
+    "line": 87,
+    "name": "getRecorderId",
+    "code": "HlfRecordingInformationHeaderRecord::Uuid HlfRecordingInformationHeaderRecord::getRecorderId() const\n{\n   return m_recorderId;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:104:getLinearizationPoint",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 104,
+    "name": "getLinearizationPoint",
+    "code": "/// @brief Gets a const reference to the linearization point of the state.\n   /// @return Const reference to the linearization point.\n   const StateVector& getLinearizationPoint() const\n   {\n      return m_linearizationPoint;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp:104:reset",
+    "file": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp",
+    "line": 104,
+    "name": "reset",
+    "code": "/// @brief Reset data back to initial state at construction.\n   void reset()\n   {\n      m_state = State();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:59:begin",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 59,
+    "name": "begin",
+    "code": "/// @brief Returns a const iterator to the beginning of the set.\n   /// @return Const iterator to the first element.\n   ConstIterator begin() const\n   {\n      return m_keySet.cbegin();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp:141:setupDataStreams",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp",
+    "line": 141,
+    "name": "setupDataStreams",
+    "code": "private:\n   // -------------------------------------------------------------------------\n   // METHODS\n   // -------------------------------------------------------------------------\n\n   /// @brief Set up data streams by subscribing to each type in the supported types tuple.\n   ///\n   /// @tparam T_TUPLE The type of the tuple specifying the supported data types.\n   /// @tparam INDICES The indices of the tuple elements.\n   ///\n   /// @param stub Not used, only used to expand the indices.\n   ///\n   /// @return A boolean indicating whether all data streams were successfully set up.\n   ///\n   template <typename T_TUPLE, std::size_t... INDICES>\n   bool setupDataStreams([[maybe_unused]] const std::index_sequence<INDICES...>& stub)\n   {\n      return (subscribePerType<T_TUPLE, INDICES>() && ...);\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/include/Core/Api/GnssKey.hpp:40:signalMatches",
+    "file": "lib_positioning_engine/include/Core/Api/GnssKey.hpp",
+    "line": 40,
+    "name": "signalMatches",
+    "code": "bool signalMatches(Signal otherSignal) const\n   {\n      return (signal == Signal::Any) || (otherSignal == Signal::Any) || (signal == otherSignal);\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/SolutionReconstruction/ISolutionReconstruction.hpp:52:reconstruct",
+    "file": "lib_positioning_engine/src/Core/SolutionReconstruction/ISolutionReconstruction.hpp",
+    "line": 52,
+    "name": "reconstruct",
+    "code": "/**\n    * @brief Performs the reconstruction process and returns the result (Absolute data).\n    *\n    * This method forwards the call to the derived class's `reconstructImpl` method, which uses\n    * absolute data and incremental data to reconstruct the absolute data for the current epoch.\n    *\n    * @return The reconstructed absolute data.\n    */\n   typename ReconstructionTraits<T_DERIVED>::AbsoluteData reconstruct()\n   {\n      return static_cast<T_DERIVED*>(this)->reconstructImpl();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:67:covariance",
+    "file": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp",
+    "line": 67,
+    "name": "covariance",
+    "code": "/// @brief Get a immutable reference to the covariance of the state.\n   /// @return Immutable reference to the covariance of the state.\n   ///\n   const Covariance& covariance() const\n   {\n      return m_covariance;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp:51:getModel",
+    "file": "lib_positioning_engine/src/Core/Models/MeasurementsAndModel.hpp",
+    "line": 51,
+    "name": "getModel",
+    "code": "/// @brief Returns a const reference to the model.\n   /// @return Const reference to the model.\n   const Model& getModel() const\n   {\n      return m_model;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Filters/GenericIterativeFilter.hpp:68:reset",
+    "file": "lib_positioning_engine/src/Core/Filters/GenericIterativeFilter.hpp",
+    "line": 68,
+    "name": "reset",
+    "code": "/// @brief Reset data back to initial state at construction.\n   void reset()\n   {\n      m_filter = BaseFilter();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:255:getStochasticScalar",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp",
+    "line": 255,
+    "name": "getStochasticScalar",
+    "code": "/// @brief Access the stochastic scalar of the PseudorangeMeasurement object.\n   /// @param obj Reference to the PseudorangeMeasurement object.\n   /// @return Reference to the `pseudorange` member of the object.\n   static StochasticScalar& getStochasticScalar(PseudorangeMeasurement& obj)\n   {\n      return obj.pseudorange;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp:65:getStartUptime",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp",
+    "line": 65,
+    "name": "getStartUptime",
+    "code": "uint64_t HlfStartTimeHeaderRecord::getStartUptime() const\n{\n   return m_startUptime;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:69:setTime",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 69,
+    "name": "setTime",
+    "code": "/// @brief Sets the current time associated with the state.\n   /// @param time The time to set.\n   void setTime(const Time& time)\n   {\n      m_time = time;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/Troposphere.hpp:25:sanitizedStateKeySetKey",
+    "file": "lib_positioning_engine/src/Core/States/Troposphere.hpp",
+    "line": 25,
+    "name": "sanitizedStateKeySetKey",
+    "code": "/// @brief Adjusts GNSS key for state map entries, controlling state vector/matrix dimensions.\n   /// @details Standardizes to generic values since ZenithTropo represents a single global\n   /// parameter.\n   /// @param key The original GNSS key to be sanitized.\n   /// @return A sanitized GNSS key with standardized values for state key set indexing.\n   ///\n   static GnssKey sanitizedStateKeySetKey([[maybe_unused]] const GnssKey& key)\n   {\n      return {Constellation::Any, SatelliteId{SatelliteId::ANY_SATELLITE_ID}, Signal::Any};\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/PhaserangeSignalBias.hpp:22:sanitizedStateKeySetKey",
+    "file": "lib_positioning_engine/src/Core/States/PhaserangeSignalBias.hpp",
+    "line": 22,
+    "name": "sanitizedStateKeySetKey",
+    "code": "/// @brief Adjusts GNSS key for state map entries, controlling state vector/matrix dimensions.\n   /// @details Groups by constellation and signal; standardizes satellite ID for signal-specific\n   /// biases.\n   /// @param key The original GNSS key to be sanitized.\n   /// @return A sanitized GNSS key with constellation and signal preserved, satellite ID\n   /// standardized.\n   static GnssKey sanitizedStateKeySetKey(const GnssKey& key)\n   {\n      return {key.constellation, SatelliteId{SatelliteId::ANY_SATELLITE_ID}, key.signal};\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Logging/Logger.cpp:71:registerCallback",
+    "file": "lib_positioning_engine/src/Logging/Logger.cpp",
+    "line": 71,
+    "name": "registerCallback",
+    "code": "void Logger::registerCallback(LoggerCallbackFunction callback)\n{\n   s_callback = std::move(callback);\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:66:end",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 66,
+    "name": "end",
+    "code": "/// @brief Returns an iterator to the end of the set.\n   /// @return Iterator to one past the last element.\n   Iterator end()\n   {\n      return m_keySet.end();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp:43:value",
+    "file": "lib_positioning_engine/src/Core/Utility/StochasticState.hpp",
+    "line": 43,
+    "name": "value",
+    "code": "/// @brief Get a modifiable reference to the value of the state.\n   /// @return Modifiable reference to the value of the state.\n   ///\n   Value& value()\n   {\n      return m_value;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp:210:computeNextPackageImpl",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp",
+    "line": 210,
+    "name": "computeNextPackageImpl",
+    "code": "/// @copydoc IStrategy::computeNextPackage\n   Output computeNextPackageImpl()\n   {\n      // Get the next package from the assembler.\n      return m_assembler.nextPackage();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:292:getDiscontinuity",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp",
+    "line": 292,
+    "name": "getDiscontinuity",
+    "code": "/// @brief Access the discontinuity counter of the PhaseBias object.\n   /// @param obj Const reference to the PhaseBias object.\n   /// @return Const reference to the `discontinuityCounter` member within the `data` structure of\n   /// the object.\n   static const unsigned int& getDiscontinuity(const PhaseBias& obj)\n   {\n      return obj.data.discontinuityCounter;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Filters/IFilter.hpp:85:self",
+    "file": "lib_positioning_engine/src/Core/Filters/IFilter.hpp",
+    "line": 85,
+    "name": "self",
+    "code": "private:\n   T_DERIVED& self()\n   {\n      return static_cast<T_DERIVED&>(*this);\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:71:getValue",
+    "file": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp",
+    "line": 71,
+    "name": "getValue",
+    "code": "/// @brief Returns the value vector for a PiecewiseContinuousVariable measurement.\n/// @param pair The PiecewiseContinuousVariable measurement pair.\n/// @return The value as a DynamicMatrix.\nDynamicMatrix<DIMENSION_1D, DIMENSION_1D> getValue(const GnssKeyPair<StochasticScalar>& pair)\n{\n   return DynamicMatrix<DIMENSION_1D, DIMENSION_1D>({{pair.second.value}});\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:127:setSocketAddress",
+    "file": "test/alpha_replayer/Io/MockTcpClient.cpp",
+    "line": 127,
+    "name": "setSocketAddress",
+    "code": "void MockTcpClient::setSocketAddress(const std::string& address)\n{\n   m_socketAddress = address;\n}"
+  },
+  {
+    "id": "test/alpha_replayer/Logging/MockFileWriter.cpp:19:close",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 19,
+    "name": "close",
+    "code": "void MockFileWriter::close()\n{\n   m_isOpen = false;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp:97:measurements",
+    "file": "lib_positioning_engine/src/Core/Models/ZeroMeanGaussianNoiseModel.hpp",
+    "line": 97,
+    "name": "measurements",
+    "code": "/// @brief Get reference to the measurements container.\n      ///\n      /// @return Reference to the measurements container.\n      ///\n      MeasurementsContainer& measurements()\n      {\n         return m_measurements;\n      }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/GnssKeySatelliteHasher.hpp:63:operator",
+    "file": "lib_positioning_engine/src/Core/Utility/GnssKeySatelliteHasher.hpp",
+    "line": 63,
+    "name": "operator",
+    "code": "public:\n   bool operator()(const GnssKey& lhs, const GnssKey& rhs) const\n   {\n      return (lhs.constellation == rhs.constellation) && (lhs.satelliteId == rhs.satelliteId);\n   }"
+  },
+  {
+    "id": "test/lib_common/ApiLogging/Serialization/CrossPlatformDataSetsVerificationTests.cpp:68:makeRefPath",
+    "file": "test/lib_common/ApiLogging/Serialization/CrossPlatformDataSetsVerificationTests.cpp",
+    "line": 68,
+    "name": "makeRefPath",
+    "code": "#endif\n\ninline std::string makeRefPath(const std::string& base)\n{\n   return getBinDir() + base + \"_\" + std::string(K_REFERENCE_PLATFORM) + \".bin\";\n}"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp:396:getSatelliteClockInvalidSatPolyCase",
+    "file": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTestData.hpp",
+    "line": 396,
+    "name": "getSatelliteClockInvalidSatPolyCase",
+    "code": "// Test data for evaluateSatelliteClockCorrections: Invalid satellite position polynomial\nSatelliteClockTestCase getSatelliteClockInvalidSatPolyCase()\n{\n   return SatelliteClockTestCase(\n      Time{\n         2298,\n         StochasticScalar{484920.0, 0.0}\n   },\n      GnssKey{Constellation::Gps, SatelliteId{16}, Signal::Rinex1C},\n      PseudorangeMeasurement{{22702377.725000001, 0.052441000938415527}, 0.19029367279836487},\n      Time{2298, StochasticScalar{484800.0, 0.0}},\n      10,\n      50,\n      std::array<double, 5>{\n         -0.00011065809815407066,\n         -1.2152742399398151e-11,\n         1.4293296996710173e-17,\n         4.5875304495994327e-21,\n         1.3552504133952147e-24},\n      Time{2298, StochasticScalar{484919.5, 0.0}},\n      10,\n      200.0,\n      std::nullopt);\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp:90:getUptime",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp",
+    "line": 90,
+    "name": "getUptime",
+    "code": "uint64_t HlfDataRecord::getUptime() const\n{\n   return m_uptime;\n}"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:12:getValue",
+    "file": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp",
+    "line": 12,
+    "name": "getValue",
+    "code": "DynamicMatrix<DIMENSION_1D, DIMENSION_1D> getValue(const MockMeasurement& pair)\n{\n   return DynamicMatrix<DIMENSION_1D, DIMENSION_1D>({{pair.first}});\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:270:getStochasticScalar",
+    "file": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp",
+    "line": 270,
+    "name": "getStochasticScalar",
+    "code": "/// @brief Access the stochastic scalar of the PhaserangeMeasurement object.\n   /// @param obj Reference to the PhaserangeMeasurement object.\n   /// @return Reference to the `phaseRange` member of the object.\n   static StochasticScalar& getStochasticScalar(PhaserangeMeasurement& obj)\n   {\n      return obj.phaseRange;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfEndTimeHeaderRecord.cpp:52:getEndUptime",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfEndTimeHeaderRecord.cpp",
+    "line": 52,
+    "name": "getEndUptime",
+    "code": "uint64_t HlfEndTimeHeaderRecord::getEndUptime() const\n{\n   return m_endUptime;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/TypeRegistry.hpp:96:getExpectedPeriod",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/TypeRegistry.hpp",
+    "line": 96,
+    "name": "getExpectedPeriod",
+    "code": "/// @brief Get the configured expected period for the data stored in this registry.\n   ///\n   /// @return An optional containing the expected period if it is set, otherwise std::nullopt.\n   std::optional<const double> getExpectedPeriod() const\n   {\n      return (m_expectedPeriod) ? std::optional<const double>(m_expectedPeriod->data.expected)\n                                : std::nullopt;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp:95:getData",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfDataRecord.cpp",
+    "line": 95,
+    "name": "getData",
+    "code": "std::shared_ptr<const ApiData> HlfDataRecord::getData() const\n{\n   return m_data;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:59:longitude",
+    "file": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp",
+    "line": 59,
+    "name": "longitude",
+    "code": "/**\n    * @brief Gets the longitude coordinate.\n    *\n    * @return Longitude in radians, guaranteed to be in range [-PI, PI]\n    */\n   double longitude() const\n   {\n      return m_longitude;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp:364:handleAsOnTime",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp",
+    "line": 364,
+    "name": "handleAsOnTime",
+    "code": "/// @brief Find a package with an epoch time that matches exactly with the one attached to a\n   ///        data-point.\n   ///\n   /// @param iterator The iterator pointing to the first package that corresponds to a time-stamp\n   ///                 that is not less than the data time-stamp.\n   /// @param time     The time-stamp of the data to be inserted.\n   ///\n   /// @return An iterator pointing to the package in which the data can be inserted, or end() if we\n   ///         cannot match based on this time requirement.\n   ///\n   Iterator handleAsOnTime(const Iterator& iterator, const Time& time)\n   {\n      // If the iterator points to a package with the same time, we can insert data into it.\n      return (iterator != m_packages.end() && compareEqual(iterator->getTime(), time))\n              ? iterator\n              : m_packages.end();\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:77:getRecordingApplication",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp",
+    "line": 77,
+    "name": "getRecordingApplication",
+    "code": "HlfHeaderRecord::HlfString HlfRecordingInformationHeaderRecord::getRecordingApplication() const\n{\n   return m_recordingApplication;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:111:getOriginalPort",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 111,
+    "name": "getOriginalPort",
+    "code": "uint16_t HlfInputDescriptionHeaderRecord::getOriginalPort() const\n{\n   return m_originalPort;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/ReceiverClock.hpp:25:sanitizedStateKeySetKey",
+    "file": "lib_positioning_engine/src/Core/States/ReceiverClock.hpp",
+    "line": 25,
+    "name": "sanitizedStateKeySetKey",
+    "code": "/// @brief Adjusts GNSS key for state map entries, controlling state vector/matrix dimensions.\n   /// @details Standardizes to generic values since ReceiverClock represents a single global\n   /// parameter.\n   /// @param key The original GNSS key to be sanitized.\n   /// @return A sanitized GNSS key with standardized values for state key set indexing.\n   static GnssKey sanitizedStateKeySetKey([[maybe_unused]] const GnssKey& key)\n   {\n      return {Constellation::Any, SatelliteId{SatelliteId::ANY_SATELLITE_ID}, Signal::Any};\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/TestUtilities.hpp:42:TypeTraitToGnssTime",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/TestUtilities.hpp",
+    "line": 42,
+    "name": "TypeTraitToGnssTime",
+    "code": "// --------------------------------------------------------------------\n   // CONSTRUCTOR / DESTRUCTOR & OPERATORS\n   // --------------------------------------------------------------------\n   TypeTraitToGnssTime()\n      : value()\n   {}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp:65:data",
+    "file": "lib_common/src/ApiLogging/Buffer/BufferReader.cpp",
+    "line": 65,
+    "name": "data",
+    "code": "uint8_t const* BufferReader::data() const\n{\n   return m_bufferData;\n}"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp:77:operator",
+    "file": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp",
+    "line": 77,
+    "name": "operator",
+    "code": "bool operator()(const TPairScalarIndex cPairFirst, const TPairScalarIndex cPairSecond) const\n      {\n         return (cPairFirst.first < cPairSecond.first);\n      }"
+  },
+  {
+    "id": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp:150:getData",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 150,
+    "name": "getData",
+    "code": "Alpha::Replay::ByteArray getData() const\n   {\n      std::lock_guard<std::mutex> lock(m_testData.mtx);\n      return m_testData.data;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:21:isSkewSymmetric",
+    "file": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp",
+    "line": 21,
+    "name": "isSkewSymmetric",
+    "code": "//! Tells whether is skew-symmetric\ninline bool isSkewSymmetric(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const { return isSquare() && this->derived().isApprox(Scalar(-1.0)*this->derived().transpose(), prec); }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:293:setFgComplete",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 293,
+    "name": "setFgComplete",
+    "code": "void setFgComplete()\n   {\n      std::lock_guard<std::mutex> lock(m_mutex);\n      m_fgCount++;\n      m_cv.notify_all();\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:330:BackgroundTask",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 330,
+    "name": "BackgroundTask",
+    "code": "public:\n   BackgroundTask(uint16_t engineId)\n      : Alpha::ThreadBase<int>(engineId, \"bg\")\n   {\n      start();\n   }"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:120:setConnected",
+    "file": "test/alpha_replayer/Io/MockTcpClient.cpp",
+    "line": 120,
+    "name": "setConnected",
+    "code": "void MockTcpClient::setConnected(bool connected)\n{\n   std::lock_guard<std::mutex> lock(m_mutex);\n   m_connected = connected;\n   m_dataAvailable.notify_one();\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:87:size",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 87,
+    "name": "size",
+    "code": "/// @brief Returns the number of elements in the set.\n   /// @return The size of the set.\n   Size size() const\n   {\n      return m_keySet.size();\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp:92:getRecordingId",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfRecordingInformationHeaderRecord.cpp",
+    "line": 92,
+    "name": "getRecordingId",
+    "code": "HlfRecordingInformationHeaderRecord::Uuid HlfRecordingInformationHeaderRecord::getRecordingId()\n   const\n{\n   return m_recordingId;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/GnssPackage.hpp:62:getTimeImpl",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/GnssPackage.hpp",
+    "line": 62,
+    "name": "getTimeImpl",
+    "code": "// -------------------------------------------------------------------------\n   // METHODS\n   // -------------------------------------------------------------------------\n\n   /// @copydoc IPackage::getTime()\n   Time getTimeImpl() const\n   {\n      return m_time;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:116:getName",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 116,
+    "name": "getName",
+    "code": "HlfHeaderRecord::HlfString HlfInputDescriptionHeaderRecord::getName() const\n{\n   return m_name;\n}"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp:70:getTimeImpl",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp",
+    "line": 70,
+    "name": "getTimeImpl",
+    "code": "Time getTimeImpl() const\n   {\n      return m_time;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Filters/IFilter.hpp:91:cself",
+    "file": "lib_positioning_engine/src/Core/Filters/IFilter.hpp",
+    "line": 91,
+    "name": "cself",
+    "code": "const T_DERIVED& cself() const\n   {\n      return static_cast<const T_DERIVED&>(*this);\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/PseudorangeSignalBias.hpp:26:sanitizedStateKeySetKey",
+    "file": "lib_positioning_engine/src/Core/States/PseudorangeSignalBias.hpp",
+    "line": 26,
+    "name": "sanitizedStateKeySetKey",
+    "code": "/// @brief Adjusts GNSS key for state map entries, controlling state vector/matrix dimensions.\n   /// @details Groups by constellation and signal; standardizes satellite ID for signal-specific\n   /// biases.\n   /// @param key The original GNSS key to be sanitized.\n   /// @return A sanitized GNSS key with constellation and signal preserved, satellite ID\n   /// standardized.\n   static GnssKey sanitizedStateKeySetKey(const GnssKey& key)\n   {\n      return {key.constellation, SatelliteId{SatelliteId::ANY_SATELLITE_ID}, key.signal};\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Logging/Logger.cpp:65:getThreadContext",
+    "file": "lib_positioning_engine/src/Logging/Logger.cpp",
+    "line": 65,
+    "name": "getThreadContext",
+    "code": "void Logger::getThreadContext(uint16_t& instanceId, ThreadName& threadName)\n{\n   instanceId = s_instanceId;\n   threadName = s_threadName;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/IPackage.hpp:20:getTime",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/IPackage.hpp",
+    "line": 20,
+    "name": "getTime",
+    "code": "public:\n   // -------------------------------------------------------------------------\n   // METHODS\n   // -------------------------------------------------------------------------\n\n   /// @brief Get the epoch time the package corresponds to.\n   ///\n   /// @return The epoch time.\n   ///\n   Time getTime() const\n   {\n      return static_cast<const T_DERIVED*>(this)->getTimeImpl();\n   }"
+  },
+  {
+    "id": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp:118:getStreamId",
+    "file": "test/alpha_replayer/Io/TcpReceivingServiceTest.cpp",
+    "line": 118,
+    "name": "getStreamId",
+    "code": "uint16_t getStreamId() const\n   {\n      std::lock_guard<std::mutex> lock(m_testData.mtx);\n      return m_testData.streamId;\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/RequirementBasedStrategySimulator.hpp:217:checkPackageRequirements",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/RequirementBasedStrategySimulator.hpp",
+    "line": 217,
+    "name": "checkPackageRequirements",
+    "code": "bool checkPackageRequirements(const typename StrategyTraits::PackageType& package)\n   {\n      return checkTheRequirements(STRATEGY_INDEX_SEQUENCE, package);\n   }"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:89:getSocketAddress",
+    "file": "test/alpha_replayer/Io/MockTcpClient.cpp",
+    "line": 89,
+    "name": "getSocketAddress",
+    "code": "std::string MockTcpClient::getSocketAddress()\n{\n   return m_socketAddress;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:90:getVector",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 90,
+    "name": "getVector",
+    "code": "/// @brief Gets a const reference to the state vector.\n   /// @return Const reference to the state vector.\n   const StateVector& getVector() const\n   {\n      return m_vector;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/Ambiguity.hpp:23:sanitizedStateKeySetKey",
+    "file": "lib_positioning_engine/src/Core/States/Ambiguity.hpp",
+    "line": 23,
+    "name": "sanitizedStateKeySetKey",
+    "code": "// [m^2]\n\n   /// @brief Adjusts GNSS key for state map entries, controlling state vector/matrix dimensions.\n   /// @details Returns original key unchanged since ambiguities are unique per\n   /// constellation-satellite-signal.\n   /// @param key The original GNSS key to be sanitized.\n   /// @return The original GNSS key unchanged for unique state key set entries.\n   static GnssKey sanitizedStateKeySetKey(const GnssKey& key)\n   {\n      return key;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityValidator.cpp:124:hasInsufficientAmbiguities",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityValidator.cpp",
+    "line": 124,
+    "name": "hasInsufficientAmbiguities",
+    "code": "bool AmbiguityValidator::hasInsufficientAmbiguities(const AmbiguityStateWithKeySet& ambiguityState)\n{\n   return static_cast<std::size_t>(ambiguityState.values().size()) < MIN_AMBIGUITIES;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:54:getValue",
+    "file": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp",
+    "line": 54,
+    "name": "getValue",
+    "code": "/// @brief Returns the value vector for a phaserange measurement.\n/// @param pair The phaserange measurement pair.\n/// @return The value as a DynamicMatrix.\nDynamicMatrix<DIMENSION_1D, DIMENSION_1D> getValue(const GnssKeyPair<PhaserangeMeasurement>& pair)\n{\n   return DynamicMatrix<DIMENSION_1D, DIMENSION_1D>({{pair.second.phaseRange.value}});\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:55:keySet",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "line": 55,
+    "name": "keySet",
+    "code": "/// @brief Returns the key set associated with the ambiguity state.\n   [[nodiscard]] const StateKeySet<Ambiguity>& keySet() const noexcept\n   {\n      return m_keySet;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:1:isSquare",
+    "file": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp",
+    "line": 1,
+    "name": "isSquare",
+    "code": "// (c) Copyright 2024 Hexagon AB and/or its subsidiaries and affiliates. All rights reserved.\n\n#ifndef EIGEN_MATRIX_BASE_ADDONS_HPP\n#define EIGEN_MATRIX_BASE_ADDONS_HPP\n\n///////////////////////////////////////////////////////////////////////////////////////////////////\n// Summary   : Addons to the Eigen::MatrixBase class\n// Remarks   : The methods below will be added directly to the Eigen::MatrixBase class with the\n//             plugin mechanism offered by Eigen. According to the Eigen documentation\n//             (see reference below), this is the recommended way to add extra functionality to\n//              Eigen.\n// Reference : https://libeigen.gitlab.io/eigen/docs-nightly/TopicCustomizing_Plugins.html\n// Note      : Here we are not in the Alpha namespace but inside the Eigen::MatrixBase class!\n///////////////////////////////////////////////////////////////////////////////////////////////////\n\n\n//! Tells whether is square (i.e. the number of columns equals the number of rows)\ninline bool isSquare() const { return cols() == rows(); }"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:83:isConnected",
+    "file": "test/alpha_replayer/Io/MockTcpClient.cpp",
+    "line": 83,
+    "name": "isConnected",
+    "code": "bool MockTcpClient::isConnected()\n{\n   std::lock_guard<std::mutex> lock(m_mutex);\n   return m_connected;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/PositionReconstruction/VelocityEstimator.hpp:35:addIncrementalData",
+    "file": "lib_positioning_engine/src/Core/PositionReconstruction/VelocityEstimator.hpp",
+    "line": 35,
+    "name": "addIncrementalData",
+    "code": "public:\n   /**\n    * @brief Adds the latest incremental position data to the storage.\n    *\n    * This method stores the provided incremental position data, overwriting any previously\n    * stored data.\n    *\n    * @param data The incremental position data to store. It includes the position increment\n    *             and associated metadata.\n    */\n   void addIncrementalData(\n      const ReconstructionTraits<PositionReconstruction>::IncrementalData& data)\n   {\n      m_lastPositionIncrement = data;\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Models/AggregateModelTest.cpp:40:sanitizedStateKeySetKey",
+    "file": "test/lib_positioning_engine/Core/Models/AggregateModelTest.cpp",
+    "line": 40,
+    "name": "sanitizedStateKeySetKey",
+    "code": "static GnssKey sanitizedStateKeySetKey([[maybe_unused]] GnssKey key)\n   {\n      return GnssKey();\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp:50:getIndex",
+    "file": "lib_common/src/ApiLogging/Buffer/BufferWriter.cpp",
+    "line": 50,
+    "name": "getIndex",
+    "code": "size_t BufferWriter::getIndex() const\n{\n   return m_index;\n}"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp:106:getOriginalIp",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfInputDescriptionHeaderRecord.cpp",
+    "line": 106,
+    "name": "getOriginalIp",
+    "code": "HlfHeaderRecord::HlfString HlfInputDescriptionHeaderRecord::getOriginalIp() const\n{\n   return m_originalIp;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/PositionReconstruction/VelocityEstimator.hpp:50:getLastPositionIncrement",
+    "file": "lib_positioning_engine/src/Core/PositionReconstruction/VelocityEstimator.hpp",
+    "line": 50,
+    "name": "getLastPositionIncrement",
+    "code": "/**\n    * @brief Retrieves the most recently stored position increment data.\n    *\n    * This method returns the last position increment that was added to the storage, if any.\n    * If no data has been added, an empty `std::optional` is returned.\n    *\n    * @return An `std::optional` containing the most recent position increment, or an empty\n    *         optional if no data has been stored.\n    */\n   std::optional<ReconstructionTraits<PositionReconstruction>::IncrementalData>\n   getLastPositionIncrement() const\n   {\n      return m_lastPositionIncrement;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/SynchUtilities.hpp:23:isLeftCloserInTime",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/SynchUtilities.hpp",
+    "line": 23,
+    "name": "isLeftCloserInTime",
+    "code": "/// @brief Checks if a time-stamp is closer to the left boundary of a time range rather than the\n///        right extreme.\n///\n/// @param leftTime  Left time-stamp of the range.\n/// @param rightTime Right time-stamp of the range.\n/// @param time      Reference time-stamp to compare against the left and right times.\n///\n/// @return True if the left time is closer to the reference time than the right time, false\n///         otherwise.\n///\ninline bool isLeftCloserInTime(const Time& leftTime, const Time& rightTime, const Time& time)\n{\n   // Check if the left time is closer to the primary time than the right time\n   return std::abs((leftTime - time).value) < std::abs((rightTime - time).value);\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp:169:getRequirements",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/AssemblyLine.hpp",
+    "line": 169,
+    "name": "getRequirements",
+    "code": "/// @brief Get the requirements for the package.\n   ///\n   /// @return The requirements for the package.\n   ///\n   Requirements getRequirements() const\n   {\n      return m_packageReqs;\n   }"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp:60:getRecordingStartTime",
+    "file": "lib_common/src/ApiLogging/Hlf/HlfStartTimeHeaderRecord.cpp",
+    "line": 60,
+    "name": "getRecordingStartTime",
+    "code": "time_t HlfStartTimeHeaderRecord::getRecordingStartTime() const\n{\n   return m_recordingStartTime;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:81:parse",
+    "file": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp",
+    "line": 81,
+    "name": "parse",
+    "code": "/// @brief Parser for format specifiers.\n   /// @param context The fmt context.\n   /// @return Iterator to the beginning of the format string.\n   constexpr auto parse(format_parse_context& context)\n   {\n      return context.begin();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp:49:latitude",
+    "file": "lib_positioning_engine/src/Core/Models/GeodeticCoordinates.hpp",
+    "line": 49,
+    "name": "latitude",
+    "code": "/**\n    * @brief Gets the latitude coordinate.\n    *\n    * @return Latitude in radians, guaranteed to be in range [-PI/2, PI/2]\n    */\n   double latitude() const\n   {\n      return m_latitude;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:111:getModifiableLinearizationPoint",
+    "file": "lib_positioning_engine/src/Core/States/State.hpp",
+    "line": 111,
+    "name": "getModifiableLinearizationPoint",
+    "code": "/// @brief Gets a modifiable reference to the linearization point of the state.\n   /// @return Reference to the linearization point.\n   StateVector& getModifiableLinearizationPoint()\n   {\n      return m_linearizationPoint;\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:80:empty",
+    "file": "lib_positioning_engine/src/Core/States/StateKeySet.hpp",
+    "line": 80,
+    "name": "empty",
+    "code": "/// @brief Checks if the set is empty.\n   /// @return True if the set is empty, false otherwise.\n   bool empty() const\n   {\n      return m_keySet.empty();\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/TestUtilities.hpp:27:operator",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/TestUtilities.hpp",
+    "line": 27,
+    "name": "operator",
+    "code": "bool operator()(const Time& lhs, const Time& rhs) const\n   {\n      return compareLess(lhs, rhs);\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:286:setBgComplete",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 286,
+    "name": "setBgComplete",
+    "code": "void setBgComplete()\n   {\n      std::lock_guard<std::mutex> lock(m_mutex);\n      m_bgCount++;\n      m_cv.notify_all();\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp:61:empty",
+    "file": "lib_positioning_engine/src/Core/AmbiguityValidation/AmbiguityStateWithKeySet.hpp",
+    "line": 61,
+    "name": "empty",
+    "code": "/// @brief Returns true iff the state holds no ambiguities.\n   [[nodiscard]] bool empty() const noexcept\n   {\n      return m_values.size() == 0;\n   }"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Utility/EstimatorUtilitiesTest.cpp:26:createTestPhaserangeMeasurement",
+    "file": "test/lib_positioning_engine/Core/Utility/EstimatorUtilitiesTest.cpp",
+    "line": 26,
+    "name": "createTestPhaserangeMeasurement",
+    "code": "// Create PhaserangeMeasurement for testing\nPhaserangeMeasurement createTestPhaserangeMeasurement(\n   double phaseRangeValue,\n   double phaseRangeCovariance,\n   double wavelength,\n   unsigned int discontinuityCounter,\n   PhaserangeMeasurement::Parity parity = PhaserangeMeasurement::Parity::Unknown)\n{\n   return PhaserangeMeasurement{\n      StochasticScalar{phaseRangeValue, phaseRangeCovariance},\n      wavelength,\n      discontinuityCounter,\n      parity\n   };\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/IPredictionModel.hpp:70:self",
+    "file": "lib_positioning_engine/src/Core/Models/IPredictionModel.hpp",
+    "line": 70,
+    "name": "self",
+    "code": "private:\n   T_DERIVED& self()\n   {\n      return static_cast<T_DERIVED&>(*this);\n   }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/ModelUtility.hpp:47:getModifiedJulianDateSince2000",
+    "file": "lib_positioning_engine/src/Core/Utility/ModelUtility.hpp",
+    "line": 47,
+    "name": "getModifiedJulianDateSince2000",
+    "code": "/// @brief Calculates the Modified Julian Date since January 1, 2000 for the given time.\n/// @param time The GPS time.\n/// @return The Modified Julian Date since January 1, 2000.\ninline double getModifiedJulianDateSince2000(const Time& time)\n{\n   return getModifiedJulianDate(time) - REFERENCE_EPOCH_OFFSET;\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp:18:isSymmetric",
+    "file": "lib_positioning_engine/src/Utility/EigenMatrixBaseAddons.hpp",
+    "line": 18,
+    "name": "isSymmetric",
+    "code": "//! Tells whether is symmetric\ninline bool isSymmetric(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const { return isSquare() && this->derived().isApprox(this->derived().transpose(), prec); }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:45:getCovariance",
+    "file": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp",
+    "line": 45,
+    "name": "getCovariance",
+    "code": "/// @brief Returns the uncertainty matrix for a pseudorange measurement.\n/// @param pair The pseudorange measurement pair.\n/// @return The uncertainty as a DynamicMatrix.\nDynamicMatrix<DIMENSION_1D, DIMENSION_1D> getCovariance(\n   const GnssKeyPair<PseudorangeMeasurement>& pair)\n{\n   return DynamicMatrix<DIMENSION_1D, DIMENSION_1D>({{pair.second.pseudorange.covariance}});\n}"
+  },
+  {
+    "id": "test/test_support/TestData/PositionMeasurementDataSets.hpp:44:getPositionMeasurementDataSet1",
+    "file": "test/test_support/TestData/PositionMeasurementDataSets.hpp",
+    "line": 44,
+    "name": "getPositionMeasurementDataSet1",
+    "code": "/// @brief Alias for getPositionMeasurementDataSet (backward compatibility)\ninline void getPositionMeasurementDataSet1(PositionMeasurement& posMeas)\n{\n   getPositionMeasurementDataSet(posMeas);\n}"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp:62:getCovariance",
+    "file": "lib_positioning_engine/src/Core/Utility/MeasurementAdapters.cpp",
+    "line": 62,
+    "name": "getCovariance",
+    "code": "/// @brief Returns the uncertainty matrix for a phaserange measurement.\n/// @param pair The phaserange measurement pair.\n/// @return The uncertainty as a DynamicMatrix.\nDynamicMatrix<DIMENSION_1D, DIMENSION_1D> getCovariance(\n   const GnssKeyPair<PhaserangeMeasurement>& pair)\n{\n   return DynamicMatrix<DIMENSION_1D, DIMENSION_1D>({{pair.second.phaseRange.covariance}});\n}"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Synchronizer/SynchUtilitiesTest.cpp:219:getTime",
+    "file": "test/lib_positioning_engine/Core/Synchronizer/SynchUtilitiesTest.cpp",
+    "line": 219,
+    "name": "getTime",
+    "code": "// ---------------------------------------\n      // MEMBER METHODS\n      // ---------------------------------------\n      const Time& getTime() const\n      {\n         return time;\n      }"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp:20:parse",
+    "file": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp",
+    "line": 20,
+    "name": "parse",
+    "code": "/// @brief Parser for format specifiers.\n   /// @param context The fmt context.\n   /// @return Iterator to the beginning of the format string.\n   constexpr auto parse(fmt::format_parse_context& context)\n   {\n      return context.begin();\n   }"
+  },
+  {
+    "id": "test/lib_common/ApiLogging/Serialization/GenerateCrossPlatformReferenceBinary.cpp:63:withPlatformSuffix",
+    "file": "test/lib_common/ApiLogging/Serialization/GenerateCrossPlatformReferenceBinary.cpp",
+    "line": 63,
+    "name": "withPlatformSuffix",
+    "code": "#endif\n\ninline std::string withPlatformSuffix(const std::string& base)\n{\n   return base + \"_\" + std::string(K_CURRENT_PLATFORM) + \".bin\";\n}"
+  }
+]

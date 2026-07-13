@@ -1,0 +1,211 @@
+{
+  "dumb_FP": [
+    {
+      "id": "alpha_conversion/src/Managers/FileManager.cpp:165:eof",
+      "truth_reason": "returns member's method result, not the member"
+    },
+    {
+      "id": "alpha_conversion/src/Utility/Errors.cpp:15:getErrorState",
+      "truth_reason": "not a trivial member getter/setter"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp:58:chiSquareTest",
+      "truth_reason": "computed/derived value, not a bare member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:255:getStochasticScalar",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:270:getStochasticScalar",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:277:getDiscontinuity",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:292:getDiscontinuity",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/States/Ambiguity.hpp:23:sanitizedStateKeySetKey",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/States/State.hpp:118:getDimension",
+      "truth_reason": "returns member's method result, not the member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:52:begin",
+      "truth_reason": "returns member's method result, not the member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:59:begin",
+      "truth_reason": "returns member's method result, not the member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:66:end",
+      "truth_reason": "returns member's method result, not the member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:73:end",
+      "truth_reason": "returns member's method result, not the member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:80:empty",
+      "truth_reason": "returns member's method result, not the member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:87:size",
+      "truth_reason": "returns member's method result, not the member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp:210:computeNextPackageImpl",
+      "truth_reason": "returns member's method result, not the member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:81:parse",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Utility/ApiFormatters.hpp:110:parse",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp:20:parse",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Utility/StateFormatters.hpp:52:parse",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTest.cpp:55:getStochasticScalar",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:64:sanitizedStateKeySetKey",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "test/lib_positioning_engine/Core/Models/AggregateModelTest.cpp:40:sanitizedStateKeySetKey",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "test/test_support/WaitableCounter.cpp:27:count",
+      "truth_reason": "cast/atomic access, not a bare member"
+    }
+  ],
+  "dumb_FN_getters_net_missed": [
+    {
+      "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:56:setTimestamp",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp:41:setHlfRecordCallback",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "alpha_conversion/src/Serialization/Xml/Hlf/Deserializers/HlfRecordXmlDeserializer.cpp:36:setFileToDecode",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "lib_common/src/ApiLogging/ApiData/ApiData.cpp:66:setThreadId",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "test/lib_positioning_engine/Core/Synchronizer/IntegerPackage.hpp:75:setTimeImpl",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Synchronizer/TypeToRequirement.hpp:56:set",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Synchronizer/GnssPackage.hpp:87:setTimeImpl",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Filters/InformationFilter.hpp:113:reinitializeImpl",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/States/State.hpp:69:setTime",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "lib_positioning_engine/src/Logging/Logger.cpp:71:registerCallback",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "test/alpha_replayer/Io/MockTcpClient.cpp:127:setSocketAddress",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/PositionReconstruction/VelocityEstimator.hpp:35:addIncrementalData",
+      "truth_reason": "assigns parameter to data member, no additional logic"
+    }
+  ],
+  "pipeline_FP": [
+    "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp:58:chiSquareTest",
+    "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:255:getStochasticScalar",
+    "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:270:getStochasticScalar",
+    "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:277:getDiscontinuity",
+    "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:292:getDiscontinuity",
+    "lib_positioning_engine/src/Core/States/Ambiguity.hpp:23:sanitizedStateKeySetKey",
+    "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTest.cpp:55:getStochasticScalar",
+    "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:64:sanitizedStateKeySetKey"
+  ],
+  "haiku_disagree_truth": [
+    {
+      "id": "lib_positioning_engine/src/Core/AmbiguityValidation/CompatibilityValidator.cpp:58:chiSquareTest",
+      "haiku": "violation",
+      "truth": "not_violation",
+      "truth_reason": "computed/derived value, not a bare member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:255:getStochasticScalar",
+      "haiku": "violation",
+      "truth": "not_violation",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:270:getStochasticScalar",
+      "haiku": "violation",
+      "truth": "not_violation",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:277:getDiscontinuity",
+      "haiku": "violation",
+      "truth": "not_violation",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/Corrector/GnssCorrectorUtilities.hpp:292:getDiscontinuity",
+      "haiku": "violation",
+      "truth": "not_violation",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "lib_positioning_engine/src/Core/States/Ambiguity.hpp:23:sanitizedStateKeySetKey",
+      "haiku": "violation",
+      "truth": "not_violation",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorUtilitiesTest.cpp:55:getStochasticScalar",
+      "haiku": "violation",
+      "truth": "not_violation",
+      "truth_reason": "returns param/constructed value, not a member"
+    },
+    {
+      "id": "test/lib_positioning_engine/Core/Estimators/ResidualsCalculatorTest.cpp:64:sanitizedStateKeySetKey",
+      "haiku": "violation",
+      "truth": "not_violation",
+      "truth_reason": "returns param/constructed value, not a member"
+    }
+  ],
+  "spot_violations": []
+}
