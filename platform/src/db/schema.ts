@@ -303,6 +303,92 @@ export const streamParticipants = pgTable('stream_participants', {
 }));
 
 // ============================================
+// Cross-Corpus Phase A: Element Catalogs (migration 053_element_catalogs.sql)
+// ============================================
+
+/**
+ * Code Elements (nmemo-uhp.10)
+ *
+ * The code-corpus catalog: BARE catalog rows, never `entities` — zero fusion
+ * surface by construction (D1, docs/architecture/cross-corpus-audit/04 §3).
+ * element_ref = uuidV5(scheme|corpus|canonical_symbol), derived by the pure
+ * resolver in services/element-catalogs.ts so ids are stable and hand-seedable
+ * with no DB. `scheme` ('scip' | 'ast') and `status` ('live' | 'stale' |
+ * 'removed') are plain varchars here — the DB enforces the CHECK.
+ *
+ * Defined in migration 053_element_catalogs.sql.
+ */
+export const codeElements = pgTable('code_elements', {
+  elementRef: uuid('element_ref').primaryKey(),
+  corpusId: text('corpus_id').notNull(),
+  scheme: varchar('scheme', { length: 8 }),
+  canonicalSymbol: text('canonical_symbol').notNull(),
+  sourceCommit: varchar('source_commit', { length: 40 }),
+  contentHash: varchar('content_hash', { length: 64 }),
+  filePath: text('file_path'),
+  lineStart: integer('line_start'),
+  lineEnd: integer('line_end'),
+  status: varchar('status', { length: 12 }).default('live').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  corpusSymbolUniq: unique().on(t.corpusId, t.scheme, t.canonicalSymbol),
+  corpusIdx: index('idx_code_elements_corpus').on(t.corpusId),
+}));
+
+export type CodeElement = typeof codeElements.$inferSelect;
+export type NewCodeElement = typeof codeElements.$inferInsert;
+
+/**
+ * Rule Elements (nmemo-uhp.10)
+ *
+ * The standard-corpus catalog — same bare-row shape as {@link codeElements}.
+ * element_ref = uuidV5(corpus|rule_id) via the pure resolver in
+ * services/element-catalogs.ts.
+ *
+ * Defined in migration 053_element_catalogs.sql.
+ */
+export const ruleElements = pgTable('rule_elements', {
+  elementRef: uuid('element_ref').primaryKey(),
+  corpusId: text('corpus_id').notNull(),
+  ruleId: text('rule_id').notNull(),
+  ruleSetHash: text('rule_set_hash'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  corpusRuleUniq: unique().on(t.corpusId, t.ruleId),
+  corpusIdx: index('idx_rule_elements_corpus').on(t.corpusId),
+}));
+
+export type RuleElement = typeof ruleElements.$inferSelect;
+export type NewRuleElement = typeof ruleElements.$inferInsert;
+
+/**
+ * Element Embeddings (nmemo-uhp.10)
+ *
+ * The E1 recall substrate: the dedicated behaviour/rule-text vector table E1
+ * queries cross-corpus over — deliberately NOT entities.embedding (which is
+ * name-only). `kind` ('behaviour' | 'rule_text') is CHECK-backed in the DB.
+ *
+ * Note: embedding VECTOR(768) handled directly via SQL (pgvector), not in
+ * Drizzle — see upsertElementEmbedding / recallAcrossCorpus in
+ * services/element-catalogs.ts.
+ *
+ * Defined in migration 053_element_catalogs.sql.
+ */
+export const elementEmbeddings = pgTable('element_embeddings', {
+  elementRef: uuid('element_ref').primaryKey(),
+  corpusId: text('corpus_id').notNull(),
+  kind: varchar('kind', { length: 12 }).notNull(),
+  text: text('text').notNull(),
+  // Note: embedding VECTOR(768) handled directly via SQL (pgvector), not in Drizzle
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  corpusIdx: index('idx_element_embeddings_corpus').on(t.corpusId),
+}));
+
+export type ElementEmbedding = typeof elementEmbeddings.$inferSelect;
+export type NewElementEmbedding = typeof elementEmbeddings.$inferInsert;
+
+// ============================================
 // Graph C: Causal Graph Tables
 // ============================================
 
