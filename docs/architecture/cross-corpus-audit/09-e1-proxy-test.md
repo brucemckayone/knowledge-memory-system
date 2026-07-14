@@ -612,3 +612,22 @@ On F.2's ambiguous mid-zone, one human and ≈one LLM prior disagree; they agree
 
 ### 26.3 Correction to the §24 disposition
 The §24 disposition ("LLM = human-in-the-loop assist + deterministic-tool orchestrator, not autonomous auditor") **must NOT be cited as supported by Leg 7** — Leg 7 is inconclusive, and the sub-claim "the LLM judges semantic rules unreliably" remains **UNTESTED**. To the extent the disposition stands, it rests on **architecture** arguments: structural rules are AST-decidable so the LLM is unnecessary (Leg 6); no structural prefilter exists for a semantic rule like F.2 so coverage collapses (Leg 5, net precision 0.00); element→rule scanning precision collapses at field prevalence (Leg 4, with its own LLM-truth caveat). Whether an LLM can *correctly judge* a genuinely semantic rule against trustworthy human truth is the load-bearing open question, and **the second human labeller is the decisive test, not an optional one.**
+
+## 27. Investigation status — PAUSED after 7 legs; what a valid semantic-rule test requires (2026-07-14)
+
+**Status.** The empirical push stops here. The product disposition (LLM = human-in-the-loop assist + deterministic-tool orchestrator; Phase A graph/bridge plumbing may proceed) rests on the architecture legs (4–6). The **core value question — can an LLM correctly judge a genuinely semantic, no-structural-shadow rule against trustworthy human truth? — remains OPEN.** Seven legs narrowed it but did not answer it; Leg 7's pilot was inconclusive, and its "ground truth" was a self-described *junior* applying an *under-specified* rubric — not an authoritative oracle.
+
+**Why stop here — a resource boundary, not a dead end.** Progress now needs something neither the author (an LLM that laundered a favorable conclusion five times here, in both directions) nor a non-expert labeller can supply: authoritative ground truth on a subjective rule. Two interacting failure modes must both be closed:
+- Calibrating the labeller with the *LLM's/author's* examples makes agreement circular (it trains the human to the model's prior — "I'd have scored full marks with examples" is precisely that trap).
+- Leaving the rule under-specified makes a non-expert's labels track "worth a look," not the rule (the empty-`reset` category error).
+
+**Spec for a valid Leg 7 (semantic-rule capability test) — the concrete handoff:**
+1. **Rule** — genuinely no-structural-shadow, but chosen for *demonstrable expert consensus*. F.2 ("single logical operation") may be too subjective to grade at all; prefer a semantic rule where senior engineers actually agree, or first prove that agreement exists.
+2. **Oracle** — **≥2 domain experts** (senior, fluent in the guideline), labelling **blind and independently**. Report **inter-expert agreement first**: if experts don't agree (κ low), the rule is ungradeable — stop and record *that* as the finding.
+3. **Rubric** — grounded in the **canonical guideline text and its own examples** (authoritative, non-circular). Never calibrate labellers with one model's interpretation.
+4. **n** — sized for an informative recall CI (at ~30% prevalence, ~100+ items; more if rarer).
+5. **System** — blind, field model (Haiku); report **effective-n** of any multi-run (same-model/same-rubric runs ≈ 1 labeller, per Leg 7).
+6. **Metrics** — precision + recall vs expert consensus, **field-prevalence-adjusted**; a **built** deterministic baseline; difference CIs.
+7. **Discipline** — pre-register and freeze the bar; hostile adversary on the result, hardest if favorable, in **either** direction.
+
+**Until that runs:** no automation or coverage claim for semantic/judgment rules; the feature ships as an assist behind human review; Phase A schema/graph work proceeds independently. This is the terminal state of the E1 proxy investigation as of 2026-07-14.
