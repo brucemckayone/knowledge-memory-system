@@ -29,6 +29,7 @@ export const entities = pgTable('entities', {
   id: uuid('id').primaryKey().defaultRandom(),
   canonicalName: varchar('canonical_name', { length: 500 }).notNull(),
   entityType: varchar('entity_type', { length: 100 }).notNull(),
+  corpusId: text('corpus_id').notNull().default('default'),
   description: text('description'),
   properties: jsonb('properties').default({}).notNull(),
   mergedFrom: uuid('merged_from').array().default([]),
@@ -140,6 +141,9 @@ export const facts = pgTable('facts', {
 
   // Quality
   confidence: real('confidence').default(1.0),
+
+  // Cross-corpus partition (nmemo-uhp.7)
+  corpusId: text('corpus_id').notNull().default('default'),
 });
 
 export const factsRelations = relations(facts, ({ one }) => ({
@@ -347,6 +351,7 @@ export const causalEvents = pgTable('causal_events', {
   // Note: event_embedding handled directly via SQL (pgvector), not in Drizzle
   sourceMemoryId: uuid('source_memory_id'),
   sourceText: text('source_text'),
+  corpusId: text('corpus_id').notNull().default('default'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -465,6 +470,7 @@ export const mergeCandidates = pgTable('merge_candidates', {
   // rows. ON CONFLICT preserves an existing 'cross_cluster_generator' tag
   // (doc 25 §2.5 R3 B4 lock).
   candidateSource: varchar('candidate_source', { length: 40 }).default('three_signal_scoring').notNull(),
+  corpusId: text('corpus_id').notNull().default('default'),
 });
 
 export const mergeCandidatesRelations = relations(mergeCandidates, ({ one }) => ({
