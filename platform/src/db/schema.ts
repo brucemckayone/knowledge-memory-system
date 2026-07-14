@@ -1001,6 +1001,128 @@ export const stagingCausalEdges = pgTable(
   }),
 );
 
+// ============================================
+// Cross-corpus Phase A: bridge_edges family (migration 054_bridge_edges.sql)
+// ============================================
+
+/**
+ * Bridge Edges (nmemo-uhp.9)
+ *
+ * A saved, reasoned, sourced connection between an element in one corpus and an
+ * element in another (e.g. a code element VIOLATES a rule). Reuses the causal-edge
+ * row shape wholesale: `reasoning` + `source_references` are NOT NULL (the doc-01
+ * invariant), partial-unique dedup while live, corroborate-or-insert, stale_citation
+ * flag. Endpoints are POLYMORPHIC UUIDs (`a_kind`/`a_ref`, `b_kind`/`b_ref`) validated
+ * at disposal against code_elements/rule_elements (mig 053), NOT by FK (D1).
+ *
+ * `invocation_id` is the replay-idempotency token for corroboration (D4, the mig-034
+ * UPSERT model): applyBridgePromotion stamps it on create and guards each corroboration
+ * so the same invocation bumps a given edge at most once. Anchor columns
+ * (source_commit, source_ast_hash, rule_set_hash, model_version) are present but DORMANT
+ * in v1 (Phase C fills them).
+ *
+ * The partial-unique dedup index (a_ref, b_ref, relation) WHERE expired_at IS NULL and
+ * the a/b/corpus secondary indexes live in migration 054 (not re-declared here, matching
+ * the reasoningReports partial-index convention).
+ */
+export const bridgeEdges = pgTable('bridge_edges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  aKind: varchar('a_kind', { length: 12 }).notNull(),
+  aRef: uuid('a_ref').notNull(),
+  bKind: varchar('b_kind', { length: 12 }).notNull(),
+  bRef: uuid('b_ref').notNull(),
+  sourceCorpusId: text('source_corpus_id').notNull(),
+  targetCorpusId: text('target_corpus_id').notNull(),
+  relation: varchar('relation', { length: 16 }).notNull(),
+  severity: varchar('severity', { length: 16 }),
+  category: varchar('category', { length: 64 }),
+  codeLocation: jsonb('code_location'),
+  // Anchor columns — present but DORMANT in v1 (Phase C).
+  sourceCommit: text('source_commit'),
+  sourceAstHash: text('source_ast_hash'),
+  ruleSetHash: text('rule_set_hash'),
+  modelVersion: text('model_version'),
+  // Reasoning & traceability — NON-NEGOTIABLE (mirrors causal_edges).
+  reasoning: text('reasoning').notNull(),
+  sourceReferences: jsonb('source_references').notNull(),
+  // Lifecycle.
+  corroborationCount: integer('corroboration_count').default(1).notNull(),
+  strength: real('strength').default(0.5).notNull(),
+  staleCitation: boolean('stale_citation').default(false).notNull(),
+  staleReason: text('stale_reason'),
+  expiredAt: timestamp('expired_at', { withTimezone: true }),
+  expireReason: text('expire_reason'),
+  invocationId: uuid('invocation_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type BridgeEdge = typeof bridgeEdges.$inferSelect;
+export type NewBridgeEdge = typeof bridgeEdges.$inferInsert;
+
+/**
+ * Staging — proposed bridge edges (nmemo-uhp.9; mirrors staging_causal_edges).
+ *
+ * The audit pass writes candidate bridges HERE — never canonical. A deterministic
+ * applyBridgePromotion disposes them into `bridgeEdges` (endpoint-resolve vs catalogs,
+ * stale-citation flag, corroborate-or-insert). No FK — endpoints are validated at
+ * disposal. The doc-01 invariant (non-empty reasoning + source_references array) is
+ * enforced structurally by the migration 054 CHECKs.
+ */
+export const stagingBridgeEdges = pgTable(
+  'staging_bridge_edges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    invocationId: uuid('invocation_id').notNull(),
+    aKind: varchar('a_kind', { length: 12 }).notNull(),
+    aRef: uuid('a_ref').notNull(),
+    bKind: varchar('b_kind', { length: 12 }).notNull(),
+    bRef: uuid('b_ref').notNull(),
+    sourceCorpusId: text('source_corpus_id').notNull(),
+    targetCorpusId: text('target_corpus_id').notNull(),
+    relation: varchar('relation', { length: 16 }).notNull(),
+    severity: varchar('severity', { length: 16 }),
+    category: varchar('category', { length: 64 }),
+    codeLocation: jsonb('code_location'),
+    reasoning: text('reasoning').notNull(),
+    sourceReferences: jsonb('source_references').notNull(),
+    strength: real('strength').default(0.5).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    invocationIdx: index('idx_staging_bridge_edges_invocation').on(t.invocationId),
+  }),
+);
+
+export type StagingBridgeEdge = typeof stagingBridgeEdges.$inferSelect;
+export type NewStagingBridgeEdge = typeof stagingBridgeEdges.$inferInsert;
+
+/**
+ * Bridge Source Refs (nmemo-uhp.9) — reverse-lookup index over bridge_edges.
+ *
+ * Clone of edge_source_refs with `ref_type` widened to include code_element /
+ * rule_element and `ref_id` stored as TEXT (not uuid). Denormalised from each edge's
+ * `source_references` JSONB at disposal; the JSONB stays the source of truth.
+ */
+export const bridgeSourceRefs = pgTable(
+  'bridge_source_refs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    bridgeEdgeId: uuid('bridge_edge_id')
+      .notNull()
+      .references(() => bridgeEdges.id, { onDelete: 'cascade' }),
+    refType: varchar('ref_type', { length: 16 }).notNull(),
+    refId: text('ref_id').notNull(),
+    relevance: real('relevance'),
+  },
+  (t) => ({
+    edgeIdx: index('idx_bridge_source_refs_edge').on(t.bridgeEdgeId),
+    lookupIdx: index('idx_bridge_source_refs_lookup').on(t.refType, t.refId),
+  }),
+);
+
+export type BridgeSourceRef = typeof bridgeSourceRefs.$inferSelect;
+export type NewBridgeSourceRef = typeof bridgeSourceRefs.$inferInsert;
+
 export type Fact = typeof facts.$inferSelect;
 export type NewFact = typeof facts.$inferInsert;
 export type FactPredicate = typeof factPredicates.$inferSelect;
