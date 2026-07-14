@@ -1,0 +1,182 @@
+[
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_common/src/ApiLogging/Serialization/TimeDataSerializer.cpp:43:serialize",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "alpha_conversion/src/Managers/ConversionManager.cpp:567:xmlToFile",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_positioning_engine/src/Core/Models/TropoGpt2.cpp:685:getWetMappingFunction",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_positioning_engine/src/Core/States/StateKeySet.hpp:43:StateKeySet",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "test/alpha_replayer/Io/MockTcpClient.cpp:28:disconnect",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "alpha_replayer/src/Managers/EngineManager.cpp:54:getEngine",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_positioning_engine/src/Core/Models/GeometryUtilities.cpp:102:computeElevationAngle",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "test/lib_positioning_engine/Logger/LoggerTests.cpp:423:injectData",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "test/alpha_replayer/Io/MockTcpClient.cpp:127:setSocketAddress",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "VIOLATION",
+        "conf":  "H",
+        "id":  "lib_positioning_engine/src/Core/Estimators/FloatEstimator.hpp:248:doCoarsePositioning",
+        "reason":  "2 blocks, 3 ops"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_positioning_engine/src/Core/States/State.hpp:47:State",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "alpha_conversion/src/Serialization/Xml/ApiData/Deserializers/ApiInvocationXmlDeserializer.cpp:393:createSetCorrectionsExpectedPeriodInvocation",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "alpha_replayer/src/Logging/EngineErrorLogger.cpp:29:enable",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp:210:computeNextPackageImpl",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_positioning_engine/src/Core/Utility/ModelUtility.hpp:37:getModifiedJulianDate",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "alpha_conversion/src/Managers/FileManager.cpp:170:fileSize",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "M",
+        "id":  "alpha_conversion/src/Managers/FileManager.cpp:150:safeClose",
+        "reason":  "Cohesive thread"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp:19:SetCorrectionsExpectedPeriodInvocation",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_common/src/ApiLogging/ApiData/SolutionOutput.cpp:17:SolutionOutput",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_positioning_engine/src/Core/Filters/IFilter.hpp:26:reinitialize",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "test/lib_positioning_engine/Core/Corrector/GnssCorrectorTestData.hpp:50:GnssCorrectorTestCase",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "test/lib_positioning_engine/Core/Corrector/GnssCorrectorTest.cpp:121:populatePolynomialCache",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "alpha_conversion/src/Managers/ConversionManager.cpp:532:createHeaderRecord",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "alpha_replayer/src/Managers/EngineManager.cpp:23:add",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp:17:HlfHeaderRecord",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "alpha_conversion/src/Serialization/Xml/Core/Serializers/SourceIdXmlSerializer.cpp:10:serialize",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_common/src/ApiLogging/Hlf/HlfRecordingDescriptionHeaderRecord.cpp:39:decodePayload",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "alpha_conversion/src/Utility/ArgumentParser.cpp:62:getOptionValues",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_positioning_engine/src/Core/AmbiguityValidation/NullAmbiguityValidator.hpp:28:reset",
+        "reason":  "Single operatio"
+    },
+    {
+        "verdict":  "OK",
+        "conf":  "H",
+        "id":  "lib_positioning_engine/src/Core/States/StateKeySet.hpp:178:erase",
+        "reason":  "Single operatio"
+    }
+]

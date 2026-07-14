@@ -1,0 +1,182 @@
+[
+  {
+    "id": "lib_common/src/ApiLogging/Serialization/TimeDataSerializer.cpp:43:serialize",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "serializes time and data sub-parts of TimeData"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/ConversionManager.cpp:567:xmlToFile",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "pure delegation to serializer"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/TropoGpt2.cpp:685:getWetMappingFunction",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "returns wet component of mapping function"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:43:StateKeySet",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "constructor initializes members and reserves capacity"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:28:disconnect",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "lock then set connected flag"
+  },
+  {
+    "id": "alpha_replayer/src/Managers/EngineManager.cpp:54:getEngine",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "map lookup with throw on miss"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Models/GeometryUtilities.cpp:102:computeElevationAngle",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "computation chain producing elevation angle"
+  },
+  {
+    "id": "test/lib_positioning_engine/Logger/LoggerTests.cpp:423:injectData",
+    "verdict": "OK",
+    "conf": "M",
+    "note": "fan-out inject to three threads plus incidental log"
+  },
+  {
+    "id": "test/alpha_replayer/Io/MockTcpClient.cpp:127:setSocketAddress",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "single assignment setter"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Estimators/FloatEstimator.hpp:248:doCoarsePositioning",
+    "verdict": "VIOLATION",
+    "conf": "M",
+    "note": "mixes policy calls with raw state-matrix math; multi-step post-update adjustment"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/State.hpp:47:State",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "default constructor initializes members"
+  },
+  {
+    "id": "alpha_conversion/src/Serialization/Xml/ApiData/Deserializers/ApiInvocationXmlDeserializer.cpp:393:createSetCorrectionsExpectedPeriodInvocation",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "XML factory: parse node then construct"
+  },
+  {
+    "id": "alpha_replayer/src/Logging/EngineErrorLogger.cpp:29:enable",
+    "verdict": "OK",
+    "conf": "M",
+    "note": "enable: open file, register callback, set flag - cohesive setup"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp:210:computeNextPackageImpl",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "delegates to assembler nextPackage"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Utility/ModelUtility.hpp:37:getModifiedJulianDate",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "MJD computation from time"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/FileManager.cpp:170:fileSize",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "trivial getter"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/FileManager.cpp:150:safeClose",
+    "verdict": "OK",
+    "conf": "M",
+    "note": "closes both streams and resets size - cohesive cleanup"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp:19:SetCorrectionsExpectedPeriodInvocation",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "constructor initializes base and member"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/ApiData/SolutionOutput.cpp:17:SolutionOutput",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "constructor initializes base"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/Filters/IFilter.hpp:26:reinitialize",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "CRTP forward to impl"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorTestData.hpp:50:GnssCorrectorTestCase",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "constructor initializes members"
+  },
+  {
+    "id": "test/lib_positioning_engine/Core/Corrector/GnssCorrectorTest.cpp:121:populatePolynomialCache",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "loop registers each polynomial into cache"
+  },
+  {
+    "id": "alpha_conversion/src/Managers/ConversionManager.cpp:532:createHeaderRecord",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "factory switch dispatch on subtype"
+  },
+  {
+    "id": "alpha_replayer/src/Managers/EngineManager.cpp:23:add",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "create engine and store in map"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp:17:HlfHeaderRecord",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "constructor initializes base and member"
+  },
+  {
+    "id": "alpha_conversion/src/Serialization/Xml/Core/Serializers/SourceIdXmlSerializer.cpp:10:serialize",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "sets one XML attribute"
+  },
+  {
+    "id": "lib_common/src/ApiLogging/Hlf/HlfRecordingDescriptionHeaderRecord.cpp:39:decodePayload",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "read subtype then conditionally decode payload"
+  },
+  {
+    "id": "alpha_conversion/src/Utility/ArgumentParser.cpp:62:getOptionValues",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "map lookup returning option values"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/AmbiguityValidation/NullAmbiguityValidator.hpp:28:reset",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "intentional no-op (null object pattern)"
+  },
+  {
+    "id": "lib_positioning_engine/src/Core/States/StateKeySet.hpp:178:erase",
+    "verdict": "OK",
+    "conf": "H",
+    "note": "forwards to eraseSanitizedKey"
+  }
+]

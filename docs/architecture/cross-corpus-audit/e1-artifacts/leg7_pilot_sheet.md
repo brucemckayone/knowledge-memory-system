@@ -18,9 +18,9 @@ void serialize(BufferWriter& writer, TimeData<ExpectedPeriodData> const& timeDat
 }
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: OK
+- Conf: H
+- Note: serializs time single component responsaibility
 
 ### 2. `alpha_conversion/src/Managers/ConversionManager.cpp:567` — xmlToFile  _(4 lines)_
 
@@ -31,8 +31,8 @@ void ConversionManager::xmlToFile(const std::string& xml)
 }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 3. `lib_positioning_engine/src/Core/Models/TropoGpt2.cpp:685` — getWetMappingFunction  _(9 lines)_
@@ -49,8 +49,8 @@ double getWetMappingFunction(
 }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: simple getter 
 - Note: 
 
 ### 4. `lib_positioning_engine/src/Core/States/StateKeySet.hpp:43` — StateKeySet  _(8 lines)_
@@ -66,8 +66,8 @@ double getWetMappingFunction(
    }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: G
 - Note: 
 
 ### 5. `test/alpha_replayer/Io/MockTcpClient.cpp:28` — disconnect  _(5 lines)_
@@ -80,8 +80,8 @@ void MockTcpClient::disconnect()
 }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 6. `alpha_replayer/src/Managers/EngineManager.cpp:54` — getEngine  _(10 lines)_
@@ -99,8 +99,8 @@ EngineFactory::EngineVariant& EngineManager::getEngine(uint16_t streamId)
 }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: M
 - Note: 
 
 ### 7. `lib_positioning_engine/src/Core/Models/GeometryUtilities.cpp:102` — computeElevationAngle  _(13 lines)_
@@ -121,9 +121,9 @@ double computeElevationAngle(const Vector<DIMENSION_3D>& rxPos, const Vector<DIM
 }
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: violation
+- Conf: L
+- Note: both gets data and calculates it
 
 ### 8. `test/lib_positioning_engine/Logger/LoggerTests.cpp:423` — injectData  _(7 lines)_
 
@@ -137,9 +137,9 @@ void injectData(int data)
    }
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: VIOLATION
+- Conf: H 
+- Note: also Logs side effect
 
 ### 9. `test/alpha_replayer/Io/MockTcpClient.cpp:127` — setSocketAddress  _(4 lines)_
 
@@ -150,8 +150,8 @@ void MockTcpClient::setSocketAddress(const std::string& address)
 }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 10. `lib_positioning_engine/src/Core/Estimators/FloatEstimator.hpp:248` — doCoarsePositioning  _(57 lines)_
@@ -216,8 +216,8 @@ FilterStatusCode doCoarsePositioning(
    }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: VIOLATION
+- Conf: H
 - Note: 
 
 ### 11. `lib_positioning_engine/src/Core/States/State.hpp:47` — State  _(8 lines)_
@@ -233,9 +233,9 @@ FilterStatusCode doCoarsePositioning(
    {}
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: OK
+- Conf: H
+- Note: constructor default 
 
 ### 12. `alpha_conversion/src/Serialization/Xml/ApiData/Deserializers/ApiInvocationXmlDeserializer.cpp:393` — createSetCorrectionsExpectedPeriodInvocation  _(30 lines)_
 
@@ -272,9 +272,9 @@ ApiInvocationXmlDeserializer::createSetCorrectionsExpectedPeriodInvocation(
 }
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: OK
+- Conf: M
+- Note:  Gets and creates from data 
 
 ### 13. `alpha_replayer/src/Logging/EngineErrorLogger.cpp:29` — enable  _(10 lines)_
 
@@ -291,9 +291,9 @@ void EngineErrorLogger::enable(const std::filesystem::path& filePath)
 }
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: VIOLATION
+- Conf: M
+- Note: encapuslates a number of logical operations all bussineslogic orchestration
 
 ### 14. `lib_positioning_engine/src/Core/Synchronizer/RequirementBasedStrategy.hpp:210` — computeNextPackageImpl  _(6 lines)_
 
@@ -306,8 +306,8 @@ void EngineErrorLogger::enable(const std::filesystem::path& filePath)
    }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 15. `lib_positioning_engine/src/Core/Utility/ModelUtility.hpp:37` — getModifiedJulianDate  _(9 lines)_
@@ -324,9 +324,9 @@ inline double getModifiedJulianDate(const Time& time)
 }
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: OK
+- Conf: M
+- Note: bad naming really
 
 ### 16. `alpha_conversion/src/Managers/FileManager.cpp:170` — fileSize  _(4 lines)_
 
@@ -337,8 +337,8 @@ std::size_t FileManager::fileSize() const
 }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 17. `alpha_conversion/src/Managers/FileManager.cpp:150` — safeClose  _(14 lines)_
@@ -360,9 +360,9 @@ void FileManager::safeClose()
 }
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: VIOLATION
+- Conf: L
+- Note: canClose and CLose encapsulated and reset state 
 
 ### 18. `lib_common/src/ApiLogging/ApiData/SetCorrectionsExpectedPeriodInvocation.cpp:19` — SetCorrectionsExpectedPeriodInvocation  _(7 lines)_
 
@@ -376,9 +376,9 @@ SetCorrectionsExpectedPeriodInvocation::SetCorrectionsExpectedPeriodInvocation(
 {}
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: OK
+- Conf: H
+- Note: standard constructor
 
 ### 19. `lib_common/src/ApiLogging/ApiData/SolutionOutput.cpp:17` — SolutionOutput  _(3 lines)_
 
@@ -388,8 +388,8 @@ SolutionOutput::SolutionOutput()
 {}
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 20. `lib_positioning_engine/src/Core/Filters/IFilter.hpp:26` — reinitialize  _(12 lines)_
@@ -409,8 +409,8 @@ public:
    }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 21. `test/lib_positioning_engine/Core/Corrector/GnssCorrectorTestData.hpp:50` — GnssCorrectorTestCase  _(21 lines)_
@@ -439,9 +439,9 @@ GnssCorrectorTestCase(
    }
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: VIOLATION
+- Conf: L
+- Note: constructor with runtime 
 
 ### 22. `test/lib_positioning_engine/Core/Corrector/GnssCorrectorTest.cpp:121` — populatePolynomialCache  _(13 lines)_
 
@@ -461,9 +461,9 @@ void populatePolynomialCache(const GnssCorrectorTestCase& testCase, SatellitePol
 }
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: VIOLATION
+- Conf: L
+- Note: creates Poly and populates with it
 
 ### 23. `alpha_conversion/src/Managers/ConversionManager.cpp:532` — createHeaderRecord  _(22 lines)_
 
@@ -492,8 +492,8 @@ std::unique_ptr<HlfHeaderRecord> ConversionManager::createHeaderRecord(
 }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 24. `alpha_replayer/src/Managers/EngineManager.cpp:23` — add  _(4 lines)_
@@ -505,8 +505,8 @@ void EngineManager::add(uint16_t streamId, uint16_t mode)
 }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 25. `lib_common/src/ApiLogging/Hlf/HlfHeaderRecord.cpp:17` — HlfHeaderRecord  _(4 lines)_
@@ -518,8 +518,8 @@ HlfHeaderRecord::HlfHeaderRecord(HlfRecordSubType const subType)
 {}
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 26. `alpha_conversion/src/Serialization/Xml/Core/Serializers/SourceIdXmlSerializer.cpp:10` — serialize  _(4 lines)_
@@ -531,8 +531,8 @@ void SourceIdXmlSerializer::serialize(mxml_node_t* const node, SourceId const& s
 }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 27. `lib_common/src/ApiLogging/Hlf/HlfRecordingDescriptionHeaderRecord.cpp:39` — decodePayload  _(18 lines)_
@@ -558,9 +558,9 @@ void HlfRecordingDescriptionHeaderRecord::decodePayload(BufferReader& reader)
 }
 ```
 
-- Verdict: 
-- Conf: 
-- Note: 
+- Verdict: VIOLATION
+- Conf: L
+- Note: aligns as well as reads
 
 ### 28. `alpha_conversion/src/Utility/ArgumentParser.cpp:62` — getOptionValues  _(9 lines)_
 
@@ -576,8 +576,8 @@ std::vector<std::string> ArgumentParser::getOptionValues(const std::string& opti
 }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 
 
 ### 29. `lib_positioning_engine/src/Core/AmbiguityValidation/NullAmbiguityValidator.hpp:28` — reset  _(4 lines)_
@@ -589,8 +589,8 @@ void reset() const
    }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: VIOLATION
+- Conf: H
 - Note: 
 
 ### 30. `lib_positioning_engine/src/Core/States/StateKeySet.hpp:178` — erase  _(9 lines)_
@@ -607,6 +607,6 @@ void reset() const
    }
 ```
 
-- Verdict: 
-- Conf: 
+- Verdict: OK
+- Conf: H
 - Note: 

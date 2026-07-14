@@ -594,3 +594,21 @@ The missing cell. Every prior leg either tested a rule with a structural/checker
 - **The truth is one human's judgment** on a subjective rule; the human-agreement *ceiling* is unmeasured unless a second labeller or test-retest is added — stated as a limitation, and Haiku's "accuracy" is framed as *agreement with this auditor*, not objective correctness.
 - Recall power is bounded by labelling budget; CIs reported, no generalization beyond this rule/codebase (rule 25).
 - Independent hostile adversary on the result (rule 17), hardest if favorable — in EITHER direction (rule 29).
+
+## 26. Leg 7 pilot run — RESULT: INCONCLUSIVE; my "LLM can't audit F.2 / close now" was CUT (2026-07-14)
+
+Ran the pilot (n=30, seeded random sample). Labels: **human 9/30 violations; three LLM runs — Opus 4.8 (original prompt), Haiku (same rubric), Opus 4.8 (human's verbatim sheet) — all 1/30, all flagging only `doCoarsePositioning`.** Pairwise Cohen's κ: human-vs-each-LLM **0.15**; LLM-vs-LLM **1.00**. I was about to conclude "the LLM cannot reliably audit far-semantic rules; close the investigation; a second human is optional." A hostile adversary CUT it, and the cut is correct.
+
+### 26.1 Why it was cut
+- **The sole human oracle is not cleanly measuring F.2.** The human flagged an *intentionally-empty* `reset()` (idx 28) as a "does more than one thing" violation, high confidence — a near-objective category error (an empty function does zero operations). A ground-truth set containing that cannot ground a claim that the LLM is *wrong*; the κ=0.15 disagreement is **equally consistent with "human over-flags."**
+- **n=30 is statistically uninformative.** Bootstrap κ CI = **[0.00, 0.47]**, P(κ≤0)=0.36. No conclusion is licensed.
+- **κ=1.00 among LLMs is an artifact.** Two of three runs are the *same model*; Haiku's reasons are boilerplate. ≈1 effective labeller. It measures shared model prior + shared rubric (the permissive "a chain of helper calls is one thing" clause), not convergent judgment.
+- **The data contradicts "cannot audit."** All three LLMs caught the one blatant violation; there is **zero** clear LLM false-negative among the 8 disputed items. Independent adversary read of the 8: LLM more defensible on 5 (incl. the empty-`reset` error and two near-definitional ctor/loop cases), 3 are genuine no-fact-of-the-matter judgment calls, **0** are "human clearly right." → "agrees on clear-cut, diverges on ambiguous," not "incapable."
+- **Over-generalized from the single most subjective rule** (F.2) on one codebase.
+- **"Second human optional" was the launder.** The two outcomes lead to OPPOSITE core conclusions (LLM-wrong vs human-idiosyncratic); declaring the discriminating experiment "optional" is declaring the one test that could refute me optional (memory rules 31–34).
+
+### 26.2 What actually holds
+On F.2's ambiguous mid-zone, one human and ≈one LLM prior disagree; they agree on the single clear-cut violation; **F.2 has no established ground truth in this sample, so neither LLM capability nor incapability is demonstrated.** The pilot demonstrated one thing cleanly and incidentally: the **LLM-as-oracle circularity is real** (three "independent" LLM runs agree κ=1.0 and would have spuriously "validated" each other). Nothing more.
+
+### 26.3 Correction to the §24 disposition
+The §24 disposition ("LLM = human-in-the-loop assist + deterministic-tool orchestrator, not autonomous auditor") **must NOT be cited as supported by Leg 7** — Leg 7 is inconclusive, and the sub-claim "the LLM judges semantic rules unreliably" remains **UNTESTED**. To the extent the disposition stands, it rests on **architecture** arguments: structural rules are AST-decidable so the LLM is unnecessary (Leg 6); no structural prefilter exists for a semantic rule like F.2 so coverage collapses (Leg 5, net precision 0.00); element→rule scanning precision collapses at field prevalence (Leg 4, with its own LLM-truth caveat). Whether an LLM can *correctly judge* a genuinely semantic rule against trustworthy human truth is the load-bearing open question, and **the second human labeller is the decisive test, not an optional one.**
