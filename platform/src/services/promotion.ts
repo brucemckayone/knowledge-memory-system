@@ -37,6 +37,7 @@ import {
 } from './promotion-plan.js';
 import { resolveEscalations, type ArbiterInvoker } from './promotion-arbiter.js';
 import { canonicalizeStagedPredicates } from './predicate-resolve.js';
+import { getCorpusPolicy, type CorpusMode } from './corpus-policy.js';
 
 /** Options for {@link promote}. `invokeArbiter` is injectable for tests (E5). */
 export interface PromoteOptions {
@@ -91,10 +92,18 @@ function normForToken(name: string): string {
 export async function loadPromotionInputs(
   epochId: string,
   corpusId = 'default',
-): Promise<{ prior: PriorCanonical; staged: { entities: StagedEntity[]; facts: StagedFact[] } }> {
-  const [stagedEntityRows, stagedFactRows] = await Promise.all([
+): Promise<{
+  prior: PriorCanonical;
+  staged: { entities: StagedEntity[]; facts: StagedFact[] };
+  /** Corpus policy mode (D5) — threaded as data into the pure planner. */
+  mode: CorpusMode;
+}> {
+  const [stagedEntityRows, stagedFactRows, mode] = await Promise.all([
     db.select().from(stagingProposedEntities).where(eq(stagingProposedEntities.epochId, epochId)),
     db.select().from(stagingProposedFacts).where(eq(stagingProposedFacts.epochId, epochId)),
+    // D5 (04-hardened-spec.md §2): read the corpus stance here (the DB touch stays
+    // OUT of the pure planner) and thread it in as data.
+    getCorpusPolicy(corpusId),
   ]);
 
   const stagedEntities: StagedEntity[] = stagedEntityRows.map((r) => ({
@@ -181,6 +190,7 @@ export async function loadPromotionInputs(
   return {
     prior: { entities: priorEntities, activeFacts: priorActiveFacts },
     staged: { entities: stagedEntities, facts: stagedFacts },
+    mode,
   };
 }
 
@@ -481,7 +491,7 @@ export async function cleanupAbandonedStaging(
 }
 
 export async function promote(epochId: string, opts: PromoteOptions = {}): Promise<PromotionResult> {
-  const { prior, staged } = await loadPromotionInputs(epochId);
+  const { prior, staged, mode } = await loadPromotionInputs(epochId);
 
   // Canonicalize staged predicates against the registry BEFORE planning (doc 42
   // §7, PC4 — "the spine"). Mutates StagedFact.predicate to the canonical string,
@@ -497,7 +507,9 @@ export async function promote(epochId: string, opts: PromoteOptions = {}): Promi
   }
 
   // Pass 1: deterministic plan that SURFACES escalations (conservative defaults).
-  const firstPass = planPromotion(prior, staged);
+  // `mode` (D5) is threaded in as data — a comparative corpus escalates the
+  // word-prefix single-match instead of binding; default corpus is unchanged.
+  const firstPass = planPromotion(prior, staged, [], mode);
 
   // Resolve escalations to verdicts, then RE-PLAN with them so the applied plan
   // reflects the arbiter's dispositions (doc 41 §8a.5; "arbiter decides, promotion
@@ -508,7 +520,7 @@ export async function promote(epochId: string, opts: PromoteOptions = {}): Promi
       invokeArbiter: opts.invokeArbiter,
     });
     if (verdicts.length > 0) {
-      plan = planPromotion(prior, staged, verdicts);
+      plan = planPromotion(prior, staged, verdicts, mode);
       console.log(
         `[promotion] epoch=${epochId.slice(0, 8)} arbiter resolved ${verdicts.length}/${firstPass.escalations.length} ` +
           `escalation(s); ${plan.escalations.length} remain at conservative default`,

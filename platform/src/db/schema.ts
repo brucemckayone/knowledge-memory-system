@@ -953,6 +953,24 @@ export const arbiterVerdicts = pgTable(
 );
 
 /**
+ * Corpus policies (cross-corpus Phase A; bead nmemo-uhp.8, migration
+ * 055_corpus_policies.sql). The honest home for the per-corpus stance knobs
+ * (04-hardened-spec.md §2, register row D5) instead of `if (corpus === ...)`
+ * branches in the planner. A corpus is either:
+ *   'assimilating' — current fuse-everything behaviour; word-prefix rule-3
+ *                    single-match bind stays.
+ *   'comparative'  — kept separate; the word-prefix single-match branch escalates
+ *                    to the arbiter instead of binding (D5).
+ * 'default' is seeded assimilating so single-corpus behaviour is unchanged.
+ */
+export const corpusPolicies = pgTable('corpus_policies', {
+  corpusId: text('corpus_id').primaryKey(),
+  mode: varchar('mode', { length: 16 }).notNull().default('assimilating'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
  * Staging — proposed causal edges (E6, doc 41 §6, §8a.6).
  *
  * The post-promotion causal pass's propose_causal_edge buffer: the causal agent
@@ -1154,6 +1172,8 @@ export type StagingProposedFact = typeof stagingProposedFacts.$inferSelect;
 export type NewStagingProposedFact = typeof stagingProposedFacts.$inferInsert;
 export type ArbiterVerdictRow = typeof arbiterVerdicts.$inferSelect;
 export type NewArbiterVerdictRow = typeof arbiterVerdicts.$inferInsert;
+export type CorpusPolicyRow = typeof corpusPolicies.$inferSelect;
+export type NewCorpusPolicyRow = typeof corpusPolicies.$inferInsert;
 export type StagingCausalEdge = typeof stagingCausalEdges.$inferSelect;
 export type NewStagingCausalEdge = typeof stagingCausalEdges.$inferInsert;
 

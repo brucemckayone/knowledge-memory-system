@@ -36,6 +36,16 @@ import {
   type FactPrecedence,
 } from './exclusive-groups.js';
 
+/**
+ * Corpus policy mode (D5, 04-hardened-spec.md §1). Passed INTO the planner as plain
+ * data — never looked up from the DB here — so the planner stays pure/DB-free and the
+ * order-independence litmus holds. Defined locally (not imported from the DB-backed
+ * corpus-policy.ts) to keep this module's import surface free of the DB pool; it is
+ * structurally identical to corpus-policy.ts's `CorpusMode`, which promotion.ts reads
+ * and threads in.
+ */
+type CorpusMode = 'assimilating' | 'comparative';
+
 // ============================================
 // Inputs — prior canonical (scoped) + staged proposals
 // ============================================
@@ -348,8 +358,10 @@ interface EntityResolution {
  *     pins that (name,type) so unanchored peers resolve to the same canonical id.
  *  2. Exact normalised match against an anchor or a prior canonical entity → that id.
  *  3. Word-prefix match against prior canonical entities (either direction): a
- *     UNIQUE canonical id → resolve to it (merges helix → "helix robotics"); ≥2
- *     DISTINCT ids → identity escalation, keep the cluster distinct.
+ *     UNIQUE canonical id → resolve to it (merges helix → "helix robotics") when the
+ *     corpus is `assimilating`; ≥2 DISTINCT ids → identity escalation, keep the
+ *     cluster distinct. D5 (04-hardened-spec.md §1): a `comparative` corpus routes
+ *     even the single-match case to the arbiter instead of silently binding.
  *  4. Otherwise fresh: word-prefix-connected unanchored clusters of the same type
  *     fold into one fresh entity, keyed deterministically by the component's
  *     lexicographically-smallest normalised name (order-independent).
@@ -363,6 +375,7 @@ function resolveEntities(
   prior: PriorEntity[],
   staged: StagedEntity[],
   identityVerdicts: Map<string, IdentityVerdict>,
+  mode: CorpusMode,
 ): EntityResolution {
   const byHandle = new Map<string, ResolvedRef>();
   const escalations: Escalation[] = [];
@@ -421,11 +434,21 @@ function resolveEntities(
           .map((p) => p.id),
       ),
     ];
-    if (matchedIds.length === 1) {
+    // Rule-3 single-match bind. D5 (04-hardened-spec.md §1, register row D5):
+    // `assimilating` corpora keep this bind (genuine short-form → full-name
+    // coreference); `comparative` corpora refuse the silent bind and route the
+    // single match into the SAME arbiter-escalation channel as the ≥2 ambiguous
+    // case below, so the arbiter — not the planner — decides whether to bind. This
+    // changes ONLY this branch: no embedding gate (illegal in the pure planner —
+    // breaks the order-independence litmus) and no touch to isWordPrefix/rule-4.
+    if (matchedIds.length === 1 && mode === 'assimilating') {
       for (const h of c.handles) byHandle.set(h, { kind: 'canonical', id: matchedIds[0]! });
       continue;
     }
-    if (matchedIds.length >= 2) {
+    // ≥2 distinct matches (any mode) OR a comparative single match (D5): the
+    // arbiter decides. Bind iff a verdict says so; otherwise escalate and fall
+    // through to keep the cluster distinct (the conservative default).
+    if (matchedIds.length >= 1) {
       const sortedIds = [...matchedIds].sort();
       const verdict = identityVerdicts.get(`identity|${c.type}|${c.norm}`);
       if (verdict && verdict.canonicalTarget && (verdict.decision === 'merge' || verdict.decision === 'same_as')) {
@@ -448,7 +471,10 @@ function resolveEntities(
         // No verdict yet (pass 1) → record the escalation; conservative default below.
         escalations.push({
           kind: 'identity',
-          reason: `"${c.norm}" word-prefix-matches ${matchedIds.length} distinct canonical entities of type ${c.type}; cannot disambiguate deterministically`,
+          reason:
+            matchedIds.length === 1
+              ? `"${c.norm}" word-prefix-matches a single canonical entity of type ${c.type}; comparative corpus policy (D5) escalates rather than auto-binding`
+              : `"${c.norm}" word-prefix-matches ${matchedIds.length} distinct canonical entities of type ${c.type}; cannot disambiguate deterministically`,
           clusterName: c.norm,
           type: c.type,
           candidateIds: sortedIds,
@@ -533,6 +559,10 @@ export function planPromotion(
   prior: PriorCanonical,
   staged: StagedProposals,
   verdicts: Verdict[] = [],
+  // D5 (04-hardened-spec.md §1): the corpus policy mode, passed in as DATA (never a
+  // DB lookup here). Defaults to 'assimilating' so existing callers — and the default
+  // corpus — keep the current bind behaviour EXACTLY.
+  mode: CorpusMode = 'assimilating',
 ): PromotionPlan {
   // Index verdicts by the escalation key they resolve (doc 41 §8a.5, §12 #4).
   const identityVerdicts = new Map<string, IdentityVerdict>();
@@ -547,6 +577,7 @@ export function planPromotion(
     prior.entities,
     staged.entities,
     identityVerdicts,
+    mode,
   );
 
   // (b) Ref-rewrite + (e) self-loop drop. A staged fact whose subject handle is
