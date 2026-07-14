@@ -33,6 +33,8 @@ export interface CreateFactParams {
   sourceText?: string;
   extractionMethod?: string;
   confidence?: number;
+  /** Corpus partition key (cross-corpus fusion guard). Defaults to 'default'. */
+  corpusId?: string;
 
   // Phase 1 audit context — REQUIRED.
   actor: Actor;
@@ -139,6 +141,7 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     sourceText,
     extractionMethod = 'llm',
     confidence = 1.0,
+    corpusId = 'default',
     actor,
     reasoningReportId = null,
     reasoning,
@@ -267,6 +270,7 @@ export async function createFact(params: CreateFactParams): Promise<string> {
           sourceText,
           extractionMethod,
           confidence,
+          corpusId,
         })
         .returning({ id: facts.id });
 

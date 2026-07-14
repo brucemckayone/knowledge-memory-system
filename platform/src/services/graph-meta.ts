@@ -160,17 +160,21 @@ export async function updateEntityMeta(entityIds: string[]): Promise<void> {
  * pre-bead path was O(pairs × 5); the new path is O(pairs) only at the upsert
  * step.
  */
-export async function detectMergeCandidates(entityIds: string[]): Promise<number> {
+export async function detectMergeCandidates(entityIds: string[], corpusId = 'default'): Promise<number> {
   if (entityIds.length === 0) return 0;
 
   // Eligibility gate — same as the pre-bead version (mention_count >= 2 and
   // a centroid). Pairs where either side fails this don't enter the scoring
   // pass; their signal would be NULL-dominated and below threshold anyway.
+  // Fusion guard #3: join entities to scope eligibles to the same corpus so the
+  // gardener never proposes a cross-corpus merge (entity_meta has no corpus_id).
   const allMeta = await db.execute(sql`
-    SELECT entity_id::text AS entity_id
-    FROM entity_meta
-    WHERE mention_count >= ${MIN_MENTIONS_FOR_ANALYSIS}
-      AND centroid IS NOT NULL
+    SELECT em.entity_id::text AS entity_id
+    FROM entity_meta em
+    JOIN entities e ON e.id = em.entity_id
+    WHERE em.mention_count >= ${MIN_MENTIONS_FOR_ANALYSIS}
+      AND em.centroid IS NOT NULL
+      AND e.corpus_id = ${corpusId}
   `) as unknown as Array<{ entity_id: string }>;
 
   if (allMeta.length < 2) return 0;

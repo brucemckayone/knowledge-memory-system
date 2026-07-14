@@ -212,6 +212,8 @@ export interface CreateEntityParams {
   properties?: Record<string, unknown>;
   aliases?: string[];
   confidence?: number;
+  /** Corpus partition key (cross-corpus fusion guard). Defaults to 'default'. */
+  corpusId?: string;
 }
 
 export interface ResolvedEntity {
@@ -274,6 +276,7 @@ export async function createEntity(params: CreateEntityParams): Promise<{ id: st
       description: params.description,
       properties: params.properties || {},
       confidence: params.confidence || 1.0,
+      corpusId: params.corpusId ?? 'default',
     })
     .returning({ id: entities.id });
 
@@ -348,10 +351,10 @@ export async function findEntitiesByName(
  */
 export async function findSimilarEntities(
   embedding: number[],
-  options: { limit?: number; threshold?: number; type?: EntityType } = {}
+  options: { limit?: number; threshold?: number; type?: EntityType; corpusId?: string } = {}
 ): Promise<Array<Entity & { similarity: number }>> {
-  const { limit = 10, threshold = 0.5, type } = options;
-  
+  const { limit = 10, threshold = 0.5, type, corpusId = 'default' } = options;
+
   return rawQuery<Entity & { similarity: number }>(sql`
     SELECT
       e.*,
@@ -359,6 +362,7 @@ export async function findSimilarEntities(
     FROM entities e
     WHERE embedding IS NOT NULL
       AND 1 - (embedding <=> ${sql.raw(`'[${embedding.join(',')}]'::vector`)}) > ${threshold}
+      AND e.corpus_id = ${corpusId}
       ${type ? sql`AND entity_type = ${type}` : sql``}
     ORDER BY embedding <=> ${sql.raw(`'[${embedding.join(',')}]'::vector`)}
     LIMIT ${limit}
@@ -372,7 +376,8 @@ export async function resolveEntity(
   mention: string,
   context: string,
   type?: EntityType,
-  position?: { start?: number; end?: number }
+  position?: { start?: number; end?: number },
+  corpusId: string = 'default',
 ): Promise<ResolvedEntity> {
   // Generate embedding from mention + context window centred on position
   const contextWindow = computeContextWindow(mention, context, position);
@@ -402,6 +407,7 @@ export async function resolveEntity(
       limit: 10,
       threshold: THRESHOLD_LLM_VERIFY,
       type,
+      corpusId,
     });
     
     // High confidence match - auto merge (pick best if multiple)
@@ -445,6 +451,7 @@ export async function resolveEntity(
     name: mention,
     type: type || 'other',
     confidence: 0.8,
+    corpusId,
   });
 
   if (existed) {

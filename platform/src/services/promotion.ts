@@ -90,6 +90,7 @@ function normForToken(name: string): string {
  */
 export async function loadPromotionInputs(
   epochId: string,
+  corpusId = 'default',
 ): Promise<{ prior: PriorCanonical; staged: { entities: StagedEntity[]; facts: StagedFact[] } }> {
   const [stagedEntityRows, stagedFactRows] = await Promise.all([
     db.select().from(stagingProposedEntities).where(eq(stagingProposedEntities.epochId, epochId)),
@@ -135,6 +136,9 @@ export async function loadPromotionInputs(
           // inArray over the first-token expression emits `IN ($1,$2,…)` with one
           // param per token — avoids the array-literal binding `= ANY($1)` needs.
           inArray(sql`split_part(lower(${entities.canonicalName}), ' ', 1)`, tokens),
+          // Fusion guard #2 (D5): scope the word-prefix candidate set to the
+          // corpus being promoted so cross-corpus names never enter the plan.
+          eq(entities.corpusId, corpusId),
         ),
       );
   }

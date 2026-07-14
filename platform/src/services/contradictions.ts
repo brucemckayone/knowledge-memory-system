@@ -131,6 +131,7 @@ export async function detectOpposingObjects(): Promise<number> {
     FROM public.facts f1
     JOIN public.facts f2 ON
       f1.subject_entity_id = f2.subject_entity_id
+      AND f1.corpus_id = f2.corpus_id
       AND f1.predicate = f2.predicate
       AND f1.id < f2.id
       AND (
