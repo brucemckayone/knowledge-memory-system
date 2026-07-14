@@ -760,13 +760,17 @@ export async function upsertScoredCandidates(
     const scoringVersionJson = JSON.stringify(s.scoringVersion);
     await ctx.runner.execute(sql`
       INSERT INTO public.merge_candidates (
-        entity_a_id, entity_b_id,
+        entity_a_id, entity_b_id, corpus_id,
         centroid_similarity, memory_overlap, structural_similarity,
         combined_score, status, candidate_source,
         detection_count, last_detected_at, resolution_reasoning,
         scoring_version
       ) VALUES (
         ${s.entityAId}::uuid, ${s.entityBId}::uuid,
+        -- corpus is the entities' own corpus (both same-corpus by the guard); a
+        -- genuinely cross-corpus pair derives A's corpus and is then rejected by
+        -- the (entity_b_id, corpus_id) composite FK (mig 052) — the intended backstop.
+        (SELECT corpus_id FROM public.entities WHERE id = ${s.entityAId}::uuid),
         ${s.signals.centroid_similarity},
         ${s.signals.memory_overlap},
         ${s.signals.structural_similarity},

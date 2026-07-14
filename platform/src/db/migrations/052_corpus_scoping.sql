@@ -35,28 +35,28 @@ CREATE INDEX IF NOT EXISTS idx_causal_events_corpus  ON public.causal_events(cor
 -- entities(id, corpus_id) must be UNIQUE so it can be an FK target.
 DO $$ BEGIN
   ALTER TABLE public.entities ADD CONSTRAINT entities_id_corpus_uq UNIQUE (id, corpus_id);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 
 -- facts endpoints must live in the fact's own corpus. subject is NOT NULL ⇒ always checked;
 -- object is nullable ⇒ MATCH SIMPLE skips the check when object_entity_id IS NULL.
 DO $$ BEGIN
   ALTER TABLE public.facts ADD CONSTRAINT facts_subject_corpus_fk
     FOREIGN KEY (subject_entity_id, corpus_id) REFERENCES public.entities(id, corpus_id);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE public.facts ADD CONSTRAINT facts_object_corpus_fk
     FOREIGN KEY (object_entity_id, corpus_id) REFERENCES public.entities(id, corpus_id);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 
 -- a merge candidate may only pair two entities of the same corpus (its corpus_id).
 DO $$ BEGIN
   ALTER TABLE public.merge_candidates ADD CONSTRAINT merge_candidates_a_corpus_fk
     FOREIGN KEY (entity_a_id, corpus_id) REFERENCES public.entities(id, corpus_id);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE public.merge_candidates ADD CONSTRAINT merge_candidates_b_corpus_fk
     FOREIGN KEY (entity_b_id, corpus_id) REFERENCES public.entities(id, corpus_id);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 
 -- ============================================
 -- 3. D9 — corpus_id is immutable (BEFORE UPDATE)
