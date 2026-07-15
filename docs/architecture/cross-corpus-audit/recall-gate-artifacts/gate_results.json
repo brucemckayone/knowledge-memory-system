@@ -1,0 +1,1757 @@
+{
+  "n": 29,
+  "rules": 27,
+  "distinctGuidelines": 9,
+  "ks": [
+    1,
+    3,
+    5,
+    8
+  ],
+  "bar": "recall@5(on)-recall@5(off) >= 0.15 AND on>=off for all k in {1,3,5,8} (primary = MICRO, global flag)",
+  "primary_micro": {
+    "off": {
+      "1": 0,
+      "3": 0.20689655172413793,
+      "5": 0.20689655172413793,
+      "8": 0.3103448275862069
+    },
+    "on": {
+      "1": 0.06896551724137931,
+      "3": 0.41379310344827586,
+      "5": 0.5862068965517241,
+      "8": 0.7241379310344828
+    },
+    "delta": {
+      "1": 0.06896551724137931,
+      "3": 0.20689655172413793,
+      "5": 0.3793103448275862,
+      "8": 0.41379310344827586
+    },
+    "pass": true
+  },
+  "primary_macro": {
+    "off": {
+      "1": 0,
+      "3": 0.1111111111111111,
+      "5": 0.1111111111111111,
+      "8": 0.17777777777777778
+    },
+    "on": {
+      "1": 0.13333333333333333,
+      "3": 0.3222222222222222,
+      "5": 0.4222222222222222,
+      "8": 0.537037037037037
+    },
+    "delta": {
+      "1": 0.13333333333333333,
+      "3": 0.21111111111111108,
+      "5": 0.3111111111111111,
+      "8": 0.35925925925925917
+    }
+  },
+  "as_registered_k8_thr0_micro": {
+    "off": {
+      "1": 0,
+      "3": 0.20689655172413793,
+      "5": 0.20689655172413793,
+      "8": 0.3103448275862069
+    },
+    "on": {
+      "1": 0.06896551724137931,
+      "3": 0.41379310344827586,
+      "5": 0.5862068965517241,
+      "8": 0.7241379310344828
+    }
+  },
+  "decomposition_micro": {
+    "off_neither": {
+      "1": 0,
+      "3": 0.20689655172413793,
+      "5": 0.20689655172413793,
+      "8": 0.3103448275862069
+    },
+    "code_side_only": {
+      "1": 0,
+      "3": 0.13793103448275862,
+      "5": 0.1724137931034483,
+      "8": 0.3103448275862069
+    },
+    "rule_side_only": {
+      "1": 0,
+      "3": 0.06896551724137931,
+      "5": 0.06896551724137931,
+      "8": 0.20689655172413793
+    },
+    "on_both": {
+      "1": 0.06896551724137931,
+      "3": 0.41379310344827586,
+      "5": 0.5862068965517241,
+      "8": 0.7241379310344828
+    },
+    "pure_code_side_delta_vs_off": {
+      "1": 0,
+      "3": -0.06896551724137931,
+      "5": -0.03448275862068964,
+      "8": 0
+    },
+    "pure_rule_side_delta_vs_off": {
+      "1": 0,
+      "3": -0.13793103448275862,
+      "5": -0.13793103448275862,
+      "8": -0.10344827586206898
+    },
+    "code_side_given_rule_text_delta": {
+      "1": 0.06896551724137931,
+      "3": 0.3448275862068966,
+      "5": 0.5172413793103448,
+      "8": 0.5172413793103449
+    }
+  },
+  "decomposition_macro": {
+    "off_neither": {
+      "1": 0,
+      "3": 0.1111111111111111,
+      "5": 0.1111111111111111,
+      "8": 0.17777777777777778
+    },
+    "code_side_only": {
+      "1": 0,
+      "3": 0.07777777777777778,
+      "5": 0.1,
+      "8": 0.36296296296296293
+    },
+    "rule_side_only": {
+      "1": 0,
+      "3": 0.2222222222222222,
+      "5": 0.2222222222222222,
+      "8": 0.4
+    },
+    "on_both": {
+      "1": 0.13333333333333333,
+      "3": 0.3222222222222222,
+      "5": 0.4222222222222222,
+      "8": 0.537037037037037
+    },
+    "pure_code_side_delta_vs_off": {
+      "1": 0,
+      "3": -0.033333333333333326,
+      "5": -0.0111111111111111,
+      "8": 0.18518518518518515
+    },
+    "pure_rule_side_delta_vs_off": {
+      "1": 0,
+      "3": 0.1111111111111111,
+      "5": 0.1111111111111111,
+      "8": 0.22222222222222224
+    },
+    "code_side_given_rule_text_delta": {
+      "1": 0.13333333333333333,
+      "3": 0.09999999999999998,
+      "5": 0.2,
+      "8": 0.13703703703703696
+    },
+    "rule_side_given_code_text_delta": {
+      "1": 0.13333333333333333,
+      "3": 0.2444444444444444,
+      "5": 0.3222222222222222,
+      "8": 0.17407407407407405
+    }
+  },
+  "per_guideline_at5": {
+    "off": {
+      "ES.42": {
+        "n": 5,
+        "hits5": 0
+      },
+      "Type.1": {
+        "n": 6,
+        "hits5": 6
+      },
+      "F.16": {
+        "n": 2,
+        "hits5": 0
+      },
+      "ES.45": {
+        "n": 6,
+        "hits5": 0
+      },
+      "C.12": {
+        "n": 1,
+        "hits5": 0
+      },
+      "C.48": {
+        "n": 1,
+        "hits5": 0
+      },
+      "ES.20": {
+        "n": 1,
+        "hits5": 0
+      },
+      "ES.75": {
+        "n": 1,
+        "hits5": 0
+      },
+      "ES.30": {
+        "n": 6,
+        "hits5": 0
+      }
+    },
+    "on": {
+      "ES.42": {
+        "n": 5,
+        "hits5": 4
+      },
+      "Type.1": {
+        "n": 6,
+        "hits5": 2
+      },
+      "F.16": {
+        "n": 2,
+        "hits5": 0
+      },
+      "ES.45": {
+        "n": 6,
+        "hits5": 6
+      },
+      "C.12": {
+        "n": 1,
+        "hits5": 1
+      },
+      "C.48": {
+        "n": 1,
+        "hits5": 0
+      },
+      "ES.20": {
+        "n": 1,
+        "hits5": 0
+      },
+      "ES.75": {
+        "n": 1,
+        "hits5": 0
+      },
+      "ES.30": {
+        "n": 6,
+        "hits5": 4
+      }
+    }
+  },
+  "perItem": {
+    "off": [
+      {
+        "id": "E001",
+        "name": "parseNumericValue",
+        "trueGuideline": "ES.42",
+        "rank": 7,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E002",
+        "name": "asSockAddr",
+        "trueGuideline": "Type.1",
+        "rank": 3,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E003",
+        "name": "argvToVector",
+        "trueGuideline": "ES.42",
+        "rank": 7,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E004",
+        "name": "shiftBytesToFront",
+        "trueGuideline": "ES.42",
+        "rank": 7,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E005",
+        "name": "writeBytes",
+        "trueGuideline": "Type.1",
+        "rank": 3,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E006",
+        "name": "readBytes",
+        "trueGuideline": "Type.1",
+        "rank": 3,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E007",
+        "name": "readBytes (offset overload)",
+        "trueGuideline": "ES.42",
+        "rank": 14,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "C.4",
+          "C.48"
+        ]
+      },
+      {
+        "id": "E008",
+        "name": "PositioningEngine::EngineImpl::provideSatellitePositions",
+        "trueGuideline": "F.16",
+        "rank": 22,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E009",
+        "name": "PositioningEngine::provideSatellitePositions",
+        "trueGuideline": "F.16",
+        "rank": 22,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E010",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E011",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E012",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E013",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E014",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E015",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E016",
+        "name": "Synchronizer",
+        "trueGuideline": "C.12",
+        "rank": 11,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E017",
+        "name": "assembleLogMessage",
+        "trueGuideline": "C.48",
+        "rank": 14,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E018",
+        "name": "fillToMinimum",
+        "trueGuideline": "Type.1",
+        "rank": 3,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E019",
+        "name": "MockFileWriter (write test)",
+        "trueGuideline": "Type.1",
+        "rank": 2,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "R.3",
+          "C.4"
+        ]
+      },
+      {
+        "id": "E020",
+        "name": "MockFileWriter::write",
+        "trueGuideline": "ES.42",
+        "rank": 10,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "R.3",
+          "C.4"
+        ]
+      },
+      {
+        "id": "E021",
+        "name": "MockFileWriter::isOpen",
+        "trueGuideline": "Type.1",
+        "rank": 3,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E022",
+        "name": "isUniqueFullVariantSet",
+        "trueGuideline": "ES.20",
+        "rank": 16,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E023",
+        "name": "searchIntegerAmbiguityCandidates",
+        "trueGuideline": "ES.75",
+        "rank": 24,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E024",
+        "name": "timeApiTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 20,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E025",
+        "name": "distributorTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 20,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E026",
+        "name": "SolutionAcceptorStub",
+        "trueGuideline": "ES.30",
+        "rank": 20,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E027",
+        "name": "getFullCovariance",
+        "trueGuideline": "ES.30",
+        "rank": 20,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E028",
+        "name": "loggerTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 20,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E029",
+        "name": "linearAlgebraTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 20,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      }
+    ],
+    "on": [
+      {
+        "id": "E001",
+        "name": "parseNumericValue",
+        "trueGuideline": "ES.42",
+        "rank": 4,
+        "top": [
+          "ES.1",
+          "SL.con.1",
+          "F.16",
+          "ES.42",
+          "ES.78"
+        ]
+      },
+      {
+        "id": "E002",
+        "name": "asSockAddr",
+        "trueGuideline": "Type.1",
+        "rank": 19,
+        "top": [
+          "R.3",
+          "F.16",
+          "C.12",
+          "ES.42",
+          "SL.con.1"
+        ]
+      },
+      {
+        "id": "E003",
+        "name": "argvToVector",
+        "trueGuideline": "ES.42",
+        "rank": 4,
+        "top": [
+          "SL.con.1",
+          "ES.1",
+          "F.16",
+          "ES.42",
+          "ES.48"
+        ]
+      },
+      {
+        "id": "E004",
+        "name": "shiftBytesToFront",
+        "trueGuideline": "ES.42",
+        "rank": 3,
+        "top": [
+          "ES.1",
+          "SL.con.1",
+          "ES.42",
+          "F.16",
+          "C.21"
+        ]
+      },
+      {
+        "id": "E005",
+        "name": "writeBytes",
+        "trueGuideline": "Type.1",
+        "rank": 5,
+        "top": [
+          "F.16",
+          "ES.30",
+          "ES.42",
+          "ES.48",
+          "Type.1"
+        ]
+      },
+      {
+        "id": "E006",
+        "name": "readBytes",
+        "trueGuideline": "Type.1",
+        "rank": 7,
+        "top": [
+          "F.16",
+          "ES.1",
+          "ES.42",
+          "ES.48",
+          "ES.30"
+        ]
+      },
+      {
+        "id": "E007",
+        "name": "readBytes (offset overload)",
+        "trueGuideline": "ES.42",
+        "rank": 1,
+        "top": [
+          "ES.42",
+          "ES.1",
+          "R.3",
+          "C.21",
+          "SL.con.1"
+        ]
+      },
+      {
+        "id": "E008",
+        "name": "PositioningEngine::EngineImpl::provideSatellitePositions",
+        "trueGuideline": "F.16",
+        "rank": 10,
+        "top": [
+          "ES.1",
+          "F.2",
+          "ES.45",
+          "ES.71",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E009",
+        "name": "PositioningEngine::provideSatellitePositions",
+        "trueGuideline": "F.16",
+        "rank": 7,
+        "top": [
+          "ES.1",
+          "C.131",
+          "ES.20",
+          "SL.con.1",
+          "F.2"
+        ]
+      },
+      {
+        "id": "E010",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 3,
+        "top": [
+          "F.16",
+          "ES.30",
+          "ES.45",
+          "ES.1",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E011",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 2,
+        "top": [
+          "F.16",
+          "ES.45",
+          "ES.30",
+          "ES.20",
+          "SL.con.1"
+        ]
+      },
+      {
+        "id": "E012",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 2,
+        "top": [
+          "F.16",
+          "ES.45",
+          "ES.1",
+          "SL.con.1",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E013",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 2,
+        "top": [
+          "F.16",
+          "ES.45",
+          "ES.1",
+          "SL.con.1",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E014",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 2,
+        "top": [
+          "F.16",
+          "ES.45",
+          "ES.1",
+          "SL.con.1",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E015",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 2,
+        "top": [
+          "F.16",
+          "ES.45",
+          "ES.1",
+          "SL.con.1",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E016",
+        "name": "Synchronizer",
+        "trueGuideline": "C.12",
+        "rank": 1,
+        "top": [
+          "C.12",
+          "F.16",
+          "SL.con.1",
+          "R.3",
+          "ES.1"
+        ]
+      },
+      {
+        "id": "E017",
+        "name": "assembleLogMessage",
+        "trueGuideline": "C.48",
+        "rank": 26,
+        "top": [
+          "ES.1",
+          "F.16",
+          "R.3",
+          "ES.42",
+          "ES.45"
+        ]
+      },
+      {
+        "id": "E018",
+        "name": "fillToMinimum",
+        "trueGuideline": "Type.1",
+        "rank": 15,
+        "top": [
+          "ES.1",
+          "F.2",
+          "ES.75",
+          "ES.42",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E019",
+        "name": "MockFileWriter (write test)",
+        "trueGuideline": "Type.1",
+        "rank": 9,
+        "top": [
+          "ES.1",
+          "F.16",
+          "ES.20",
+          "F.2",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E020",
+        "name": "MockFileWriter::write",
+        "trueGuideline": "ES.42",
+        "rank": 7,
+        "top": [
+          "F.16",
+          "ES.1",
+          "ES.20",
+          "R.3",
+          "SL.con.1"
+        ]
+      },
+      {
+        "id": "E021",
+        "name": "MockFileWriter::isOpen",
+        "trueGuideline": "Type.1",
+        "rank": 4,
+        "top": [
+          "R.3",
+          "ES.1",
+          "ES.42",
+          "Type.1",
+          "F.16"
+        ]
+      },
+      {
+        "id": "E022",
+        "name": "isUniqueFullVariantSet",
+        "trueGuideline": "ES.20",
+        "rank": 17,
+        "top": [
+          "SL.con.1",
+          "ES.1",
+          "F.16",
+          "F.21",
+          "C.12"
+        ]
+      },
+      {
+        "id": "E023",
+        "name": "searchIntegerAmbiguityCandidates",
+        "trueGuideline": "ES.75",
+        "rank": 10,
+        "top": [
+          "ES.42",
+          "ES.71",
+          "F.16",
+          "SL.con.1",
+          "ES.1"
+        ]
+      },
+      {
+        "id": "E024",
+        "name": "timeApiTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 2,
+        "top": [
+          "ES.45",
+          "ES.30",
+          "ES.1",
+          "F.16",
+          "ES.75"
+        ]
+      },
+      {
+        "id": "E025",
+        "name": "distributorTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 4,
+        "top": [
+          "ES.1",
+          "ES.75",
+          "F.16",
+          "ES.30",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E026",
+        "name": "SolutionAcceptorStub",
+        "trueGuideline": "ES.30",
+        "rank": 15,
+        "top": [
+          "ES.1",
+          "C.35",
+          "SL.con.1",
+          "R.3",
+          "F.2"
+        ]
+      },
+      {
+        "id": "E027",
+        "name": "getFullCovariance",
+        "trueGuideline": "ES.30",
+        "rank": 3,
+        "top": [
+          "SL.con.1",
+          "ES.45",
+          "ES.30",
+          "F.16",
+          "ES.71"
+        ]
+      },
+      {
+        "id": "E028",
+        "name": "loggerTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 7,
+        "top": [
+          "ES.1",
+          "F.16",
+          "R.3",
+          "SL.con.1",
+          "C.35"
+        ]
+      },
+      {
+        "id": "E029",
+        "name": "linearAlgebraTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 3,
+        "top": [
+          "ES.45",
+          "ES.1",
+          "ES.30",
+          "F.16",
+          "SL.con.1"
+        ]
+      }
+    ],
+    "codeOnly": [
+      {
+        "id": "E001",
+        "name": "parseNumericValue",
+        "trueGuideline": "ES.42",
+        "rank": 10,
+        "top": [
+          "R.11",
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "ES.78"
+        ]
+      },
+      {
+        "id": "E002",
+        "name": "asSockAddr",
+        "trueGuideline": "Type.1",
+        "rank": 6,
+        "top": [
+          "SL.con.1",
+          "R.11",
+          "F.2",
+          "C.4",
+          "ES.1"
+        ]
+      },
+      {
+        "id": "E003",
+        "name": "argvToVector",
+        "trueGuideline": "ES.42",
+        "rank": 8,
+        "top": [
+          "R.11",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "C.48"
+        ]
+      },
+      {
+        "id": "E004",
+        "name": "shiftBytesToFront",
+        "trueGuideline": "ES.42",
+        "rank": 4,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "C.35",
+          "ES.42",
+          "C.48"
+        ]
+      },
+      {
+        "id": "E005",
+        "name": "writeBytes",
+        "trueGuideline": "Type.1",
+        "rank": 12,
+        "top": [
+          "ES.78",
+          "C.48",
+          "ES.48",
+          "ES.42",
+          "F.2"
+        ]
+      },
+      {
+        "id": "E006",
+        "name": "readBytes",
+        "trueGuideline": "Type.1",
+        "rank": 11,
+        "top": [
+          "ES.78",
+          "C.48",
+          "ES.48",
+          "ES.42",
+          "ES.71"
+        ]
+      },
+      {
+        "id": "E007",
+        "name": "readBytes (offset overload)",
+        "trueGuideline": "ES.42",
+        "rank": 3,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "ES.42",
+          "C.48",
+          "ES.48"
+        ]
+      },
+      {
+        "id": "E008",
+        "name": "PositioningEngine::EngineImpl::provideSatellitePositions",
+        "trueGuideline": "F.16",
+        "rank": 21,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "R.3",
+          "C.4"
+        ]
+      },
+      {
+        "id": "E009",
+        "name": "PositioningEngine::provideSatellitePositions",
+        "trueGuideline": "F.16",
+        "rank": 22,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "ES.42",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E010",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 16,
+        "top": [
+          "F.16",
+          "F.2",
+          "C.46",
+          "ES.46",
+          "ES.71"
+        ]
+      },
+      {
+        "id": "E011",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 15,
+        "top": [
+          "F.16",
+          "ES.1",
+          "Type.1",
+          "C.46",
+          "ES.46"
+        ]
+      },
+      {
+        "id": "E012",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 15,
+        "top": [
+          "F.16",
+          "ES.1",
+          "Type.1",
+          "ES.71",
+          "C.46"
+        ]
+      },
+      {
+        "id": "E013",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 15,
+        "top": [
+          "F.16",
+          "ES.1",
+          "Type.1",
+          "ES.71",
+          "C.46"
+        ]
+      },
+      {
+        "id": "E014",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 15,
+        "top": [
+          "F.16",
+          "ES.1",
+          "Type.1",
+          "ES.71",
+          "C.46"
+        ]
+      },
+      {
+        "id": "E015",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 15,
+        "top": [
+          "F.16",
+          "ES.1",
+          "Type.1",
+          "ES.71",
+          "C.46"
+        ]
+      },
+      {
+        "id": "E016",
+        "name": "Synchronizer",
+        "trueGuideline": "C.12",
+        "rank": 17,
+        "top": [
+          "SL.con.1",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.11"
+        ]
+      },
+      {
+        "id": "E017",
+        "name": "assembleLogMessage",
+        "trueGuideline": "C.48",
+        "rank": 7,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "C.4",
+          "ES.42"
+        ]
+      },
+      {
+        "id": "E018",
+        "name": "fillToMinimum",
+        "trueGuideline": "Type.1",
+        "rank": 2,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "R.11",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E019",
+        "name": "MockFileWriter (write test)",
+        "trueGuideline": "Type.1",
+        "rank": 2,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "R.3",
+          "C.4"
+        ]
+      },
+      {
+        "id": "E020",
+        "name": "MockFileWriter::write",
+        "trueGuideline": "ES.42",
+        "rank": 11,
+        "top": [
+          "F.2",
+          "R.11",
+          "ES.78",
+          "C.48",
+          "ES.48"
+        ]
+      },
+      {
+        "id": "E021",
+        "name": "MockFileWriter::isOpen",
+        "trueGuideline": "Type.1",
+        "rank": 2,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "C.4",
+          "ES.42"
+        ]
+      },
+      {
+        "id": "E022",
+        "name": "isUniqueFullVariantSet",
+        "trueGuideline": "ES.20",
+        "rank": 8,
+        "top": [
+          "R.11",
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "C.9"
+        ]
+      },
+      {
+        "id": "E023",
+        "name": "searchIntegerAmbiguityCandidates",
+        "trueGuideline": "ES.75",
+        "rank": 12,
+        "top": [
+          "ES.42",
+          "ES.71",
+          "C.46",
+          "ES.46",
+          "C.48"
+        ]
+      },
+      {
+        "id": "E024",
+        "name": "timeApiTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 20,
+        "top": [
+          "F.2",
+          "ES.45",
+          "C.48",
+          "ES.48",
+          "ES.42"
+        ]
+      },
+      {
+        "id": "E025",
+        "name": "distributorTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 21,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "C.4",
+          "C.48"
+        ]
+      },
+      {
+        "id": "E026",
+        "name": "SolutionAcceptorStub",
+        "trueGuideline": "ES.30",
+        "rank": 27,
+        "top": [
+          "ES.1",
+          "Type.1",
+          "F.2",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E027",
+        "name": "getFullCovariance",
+        "trueGuideline": "ES.30",
+        "rank": 9,
+        "top": [
+          "R.3",
+          "SL.con.1",
+          "I.23",
+          "C.4",
+          "ES.1"
+        ]
+      },
+      {
+        "id": "E028",
+        "name": "loggerTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 22,
+        "top": [
+          "F.2",
+          "ES.1",
+          "Type.1",
+          "C.4",
+          "R.3"
+        ]
+      },
+      {
+        "id": "E029",
+        "name": "linearAlgebraTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 20,
+        "top": [
+          "C.48",
+          "ES.48",
+          "ES.42",
+          "C.131",
+          "ES.78"
+        ]
+      }
+    ],
+    "ruleOnly": [
+      {
+        "id": "E001",
+        "name": "parseNumericValue",
+        "trueGuideline": "ES.42",
+        "rank": 6,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E002",
+        "name": "asSockAddr",
+        "trueGuideline": "Type.1",
+        "rank": 12,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E003",
+        "name": "argvToVector",
+        "trueGuideline": "ES.42",
+        "rank": 6,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E004",
+        "name": "shiftBytesToFront",
+        "trueGuideline": "ES.42",
+        "rank": 6,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E005",
+        "name": "writeBytes",
+        "trueGuideline": "Type.1",
+        "rank": 12,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E006",
+        "name": "readBytes",
+        "trueGuideline": "Type.1",
+        "rank": 12,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E007",
+        "name": "readBytes (offset overload)",
+        "trueGuideline": "ES.42",
+        "rank": 16,
+        "top": [
+          "ES.48",
+          "ES.1",
+          "ES.75",
+          "SL.con.1",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E008",
+        "name": "PositioningEngine::EngineImpl::provideSatellitePositions",
+        "trueGuideline": "F.16",
+        "rank": 13,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "SL.con.1",
+          "ES.48"
+        ]
+      },
+      {
+        "id": "E009",
+        "name": "PositioningEngine::provideSatellitePositions",
+        "trueGuideline": "F.16",
+        "rank": 11,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "SL.con.1"
+        ]
+      },
+      {
+        "id": "E010",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 16,
+        "top": [
+          "ES.75",
+          "F.2",
+          "ES.48",
+          "C.48",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E011",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 16,
+        "top": [
+          "ES.75",
+          "F.2",
+          "ES.48",
+          "C.48",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E012",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 16,
+        "top": [
+          "ES.75",
+          "F.2",
+          "ES.48",
+          "C.48",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E013",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 16,
+        "top": [
+          "ES.75",
+          "F.2",
+          "ES.48",
+          "C.48",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E014",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 16,
+        "top": [
+          "ES.75",
+          "F.2",
+          "ES.48",
+          "C.48",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E015",
+        "name": "INITIAL_VARIANCE_SCALAR",
+        "trueGuideline": "ES.45",
+        "rank": 16,
+        "top": [
+          "ES.75",
+          "F.2",
+          "ES.48",
+          "C.48",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E016",
+        "name": "Synchronizer",
+        "trueGuideline": "C.12",
+        "rank": 15,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E017",
+        "name": "assembleLogMessage",
+        "trueGuideline": "C.48",
+        "rank": 3,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E018",
+        "name": "fillToMinimum",
+        "trueGuideline": "Type.1",
+        "rank": 12,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E019",
+        "name": "MockFileWriter (write test)",
+        "trueGuideline": "Type.1",
+        "rank": 17,
+        "top": [
+          "ES.75",
+          "ES.1",
+          "F.16",
+          "F.2",
+          "ES.20"
+        ]
+      },
+      {
+        "id": "E020",
+        "name": "MockFileWriter::write",
+        "trueGuideline": "ES.42",
+        "rank": 13,
+        "top": [
+          "ES.75",
+          "SL.con.1",
+          "R.20",
+          "ES.20",
+          "C.21"
+        ]
+      },
+      {
+        "id": "E021",
+        "name": "MockFileWriter::isOpen",
+        "trueGuideline": "Type.1",
+        "rank": 13,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "SL.con.1"
+        ]
+      },
+      {
+        "id": "E022",
+        "name": "isUniqueFullVariantSet",
+        "trueGuideline": "ES.20",
+        "rank": 7,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E023",
+        "name": "searchIntegerAmbiguityCandidates",
+        "trueGuideline": "ES.75",
+        "rank": 2,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E024",
+        "name": "timeApiTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E025",
+        "name": "distributorTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E026",
+        "name": "SolutionAcceptorStub",
+        "trueGuideline": "ES.30",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E027",
+        "name": "getFullCovariance",
+        "trueGuideline": "ES.30",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E028",
+        "name": "loggerTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      },
+      {
+        "id": "E029",
+        "name": "linearAlgebraTestPreamble",
+        "trueGuideline": "ES.30",
+        "rank": 19,
+        "top": [
+          "F.2",
+          "ES.75",
+          "C.48",
+          "ES.48",
+          "R.20"
+        ]
+      }
+    ]
+  }
+}

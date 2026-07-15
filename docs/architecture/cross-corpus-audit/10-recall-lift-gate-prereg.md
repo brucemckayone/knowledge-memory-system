@@ -143,3 +143,96 @@ is not claimed met, regardless of the numbers.
   candidate recall on this constructed corpus.
 - **Does NOT license:** any field-prevalence recall claim, any adjudication/precision
   claim, or any autonomous-auditor claim. Those remain governed by doc 09's terminal state.
+
+---
+
+# RESULTS (post-run, 2026-07-15)
+
+Everything below was produced AFTER §1-8 were frozen and committed (commit `5e60aca`).
+Harness: `platform/src/test/tools/recall-gate.ts`; corpus builder:
+`./recall-gate-artifacts/build_corpus.mjs`; inputs + full results:
+`./recall-gate-artifacts/{gate_rules,gate_code_raw,gate_code_desc,gate_results}.json`.
+Deterministic: ranking counts ties AGAINST the true rule (worst-case rank), so repeated
+runs are byte-identical and tie-breaks never favour `on`.
+
+## Outcome: the gate PASSES its frozen bar
+
+| k | recall@k off (name,name) | recall@k on (nd,nd) | Δ |
+|---|---|---|---|
+| 1 | 0.000 | 0.069 | +0.069 |
+| 3 | 0.207 | 0.414 | +0.207 |
+| 5 | **0.207** | **0.586** | **+0.379** |
+| 8 | 0.310 | 0.724 | +0.414 |
+
+Δrecall@5 = 0.379 ≥ 0.15 and `on ≥ off` at every k → **PASS**. It also passes on the
+**macro** (per-guideline mean, 9 guidelines) lens that neutralises near-duplicate
+inflation: off@5 = 0.111 → on@5 = 0.422, **Δ@5 = 0.311**, monotone.
+
+## Verification (blind adversary, two passes — agent a386599)
+
+The adversary could not void the PASS. It confirmed: descriptions are **genuinely blind**
+(mean Jaccard with the true rule = 0.008, *lower* than with other rules; the one
+rule-echoing cluster, Type.1, *regressed*), labels are **29/29** faithful to
+`leg2_key.json`, rule text is **27/27** verbatim, the metric recomputes exactly and the
+full-ranking/threshold choice is conservative (does not favour `on`). Verdict: **PASS
+legitimate but narrow.**
+
+## Laundering caught + corrected (honest record)
+
+I initially reported the decomposition with a **+0.517 "two-sided interaction"** headline
+that "vindicates the code-side lever." That used the **micro** lens for the decomposition
+while using the **macro** lens to defend the primary against near-duplicate inflation — an
+inconsistent lens that inflated the code-side marginal ~2.6× via the very clusters I had
+agreed to control for. The adversary cut it. The corrected, consistent (macro) reading:
+
+| contrast | micro Δ@5 | **macro Δ@5 (honest)** |
+|---|---|---|
+| pure code-side (codeOnly − neither) | −0.034 | **−0.011** |
+| pure rule-side (ruleOnly − neither) | −0.138 | **+0.111** |
+| code-side GIVEN rule text (both − ruleOnly) | +0.517 | **+0.200** |
+| rule-side GIVEN code text (both − codeOnly) | +0.379 | **+0.322** |
+
+So: "neither side helps alone" is **false** (rule-side alone helps, +0.111 macro); the
+interaction is **asymmetric**; **rule-side text is the primary driver**; code-side
+descriptions are the **smaller, secondary** marginal (~+0.20 macro), and they *regress*
+2 of 9 guidelines given rule text.
+
+## Per-guideline hit@5 (off → on) — the decisive fine structure
+
+| guideline | n | off | on | |
+|---|---|---|---|---|
+| ES.45 | 6 | 0 | 6 | improves |
+| ES.42 | 5 | 0 | 4 | improves |
+| ES.30 | 6 | 0 | 4 | improves |
+| C.12  | 1 | 0 | 1 | improves (singleton) |
+| Type.1| 6 | 6 | 2 | **regresses** |
+| F.16  | 2 | 0 | 0 | floored |
+| C.48  | 1 | 0 | 0 | floored |
+| ES.20 | 1 | 0 | 0 | floored |
+| ES.75 | 1 | 0 | 0 | floored |
+
+Every improver starts at **0.0** off (opaque-ID baseline). 4 of 9 guidelines (5 of 29
+items) are **never recalled@5 under any setting** — the embedder cannot surface them
+regardless of descriptions. The aggregate rests partly on 4 singleton (n=1) guidelines.
+
+## Licensed claim (stated stingily)
+
+On this constructed, checker-decidable, opaque-ID C++-Core-Guidelines corpus (29 items /
+9 guidelines / ~9 distinct situations), describing entities **materially lifts
+cross-corpus recall@5 of the true code→rule match** (micro +0.38 / macro +0.31, monotone,
+no leakage, faithful labels/text, conservative metric) — a genuine existence **floor**.
+The decomposition shows **rule-side text is the primary driver**; authored **code-side**
+descriptions add a **modest, fragile, conditional** marginal (~+0.20 macro @5), worthless
+without rule text and negative on 2/9 guidelines.
+
+**Does NOT license:** any field effect size (magnitude inflated by opaque IDs), a +0.52
+code-side effect, a symmetric "need both" interaction, recall of the 4/9 guidelines the
+embedder never surfaces, or anything about adjudication/precision/autonomous auditing.
+
+## Disposition for nmemo-uhp.12.4
+
+Gate PASSED per the pre-registered bar → the "HARD GATE" criterion is met, honestly and
+adversarially verified. `EMBED_DESCRIPTIONS=on` is justified as the default for
+cross-corpus audit ingestion (rules + code both described). The narrowness is recorded,
+not laundered; the field-magnitude and code-side-primacy questions remain open and are
+out of this gate's scope.

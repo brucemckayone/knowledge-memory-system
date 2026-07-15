@@ -1,0 +1,205 @@
+[
+  {
+    "id": "E001",
+    "trueGuideline": "ES.42",
+    "file": "alpha_conversion/src/Utility/NumericParsing.hpp",
+    "line": 39,
+    "code": "{\n   static_assert(std::is_arithmetic_v<T>, \"parseNumericValue requires an arithmetic type\");\n\n   const std::string_view view{text};\n   // std::from_chars requires [first, last) pointers; view.data() is contiguous, bounded by size().\n   const auto* const last = view.data() + view.size();\n\n   const auto result = std::from_chars(text, last, value);\n\n   return (result.ec == std::errc{}) && (result.ptr == last);\n}\n\n} // namespace Alpha::Conversion"
+  },
+  {
+    "id": "E002",
+    "trueGuideline": "Type.1",
+    "file": "alpha_replayer/src/Io/Linux/TcpClient.cpp",
+    "line": 35,
+    "code": "// so call sites read naturally and the suppression lives in one place only.\n// The parameter cannot be const: `getpeername` writes the peer address through the\n// returned pointer, so casting away const here would be undefined behaviour.\nsockaddr* asSockAddr(sockaddr_in* addr) noexcept \n{\n   return reinterpret_cast<sockaddr*>(addr); \n}\n} // namespace\n\nTcpClient::TcpClient(std::string address, uint16_t const port)\n   : ITcpClient()\n   , m_serverAddress{std::move(address)}\n   , m_serverPort(port)"
+  },
+  {
+    "id": "E003",
+    "trueGuideline": "ES.42",
+    "file": "lib_common/include/Utility/ArgvToVector.hpp",
+    "line": 29,
+    "code": "///\ninline std::vector<std::string>\nargvToVector(const std::size_t argc, const char* const* const argv, const std::size_t offset = 0U)\n{\n   // Caller-verified: offset <= argc\n   return std::vector<std::string>{argv + offset, argv + argc};\n}\n\n} // namespace Alpha\n\n#endif"
+  },
+  {
+    "id": "E004",
+    "trueGuideline": "ES.42",
+    "file": "lib_common/include/Utility/ByteBufferOps.hpp",
+    "line": 32,
+    "code": "///\ninline void\nshiftBytesToFront(uint8_t* const buffer, const std::size_t srcOffset, const std::size_t size)\n{\n   // Pointer arithmetic safe by caller-validated bounds precondition.\n   static_cast<void>(std::memmove(buffer, buffer + srcOffset, size));\n}\n\n} // namespace Alpha\n\n#endif"
+  },
+  {
+    "id": "E005",
+    "trueGuideline": "Type.1",
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 33,
+    "code": "// std::ostream::write only accepts char*, but our buffers are uint8_t. Casting\n   // between them is safe: the C++ standard lets you view any object as a sequence\n   // of bytes (char, unsigned char, or std::byte), and uint8_t is just unsigned\n   // char on every platform we support. This helper keeps the cast (and its\n   stream.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(size));\n}\n\n/// @brief Reads from a char-oriented input stream into a byte buffer.\n///\n/// Companion to writeBytes(). Centralises the byte/char reinterpret_cast\n/// required by std::istream's char* API.\n///"
+  },
+  {
+    "id": "E006",
+    "trueGuideline": "Type.1",
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 54,
+    "code": "// std::istream::read only accepts char*, but our buffers are uint8_t. Casting\n   // between them is safe: the C++ standard lets you view any object as a sequence\n   // of bytes (char, unsigned char, or std::byte), and uint8_t is just unsigned\n   // char on every platform we support. This helper keeps the cast (and its\n   stream.read(reinterpret_cast<char*>(data), static_cast<std::streamsize>(size));\n   return stream.gcount();\n}\n\n/// @brief Reads from a char-oriented input stream into a byte buffer at the\n/// given offset.\n///\n/// Convenience overload that centralises the offset pointer arithmetic for"
+  },
+  {
+    "id": "E007",
+    "trueGuideline": "ES.42",
+    "file": "lib_common/include/Utility/ByteStreamIo.hpp",
+    "line": 79,
+    "code": "uint8_t* const data,\n   const std::size_t offset,\n   const std::size_t size)\n{\n   // Pointer arithmetic safe by caller-validated bounds precondition.\n   return readBytes(stream, data + offset, size);\n}\n\n} // namespace Alpha\n\n#endif"
+  },
+  {
+    "id": "E008",
+    "trueGuideline": "F.16",
+    "file": "lib_positioning_engine/src/Core/EngineImpl.hpp",
+    "line": 419,
+    "code": "template <OperatingMode MODE>\nErrorCode PositioningEngine<MODE>::EngineImpl::provideSatellitePositions(\n   const std::pair<\n      GnssKey,\n      std::shared_ptr<const Polynomial<ORBIT_POLYNOMIAL_DEGREE, DIMENSION_3D>>> satellitePositions)\n{\n   ErrorCode result{ErrorCode::Success};\n\n   try\n   {\n      if (!m_distribution.process(satellitePositions))\n      {"
+  },
+  {
+    "id": "E009",
+    "trueGuideline": "F.16",
+    "file": "lib_positioning_engine/src/Core/PositioningEngine.cpp",
+    "line": 78,
+    "code": "template <OperatingMode MODE>\nErrorCode PositioningEngine<MODE>::provideSatellitePositions(\n   const std::pair<\n      GnssKey,\n      std::shared_ptr<const PositionPolynomial>> satellitePositions)\n{\n   return m_engineImpl->provideSatellitePositions(satellitePositions);\n}\n\ntemplate <OperatingMode MODE>\nErrorCode PositioningEngine<MODE>::reset()\n{"
+  },
+  {
+    "id": "E010",
+    "trueGuideline": "ES.45",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 35,
+    "code": "// -------------------------------------------------------------------------------------------------\n// OPERATING_MODE_1 Initial variance scalars\n// -------------------------------------------------------------------------------------------------\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Ambiguity> = 1.0e16; // [cyc^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Coordinates> = 1.0e16; // [m^2]\n\ntemplate <>"
+  },
+  {
+    "id": "E011",
+    "trueGuideline": "ES.45",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 39,
+    "code": "template <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Ambiguity> = 1.0e16; // [cyc^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Coordinates> = 1.0e16; // [m^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Ionosphere> = 1e16;\n// 625.0 / TEC_CONVERSION_FACTOR_SQUARED; // [TECU^2]"
+  },
+  {
+    "id": "E012",
+    "trueGuideline": "ES.45",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 43,
+    "code": "template <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Coordinates> = 1.0e16; // [m^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Ionosphere> = 1e16;\n// 625.0 / TEC_CONVERSION_FACTOR_SQUARED; // [TECU^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PhaserangeSignalBias> = 1e16;\n// (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]"
+  },
+  {
+    "id": "E013",
+    "trueGuideline": "ES.45",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 48,
+    "code": "template <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Ionosphere> = 1e16;\n// 625.0 / TEC_CONVERSION_FACTOR_SQUARED; // [TECU^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PhaserangeSignalBias> = 1e16;\n// (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PseudorangeSignalBias> = 1e16;\n// (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]"
+  },
+  {
+    "id": "E014",
+    "trueGuideline": "ES.45",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 53,
+    "code": "template <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PhaserangeSignalBias> = 1e16;\n// (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PseudorangeSignalBias> = 1e16;\n// (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, ReceiverClock> = 1e16;\n// (0.05 * SPEED_OF_LIGHT) * (0.05 * SPEED_OF_LIGHT); // [m^2]"
+  },
+  {
+    "id": "E015",
+    "trueGuideline": "ES.45",
+    "file": "lib_positioning_engine/src/Core/States/StateInsertionPolicies.hpp",
+    "line": 58,
+    "code": "template <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, PseudorangeSignalBias> = 1e16;\n// (0.1 * SPEED_OF_LIGHT) * (0.1 * SPEED_OF_LIGHT); // [m^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, ReceiverClock> = 1e16;\n// (0.05 * SPEED_OF_LIGHT) * (0.05 * SPEED_OF_LIGHT); // [m^2]\n\ntemplate <>\ninline constexpr double INITIAL_VARIANCE_SCALAR<OPERATING_MODE_1, Troposphere> = 1e16;\n// 1.5625e-9; // [m^2]"
+  },
+  {
+    "id": "E016",
+    "trueGuideline": "C.12",
+    "file": "lib_positioning_engine/src/Core/Synchronizer/Synchronizer.hpp",
+    "line": 189,
+    "code": "}\n\n   // -------------------------------------------------------------------------\n   // MEMBER VARIABLES\n   // -------------------------------------------------------------------------\n   const std::shared_ptr<T_STRATEGY>\n      m_strategyModule; \n};\n\n} // namespace Alpha\n\n#endif // !SYNCHRONIZER_HPP"
+  },
+  {
+    "id": "E017",
+    "trueGuideline": "C.48",
+    "file": "lib_positioning_engine/src/Logging/Logger.hpp",
+    "line": 351,
+    "code": "if (!s_callback)\n      {\n         return;\n      }\n\n      // Unnecessary and sub-optimal to zero-initialize the entire buffer on every call\n      LogBuffer buffer; \n\n      // Format metadata fields preceding the message\n      const std::size_t metadataLength\n         = formatMetadata(buffer.data(), buffer.size(), instanceId, level, facility);\n\n      // Calculate remaining buffer size leaving space for null terminator\n      const auto remainingBufferSize = buffer.size() - metadataLength - 1U;"
+  },
+  {
+    "id": "E018",
+    "trueGuideline": "Type.1",
+    "file": "test/alpha_conversion/Managers/FileManagerTest.cpp",
+    "line": 90,
+    "code": "REQUIRE(fm2.fillToMinimum(buffer, validBytes, 5));\n      REQUIRE(validBytes >= 5);\n\n      // Check that the buffer contains \"HelloWorld\" at the start\n      // byte-to-char buffer interop\n      std::string readData(reinterpret_cast<char*>(buffer.data()), 10);\n      REQUIRE(readData == \"HelloWorld\");\n\n      // Repeatedly fill the buffer until EOF\n      while (fm2.fillBuffer(buffer, validBytes))\n      {\n         // keep reading\n      }"
+  },
+  {
+    "id": "E019",
+    "trueGuideline": "Type.1",
+    "file": "test/alpha_replayer/Logging/EngineErrorLoggerTest.cpp",
+    "line": 34,
+    "code": "{\n   MockFileWriter writer;\n   writer.open(\"test.log\");\n   const std::string content = \"binary\\x01\\x02\\x03\";\n   writer.write(\n      reinterpret_cast<const uint8_t*>(content.data()),\n      static_cast<uint32_t>(content.size()));\n\n   CHECK(writer.writtenDataAsString() == content);\n}\n\nTEST_CASE(\"Logging::MockFileWriter::tracks open and close state\", \"[AlphaReplay][Logging]\")\n{"
+  },
+  {
+    "id": "E020",
+    "trueGuideline": "ES.42",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 34,
+    "code": "if (!m_isOpen)\n   {\n      throw FileException(\"Mock file writer is not open\");\n   }\n   // Iterator range over byte buffer\n   m_writtenData.insert(m_writtenData.end(), data, data + size);\n}\n\nvoid MockFileWriter::write(const char* data, uint32_t size)\n{\n   write(reinterpret_cast<const uint8_t*>(data), size);\n}"
+  },
+  {
+    "id": "E021",
+    "trueGuideline": "Type.1",
+    "file": "test/alpha_replayer/Logging/MockFileWriter.cpp",
+    "line": 40,
+    "code": "m_writtenData.insert(m_writtenData.end(), data, data + size);\n}\n\nvoid MockFileWriter::write(const char* data, uint32_t size)\n{\n   write(reinterpret_cast<const uint8_t*>(data), size);\n}\n\nbool MockFileWriter::isOpen() const noexcept\n{\n   return m_isOpen;\n}"
+  },
+  {
+    "id": "E022",
+    "trueGuideline": "ES.20",
+    "file": "test/alpha_replayer/Utility/EngineFactoryTest.cpp",
+    "line": 22,
+    "code": "{\n// checks that vector contains a one of each variants of engine (checks size and uniqueness)\nbool isUniqueFullVariantSet(const std::vector<Alpha::Replay::EngineFactory::EngineVariant>& vec)\n{\n   // clang-tidy false positive on constexpr with variant_size_v\n   constexpr std::size_t numTypes\n      = std::variant_size_v<Alpha::Replay::EngineFactory::EngineVariant>;\n\n   if (vec.size() != numTypes)\n   {\n      return false; // Must be exactly one of each type\n   }"
+  },
+  {
+    "id": "E023",
+    "trueGuideline": "ES.75",
+    "file": "test/lib_positioning_engine/Core/AmbiguityRefinement/CalIlsSearchTest.cpp",
+    "line": 106,
+    "code": "= Eigen::VectorXd::Constant(iNumCandidates, std::numeric_limits<double>::max());\n   Eigen::LDLT<T_MATRIX> ldltCov(crmatFloatCov);\n\n   double dMaxDist = std::numeric_limits<double>::max();\n   TPermutationIndex unIdxCandidateToStore = 0;\n\n   do \n   {\n      // next candidate integer vector\n      vecCandidate = vecCentralCandidate + vecSteps.cast<double>();\n      const double cdNewDistance\n         = computeMahalanobisDistance<T_VECTOR, T_MATRIX>(crvecFloatAmbs - vecCandidate, ldltCov);\n\n      // found a new candidate to store"
+  },
+  {
+    "id": "E024",
+    "trueGuideline": "ES.30",
+    "file": "test/lib_positioning_engine/Core/Api/TimeTest.cpp",
+    "line": 9,
+    "code": "#include <Core/Api/StochasticScalar.hpp>\n\n#include <catch2/catch_test_macros.hpp>\n#include <catch2/matchers/catch_matchers.hpp>\n#include <catch2/matchers/catch_matchers_floating_point.hpp>\n\n#define TEST_NS \"Core::Api::Time: \" \n\nnamespace Alpha::Test\n{\n\nconstexpr double TEST_SECONDS_PER_WEEK = 604800.0;\nconstexpr double TEST_SECONDS_PER_HOUR = 3600.0;\nconstexpr double EPSILON = 1e-9;"
+  },
+  {
+    "id": "E025",
+    "trueGuideline": "ES.30",
+    "file": "test/lib_positioning_engine/Core/DistributorResetTest.cpp",
+    "line": 25,
+    "code": "#include <string>\n#include <thread>\n#include <utility>\n#include <variant>\n#include <vector>\n\n#define TEST_NS \"Core::Distributor::\" \n\nnamespace Alpha::Test\n{\n\nusing std::chrono_literals::operator\"\"ms;\n\n/// @brief Defines actions that can be sent to the workers as part of a test."
+  },
+  {
+    "id": "E026",
+    "trueGuideline": "ES.30",
+    "file": "test/lib_positioning_engine/Core/PositioningEngineTest.cpp",
+    "line": 39,
+    "code": "#include <cstdint>\n#include <memory>\n#include <optional>\n#include <utility>\n\n#define TEST_NS \"Core::PositioningEngine::\" \n\n\nnamespace Alpha::Test\n{\n\nclass SolutionAcceptorStub : public ISolutionAcceptor\n{"
+  },
+  {
+    "id": "E027",
+    "trueGuideline": "ES.30",
+    "file": "test/lib_positioning_engine/Core/PositionReconstruction/PositionAndVelocityReconstructionTest.cpp",
+    "line": 29,
+    "code": "#include <chrono>\n#include <memory>\n#include <mutex>\n#include <thread>\n#include <vector>\n\n#define TEST_NS \"Core::PositionReconstruction:: \" \n\nnamespace Alpha::Test\n{\nMatrix<DIMENSION_3D, DIMENSION_3D> getFullCovariance(\n   const std::array<double, Position::COVARIANCE_DIMENSION>& covariance)\n{\n   Matrix<DIMENSION_3D, DIMENSION_3D> cov;"
+  },
+  {
+    "id": "E028",
+    "trueGuideline": "ES.30",
+    "file": "test/lib_positioning_engine/Logger/LoggerTests.cpp",
+    "line": 25,
+    "code": "#include <sstream>\n#include <string>\n#include <vector>\n\n#include <Core/Utility/ApiFormatters.hpp> \n\n#define TEST_NS \"Logging::Logger::\" \n\nnamespace Alpha\n{\nnamespace Test\n{\n\n// Captures logs and checks patterns verifying correct logging output"
+  },
+  {
+    "id": "E029",
+    "trueGuideline": "ES.30",
+    "file": "test/lib_positioning_engine/Utility/LinearAlgebraTest.cpp",
+    "line": 15,
+    "code": "#include <catch2/catch_test_macros.hpp>\n#include <chrono>\n#include <cstddef>\n#include <memory_resource>\n#include <utility>\n\n#define TEST_NS \"Utility::LinearAlgebra::\" \n\nnamespace Alpha::Test::LinearAlgebraTest\n{\n\nstatic constexpr unsigned int MAX_SIZE_50 = 50;\n\nTEST_CASE("
+  }
+]

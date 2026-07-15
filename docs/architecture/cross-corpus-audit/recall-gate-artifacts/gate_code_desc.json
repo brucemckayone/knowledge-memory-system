@@ -1,0 +1,147 @@
+[
+  {
+    "id": "E001",
+    "functionName": "parseNumericValue",
+    "description": "Parses the given text into an arithmetic value using std::from_chars, with a compile-time check that the target type is arithmetic. Returns true only when parsing succeeds and the entire input string is consumed."
+  },
+  {
+    "id": "E002",
+    "functionName": "asSockAddr",
+    "description": "Reinterprets a pointer to a sockaddr_in as a pointer to the generic sockaddr type so it can be handed to socket APIs; the pointer stays non-const because the callee writes the address back through it. The excerpt also begins the TcpClient constructor, which stores the server address and port."
+  },
+  {
+    "id": "E003",
+    "functionName": "argvToVector",
+    "description": "Builds a std::vector<std::string> from a C-style argument array, copying elements from the given offset up to argc."
+  },
+  {
+    "id": "E004",
+    "functionName": "shiftBytesToFront",
+    "description": "Moves a block of `size` bytes from the given source offset within a buffer to the beginning of that same buffer using std::memmove."
+  },
+  {
+    "id": "E005",
+    "functionName": "writeBytes",
+    "description": "Writes `size` bytes from a uint8_t buffer to a char-oriented output stream by reinterpret-casting the buffer to const char*. A companion readBytes helper follows for reading from a char-oriented input stream into a byte buffer."
+  },
+  {
+    "id": "E006",
+    "functionName": "readBytes",
+    "description": "Reads `size` bytes from a char-oriented input stream into a uint8_t buffer by reinterpret-casting the buffer to char*, and returns the number of bytes actually read via gcount()."
+  },
+  {
+    "id": "E007",
+    "functionName": "readBytes (offset overload)",
+    "description": "Overload that reads bytes into a buffer starting at a given offset by advancing the destination pointer by the offset and delegating to readBytes."
+  },
+  {
+    "id": "E008",
+    "functionName": "PositioningEngine::EngineImpl::provideSatellitePositions",
+    "description": "Hands a satellite orbit polynomial, keyed by a GnssKey, to the engine implementation's distribution component for processing, returning an ErrorCode and guarding the call with a try block."
+  },
+  {
+    "id": "E009",
+    "functionName": "PositioningEngine::provideSatellitePositions",
+    "description": "Public method that forwards a satellite position polynomial to the internal engine implementation's provideSatellitePositions and returns its ErrorCode; a reset() method follows."
+  },
+  {
+    "id": "E010",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "Explicit template-variable specializations setting the initial variance scalar to 1.0e16 for the Ambiguity (cyc^2) and Coordinates (m^2) state components under OPERATING_MODE_1."
+  },
+  {
+    "id": "E011",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "Explicit template-variable specializations setting the initial variance scalar (1e16) for the Ambiguity, Coordinates, and Ionosphere state components under OPERATING_MODE_1, with units noted in comments."
+  },
+  {
+    "id": "E012",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "Explicit template-variable specializations setting the initial variance scalar (1e16) for the Coordinates, Ionosphere, and PhaserangeSignalBias state components under OPERATING_MODE_1, with commented-out derivations of the intended values."
+  },
+  {
+    "id": "E013",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "Explicit template-variable specializations setting the initial variance scalar (1e16) for the Ionosphere, PhaserangeSignalBias, and PseudorangeSignalBias state components under OPERATING_MODE_1, with commented-out derivations of the intended values."
+  },
+  {
+    "id": "E014",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "Explicit template-variable specializations setting the initial variance scalar (1e16) for the PhaserangeSignalBias, PseudorangeSignalBias, and ReceiverClock state components under OPERATING_MODE_1, with commented-out derivations of the intended values."
+  },
+  {
+    "id": "E015",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "Explicit template-variable specializations setting the initial variance scalar (1e16) for the PseudorangeSignalBias, ReceiverClock, and Troposphere state components under OPERATING_MODE_1, with commented-out derivations of the intended values."
+  },
+  {
+    "id": "E016",
+    "functionName": "Synchronizer",
+    "description": "Closing portion of a templated class (guarded by SYNCHRONIZER_HPP) that declares a single member: a const shared pointer to a strategy module, m_strategyModule."
+  },
+  {
+    "id": "E017",
+    "functionName": "assembleLogMessage",
+    "description": "Log-emitting routine that returns early when no logging callback is registered, allocates a fixed-size LogBuffer, writes the metadata fields (instance id, level, facility) to the front of it via formatMetadata, and computes the buffer space remaining for the message while reserving one byte for a null terminator."
+  },
+  {
+    "id": "E018",
+    "functionName": "fillToMinimum",
+    "description": "Test that fills a buffer until it holds at least a minimum number of bytes, verifies the first ten bytes read back as \"HelloWorld\", then repeatedly calls fillBuffer to refill until end of file."
+  },
+  {
+    "id": "E019",
+    "functionName": "MockFileWriter (write test)",
+    "description": "Test that opens a MockFileWriter, writes a string containing embedded binary bytes, and checks that the writer's captured data matches the original content."
+  },
+  {
+    "id": "E020",
+    "functionName": "MockFileWriter::write",
+    "description": "The uint8_t write overload throws a FileException when the writer is not open, otherwise appends the given bytes to an internal data vector; the char-pointer overload forwards to it by reinterpret-casting the data to bytes."
+  },
+  {
+    "id": "E021",
+    "functionName": "MockFileWriter::isOpen",
+    "description": "isOpen reports whether the writer is currently open by returning m_isOpen; the adjacent char-pointer write overload forwards to the byte-buffer write by reinterpret-casting its data argument."
+  },
+  {
+    "id": "E022",
+    "functionName": "isUniqueFullVariantSet",
+    "description": "Determines whether a vector contains exactly one of each engine variant by comparing its size to the number of alternatives in the EngineVariant std::variant (via std::variant_size_v), returning false when the sizes differ."
+  },
+  {
+    "id": "E023",
+    "functionName": "searchIntegerAmbiguityCandidates",
+    "description": "Iterates over integer candidate vectors around a central candidate, using an LDLT decomposition of the float covariance to compute each candidate's Mahalanobis distance from the float solution and tracking the closest one found so far."
+  },
+  {
+    "id": "E024",
+    "functionName": "timeApiTestPreamble",
+    "description": "Preamble of a Catch2 test file for time-related API utilities, defining test constants for seconds per week and seconds per hour and a floating-point comparison epsilon."
+  },
+  {
+    "id": "E025",
+    "functionName": "distributorTestPreamble",
+    "description": "Preamble of a Catch2 test file for the Distributor that imports chrono millisecond literals and begins defining the set of actions that can be dispatched to test worker threads."
+  },
+  {
+    "id": "E026",
+    "functionName": "SolutionAcceptorStub",
+    "description": "Start of a PositioningEngine test file that declares SolutionAcceptorStub, a stub class implementing the ISolutionAcceptor interface."
+  },
+  {
+    "id": "E027",
+    "functionName": "getFullCovariance",
+    "description": "Test helper that expands a packed covariance array into a full 3x3 (DIMENSION_3D) covariance matrix."
+  },
+  {
+    "id": "E028",
+    "functionName": "loggerTestPreamble",
+    "description": "Preamble of a Catch2 test file for the Logger that includes the API formatter utilities and introduces a helper to capture emitted logs and check them against expected patterns."
+  },
+  {
+    "id": "E029",
+    "functionName": "linearAlgebraTestPreamble",
+    "description": "Preamble of a Catch2 test file for linear-algebra utilities, defining a maximum-size constant of 50 and beginning a test case."
+  }
+]
