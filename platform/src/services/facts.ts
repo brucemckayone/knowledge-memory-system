@@ -20,6 +20,7 @@ import { recordPredicateUsage } from './predicates.js';
 import { resolveExclusiveGroup, compareFactPrecedence, type FactPrecedence } from './exclusive-groups.js';
 import { recordFactChange, type Actor } from './audit.js';
 import { cascadeFactExpiry } from './causal.js';
+import { factEmbedTextFor } from './embed-text.js';
 import type { SeveritySummary } from './impact.js';
 
 export interface CreateFactParams {
@@ -234,8 +235,9 @@ export async function createFact(params: CreateFactParams): Promise<string> {
     return corroborate(existingMatch);
   }
 
-  // Generate embedding for fact text
-  const factText = sourceText || `${predicate} ${objectValue || ''}`.trim();
+  // Generate embedding for fact text. Convention shared with the epoch path via
+  // factEmbedTextFor (nmemo-uhp.14) so the two ingest paths cannot drift.
+  const factText = factEmbedTextFor(sourceText, predicate, objectValue);
   const embedding = await generateEmbedding(factText);
 
   // Insert the new fact + audit row atomically. The causal_event insert and

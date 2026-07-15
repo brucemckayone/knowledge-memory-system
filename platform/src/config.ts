@@ -23,6 +23,17 @@ const envSchema = z.object({
   EMBED_MODEL: z.string().default('nomic-embed-text'),
   EMBED_DIMENSIONS: z.coerce.number().optional(),
 
+  // Cross-corpus recall lever (bead nmemo-uhp.14). OFF by default ⇒ single-corpus
+  // behaviour is byte-for-byte unchanged. When true: (a) entity semantic vectors
+  // embed a name+authored-description composite (not name-only), so descriptions
+  // written in a target standard's vocabulary land the cross-graph vectors near
+  // the standard's vectors by construction; and (b) the epoch/promote path
+  // populates `facts.fact_embedding`, aligning it with the serial createFact path
+  // (which always did) so epoch-minted edges are visible to vector recall. The
+  // knob is the master switch; per-corpus refinement (comparative corpora only)
+  // rides on corpus_policies later. See services/embed-text.ts.
+  EMBED_DESCRIPTIONS: z.coerce.boolean().default(false),
+
   // Anthropic API (Phase B: causal agent)
   ANTHROPIC_API_KEY: z.string().optional(),
 

@@ -14,6 +14,8 @@ import { entities, entityAliases, memoryEntities, entityTypes, streamParticipant
 import { eq, ilike, sql, and, or } from 'drizzle-orm';
 import { ml } from './ml-client.js';
 import { recordFactChange, unwrapRows, type Actor } from './audit.js';
+import { config } from '../config.js';
+import { entityEmbedTextFor, entityEmbedModeFromFlag } from './embed-text.js';
 
 // EntityType is now loaded dynamically from entity_types table.
 // This string type allows any value — runtime validation happens via getValidEntityTypes().
@@ -241,8 +243,11 @@ const THRESHOLD_LLM_VERIFY = 0.75;
  * Create a new entity with embedding
  */
 export async function createEntity(params: CreateEntityParams): Promise<{ id: string; existed: boolean }> {
-  // Generate embedding for similarity search
-  const embedding = await generateEmbedding(params.name);
+  // Generate embedding for similarity search. When EMBED_DESCRIPTIONS is on
+  // (cross-corpus recall lever, nmemo-uhp.14) the vector embeds a name+authored-
+  // description composite; default (off) embeds the name only, unchanged.
+  const embedMode = entityEmbedModeFromFlag(config.EMBED_DESCRIPTIONS);
+  const embedding = await generateEmbedding(entityEmbedTextFor(params.name, params.description, embedMode));
 
   // Advisory lock on (canonical_name, entity_type) to prevent concurrent duplicates.
   await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${params.name.toLowerCase() + '||' + params.type}))`);

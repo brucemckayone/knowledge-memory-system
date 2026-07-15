@@ -38,6 +38,8 @@ import {
 import { resolveEscalations, type ArbiterInvoker } from './promotion-arbiter.js';
 import { canonicalizeStagedPredicates } from './predicate-resolve.js';
 import { getCorpusPolicy, type CorpusMode } from './corpus-policy.js';
+import { config } from '../config.js';
+import { entityEmbedTextFor, entityEmbedModeFromFlag, factEmbedTextFor } from './embed-text.js';
 
 /** Options for {@link promote}. `invokeArbiter` is injectable for tests (E5). */
 export interface PromoteOptions {
@@ -219,10 +221,33 @@ export async function applyPromotion(
   epochId: string,
   plan: PromotionPlan,
 ): Promise<PromotionResult> {
-  // 1. Entity embeddings up front (outside the tx). Facts carry no embedding
-  // column (unlike entities) — fact similarity is served from Qdrant, not pgvector.
+  // 1. Embeddings up front (outside the tx — the only network calls, kept out of
+  // the transaction so it stays pure DB work). Entity vectors embed a name+
+  // authored-description composite when EMBED_DESCRIPTIONS is on (cross-corpus
+  // recall lever, nmemo-uhp.14); default (off) embeds the name only, unchanged.
+  const embedMode = entityEmbedModeFromFlag(config.EMBED_DESCRIPTIONS);
   const entityEmbeddings = new Map<string, number[]>();
-  for (const e of plan.entitiesToMint) entityEmbeddings.set(e.clusterKey, await embed(e.name));
+  for (const e of plan.entitiesToMint) {
+    entityEmbeddings.set(e.clusterKey, await embed(entityEmbedTextFor(e.name, e.summary, embedMode)));
+  }
+
+  // Fact embeddings (keyed by a pre-minted fact id) ONLY when EMBED_DESCRIPTIONS
+  // is on. `facts.fact_embedding` exists and the serial createFact path always
+  // populated it; the epoch path historically left it NULL (nmemo-uhp.14
+  // inconsistency), making epoch-minted edges invisible to vector recall — which
+  // the full-graph cross-corpus substrate depends on. Same text convention as
+  // createFact (factEmbedTextFor), so the two paths cannot drift. Pre-minted ids
+  // let us embed outside the tx and still UPDATE the right row inside it.
+  const factIdByIndex: string[] = [];
+  const factEmbeddings = new Map<string, number[]>();
+  if (config.EMBED_DESCRIPTIONS) {
+    for (let i = 0; i < plan.factsToInsert.length; i++) {
+      const f = plan.factsToInsert[i]!;
+      const id = randomUUID();
+      factIdByIndex[i] = id;
+      factEmbeddings.set(id, await embed(factEmbedTextFor(f.reasoning, f.predicate, f.objectValue)));
+    }
+  }
 
   const mintedEntityIds: Record<string, string> = {};
   const insertedFactIds: string[] = [];
@@ -303,8 +328,11 @@ export async function applyPromotion(
     // (b) Insert facts. Each fact is minted with a fresh id; an inserted-inactive
     // fact (lost group supersession to a peer) lands already-expired and gets both
     // a 'created' and a 'superseded' audit row so history is truthful.
-    for (const f of plan.factsToInsert) {
-      const factId = randomUUID();
+    for (let i = 0; i < plan.factsToInsert.length; i++) {
+      const f = plan.factsToInsert[i]!;
+      // Use the pre-minted id (populated only when EMBED_DESCRIPTIONS is on) so the
+      // out-of-tx embedding maps to the row we insert; else a fresh id, unchanged.
+      const factId = factIdByIndex[i] ?? randomUUID();
       const subjectId = resolveId(f.subjectRef);
       const objectId = f.objectRef ? resolveId(f.objectRef) : null;
       const expiredAt = f.active ? null : new Date();
@@ -321,6 +349,12 @@ export async function applyPromotion(
         expiredAt,
         expireReason: f.expireReason,
       });
+      // nmemo-uhp.14: populate fact_embedding on the epoch path too (aligns with
+      // the serial createFact path). Guarded ⇒ NULL exactly as before when off.
+      const factVec = factEmbeddings.get(factId);
+      if (factVec && factVec.length > 0) {
+        await tx.execute(sql`UPDATE public.facts SET fact_embedding = ${vectorLiteral(factVec)}::vector WHERE id = ${factId}::uuid`);
+      }
       await recordFactChange({
         factId,
         eventType: 'created',
