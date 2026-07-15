@@ -887,6 +887,61 @@ app.post('/api/garden', async (c) => {
   }
 });
 
+app.post('/api/audit', async (c) => {
+  // User-triggered cross-corpus audit pass (nmemo-uhp.12.3, spec 04 §6). Compares a
+  // SOURCE corpus against a TARGET corpus and lays down explained/sourced
+  // bridge_edges for the (element × rule) pairs that genuinely relate.
+  //
+  // ACTOR-PIN (defense-in-depth): the audit actor is derived from the ROUTE, never
+  // the request body. runAuditPass → invokeAuditAgent → getMcpConfigPath('audit_agent')
+  // hardcodes MNEMO_AGENT_ACTOR='audit_agent'; unlike the generic pi-agent-bridge
+  // /run (which trusts req.actor), this route rejects a body-supplied actor outright.
+  // That composes with the double enforcement (graph-mcp advertise-filter +
+  // handleToolCall allow-list re-check), so the spawned agent's surface is
+  // reads + propose_bridge_edge no matter what the caller sends.
+  const tStart = Date.now();
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+
+  if ('actor' in body) {
+    return c.json(
+      { triggered: false, error: 'actor is route-derived (audit_agent) and cannot be set from the request body' },
+      400,
+    );
+  }
+  const { name, sourceCorpusId, targetCorpusId, ruleSetHash, modelVersion, recall } = body;
+  if (!name || !sourceCorpusId || !targetCorpusId || !ruleSetHash) {
+    return c.json(
+      { triggered: false, error: 'audit requires name, sourceCorpusId, targetCorpusId, ruleSetHash' },
+      400,
+    );
+  }
+
+  console.log(`[audit] manual trigger: ${sourceCorpusId} → ${targetCorpusId} (run "${name}")`);
+  const { runAuditPass } = await import('./services/audit-pass.js');
+  try {
+    const result = await runAuditPass({
+      name: name as string,
+      sourceCorpusId: sourceCorpusId as string,
+      targetCorpusId: targetCorpusId as string,
+      ruleSetHash: ruleSetHash as string,
+      modelVersion: (modelVersion as string | null | undefined) ?? null,
+      recall: recall as Record<string, number> | undefined,
+    });
+    const durationMs = Date.now() - tStart;
+    console.log(
+      `[audit] run=${result.runId.slice(0, 8)} seeded=${result.seeded} swept=${result.swept} ` +
+        `violates=${result.progress.violates} satisfies=${result.progress.satisfies} ` +
+        `n/a=${result.progress.notApplicable} durationMs=${durationMs}`,
+    );
+    return c.json({ triggered: true, ...result, durationMs });
+  } catch (err) {
+    return c.json(
+      { triggered: false, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - tStart },
+      500,
+    );
+  }
+});
+
 app.post('/api/decay', async (c) => {
   // Manually trigger confidence decay over the causal-edge graph.
   // Returns the same DecayResult shape produced by applyConfidenceDecay so

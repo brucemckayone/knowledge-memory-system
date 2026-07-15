@@ -33,6 +33,7 @@ import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
 import { getEntityCausalHistory, expireCausalEdge, reviseCausalEdge, traceCauses, projectTrajectory, getCausalDelta, type SourceReference as CausalSourceRef } from './causal.js';
 import { getFactHistory, getEdgeHistory, jsonbLiteral, unwrapRows, type Actor } from './audit.js';
 import { catalogHas, type ElementKind } from './bridge-promotion.js';
+import type { AuditCellScope } from './audit-pass.js';
 import {
   getContradictions,
   resolveContradiction,
@@ -3631,6 +3632,12 @@ export interface EpochContext {
    * position. Not stamped onto staging rows — purely a prompt input.
    */
   totalChunks?: number;
+  /**
+   * Audit-pass invocation id (nmemo-uhp.12.3). Set as MNEMO_INVOCATION_ID so the
+   * audit agent's propose_bridge_edge partitions staging by invocation (the
+   * bridge-promotion D4 idempotency token). One per swept coverage cell.
+   */
+  invocationId?: string;
 }
 
 export function getMcpEnv(actor: Actor, epoch?: EpochContext): Record<string, string> {
@@ -3644,6 +3651,7 @@ export function getMcpEnv(actor: Actor, epoch?: EpochContext): Record<string, st
   if (epoch?.epochId) env.MNEMO_EPOCH_ID = epoch.epochId;
   if (epoch?.sourceId) env.MNEMO_SOURCE_ID = epoch.sourceId;
   if (epoch?.chunkIndex != null) env.MNEMO_CHUNK_INDEX = String(epoch.chunkIndex);
+  if (epoch?.invocationId) env.MNEMO_INVOCATION_ID = epoch.invocationId;
   return env;
 }
 
@@ -3656,9 +3664,9 @@ export function getMcpConfigPath(actor: Actor = 'graph_agent', epoch?: EpochCont
   // (E3 — one per chunk) don't share a config and overwrite each other's
   // MNEMO_CHUNK_INDEX.
   const suffix =
-    epoch?.epochId != null && epoch?.chunkIndex != null
+    (epoch?.epochId != null && epoch?.chunkIndex != null
       ? `.${epoch.epochId}.c${epoch.chunkIndex}`
-      : '';
+      : '') + (epoch?.invocationId != null ? `.${epoch.invocationId}` : '');
   const configPath = path.resolve(platformRoot, `.graph-mcp-config.${actor}${suffix}.json`);
 
   // Use absolute path to the MCP server script — Claude Code does not
@@ -3909,6 +3917,45 @@ export async function invokeCausalAgent(epochId: string, scope: unknown): Promis
   }
 
   return response.json() as Promise<CausalAgentResult>;
+}
+
+// ============================================
+// Cross-corpus audit Agent Invocation (nmemo-uhp.12.3, spec 04 §6)
+// ============================================
+
+export interface AuditAgentResult {
+  result: string;
+}
+
+/**
+ * Invoke the cross-corpus audit agent (Haiku) for ONE recalled (element, rule) cell.
+ * The audit pass (audit-pass.ts) has already recalled the candidate pair
+ * deterministically; this pushes the pair to the agent, which reasons
+ * violates|satisfies|not_applicable — gathering source_references via its read tools
+ * — and calls propose_bridge_edge into staging_bridge_edges (partitioned by the
+ * MNEMO_INVOCATION_ID carried on the per-actor MCP config env). bridge-promotion then
+ * disposes it. Mirror of {@link invokeCausalAgent}; the /audit-agent endpoint lives in
+ * ml-services (audit_agent.py). The actor is env-pinned ('audit_agent') by the MCP
+ * config, so the spawned Claude Code cannot self-select a wider surface.
+ */
+export async function invokeAuditAgent(scope: AuditCellScope): Promise<AuditAgentResult> {
+  const mcpConfigPath = getMcpConfigPath('audit_agent', { invocationId: scope.invocationId });
+
+  const response = await fetch(`${config.ML_SERVICES_URL}/audit-agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      scope,
+      mcp_config_path: mcpConfigPath,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => response.statusText);
+    throw new Error(`Audit agent failed (${response.status}): ${detail}`);
+  }
+
+  return response.json() as Promise<AuditAgentResult>;
 }
 
 // ============================================

@@ -39,6 +39,7 @@ from .extract_agentic import router as extract_agentic_router
 from .graph_agent import router as graph_agent_router
 from .reconciliation_agent import router as reconciliation_agent_router
 from .causal_agent import router as causal_agent_router
+from .audit_agent import router as audit_agent_router
 from .gardener_agent import router as gardener_agent_router
 from .reasoning_agent import router as reasoning_agent_router
 from .core.llm import LLM_PROVIDER
@@ -100,6 +101,8 @@ app.include_router(graph_agent_router, tags=["Graph Agent"])
 app.include_router(reconciliation_agent_router, tags=["Reconciliation Agent"])
 # Causal agent (E6 — post-promotion causal pass)
 app.include_router(causal_agent_router, tags=["Causal Agent"])
+# Cross-corpus audit (nmemo-uhp.12.3)
+app.include_router(audit_agent_router, tags=["Audit Agent"])
 # Graph gardener
 app.include_router(gardener_agent_router, tags=["Graph Gardener"])
 app.include_router(reasoning_agent_router, tags=["Reasoning Agent"])
