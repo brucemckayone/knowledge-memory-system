@@ -57,6 +57,7 @@ const PROPOSE_VERDICT_WRITES = [
   'propose_entity', 'propose_fact',                          // §8a.4 proposer
   'propose_identity_verdict', 'propose_conflict_resolution', // §8a.5 arbiter
   'propose_causal_edge',                                     // §8a.6 causal
+  'propose_bridge_edge',                                     // cross-corpus audit (nmemo-uhp.12.2)
 ];
 
 describe('actor tool allow-lists match the §8a tables (E7, doc 41 §8a)', () => {

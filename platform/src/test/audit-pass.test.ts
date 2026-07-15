@@ -174,4 +174,134 @@ describe('cross-corpus audit pass spine (nmemo-uhp.12.3)', () => {
     expect(second.swept).toBe(0); // already adjudicated, nothing pending
     expect(calls).toBe(1); // invoker not called again
   });
+
+  it('D6 fork: a satisfies verdict stamps the cell with edge_id + a reasoned/sourced bridge', async () => {
+    // Sibling of the violates case above, on the OTHER fork arm. Also pins
+    // criterion (1): the promoted bridge carries non-empty reasoning AND a
+    // non-empty source_references array (the doc-01 traceability invariant).
+    const s1 = await seedEntity('safe_copy', SRC, unit(0), 'copies with an explicit length');
+    const r1 = await seedEntity('Rule 21.18', TGT, unit(0), 'a copy must be bounded');
+
+    const fake = async (scope: AuditCellScope): Promise<void> => {
+      await handleToolCall(
+        'propose_bridge_edge',
+        {
+          aKind: 'entity',
+          aRef: s1,
+          bKind: 'entity',
+          bRef: r1,
+          sourceCorpusId: SRC,
+          targetCorpusId: TGT,
+          relation: 'satisfies',
+          reasoning: 'safe_copy passes an explicit length, satisfying Rule 21.18',
+          sourceReferences: [{ type: 'entity', id: s1, relevance: 'the compliant call site' }],
+        },
+        { agent: 'audit_agent', invocationId: scope.invocationId },
+      );
+    };
+
+    const res = await runAuditPass(
+      { name: 'audit-satisfies-1', sourceCorpusId: SRC, targetCorpusId: TGT, ruleSetHash: 'h', recall: { k: 8, threshold: 0.9 } },
+      { invokeAuditAgent: fake },
+    );
+    expect(res.progress).toMatchObject({ violates: 0, satisfies: 1, notApplicable: 0, pending: 0, total: 1 });
+
+    const edges = (await testDb`
+      SELECT id::text AS id, relation, reasoning, source_references
+      FROM public.bridge_edges WHERE expired_at IS NULL
+    `) as Array<{ id: string; relation: string; reasoning: string; source_references: unknown }>;
+    expect(edges.length).toBe(1);
+    const edge = edges[0]!;
+    expect(edge.relation).toBe('satisfies');
+    expect(edge.reasoning.trim().length).toBeGreaterThan(0); // non-empty reasoning
+    expect(Array.isArray(edge.source_references)).toBe(true);
+    expect((edge.source_references as unknown[]).length).toBeGreaterThan(0); // non-empty refs
+
+    const cell = (await testDb`
+      SELECT verdict, edge_id::text AS edge_id FROM public.audit_coverage
+      WHERE element_ref = ${s1} AND rule_id = ${r1}
+    `)[0] as { verdict: string; edge_id: string | null };
+    expect(cell.verdict).toBe('satisfies');
+    expect(cell.edge_id).toBe(edge.id);
+  });
+
+  it('D4: re-running a completed pass is a no-op — bridge rows, corroboration_count, and coverage all unchanged', async () => {
+    // The pass-level twin of cross-corpus.test.ts case 6 (which replays at the
+    // applyBridgePromotion level). Here a completed run is re-run under the same
+    // name: recall re-yields the same pair, seeding is ON CONFLICT DO NOTHING (0
+    // new), and every cell is already non-pending, so the sweep drains nothing and
+    // the invoker is never called — leaving the canonical bridge AND coverage
+    // byte-for-byte identical (no aggregate to inflate).
+    const s1 = await seedEntity('memcpy', SRC, unit(0), 'unbounded copy');
+    const r1 = await seedEntity('Rule 21.18', TGT, unit(0), 'no unbounded copy');
+
+    let calls = 0;
+    const fake = async (scope: AuditCellScope): Promise<void> => {
+      calls += 1;
+      await handleToolCall(
+        'propose_bridge_edge',
+        {
+          aKind: 'entity',
+          aRef: s1,
+          bKind: 'entity',
+          bRef: r1,
+          sourceCorpusId: SRC,
+          targetCorpusId: TGT,
+          relation: 'violates',
+          reasoning: 'memcpy copies without a bound check; Rule 21.18 forbids unbounded copies',
+          sourceReferences: [{ type: 'entity', id: s1, relevance: 'the offending element' }],
+        },
+        { agent: 'audit_agent', invocationId: scope.invocationId },
+      );
+    };
+    const params = {
+      name: 'audit-rerun-1',
+      sourceCorpusId: SRC,
+      targetCorpusId: TGT,
+      ruleSetHash: 'h',
+      recall: { k: 8, threshold: 0.9 },
+    };
+
+    const first = await runAuditPass(params, { invokeAuditAgent: fake });
+    expect(first.seeded).toBe(1);
+    expect(first.swept).toBe(1);
+    expect(calls).toBe(1);
+
+    const snap = async () => ({
+      edges: (await testDb`
+        SELECT id::text AS id, relation, corroboration_count
+        FROM public.bridge_edges WHERE expired_at IS NULL ORDER BY id
+      `) as Array<{ id: string; relation: string; corroboration_count: number }>,
+      cells: (await testDb`
+        SELECT element_ref, rule_id, verdict, edge_id::text AS edge_id
+        FROM public.audit_coverage ORDER BY element_ref, rule_id
+      `) as Array<{ element_ref: string; rule_id: string; verdict: string; edge_id: string | null }>,
+    });
+    const before = await snap();
+    expect(before.edges.length).toBe(1);
+    expect(Number(before.edges[0]!.corroboration_count)).toBe(1);
+
+    const second = await runAuditPass(params, { invokeAuditAgent: fake });
+    expect(second.created).toBe(false);
+    expect(second.seeded).toBe(0);
+    expect(second.swept).toBe(0);
+    expect(calls).toBe(1); // invoker NOT called again
+
+    const after = await snap();
+    expect(after.edges).toEqual(before.edges); // identical bridge row set
+    expect(Number(after.edges[0]!.corroboration_count)).toBe(1); // corroboration_count unchanged
+    expect(after.cells).toEqual(before.cells); // coverage unchanged
+  });
+
+  it('resume with a DIFFERENT rule-set hash throws (never mixes verdicts across standards)', async () => {
+    await seedEntity('memcpy', SRC, unit(0), 'unbounded copy');
+    await seedEntity('Rule 21.18', TGT, unit(0), 'no unbounded copy');
+    const fake = async (): Promise<void> => {}; // adjudicate nothing
+    const base = { name: 'audit-hash-1', sourceCorpusId: SRC, targetCorpusId: TGT, recall: { k: 8, threshold: 0.9 } };
+
+    await runAuditPass({ ...base, ruleSetHash: 'hash-A' }, { invokeAuditAgent: fake });
+    await expect(
+      runAuditPass({ ...base, ruleSetHash: 'hash-B' }, { invokeAuditAgent: fake }),
+    ).rejects.toThrow(/different rule set|hash mismatch/i);
+  });
 });
