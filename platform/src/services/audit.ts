@@ -97,7 +97,12 @@ export type Actor =
   // edges into staging, never canonical (causal-promotion code writes canonical
   // causal_edges with actor='promotion'). Deliberately NOT in migration 009's actor
   // CHECK: if it reaches an audit column it is a bug.
-  | 'causal_agent';
+  | 'causal_agent'
+  // Cross-corpus Phase B (nmemo-uhp.12.2): the audit pass. Like `causal_agent`, a
+  // staging-only MCP actor for tool-scoping ONLY — it proposes BRIDGE edges into
+  // staging_bridge_edges, never canonical (bridge-promotion code disposes to
+  // canonical bridge_edges). Deliberately NOT in migration 009's actor CHECK.
+  | 'audit_agent';
 
 export interface SourceReference {
   type: 'memory' | 'fact' | 'entity';

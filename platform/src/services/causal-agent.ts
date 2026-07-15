@@ -32,6 +32,7 @@ import { resolveExclusiveGroup } from './exclusive-groups.js';
 import { eq, desc, sql, isNull, and, ilike, inArray } from 'drizzle-orm';
 import { getEntityCausalHistory, expireCausalEdge, reviseCausalEdge, traceCauses, projectTrajectory, getCausalDelta, type SourceReference as CausalSourceRef } from './causal.js';
 import { getFactHistory, getEdgeHistory, jsonbLiteral, unwrapRows, type Actor } from './audit.js';
+import { catalogHas, type ElementKind } from './bridge-promotion.js';
 import {
   getContradictions,
   resolveContradiction,
@@ -154,6 +155,10 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         entity_type: {
           type: 'string',
           description: 'Optional entity type filter (e.g. "person", "organization")',
+        },
+        corpus_id: {
+          type: 'string',
+          description: 'Optional corpus partition to search WITHIN (cross-corpus recall, nmemo-uhp.12). Omit for the default corpus. The audit pass passes the TARGET corpus id to find candidate rules/elements the source behaviour may relate to.',
         },
       },
       required: ['query'],
@@ -1318,6 +1323,41 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
       required: ['causeEventId', 'effectEventId', 'reasoning', 'sourceReferences'],
     },
   },
+  {
+    name: 'propose_bridge_edge',
+    description:
+      'Propose a cross-corpus BRIDGE edge into the audit staging buffer: a reasoned, sourced connection asserting that a SOURCE element (e.g. a code behaviour, kind "entity") violates | satisfies | is not_applicable to a TARGET element (e.g. a coding-standard rule, kind "entity" or "rule_element") in another corpus. You do NOT write canonical: a deterministic bridge-promotion step disposes proposals (endpoint-resolve vs the source/target corpus, dedup on (a_ref,b_ref,relation), stale-citation flag). The return previews disposal: endpointsResolve (whether a_ref/b_ref resolve under their kind) and citedFactStatus (live status of every FACT you cite — active | superseded | invalidated). Every bridge MUST carry non-empty reasoning and >=1 source reference (doc 01 invariant). Endpoints are the raw UUIDs of the elements (entity ids for the full-graph substrate); never invent ids — read them from the graph first.',
+    mutates: true,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        aKind: { type: 'string', enum: ['entity', 'code_element', 'rule_element'], description: 'Kind of the SOURCE endpoint (usually "entity" — a code behaviour).' },
+        aRef: { type: 'string', description: 'UUID of the source element (entity id / element_ref).' },
+        bKind: { type: 'string', enum: ['entity', 'code_element', 'rule_element'], description: 'Kind of the TARGET endpoint (an entity or rule_element).' },
+        bRef: { type: 'string', description: 'UUID of the target element (entity id / element_ref).' },
+        sourceCorpusId: { type: 'string', description: 'Corpus the source endpoint lives in.' },
+        targetCorpusId: { type: 'string', description: 'Corpus the target endpoint lives in.' },
+        relation: { type: 'string', enum: ['violates', 'satisfies', 'not_applicable'], description: 'The asserted relation from source to target.' },
+        severity: { type: 'string', description: 'Optional severity (e.g. the rule\'s severity when relation=violates).' },
+        category: { type: 'string', description: 'Optional category tag.' },
+        reasoning: { type: 'string', description: 'Detailed justification — WHY this relation holds. Specific and non-empty.' },
+        sourceReferences: {
+          type: 'array',
+          description: 'Every source that informed this conclusion. At least one required.',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['memory', 'fact', 'entity', 'code_element', 'rule_element'], description: 'Type of source reference.' },
+              id: { type: 'string', description: 'UUID of the referenced item.' },
+              relevance: { type: 'string', description: 'How this source informed the conclusion.' },
+            },
+            required: ['type', 'id', 'relevance'],
+          },
+        },
+      },
+      required: ['aKind', 'aRef', 'bKind', 'bRef', 'sourceCorpusId', 'targetCorpusId', 'relation', 'reasoning', 'sourceReferences'],
+    },
+  },
 ];
 
 /**
@@ -1382,6 +1422,13 @@ export interface ToolCallContext {
   epochId?: string | null;
   sourceId?: string | null;
   chunkIndex?: number | null;
+  /**
+   * Cross-corpus audit pass (nmemo-uhp.12.2): the invocation partition for
+   * staging_bridge_edges, the bridge-promotion idempotency token (D4). INJECTED BY
+   * THE HARNESS (env MNEMO_INVOCATION_ID), never by the agent — one audit
+   * pass = one invocation; a replay reuses it so applyBridgePromotion is idempotent.
+   */
+  invocationId?: string | null;
 }
 
 /**
@@ -1402,7 +1449,7 @@ export interface ToolCallContext {
 export const VALID_ACTORS = new Set<Actor>([
   'graph_agent', 'reasoning_agent', 'gardener_agent',
   'reconciliation_agent', 'user', 'system_trigger', 'cascade',
-  'extraction_proposer', 'causal_agent',
+  'extraction_proposer', 'causal_agent', 'audit_agent',
 ]);
 
 /**
@@ -1501,11 +1548,26 @@ const CAUSAL_SURFACE = new Set<string>([
   ...CAUSAL_AGENT_STAGE_WRITES,
 ]);
 
+/**
+ * The cross-corpus audit agent's surface (nmemo-uhp.12.2). Like the causal agent:
+ * every read tool (to recall candidate target-corpus elements via corpus-scoped
+ * search_similar_entities, and to gather reasoning + source_references from both
+ * corpora's graphs) + the ONE staging write, propose_bridge_edge. It holds NO
+ * canonical-write tool — bridge-promotion code disposes staging to canonical.
+ */
+const AUDIT_AGENT_STAGE_WRITES = ['propose_bridge_edge'] as const;
+const AUDIT_SURFACE = new Set<string>([
+  ...READ_ONLY_TOOL_NAMES,
+  ...AUDIT_AGENT_STAGE_WRITES,
+]);
+
 export const ACTOR_TOOL_ALLOWLIST: Record<Actor, ReadonlySet<string>> = {
   extraction_proposer: PROPOSER_SURFACE,
   // Post-promotion causal pass (E6): reads + propose_causal_edge only (no canonical
   // causal-write tools — those are causal-promotion code).
   causal_agent: CAUSAL_SURFACE,
+  // Cross-corpus audit pass (nmemo-uhp.12.2): reads + propose_bridge_edge only.
+  audit_agent: AUDIT_SURFACE,
   graph_agent: LEGACY_SURFACE,
   reasoning_agent: LEGACY_SURFACE,
   gardener_agent: LEGACY_SURFACE,
@@ -1567,6 +1629,7 @@ function resolveContext(ctx?: ToolCallContext): ToolCallContext {
     epochId: process.env.MNEMO_EPOCH_ID || null,
     sourceId: process.env.MNEMO_SOURCE_ID || null,
     chunkIndex: Number.isFinite(chunkIndex) ? chunkIndex : null,
+    invocationId: process.env.MNEMO_INVOCATION_ID || null,
   };
 }
 
@@ -1687,6 +1750,7 @@ async function _handleToolCallInner(
         threshold: (toolInput.threshold as number) ?? 0.5,
         limit: (toolInput.limit as number) ?? 10,
         type: toolInput.entity_type as string | undefined,
+        corpusId: toolInput.corpus_id as string | undefined,
       });
       return JSON.stringify(similar.map(e => ({
         id: e.id,
@@ -3350,6 +3414,82 @@ async function _handleToolCallInner(
         refsResolve,
         citedFactStatus,
       });
+    }
+
+    case 'propose_bridge_edge': {
+      if (!context.invocationId) {
+        throw new Error('propose_bridge_edge requires an invocation context (MNEMO_INVOCATION_ID) — injected by the harness (the audit pass partitions staging by invocation, the bridge-promotion idempotency token).');
+      }
+      const aKind = toolInput.aKind as ElementKind;
+      const aRef = toolInput.aRef as string;
+      const bKind = toolInput.bKind as ElementKind;
+      const bRef = toolInput.bRef as string;
+      const sourceCorpusId = toolInput.sourceCorpusId as string;
+      const targetCorpusId = toolInput.targetCorpusId as string;
+      const relation = toolInput.relation as string;
+      const reasoning = (toolInput.reasoning as string) ?? '';
+      const severity = (toolInput.severity as string) ?? null;
+      const category = (toolInput.category as string) ?? null;
+      const sourceReferences =
+        (toolInput.sourceReferences as Array<{ type: string; id: string; relevance: string }>) ?? [];
+
+      // doc-01 invariant at the propose boundary (the 054 staging CHECKs back it up):
+      // every bridge carries non-empty reasoning + >=1 source reference.
+      if (!aRef || !bRef) {
+        throw new Error('propose_bridge_edge requires aRef and bRef.');
+      }
+      if (!['violates', 'satisfies', 'not_applicable'].includes(relation)) {
+        throw new Error(`propose_bridge_edge relation must be violates|satisfies|not_applicable, got "${relation}".`);
+      }
+      if (!reasoning.trim()) {
+        throw new Error('propose_bridge_edge requires non-empty reasoning (doc 01 invariant).');
+      }
+      if (!Array.isArray(sourceReferences) || sourceReferences.length === 0) {
+        throw new Error('propose_bridge_edge requires a non-empty sourceReferences array (doc 01 invariant).');
+      }
+
+      // endpointsResolve — do the endpoints resolve under their declared kind?
+      // Soft signal (bridge-promotion DROPS an unresolved endpoint at disposal);
+      // surfaced here so the agent self-corrects before it stages a dead edge.
+      const [aResolves, bResolves] = await Promise.all([
+        catalogHas(aRef, aKind),
+        catalogHas(bRef, bKind),
+      ]);
+      const endpointsResolve = { a: aResolves, b: bResolves };
+
+      // citedFactStatus — live status of every FACT cited as a source reference
+      // (active | superseded | invalidated). Warns the agent it is grounding on a
+      // shaky fact before bridge-promotion's stale-citation branch flags it.
+      const citedFactIds = sourceReferences.filter((r) => r.type === 'fact' && r.id).map((r) => r.id);
+      let citedFactStatus: Array<{ factId: string; status: 'active' | 'superseded' | 'invalidated' }> = [];
+      if (citedFactIds.length > 0) {
+        const factRows = await db
+          .select({ id: factsTable.id, expiredAt: factsTable.expiredAt, invalidAt: factsTable.invalidAt })
+          .from(factsTable)
+          .where(inArray(factsTable.id, citedFactIds));
+        citedFactStatus = factRows.map((f) => ({
+          factId: f.id,
+          status: f.invalidAt ? 'invalidated' : f.expiredAt ? 'superseded' : 'active',
+        }));
+      }
+
+      // jsonb array via jsonbLiteral (same workaround as propose_causal_edge — a bare
+      // drizzle .values() array fails the 054 jsonb_typeof='array' CHECK).
+      const inserted = await db.execute(sql`
+        INSERT INTO public.staging_bridge_edges
+          (invocation_id, a_kind, a_ref, b_kind, b_ref, source_corpus_id, target_corpus_id, relation, severity, category, reasoning, source_references)
+        VALUES (
+          ${context.invocationId}::uuid,
+          ${aKind}, ${aRef}::uuid, ${bKind}, ${bRef}::uuid,
+          ${sourceCorpusId}, ${targetCorpusId}, ${relation},
+          ${severity}, ${category},
+          ${reasoning}, ${jsonbLiteral(sourceReferences)}
+        )
+        RETURNING id
+      `);
+      const stagedEdgeId = unwrapRows<{ id: string }>(inserted)[0]!.id;
+
+      return JSON.stringify({ stagedEdgeId, endpointsResolve, citedFactStatus });
     }
 
     // --- Promotion-escalation arbiter verdict tools (E5, doc 41 §8a.5) ---
