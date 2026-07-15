@@ -1,0 +1,147 @@
+[
+  {
+    "id": "E001",
+    "facets": "operation: parses an entire text buffer into an arithmetic value and returns whether the whole input was consumed with no parse error; data/types: template type T constrained to arithmetic, const char* text, std::string_view, std::from_chars_result, std::errc, out-parameter value; memory/pointers: derives the end pointer via view.data() + view.size() and passes the half-open [text, last) pointer range to std::from_chars; no allocation; ownership/lifetime: operates on a caller-owned text buffer; the string_view is a non-owning bound over that buffer; side-effects: writes the parsed number into the caller's value out-parameter through std::from_chars; error-handling: compile-time static_assert on the type, then a boolean AND of result.ec == std::errc{} (no conversion error) and result.ptr == last (full-input consumption)",
+    "concepts": "std::from_chars, std::string_view, static_assert arithmetic constraint, half-open pointer range, full-input consumption check, std::errc, out-parameter, template function, no exceptions"
+  },
+  {
+    "id": "E002",
+    "facets": "operation: reinterprets a sockaddr_in pointer as a generic sockaddr pointer, then a TcpClient constructor initializes its address and port members; data/types: sockaddr_in*, sockaddr*, std::string address, uint16_t port, ITcpClient base; memory/pointers: reinterpret_cast<sockaddr*> type-puns between the two socket-address structs and deliberately preserves non-const so getpeername can write through the returned pointer; ownership/lifetime: the returned pointer aliases the caller's addr object; address is moved into m_serverAddress via std::move; side-effects: none in the cast helper (noexcept); the constructor stores the member fields; error-handling: none; the helper is noexcept",
+    "concepts": "reinterpret_cast, sockaddr/sockaddr_in aliasing, socket address conversion, anonymous namespace, noexcept, std::move, member initializer list, getpeername out-parameter, non-const preservation"
+  },
+  {
+    "id": "E003",
+    "facets": "operation: converts a C-style argv array into a std::vector<std::string>, starting at an optional offset; data/types: std::size_t argc, const char* const* const argv, std::size_t offset (default 0), std::vector<std::string>; memory/pointers: constructs the vector from the pointer range [argv+offset, argv+argc) using the iterator-pair constructor, allocating a std::string per element; ownership/lifetime: returns a new owning vector of string copies; argv and its char buffers remain caller-owned; side-effects: none beyond allocating the returned vector; error-handling: none; relies on a commented caller precondition offset <= argc with no runtime bounds check",
+    "concepts": "argv-to-vector conversion, iterator-pair range constructor, pointer arithmetic, std::vector<std::string>, default argument, precondition-by-contract, no bounds check, inline function"
+  },
+  {
+    "id": "E004",
+    "facets": "operation: shifts a block of bytes within a buffer toward the front using memmove; data/types: uint8_t* const buffer, std::size_t srcOffset, std::size_t size; memory/pointers: computes source address via pointer arithmetic buffer + srcOffset and copies size bytes to buffer with std::memmove (overlap-safe); the return value is discarded via static_cast<void>; ownership/lifetime: operates in place on the caller-owned buffer; no allocation or ownership transfer; side-effects: mutates the buffer contents in place; error-handling: none; relies on a commented caller-validated bounds precondition with no runtime check",
+    "concepts": "std::memmove, overlapping copy, in-place byte shift, pointer arithmetic, discarded return via void cast, precondition-by-contract, no bounds check, inline function"
+  },
+  {
+    "id": "E005",
+    "facets": "operation: writes a byte buffer to a char-oriented output stream, centralizing the byte/char cast; data/types: byte data pointer, std::size_t size, std::ostream, char*, std::streamsize; memory/pointers: reinterpret_cast<const char*> reinterprets the uint8_t buffer as chars for std::ostream::write, and size is static_cast to std::streamsize; ownership/lifetime: writes the caller-owned buffer with no ownership transfer; side-effects: I/O — emits the bytes to the stream; error-handling: none shown (stream error state not checked here)",
+    "concepts": "reinterpret_cast, uint8_t/char aliasing, std::ostream::write, byte-buffer serialization, streamsize cast, object-representation-as-bytes, wrapper helper"
+  },
+  {
+    "id": "E006",
+    "facets": "operation: reads up to size bytes from a char-oriented input stream into a byte buffer and returns the number of bytes actually read; data/types: uint8_t data pointer, std::size_t size, std::istream, std::streamsize, gcount() return; memory/pointers: reinterpret_cast<char*> reinterprets the uint8_t buffer as chars for std::istream::read, and size is static_cast to std::streamsize; ownership/lifetime: fills the caller-owned buffer; side-effects: I/O — consumes bytes from the stream and advances its position; error-handling: returns stream.gcount() as the only signal of bytes read; no explicit stream-state checks",
+    "concepts": "reinterpret_cast, uint8_t/char aliasing, std::istream::read, gcount, byte-buffer deserialization, streamsize cast, bytes-read return signal"
+  },
+  {
+    "id": "E007",
+    "facets": "operation: reads bytes into a buffer at a given offset by delegating to readBytes with an adjusted pointer; data/types: uint8_t* const data, std::size_t offset, std::size_t size, input stream; memory/pointers: forms data + offset via pointer arithmetic and passes it to readBytes; ownership/lifetime: fills the caller-owned buffer; no ownership transfer; side-effects: I/O performed through the delegated readBytes call; error-handling: none; relies on a commented caller-validated bounds precondition with no runtime check",
+    "concepts": "offset overload, pointer arithmetic, delegation to readBytes, byte-buffer read, precondition-by-contract, no bounds check"
+  },
+  {
+    "id": "E008",
+    "facets": "operation: forwards keyed satellite orbit-polynomial data into an internal distribution pipeline and returns an ErrorCode; data/types: class template parameter OperatingMode MODE, std::pair<GnssKey, std::shared_ptr<const Polynomial<ORBIT_POLYNOMIAL_DEGREE, DIMENSION_3D>>>, ErrorCode enum; memory/pointers: shares ownership of an immutable Polynomial via std::shared_ptr<const>; the pair is taken by value; ownership/lifetime: the shared_ptr participates in shared ownership of the polynomial; result is a local; side-effects: calls m_distribution.process(satellitePositions), advancing distribution state; error-handling: wraps the work in a try block and initializes result to ErrorCode::Success, branching on the boolean returned by process()",
+    "concepts": "class template with non-type parameter, EngineImpl/Pimpl, std::shared_ptr<const>, std::pair, GnssKey, ErrorCode enum, try/catch, distributor dispatch, orbit polynomial"
+  },
+  {
+    "id": "E009",
+    "facets": "operation: public template method that delegates satellite-position provision to the internal engine implementation and returns its ErrorCode; data/types: class template parameter OperatingMode MODE, std::pair<GnssKey, std::shared_ptr<const PositionPolynomial>>, ErrorCode; memory/pointers: calls through the m_engineImpl pointer-to-implementation; the payload holds a std::shared_ptr<const PositionPolynomial>; ownership/lifetime: m_engineImpl owns the implementation object; the pair (and its shared ownership) is forwarded; side-effects: none locally — state changes happen inside the delegated impl call; error-handling: propagates the ErrorCode returned by the impl; an adjacent reset() definition begins",
+    "concepts": "Pimpl idiom, delegation/forwarding, class template with non-type parameter, std::shared_ptr<const>, std::pair, GnssKey, ErrorCode passthrough"
+  },
+  {
+    "id": "E010",
+    "facets": "operation: defines explicit specializations of a constexpr variable template holding initial-variance scalar constants keyed by operating mode and state component; data/types: inline constexpr double variable template INITIAL_VARIANCE_SCALAR<OperatingMode, StateType>, tag types OPERATING_MODE_1, Ambiguity, Coordinates, with unit comments [cyc^2] and [m^2]; ownership/lifetime: compile-time constants with inline linkage and static storage duration; side-effects: none; error-handling: none",
+    "concepts": "variable template explicit specialization, constexpr, inline variable, double constant, units-in-comments, per-mode/per-state tag types, variance initialization"
+  },
+  {
+    "id": "E011",
+    "facets": "operation: defines explicit specializations of the constexpr INITIAL_VARIANCE_SCALAR variable template for the Ambiguity, Coordinates, and Ionosphere state components; data/types: inline constexpr double values (1.0e16, 1.0e16, 1e16) tagged by OPERATING_MODE_1 and the state type, with a commented-out derivation 625.0 / TEC_CONVERSION_FACTOR_SQUARED and units [cyc^2]/[m^2]/[TECU^2]; ownership/lifetime: compile-time constants with inline linkage and static storage duration; side-effects: none; error-handling: none",
+    "concepts": "variable template explicit specialization, constexpr, inline variable, double constant, commented-out derivation, units-in-comments, TEC conversion factor, variance initialization"
+  },
+  {
+    "id": "E012",
+    "facets": "operation: defines explicit specializations of the constexpr INITIAL_VARIANCE_SCALAR variable template for Coordinates, Ionosphere, and PhaserangeSignalBias; data/types: inline constexpr double values (1.0e16, 1e16, 1e16) tagged by OPERATING_MODE_1, with commented-out derivations 625.0 / TEC_CONVERSION_FACTOR_SQUARED and (0.1 * SPEED_OF_LIGHT)^2 and units [m^2]/[TECU^2]; ownership/lifetime: compile-time constants with inline linkage and static storage duration; side-effects: none; error-handling: none",
+    "concepts": "variable template explicit specialization, constexpr, inline variable, double constant, commented-out derivation, SPEED_OF_LIGHT scaling, units-in-comments, variance initialization"
+  },
+  {
+    "id": "E013",
+    "facets": "operation: defines explicit specializations of the constexpr INITIAL_VARIANCE_SCALAR variable template for Ionosphere, PhaserangeSignalBias, and PseudorangeSignalBias; data/types: inline constexpr double values (all 1e16) tagged by OPERATING_MODE_1, with commented-out derivations 625.0 / TEC_CONVERSION_FACTOR_SQUARED and (0.1 * SPEED_OF_LIGHT)^2 and units [TECU^2]/[m^2]; ownership/lifetime: compile-time constants with inline linkage and static storage duration; side-effects: none; error-handling: none",
+    "concepts": "variable template explicit specialization, constexpr, inline variable, double constant, commented-out derivation, SPEED_OF_LIGHT scaling, units-in-comments, signal-bias variance"
+  },
+  {
+    "id": "E014",
+    "facets": "operation: defines explicit specializations of the constexpr INITIAL_VARIANCE_SCALAR variable template for PhaserangeSignalBias, PseudorangeSignalBias, and ReceiverClock; data/types: inline constexpr double values (all 1e16) tagged by OPERATING_MODE_1, with commented-out derivations (0.1 * SPEED_OF_LIGHT)^2 and (0.05 * SPEED_OF_LIGHT)^2 and units [m^2]; ownership/lifetime: compile-time constants with inline linkage and static storage duration; side-effects: none; error-handling: none",
+    "concepts": "variable template explicit specialization, constexpr, inline variable, double constant, commented-out derivation, SPEED_OF_LIGHT scaling, receiver-clock variance, units-in-comments"
+  },
+  {
+    "id": "E015",
+    "facets": "operation: defines explicit specializations of the constexpr INITIAL_VARIANCE_SCALAR variable template for PseudorangeSignalBias, ReceiverClock, and Troposphere; data/types: inline constexpr double values (all 1e16) tagged by OPERATING_MODE_1, with commented-out derivations (0.1 * SPEED_OF_LIGHT)^2, (0.05 * SPEED_OF_LIGHT)^2, and 1.5625e-9 and units [m^2]; ownership/lifetime: compile-time constants with inline linkage and static storage duration; side-effects: none; error-handling: none",
+    "concepts": "variable template explicit specialization, constexpr, inline variable, double constant, commented-out derivation, SPEED_OF_LIGHT scaling, troposphere variance, units-in-comments"
+  },
+  {
+    "id": "E016",
+    "facets": "operation: declares the trailing member of a templated Synchronizer class — a shared pointer to a strategy module — and closes the class, namespace, and include guard; data/types: const std::shared_ptr<T_STRATEGY> member m_strategyModule; memory/pointers: shared_ptr provides reference-counted shared ownership of the strategy object; the pointer itself is const; ownership/lifetime: const shared_ptr member holds shared ownership for the lifetime of the owning object; the pointee is not reassignable; side-effects: none (a declaration); error-handling: none",
+    "concepts": "std::shared_ptr, strategy-module member, template parameter T_STRATEGY, const member, shared ownership, header include guard, class-definition tail"
+  },
+  {
+    "id": "E017",
+    "facets": "operation: within a logging callback, formats metadata fields into a stack buffer and computes the space remaining for the message; data/types: static s_callback, LogBuffer stack buffer, std::size_t metadataLength and remainingBufferSize, instanceId/level/facility inputs; memory/pointers: passes buffer.data() and buffer.size() to formatMetadata; the LogBuffer is default-constructed (not zero-filled); remaining size is computed as buffer.size() - metadataLength - 1U, reserving one byte for a null terminator; ownership/lifetime: buffer is an automatic (stack) object owned by the frame; s_callback is global/static; side-effects: writes formatted metadata into the buffer and reads the global s_callback; error-handling: early return when s_callback is unset; unsigned subtraction with no explicit check that metadataLength+1 <= buffer.size()",
+    "concepts": "static callback guard, early return, stack LogBuffer, formatMetadata, buffer.data()/size(), null-terminator reservation, unsigned arithmetic, default (non-zero) initialization"
+  },
+  {
+    "id": "E018",
+    "facets": "operation: Catch2 test that fills a buffer, asserts the first ten bytes read as \"HelloWorld\", then drains the source to EOF; data/types: buffer object, validBytes counter, std::string readData, Catch2 REQUIRE; memory/pointers: constructs readData from reinterpret_cast<char*>(buffer.data()) with an explicit length of 10; ownership/lifetime: readData is an owning copy of 10 bytes; side-effects: fillToMinimum and fillBuffer mutate the buffer and validBytes; a while loop repeatedly refills until fillBuffer returns false; error-handling: REQUIRE assertions abort the test on failure",
+    "concepts": "Catch2 REQUIRE, reinterpret_cast byte-to-char, std::string from pointer+length, fillToMinimum/fillBuffer, buffer.data(), EOF drain loop"
+  },
+  {
+    "id": "E019",
+    "facets": "operation: Catch2 test that writes binary content through a MockFileWriter and checks it round-trips; data/types: MockFileWriter, std::string content containing \\x01\\x02\\x03, const uint8_t*, uint32_t, Catch2 CHECK; memory/pointers: reinterpret_cast<const uint8_t*>(content.data()) reinterprets the string's chars as bytes and content.size() is static_cast to uint32_t; ownership/lifetime: content is owned by the string; the writer stores its own copy internally; side-effects: opens a mock file (\"test.log\") and writes the bytes to it; error-handling: CHECK (non-aborting) compares writtenDataAsString() against the original content",
+    "concepts": "Catch2 CHECK/TEST_CASE, MockFileWriter, reinterpret_cast char-to-byte, binary string literal, size cast to uint32_t, round-trip verification"
+  },
+  {
+    "id": "E020",
+    "facets": "operation: MockFileWriter::write appends a byte range to an internal buffer guarded by open state, plus a char* overload that delegates to the byte version; data/types: m_writtenData byte container, const uint8_t* / const char* data, size, FileException; memory/pointers: inserts the pointer range [data, data+size) via std::vector::insert; the char* overload uses reinterpret_cast<const uint8_t*>(data); ownership/lifetime: copies the bytes into the owning m_writtenData; input buffers stay caller-owned; side-effects: mutates m_writtenData; error-handling: throws FileException(\"Mock file writer is not open\") when m_isOpen is false",
+    "concepts": "std::vector::insert iterator range, FileException throw, open-state guard, reinterpret_cast char-to-byte, overload delegation, pointer range"
+  },
+  {
+    "id": "E021",
+    "facets": "operation: shows the byte-range insert, the char* write overload delegating to the byte overload, and an isOpen accessor; data/types: m_writtenData byte container, const char* data, uint32_t size, bool m_isOpen; memory/pointers: std::vector::insert over the range [data, data+size); the overload calls reinterpret_cast<const uint8_t*>(data); ownership/lifetime: appends copies of the bytes into the owning m_writtenData; side-effects: the write path mutates m_writtenData; isOpen only reads m_isOpen; error-handling: none in this window; isOpen is const noexcept",
+    "concepts": "overload delegation, reinterpret_cast char-to-byte, std::vector::insert, pointer range, const noexcept accessor"
+  },
+  {
+    "id": "E022",
+    "facets": "operation: begins a predicate checking whether a vector holds exactly one instance of each alternative type of a std::variant (size check first); data/types: const std::vector<EngineFactory::EngineVariant>& parameter, constexpr std::size_t numTypes from std::variant_size_v, EngineVariant; memory/pointers: none; ownership/lifetime: takes the vector by const reference, no copy; side-effects: none (pure predicate); error-handling: returns false when vec.size() != numTypes; no exceptions",
+    "concepts": "std::variant_size_v, constexpr type count, std::variant, const-reference parameter, size/uniqueness predicate, EngineVariant, boolean return"
+  },
+  {
+    "id": "E023",
+    "facets": "operation: iterates integer candidate vectors and computes each one's Mahalanobis distance against a float solution using an LDLT-decomposed covariance (integer-ambiguity/lattice search); data/types: Eigen::VectorXd, Eigen::LDLT<T_MATRIX>, double dMaxDist, TPermutationIndex, template T_VECTOR/T_MATRIX; memory/pointers: Eigen dynamic vectors/matrices (heap-backed); vecSteps.cast<double>() converts element type; the covariance is factorized once into ldltCov; ownership/lifetime: local Eigen objects; ldltCov holds the covariance decomposition for reuse across the loop; side-effects: mutates vecCandidate and the running search state inside a do/while loop; error-handling: none shown; std::numeric_limits<double>::max() seeds the initial best distance as a sentinel",
+    "concepts": "Eigen LDLT decomposition, Mahalanobis distance, integer ambiguity search, do-while loop, numeric_limits::max sentinel, Eigen .cast<double>(), templated numeric routine, VectorXd::Constant"
+  },
+  {
+    "id": "E024",
+    "facets": "operation: test-file preamble that defines a test-namespace macro and constexpr time/tolerance constants for floating-point comparisons; data/types: constexpr double TEST_SECONDS_PER_WEEK=604800.0, TEST_SECONDS_PER_HOUR=3600.0, EPSILON=1e-9, Catch2 floating-point matcher headers, TEST_NS macro; memory/pointers: none; ownership/lifetime: compile-time constants with static storage duration; side-effects: none (includes, macro, and constant definitions); error-handling: EPSILON provides a tolerance for approximate comparisons via the matchers",
+    "concepts": "Catch2 floating-point matchers, #define TEST_NS, constexpr constants, epsilon tolerance, time-unit constants, test namespace, StochasticScalar include"
+  },
+  {
+    "id": "E025",
+    "facets": "operation: test-file preamble that includes threading/variant utilities, sets a distributor test-namespace macro, and enables the chrono ms literal; data/types: <thread>/<variant>/<vector>/<utility>/<string> includes, TEST_NS macro, std::chrono_literals operator\"\"ms; memory/pointers: none; ownership/lifetime: none; side-effects: none (preprocessor plus a using-declaration); error-handling: none",
+    "concepts": "using-declaration for chrono ms literal, #define TEST_NS, test namespace, thread/variant/vector includes, worker-action scaffolding"
+  },
+  {
+    "id": "E026",
+    "facets": "operation: test-file preamble that sets a positioning-engine test-namespace macro and begins declaring a test stub implementing the ISolutionAcceptor interface; data/types: <cstdint>/<memory>/<optional>/<utility> includes, TEST_NS macro, class SolutionAcceptorStub deriving publicly from ISolutionAcceptor; memory/pointers: none shown; ownership/lifetime: none shown; side-effects: none (declarations and preprocessor); error-handling: none",
+    "concepts": "test stub / test double, public inheritance, ISolutionAcceptor interface, #define TEST_NS, test namespace, optional/memory includes"
+  },
+  {
+    "id": "E027",
+    "facets": "operation: test helper that expands a packed covariance array into a full 3x3 covariance matrix; data/types: const std::array<double, Position::COVARIANCE_DIMENSION>& input, Matrix<DIMENSION_3D, DIMENSION_3D> output, TEST_NS macro, threading/mutex includes; memory/pointers: none (fixed-size value types); ownership/lifetime: takes the array by const reference and returns the matrix by value; a local cov matrix is declared; side-effects: none (pure transform); error-handling: none shown",
+    "concepts": "std::array, fixed-size Matrix template, covariance expansion, const-reference parameter, 3D dimension constants, test helper, #define TEST_NS"
+  },
+  {
+    "id": "E028",
+    "facets": "operation: test-file preamble for a logger test that will capture log output and verify patterns; data/types: <sstream>/<string>/<vector> and ApiFormatters.hpp includes, TEST_NS macro, nested Alpha::Test namespaces; memory/pointers: none; ownership/lifetime: none; side-effects: none (includes and preprocessor); error-handling: none",
+    "concepts": "nested namespace, #define TEST_NS, log-capture harness, std::stringstream, ApiFormatters include, test scaffolding"
+  },
+  {
+    "id": "E029",
+    "facets": "operation: test-file preamble for linear-algebra tests, defining a max-size constant, pulling in polymorphic memory-resource support, and opening a TEST_CASE; data/types: static constexpr unsigned int MAX_SIZE_50=50, <memory_resource>/<chrono>/<cstddef>/<utility> and Catch2 includes, TEST_NS macro; memory/pointers: includes <memory_resource> for std::pmr allocator support; ownership/lifetime: MAX_SIZE_50 is a compile-time constant with static storage duration; side-effects: none (constant/macro definitions and includes); error-handling: none",
+    "concepts": "std::pmr memory_resource, static constexpr constant, Catch2 TEST_CASE, nested test namespace, #define TEST_NS, linear-algebra test scaffolding"
+  }
+]

@@ -1,0 +1,110 @@
+[
+  {
+    "id": "C.12",
+    "richer": "A const or reference data member can only be set once, at construction, so it silently deletes (or forces awkward hand-rolling of) the compiler-generated copy and move assignment operators. That quietly strips the type of value semantics: it can no longer be reassigned, sorted, or stored and re-stored in standard containers, often failing at a use site far from the declaration. Watch for a class or struct declared as a normal value type that nonetheless carries a member like 'const int id_;' or 'Widget& owner_;', especially when instances of it are later assigned to or placed in a vector."
+  },
+  {
+    "id": "C.131",
+    "richer": "An accessor that does nothing but return a member, paired with a setter that does nothing but assign one, provides no encapsulation benefit over a public member while inflating the API surface and adding maintenance noise. Because they enforce no invariant, do no validation, and perform no transformation, they hide which accessors actually do real work behind identical-looking boilerplate. The code shape is a matched pair such as 'int width() const { return width_; }' and 'void set_width(int w) { width_ = w; }' with no logic in either body."
+  },
+  {
+    "id": "C.21",
+    "richer": "If a class declares, defines, or deletes any one of the destructor, copy constructor, copy assignment, move constructor, or move assignment, it almost always manages a resource or lifetime, and the compiler-synthesized versions of the remaining special members will do the wrong thing (shallow copies, double frees, or leaks). Declaring some but not all of them leaves the rest implicitly generated or suppressed inconsistently, so they should all be defined or explicitly defaulted/deleted together. Look for a class that writes a custom destructor to release a resource but still relies on the implicit copy constructor, or declares a copy constructor while leaving the move operations implicit."
+  },
+  {
+    "id": "C.35",
+    "richer": "Deleting a derived object through a pointer to a base whose destructor is public but non-virtual is undefined behavior, because the correct derived destructor is never dispatched. The rule forces one of two safe shapes: a public virtual destructor when the type is meant to be deleted polymorphically, or a protected non-virtual destructor when it is not, which makes the dangerous 'delete base_ptr;' a compile error instead. The trigger is a class that has virtual functions (so it is used polymorphically) yet exposes a public non-virtual destructor, or an interface base that callers delete through a base pointer."
+  },
+  {
+    "id": "C.4",
+    "richer": "A non-static member function that never reads or writes any instance state does not depend on the object, so binding it to the class needlessly couples it, narrows its reuse, and can widen access to private internals it does not use. Such a function is clearer as a static member or a free function, which documents that it needs no receiver. The code shape is a member function whose body never touches 'this' or any data member and could compile unchanged as a static or standalone function."
+  },
+  {
+    "id": "C.46",
+    "richer": "A single-argument constructor that is not marked explicit doubles as an implicit conversion, so the compiler may silently build a temporary of the class type in overload resolution, function calls, and assignments where the author never intended a conversion. That leads to surprising matches and hidden costs; marking it explicit requires the conversion to be written out deliberately. Look for a class with a constructor taking one parameter (or one non-defaulted parameter) declared without 'explicit', which permits forms like 'Widget w = 42;' or passing a raw int where a Widget is expected."
+  },
+  {
+    "id": "C.48",
+    "richer": "A data member left unset by a constructor holds an indeterminate value, and reading it later is undefined behavior that surfaces as intermittent, hard-to-reproduce bugs. Initializing every member, ideally with in-class default member initializers, guarantees a consistent, valid starting state across all constructors. The shape to catch is a constructor whose initializer list or body sets some members but silently omits others (a bool flag, a counter, a raw pointer), or members declared with no default initializer that not every constructor covers."
+  },
+  {
+    "id": "C.9",
+    "richer": "Public data members expose the class's representation, so the class cannot enforce invariants over those fields and any later change to the internal layout ripples out to every caller that touched them directly. Keeping data private behind a minimal, intentional interface preserves invariants and the freedom to change the implementation. The code shape is a class (or a struct used as more than a passive bundle) with mutable public fields that participate in an invariant, read and written directly by outside code rather than through a controlled interface."
+  },
+  {
+    "id": "ES.1",
+    "richer": "Standard-library algorithms and containers are already correct, well-named, and battle-tested, so reaching for them instead of hand-writing loops removes whole categories of off-by-one, wrong-bound, and mismanaged-iterator bugs while making the intent explicit. A named call also reads as what it does rather than requiring the reader to reverse-engineer a loop. The typical trigger is a hand-rolled for or while loop that searches, counts, copies, accumulates, or transforms a range where 'std::find', 'std::count_if', 'std::copy', 'std::accumulate', or 'std::transform' would express the same thing directly."
+  },
+  {
+    "id": "ES.20",
+    "richer": "Reading a variable before it has been given a value is undefined behavior and a classic source of flaky, platform-dependent bugs, so every object should be initialized at the point of declaration. Initializing on declaration also keeps the declaration close to a known-good state rather than deferring it to a later, conditional assignment. Watch for declarations like 'int n;' or a local pointer left uninitialized and then assigned only on some control-flow paths, and for variables declared well before their first real use."
+  },
+  {
+    "id": "ES.30",
+    "richer": "Macros ignore scope, type, and namespaces; they are substituted textually by the preprocessor, so they collide with other names, evaluate arguments unexpectedly, and produce confusing errors and debugging. Constexpr values and inline or template functions give the same or better performance with full type safety and normal scoping. The code shape is a '#define' used as a named constant such as '#define MAX_LEN 256' or as a function-like macro such as '#define SQUARE(x) ((x)*(x))', which should instead be a 'constexpr' constant or an inline/template function."
+  },
+  {
+    "id": "ES.42",
+    "richer": "Pointer arithmetic is easy to get subtly wrong (walking past the end, mis-computed offsets, aliasing surprises) and obscures the intent of the code, so pointer use should stay simple: dereference, pass, compare against null, and nothing more elaborate. Bounds-carrying abstractions like spans, containers, and iterators express traversal more safely. Look for expressions such as '*(p + i)', incrementing a pointer to walk an array, or manual offset math on a pointer where a 'std::span', an index into a container, or a range-based loop would be safer."
+  },
+  {
+    "id": "ES.45",
+    "richer": "An unexplained literal buried in an expression forces the reader to guess its meaning and makes a value that appears in several places impossible to change consistently. A named symbolic constant documents intent at the definition and centralizes future edits. The code shape is a bare numeric or string literal embedded in logic, such as a comparison 'if (retries > 3)', a buffer size 'char buf[512]', or a scale factor, that should be a named 'constexpr' constant."
+  },
+  {
+    "id": "ES.46",
+    "richer": "Implicit arithmetic conversions that narrow a value (a wider type to a narrower one, floating point to integer, or a signedness change) can silently truncate data or flip sign, producing bugs that no compiler diagnostic catches by default. Making such conversions explicit and, where needed, checked keeps the data loss visible and intentional. The trigger is assigning or passing a 'double' into an 'int', a 64-bit value into a 32-bit one, or mixing signed and unsigned operands without a deliberate 'static_cast' or a checked narrowing helper such as 'gsl::narrow'."
+  },
+  {
+    "id": "ES.48",
+    "richer": "Casts override the type system's guarantees, and C-style casts are especially hazardous because a single '(T)x' silently chooses among static_cast, const_cast, and reinterpret_cast depending on the types, so the reader cannot tell how dangerous it is. Designs that avoid casts, or at worst use a specific named C++ cast, keep intent and risk visible. Look for C-style casts like '(int)x' or '(Widget*)p', any 'reinterpret_cast', and casts that strip const or convert between unrelated pointer types."
+  },
+  {
+    "id": "ES.71",
+    "richer": "A range-based for loop expresses 'do this for each element' directly and removes the index-management and bounds errors that plague hand-written counting loops. When the index exists only to subscript a container, the counting form is pure overhead and a bug surface. The classic shape to convert is 'for (size_t i = 0; i < v.size(); ++i) { use(v[i]); }' where 'i' is never used for anything but 'v[i]', which becomes 'for (auto& e : v)'."
+  },
+  {
+    "id": "ES.75",
+    "richer": "A do-while loop runs its body once before testing the condition, which inverts the usual read order and makes it easy to overlook that the body always executes at least once even when the guard would have been false on entry. A while or for loop with the check written up front is easier to reason about and to get right. The trigger is any 'do { ... } while (cond);', particularly with a non-trivial body or a termination condition that could already be satisfied before the first iteration."
+  },
+  {
+    "id": "ES.78",
+    "richer": "When a switch case runs into the next case because its 'break' was forgotten, the compiler cannot tell an accidental fallthrough from an intended one, so the bug passes silently and the behavior is often wrong. Every case should end in a 'break', 'return', 'throw', or an explicit '[[fallthrough]]' annotation when the fall-through is deliberate. Look for switch cases whose statements flow into the following label with no terminating statement and no '[[fallthrough]]' marker."
+  },
+  {
+    "id": "F.16",
+    "richer": "For read-only ('in') parameters, passing a large or expensive-to-copy object by value forces a needless copy on every call, while passing a tiny, cheaply-copied type by reference adds pointless indirection. The convention is to pass cheap types (built-ins and small trivially-copyable structs) by value and everything else by reference to const, keeping calls efficient and the signature's intent clear. The shapes to catch are a function taking a 'std::string', container, or large struct by value for read-only use (which should be 'const&'), or over-referencing a small scalar."
+  },
+  {
+    "id": "F.2",
+    "richer": "A function that performs a single logical operation is easy to name, test, reuse, and reason about, whereas one that bundles several distinct jobs resists all of those and tends to grow tangled control flow. Splitting multi-purpose functions restores composability and readability. The tell-tale shapes are a long function with clearly separable phases, a name containing 'And'/'Or' that advertises multiple responsibilities, or a boolean/mode flag parameter that switches the body between two different behaviors."
+  },
+  {
+    "id": "F.21",
+    "richer": "Returning several results through out-parameters obscures which arguments are inputs versus outputs, prevents the results from being used directly in an expression, and invites leaving some of them uninitialized on early-exit paths. Returning a small struct or a tuple names the results, keeps them together, and composes cleanly. The code shape is a function returning void or a status bool while filling in two or more non-const reference or pointer parameters that are really its return values."
+  },
+  {
+    "id": "I.23",
+    "richer": "A long parameter list is hard to call correctly because arguments are easy to transpose or mismatch by type, and a bloated signature often signals a function trying to do too much or a missing type that should group related arguments. Keeping the argument count low improves both call-site safety and design. The trigger is a function with many parameters (roughly five or more), especially several adjacent parameters of the same type where a caller could silently swap them, or a cluster that begs to be bundled into a struct."
+  },
+  {
+    "id": "R.11",
+    "richer": "Explicit 'new' and 'delete' put manual lifetime management in the programmer's hands, which invites leaks, double frees, and exception-unsafe paths where an intervening throw skips the delete. Factory helpers like 'make_unique' and 'make_shared', together with standard containers, make allocation and release automatic under RAII. Look for raw 'new'/'delete' (or 'new[]'/'delete[]') pairs, and any code that hand-manages an object's lifetime rather than owning it through a smart pointer or container."
+  },
+  {
+    "id": "R.20",
+    "richer": "Ownership should be expressed in the type system: 'unique_ptr' for sole ownership and 'shared_ptr' for shared ownership both free their resource automatically (RAII), so leaks and unclear responsibility for deletion disappear. Encoding ownership this way also documents intent at every hand-off. The shapes to catch are an owning raw pointer stored as a member or returned from a factory that the caller is expected to 'delete', and a bare 'new' whose result should have been captured in a 'unique_ptr' or 'shared_ptr'."
+  },
+  {
+    "id": "R.3",
+    "richer": "A raw pointer 'T*' should mean 'observe, do not own': it conveys no ownership, so making a resource's lifetime depend on someone remembering to delete through it is ambiguous and error-prone. Ownership belongs in a smart pointer or container, leaving raw pointers purely as non-owning observers. Watch for a class that stores a raw pointer and deletes it in its destructor, or a factory that returns 'T*' the caller must free, both of which should hand back or hold an owning smart pointer instead."
+  },
+  {
+    "id": "SL.con.1",
+    "richer": "C-style arrays decay to pointers, so they lose their length at the first opportunity, do no bounds checking, and (for dynamic ones) require manual storage management. 'std::array' for fixed size and 'std::vector' for dynamic size carry their length, manage their own memory, and plug directly into standard algorithms. The code shapes are a raw 'int a[N];' declaration, an array passed to a function as a bare pointer or 'T[]' that drops its size, and dynamically allocated arrays via 'new[]' that should be a 'std::vector'."
+  },
+  {
+    "id": "Type.1",
+    "richer": "'reinterpret_cast' reinterprets one type's bit pattern as another with no checking, which readily produces undefined behavior through strict-aliasing violations, misaligned access, or invalid object reinterpretation. Type-safe alternatives should be used instead, and unchecked casts avoided in general. The shapes to catch are a 'reinterpret_cast' between unrelated pointer types, casting an object pointer to 'char*' or an integer and back, and type-punning through casts where 'std::bit_cast' or a 'memcpy' would be correct."
+  }
+]
