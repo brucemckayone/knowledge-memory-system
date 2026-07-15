@@ -11,9 +11,10 @@
  * dedup while live, corroborate-or-insert, stale_citation flag).
  *
  * Two rules that make bridges different from causal edges (spec §3/§4, D1/D4):
- *   - Endpoints are POLYMORPHIC UUIDs validated at disposal against the element
- *     catalogs (code_elements / rule_elements), NOT by FK. A staged row whose a_ref or
- *     b_ref is not in the catalog is DROPPED ('unresolved endpoint').
+ *   - Endpoints are POLYMORPHIC UUIDs validated at disposal by EXISTENCE, NOT by FK:
+ *     'code_element'/'rule_element' against the bare catalogs, 'entity' against
+ *     public.entities (the v1 full-graph substrate, migration 056). A staged row whose
+ *     a_ref or b_ref does not resolve is DROPPED ('unresolved endpoint').
  *   - Corroboration is replay-idempotent INCLUDING corroboration_count (D4). The
  *     bridge_edges.invocation_id column is the idempotency token (the mig-034
  *     invocation_id UPSERT model that mig 051 also codifies for causal edges): a given
@@ -33,12 +34,18 @@ import {
   stagingBridgeEdges,
   codeElements,
   ruleElements,
+  entities,
   facts as factsTable,
 } from '../db/schema.js';
 import { jsonbLiteral, unwrapRows } from './audit.js';
 
-/** The two polymorphic endpoint kinds (mirrors the bridge_edges a_kind/b_kind CHECK). */
-export type ElementKind = 'code_element' | 'rule_element';
+/**
+ * The polymorphic endpoint kinds (mirrors the bridge_edges a_kind/b_kind CHECK,
+ * widened by migration 056). 'code_element'/'rule_element' resolve against the bare
+ * catalogs (the Phase C / SCIP path); 'entity' resolves against public.entities —
+ * the v1 full-graph substrate, where a code behaviour is a canonical entity.
+ */
+export type ElementKind = 'code_element' | 'rule_element' | 'entity';
 
 /**
  * A source reference on a bridge edge. Wider than the causal `SourceReference`:
@@ -119,7 +126,7 @@ export interface BridgePromotionResult {
 const CORROBORATION_STRENGTH_DELTA = 0.05;
 
 /** ref_types the bridge_source_refs CHECK admits — others are skipped at denorm. */
-const BRIDGE_REF_TYPES = new Set(['fact', 'memory', 'code_element', 'rule_element']);
+const BRIDGE_REF_TYPES = new Set(['fact', 'memory', 'code_element', 'rule_element', 'entity']);
 
 /** Stable dedup key for a bridge: one live edge per (a_ref, b_ref, relation). */
 function bridgeKey(aRef: string, bRef: string, relation: string): string {
@@ -207,11 +214,17 @@ export function planBridgePromotion(
 }
 
 /**
- * Does the element catalog hold `ref` under `kind`? Checks code_elements for
- * 'code_element' and rule_elements for 'rule_element' (the D1 disposal-time
- * endpoint check; the catalogs are the resolution pool, never entities).
+ * Does `ref` resolve under `kind` at disposal? 'code_element'/'rule_element' check
+ * the bare catalogs; 'entity' checks public.entities (the v1 full-graph substrate).
+ * Existence-based — a bridge LINKS across corpora (never merges), so there is no
+ * fusion hazard in resolving an entity endpoint by id; pointing each endpoint at the
+ * correct corpus is the linker's responsibility (nmemo-uhp.12.3).
  */
 export async function catalogHas(ref: string, kind: ElementKind): Promise<boolean> {
+  if (kind === 'entity') {
+    const found = await db.select({ id: entities.id }).from(entities).where(eq(entities.id, ref)).limit(1);
+    return found.length > 0;
+  }
   const table = kind === 'code_element' ? codeElements : ruleElements;
   const found = await db
     .select({ ref: table.elementRef })
@@ -229,9 +242,12 @@ export async function catalogHas(ref: string, kind: ElementKind): Promise<boolea
 async function resolveCatalogRefs(staged: StagedBridgeEdge[]): Promise<Set<string>> {
   const codeRefs = new Set<string>();
   const ruleRefs = new Set<string>();
+  const entityRefs = new Set<string>();
+  const bucket = (kind: ElementKind) =>
+    kind === 'code_element' ? codeRefs : kind === 'rule_element' ? ruleRefs : entityRefs;
   for (const e of staged) {
-    (e.aKind === 'code_element' ? codeRefs : ruleRefs).add(e.aRef);
-    (e.bKind === 'code_element' ? codeRefs : ruleRefs).add(e.bRef);
+    bucket(e.aKind).add(e.aRef);
+    bucket(e.bKind).add(e.bRef);
   }
 
   const resolved = new Set<string>();
@@ -248,6 +264,13 @@ async function resolveCatalogRefs(staged: StagedBridgeEdge[]): Promise<Set<strin
       .from(ruleElements)
       .where(inArray(ruleElements.elementRef, [...ruleRefs]));
     for (const r of rows) resolved.add(r.ref);
+  }
+  if (entityRefs.size > 0) {
+    const rows = await db
+      .select({ id: entities.id })
+      .from(entities)
+      .where(inArray(entities.id, [...entityRefs]));
+    for (const r of rows) resolved.add(r.id);
   }
   return resolved;
 }

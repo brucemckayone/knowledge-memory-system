@@ -12,7 +12,7 @@
  * hand (coverage cascades from audit_runs).
  */
 
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { testDb, randomUUID } from './setup.js';
 import {
   ensureAuditLedger,
@@ -50,8 +50,18 @@ async function clean(): Promise<void> {
 }
 
 describe('audit ledger (nmemo-uhp.12.1)', () => {
+  // Drop + recreate so the schema is current (self-ensured tables aren't recreated
+  // by global-setup migrations; a stale definition from an earlier run would persist).
   beforeAll(async () => {
+    await testDb`DROP TABLE IF EXISTS public.audit_coverage CASCADE`;
+    await testDb`DROP TABLE IF EXISTS public.audit_runs CASCADE`;
     await ensureAuditLedger();
+  });
+  // Leave the DB clean so other suites (e.g. cross-corpus) can freely DELETE
+  // bridge_edges without tripping the audit_coverage FK.
+  afterAll(async () => {
+    await testDb`DROP TABLE IF EXISTS public.audit_coverage CASCADE`;
+    await testDb`DROP TABLE IF EXISTS public.audit_runs CASCADE`;
   });
   beforeEach(clean);
 

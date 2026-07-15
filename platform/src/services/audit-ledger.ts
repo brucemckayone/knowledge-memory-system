@@ -99,7 +99,11 @@ export async function ensureAuditLedger(): Promise<void> {
         rule_id       TEXT NOT NULL,
         verdict       TEXT NOT NULL DEFAULT 'pending'
                         CHECK (verdict IN ('pending','violates','satisfies','not_applicable','checker_unavailable')),
-        edge_id       UUID REFERENCES public.bridge_edges(id),
+        -- ON DELETE SET NULL: a coverage cell records that we CHECKED (element × rule);
+        -- it outlives its evidencing bridge. Bridges normally EXPIRE (expired_at), not
+        -- delete, so edge_id keeps pointing at the (expired) edge as history; a hard
+        -- delete (GC/tests) nulls the link rather than blocking, keeping the cell honest.
+        edge_id       UUID REFERENCES public.bridge_edges(id) ON DELETE SET NULL,
         invocation_id UUID,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
