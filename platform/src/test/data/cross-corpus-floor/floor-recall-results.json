@@ -1,0 +1,2135 @@
+{
+  "generatedFrom": "floor-ingest-recall.ts",
+  "replay": false,
+  "counts": {
+    "violations": 40,
+    "controls": 10,
+    "rules": 10
+  },
+  "blindnessLeaks": [
+    {
+      "id": "C_ooc_convert",
+      "refs": [
+        "3.14"
+      ]
+    }
+  ],
+  "embedding": {
+    "any": {
+      "microAtK": {
+        "1": 0.7,
+        "3": 0.9,
+        "5": 0.975,
+        "8": 1
+      },
+      "macroAtK": {
+        "1": 0.5650000000000001,
+        "3": 0.8383333333333333,
+        "5": 0.9425000000000001,
+        "8": 1
+      }
+    },
+    "all": {
+      "microAtK": {
+        "1": 0.425,
+        "3": 0.8,
+        "5": 0.925,
+        "8": 1
+      },
+      "macroAtK": {
+        "1": 0.5650000000000001,
+        "3": 0.8383333333333333,
+        "5": 0.9425000000000001,
+        "8": 1
+      }
+    }
+  },
+  "lexical": {
+    "jaccard": {
+      "microAtK": {
+        "1": 0.7,
+        "3": 0.9,
+        "5": 0.95,
+        "8": 1
+      },
+      "macroAtK": {
+        "1": 0.5599999999999999,
+        "3": 0.8508333333333333,
+        "5": 0.95,
+        "8": 1
+      }
+    },
+    "bm25": {
+      "microAtK": {
+        "1": 0.575,
+        "3": 0.95,
+        "5": 1,
+        "8": 1
+      },
+      "macroAtK": {
+        "1": 0.5,
+        "3": 0.8800000000000001,
+        "5": 1,
+        "8": 1
+      }
+    }
+  },
+  "perViolation": [
+    {
+      "id": "V22_1_a",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.1"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8349
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8302
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7972
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7949
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7777
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7583
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7316
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7279
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6967
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6667
+        }
+      ]
+    },
+    {
+      "id": "V22_1_b",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.1"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7939
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7745
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.757
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7337
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7251
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7123
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7093
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7075
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6975
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.677
+        }
+      ]
+    },
+    {
+      "id": "V22_1_c",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.1"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8077
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8068
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7834
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7825
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7734
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7298
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7052
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6969
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6878
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6566
+        }
+      ]
+    },
+    {
+      "id": "V22_1_d",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.1"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8242
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8125
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.8027
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7969
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7655
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7413
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.735
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7057
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6829
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6515
+        }
+      ]
+    },
+    {
+      "id": "V22_2_a",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.2"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7259
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7052
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.6891
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.6706
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.6662
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6629
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6587
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.656
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.6392
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6251
+        }
+      ]
+    },
+    {
+      "id": "V22_2_b",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.2"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.689
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6447
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6428
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.6347
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6311
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.6304
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.6275
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.6135
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6111
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.5847
+        }
+      ]
+    },
+    {
+      "id": "V22_2_c",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.2",
+        "MISRA-CPP-2023-Rule-22.3"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.8153
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8099
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7957
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.791
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7847
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7377
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7283
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7275
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7019
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6719
+        }
+      ]
+    },
+    {
+      "id": "V22_2_d",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.2",
+        "MISRA-CPP-2023-Rule-22.3"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8107
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8011
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7951
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7801
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7607
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7522
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7383
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6792
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6713
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6501
+        }
+      ]
+    },
+    {
+      "id": "V22_3_a",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.3"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7974
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7971
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7945
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7917
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7772
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7754
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7516
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7029
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.669
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6654
+        }
+      ]
+    },
+    {
+      "id": "V22_3_b",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.3",
+        "MISRA-CPP-2023-Rule-22.4"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7866
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7806
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7789
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7716
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7389
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7375
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7172
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7144
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7056
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6844
+        }
+      ]
+    },
+    {
+      "id": "V22_3_c",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.3"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8217
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8113
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7795
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7789
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7765
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.776
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7591
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7073
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6955
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6754
+        }
+      ]
+    },
+    {
+      "id": "V22_3_d",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.3",
+        "MISRA-CPP-2023-Rule-22.4"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7722
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7576
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7471
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7447
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7435
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7397
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7283
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7126
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7078
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6923
+        }
+      ]
+    },
+    {
+      "id": "V22_4_a",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.4",
+        "MISRA-CPP-2023-Rule-22.3"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.8081
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7873
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7753
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7696
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7363
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7202
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7167
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7158
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6983
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6642
+        }
+      ]
+    },
+    {
+      "id": "V22_4_b",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.4"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7502
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7365
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7096
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6793
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.6743
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.6528
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6519
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6458
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6123
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.5526
+        }
+      ]
+    },
+    {
+      "id": "V22_4_c",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.4",
+        "MISRA-CPP-2023-Rule-22.3"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.788
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7878
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7856
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.773
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7669
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7628
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7246
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7203
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7082
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6886
+        }
+      ]
+    },
+    {
+      "id": "V22_4_d",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.4"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7408
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7344
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7314
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7303
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7194
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7125
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7058
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6842
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6377
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6299
+        }
+      ]
+    },
+    {
+      "id": "V22_5_a",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.5"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7554
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7407
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7305
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.729
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7135
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6922
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.69
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6857
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.67
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6615
+        }
+      ]
+    },
+    {
+      "id": "V22_5_b",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.5"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8626
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8423
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.8139
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.8118
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7762
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.767
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7654
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7304
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7291
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7106
+        }
+      ]
+    },
+    {
+      "id": "V22_5_c",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.5"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7236
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7142
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.673
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.667
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.6465
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.6453
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.6296
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6199
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6126
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6033
+        }
+      ]
+    },
+    {
+      "id": "V22_5_d",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.5"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7409
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7328
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7131
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7073
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7064
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6982
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.698
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6706
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.645
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6448
+        }
+      ]
+    },
+    {
+      "id": "V22_6_a",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.6"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7934
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7271
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7153
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.715
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.707
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.692
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6872
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.687
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.6668
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6568
+        }
+      ]
+    },
+    {
+      "id": "V22_6_b",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.6"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7983
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7589
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7335
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7239
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7176
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7114
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6914
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.6615
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6487
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.642
+        }
+      ]
+    },
+    {
+      "id": "V22_6_c",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.6"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7921
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7238
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7084
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6853
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.6781
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.6778
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.6655
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6605
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6576
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6425
+        }
+      ]
+    },
+    {
+      "id": "V22_6_d",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.6"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7718
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7583
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7546
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7417
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7165
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7163
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.6986
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6598
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6303
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6286
+        }
+      ]
+    },
+    {
+      "id": "V22_7_a",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.7"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7956
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7868
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7595
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7355
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7213
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6967
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.694
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.6923
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6887
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6561
+        }
+      ]
+    },
+    {
+      "id": "V22_7_b",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.7"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8503
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8418
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7767
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7728
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.77
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7604
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7289
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7081
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6943
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6635
+        }
+      ]
+    },
+    {
+      "id": "V22_7_c",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.7",
+        "MISRA-CPP-2023-Rule-22.8"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.9167
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8573
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8336
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7813
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7368
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7296
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7274
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7104
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.679
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6553
+        }
+      ]
+    },
+    {
+      "id": "V22_7_d",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.7",
+        "MISRA-CPP-2023-Rule-22.8"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.8909
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8219
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.795
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7463
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7373
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7145
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6968
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6942
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6773
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6211
+        }
+      ]
+    },
+    {
+      "id": "V22_8_a",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.8",
+        "MISRA-CPP-2023-Rule-22.7"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.875
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8402
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8326
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.767
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7561
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7215
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7019
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6721
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6699
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6344
+        }
+      ]
+    },
+    {
+      "id": "V22_8_b",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.8",
+        "MISRA-CPP-2023-Rule-22.7"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.8352
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.828
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7962
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7478
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7462
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7312
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6846
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6802
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6538
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6504
+        }
+      ]
+    },
+    {
+      "id": "V22_8_c",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.8",
+        "MISRA-CPP-2023-Rule-22.7"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.8594
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8233
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7963
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7065
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7047
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7029
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6796
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6542
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6473
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.607
+        }
+      ]
+    },
+    {
+      "id": "V22_8_d",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.8",
+        "MISRA-CPP-2023-Rule-22.7"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8411
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.8169
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8088
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7584
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.714
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7109
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7012
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6912
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6751
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6671
+        }
+      ]
+    },
+    {
+      "id": "V22_9_a",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.9",
+        "MISRA-CPP-2023-Rule-22.5"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8835
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8557
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.8073
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.788
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7706
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7591
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.719
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7137
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.706
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6817
+        }
+      ]
+    },
+    {
+      "id": "V22_9_b",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.9"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8771
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8437
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.802
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.8017
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7727
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7405
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7388
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7271
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7159
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7137
+        }
+      ]
+    },
+    {
+      "id": "V22_9_c",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.9"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8017
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7619
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.7142
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7104
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6982
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6974
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.689
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6844
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6743
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.6731
+        }
+      ]
+    },
+    {
+      "id": "V22_9_d",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.9"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.8352
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.8173
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7706
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.7631
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7354
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7196
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.7194
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6992
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6942
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6897
+        }
+      ]
+    },
+    {
+      "id": "V22_10_a",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.10"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.8078
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.6827
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.6693
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.6625
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.6614
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.6408
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.6325
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.632
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6185
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6013
+        }
+      ]
+    },
+    {
+      "id": "V22_10_b",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.10"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.8456
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7393
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.7254
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7249
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.724
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7238
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7006
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.7006
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6997
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6654
+        }
+      ]
+    },
+    {
+      "id": "V22_10_c",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.10"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.8439
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7534
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.7421
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7305
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7123
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.706
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7001
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.6954
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6519
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6462
+        }
+      ]
+    },
+    {
+      "id": "V22_10_d",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.10"
+      ],
+      "ranked": [
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.10",
+          "sim": 0.8602
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.3",
+          "sim": 0.754
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.5",
+          "sim": 0.7475
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.6",
+          "sim": 0.7264
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.9",
+          "sim": 0.7059
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.2",
+          "sim": 0.7026
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.7",
+          "sim": 0.6899
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.4",
+          "sim": 0.6819
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.8",
+          "sim": 0.6438
+        },
+        {
+          "rid": "MISRA-CPP-2023-Rule-22.1",
+          "sim": 0.6257
+        }
+      ]
+    }
+  ],
+  "controlSeed": [
+    {
+      "id": "C_ooc_uninit",
+      "kind": "control-ooc",
+      "top": "MISRA-CPP-2023-Rule-22.2",
+      "topSim": 0.6989565389383939,
+      "over": 10
+    },
+    {
+      "id": "C_ooc_magic",
+      "kind": "control-ooc",
+      "top": "MISRA-CPP-2023-Rule-22.6",
+      "topSim": 0.6547542773519602,
+      "over": 10
+    },
+    {
+      "id": "C_ooc_convert",
+      "kind": "control-ooc",
+      "top": "MISRA-CPP-2023-Rule-22.7",
+      "topSim": 0.6690910429317252,
+      "over": 10
+    },
+    {
+      "id": "C_ooc_goto",
+      "kind": "control-ooc",
+      "top": "MISRA-CPP-2023-Rule-22.9",
+      "topSim": 0.6592986806134361,
+      "over": 10
+    },
+    {
+      "id": "C_ooc_naming",
+      "kind": "control-ooc",
+      "top": "MISRA-CPP-2023-Rule-22.4",
+      "topSim": 0.7040233720781711,
+      "over": 10
+    },
+    {
+      "id": "C_ok_unique",
+      "kind": "control-compliant",
+      "top": "MISRA-CPP-2023-Rule-22.9",
+      "topSim": 0.7574502422189767,
+      "over": 10
+    },
+    {
+      "id": "C_ok_arraydelete",
+      "kind": "control-compliant",
+      "top": "MISRA-CPP-2023-Rule-22.7",
+      "topSim": 0.8331544700889004,
+      "over": 10
+    },
+    {
+      "id": "C_ok_weaklock",
+      "kind": "control-compliant",
+      "top": "MISRA-CPP-2023-Rule-22.10",
+      "topSim": 0.8578140256430119,
+      "over": 10
+    },
+    {
+      "id": "C_ok_lockguard",
+      "kind": "control-compliant",
+      "top": "MISRA-CPP-2023-Rule-22.2",
+      "topSim": 0.7468874368474138,
+      "over": 10
+    },
+    {
+      "id": "C_ok_stackarray",
+      "kind": "control-compliant",
+      "top": "MISRA-CPP-2023-Rule-22.8",
+      "topSim": 0.704512129183889,
+      "over": 10
+    }
+  ],
+  "misses": [
+    {
+      "id": "V22_1_c",
+      "note": "array new in RT; matched delete[] so ONLY 22.1 (not 22.8)",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.1"
+      ],
+      "top": [
+        "MISRA-CPP-2023-Rule-22.7",
+        "MISRA-CPP-2023-Rule-22.9",
+        "MISRA-CPP-2023-Rule-22.8"
+      ]
+    },
+    {
+      "id": "V22_2_d",
+      "note": "leak on early return; raw owning pointer -> 22.2 + 22.3",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.2",
+        "MISRA-CPP-2023-Rule-22.3"
+      ],
+      "top": [
+        "MISRA-CPP-2023-Rule-22.9",
+        "MISRA-CPP-2023-Rule-22.7",
+        "MISRA-CPP-2023-Rule-22.8"
+      ]
+    },
+    {
+      "id": "V22_3_a",
+      "note": "owns via raw pointer member; should be unique_ptr/vector. Managed correctly (dtor) so not 22.2",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.3"
+      ],
+      "top": [
+        "MISRA-CPP-2023-Rule-22.4",
+        "MISRA-CPP-2023-Rule-22.7",
+        "MISRA-CPP-2023-Rule-22.9"
+      ]
+    },
+    {
+      "id": "V22_4_d",
+      "note": "aliasing raw pointer with no ownership contract. SEMANTIC/debatable rule",
+      "expected": [
+        "MISRA-CPP-2023-Rule-22.4"
+      ],
+      "top": [
+        "MISRA-CPP-2023-Rule-22.3",
+        "MISRA-CPP-2023-Rule-22.7",
+        "MISRA-CPP-2023-Rule-22.10"
+      ]
+    }
+  ]
+}
