@@ -71,6 +71,75 @@ export const FACET_LABELS: ReadonlyArray<readonly [keyof ElementFacets, string]>
   ['errorHandling', 'error-handling'],
 ] as const;
 
+/**
+ * The target-corpus (rule) side of the convention. A rule element's description is
+ * the doc-11 `richer` formula: expanded rationale plus the typical code shapes that
+ * trigger the rule, authored BLIND to the code corpus (from the guideline text
+ * alone). Shape mirrors the measured `richer` blob — prose sentences, with an
+ * optional keyword tail.
+ */
+export interface RuleDescriptionParts {
+  /** Why the rule exists — what it forbids or requires (expanded rationale). **required** */
+  rationale: string;
+  /** The typical code shapes that trigger/relate to the rule (prose, e.g. "Watch for …"). */
+  watchFor?: string;
+  /** Salient concepts — a dense keyword list (no other rule ids). */
+  concepts?: string[];
+}
+
+/**
+ * Render {@link RuleDescriptionParts} to the canonical rule description string:
+ * `<rationale> <watchFor> concepts: a, b, c`. PURE + deterministic. Sentences are
+ * space-joined (they already carry terminal punctuation); the concepts tail is
+ * appended labelled. Returns `''` when nothing carries content (safe name-only
+ * degrade, same contract as {@link composeFacetedDescription}).
+ */
+export function composeRuleDescription(parts: RuleDescriptionParts): string {
+  const segments: string[] = [];
+  const rationale = parts.rationale?.trim();
+  if (rationale) segments.push(rationale);
+  const watchFor = parts.watchFor?.trim();
+  if (watchFor) segments.push(watchFor);
+  const concepts = dedupePreserveOrder(
+    (parts.concepts ?? []).map((c) => c.trim()).filter((c) => c.length > 0),
+  );
+  if (concepts.length > 0) segments.push(`concepts: ${concepts.join(', ')}`);
+  return segments.join(' ');
+}
+
+/**
+ * Detect references to a coding standard, rule id, or guideline in authored text —
+ * the blindness guard (doc 13 §4). A code-side description must be authored BLIND to
+ * the rule set; if the model leaked a specific rule id or standard name, a match here
+ * is circular. This is a VISIBILITY tool, not a scrubber: it never mutates the text
+ * (silently stripping leakage would only hide it from the acceptance gate). Callers
+ * log/surface the hits; the acceptance gate (bead .17.4) asserts the list is empty.
+ *
+ * PURE. Returns the distinct matched substrings (case-preserving), empty when clean.
+ * Catches: standard names (MISRA, CERT, AUTOSAR, JSF, C++ Core Guidelines); "rule N"
+ * / "guideline N"; and dotted rule ids — CppCoreGuidelines style (`F.16`, `ES.20`,
+ * `C.48`) and MISRA numeric (`21.18`, `5-1-1`).
+ */
+export function detectRuleReferences(text: string): string[] {
+  if (!text) return [];
+  const patterns: RegExp[] = [
+    /\bMISRA\b/gi,
+    /\bCERT\b/gi,
+    /\bAUTOSAR\b/gi,
+    /\bJSF\b/gi,
+    /\bC\+\+\s*Core\s*Guidelines?\b/gi,
+    /\bCppCoreGuidelines?\b/gi,
+    /\b(?:rule|guideline)s?\s+[A-Za-z]?\.?\d[\w.\-]*/gi,
+    /\b[A-Z]{1,3}\.\d+(?:\.\d+)*\b/g, // F.16, ES.20, C.48
+    /\b\d+(?:[.\-]\d+)+\b/g, // 21.18, 5-1-1
+  ];
+  const hits = new Set<string>();
+  for (const re of patterns) {
+    for (const m of text.matchAll(re)) hits.add(m[0]);
+  }
+  return [...hits];
+}
+
 /** Case-insensitive de-dup that preserves first-seen order (keeps the keyword tail clean). */
 function dedupePreserveOrder(items: string[]): string[] {
   const seen = new Set<string>();

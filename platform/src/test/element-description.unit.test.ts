@@ -11,6 +11,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   composeFacetedDescription,
+  composeRuleDescription,
+  detectRuleReferences,
   FACET_LABELS,
   type ElementFacets,
 } from '../services/element-description.js';
@@ -99,5 +101,53 @@ describe('composeFacetedDescription', () => {
     expect(entityEmbedTextFor('parseNumber', description, 'name_description')).toBe(
       `parseNumber\n${description}`,
     );
+  });
+});
+
+describe('composeRuleDescription', () => {
+  it('space-joins rationale + watchFor and appends a labelled concepts tail', () => {
+    expect(
+      composeRuleDescription({
+        rationale: 'A const data member deletes the copy/move assignment operators.',
+        watchFor: 'Watch for a value type carrying a member like const int id_.',
+        concepts: ['const member', 'value semantics', 'const member'],
+      }),
+    ).toBe(
+      'A const data member deletes the copy/move assignment operators. ' +
+        'Watch for a value type carrying a member like const int id_. ' +
+        'concepts: const member, value semantics',
+    );
+  });
+
+  it('drops absent segments and returns "" when nothing carries content', () => {
+    expect(composeRuleDescription({ rationale: 'Rationale only.' })).toBe('Rationale only.');
+    expect(composeRuleDescription({ rationale: '  ', concepts: ['  '] })).toBe('');
+  });
+});
+
+describe('detectRuleReferences (blindness guard, doc 13 §4)', () => {
+  it('returns [] for clean, blind facet text', () => {
+    expect(
+      detectRuleReferences(
+        'operation: reinterpret_cast type-puns a sockaddr_in* to sockaddr*; ' +
+          'concepts: pointer aliasing, noexcept, std::move',
+      ),
+    ).toEqual([]);
+  });
+
+  it('flags CppCoreGuidelines-style ids, MISRA numeric ids, and standard names', () => {
+    expect(detectRuleReferences('this violates F.16 and ES.20')).toEqual(
+      expect.arrayContaining(['F.16', 'ES.20']),
+    );
+    expect(detectRuleReferences('per MISRA C:2012 Rule 21.18')).toEqual(
+      expect.arrayContaining(['21.18']),
+    );
+    expect(detectRuleReferences('MISRA and CERT and AUTOSAR').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('does not false-positive on ordinary C++ tokens', () => {
+    for (const clean of ['C++11', 'std::array<int, 21>', 'uint16_t', 'v1', 'sockaddr_in']) {
+      expect(detectRuleReferences(clean)).toEqual([]);
+    }
   });
 });
