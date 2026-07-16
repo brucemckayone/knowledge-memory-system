@@ -17,6 +17,7 @@
  * embedding in place (author descriptions can be re-run), never a duplicate row.
  */
 
+import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
@@ -44,6 +45,16 @@ export interface UpsertCorpusEntityParams {
   type: string;
   /** The authored description — stored on the row AND embedded (name\ndescription). */
   description: string;
+  /**
+   * Stable element identity for dedup, INDEPENDENT of the display name. Distinct code
+   * elements can share a symbol name (overloads, file-static functions, a magic
+   * constant used in many places) — keying dedup on the name would FUSE them, which
+   * is exactly the defect nmemo-uhp.17.4's adversary caught. Defaults to
+   * `lower(name)` (correct for rules, whose id is unique per corpus); code ingest
+   * passes a content-derived key so same-named-but-different elements stay distinct.
+   * Stored on properties.element_key so the dedup can match it.
+   */
+  dedupeKey?: string;
 }
 
 export interface UpsertCorpusEntityResult {
@@ -51,30 +62,39 @@ export interface UpsertCorpusEntityResult {
   existed: boolean;
 }
 
+/** The content-derived identity key for a code element (scheme-tagged sha256, mirrors
+ * element-catalogs.ts's `ast` scheme). Same code ⇒ same key ⇒ idempotent re-ingest;
+ * different code ⇒ different key even under an identical symbol name. */
+export function codeElementKey(code: string): string {
+  return `ast:${createHash('sha256').update(code, 'utf8').digest('hex')}`;
+}
+
 /**
  * Corpus-SCOPED upsert of an element entity + its description-bearing embedding.
- * Advisory-locked on (corpus, name, type) so concurrent ingest of the same element
- * can't double-insert, mirroring createEntity's lock discipline but keyed with the
- * corpus so two corpora never contend or collapse.
+ * Advisory-locked on (corpus, element-key, type) so concurrent ingest of the same
+ * element can't double-insert, mirroring createEntity's lock discipline but keyed with
+ * the corpus + a name-independent identity so two corpora never contend or collapse and
+ * distinct same-named elements never fuse.
  */
 export async function upsertCorpusElementEntity(
   params: UpsertCorpusEntityParams,
 ): Promise<UpsertCorpusEntityResult> {
   const { corpusId, name, type, description } = params;
+  const elementKey = params.dedupeKey ?? name.toLowerCase();
   const embedText = entityEmbedTextFor(name, description, 'name_description');
   const vector = await embed(embedText);
   const vectorLiteral = sql.raw(`'[${vector.join(',')}]'::vector`);
 
   return db.transaction(async (tx) => {
     await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtext(${`corpus_element||${corpusId}||${name.toLowerCase()}||${type}`}))`,
+      sql`SELECT pg_advisory_xact_lock(hashtext(${`corpus_element||${corpusId}||${elementKey}||${type}`}))`,
     );
 
     const existing = (await tx.execute(sql`
       SELECT id::text AS id FROM public.entities
       WHERE corpus_id = ${corpusId}
-        AND lower(canonical_name) = ${name.toLowerCase()}
         AND entity_type = ${type}
+        AND properties->>'element_key' = ${elementKey}
       LIMIT 1
     `)) as unknown as Array<{ id: string }>;
 
@@ -90,9 +110,12 @@ export async function upsertCorpusElementEntity(
       return { entityId: existing[0].id, existed: true };
     }
 
+    // jsonb_build_object with a bound TEXT param — NOT `${json}::jsonb`, which the
+    // driver double-encodes into a quoted JSON string (so ->>'element_key' returns null).
     const inserted = (await tx.execute(sql`
-      INSERT INTO public.entities (canonical_name, entity_type, corpus_id, description, embedding, confidence)
-      VALUES (${name}, ${type}, ${corpusId}, ${description}, ${vectorLiteral}, 1.0)
+      INSERT INTO public.entities (canonical_name, entity_type, corpus_id, description, embedding, confidence, properties)
+      VALUES (${name}, ${type}, ${corpusId}, ${description}, ${vectorLiteral}, 1.0,
+              jsonb_build_object('element_key', ${elementKey}::text))
       RETURNING id::text AS id
     `)) as unknown as Array<{ id: string }>;
     return { entityId: inserted[0]!.id, existed: false };
@@ -136,6 +159,10 @@ export async function ingestCodeElement(params: IngestCodeElementParams): Promis
     name: params.name,
     type: params.type ?? 'code_element',
     description: authored.description,
+    // Identity is the CODE CONTENT, not the symbol name — two distinct elements that
+    // share a name (overloads, file-static fns, a constant used in many places) must
+    // not fuse (nmemo-uhp.17.4 adversary).
+    dedupeKey: codeElementKey(params.code),
   });
   return { ...upserted, description: authored.description, leakedReferences: authored.leakedReferences };
 }

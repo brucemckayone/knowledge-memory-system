@@ -92,6 +92,32 @@ describe('ingestCodeElement', () => {
     expect(rows[0]!.description).toContain('logs a warning'); // refreshed
   });
 
+  it('does NOT fuse two DISTINCT same-named elements in ONE corpus (nmemo-uhp.17.4 defect)', async () => {
+    // Six ES.45 gate items literally shared the symbol name INITIAL_VARIANCE_SCALAR;
+    // name-keyed dedup fused them to one entity and corrupted the recall gate. Identity
+    // is the CODE CONTENT, so same name + different code must stay two entities.
+    const a = await ingestCodeElement({
+      corpusId: CODE, name: 'INITIAL_VARIANCE_SCALAR', code: 'constexpr double INITIAL_VARIANCE_SCALAR = 1.0e6; // position filter',
+      generate: gen({ operation: 'position filter variance seed' }),
+    });
+    const b = await ingestCodeElement({
+      corpusId: CODE, name: 'INITIAL_VARIANCE_SCALAR', code: 'constexpr double INITIAL_VARIANCE_SCALAR = 50.0; // clock filter',
+      generate: gen({ operation: 'clock filter variance seed' }),
+    });
+    expect(b.existed).toBe(false);
+    expect(b.entityId).not.toBe(a.entityId);
+    expect(await rowsInCorpus(CODE)).toHaveLength(2);
+
+    // …but re-ingesting the SAME code is still idempotent (content key stable).
+    const aAgain = await ingestCodeElement({
+      corpusId: CODE, name: 'INITIAL_VARIANCE_SCALAR', code: 'constexpr double INITIAL_VARIANCE_SCALAR = 1.0e6; // position filter',
+      generate: gen({ operation: 'position filter variance seed' }),
+    });
+    expect(aAgain.existed).toBe(true);
+    expect(aAgain.entityId).toBe(a.entityId);
+    expect(await rowsInCorpus(CODE)).toHaveLength(2);
+  });
+
   it('does NOT fuse a same-named element across corpora (createEntity dedup is global; this is not)', async () => {
     const a = await ingestCodeElement({
       corpusId: CODE, name: 'shared', code: 'void shared();',

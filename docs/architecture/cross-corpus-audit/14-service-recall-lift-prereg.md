@@ -100,3 +100,95 @@ results:
   (bead .18) is a separate, complementary gate.
 - **A FAIL is a legitimate, reportable outcome** (e.g. Haiku facets too thin to reach
   the bar). No tuning to pass; report the failure and its cause.
+
+---
+
+# RESULTS (post-run, 2026-07-16)
+
+Produced after §1–6 were frozen (commit `d9be80b`). Harness:
+`platform/src/test/tools/recall-service.ts`; artifacts:
+`./recall-gate-artifacts/{gate_code_service_facets,service_recall_results}.json`.
+
+## VERDICT: **FAIL** — both pre-registered conditions false.
+
+| condition | result |
+|---|---|
+| held-out `faceted − plain` macro@5 ≥ +0.10 | **FALSE** (Δ = +0.000; both 0.493) |
+| full-corpus paired bootstrap 95% CI of Δ excludes 0 | **FALSE** (CI = [−0.204, 0.352], P(Δ≤0)=0.36) |
+
+## The numbers (bug-corrected — see below)
+
+| metric | faceted (service) | plain (baseline) | Δ |
+|---|---|---|---|
+| MACRO recall@5 (primary) | 0.478 | 0.422 | **+0.056** |
+| MICRO recall@5 | 0.552 | **0.586** | −0.034 |
+| HELD-OUT macro@5 | 0.493 | 0.493 | **+0.000** |
+| TRAIN macro@5 | 0.458 | 0.333 | +0.125 |
+| lexical Jaccard@5 (no embedding) | 0.356 | 0.130 | +0.226 |
+| lexical BM25@5 (no embedding) | 0.489 | 0.170 | +0.319 |
+
+Blindness held: **0** leaked rule references in the 29 service-authored descriptions;
+per-item token overlap with the true rule (max jTrue 0.096) is comparable to overlap
+with other rules — not circular.
+
+## A real bug the adversary caught (and I fixed) — the headline was inflated
+
+The first run reported Δ = **+0.130**. The blind adversary found the cause: the gate
+seeded via `upsertCorpusElementEntity`, which dedup-keyed on the **symbol name**. The
+six ES.45 items literally share the name `INITIAL_VARIANCE_SCALAR`, so they **fused to
+one entity** — only 24 of 29 items seeded, the 5 dropped ones scored as forced misses.
+ES.45 is exactly the guideline where **plain prose beats the facets** (plain recall@5 =
+1.0 there), so the fusion suppressed *plain* and inflated the delta.
+
+This was a genuine **ingest defect**, not just a measurement artifact: distinct code
+elements that share a symbol name (overloads, file-static functions, a constant used in
+many places) must not fuse. Fixed in `corpus-ingest.ts` — identity is now the
+**code content** (`ast:sha256`, mirroring element-catalogs.ts), stored on
+`properties.element_key`, with a regression test. Bug-free numbers are above and
+reproduce an independent recomputation exactly (Δ +0.056).
+
+## What is LICENSED (honest, stingy)
+
+- **FAIL is the correct disposition.** The built `.17` authoring path (Haiku facets →
+  `composeFacetedDescription`) produces **no robust embedding-leg recall lift** over
+  plain prose on this corpus. The +0.056 full-corpus gap is not significant, is
+  **negative on micro**, and vanishes on held-out.
+- The tiny full-corpus lift is essentially **F.16 (2 items) + a small Type.1 effect,
+  offset by a loss on ES.45**; 7 of 9 guidelines show Δ = 0. Doc 11 already established
+  (and retracted as evidence) that **F.16 is rescued by *any* dense code formula** — so
+  this is doc-11's known lexical behaviour reproduced, not a new capability.
+- The faceted−plain **delta is lexical in origin** (BM25 delta +0.319 ≫ vector delta
+  +0.056). But **recall itself is embedding-driven**: the embedding roughly *doubles*
+  plain recall (BM25 0.170 → vector 0.422). The embedding does real semantic work on
+  prose; dense faceted text does not add embedding-recall over prose here.
+
+## What is VOID / corrected (adversary forced these)
+
+- **VOID — the first run's "+0.13 lift":** a seeding-bug artifact (see above). Retracted.
+- **VOID — "Haiku's facets are the gap":** unsupported and misdiagnosed. The effect is a
+  1–2-guideline lexical artifact; the built path reproduces doc-11's retracted
+  behaviour. The gap is the *effect itself*, not the authoring model.
+- **Held-out is fragile, not clean evidence:** held-out Δ=0 holds because the two
+  signal-bearing guidelines (F.16, Type.1) both landed in TRAIN under seed 17.
+  P(F.16 ∈ a random held-out) ≈ 56%, so a majority of alternative splits would flip
+  cond1. Read as "no evidence of generalization, underpowered," NOT "proven
+  non-generalization."
+
+## Disposition for nmemo-uhp.17.4 / .17
+
+- **Do NOT adopt the faceted-authoring convention as the cross-corpus ingest default on
+  this evidence.** The plumbing (doc 13 convention; `element-description` /
+  `element-authoring` / `corpus-ingest`; re-embed) is BUILT, sound, and shipped — but
+  its recall-lift claim is not supported by this constructed-floor gate.
+- This does **not** refute the user's lever hypothesis (MISRA-aligned descriptions
+  align cross-graph vectors). It scopes the negative to the **embedding leg** — the
+  *weakest* leg (doc 09 §1). Recall in this system is graph-mediated; the description
+  lever may matter more once relationship traversal is in the recall path, and the
+  opaque-dotted-ID constructed floor understates real-corpus vocabulary alignment.
+- **Follow-up (filed):** a recall test that exercises graph-mediated recall (not
+  embedding-alone) and/or a field-prevalence real-code corpus with non-opaque rule
+  names, before any lever adoption. Hybrid retrieval (bead .18) will not rescue this
+  (doc 12 H2 negative).
+- 7th launder-catch on this feature family: my first interpretation over-credited
+  (+0.13) and misdiagnosed (blamed Haiku). The adversary corrected both. This synthesis
+  reflects the corrected read.

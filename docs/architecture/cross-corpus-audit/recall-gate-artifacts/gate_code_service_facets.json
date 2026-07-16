@@ -1,0 +1,176 @@
+[
+  {
+    "id": "E001",
+    "functionName": "parseNumericValue",
+    "description": "operation: Parses input text to arithmetic type T via std::from_chars; returns true iff parse succeeds and entire input is consumed; data/types: Template parameter T (arithmetic type via static_assert), std::string_view, std::from_chars_result (members: errc, ptr), std::errc; memory/pointers: Pointer arithmetic: last = view.data() + view.size() yields const pointer-to-const; range [text, last) passed to std::from_chars; return validates result.ptr == last; ownership/lifetime: std::string_view is non-owning view of input text; input text lifetime must extend through function call; output written to reference parameter value; all locals are stack-allocated; side-effects: Modifies output reference parameter value with parsed result via std::from_chars; no dynamic allocation, deallocation, or I/O; error-handling: Returns false if result.ec != std::errc{} (parse error) OR result.ptr != last (incomplete parse); both conditions must pass for true; concepts: numeric parsing, std::from_chars, pointer arithmetic, complete-input validation, non-owning view, error code checking, compile-time type constraint",
+    "leakedReferences": []
+  },
+  {
+    "id": "E002",
+    "functionName": "asSockAddr",
+    "description": "operation: Reinterpret cast from sockaddr_in* to sockaddr* pointer; memory/pointers: Converts pointer type via reinterpret_cast; returned pointer aliases the same object in memory; ownership/lifetime: No ownership transfer; caller retains object lifetime responsibility; error-handling: None; noexcept declared; no input validation; concepts: reinterpret_cast, pointer aliasing, type conversion, socket address structures",
+    "leakedReferences": []
+  },
+  {
+    "id": "E003",
+    "functionName": "argvToVector",
+    "description": "operation: Converts a slice of C-style argv array to std::vector<std::string> using pointer arithmetic to establish a range [argv+offset, argv+argc) and the vector range constructor; data/types: std::size_t argc, offset; const char* const* const argv; std::vector<std::string> return; implicit std::string(const char*) construction for each element; memory/pointers: argv is const-qualified pointer-to-pointer-to-const-char; argv+offset and argv+argc are pointer arithmetic expressions used as iterator pair; no dereference in function body; ownership/lifetime: argv ownership retained by caller; function returns new vector by value, transferring ownership of heap-allocated std::string objects to caller; side-effects: Heap allocation for vector and std::string objects; std::string constructor called for each argv[i] in the range; error-handling: No bounds validation; precondition 'offset <= argc' documented as caller-verified; std::bad_alloc thrown on allocation failure; concepts: range constructor, pointer arithmetic, argv conversion, implicit string construction, value return, precondition verification, inline",
+    "leakedReferences": []
+  },
+  {
+    "id": "E004",
+    "functionName": "shiftBytesToFront",
+    "description": "operation: Shifts bytes within a buffer: moves size bytes from buffer[srcOffset] to buffer[0] via std::memmove; data/types: uint8_t* const (const pointer to byte); std::size_t offset and size parameters; void return; memory/pointers: const pointer argument; pointer arithmetic (buffer + srcOffset); memmove handles overlapping source/destination regions; ownership/lifetime: no ownership transfer; caller retains responsibility for buffer lifetime and validity; caller-validated precondition required; side-effects: in-place buffer mutation; memmove return value (destination pointer) discarded via static_cast<void>; error-handling: none; no bounds checking; safety delegated to caller precondition; concepts: memmove, byte shifting, pointer arithmetic, overlapping-safe memory move, in-place mutation, precondition-based safety, return-value discard",
+    "leakedReferences": []
+  },
+  {
+    "id": "E005",
+    "functionName": "writeBytes",
+    "description": "operation: Writes a byte buffer to an output stream using reinterpret_cast and std::ostream::write(); memory/pointers: Non-owning const pointer to uint8_t buffer; aliased as const char* via reinterpret_cast for API compatibility with std::ostream::write(); ownership/lifetime: Caller retains ownership and lifetime responsibility for stream and data buffer; function holds no ownership; side-effects: Writes bytes to output stream; modifies stream state (position, potentially failbit if write fails); error-handling: None; stream error state (failbit, badbit) is not checked or propagated; concepts: reinterpret_cast, type aliasing (uint8_t ↔ char), const-correctness, std::ostream, buffer I/O, binary serialization, platform assumption",
+    "leakedReferences": []
+  },
+  {
+    "id": "E006",
+    "functionName": "readBytes",
+    "description": "operation: reads bytes from istream into uint8_t buffer via reinterpret_cast char* bridge; returns count of bytes extracted via gcount(); data/types: uint8_t* buffer (cast to char*), std::streamsize for size parameter and return type; memory/pointers: reinterpret_cast<char*>(data) casts uint8_t* to char* to satisfy istream::read's char* parameter; no offset arithmetic; ownership/lifetime: caller owns buffer; function does not allocate, deallocate, or transfer ownership; lifetime obligation on caller; side-effects: advances stream read position and sets stream state flags (failbit, badbit on error); writes bytes into caller's buffer; error-handling: no explicit stream state validation; error condition deferred to caller via gcount() return value and stream failure state; concepts: reinterpret_cast, byte aliasing, istream::read, gcount, I/O buffer, type bridge",
+    "leakedReferences": []
+  },
+  {
+    "id": "E007",
+    "functionName": "readBytes (offset overload)",
+    "description": "operation: Wrapper overload that performs pointer arithmetic (data + offset) and delegates to readBytes(stream, adjusted_pointer, size); data/types: uint8_t* const (const-qualified pointer to mutable bytes); std::size_t for offset and size parameters; memory/pointers: Pointer arithmetic: data + offset; yields adjusted byte pointer; no allocation, deallocation, or reassignment; ownership/lifetime: Caller retains buffer ownership and lifetime responsibility; const-qualifier prevents local pointer reassignment; side-effects: Delegates to readBytes(stream, ...); actual effects depend on that call; comment indicates precondition-assumed bounds safety; error-handling: None in this function; delegated to called readBytes overload; concepts: pointer arithmetic, delegation, const pointer, precondition-based safety, buffer offset, zero-copy",
+    "leakedReferences": []
+  },
+  {
+    "id": "E008",
+    "functionName": "PositioningEngine::EngineImpl::provideSatellitePositions",
+    "description": "operation: Template member function that accepts satellite position data (GNSS key paired with const Polynomial fit) and delegates to m_distribution.process(); returns ErrorCode status; data/types: Parameter: const std::pair<GnssKey, std::shared_ptr<const Polynomial<ORBIT_POLYNOMIAL_DEGREE, DIMENSION_3D>>>; Return type: ErrorCode; Local: ErrorCode initialized to Success enum value; memory/pointers: std::shared_ptr<const Polynomial<>> provides shared ownership of immutable Polynomial; const& reference parameter is non-owning alias to pair; ownership/lifetime: Shared_ptr manages Polynomial lifetime via reference-counting; const qualifier enforces immutability; ownership retained by m_distribution.process() call and potentially held by other holders; side-effects: Invokes m_distribution.process() passing satellite position pair; likely mutates m_distribution internal state; try block wraps invocation (exception generation possible); error-handling: try-catch exception wrapper; return-value check on m_distribution.process() (negated boolean condition); ErrorCode enum returned to caller indicating success or error state; concepts: shared_ptr, const-correctness, template-specialization, reference-counting, delegation, exception-safety, nested-class-member, error-return-code",
+    "leakedReferences": []
+  },
+  {
+    "id": "E009",
+    "functionName": "PositioningEngine::provideSatellitePositions",
+    "description": "operation: Template member function forwarding satellite position data to a delegated implementation member via pointer; returns error code; data/types: std::pair containing GnssKey and std::shared_ptr<const PositionPolynomial>; ErrorCode return type; template parameter OperatingMode; memory/pointers: m_engineImpl member pointer dereferenced; std::shared_ptr<const PositionPolynomial> provides shared ownership of const-qualified PositionPolynomial data; ownership/lifetime: Shared_ptr reference-counts PositionPolynomial lifetime; const parameter binds without ownership transfer; m_engineImpl lifetime bound to PositioningEngine instance lifetime; side-effects: Delegates execution to implementation member; all side effects determined by delegated function implementation (not visible in this wrapper); error-handling: Returns ErrorCode; no local error handling; caller-checked return value pattern; concepts: template specialization, delegation, shared_ptr reference counting, const correctness, member pointer dereference, return-code error signaling, forwarding",
+    "leakedReferences": []
+  },
+  {
+    "id": "E010",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "operation: Explicit template specializations defining constexpr template variables initialized with double-precision literals; memory/pointers: None; static storage duration; inline linkage; ownership/lifetime: Static storage duration; program lifetime; constexpr (compile-time evaluation); side-effects: None; read-only constant initialization; error-handling: None; concepts: template-specialization, constexpr-variable, static-storage, inline-linkage, compile-time-constant, double-literal, magnitude-scaling",
+    "leakedReferences": []
+  },
+  {
+    "id": "E011",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "operation: Explicit specializations of a variable template providing compile-time constant double values for three distinct type-parameter combinations; data/types: double; variable template instantiated with type pairs (OPERATING_MODE_1, Ambiguity), (OPERATING_MODE_1, Coordinates), (OPERATING_MODE_1, Ionosphere); ownership/lifetime: static storage duration; constexpr initialization at compile time; inline linkage permits definition across multiple translation units without ODR violation; side-effects: none (compile-time constant); error-handling: none; concepts: variable template explicit specialization, constexpr, inline variable, static storage duration, double literal (1.0e16, 1e16), type-parameterized constant scalar",
+    "leakedReferences": []
+  },
+  {
+    "id": "E012",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "operation: Three explicit full template specializations of INITIAL_VARIANCE_SCALAR variable template; each specialization instantiates a constexpr double initialized with a floating-point literal (1.0e16 or 1e16) for distinct combinations of OPERATING_MODE_1 and type parameters; data/types: double (64-bit floating-point); template parameters: OPERATING_MODE_1, Coordinates, Ionosphere, PhaserangeSignalBias; ownership/lifetime: Static storage duration; constexpr—evaluated at compile-time with constant value stored as part of the constant; inline variable—multiple definitions across translation units permitted without ODR violation; immutable after initialization; side-effects: None; error-handling: None; concepts: explicit template specialization, variable template, constexpr, inline, static storage duration, compile-time constant, floating-point literal",
+    "leakedReferences": []
+  },
+  {
+    "id": "E013",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "operation: Explicit template specializations of a variable template, binding double-precision floating-point variance constants to three (operating_mode, state_type) pairs; data/types: double; template parameters: OPERATING_MODE_1 (tag type or mode enum), Ionosphere, PhaserangeSignalBias, PseudorangeSignalBias (state type tags); ownership/lifetime: Static storage duration; inline constexpr eliminates odr-violation across translation units; compile-time initialized, immutable after initialization, single canonical address; side-effects: None; error-handling: None; concepts: variable template specialization, constexpr constant, static storage, inline linkage, floating-point literal, scientific notation (1e16), compile-time evaluation, immutable initialization",
+    "leakedReferences": []
+  },
+  {
+    "id": "E014",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "operation: Explicit template specializations of a variable template; each declares an inline constexpr double constant initialized to 1e16 for distinct type parameter combinations; data/types: double (constant value type); template parameters: OPERATING_MODE_1, PhaserangeSignalBias, PseudorangeSignalBias, ReceiverClock (exact types not shown in code); ownership/lifetime: static constexpr with infinite lifetime; no allocation, no ownership transfer; concepts: variable template specialization, constexpr constant, inline linkage, compile-time initialization, scalar (double) literal, type tag parameters",
+    "leakedReferences": []
+  },
+  {
+    "id": "E015",
+    "functionName": "INITIAL_VARIANCE_SCALAR",
+    "description": "operation: Explicit template specializations that define compile-time-constant double-precision scalars, specialized for three signal types under OPERATING_MODE_1, each initialized to 1e16; data/types: double; ownership/lifetime: Static storage duration; compile-time constant; lifetime spans entire program execution; concepts: template-specialization, constexpr, inline, static-constant, floating-point-literal",
+    "leakedReferences": []
+  },
+  {
+    "id": "E016",
+    "functionName": "Synchronizer",
+    "description": "operation: const shared_ptr member variable declaration in class Synchronizer; data/types: std::shared_ptr<T_STRATEGY> (template-dependent strategy type); const-qualified pointer; memory/pointers: Reference-counted shared ownership via std::shared_ptr; pointer itself is const (reassignment-prohibited); pointed-to object mutable unless T_STRATEGY is const; ownership/lifetime: Reference-counted shared ownership; lifetime extends for duration of containing class instance; const qualification prevents reassignment after construction; reference count decremented when containing object destroyed; side-effects: Reference count incremented upon member initialization; reference count decremented upon containing object destruction; no observable side effects in declaration itself; error-handling: None (allocation/initialization handled in constructor initialization list, not shown); concepts: shared_ptr, reference-counting, const-member, template-parameter, smart-pointer, shared-ownership, RAII",
+    "leakedReferences": []
+  },
+  {
+    "id": "E017",
+    "functionName": "assembleLogMessage",
+    "description": "operation: Guard clause on static callback; stack-allocate LogBuffer; serialize metadata via formatMetadata(); compute remaining buffer capacity; data/types: std::size_t; LogBuffer with .data() and .size() accessors; unspecified types for instanceId, level, facility parameters; memory/pointers: buffer.data() returns contiguous buffer pointer; passed as first argument to formatMetadata for write access; no pointer arithmetic in visible code; ownership/lifetime: LogBuffer automatic storage (stack-allocated); scope-delimited object lifetime; no heap allocation or pointer escape; side-effects: Tests static callback s_callback for null/false state; formatMetadata() modifies buffer contents via pointer argument; early return branch prevents subsequent statements; error-handling: Guard clause (null callback check); silent return on callback falsy; no exception handling or error codes; concepts: guard clause, early exit, static state, stack allocation, contiguous buffer, pointer parameter, in-place modification, null terminator reservation, capacity arithmetic",
+    "leakedReferences": []
+  },
+  {
+    "id": "E018",
+    "functionName": "fillToMinimum",
+    "description": "operation: Populates a byte buffer from an external source to satisfy a minimum byte count; updates valid-byte count via reference parameter; returns success status; data/types: byte buffer (likely std::vector<byte> or equivalent); size_t validBytes reference parameter; const int minimum size threshold (5); memory/pointers: buffer address passed by reference; buffer.data() yields internal pointer; pointer lifetime tied to buffer object; ownership/lifetime: buffer owned externally; validBytes owned externally (modified in-place); fill operation does not transfer ownership; side-effects: writes data into buffer; increments validBytes count; reads from underlying source (stream/file); external source state advanced; error-handling: returns bool indicating fill success; post-condition assertion validates validBytes >= threshold; calling loop checks return value for EOF/error detection; concepts: output-parameter, reference-parameter-modification, buffer-filling, byte-count-tracking, minimum-threshold-guarantee, source-reading, success-indicator, byte-to-char-reinterpretation",
+    "leakedReferences": []
+  },
+  {
+    "id": "E019",
+    "functionName": "MockFileWriter (write test)",
+    "description": "operation: Test instantiates MockFileWriter, opens file \"test.log\", writes binary std::string content (with embedded null bytes \\x01\\x02\\x03) via byte-pointer cast, verifies output via string equality assertion; data/types: std::string (binary content container), uint8_t* (byte sequence pointer), uint32_t (size value); memory/pointers: std::string::data() provides internal char buffer address; reinterpret_cast<const uint8_t*>() converts pointer type without dereferencing; static_cast<uint32_t>() converts size; no pointer arithmetic or explicit allocation; ownership/lifetime: writer and content are stack-allocated automatic storage; std::string owns its internal buffer; all objects destroyed at closing brace; side-effects: MockFileWriter::open() opens named file resource; MockFileWriter::write() accumulates binary bytes; internal state transitions in MockFileWriter instance; error-handling: CHECK() assertion on writtenDataAsString() == content; no exception handling or error code inspection on open() or write() calls; concepts: mock object, binary data, null bytes, pointer cast, reinterpret_cast, static_cast, automatic storage duration, RAII, string buffer, file I/O, test assertion",
+    "leakedReferences": []
+  },
+  {
+    "id": "E020",
+    "functionName": "MockFileWriter::write",
+    "description": "operation: Append byte range to internal buffer after open-state validation. Two overloads: (1) core variant takes const uint8_t* and size; (2) char* variant reinterpret_casts and delegates.; data/types: const uint8_t*, const char*, uint32_t size, FileException, container type with insert(end_iterator, const_ptr, const_ptr) method; memory/pointers: Pointer arithmetic [data, data+size) forms iterator range; reinterpret_cast<const uint8_t*> converts char* input; input pointers are caller-managed (const), not stored; ownership/lifetime: Input data pointers ephemeral; m_writtenData retains deep copy of range via insert(); exception value-thrown; side-effects: Reads m_isOpen; modifies m_writtenData container; may throw and unwind call stack; error-handling: Throws FileException by value if !m_isOpen; no recovery mechanism; concepts: state guard, buffer append, pointer range, reinterpret_cast, container insert, delegation, exception throw, mock object",
+    "leakedReferences": []
+  },
+  {
+    "id": "E021",
+    "functionName": "MockFileWriter::isOpen",
+    "description": "operation: Const member function that reads and returns the value of the m_isOpen boolean member variable; data/types: Returns bool; accesses m_isOpen member of inferred type bool; memory/pointers: No explicit pointers. Implicit const this pointer only; ownership/lifetime: Returns value copy (bool). No allocation, deallocation, or reference return. Member m_isOpen owned by enclosing object; side-effects: None. Marked const noexcept; pure read of member state; error-handling: None. noexcept declaration; no error codes, exceptions, or null checks; concepts: accessor, const member, noexcept guarantee, value return, boolean state query",
+    "leakedReferences": []
+  },
+  {
+    "id": "E022",
+    "functionName": "isUniqueFullVariantSet",
+    "description": "operation: Validates vector size against compile-time variant cardinality; data/types: std::vector<EngineVariant>, std::size_t; memory/pointers: const reference parameter; ownership/lifetime: const reference borrowing; caller owns vector; side-effects: None; error-handling: bool return: false when vec.size() != variant_size_v; concepts: std::variant_size_v, constexpr, variable template, cardinality check, const reference, early return on validation failure",
+    "leakedReferences": []
+  },
+  {
+    "id": "E023",
+    "functionName": "searchIntegerAmbiguityCandidates",
+    "description": "operation: Iterates through integer vector candidates by stepping from a central candidate, computing Mahalanobis distances using a precomputed LDLT decomposition of a covariance matrix to identify and store qualifying candidates; data/types: Eigen::VectorXd (double-precision vectors), T_MATRIX (template matrix type), T_VECTOR (template vector type), double (scalar distances), TPermutationIndex (index type for candidate storage); memory/pointers: Const references to input covariance matrix (crmatFloatCov) and ambiguity vector (crvecFloatAmbs); LDLT object holds internal decomposed matrix state; stack-allocated Eigen vectors; ownership/lifetime: Local scope: Eigen::VectorXd and LDLT object (automatic destruction on function exit), loop-scoped index counter, implicit template instantiation of computeMahalanobisDistance; side-effects: Single LDLT factorization (front-loaded cost), repeated Mahalanobis distance computations, mutation of unIdxCandidateToStore during loop iteration, vector arithmetic (addition, cast to double); error-handling: None explicit; implicit assumptions: valid covariance matrix rank for LDLT, conforming vector dimensions, successful cast from vecSteps element type to double; concepts: Eigen matrix library, LDLT decomposition, Mahalanobis distance, integer search space, covariance weighting, candidate enumeration, vector stepping, matrix factorization",
+    "leakedReferences": []
+  },
+  {
+    "id": "E024",
+    "functionName": "timeApiTestPreamble",
+    "description": "operation: Test preamble: includes testing framework (catch2) and API header; defines namespace; establishes compile-time constants for test fixtures (temporal conversions and floating-point epsilon); ownership/lifetime: Static storage: constexpr constants initialized at compile-time, live for program duration; namespace scope; side-effects: Preprocessor: #define macro substitution, #include directives (transitive header scope); namespace nesting; concepts: constexpr initialization, preprocessor macro, namespace declaration, compile-time constant, floating-point tolerance (EPSILON), temporal unit constants (seconds/week, seconds/hour), test fixture setup, header inclusion chain",
+    "leakedReferences": []
+  },
+  {
+    "id": "E025",
+    "functionName": "distributorTestPreamble",
+    "description": "operation: Includes standard library headers (string, thread, utility, variant, vector); defines preprocessor macro TEST_NS; opens namespace Alpha::Test; imports chrono_literals::operator\"\"ms; concepts: includes, macro, namespace, using-declaration, preprocessor, chrono_literals, scope injection",
+    "leakedReferences": []
+  },
+  {
+    "id": "E026",
+    "functionName": "SolutionAcceptorStub",
+    "description": "operation: Declares test stub class inheriting publicly from ISolutionAcceptor interface; no method implementations shown; data/types: ISolutionAcceptor base class; fixed-width integers via cstdint; std::optional<T>, std::unique_ptr<T>, std::shared_ptr<T> via memory and optional headers; memory/pointers: Public virtual inheritance from ISolutionAcceptor; smart pointer templates available from <memory> header; virtual function table pointer expected; ownership/lifetime: Polymorphic ownership through virtual inheritance; concrete object lifetime and destruction semantics deferred to derived class implementation; side-effects: Preprocessor macro TEST_NS defined as string literal; namespace Alpha::Test scope entered; concepts: class declaration, public inheritance, interface implementation, test stub, virtual dispatch, polymorphism, RAII headers",
+    "leakedReferences": []
+  },
+  {
+    "id": "E027",
+    "functionName": "getFullCovariance",
+    "description": "operation: Constructs and returns a 3×3 Matrix object from a fixed-size std::array<double> covariance representation; data/types: std::array<double, Position::COVARIANCE_DIMENSION> const-ref input; Matrix<DIMENSION_3D, DIMENSION_3D> return and local variable; memory/pointers: Parameter passed as const reference (non-owning borrow); no raw pointers; ownership/lifetime: Parameter: const-borrowed via reference; local cov: automatic storage (stack); return: by value (move or copy elision); side-effects: None visible in shown code; error-handling: None; no dimension validation, bounds checking, or exception handling; concepts: linear-to-matrix reshape, array-view borrowing, template instantiation, stack allocation, const-ref semantics, covariance data transformation",
+    "leakedReferences": []
+  },
+  {
+    "id": "E028",
+    "functionName": "loggerTestPreamble",
+    "description": "operation: Includes standard library headers (sstream, string, vector) and custom utility header; defines preprocessor macro TEST_NS expanding to string literal 'Logging::Logger::'; opens nested namespace scope Alpha::Test; side-effects: Preprocessor macro substitution established; namespace scope opened for declarations; translation unit links custom utility symbols; concepts: preprocessor macro, namespace nesting, header inclusion, string literal, static scope, logging infrastructure",
+    "leakedReferences": []
+  },
+  {
+    "id": "E029",
+    "functionName": "linearAlgebraTestPreamble",
+    "description": "operation: Translation unit preamble: includes Catch2 test framework macros, chrono, cstddef, memory_resource, utility; defines preprocessor macro TEST_NS as string literal; declares nested namespace Alpha::Test::LinearAlgebraTest; declares static constexpr unsigned int compile-time constant MAX_SIZE_50 with value 50; begins Catch2 TEST_CASE macro; ownership/lifetime: MAX_SIZE_50: static storage duration, immutable compile-time constant; concepts: test harness preamble, Catch2 test framework, static constexpr, compile-time constant, namespace nesting, preprocessor macro",
+    "leakedReferences": []
+  }
+]
