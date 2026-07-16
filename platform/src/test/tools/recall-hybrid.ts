@@ -72,6 +72,49 @@ function jaccard(a: Set<string>, b: Set<string>): number {
   return inter / (a.size + b.size - inter);
 }
 
+// --- POST-HOC ROBUSTNESS (doc 12 RESULTS): textbook Okapi BM25 lexical channel.
+// Added AFTER the pre-registered raw-Jaccard `lexical` result, in response to the
+// adversary (agent a5f1133): the frozen raw-Jaccard channel has NO IDF, so common/
+// stopword tokens count equally and the tie-against rank inflates the true rule's
+// lexical rank on prose. BM25 is the canonical real lexical retriever; params are the
+// textbook defaults (k1=1.2, b=0.75) — the SAME "canonical, untuned" discipline as
+// RRF K=60 / linear a=0.5. Same frozen [a-z0-9]{2,} tokenizer. NOT the pre-registered
+// primary; reported to test whether the H1 method-ranking transfers past the toy channel.
+const BM25_K1 = 1.2;
+const BM25_B = 0.75;
+function tokenCounts(s: string): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const g of s.toLowerCase().matchAll(/[a-z0-9]+/g)) if (g[0].length >= 2) m.set(g[0], (m.get(g[0]) ?? 0) + 1);
+  return m;
+}
+interface Bm25Index { idf: Map<string, number>; docs: Map<string, { tf: Map<string, number>; len: number }>; avgdl: number }
+function buildBm25(docTexts: Map<string, string>): Bm25Index {
+  const docs = new Map<string, { tf: Map<string, number>; len: number }>();
+  const df = new Map<string, number>();
+  let total = 0;
+  for (const [id, text] of docTexts) {
+    const tf = tokenCounts(text);
+    let len = 0; for (const c of tf.values()) len += c;
+    for (const t of tf.keys()) df.set(t, (df.get(t) ?? 0) + 1);
+    docs.set(id, { tf, len }); total += len;
+  }
+  const N = docs.size;
+  const idf = new Map<string, number>();
+  for (const [t, n] of df) idf.set(t, Math.log(1 + (N - n + 0.5) / (n + 0.5)));
+  return { idf, docs, avgdl: total / N };
+}
+// Score one document (rule) against a query token-set (code item), Okapi BM25.
+function bm25Score(index: Bm25Index, docId: string, queryTerms: Set<string>): number {
+  const doc = index.docs.get(docId); if (!doc) return 0;
+  let s = 0;
+  for (const t of queryTerms) {
+    const tf = doc.tf.get(t); if (!tf) continue;
+    const idf = index.idf.get(t) ?? 0;
+    s += idf * (tf * (BM25_K1 + 1)) / (tf + BM25_K1 * (1 - BM25_B + BM25_B * (doc.len / index.avgdl)));
+  }
+  return s;
+}
+
 function rowsOf(result: unknown): Array<Record<string, unknown>> { return result as unknown as Array<Record<string, unknown>>; }
 async function embed(text: string): Promise<number[]> {
   const r = (await ml.embed(text)) as { vector?: number[] };
@@ -167,6 +210,9 @@ async function main(): Promise<void> {
   for (const cf of CODE_FORMULAS) { const m = new Map<string, Set<string>>(); for (const c of code) m.set(c.id, tokens(entityEmbedTextFor(c.name, c.texts[cf], 'name_description'))); codeTok[cf] = m; }
   const ruleTok: Record<RuleF, Map<string, Set<string>>> = {} as never; // by rule id
   for (const rf of RULE_FORMULAS) { const m = new Map<string, Set<string>>(); for (const r of rules) m.set(r.id, tokens(entityEmbedTextFor(r.id, ruleTextOf(r, rf), 'name_description'))); ruleTok[rf] = m; }
+  // BM25 index per rule formula (docs = composed rule texts; query = code token set).
+  const bm25Index: Record<RuleF, Bm25Index> = {} as never;
+  for (const rf of RULE_FORMULAS) { const dt = new Map<string, string>(); for (const r of rules) dt.set(r.id, entityEmbedTextFor(r.id, ruleTextOf(r, rf), 'name_description')); bm25Index[rf] = buildBm25(dt); }
 
   // Embed each code-formula corpus + each rule-formula corpus ONCE (same as bake-off).
   const codeCorpora: Record<CodeF, { corpus: string; idByEl: Map<string, string> }> = {} as never; // elId -> code.id
@@ -188,6 +234,7 @@ async function main(): Promise<void> {
   // Keep per-item results for the specific contrasts the bootstrap/robustness need.
   const items: Partial<Record<`${CodeF}|${RuleF}|${Method}`, Array<ItemResult & { g: string }>>> = {};
   const rrfKSweep: Array<{ code: CodeF; rule: RuleF; k: number; macro5: number }> = [];
+  const bm25Cells: Array<{ code: CodeF; rule: RuleF; method: 'lexical' | 'rrf' | 'linear'; macro5: number; vector: number }> = [];
 
   for (const cf of CODE_FORMULAS) {
     for (const rf of RULE_FORMULAS) {
@@ -204,6 +251,9 @@ async function main(): Promise<void> {
       const perMethod: Record<Method, Array<ItemResult & { g: string }>> = { vector: [], lexical: [], rrf: [], linear: [] };
       const perMethodKprim: Record<number, Array<ItemResult & { g: string }>> = {}; // for K-sweep on rrf
       for (const kk of RRF_KS) perMethodKprim[kk] = [];
+      // POST-HOC BM25 robustness (see buildBm25 note): lexical/rrf/linear on a real IDF channel.
+      const bm25 = bm25Index[rf];
+      const perBm25: Record<'lexical' | 'rrf' | 'linear', Array<ItemResult & { g: string }>> = { lexical: [], rrf: [], linear: [] };
 
       for (const [elId, codeId] of cc.idByEl) {
         const c = code.find((x) => x.id === codeId)!;
@@ -230,6 +280,17 @@ async function main(): Promise<void> {
         const lin = new Map<string, number>();
         for (const r of rules) lin.set(r.id, 0.5 * (cosN.get(r.id) ?? 0) + 0.5 * (lexN.get(r.id) ?? 0));
         perMethod.linear.push({ trueGuideline: c.trueGuideline, g: c.trueGuideline, rank: rankOf(lin, c.trueGuideline) });
+        // --- BM25 variants (same cosine channel, real IDF lexical channel) ---
+        const bm = new Map<string, number>();
+        for (const r of rules) bm.set(r.id, bm25Score(bm25, r.id, codeTok[cf].get(c.id)!));
+        perBm25.lexical.push({ trueGuideline: c.trueGuideline, g: c.trueGuideline, rank: rankOf(bm, c.trueGuideline) });
+        const rankBm = channelRanks(bm); const bmN = minmax(bm);
+        const rrfBm = new Map<string, number>();
+        for (const r of rules) rrfBm.set(r.id, 1 / (RRF_K_PRIMARY + (rankVec.get(r.id) ?? rules.length)) + 1 / (RRF_K_PRIMARY + (rankBm.get(r.id) ?? rules.length)));
+        perBm25.rrf.push({ trueGuideline: c.trueGuideline, g: c.trueGuideline, rank: rankOf(rrfBm, c.trueGuideline) });
+        const linBm = new Map<string, number>();
+        for (const r of rules) linBm.set(r.id, 0.5 * (cosN.get(r.id) ?? 0) + 0.5 * (bmN.get(r.id) ?? 0));
+        perBm25.linear.push({ trueGuideline: c.trueGuideline, g: c.trueGuideline, rank: rankOf(linBm, c.trueGuideline) });
       }
 
       for (const m of METHODS) {
@@ -237,6 +298,7 @@ async function main(): Promise<void> {
         cells.push({ code: cf, rule: rf, method: m, micro: microRecall(perMethod[m]), macro: macroRecall(perMethod[m]), rescued: flooredRescued(perMethod[m]) });
       }
       for (const K of RRF_KS) rrfKSweep.push({ code: cf, rule: rf, k: K, macro5: macroRecall(perMethodKprim[K]!)[5] ?? 0 });
+      for (const m of ['lexical', 'rrf', 'linear'] as const) bm25Cells.push({ code: cf, rule: rf, method: m, macro5: macroRecall(perBm25[m])[5] ?? 0, vector: macroRecall(perMethod.vector)[5] ?? 0 });
     }
   }
 
@@ -301,6 +363,21 @@ async function main(): Promise<void> {
 
   console.log(`\nVERDICTS: H1(majority fusion>=best)=${h1Supported ? 'SUPPORTED' : 'NOT'}  H1-strong(prose)=${JSON.stringify(h1StrongRows.map((r) => ({ rf: r.rf, strong: r.strong })))}  H2(prose+hybrid reaches keyword ceiling)=${h2Supported ? 'SUPPORTED' : 'NOT'}`);
 
+  // ---- POST-HOC BM25 robustness (adversary a5f1133): does H1's method-ranking transfer? ----
+  const bmGet = (cf: CodeF, rf: RuleF, m: 'lexical' | 'rrf' | 'linear'): { macro5: number; vector: number } => bm25Cells.find((x) => x.code === cf && x.rule === rf && x.method === m)!;
+  let bmH1ok = 0;
+  const bmH1rows: Array<{ combo: string; vector: number; bm25lex: number; bm25rrf: number; ok: boolean }> = [];
+  console.log(`\nBM25 robustness — rrf(vec+BM25) vs max(vector, BM25-lexical) macro@5 (post-hoc, k1=1.2 b=0.75):`);
+  for (const cf of CODE_FORMULAS) for (const rf of RULE_FORMULAS) {
+    const v = bmGet(cf, rf, 'rrf').vector; const l = bmGet(cf, rf, 'lexical').macro5; const r = bmGet(cf, rf, 'rrf').macro5;
+    const ok = r >= Math.max(v, l) - 0.03; if (ok) bmH1ok += 1;
+    bmH1rows.push({ combo: `${cf}/${rf}`, vector: v, bm25lex: l, bm25rrf: r, ok });
+    console.log(`  ${`${cf}/${rf}`.padEnd(20)} vec=${v.toFixed(3)} bm25lex=${l.toFixed(3)} bm25rrf=${r.toFixed(3)}  ${ok ? 'ok' : 'BELOW'}`);
+  }
+  console.log(`  H1 under BM25: ${bmH1ok}/8 cells fusion>=best-0.03 (raw-Jaccard was ${h1.filter((x) => x.ok).length}/8)`);
+  console.log(`  plain/oneliner  bm25rrf=${bmGet('plain', 'oneliner', 'rrf').macro5.toFixed(3)} vs vec ${bmGet('plain', 'oneliner', 'rrf').vector.toFixed(3)} (H1-strong prose still ${bmGet('plain', 'oneliner', 'rrf').macro5 >= bmGet('plain', 'oneliner', 'rrf').vector + 0.03 ? 'help' : 'no-help'})`);
+  console.log(`  concepts/richer bm25lex=${bmGet('concepts', 'richer', 'lexical').macro5.toFixed(3)} bm25rrf=${bmGet('concepts', 'richer', 'rrf').macro5.toFixed(3)} vs vec ${bmGet('concepts', 'richer', 'rrf').vector.toFixed(3)}`);
+
   await clean([...CODE_FORMULAS.map((c) => `hy_code__${c}`), ...RULE_FORMULAS.map((r) => `hy_std__${r}`)]);
   const out = {
     n: code.length, rules: rules.length, ks, methods: METHODS, rrfKPrimary: RRF_K_PRIMARY,
@@ -309,6 +386,7 @@ async function main(): Promise<void> {
     bootstrap: { h1_rrf_vs_vector_plain: bsH1, h2_rrf_plain_vs_vector_concepts: bsH2 },
     rrfKSweep,
     lexicalCrosscheck: { plain_oneliner: get('plain', 'oneliner', 'lexical').macro[5], concepts_oneliner: get('concepts', 'oneliner', 'lexical').macro[5], concepts_richer: get('concepts', 'richer', 'lexical').macro[5] },
+    bm25Robustness: { params: { k1: BM25_K1, b: BM25_B }, cells: bm25Cells, h1OkCells: bmH1ok, h1Rows: bmH1rows },
   };
   writeFileSync(join(ART, 'hybrid_results.json'), JSON.stringify(out, null, 2));
   console.log(`\nwrote ${join(ART, 'hybrid_results.json')}`);

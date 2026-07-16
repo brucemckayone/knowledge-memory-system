@@ -900,5 +900,240 @@
     "plain_oneliner": 0.12962962962962965,
     "concepts_oneliner": 0.6074074074074074,
     "concepts_richer": 0.6814814814814815
+  },
+  "bm25Robustness": {
+    "params": {
+      "k1": 1.2,
+      "b": 0.75
+    },
+    "cells": [
+      {
+        "code": "plain",
+        "rule": "oneliner",
+        "method": "lexical",
+        "macro5": 0.1703703703703704,
+        "vector": 0.4222222222222222
+      },
+      {
+        "code": "plain",
+        "rule": "oneliner",
+        "method": "rrf",
+        "macro5": 0.39629629629629626,
+        "vector": 0.4222222222222222
+      },
+      {
+        "code": "plain",
+        "rule": "oneliner",
+        "method": "linear",
+        "macro5": 0.3592592592592593,
+        "vector": 0.4222222222222222
+      },
+      {
+        "code": "plain",
+        "rule": "richer",
+        "method": "lexical",
+        "macro5": 0.34814814814814815,
+        "vector": 0.4592592592592593
+      },
+      {
+        "code": "plain",
+        "rule": "richer",
+        "method": "rrf",
+        "macro5": 0.29259259259259257,
+        "vector": 0.4592592592592593
+      },
+      {
+        "code": "plain",
+        "rule": "richer",
+        "method": "linear",
+        "macro5": 0.3666666666666667,
+        "vector": 0.4592592592592593
+      },
+      {
+        "code": "facets",
+        "rule": "oneliner",
+        "method": "lexical",
+        "macro5": 0.4888888888888888,
+        "vector": 0.5703703703703704
+      },
+      {
+        "code": "facets",
+        "rule": "oneliner",
+        "method": "rrf",
+        "macro5": 0.6407407407407407,
+        "vector": 0.5703703703703704
+      },
+      {
+        "code": "facets",
+        "rule": "oneliner",
+        "method": "linear",
+        "macro5": 0.6037037037037036,
+        "vector": 0.5703703703703704
+      },
+      {
+        "code": "facets",
+        "rule": "richer",
+        "method": "lexical",
+        "macro5": 0.4555555555555555,
+        "vector": 0.5888888888888889
+      },
+      {
+        "code": "facets",
+        "rule": "richer",
+        "method": "rrf",
+        "macro5": 0.5111111111111111,
+        "vector": 0.5888888888888889
+      },
+      {
+        "code": "facets",
+        "rule": "richer",
+        "method": "linear",
+        "macro5": 0.6777777777777777,
+        "vector": 0.5888888888888889
+      },
+      {
+        "code": "concepts",
+        "rule": "oneliner",
+        "method": "lexical",
+        "macro5": 0.5,
+        "vector": 0.6370370370370371
+      },
+      {
+        "code": "concepts",
+        "rule": "oneliner",
+        "method": "rrf",
+        "macro5": 0.47777777777777775,
+        "vector": 0.6370370370370371
+      },
+      {
+        "code": "concepts",
+        "rule": "oneliner",
+        "method": "linear",
+        "macro5": 0.47777777777777775,
+        "vector": 0.6370370370370371
+      },
+      {
+        "code": "concepts",
+        "rule": "richer",
+        "method": "lexical",
+        "macro5": 0.7,
+        "vector": 0.7777777777777778
+      },
+      {
+        "code": "concepts",
+        "rule": "richer",
+        "method": "rrf",
+        "macro5": 0.8888888888888888,
+        "vector": 0.7777777777777778
+      },
+      {
+        "code": "concepts",
+        "rule": "richer",
+        "method": "linear",
+        "macro5": 0.8888888888888888,
+        "vector": 0.7777777777777778
+      },
+      {
+        "code": "rawcode",
+        "rule": "oneliner",
+        "method": "lexical",
+        "macro5": 0.37777777777777777,
+        "vector": 0.5222222222222223
+      },
+      {
+        "code": "rawcode",
+        "rule": "oneliner",
+        "method": "rrf",
+        "macro5": 0.4740740740740741,
+        "vector": 0.5222222222222223
+      },
+      {
+        "code": "rawcode",
+        "rule": "oneliner",
+        "method": "linear",
+        "macro5": 0.4555555555555556,
+        "vector": 0.5222222222222223
+      },
+      {
+        "code": "rawcode",
+        "rule": "richer",
+        "method": "lexical",
+        "macro5": 0.6222222222222222,
+        "vector": 0.6000000000000001
+      },
+      {
+        "code": "rawcode",
+        "rule": "richer",
+        "method": "rrf",
+        "macro5": 0.6000000000000001,
+        "vector": 0.6000000000000001
+      },
+      {
+        "code": "rawcode",
+        "rule": "richer",
+        "method": "linear",
+        "macro5": 0.6000000000000001,
+        "vector": 0.6000000000000001
+      }
+    ],
+    "h1OkCells": 4,
+    "h1Rows": [
+      {
+        "combo": "plain/oneliner",
+        "vector": 0.4222222222222222,
+        "bm25lex": 0.1703703703703704,
+        "bm25rrf": 0.39629629629629626,
+        "ok": true
+      },
+      {
+        "combo": "plain/richer",
+        "vector": 0.4592592592592593,
+        "bm25lex": 0.34814814814814815,
+        "bm25rrf": 0.29259259259259257,
+        "ok": false
+      },
+      {
+        "combo": "facets/oneliner",
+        "vector": 0.5703703703703704,
+        "bm25lex": 0.4888888888888888,
+        "bm25rrf": 0.6407407407407407,
+        "ok": true
+      },
+      {
+        "combo": "facets/richer",
+        "vector": 0.5888888888888889,
+        "bm25lex": 0.4555555555555555,
+        "bm25rrf": 0.5111111111111111,
+        "ok": false
+      },
+      {
+        "combo": "concepts/oneliner",
+        "vector": 0.6370370370370371,
+        "bm25lex": 0.5,
+        "bm25rrf": 0.47777777777777775,
+        "ok": false
+      },
+      {
+        "combo": "concepts/richer",
+        "vector": 0.7777777777777778,
+        "bm25lex": 0.7,
+        "bm25rrf": 0.8888888888888888,
+        "ok": true
+      },
+      {
+        "combo": "rawcode/oneliner",
+        "vector": 0.5222222222222223,
+        "bm25lex": 0.37777777777777777,
+        "bm25rrf": 0.4740740740740741,
+        "ok": false
+      },
+      {
+        "combo": "rawcode/richer",
+        "vector": 0.6000000000000001,
+        "bm25lex": 0.6222222222222222,
+        "bm25rrf": 0.6000000000000001,
+        "ok": true
+      }
+    ]
   }
 }

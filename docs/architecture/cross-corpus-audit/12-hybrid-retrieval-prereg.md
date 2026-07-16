@@ -122,6 +122,125 @@ Blind hostile subagent, given the grid + harness + this pre-reg:
 
 ---
 
-# RESULTS (post-run)
+# RESULTS (post-run, 2026-07-16)
 
-_(appended after §1-8 frozen & committed)_
+Produced after §1-8 were frozen (commit `3dfe89d`). Harness:
+`platform/src/test/tools/recall-hybrid.ts`; full grid + bootstrap + K-sweep + BM25
+robustness in `./recall-gate-artifacts/hybrid_results.json`. Deterministic (two runs
+byte-identical). Adversary: agent a5f1133 — it re-implemented the whole pipeline from
+scratch, matched every base cell to 3 decimals, and ran the BM25 probe below.
+
+## The grid (MACRO recall@5 = primary; higher = better)
+
+| code | rule | vector | lexical(Jaccard) | rrf | linear |
+|---|---|---|---|---|---|
+| plain | oneliner | **0.422** | 0.130 | 0.285 | 0.359 |
+| plain | richer | **0.459** | 0.263 | 0.367 | 0.385 |
+| facets | oneliner | **0.570** | 0.430 | 0.493 | 0.489 |
+| facets | richer | **0.589** | 0.452 | 0.585 | 0.548 |
+| concepts | oneliner | **0.637** | 0.607 | 0.478 | 0.478 |
+| concepts | richer | 0.778 | 0.681 | **0.889** | **0.889** |
+| rawcode | oneliner | **0.522** | 0.378 | 0.474 | 0.437 |
+| rawcode | richer | 0.600 | 0.544 | 0.581 | **0.604** |
+
+As-pre-registered verdicts on the frozen raw-Jaccard channel: **H1 NOT SUPPORTED**
+(rrf ≥ best−0.03 in only 3/8 cells), **H1-strong NOT** (on prose, rrf < vector), **H2 NOT**
+(rrf(plain) 0.285/0.367 vs vector(concepts) 0.637/0.778). Micro corroborates macro in
+direction on all 8 cells (no lens-swap). K-sweep {10,30,60,100} does not rescue H1.
+
+## The adversary's decisive correction: the H1 ranking is a TOY-CHANNEL ARTIFACT
+
+The pre-registered `lexical` channel is **raw token-Jaccard — no IDF**. So stopwords count
+equally, and (with the tie-against rank) a prose code item whose true rule shares only
+common words scores ~0 Jaccard, ties with ~15 zero-overlap rules, and gets rank ~20 — which
+mechanically drags RRF down. The adversary re-ran the fusion with a **textbook Okapi BM25**
+lexical channel (k1=1.2, b=0.75 — the SAME "canonical, untuned" discipline as RRF K=60 /
+linear α=0.5; same frozen tokenizer). I reproduced BM25 in-harness (`bm25Robustness` in the
+JSON):
+
+| code/rule | vector | BM25-lexical | rrf(vec+BM25) | fusion vs vector |
+|---|---|---|---|---|
+| plain/oneliner | 0.422 | 0.170 | 0.396 | −0.026 (≈tie) |
+| plain/richer | 0.459 | 0.348 | 0.293 | below |
+| facets/oneliner | 0.570 | 0.489 | **0.641** | **+0.071 BEATS** |
+| facets/richer | 0.589 | 0.456 | 0.511 | below |
+| concepts/oneliner | 0.637 | 0.500 | 0.478 | below |
+| concepts/richer | 0.778 | 0.700 | **0.889** | **+0.111 BEATS** |
+| rawcode/oneliner | 0.522 | 0.378 | 0.474 | below |
+| rawcode/richer | 0.600 | 0.622 | 0.600 | ≈tie |
+
+Under BM25, fusion is on-par-or-better in **4/8** cells (raw-Jaccard: 3/8) and **beats
+vector-alone outright** on facets/oneliner and concepts/richer. So the H1 method-ranking
+does **not transfer** past the toy channel — exactly the leg doc 12 §8 predicted "should
+transfer" and the one that doesn't.
+
+## What is LICENSED vs VOID
+
+**LICENSED (survives BM25 + the n=9 bootstrap):**
+- **H2 negative — the strongest result:** honest prose + hybrid does NOT reach the recall of
+  keyword-dense descriptions. rrf(plain) 0.285/0.367 vs vector(concepts) 0.637/0.778; stays
+  −0.27…−0.43 under raw Jaccard, stopword-stripped, AND BM25. Bootstrap Δ CI
+  **[−0.648, −0.074] excludes 0, P(Δ≤0)=0.997.**
+- **Authoring formula ≫ retrieval fusion.** The formula effect (vector: plain 0.42 →
+  concepts 0.64–0.78, Δ≈+0.35) dwarfs any fusion effect (±0.1). This is the practical lever.
+- **You cannot escape authoring keyword-informative descriptions by hoping hybrid rescues
+  plain prose** — prose has too little lexical signal for the lexical channel to add, under
+  any lexical variant tried.
+- **H1-strong negative "fusion does not HELP prose reach vector level"** (robust to BM25:
+  plain/oneliner bm25rrf 0.396 still < vector 0.422).
+
+**VOID / OVER-CLAIMED (do NOT state):**
+- ✗ "Hybrid fusion doesn't help" as a general/transferable claim — flips under BM25 (3/8→4/8;
+  beats vector on 2 cells). Only "NOT on the frozen raw-Jaccard channel" is licensed.
+- ✗ "The vector channel on a keyword-dense description is the strongest single approach" —
+  **false**: BM25 fusion 0.889 and (stopword-stripped) lexical-alone both beat vector 0.778
+  on concepts/richer.
+- ✗ "concepts/richer is a genuine fusion win (+0.111)" as a headline — it is **one singleton
+  guideline** (ES.75 / item E023: vector rank 6, lexical rank 1, RRF rank 2). macro
+  0.778→0.889 = exactly 7/9→8/9; micro 0.931→0.966 = 27/29→28/29. 4 of 9 guidelines are
+  singletons, so macro@5 moves in 0.111 quanta; the contrast's bootstrap CI **[0.000, 0.333]
+  touches 0** (the win vanishes in 35% of resamples). Real complementarity on that one item,
+  but n=1 — not a headline.
+- ✗ "fusion HURTS / drags down prose" (causal) — only "does not clearly help prose" is
+  licensed. Raw-Jaccard drag −0.137 shrinks to −0.026 under BM25, and the bootstrap CI
+  **[−0.515, 0.259] includes 0, P(Δ≤0)=0.76.**
+
+## Lexical cross-check vs doc 11 (attack #4)
+
+Predicted doc-11 anchors 0.085 / 0.611 / 0.778 → observed **0.130 / 0.607 / 0.681**. Only
+concepts/oneliner matches. Notably **concepts/richer raw-Jaccard = 0.681 here, 0.097 BELOW
+doc-11's claimed 0.778 (which is exactly this cell's *vector* score).** Under the frozen
+tokenizer, raw Jaccard is *below* the vector on concepts/richer — so doc-11's "pure
+token-Jaccard reproduces the winner (0.778) exactly" does NOT reproduce here; that
+"exact reproduction" was tokenizer-dependent (it needs stopword removal). Doc-12's 0.681 is
+the reproducible number. Doc 11's central "the concepts win is fully lexical" claim is
+retrospectively **weakened to "largely lexical, tokenizer-sensitive"** — the vector still
+contributes on concepts/richer (0.778 > 0.681 raw lexical).
+
+## Practical takeaway (the useful, honest answer)
+
+1. **Spend the effort on the description, not the retrieval trick.** Moving from plain prose
+   to keyword-informative descriptions (facets/concepts) is worth ~+0.2–0.35 macro@5;
+   fusion is worth at most ~+0.1, and only once the description already carries signal.
+2. **A proper hybrid (BM25 + vector) is worth having** — it matches or beats vector-alone in
+   half the cells and wins outright on keyword-rich descriptions — but as a **complement to
+   good descriptions, not a rescue for plain prose.** (Raw-Jaccard fusion is not worth
+   having; use a real IDF-weighted lexical channel.)
+3. **Prose can't be rescued to keyword-level recall by fusion** (H2). If descriptions must
+   be prose, the vector index is doing the work and you live with lower recall.
+4. Caveats from docs 10-11 carry: constructed FLOOR, opaque dotted-ID rule names, n=29 / 9
+   guidelines / 4 singletons, checker-decidable slice. Absolute recall is a floor; the
+   *rankings* are what transfer — and the one ranking that did NOT transfer (single vs
+   hybrid) is called out above. No production default changes on this alone.
+
+## Disposition for nmemo-uhp.16
+
+Experiment DONE, adversarially verified, headline corrected. I again drifted toward a
+favourable-to-me framing ("hybrid doesn't help / vector-alone is best / one clean fusion
+win") and the blind adversary cut it via a BM25 re-derivation I had not run — the 6th
+launder-catch on this corpus family (see [[verify-empirical-gates]]). The decision-relevant
+conclusions (H2; formula ≫ fusion; author keywords not prose) are solid and survive. The
+method-ranking claims are restricted to "not on the toy channel." Recommend a real
+BM25+vector hybrid as the retrieval default *if* cross-corpus recall is later productionised,
+paired with keyword-informative description authoring — but that is a Phase-B/field decision,
+not licensed by this constructed floor alone.
