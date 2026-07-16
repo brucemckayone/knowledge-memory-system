@@ -405,6 +405,28 @@ describe('epoch-v2 bug-fix scenarios — named harness cases (nmemo-vpz.8 / E8 c
     const fact = await testDb`SELECT object_entity_id FROM facts WHERE id = ${result.insertedFactIds[0]!}::uuid`;
     expect((fact[0] as { object_entity_id: string | null }).object_entity_id).not.toBeNull();
   });
+
+  it('nmemo-avd (PC8-1): a promoted entity is minted with a populated 768-dim embedding, never NULL', async () => {
+    // The promote path embeds via embedForWrite, which THROWS on an ML failure rather
+    // than committing a NULL embedding that pgvector recall would silently skip. Here
+    // ML is up, so the minted entity must carry a real 768-dim vector. (folds PC8-6.)
+    const epoch = randomUUID();
+    const org = await stageEntity(epoch, `${TAG} Embedded Co`, 'organization');
+    await stageFact(epoch, org, 'headquartered_in', {
+      objectValue: 'Boston',
+      validAt: new Date('2021-01-01'),
+    });
+    const result = await promote(epoch);
+    expect(Object.keys(result.mintedEntityIds)).toHaveLength(1);
+
+    const rows = await testDb`
+      SELECT embedding IS NOT NULL AS present, vector_dims(embedding) AS dims
+      FROM entities WHERE canonical_name LIKE ${TAG + '%'}
+    `;
+    expect(rows).toHaveLength(1);
+    expect((rows[0] as { present: boolean }).present).toBe(true);
+    expect((rows[0] as { dims: number }).dims).toBe(768);
+  });
 });
 
 describe('E6 — causal event minting at promotion (nmemo-vpz.6, doc 41 §12 #5)', () => {

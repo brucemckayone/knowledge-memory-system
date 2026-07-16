@@ -12,10 +12,10 @@ import { db, type Tx } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
 import { entities, entityAliases, memoryEntities, entityTypes, streamParticipants, type Entity } from '../db/schema.js';
 import { eq, ilike, sql, and, or } from 'drizzle-orm';
-import { ml } from './ml-client.js';
 import { recordFactChange, unwrapRows, type Actor } from './audit.js';
 import { config } from '../config.js';
 import { entityEmbedTextFor, entityEmbedModeFromFlag } from './embed-text.js';
+import { embedForWrite, embedForQuery } from './embed.js';
 
 // EntityType is now loaded dynamically from entity_types table.
 // This string type allows any value — runtime validation happens via getValidEntityTypes().
@@ -243,12 +243,6 @@ const THRESHOLD_LLM_VERIFY = 0.75;
  * Create a new entity with embedding
  */
 export async function createEntity(params: CreateEntityParams): Promise<{ id: string; existed: boolean }> {
-  // Generate embedding for similarity search. When EMBED_DESCRIPTIONS is on
-  // (cross-corpus recall lever, nmemo-uhp.14) the vector embeds a name+authored-
-  // description composite; default (off) embeds the name only, unchanged.
-  const embedMode = entityEmbedModeFromFlag(config.EMBED_DESCRIPTIONS);
-  const embedding = await generateEmbedding(entityEmbedTextFor(params.name, params.description, embedMode));
-
   // Advisory lock on (canonical_name, entity_type) to prevent concurrent duplicates.
   await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${params.name.toLowerCase() + '||' + params.type}))`);
 
@@ -263,7 +257,9 @@ export async function createEntity(params: CreateEntityParams): Promise<{ id: st
     .limit(1);
 
   if (existing[0]) {
-    // Entity already exists — update last_seen_at and return existing ID
+    // Entity already exists — update last_seen_at and return existing ID. No embedding
+    // is needed here, so we never call the ML service on the touch-existing path (it
+    // must keep working during an ML outage — only genuine mints require an embedding).
     await updateLastSeen(existing[0].id);
     if (params.aliases?.length) {
       for (const alias of params.aliases) {
@@ -272,6 +268,16 @@ export async function createEntity(params: CreateEntityParams): Promise<{ id: st
     }
     return { id: existing[0].id, existed: true };
   }
+
+  // Generate embedding for similarity search. When EMBED_DESCRIPTIONS is on
+  // (cross-corpus recall lever, nmemo-uhp.14) the vector embeds a name+authored-
+  // description composite; default (off) embeds the name only, unchanged.
+  // embedForWrite THROWS on an ML failure (nmemo-avd / PC8-1) — a minted entity must
+  // never commit with a NULL embedding, which pgvector recall silently skips forever.
+  // Computed here (after the existence check, before the INSERT) so a throw aborts a
+  // genuine mint before any write and never blocks the touch-existing path above.
+  const embedMode = entityEmbedModeFromFlag(config.EMBED_DESCRIPTIONS);
+  const embedding = await embedForWrite(entityEmbedTextFor(params.name, params.description, embedMode));
 
   const result = await db
     .insert(entities)
@@ -290,14 +296,13 @@ export async function createEntity(params: CreateEntityParams): Promise<{ id: st
     throw new Error('Failed to create entity');
   }
 
-  // Store embedding via raw SQL (pgvector)
-  if (embedding && embedding.length > 0) {
-    await db.execute(sql`
-      UPDATE entities
-      SET embedding = ${sql.raw(`'[${embedding.join(',')}]'::vector`)}
-      WHERE id = ${entity.id}
-    `);
-  }
+  // Store the embedding via raw SQL (pgvector). embedForWrite guarantees a non-empty
+  // vector, so this UPDATE always runs — a minted entity is never left NULL (nmemo-avd).
+  await db.execute(sql`
+    UPDATE entities
+    SET embedding = ${sql.raw(`'[${embedding.join(',')}]'::vector`)}
+    WHERE id = ${entity.id}
+  `);
 
   // Add aliases
   if (params.aliases?.length) {
@@ -384,10 +389,12 @@ export async function resolveEntity(
   position?: { start?: number; end?: number },
   corpusId: string = 'default',
 ): Promise<ResolvedEntity> {
-  // Generate embedding from mention + context window centred on position
+  // Generate embedding from mention + context window centred on position. This is a
+  // READ/resolve path — embedForQuery returns [] on an ML failure so we degrade to the
+  // name-match fallback below rather than throwing (nmemo-avd: only write paths throw).
   const contextWindow = computeContextWindow(mention, context, position);
-  const embedding = await generateEmbedding(contextWindow);
-  
+  const embedding = await embedForQuery(contextWindow);
+
   if (!embedding || embedding.length === 0) {
     // No embedding, fall back to name matching
     const nameMatches = await findEntitiesByName(mention, { limit: 5, type });
@@ -617,19 +624,6 @@ function computeContextWindow(
 
   // Fallback: mention + first 200 chars
   return `${mention} ${context.slice(0, 200)}`;
-}
-
-/**
- * Generate embedding via ML service
- */
-async function generateEmbedding(text: string): Promise<number[]> {
-  try {
-    const data = await ml.embed(text);
-    return data.vector || [];
-  } catch (error) {
-    console.warn('Embedding generation error:', error);
-    return [];
-  }
 }
 
 // ============================================

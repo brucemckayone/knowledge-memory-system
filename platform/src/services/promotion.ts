@@ -21,7 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { stagingProposedEntities, stagingProposedFacts, entities, facts, sameAsLinks } from '../db/schema.js';
-import { ml } from './ml-client.js';
+import { embedForWrite } from './embed.js';
 import { recordFactChange } from './audit.js';
 import { mergeEntities } from './entities.js';
 import { mintCausalEvent } from './causal.js';
@@ -200,15 +200,11 @@ export async function loadPromotionInputs(
 // Apply — embeddings up front, one transaction
 // ============================================
 
-async function embed(text: string): Promise<number[]> {
-  try {
-    const data = await ml.embed(text);
-    return data.vector ?? [];
-  } catch {
-    return [];
-  }
-}
-
+// Write-path embedding: embedForWrite THROWS on an ML failure (nmemo-avd / PC8-1)
+// rather than returning []. Embeddings are computed up front (below), before the
+// promotion transaction opens, so a throw aborts the whole promotion before any row is
+// written — no entity or fact is ever committed with a NULL embedding that pgvector
+// recall would silently skip. The epoch backpressure/retry layer handles the throw.
 const vectorLiteral = (v: number[]): string => `[${v.join(',')}]`;
 
 /**
@@ -228,7 +224,7 @@ export async function applyPromotion(
   const embedMode = entityEmbedModeFromFlag(config.EMBED_DESCRIPTIONS);
   const entityEmbeddings = new Map<string, number[]>();
   for (const e of plan.entitiesToMint) {
-    entityEmbeddings.set(e.clusterKey, await embed(entityEmbedTextFor(e.name, e.summary, embedMode)));
+    entityEmbeddings.set(e.clusterKey, await embedForWrite(entityEmbedTextFor(e.name, e.summary, embedMode)));
   }
 
   // Fact embeddings (keyed by a pre-minted fact id) ONLY when EMBED_DESCRIPTIONS
@@ -245,7 +241,7 @@ export async function applyPromotion(
       const f = plan.factsToInsert[i]!;
       const id = randomUUID();
       factIdByIndex[i] = id;
-      factEmbeddings.set(id, await embed(factEmbedTextFor(f.reasoning, f.predicate, f.objectValue)));
+      factEmbeddings.set(id, await embedForWrite(factEmbedTextFor(f.reasoning, f.predicate, f.objectValue)));
     }
   }
 

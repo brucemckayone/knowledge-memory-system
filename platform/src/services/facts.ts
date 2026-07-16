@@ -15,12 +15,12 @@ import { db, type Tx } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
 import { facts, factPredicates, entities, causalEvents, factSources, type Fact, type FactSource } from '../db/schema.js';
 import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
-import { ml } from './ml-client.js';
 import { recordPredicateUsage } from './predicates.js';
 import { resolveExclusiveGroup, compareFactPrecedence, type FactPrecedence } from './exclusive-groups.js';
 import { recordFactChange, type Actor } from './audit.js';
 import { cascadeFactExpiry } from './causal.js';
 import { factEmbedTextFor } from './embed-text.js';
+import { embedForWrite, embedForQuery } from './embed.js';
 import type { SeveritySummary } from './impact.js';
 
 export interface CreateFactParams {
@@ -237,8 +237,11 @@ export async function createFact(params: CreateFactParams): Promise<string> {
 
   // Generate embedding for fact text. Convention shared with the epoch path via
   // factEmbedTextFor (nmemo-uhp.14) so the two ingest paths cannot drift.
+  // embedForWrite THROWS on an ML failure (nmemo-avd / PC8-1): a fact must not commit
+  // with a NULL fact_embedding (silently invisible to vector recall). Computed before
+  // the insert tx below, so a throw aborts before any row is written.
   const factText = factEmbedTextFor(sourceText, predicate, objectValue);
-  const embedding = await generateEmbedding(factText);
+  const embedding = await embedForWrite(factText);
 
   // Insert the new fact + audit row atomically. The causal_event insert and
   // embedding update sit outside the transaction to keep the hot path short;
@@ -896,7 +899,9 @@ export async function searchFacts(
 ): Promise<FactSearchResult[]> {
   const { limit = 10, threshold = 0.5 } = options;
 
-  const embedding = await generateEmbedding(query);
+  // READ/query path — embedForQuery returns [] on an ML failure so a search degrades to
+  // no results rather than throwing (nmemo-avd: only write paths fail loud).
+  const embedding = await embedForQuery(query);
   if (!embedding || embedding.length === 0) {
     return [];
   }
@@ -968,17 +973,6 @@ export async function getFactById(factId: string): Promise<(Fact & {
   };
 }
 
-/**
- * Generate embedding via ML service
- */
-async function generateEmbedding(text: string): Promise<number[]> {
-  try {
-    const data = await ml.embed(text);
-    return data.vector || [];
-  } catch {
-    return [];
-  }
-}
 
 /**
  * Create a causal event recording a Graph S state transition.

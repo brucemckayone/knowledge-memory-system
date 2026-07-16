@@ -21,23 +21,13 @@ import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
-import { ml } from './ml-client.js';
 import { entityEmbedTextFor } from './embed-text.js';
+import { embedForWrite as embed } from './embed.js';
 import {
   authorElementDescription,
   authorRuleDescription,
   type FacetGenerator,
 } from './element-authoring.js';
-
-/** Embed text via the ML service; throws on an empty vector (silent NULL embeddings
- * are the PC8-1 recall-degradation footgun — fail loud here). */
-async function embed(text: string): Promise<number[]> {
-  const { vector } = await ml.embed(text);
-  if (!vector || vector.length === 0) {
-    throw new Error(`corpus-ingest: empty embedding for text "${text.slice(0, 60)}…"`);
-  }
-  return vector;
-}
 
 export interface UpsertCorpusEntityParams {
   corpusId: string;
