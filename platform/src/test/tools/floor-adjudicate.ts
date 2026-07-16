@@ -42,7 +42,11 @@ const argN = (flag: string, def: number) => {
   return i >= 0 && process.argv[i + 1] ? Number(process.argv[i + 1]) : def;
 };
 const CONC = argN('--conc', 4);
-const DO_VARIANCE = !process.argv.includes('--no-variance');
+const PILOT = process.argv.includes('--pilot');
+const DO_VARIANCE = !PILOT && !process.argv.includes('--no-variance');
+// Fixed pilot violation set (doc-15 §3 budget amendment): 5 clean single-rule across
+// distinct rules + 2 multi-rule (OQ3 collapse). Top-3 cells each + every control's top-1.
+const PILOT_VIOLATIONS = new Set(['V22_5_a', 'V22_6_a', 'V22_9_b', 'V22_10_a', 'V22_2_a', 'V22_7_c', 'V22_8_a']);
 
 const short = (id: string) => id.replace('MISRA-CPP-2023-Rule-', 'R');
 
@@ -120,7 +124,7 @@ async function sweep(runName: string, cells: Cell[], ents: Map<string, EntRow>, 
 
 async function main(): Promise<void> {
   const started = Date.now();
-  console.log(`=== doc-15 LEG 2 — adjudication (composition) conc=${CONC} ===\n`);
+  console.log(`=== doc-15 LEG 2 — adjudication (composition) ${PILOT ? 'PILOT ' : ''}conc=${CONC} ===\n`);
   const ents = await loadCorpusEntities();
   const codeEnts = [...ents.values()].filter((e) => e.corpus === CODE_CORPUS);
   if (codeEnts.length === 0) { console.error('no floor-code entities in DB — run floor-ingest-recall.ts first'); process.exit(1); }
@@ -135,9 +139,27 @@ async function main(): Promise<void> {
   // --- pre-registered recall budget k=3 threshold=0.5 ---
   const cand = await recallCrossCorpusCandidates(CODE_CORPUS, RULE_CORPUS, { k: 3, threshold: 0.5, maxCells: 100000 });
   const cells: Cell[] = cand.map((c) => ({ elementRef: c.elementRef, ruleId: c.ruleId, similarity: c.similarity }));
-  console.log(`recall k=3 thr=0.5 seeded ${cells.length} cells across ${new Set(cells.map((c) => c.elementRef)).size} elements\n`);
+  console.log(`recall k=3 thr=0.5 seeded ${cells.length} cells across ${new Set(cells.map((c) => c.elementRef)).size} elements`);
 
-  const runId = await sweep(RUN_NAME, cells, ents, 'main');
+  // PILOT: adjudicate only the fixed pilot violations' top-3 + every control's top-1.
+  let sweepCells = cells;
+  if (PILOT) {
+    const controlTop = new Map<string, Cell>();
+    const keep: Cell[] = [];
+    for (const c of cells) {
+      const name = nameByEnt.get(c.elementRef) ?? '';
+      const el = elemByName.get(name);
+      if (!el) continue;
+      if (el.kind === 'violation') { if (PILOT_VIOLATIONS.has(name)) keep.push(c); }
+      else { const cur = controlTop.get(name); if (!cur || c.similarity > cur.similarity) controlTop.set(name, c); }
+    }
+    keep.push(...controlTop.values());
+    sweepCells = keep;
+    console.log(`PILOT: adjudicating ${sweepCells.length} cells (${PILOT_VIOLATIONS.size} violations top-3 + ${controlTop.size} control top-1)`);
+  }
+  console.log('');
+
+  const runId = await sweep(RUN_NAME, sweepCells, ents, 'main');
 
   // --- read back coverage + bridges ---
   const coverage = (await db.execute(sql`
@@ -152,7 +174,7 @@ async function main(): Promise<void> {
   const eid = (ref: string) => nameByEnt.get(ref) ?? ref.slice(0, 8);
   const rid = (ref: string) => short(nameByEnt.get(ref) ?? ref.slice(0, 8));
 
-  const violations = corpus.elements.filter((e) => e.kind === 'violation');
+  const violations = corpus.elements.filter((e) => e.kind === 'violation' && (!PILOT || PILOT_VIOLATIONS.has(e.id)));
   const controls = corpus.elements.filter((e) => e.kind !== 'violation');
 
   // violates-bridge set: element name -> set of rule ids the agent said 'violates'
@@ -264,13 +286,14 @@ async function main(): Promise<void> {
   }
 
   const pass = compRecall >= 0.70 && precision >= 0.80 && specificity >= 0.80;
-  console.log(`\n=== VERDICT (recall bar checked in leg-1 results; here: recall/precision/specificity) ===`);
-  console.log(`  ${pass ? 'PASS' : 'FAIL'} — recall>=0.70:${compRecall >= 0.70} precision>=0.80:${precision >= 0.80} specificity>=0.80:${specificity >= 0.80}`);
+  console.log(`\n=== ${PILOT ? 'PILOT SIGNAL (subset, NOT the gate verdict)' : 'VERDICT'} — recall/precision/specificity ===`);
+  console.log(`  ${PILOT ? (pass ? 'bars met on pilot subset' : 'a bar missed on pilot subset') : (pass ? 'PASS' : 'FAIL')} — recall>=0.70:${compRecall >= 0.70} precision>=0.80:${precision >= 0.80} specificity>=0.80:${specificity >= 0.80}`);
   console.log(`  elapsed ${Math.round((Date.now() - started) / 1000)}s`);
 
-  writeFileSync(join(DATA, 'floor-composition-results.json'), JSON.stringify({
-    generatedFrom: 'floor-adjudicate.ts', concurrency: CONC, singleSample: true,
-    seededCells: cells.length, bridgesLaid: bridges.length, violatesBridges: totalViol, satisfiesBridges: satisBridgeCount,
+  writeFileSync(join(DATA, PILOT ? 'floor-composition-pilot-results.json' : 'floor-composition-results.json'), JSON.stringify({
+    generatedFrom: 'floor-adjudicate.ts', pilot: PILOT, concurrency: CONC, singleSample: true,
+    scope: PILOT ? { violations: [...PILOT_VIOLATIONS], controlCells: 'top-1 each' } : 'full k=3 sweep',
+    adjudicatedCells: sweepCells.length, seededCells: cells.length, bridgesLaid: bridges.length, violatesBridges: totalViol, satisfiesBridges: satisBridgeCount,
     metrics: { compositionRecall: compRecall, compositionPrecision: precision, controlSpecificity: specificity,
       multiRuleAllConfirmed: multi.length ? multiAll / multi.length : null },
     bars: { recall: 0.70, precision: 0.80, specificity: 0.80 }, pass,
@@ -278,7 +301,7 @@ async function main(): Promise<void> {
     bridges: bridges.map((b) => ({ element: eid(b.a_ref), rule: short(nameByEnt.get(b.b_ref) ?? b.b_ref), relation: b.relation, reasoning: b.reasoning })),
     variance,
   }, null, 2));
-  console.log(`\nwrote floor-composition-results.json`);
+  console.log(`\nwrote floor-composition${PILOT ? '-pilot' : ''}-results.json`);
   process.exit(0);
 }
 

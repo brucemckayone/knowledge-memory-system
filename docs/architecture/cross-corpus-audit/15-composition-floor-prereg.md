@@ -70,6 +70,17 @@ signal + surfaced OQ3 (overlapping-rule collapse); doc 15 measures it at n≈50.
 - **Variance disclosure:** a fixed 10-cell subset (all 10 controls' top cell) is
   re-adjudicated a 2nd time; self-agreement reported. Adjudication is non-deterministic;
   the primary numbers are a SINGLE sample and labelled as such.
+- **BUDGET AMENDMENT (2026-07-16, before any adjudication number):** the built pipeline
+  spawns ONE Claude Code (Haiku) agent per (element, rule) cell — 50×3 = 150 + variance
+  is ~160 spawns for the full sweep. That per-cell fan-out is itself a scaling finding
+  (an agent per candidate pair does not scale to field corpora). To spend that cost
+  incrementally, Leg 2 runs a **PILOT first**: adjudicate a fixed subset — 7 violations
+  across distinct rules (`V22_5_a, V22_6_a, V22_9_b, V22_10_a, V22_2_a` clean single-rule
+  + `V22_7_c, V22_8_a` multi-rule for the OQ3 collapse test), TOP-3 cells each (21), plus
+  each of the 10 controls' TOP-1 (most over-seeded) cell (10) = **~31 cells**. Pilot
+  metrics are computed over this adjudicated subset and LABELLED pilot-scope (recall over
+  the 7, specificity over the 10 controls' top cell). The full k=3 sweep is run only if
+  the pilot warrants it. No variance pass in the pilot (n too small).
 
 ## 4. What "pass" means (frozen) — FLOOR bars (clear cases ⇒ high)
 

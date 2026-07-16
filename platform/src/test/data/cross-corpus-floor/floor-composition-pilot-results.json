@@ -1,0 +1,122 @@
+{
+  "generatedFrom": "floor-adjudicate.ts",
+  "pilot": true,
+  "concurrency": 4,
+  "singleSample": true,
+  "scope": {
+    "violations": [
+      "V22_5_a",
+      "V22_6_a",
+      "V22_9_b",
+      "V22_10_a",
+      "V22_2_a",
+      "V22_7_c",
+      "V22_8_a"
+    ],
+    "controlCells": "top-1 each"
+  },
+  "adjudicatedCells": 31,
+  "seededCells": 150,
+  "bridgesLaid": 10,
+  "violatesBridges": 7,
+  "satisfiesBridges": 3,
+  "metrics": {
+    "compositionRecall": 0.8571428571428571,
+    "compositionPrecision": 1,
+    "controlSpecificity": 1,
+    "multiRuleAllConfirmed": 0.5
+  },
+  "bars": {
+    "recall": 0.7,
+    "precision": 0.8,
+    "specificity": 0.8
+  },
+  "pass": true,
+  "falsePositiveBridges": [],
+  "controlFalsePositives": [],
+  "recallMisses": [
+    {
+      "id": "V22_9_b",
+      "expected": [
+        "R22.9"
+      ],
+      "note": "double free through an alias",
+      "attribution": "ADJUDICATOR (true rule surfaced in top-3 but not confirmed)"
+    }
+  ],
+  "collapse": [
+    {
+      "id": "V22_7_c",
+      "expected": [
+        "R22.7",
+        "R22.8"
+      ],
+      "confirmed": [
+        "R22.8"
+      ]
+    }
+  ],
+  "bridges": [
+    {
+      "element": "V22_8_a",
+      "rule": "R22.8",
+      "relation": "violates",
+      "reasoning": "Code element V22_8_a allocates a dynamic array using new[100] and deallocates it using scalar delete operator. This directly violates MISRA-CPP-2023-Rule-22.8, which mandates that the deallocation form must match the allocation form. Scalar delete on array-allocated memory causes the destructor to execute only on the first element, corrupts array metadata, and produces undefined behavior. The element's own description explicitly identifies this as an \"operator mismatch\" and \"undefined behavior\" scenario. MISRA-CPP-2023-Rule-22.8 specifically lists this pattern—\"Raw pointers assigned from new[] but subsequently deleted with scalar delete\"—as the prohibited violation."
+    },
+    {
+      "element": "V22_6_a",
+      "rule": "R22.6",
+      "relation": "violates",
+      "reasoning": "The code element V22_6_a performs direct raw pointer arithmetic (++p, buf+n) without bounds validation, overflow detection, or null checks. The operation iterates over a buffer using unchecked pointer increments and computes a loop bound via pointer arithmetic (buf+n), then dereferences the pointer (***p=0). This is a direct violation of MISRA-CPP-2023-Rule-22.6, which explicitly prohibits \"direct increment/decrement of raw pointers (ptr++, ptr--)\" and \"arithmetic expressions combining pointers and integers (ptr + offset, ptr - count)\" and \"loops that step pointers without bounds validation\". The element's own description confirms undefined behavior is possible if buf is null or allocated size < n*sizeof(int), precisely the out-of-bounds and memory corruption risk the rule is designed to prevent."
+    },
+    {
+      "element": "V22_8_a",
+      "rule": "R22.7",
+      "relation": "violates",
+      "reasoning": "Element V22_8_a exhibits a direct violation of MISRA-CPP-2023-Rule-22.7. The element allocates a 100-element dynamic array using new[100] but deallocates it using the scalar delete operator instead of delete[]. The element's own description explicitly documents this as \"an asymmetric pair\" and identifies the consequence as \"undefined behavior from mismatched deallocation operator.\" Rule 22.7 explicitly requires: \"When allocated with new[], it must be released with delete[]\" and specifically identifies \"using delete on pointers allocated via new[]\" as a violation pattern that causes \"heap corruption\" and \"undefined behavior\" through incorrect cleanup logic applied to heap metadata. The element satisfies all conditions of the rule violation: (1) array allocated with new[], (2) deallocated with scalar delete (not delete[]), (3) causing undefined behavior per both element and rule descriptions."
+    },
+    {
+      "element": "V22_2_a",
+      "rule": "R22.2",
+      "relation": "violates",
+      "reasoning": "The code element acquires a std::mutex lock via blocking call and has a code path that conditionally returns without releasing it, with the lock held beyond function scope. This violates MISRA-CPP-2023-Rule-22.2's core requirement: resources (including system synchronization primitives like mutex locks) must be managed via RAII—tied to object constructor/destructor pairs that guarantee deterministic cleanup on all code paths. The rule explicitly forbids manual resource management with multiple exit points where cleanup can be bypassed. The early-return path that skips unlock is the specific anti-pattern section (2) of the rule warns against: \"Resources acquired in one location and manually released in multiple separate locations or within catch blocks, creating paths where release can be bypassed.\" Instead of wrapping the mutex in an RAII guard object (e.g., std::lock_guard or std::scoped_lock), this code manages lock/unlock manually with incomplete coverage, leaving the lock in an unpredictable state."
+    },
+    {
+      "element": "V22_7_c",
+      "rule": "R22.8",
+      "relation": "violates",
+      "reasoning": "V22_7_c exemplifies the exact violation forbidden by MISRA-CPP-2023-Rule-22.8. The code element uses new[] to allocate an array of 5 Widget objects on the heap, then deallocates it with scalar delete (operator mismatch). This violates the rule's invariant: \"the deallocation form must match the allocation form.\" The consequences are precisely as the rule predicts: only the first element's destructor executes, the remaining 4 destructors are skipped, memory metadata is corrupted, and the behavior is undefined. The element's described side-effects (heap structure corruption, non-first destructors not invoked, dangling pointers if Widget has internal allocations) directly instantiate the rule's forbidden pattern and documented harms."
+    },
+    {
+      "element": "V22_5_a",
+      "rule": "R22.5",
+      "relation": "violates",
+      "reasoning": "V22_5_a creates a dangling pointer by returning an address-of-operator pointer to a local variable with automatic storage duration. The returned pointer references memory that becomes invalid upon function exit. MISRA-CPP-2023-Rule-22.5 explicitly forbids dereferencing pointers when the pointed-to object's lifetime has ended, specifically case (a): \"a local object after the block or function scope in which that object was declared has ended.\" This code element instantiates exactly that prohibited pattern. Any use of the returned pointer for dereferencing after the function returns violates the rule and triggers undefined behavior."
+    },
+    {
+      "element": "V22_10_a",
+      "rule": "R22.10",
+      "relation": "violates",
+      "reasoning": "The code element V22_10_a calls weak_ptr::lock() on a weak_ptr<Node> parameter and then unconditionally dereferences the returned shared_ptr via operator-> without testing it for null. The element's description explicitly states \"lock() return value not tested for null\" and \"operator-> applied unconditionally without null test\". MISRA-CPP-2023-Rule-22.10 mandates a null-check between lock() and any dereference or member access, stating this \"lock-then-null-check sequence is a mandatory safety gate before any dereference, member access, or method call on the pointed-to object.\" The element violates this mandate by omitting the mandatory null-check, creating a use-after-free risk if the weak_ptr has expired and lock() returns a null shared_ptr."
+    },
+    {
+      "element": "C_ok_weaklock",
+      "rule": "R22.10",
+      "relation": "satisfies",
+      "reasoning": "The C_ok_weaklock code element demonstrates the mandatory lock-then-null-check pattern required by MISRA-CPP-2023-Rule-22.10. Specifically: (1) it calls lock() on the weak_ptr parameter `w` to acquire a shared_ptr; (2) it implicitly null-checks the result by wrapping the dereference in an if block that evaluates the shared_ptr for validity; (3) it only invokes the member function Node::run() when the null-check passes, meaning the object is confirmed to still exist; (4) the shared_ptr `s` has scoped lifetime management via RAII, cleaning up the reference when exiting the if block. This is precisely the \"lock-then-null-check sequence is a mandatory safety gate before any dereference, member access, or method call\" that the rule requires. No code path dereferences the weak_ptr or uses a dangling pointer."
+    },
+    {
+      "element": "C_ok_arraydelete",
+      "rule": "R22.7",
+      "relation": "satisfies",
+      "reasoning": "The code element C_ok_arraydelete implements the correct heap allocation and deallocation pattern mandated by MISRA-CPP-2023-Rule-22.7. It allocates a dynamic array using `new int[10]` (array allocation form) and deallocates using `delete[]` (array deallocation form), ensuring the allocation and deallocation operators match. This matching pairing prevents heap corruption, undefined behavior, and the exploitable vulnerabilities the rule guards against. The element exemplifies compliant code that satisfies Rule 22.7's core requirement: \"When allocated with new[], it must be released with delete[].\""
+    },
+    {
+      "element": "C_ok_unique",
+      "rule": "R22.9",
+      "relation": "satisfies",
+      "reasoning": "C_ok_unique uses std::unique_ptr with exclusive move-semantics ownership, guaranteeing a single heap deallocation via the destructor when the pointer exits scope. This implements the RAII pattern that MISRA-CPP-2023-Rule-22.9 requires: the dynamically allocated int transitions to released state exactly once, with no pathway for double-free (no explicit delete calls, no pointer aliasing, no exception handler overlaps, no missing null guards). The unique_ptr pattern is the canonical example of compliant memory management for this rule."
+    }
+  ],
+  "variance": null
+}
