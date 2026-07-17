@@ -1,0 +1,44 @@
+{
+  "normative": {
+    "heap-allocation": "A program shall not fail to explicitly deallocate heap-obtained storage, as omission permits memory to accumulate and exhaust available resources.",
+    "stack-storage": "A program shall not perform explicit deallocation of stack-allocated storage, since such storage is automatically reclaimed upon scope exit.",
+    "double-release": "A program shall not release the same storage block more than once, as subsequent releases corrupt the allocator metadata and produce undefined behavior.",
+    "use-after-release": "A program shall not access storage after it has been returned to the system, as the allocator may have reassigned that storage to a different purpose.",
+    "dangling-reference": "A program shall not dereference a reference to storage that no longer exists, as the referenced memory location may now be inaccessible or hold unrelated data.",
+    "null-dereference": "A program shall not dereference a null pointer or reference, as such dereferencing accesses unmapped memory and causes immediate failure.",
+    "deallocation-form-mismatch": "A program shall not use scalar deallocation to free array-allocated storage or vice versa, as the deallocation routine expects metadata and layout that match the allocation form.",
+    "wrong-allocator-family": "A program shall not deallocate storage through an allocator family other than the one that performed the original allocation, as each family maintains incompatible pool metadata.",
+    "ownership-transfer-ambiguity": "A program shall not pass a resource across an interface without establishing which side bears responsibility for release, as ambiguity produces either leaks or premature deallocation.",
+    "shared-ownership": "A program implementing shared ownership shall not deallocate a resource prematurely when one owner completes, as other active owners are then using invalid storage.",
+    "lock-not-released": "A program shall not exit any code path while still holding an exclusive lock, as doing so starves or deadlocks other threads waiting for that resource.",
+    "lock-held-across-blocking-call": "A program shall not retain an exclusive lock across a blocking or waiting operation that does not require the lock to be held, as unnecessary lock contention increases deadlock risk and reduces concurrency."
+  },
+  "advisory": {
+    "heap-allocation": "Request memory from the system at runtime when you can't know the size in advance, but you must explicitly return it when done.",
+    "stack-storage": "Declare variables on the stack inside a function, and they're automatically cleaned up the instant the function returns or the block exits.",
+    "double-release": "Never free the same block twice; once it's back in the system, trying to free it again corrupts the heap.",
+    "use-after-release": "Don't read or write a pointer after you've freed it; the memory is no longer yours and may have been reassigned.",
+    "dangling-reference": "Keep references alive only as long as the objects they point to exist; a stale reference can't protect you from accessing destroyed memory.",
+    "null-dereference": "Always check that a pointer is non-null before dereferencing; following null crashes or causes undefined behavior.",
+    "deallocation-form-mismatch": "Use the matching cleanup for how you allocated: delete for new, delete[] for new[], free for malloc—mismatched forms corrupt the heap.",
+    "wrong-allocator-family": "Don't mix allocator families; memory from malloc belongs with free, and memory from new belongs with delete, never the reverse.",
+    "ownership-transfer-ambiguity": "Be explicit at API boundaries about who owns and must release a resource; silence breeds leaks and double-frees.",
+    "shared-ownership": "When multiple independent code paths hold the same resource, use reference counting or a shared_ptr so it's released only after the last user is done.",
+    "lock-not-released": "Always release a lock on every code path that acquires it, including error handlers; forgetting even one path deadlocks your program.",
+    "lock-held-across-blocking-call": "Don't hold a lock during a sleep, I/O, or network call; you'll starve other threads and hold the lock far longer than necessary."
+  },
+  "reference": {
+    "heap-allocation": "Storage for data is allocated dynamically at runtime for a quantity specified during program execution, and the program must explicitly deallocate it.",
+    "stack-storage": "Storage for data is created automatically upon entry to a scope and is automatically reclaimed when that scope is exited.",
+    "double-release": "The same block of allocated storage is deallocated multiple times, returning it to the system's memory manager on two or more separate occasions.",
+    "use-after-release": "Allocated storage is read from or written to after it has been deallocated and returned to the system.",
+    "dangling-reference": "A reference or pointer is dereferenced to access storage that has already been deallocated or destroyed.",
+    "null-dereference": "A pointer that does not designate any valid address is dereferenced, attempting to access storage through an invalid reference.",
+    "deallocation-form-mismatch": "Storage allocated for an array is deallocated using scalar deallocation, or storage allocated for a scalar is deallocated using array deallocation.",
+    "wrong-allocator-family": "Storage obtained from one allocation facility (such as malloc or new) is deallocated through a different, incompatible facility (such as free or delete).",
+    "ownership-transfer-ambiguity": "When a resource is transferred across a function or module boundary, it is ambiguous which party is responsible for deallocating it.",
+    "shared-ownership": "Multiple independent parts of a program hold references to a single resource, and the resource persists until all parts have relinquished their references.",
+    "lock-not-released": "A thread acquires a lock protecting a critical section but fails to release it on at least one execution path.",
+    "lock-held-across-blocking-call": "A thread retains a lock while performing a blocking operation, such as I/O or inter-thread synchronization, that does not require the lock to be held."
+  }
+}

@@ -1,0 +1,1340 @@
+{
+  "generatedFrom": "concept-resolution.ts",
+  "stage1": {
+    "n": 36,
+    "embRecall1": 0.3888888888888889,
+    "embRecall3": 0.6944444444444444,
+    "bmRecall1": 0.6944444444444444,
+    "bmRecall3": 0.8888888888888888,
+    "gapCount": 11,
+    "embRecall1_gap": 0.2727272727272727,
+    "embRecall3_gap": 0.6363636363636364,
+    "embRecall1_shared": 0.44,
+    "void": false,
+    "barGapPass": false,
+    "barMarginPass": false
+  },
+  "stage2": {
+    "nPairs": 66,
+    "adjudicator": {
+      "all": {
+        "tp": 34,
+        "fn": 2,
+        "fp": 1,
+        "tn": 29,
+        "recall": 0.9444444444444444,
+        "spec": 0.9666666666666667,
+        "ba": 0.9555555555555555
+      },
+      "nearmiss": {
+        "tp": 0,
+        "fn": 0,
+        "fp": 1,
+        "tn": 17,
+        "recall": 0,
+        "spec": 0.9444444444444444,
+        "ba": 0.4722222222222222
+      },
+      "far": {
+        "tp": 0,
+        "fn": 0,
+        "fp": 0,
+        "tn": 12,
+        "recall": 0,
+        "spec": 1,
+        "ba": 0.5
+      }
+    },
+    "cosThreshold": {
+      "bestT": 0.6170073883095858,
+      "bestBA": 0.7361111111111112,
+      "bestNearSpec": 0.3333333333333333
+    },
+    "barMarginPass": true,
+    "barNearSpecPass": true
+  },
+  "stage1Pass": false,
+  "stage2Pass": true,
+  "q1": [
+    {
+      "key": "heap-allocation::normative",
+      "mech": "heap-allocation",
+      "embTop": [
+        "stack-storage::normative",
+        "dangling-reference::normative",
+        "wrong-allocator-family::normative"
+      ],
+      "bmTop": [
+        "heap-allocation::reference",
+        "heap-allocation::advisory",
+        "shared-ownership::normative"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "heap-allocation::advisory",
+      "mech": "heap-allocation",
+      "embTop": [
+        "use-after-release::reference",
+        "use-after-release::normative",
+        "dangling-reference::normative"
+      ],
+      "bmTop": [
+        "heap-allocation::reference",
+        "heap-allocation::normative",
+        "use-after-release::advisory"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "heap-allocation::reference",
+      "mech": "heap-allocation",
+      "embTop": [
+        "deallocation-form-mismatch::reference",
+        "deallocation-form-mismatch::normative",
+        "stack-storage::normative"
+      ],
+      "bmTop": [
+        "heap-allocation::normative",
+        "heap-allocation::advisory",
+        "dangling-reference::normative"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "stack-storage::normative",
+      "mech": "stack-storage",
+      "embTop": [
+        "deallocation-form-mismatch::normative",
+        "heap-allocation::normative",
+        "wrong-allocator-family::normative"
+      ],
+      "bmTop": [
+        "stack-storage::reference",
+        "deallocation-form-mismatch::reference",
+        "deallocation-form-mismatch::normative"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "stack-storage::advisory",
+      "mech": "stack-storage",
+      "embTop": [
+        "deallocation-form-mismatch::advisory",
+        "stack-storage::reference",
+        "stack-storage::normative"
+      ],
+      "bmTop": [
+        "stack-storage::normative",
+        "stack-storage::reference",
+        "ownership-transfer-ambiguity::reference"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "stack-storage::reference",
+      "mech": "stack-storage",
+      "embTop": [
+        "heap-allocation::reference",
+        "stack-storage::normative",
+        "stack-storage::advisory"
+      ],
+      "bmTop": [
+        "stack-storage::normative",
+        "heap-allocation::reference",
+        "dangling-reference::normative"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "double-release::normative",
+      "mech": "double-release",
+      "embTop": [
+        "wrong-allocator-family::normative",
+        "use-after-release::normative",
+        "dangling-reference::normative"
+      ],
+      "bmTop": [
+        "double-release::advisory",
+        "wrong-allocator-family::normative",
+        "null-dereference::advisory"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "double-release::advisory",
+      "mech": "double-release",
+      "embTop": [
+        "double-release::normative",
+        "deallocation-form-mismatch::advisory",
+        "double-release::reference"
+      ],
+      "bmTop": [
+        "double-release::normative",
+        "double-release::reference",
+        "wrong-allocator-family::advisory"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "double-release::reference",
+      "mech": "double-release",
+      "embTop": [
+        "stack-storage::normative",
+        "use-after-release::reference",
+        "deallocation-form-mismatch::reference"
+      ],
+      "bmTop": [
+        "use-after-release::reference",
+        "double-release::advisory",
+        "deallocation-form-mismatch::reference"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": false,
+      "bmR3": true,
+      "gap": true
+    },
+    {
+      "key": "use-after-release::normative",
+      "mech": "use-after-release",
+      "embTop": [
+        "wrong-allocator-family::normative",
+        "dangling-reference::normative",
+        "double-release::normative"
+      ],
+      "bmTop": [
+        "use-after-release::reference",
+        "use-after-release::advisory",
+        "dangling-reference::reference"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "use-after-release::advisory",
+      "mech": "use-after-release",
+      "embTop": [
+        "dangling-reference::reference",
+        "null-dereference::normative",
+        "dangling-reference::normative"
+      ],
+      "bmTop": [
+        "lock-held-across-blocking-call::advisory",
+        "use-after-release::reference",
+        "use-after-release::normative"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": false,
+      "bmR3": true,
+      "gap": true
+    },
+    {
+      "key": "use-after-release::reference",
+      "mech": "use-after-release",
+      "embTop": [
+        "stack-storage::normative",
+        "use-after-release::normative",
+        "double-release::reference"
+      ],
+      "bmTop": [
+        "use-after-release::normative",
+        "double-release::reference",
+        "deallocation-form-mismatch::reference"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "dangling-reference::normative",
+      "mech": "dangling-reference",
+      "embTop": [
+        "null-dereference::normative",
+        "dangling-reference::reference",
+        "null-dereference::reference"
+      ],
+      "bmTop": [
+        "null-dereference::normative",
+        "lock-held-across-blocking-call::advisory",
+        "heap-allocation::reference"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": false,
+      "bmR3": false,
+      "gap": true
+    },
+    {
+      "key": "dangling-reference::advisory",
+      "mech": "dangling-reference",
+      "embTop": [
+        "dangling-reference::reference",
+        "dangling-reference::normative",
+        "shared-ownership::reference"
+      ],
+      "bmTop": [
+        "dangling-reference::reference",
+        "heap-allocation::advisory",
+        "shared-ownership::reference"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "dangling-reference::reference",
+      "mech": "dangling-reference",
+      "embTop": [
+        "null-dereference::reference",
+        "dangling-reference::normative",
+        "null-dereference::normative"
+      ],
+      "bmTop": [
+        "null-dereference::reference",
+        "dangling-reference::advisory",
+        "deallocation-form-mismatch::reference"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": false,
+      "bmR3": true,
+      "gap": true
+    },
+    {
+      "key": "null-dereference::normative",
+      "mech": "null-dereference",
+      "embTop": [
+        "null-dereference::advisory",
+        "dangling-reference::normative",
+        "null-dereference::reference"
+      ],
+      "bmTop": [
+        "null-dereference::advisory",
+        "dangling-reference::normative",
+        "dangling-reference::reference"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "null-dereference::advisory",
+      "mech": "null-dereference",
+      "embTop": [
+        "null-dereference::normative",
+        "null-dereference::reference",
+        "dangling-reference::reference"
+      ],
+      "bmTop": [
+        "null-dereference::normative",
+        "double-release::normative",
+        "lock-not-released::advisory"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "null-dereference::reference",
+      "mech": "null-dereference",
+      "embTop": [
+        "dangling-reference::reference",
+        "dangling-reference::normative",
+        "null-dereference::normative"
+      ],
+      "bmTop": [
+        "dangling-reference::reference",
+        "null-dereference::normative",
+        "use-after-release::normative"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": false,
+      "bmR3": true,
+      "gap": true
+    },
+    {
+      "key": "deallocation-form-mismatch::normative",
+      "mech": "deallocation-form-mismatch",
+      "embTop": [
+        "deallocation-form-mismatch::reference",
+        "stack-storage::normative",
+        "wrong-allocator-family::normative"
+      ],
+      "bmTop": [
+        "deallocation-form-mismatch::reference",
+        "wrong-allocator-family::normative",
+        "stack-storage::normative"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "deallocation-form-mismatch::advisory",
+      "mech": "deallocation-form-mismatch",
+      "embTop": [
+        "wrong-allocator-family::advisory",
+        "wrong-allocator-family::reference",
+        "stack-storage::advisory"
+      ],
+      "bmTop": [
+        "wrong-allocator-family::reference",
+        "wrong-allocator-family::advisory",
+        "double-release::advisory"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": false,
+      "bmR3": false,
+      "gap": true
+    },
+    {
+      "key": "deallocation-form-mismatch::reference",
+      "mech": "deallocation-form-mismatch",
+      "embTop": [
+        "deallocation-form-mismatch::normative",
+        "stack-storage::normative",
+        "heap-allocation::reference"
+      ],
+      "bmTop": [
+        "deallocation-form-mismatch::normative",
+        "use-after-release::reference",
+        "stack-storage::normative"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "wrong-allocator-family::normative",
+      "mech": "wrong-allocator-family",
+      "embTop": [
+        "use-after-release::normative",
+        "double-release::normative",
+        "stack-storage::normative"
+      ],
+      "bmTop": [
+        "wrong-allocator-family::reference",
+        "double-release::normative",
+        "shared-ownership::normative"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "wrong-allocator-family::advisory",
+      "mech": "wrong-allocator-family",
+      "embTop": [
+        "deallocation-form-mismatch::advisory",
+        "wrong-allocator-family::normative",
+        "wrong-allocator-family::reference"
+      ],
+      "bmTop": [
+        "deallocation-form-mismatch::advisory",
+        "wrong-allocator-family::reference",
+        "double-release::advisory"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": false,
+      "bmR3": true,
+      "gap": true
+    },
+    {
+      "key": "wrong-allocator-family::reference",
+      "mech": "wrong-allocator-family",
+      "embTop": [
+        "wrong-allocator-family::advisory",
+        "deallocation-form-mismatch::normative",
+        "stack-storage::normative"
+      ],
+      "bmTop": [
+        "deallocation-form-mismatch::advisory",
+        "wrong-allocator-family::advisory",
+        "wrong-allocator-family::normative"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": false,
+      "bmR3": true,
+      "gap": true
+    },
+    {
+      "key": "ownership-transfer-ambiguity::normative",
+      "mech": "ownership-transfer-ambiguity",
+      "embTop": [
+        "ownership-transfer-ambiguity::reference",
+        "ownership-transfer-ambiguity::advisory",
+        "shared-ownership::normative"
+      ],
+      "bmTop": [
+        "ownership-transfer-ambiguity::advisory",
+        "ownership-transfer-ambiguity::reference",
+        "deallocation-form-mismatch::normative"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "ownership-transfer-ambiguity::advisory",
+      "mech": "ownership-transfer-ambiguity",
+      "embTop": [
+        "ownership-transfer-ambiguity::normative",
+        "shared-ownership::normative",
+        "lock-not-released::advisory"
+      ],
+      "bmTop": [
+        "ownership-transfer-ambiguity::normative",
+        "stack-storage::normative",
+        "shared-ownership::reference"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "ownership-transfer-ambiguity::reference",
+      "mech": "ownership-transfer-ambiguity",
+      "embTop": [
+        "ownership-transfer-ambiguity::normative",
+        "wrong-allocator-family::reference",
+        "heap-allocation::reference"
+      ],
+      "bmTop": [
+        "stack-storage::advisory",
+        "ownership-transfer-ambiguity::normative",
+        "shared-ownership::reference"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": false,
+      "bmR3": true,
+      "gap": true
+    },
+    {
+      "key": "shared-ownership::normative",
+      "mech": "shared-ownership",
+      "embTop": [
+        "wrong-allocator-family::normative",
+        "stack-storage::normative",
+        "heap-allocation::normative"
+      ],
+      "bmTop": [
+        "wrong-allocator-family::normative",
+        "lock-not-released::normative",
+        "heap-allocation::reference"
+      ],
+      "embR1": false,
+      "embR3": false,
+      "bmR1": false,
+      "bmR3": false,
+      "gap": true
+    },
+    {
+      "key": "shared-ownership::advisory",
+      "mech": "shared-ownership",
+      "embTop": [
+        "shared-ownership::reference",
+        "lock-not-released::advisory",
+        "lock-not-released::normative"
+      ],
+      "bmTop": [
+        "shared-ownership::reference",
+        "double-release::reference",
+        "shared-ownership::normative"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "shared-ownership::reference",
+      "mech": "shared-ownership",
+      "embTop": [
+        "shared-ownership::advisory",
+        "dangling-reference::normative",
+        "lock-not-released::normative"
+      ],
+      "bmTop": [
+        "shared-ownership::advisory",
+        "dangling-reference::normative",
+        "lock-held-across-blocking-call::advisory"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "lock-not-released::normative",
+      "mech": "lock-not-released",
+      "embTop": [
+        "lock-held-across-blocking-call::normative",
+        "lock-not-released::advisory",
+        "lock-not-released::reference"
+      ],
+      "bmTop": [
+        "lock-not-released::advisory",
+        "lock-held-across-blocking-call::normative",
+        "lock-held-across-blocking-call::advisory"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "lock-not-released::advisory",
+      "mech": "lock-not-released",
+      "embTop": [
+        "lock-not-released::normative",
+        "lock-held-across-blocking-call::normative",
+        "lock-not-released::reference"
+      ],
+      "bmTop": [
+        "lock-not-released::normative",
+        "lock-not-released::reference",
+        "lock-held-across-blocking-call::normative"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "lock-not-released::reference",
+      "mech": "lock-not-released",
+      "embTop": [
+        "lock-held-across-blocking-call::reference",
+        "lock-not-released::normative",
+        "lock-not-released::advisory"
+      ],
+      "bmTop": [
+        "lock-not-released::advisory",
+        "lock-held-across-blocking-call::reference",
+        "lock-not-released::normative"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "lock-held-across-blocking-call::normative",
+      "mech": "lock-held-across-blocking-call",
+      "embTop": [
+        "lock-not-released::normative",
+        "lock-held-across-blocking-call::reference",
+        "lock-not-released::advisory"
+      ],
+      "bmTop": [
+        "lock-held-across-blocking-call::reference",
+        "lock-not-released::normative",
+        "ownership-transfer-ambiguity::normative"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    },
+    {
+      "key": "lock-held-across-blocking-call::advisory",
+      "mech": "lock-held-across-blocking-call",
+      "embTop": [
+        "lock-held-across-blocking-call::reference",
+        "lock-not-released::normative",
+        "lock-held-across-blocking-call::normative"
+      ],
+      "bmTop": [
+        "use-after-release::advisory",
+        "lock-not-released::normative",
+        "dangling-reference::normative"
+      ],
+      "embR1": true,
+      "embR3": true,
+      "bmR1": false,
+      "bmR3": false,
+      "gap": true
+    },
+    {
+      "key": "lock-held-across-blocking-call::reference",
+      "mech": "lock-held-across-blocking-call",
+      "embTop": [
+        "lock-not-released::reference",
+        "lock-held-across-blocking-call::normative",
+        "lock-held-across-blocking-call::advisory"
+      ],
+      "bmTop": [
+        "lock-held-across-blocking-call::normative",
+        "lock-not-released::reference",
+        "lock-held-across-blocking-call::advisory"
+      ],
+      "embR1": false,
+      "embR3": true,
+      "bmR1": true,
+      "bmR3": true,
+      "gap": false
+    }
+  ],
+  "judged": [
+    {
+      "a": "heap-allocation::normative",
+      "b": "heap-allocation::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the same underlying mechanism—explicit manual heap memory management where allocations must be matched with deallocations; A warns of the consequence of omitting deallocation (leak), while B prescribes the correct practice.",
+      "cos": 0.637855397741924
+    },
+    {
+      "a": "heap-allocation::normative",
+      "b": "heap-allocation::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the same underlying mechanism: dynamically allocated memory requires explicit deallocation, with A framing it as the defect (failure to deallocate) and B framing it as the requirement (must deallocate).",
+      "cos": 0.6967840824245896
+    },
+    {
+      "a": "heap-allocation::advisory",
+      "b": "heap-allocation::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe dynamic memory allocation where size/quantity is determined at runtime and requires explicit deallocation—they are synonymous descriptions of the same mechanism.",
+      "cos": 0.6177872910355194
+    },
+    {
+      "a": "stack-storage::normative",
+      "b": "stack-storage::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the same underlying mechanism—automatic scope-based stack memory reclamation—though A frames it as a prohibition (don't deallocate) and B frames it as a natural behavior (cleanup happens automatically).",
+      "cos": 0.648067503020711
+    },
+    {
+      "a": "stack-storage::normative",
+      "b": "stack-storage::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the same underlying mechanism: automatic scope-based lifetime management of stack storage; A prescribes against violating it (explicit deallocation), B describes how the mechanism functions.",
+      "cos": 0.7080938127780204
+    },
+    {
+      "a": "stack-storage::advisory",
+      "b": "stack-storage::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the same scope-based automatic lifetime management in C++: resources are automatically acquired/allocated on entry and released/destroyed on exit, regardless of whether the focus is on stack variables or the general storage principle.",
+      "cos": 0.6773925329463965
+    },
+    {
+      "a": "double-release::normative",
+      "b": "double-release::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the identical double-free defect: deallocating the same memory block twice corrupts allocator metadata/heap structures and produces undefined behavior.",
+      "cos": 0.700402817519569
+    },
+    {
+      "a": "double-release::normative",
+      "b": "double-release::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the identical defect: multiple releases of the same memory block (double-free); A prescribes against it, B describes the harmful action, but the underlying mechanism is the same.",
+      "cos": 0.7223388305020845
+    },
+    {
+      "a": "double-release::advisory",
+      "b": "double-release::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the same defect: double-free (deallocating the same memory block more than once). Description A warns against the action and its consequence; Description B describes the action itself.",
+      "cos": 0.6703291601667143
+    },
+    {
+      "a": "use-after-release::normative",
+      "b": "use-after-release::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe use-after-free: accessing memory after deallocation/freeing, when the allocator may have reassigned it to another purpose.",
+      "cos": 0.6501186874204808
+    },
+    {
+      "a": "use-after-release::normative",
+      "b": "use-after-release::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe use-after-free: A prescribes the prohibition, B describes the violation when that prohibition is breached.",
+      "cos": 0.7620785692754551
+    },
+    {
+      "a": "use-after-release::advisory",
+      "b": "use-after-release::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe use-after-free: reading or writing memory after deallocation; the phrasing differs (prescriptive vs. descriptive) but the underlying defect is identical.",
+      "cos": 0.6609950676962084
+    },
+    {
+      "a": "dangling-reference::normative",
+      "b": "dangling-reference::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe use-after-free: dereferencing a reference to destroyed storage; A frames it as an action to avoid, B as a lifetime invariant, but the underlying defect is identical.",
+      "cos": 0.7232321146579448
+    },
+    {
+      "a": "dangling-reference::normative",
+      "b": "dangling-reference::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe dereferencing a dangling pointer/reference (use-after-free); A is the normative prohibition, B is the operative violation.",
+      "cos": 0.8176143967392325
+    },
+    {
+      "a": "dangling-reference::advisory",
+      "b": "dangling-reference::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe use-after-free: A explains the reference lifetime principle; B describes the concrete defect when that principle is violated.",
+      "cos": 0.7311976376541083
+    },
+    {
+      "a": "null-dereference::normative",
+      "b": "null-dereference::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe null pointer dereference as the defect; A characterizes the failure, B prescribes the prevention.",
+      "cos": 0.8459252392095831
+    },
+    {
+      "a": "null-dereference::normative",
+      "b": "null-dereference::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe dereferencing an invalid pointer to access unmapped memory; Description A narrows the scope to null pointers specifically, while Description B generalizes to any pointer without a valid address—but the underlying mechanism is identical.",
+      "cos": 0.7966828872828388
+    },
+    {
+      "a": "null-dereference::advisory",
+      "b": "null-dereference::reference",
+      "kind": "true",
+      "gt": true,
+      "same": false,
+      "reasoning": "Description A prescribes a preventative measure (checking before dereferencing), while Description B describes the defective action itself (dereferencing an invalid pointer); they are cause-and-effect, not the same mechanism.",
+      "cos": 0.7061339810988945
+    },
+    {
+      "a": "deallocation-form-mismatch::normative",
+      "b": "deallocation-form-mismatch::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the same underlying defect: deallocators must match allocators because the deallocation routine's behavior (metadata reading, destructor calls, heap algorithm) depends on the allocation form, and mismatch causes heap corruption.",
+      "cos": 0.6311426884892519
+    },
+    {
+      "a": "deallocation-form-mismatch::normative",
+      "b": "deallocation-form-mismatch::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the identical defect: mismatched allocation/deallocation forms (delete vs delete[]); A prescribes the prohibition, B describes the violation.",
+      "cos": 0.8920906946551457
+    },
+    {
+      "a": "deallocation-form-mismatch::advisory",
+      "b": "deallocation-form-mismatch::reference",
+      "kind": "true",
+      "gt": true,
+      "same": false,
+      "reasoning": "Description A covers three distinct families (new/delete, new[]/delete[], malloc/free) with different technical corruption mechanisms; Description B specifies only the C++ array/scalar mismatch within new/new[]/delete/delete[], where corruption involves size-metadata or constructor/destructor count misalignment—a narrower subset with a specific technical cause distinct from malloc/free mismatches.",
+      "cos": 0.6170073883095858
+    },
+    {
+      "a": "wrong-allocator-family::normative",
+      "b": "wrong-allocator-family::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both prohibit mismatching allocator and deallocator families due to incompatible internal metadata; A explains the mechanism, B illustrates with concrete pairs (malloc↔free, new↔delete), but describe the identical defect.",
+      "cos": 0.7568878467441283
+    },
+    {
+      "a": "wrong-allocator-family::normative",
+      "b": "wrong-allocator-family::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the identical defect: mismatched allocator families (A as preventive rule, B as the violation manifestation); the underlying mechanism—incompatible pool metadata corruption—is the same.",
+      "cos": 0.704379288082877
+    },
+    {
+      "a": "wrong-allocator-family::advisory",
+      "b": "wrong-allocator-family::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the identical defect: deallocating memory through a different facility than the one used to allocate it; A prescribes the rule to avoid it, B describes the violation itself.",
+      "cos": 0.751328918056203
+    },
+    {
+      "a": "ownership-transfer-ambiguity::normative",
+      "b": "ownership-transfer-ambiguity::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the same defect: unclear ownership semantics at interface/API boundaries, with the consequence being resource mismanagement (leaks, premature deallocation, double-frees are all manifestations of the same ambiguity).",
+      "cos": 0.7517778421350461
+    },
+    {
+      "a": "ownership-transfer-ambiguity::normative",
+      "b": "ownership-transfer-ambiguity::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe ambiguous resource ownership at interface boundaries; A prescribes the prevention and warns of consequences (leaks/premature deallocation), while B identifies the core problem state (ambiguity itself).",
+      "cos": 0.7710968764299166
+    },
+    {
+      "a": "ownership-transfer-ambiguity::advisory",
+      "b": "ownership-transfer-ambiguity::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the failure to establish explicit ownership semantics at resource boundaries; A prescribes the fix (be explicit) while B names the resulting problem state (ambiguous deallocation responsibility), but the underlying defect is identical.",
+      "cos": 0.6087670376575887
+    },
+    {
+      "a": "shared-ownership::normative",
+      "b": "shared-ownership::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe preventing use-after-free from premature deallocation in shared-ownership; A states the requirement, B names the solution mechanism (reference counting/shared_ptr).",
+      "cos": 0.6589569212470748
+    },
+    {
+      "a": "shared-ownership::normative",
+      "b": "shared-ownership::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe shared ownership / reference counting: A depicts the failure mode (premature deallocation breaking the contract), B depicts the correct behavior (resource lifetime tied to active references)—two sides of the same mechanism.",
+      "cos": 0.6893519359695273
+    },
+    {
+      "a": "shared-ownership::advisory",
+      "b": "shared-ownership::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe shared ownership: A prescribes the pattern (reference counting / shared_ptr), B describes the resulting behavior (resource persists until all holders release it); they are the same mechanism viewed from different angles.",
+      "cos": 0.7771798685535539
+    },
+    {
+      "a": "lock-not-released::normative",
+      "b": "lock-not-released::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the identical defect—failing to release an acquired lock on some code path (especially error handlers)—just from different angles: A states the prohibited outcome (exit holding), B prescribes the preventive practice (release on all paths including errors).",
+      "cos": 0.8386979275029821
+    },
+    {
+      "a": "lock-not-released::normative",
+      "b": "lock-not-released::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the identical defect: execution exiting a code path without releasing an acquired lock; A is the normative rule, B is the concrete failure mode when that rule is violated.",
+      "cos": 0.7700585432146572
+    },
+    {
+      "a": "lock-not-released::advisory",
+      "b": "lock-not-released::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the identical defect: a lock acquired on one or more execution paths is not released on at least one of those paths. Description A frames it as a principle to follow; Description B frames it as the failure mode that results from violating that principle.",
+      "cos": 0.7677730076534106
+    },
+    {
+      "a": "lock-held-across-blocking-call::normative",
+      "b": "lock-held-across-blocking-call::advisory",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both prohibit the same defect (holding a lock during a blocking operation where the lock is not needed); they differ only in specificity (A is general, B lists examples) and consequence framing (A emphasizes deadlock risk and contention, B emphasizes starvation and duration), but the root mechanism is identical.",
+      "cos": 0.7299649682452891
+    },
+    {
+      "a": "lock-held-across-blocking-call::normative",
+      "b": "lock-held-across-blocking-call::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the same defect—holding a lock during a non-essential blocking operation—differing only in modality: A prescribes against it (normative), B describes its occurrence (descriptive).",
+      "cos": 0.7931722779313966
+    },
+    {
+      "a": "lock-held-across-blocking-call::advisory",
+      "b": "lock-held-across-blocking-call::reference",
+      "kind": "true",
+      "gt": true,
+      "same": true,
+      "reasoning": "Both describe the same defect: unnecessarily holding a lock during a blocking operation (sleep, I/O, network, or synchronization) that does not require the lock to be held, causing thread starvation and prolonged lock contention.",
+      "cos": 0.7885968004081773
+    },
+    {
+      "a": "heap-allocation::normative",
+      "b": "stack-storage::advisory",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes a defect (heap memory persisting due to omitted explicit deallocation); B describes a language mechanism (automatic stack cleanup)—opposite sides of memory management, not the same underlying issue.",
+      "cos": 0.5635764535913445
+    },
+    {
+      "a": "heap-allocation::normative",
+      "b": "stack-storage::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "Description A describes the defect (failure to explicitly deallocate heap memory → leak); Description B describes the mechanism that prevents it (automatic scope-exit cleanup via RAII) — they address the same problem but are distinct concepts.",
+      "cos": 0.5798440788917305
+    },
+    {
+      "a": "heap-allocation::advisory",
+      "b": "stack-storage::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes manual heap allocation (explicit deallocation required, error-prone); B describes automatic scope-based management (RAII), which is the solution to A's defects.",
+      "cos": 0.6005851920122282
+    },
+    {
+      "a": "double-release::normative",
+      "b": "use-after-release::advisory",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes double-free (releasing the same block twice); B describes use-after-free (accessing a block after a single release). Different defects, different triggering conditions, different consequences.",
+      "cos": 0.609936834013203
+    },
+    {
+      "a": "double-release::normative",
+      "b": "use-after-release::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "Description A describes double-free (releasing the same block twice), while Description B describes use-after-free (reading/writing after deallocation); they are distinct memory safety defects with different causes and manifestations.",
+      "cos": 0.6417501833350427
+    },
+    {
+      "a": "double-release::advisory",
+      "b": "use-after-release::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "Description A is double-free (calling free() twice on the same block), while Description B is use-after-free (reading/writing freed memory); they are distinct defect mechanisms with different operational causes.",
+      "cos": 0.5400730538466947
+    },
+    {
+      "a": "dangling-reference::normative",
+      "b": "null-dereference::advisory",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "Description A addresses use-after-free / dangling references (temporal validity: memory was valid, is no longer), while Description B addresses null pointer dereference (initialization: memory never held a valid address or was explicitly nullified), which are distinct defect mechanisms with different root causes.",
+      "cos": 0.6482881396689233
+    },
+    {
+      "a": "dangling-reference::normative",
+      "b": "null-dereference::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A specifically describes temporal invalidation (storage that existed then ceased to exist; use-after-free), while B describes any invalid pointer state regardless of prior validity (includes uninitialized pointers, which never pointed to valid storage).",
+      "cos": 0.806410608383986
+    },
+    {
+      "a": "dangling-reference::advisory",
+      "b": "null-dereference::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes the specific lifetime mechanism (reference outlives destroyed object, creating staleness), while B describes the general action of dereferencing any invalid pointer regardless of cause (null, garbage, or stale).",
+      "cos": 0.6778229135471731
+    },
+    {
+      "a": "deallocation-form-mismatch::normative",
+      "b": "wrong-allocator-family::advisory",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes scalar/array metadata mismatch within C++'s new/delete system; B describes cross-system allocator mismatch (malloc/free vs new/delete), arising from different root causes despite both involving allocation/deallocation contract violations.",
+      "cos": 0.6765199495389366
+    },
+    {
+      "a": "deallocation-form-mismatch::normative",
+      "b": "wrong-allocator-family::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "Description A addresses mismatched scalar/array deallocation operators within the same facility (new vs new[], delete vs delete[]), while Description B addresses mixing fundamentally different allocation facilities (malloc/free vs new/delete), which use incompatible memory management and metadata structures.",
+      "cos": 0.7508143489243018
+    },
+    {
+      "a": "deallocation-form-mismatch::advisory",
+      "b": "wrong-allocator-family::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": true,
+      "reasoning": "Both describe the single defect of heap corruption caused by deallocating memory through an incompatible facility; A prescribes the correct pairing rule, B characterizes what happens when it is violated.",
+      "cos": 0.7124426618657851
+    },
+    {
+      "a": "ownership-transfer-ambiguity::normative",
+      "b": "shared-ownership::advisory",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes ambiguous ownership transfer across interface boundaries (solved by move semantics or scoped pointers); B describes the case where multiple simultaneous holders must share a resource (solved by reference counting or shared_ptr)—distinct problems requiring different solutions.",
+      "cos": 0.6538039671740634
+    },
+    {
+      "a": "ownership-transfer-ambiguity::normative",
+      "b": "shared-ownership::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes a defect (ambiguous ownership causing leaks or premature deallocation); B describes a solution mechanism (reference counting with shared ownership that automatically manages lifetime).",
+      "cos": 0.6602126514890917
+    },
+    {
+      "a": "ownership-transfer-ambiguity::advisory",
+      "b": "shared-ownership::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A prescribes explicit single-owner clarity at boundaries; B describes reference-counted shared ownership—opposite resource-lifetime models.",
+      "cos": 0.6161966370386653
+    },
+    {
+      "a": "lock-not-released::normative",
+      "b": "lock-held-across-blocking-call::advisory",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes failure to release a lock (resource leak leading to indefinite starvation/deadlock), while B describes holding a lock during long-running operations (poor critical section design leading to extended but temporary starvation); both cause starvation but have distinct root causes requiring different fixes (RAII/exception safety vs. critical section restructuring).",
+      "cos": 0.7421040235391381
+    },
+    {
+      "a": "lock-not-released::normative",
+      "b": "lock-held-across-blocking-call::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes lock abandonment on thread exit (never released), while B describes unnecessarily prolonged lock duration during unrelated blocking operations (eventually released but held too long)—different mechanisms and failure modes.",
+      "cos": 0.7638228621064547
+    },
+    {
+      "a": "lock-not-released::advisory",
+      "b": "lock-held-across-blocking-call::reference",
+      "kind": "nearmiss",
+      "gt": false,
+      "same": false,
+      "reasoning": "Description A describes failure to release a lock on all code paths (asymmetric acquire/release), while Description B describes holding a lock unnecessarily long during operations that don't require it (over-broad lock scope)—both cause deadlock but are distinct defects.",
+      "cos": 0.6889142300442258
+    },
+    {
+      "a": "heap-allocation::normative",
+      "b": "null-dereference::advisory",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "Description A addresses memory leaks (allocated but unfreed heap memory); Description B addresses null pointer dereferences—fundamentally different defects with different causes and runtime consequences.",
+      "cos": 0.5209544023830592
+    },
+    {
+      "a": "stack-storage::normative",
+      "b": "deallocation-form-mismatch::reference",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "A prohibits manual deallocation of scope-managed (stack) memory; B prohibits mismatched allocation/deallocation methods (new[] with delete or vice versa)—distinct defect categories.",
+      "cos": 0.7618276335616209
+    },
+    {
+      "a": "double-release::advisory",
+      "b": "wrong-allocator-family::reference",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "A is a double-free defect (same block deallocated twice); B is a mismatched allocator/deallocator (wrong deallocator on a single deallocation) — distinct corruption mechanisms.",
+      "cos": 0.5988370953761044
+    },
+    {
+      "a": "use-after-release::normative",
+      "b": "ownership-transfer-ambiguity::advisory",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes use-after-free (accessing deallocated storage); B describes unclear ownership semantics that leads to leaks and double-frees—distinct defect categories despite both being memory-safety issues.",
+      "cos": 0.5303390441612814
+    },
+    {
+      "a": "dangling-reference::normative",
+      "b": "shared-ownership::reference",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes a defect (use-after-free/dangling reference), while B describes a lifecycle mechanism (reference counting) that prevents A from occurring.",
+      "cos": 0.7056733435380619
+    },
+    {
+      "a": "null-dereference::advisory",
+      "b": "lock-not-released::reference",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "Description A is a memory safety defect (invalid pointer dereference); Description B is a resource management/synchronization defect (unreleased lock on an execution path)—distinct underlying failure modes requiring different mitigations.",
+      "cos": 0.540413076403372
+    },
+    {
+      "a": "deallocation-form-mismatch::normative",
+      "b": "lock-held-across-blocking-call::advisory",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes a memory allocation/deallocation type mismatch (heap metadata); B describes a thread-scheduling and lock-contention defect (synchronization strategy)—entirely different mechanisms.",
+      "cos": 0.44432592721178366
+    },
+    {
+      "a": "wrong-allocator-family::normative",
+      "b": "heap-allocation::reference",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "A specifies allocator-family mismatch (incompatible metadata handling), while B describes the general requirement for explicit runtime deallocation—distinct defect categories (wrong deallocator vs. missing deallocation).",
+      "cos": 0.6804984229097563
+    },
+    {
+      "a": "ownership-transfer-ambiguity::advisory",
+      "b": "stack-storage::reference",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "A prescribes explicit ownership documentation (manual responsibility); B prescribes automatic scope-based management (RAII)—opposing mechanisms for the same problem class.",
+      "cos": 0.5675864282284845
+    },
+    {
+      "a": "shared-ownership::normative",
+      "b": "double-release::advisory",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "Description A is a shared-ownership protocol violation (one owner frees while others hold pointers → use-after-free); Description B is a memory-allocation violation (the same block deallocated twice → double-free); distinct defects with different root causes, though A can *enable* B in poorly-designed shared systems.",
+      "cos": 0.5304903233276276
+    },
+    {
+      "a": "lock-not-released::normative",
+      "b": "use-after-release::reference",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes a synchronization defect (lock not released), B describes a memory-safety defect (use-after-free); they affect orthogonal subsystems and have distinct root causes and remediation.",
+      "cos": 0.5618016507527537
+    },
+    {
+      "a": "lock-held-across-blocking-call::advisory",
+      "b": "dangling-reference::reference",
+      "kind": "far",
+      "gt": false,
+      "same": false,
+      "reasoning": "A describes a concurrency/synchronization defect (lock-hold duration starving threads); B describes a memory safety defect (dereferencing deallocated storage), unrelated mechanisms.",
+      "cos": 0.5186138995621314
+    }
+  ]
+}

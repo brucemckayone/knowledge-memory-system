@@ -114,4 +114,101 @@ validity / floor creep.
 
 # RESULTS (post-run — appended after §1–7 are frozen + committed)
 
-_(pending)_
+**Run:** 12 mechanisms × 3 blind-authored registers = 36 descriptions (frozen
+`concept-authored.json`); 66 adjudication pairs (36 true / 18 near-miss / 12 far).
+Harness `concept-resolution.ts`; robustness `concept-embed-sensitivity.ts` +
+`concept-stage2-lexbaseline.ts`. Blind adversary `ab247…` run before this section.
+**Outcome: Stage 1 FAIL (robust); Stage 2 passed the pre-reg bar but the bar's baseline
+was a strawman — against the HONEST keyword baseline the adjudicator shows a MODEST real
+edge, not the strong capability I first read. Net: neither over-reading is licensed.**
+
+## Numbers
+
+**Stage 1 — embedding vs BM25 recall (concept resolution across prose):**
+| prefix | embedding R@1 | R@3 | BM25 R@1 | gap n | emb R@1 on gap |
+|---|---|---|---|---|---|
+| raw (pre-registered) | 39% | 69% | 72% | 10–11 | 27–30% |
+| search_document: | 44% | 72% | 72% | 10 | 30% |
+| clustering: | 33% | 75% | 72% | 10 | 20% |
+
+Bars: gap R@1 ≥ 70% → **fail** (27%); full-set margin ≥ +0.30 → **fail** (embedding is
+*below* BM25). Not void (≥ 6 gap pairs). **STAGE 1 = FAIL, robust to nomic prefix** — the
+repo's own note (`ml-client.ts`) warns raw-embed degrades recall (a side-test 0.38→0.75
+under prefix), so the prefix sensitivity run was the pre-committed anti-launder check; it
+moved R@1 only 39%→44% (search_document) and *down* to 33% (clustering), nowhere near 72%.
+So the FAIL is NOT a raw-embed artifact.
+
+**Stage 2 — adjudicator vs baselines:**
+| classifier | BA | recall | near-miss spec |
+|---|---|---|---|
+| adjudicator (Haiku) | 0.956 | 94% (34/36) | 94% (17/18) |
+| Jaccard keyword, best-in-hindsight threshold (HONEST baseline, post-hoc) | 0.783 | 83% | 72% |
+| cosine threshold, best-in-hindsight (pre-registered baseline) | 0.736 | — | 33% |
+
+Pre-registered bars (vs cosine): adjudicator BA − cosine BA = +0.219 ≥ +0.10 → pass;
+near-miss spec 94% ≥ 0.70 → pass. **STAGE 2 = PASS against the pre-reg bar.**
+
+## Blind adversary (`ab247…`) — verdict + my independent follow-up
+
+The adversary attacked both claims in both directions; I verified its load-bearing points
+and ran the two settling checks it demanded.
+
+1. **Stage 1 FAIL — SOUND but do not over-generalize.** The adversary flagged the nomic
+   prefix confound hard (cited the repo's 0.38→0.75 note) and said "quarantine until the
+   prefix run returns." It returned: FAIL is robust (above). Licensed: "on this floor the
+   embedding (any nomic prefix) ranks same-mechanism prose below keyword matching." NOT
+   "embeddings are intrinsically the weak leg" (n small, LLM-authored, one domain). On the
+   gap subset BM25 is 0% by construction and embedding recovers only 27% — weak, not "keyword
+   dominates the gap."
+
+2. **Stage 2 — the adversary CORRECTLY cut my strong reading; my follow-up baseline then
+   corrected the adversary's over-pessimism.** Three cuts, all verified:
+   - **Authoring leak in the near-miss siblings.** The blind authors baked the distinction
+     into the surface text (heap "must explicitly return" vs stack "automatically cleaned
+     up"). 13/18 near-miss pairs have Jaccard < 0.06 → mostly keyword-separable. Same
+     docs-15/16 leak, third channel.
+   - **The adjudicator's 2 errors are purely lexical:** it split a TRUE pair at Jaccard
+     0.043/0.059 (deallocation-form-mismatch adv↔ref; null-deref adv↔ref) and merged the one
+     FALSE pair at Jaccard 0.200 (form-mismatch↔wrong-allocator-family) — the single
+     genuinely-overlapping near-miss defeated it. Lexically fragile at the margin.
+   - **The pre-reg baseline was a STRAWMAN** — cosine on the prefix-crippled embeddings
+     (Stage-1's loser); the Stage-1 WINNER (keyword) was never entered. The adversary
+     predicted a keyword baseline would tie the adjudicator.
+   - **I built the missing keyword baseline** (`concept-stage2-lexbaseline.ts`, Jaccard,
+     best-in-hindsight threshold — generous to the baseline). Result: adjudicator BA 0.956
+     vs Jaccard 0.783 = **+0.172**, dominating on BOTH recall (94% vs 83%) and specificity
+     (97% vs 73%), correctly rejecting ~4 confusable near-misses (Jaccard 0.08–0.12) the
+     keyword method merges. So the adjudicator does NOT merely tie lexical matching — there
+     is a small, real sub-lexical signal. The adversary's "not demonstrably beyond lexical"
+     was slightly too pessimistic (it couldn't run the baseline).
+
+## What this run licenses (tight, resisting launder in BOTH directions)
+
+> On this 36-description LLM-authored floor, the embedding path (any nomic prefix) ranked
+> same-mechanism prose BELOW a keyword baseline (Stage-1 FAIL, robust). A Haiku adjudicator
+> beat the honest best-in-hindsight keyword baseline by +0.17 balanced accuracy — dominating
+> both recall and specificity and separating a handful of confusable near-misses keyword
+> overlap merges — a MODEST, real sub-lexical discrimination signal. But the near-miss set is
+> mostly author-contrasted (easy), the adjudicator's only errors are lexical, and n is small
+> — so the run SUGGESTS the LLM discriminates slightly beyond surface tokens; it does NOT
+> establish concept-resolution capability, and it does NOT show embeddings resolve meaning.
+
+BARRED: ✗ "the LLM resolves concept equivalence / reasons about meaning" (over-read — modest,
+easy corpus, lexical failures); ✗ "the adjudicator is no better than lexical matching"
+(under-read — it beats the honest keyword baseline by +0.17); ✗ "embeddings are the weak
+leg" (over-generalized from one floor); ✗ any transfer past this floor.
+
+## Disposition
+
+- **10th launder-catch on this family** (both directions in one run — I over-read Stage 2 as
+  strong capability AND was on track to over-read Stage 1 as "embeddings weak"; the adversary
+  cut the first and quarantined the second, my two follow-up runs settled both).
+- **Third corpus-construction leak** (authored descriptions → code comments → near-miss prose).
+  The recurring root cause is mine: I keep letting the distinguishing signal into the surface
+  text. **Owed settling experiment:** a near-miss corpus where the distinguishing feature is
+  NOT stated in either sibling's text (force the judge to infer the mechanism from behaviour,
+  not read a planted contrast), with the keyword baseline baked in from the start (rule 42),
+  and ideally not same-model-authored (shared-prior). Until then: SUGGESTIVE, not established.
+- **Architecture read:** the LLM-discrimination lever has a small real signal beyond
+  keyword/geometry (justifies the next test); the embedding leg is weak here; the strong test
+  is owed. Phase A plumbing unblocked; no capability claim; `nmemo-uhp.6` stays open.
