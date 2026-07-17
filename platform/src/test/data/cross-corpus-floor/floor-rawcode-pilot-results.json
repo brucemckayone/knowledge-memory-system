@@ -1,0 +1,583 @@
+{
+  "generatedFrom": "floor-rawcode.ts",
+  "pilot": true,
+  "cells": 43,
+  "byClassifier": {
+    "LLM": {
+      "ALL": {
+        "tp": 6,
+        "fn": 3,
+        "fp": 2,
+        "tn": 32,
+        "recall": 0.6666666666666666,
+        "spec": 0.9411764705882353,
+        "ba": 0.803921568627451,
+        "nTrue": 9,
+        "nFalse": 34
+      },
+      "mechanical": {
+        "tp": 3,
+        "fn": 1,
+        "fp": 1,
+        "tn": 23,
+        "recall": 0.75,
+        "spec": 0.9583333333333334,
+        "ba": 0.8541666666666667,
+        "nTrue": 4,
+        "nFalse": 24
+      },
+      "SEMANTIC(22.1/3/4)": {
+        "tp": 2,
+        "fn": 2,
+        "fp": 1,
+        "tn": 6,
+        "recall": 0.5,
+        "spec": 0.8571428571428571,
+        "ba": 0.6785714285714286,
+        "nTrue": 4,
+        "nFalse": 7
+      },
+      "mixed(22.2)": {
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "tn": 3,
+        "recall": 1,
+        "spec": 1,
+        "ba": 1,
+        "nTrue": 1,
+        "nFalse": 3
+      }
+    },
+    "regex": {
+      "ALL": {
+        "tp": 7,
+        "fn": 2,
+        "fp": 6,
+        "tn": 28,
+        "recall": 0.7777777777777778,
+        "spec": 0.8235294117647058,
+        "ba": 0.8006535947712419,
+        "nTrue": 9,
+        "nFalse": 34
+      },
+      "mechanical": {
+        "tp": 2,
+        "fn": 2,
+        "fp": 5,
+        "tn": 19,
+        "recall": 0.5,
+        "spec": 0.7916666666666666,
+        "ba": 0.6458333333333333,
+        "nTrue": 4,
+        "nFalse": 24
+      },
+      "SEMANTIC(22.1/3/4)": {
+        "tp": 4,
+        "fn": 0,
+        "fp": 1,
+        "tn": 6,
+        "recall": 1,
+        "spec": 0.8571428571428571,
+        "ba": 0.9285714285714286,
+        "nTrue": 4,
+        "nFalse": 7
+      },
+      "mixed(22.2)": {
+        "tp": 1,
+        "fn": 0,
+        "fp": 0,
+        "tn": 3,
+        "recall": 1,
+        "spec": 1,
+        "ba": 1,
+        "nTrue": 1,
+        "nFalse": 3
+      }
+    },
+    "BM25": {
+      "ALL": {
+        "tp": 6,
+        "fn": 3,
+        "fp": 6,
+        "tn": 28,
+        "recall": 0.6666666666666666,
+        "spec": 0.8235294117647058,
+        "ba": 0.7450980392156863,
+        "nTrue": 9,
+        "nFalse": 34
+      },
+      "mechanical": {
+        "tp": 3,
+        "fn": 1,
+        "fp": 4,
+        "tn": 20,
+        "recall": 0.75,
+        "spec": 0.8333333333333334,
+        "ba": 0.7916666666666667,
+        "nTrue": 4,
+        "nFalse": 24
+      },
+      "SEMANTIC(22.1/3/4)": {
+        "tp": 2,
+        "fn": 2,
+        "fp": 1,
+        "tn": 6,
+        "recall": 0.5,
+        "spec": 0.8571428571428571,
+        "ba": 0.6785714285714286,
+        "nTrue": 4,
+        "nFalse": 7
+      },
+      "mixed(22.2)": {
+        "tp": 1,
+        "fn": 0,
+        "fp": 1,
+        "tn": 2,
+        "recall": 1,
+        "spec": 0.6666666666666666,
+        "ba": 0.8333333333333333,
+        "nTrue": 1,
+        "nFalse": 3
+      }
+    }
+  },
+  "deltas": {
+    "allDelta": 0.0032679738562091387,
+    "semDelta": -0.25,
+    "llmSpecAll": 0.9411764705882353,
+    "pass": false
+  },
+  "perCell": [
+    {
+      "element": "V22_1_a",
+      "rule": "R22.1",
+      "class": "semantic",
+      "isTrue": true,
+      "sim": 0.797,
+      "llm": true,
+      "regex": true,
+      "bm25": true
+    },
+    {
+      "element": "V22_1_a",
+      "rule": "R22.7",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.835,
+      "llm": false,
+      "regex": true,
+      "bm25": false
+    },
+    {
+      "element": "V22_1_a",
+      "rule": "R22.9",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.83,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "V22_2_a",
+      "rule": "R22.2",
+      "class": "mixed",
+      "isTrue": true,
+      "sim": 0.726,
+      "llm": true,
+      "regex": true,
+      "bm25": true
+    },
+    {
+      "element": "V22_2_a",
+      "rule": "R22.10",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.705,
+      "llm": false,
+      "regex": true,
+      "bm25": false
+    },
+    {
+      "element": "V22_2_a",
+      "rule": "R22.9",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.689,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "V22_3_a",
+      "rule": "R22.3",
+      "class": "semantic",
+      "isTrue": true,
+      "sim": 0.775,
+      "llm": false,
+      "regex": true,
+      "bm25": false
+    },
+    {
+      "element": "V22_3_a",
+      "rule": "R22.4",
+      "class": "semantic",
+      "isTrue": false,
+      "sim": 0.797,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "V22_3_a",
+      "rule": "R22.7",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.797,
+      "llm": false,
+      "regex": false,
+      "bm25": true
+    },
+    {
+      "element": "V22_4_a",
+      "rule": "R22.4",
+      "class": "semantic",
+      "isTrue": true,
+      "sim": 0.808,
+      "llm": true,
+      "regex": true,
+      "bm25": true
+    },
+    {
+      "element": "V22_4_a",
+      "rule": "R22.3",
+      "class": "semantic",
+      "isTrue": true,
+      "sim": 0.787,
+      "llm": false,
+      "regex": true,
+      "bm25": false
+    },
+    {
+      "element": "V22_4_a",
+      "rule": "R22.7",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.775,
+      "llm": true,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "V22_4_a",
+      "rule": "R22.9",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.77,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "V22_5_a",
+      "rule": "R22.5",
+      "class": "mechanical",
+      "isTrue": true,
+      "sim": 0.755,
+      "llm": true,
+      "regex": true,
+      "bm25": true
+    },
+    {
+      "element": "V22_5_a",
+      "rule": "R22.7",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.741,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "V22_5_a",
+      "rule": "R22.9",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.731,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "V22_7_c",
+      "rule": "R22.7",
+      "class": "mechanical",
+      "isTrue": true,
+      "sim": 0.857,
+      "llm": true,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "V22_7_c",
+      "rule": "R22.8",
+      "class": "mechanical",
+      "isTrue": true,
+      "sim": 0.917,
+      "llm": true,
+      "regex": false,
+      "bm25": true
+    },
+    {
+      "element": "V22_7_c",
+      "rule": "R22.9",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.834,
+      "llm": false,
+      "regex": true,
+      "bm25": false
+    },
+    {
+      "element": "V22_7_c",
+      "rule": "R22.3",
+      "class": "semantic",
+      "isTrue": false,
+      "sim": 0.781,
+      "llm": true,
+      "regex": true,
+      "bm25": false
+    },
+    {
+      "element": "V22_9_b",
+      "rule": "R22.9",
+      "class": "mechanical",
+      "isTrue": true,
+      "sim": 0.877,
+      "llm": false,
+      "regex": true,
+      "bm25": true
+    },
+    {
+      "element": "V22_9_b",
+      "rule": "R22.7",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.844,
+      "llm": false,
+      "regex": true,
+      "bm25": false
+    },
+    {
+      "element": "V22_9_b",
+      "rule": "R22.8",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.802,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ooc_uninit",
+      "rule": "R22.2",
+      "class": "mixed",
+      "isTrue": false,
+      "sim": 0.699,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ooc_uninit",
+      "rule": "R22.3",
+      "class": "semantic",
+      "isTrue": false,
+      "sim": 0.692,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ooc_magic",
+      "rule": "R22.6",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.655,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ooc_magic",
+      "rule": "R22.4",
+      "class": "semantic",
+      "isTrue": false,
+      "sim": 0.636,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ooc_convert",
+      "rule": "R22.7",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.669,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ooc_convert",
+      "rule": "R22.9",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.658,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ooc_goto",
+      "rule": "R22.9",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.659,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ooc_goto",
+      "rule": "R22.4",
+      "class": "semantic",
+      "isTrue": false,
+      "sim": 0.658,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ooc_naming",
+      "rule": "R22.4",
+      "class": "semantic",
+      "isTrue": false,
+      "sim": 0.704,
+      "llm": false,
+      "regex": false,
+      "bm25": true
+    },
+    {
+      "element": "C_ooc_naming",
+      "rule": "R22.2",
+      "class": "mixed",
+      "isTrue": false,
+      "sim": 0.691,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ok_unique",
+      "rule": "R22.9",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.757,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ok_unique",
+      "rule": "R22.7",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.749,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ok_arraydelete",
+      "rule": "R22.7",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.833,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ok_arraydelete",
+      "rule": "R22.8",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.821,
+      "llm": false,
+      "regex": false,
+      "bm25": true
+    },
+    {
+      "element": "C_ok_weaklock",
+      "rule": "R22.10",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.858,
+      "llm": false,
+      "regex": true,
+      "bm25": true
+    },
+    {
+      "element": "C_ok_weaklock",
+      "rule": "R22.3",
+      "class": "semantic",
+      "isTrue": false,
+      "sim": 0.702,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ok_lockguard",
+      "rule": "R22.2",
+      "class": "mixed",
+      "isTrue": false,
+      "sim": 0.747,
+      "llm": false,
+      "regex": false,
+      "bm25": true
+    },
+    {
+      "element": "C_ok_lockguard",
+      "rule": "R22.9",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.676,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    },
+    {
+      "element": "C_ok_stackarray",
+      "rule": "R22.8",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.705,
+      "llm": false,
+      "regex": false,
+      "bm25": true
+    },
+    {
+      "element": "C_ok_stackarray",
+      "rule": "R22.7",
+      "class": "mechanical",
+      "isTrue": false,
+      "sim": 0.668,
+      "llm": false,
+      "regex": false,
+      "bm25": false
+    }
+  ]
+}

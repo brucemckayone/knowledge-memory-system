@@ -95,4 +95,106 @@ beyond raw code (facts/memories) that re-introduces leakage? (5) floor/base-rate
 
 # RESULTS (post-run — appended after §1–7 are frozen + committed)
 
-_(pending)_
+**Run:** PILOT, 43 controlled cells (7 violations weighted to the semantic slice + all 10
+controls, each × {true rule(s)} ∪ {top-2 lexically-recalled false rules}), single sample,
+conc 4, 579 s. Artifacts: `floor-rawcode-pilot-results.json`, log
+`floor-rawcode-pilot.log`. **Outcome: FAIL against the pre-registered bar — and the blind
+adversary (doc §6) then CUT my affirmative reading of the fail. Net: this run adds NOTHING
+beyond the E1 terminal finding.**
+
+## Numbers (recall / specificity / balanced-accuracy; T=true cells, F=false cells)
+
+| classifier | slice | rec | spec | BA | matrix |
+|---|---|---|---|---|---|
+| **LLM**  | ALL (T9/F34) | 0.67 | 0.94 | **0.804** | tp6 fn3 fp2 tn32 |
+| regex    | ALL          | 0.78 | 0.82 | 0.801 | tp7 fn2 fp6 tn28 |
+| BM25     | ALL          | 0.67 | 0.82 | 0.745 | tp6 fn3 fp6 tn28 |
+| **LLM**  | SEMANTIC 22.1/3/4 (T4/F7) | 0.50 | 0.86 | **0.679** | tp2 fn2 fp1 tn6 |
+| regex    | SEMANTIC     | 1.00 | 0.86 | 0.929 | tp4 fn0 fp1 tn6 |
+| **LLM**  | mechanical (T4/F24) | 0.75 | 0.96 | 0.854 | tp3 fn1 fp1 tn23 |
+| regex    | mechanical   | 0.50 | 0.79 | 0.646 | tp2 fn2 fp5 tn19 |
+
+- **Bar (1):** LLM ALL BA − max(baseline) BA = 0.804 − 0.801 = **+0.003** (needs ≥ +0.10) → **MISS**.
+- **Bar (2):** LLM specificity 0.94 (needs ≥ 0.70) → clears, but bar (1) governs the verdict.
+- **Decisive (semantic) slice:** LLM 0.679 vs regex 0.929 = **−0.25**.
+- **VERDICT: FAIL.**
+
+## Blind adversary (doc §6, committed before this section) — verdict = FAIL SOUND, my semantic reading OVERSTATED
+
+The adversary attacked the fail in BOTH directions and I independently verified its
+load-bearing empirical claim. Findings:
+
+1. **The overall FAIL is SOUND.** +0.003 ≪ +0.10; "adjudicator value unproven" stands. No dispute.
+
+2. **THE FATAL FINDING — the "raw" corpus re-leaked the verdict through code COMMENTS.** doc §3
+   promised "nothing pre-diagnoses the defect." That was **false**. 6 of 7 pilot violation
+   snippets carry a verdict-stating comment — `V22_1_a` "the sole issue is heap use in an RT
+   path", `V22_2_a` "lock never released on this path", `V22_4_a` "does consume take
+   ownership? unclear", `V22_5_a` "address of a local — dangles at return", `V22_7_c` "array
+   new, scalar delete", `V22_9_b` "same resource freed via alias". This is the doc-15
+   authoring leak reintroduced through a different channel. Both classifiers (and the LLM's
+   graph-MCP read) see these comments; the 22.9 regex literally matched the word "delete" in
+   `V22_7_c`'s comment. **The one comment-clean cell — `V22_3_a` — is exactly the semantic
+   cell the LLM declined.** So the corrected experiment was NOT clean.
+
+3. **My "LLM loses at semantics (−0.25)" reading is a 2-cell artifact — DO NOT record it.**
+   The semantic slice is T=4/F=7 (n=11); each true-cell flip moves BA by 0.125, so −0.25 is
+   exactly **two cell-flips** wide. Both LLM "misses" are the SAME rule (22.3), both are
+   debatable strict-reading cells (`V22_3_a` = a correct hand-rolled RAII owner; `V22_4_a` =
+   my own GT double-cites 22.3+22.4 for one ambiguous call), and regex "catches" both only
+   via bare `\bnew\b`. Correcting one debatable GT label roughly halves the magnitude to
+   ~−0.10. The sign (regex ≥ LLM here) is robust; the magnitude and its interpretation are not.
+
+4. **The semantic regex patterns are keyword/shape matchers, not semantic detectors.** `22.3`
+   = literally `/\bnew\b/`; `22.1` = `/new|malloc/`; `22.4` = a raw-pointer-parameter shape.
+   They "win" the semantic slice only because every true semantic violation in this corpus
+   carries the surface keyword. The corpus **never isolated a keyword-free semantic
+   judgment** — for either classifier.
+
+5. **Candidate-set rigging against the keyword baselines.** Controls were adjudicated only
+   against their top-2 lexically-recalled false rules, so no benign-`new` snippet
+   (`C_ok_arraydelete` has `new int[10]`) was ever tested against the `\bnew\b`-based 22.1/22.3
+   rules. The regex's semantic specificity was never stress-tested with the distractor that
+   breaks it.
+
+6. **The LLM DID show real value — but pre-excluded and tiny-n.** It correctly rejected
+   `C_ok_weaklock`'s benign `.lock()` (correct null-checked `weak_ptr`) that the regex
+   false-positived. Its specificity edge (0.94 vs 0.82; FPR 0.06 vs 0.18) → ~2× precision at
+   2 % field prevalence (~0.19 vs ~0.08). But this edge is entirely on the **mechanical**
+   slice (doc §5 pre-excluded it) and rests on LLM total FP = 2. A footnote, not a rescue.
+
+7. **MCP leakage unverifiable.** The leaky `floor-code` corpus is still in the DB (used for
+   the distractor ranking). Whether the graph MCP surfaced leaky descriptions / prior bridges
+   to the LLM is not recorded. Risk direction: would have inflated the LLM, which still
+   failed — so it can't rescue the fail, but the run is not clean and can't be cited as a
+   leak-free adjudication test.
+
+## What this run licenses (stated tightly, resisting launder in BOTH directions)
+
+> On this 43-cell FLOOR pilot, the built LLM adjudicator did **not** clear the pre-registered
+> bar (ALL balanced-accuracy delta **+0.003** ≪ +0.10). The adjudicator's value remains
+> **unproven** — consistent with, and adding **nothing beyond**, the E1 terminal finding.
+
+Explicitly BARRED (all three were live launder-risks I was steering toward):
+- ✗ "The LLM loses at / is bad at semantic judgment." (2-cell artifact; slice never tested semantics; comment-leaked.)
+- ✗ "Lexical baselines match the LLM on semantics." (`\bnew\b` coincidence + candidate set that never challenged it.)
+- ✗ "The LLM has no value." (Rejected benign-keyword control; real field-prevalence specificity edge — but mechanical, pre-excluded, tiny-n.)
+- ✗ Any generalization past "this floor" (44 % construction prevalence, my rule restatements, n=11 on the decisive slice, single sample).
+
+## Disposition
+
+- **9th launder-catch on this feature family** (1st in the anti-LLM direction — I over-read the
+  fail exactly as I over-read doc-15's win). The blind adversary + independent verification
+  did the work my synthesis could not be trusted to do. New discipline in [[verify-empirical-gates]].
+- **Root cause is the CORPUS, not the model.** Twice (doc-15 authored descriptions, doc-16
+  comment-laden "raw" snippets) I failed to construct a keyword-free, comment-free semantic
+  test cell. Until one exists, **no run — pass or fail — speaks to semantic adjudication
+  capability.**
+- **The still-owed valid test = the E1 §27 spec:** a genuinely semantic no-shadow rule +
+  verdict-free & comment-free snippets + benign-keyword distractors actually adjudicated
+  against the keyword rule + ≥2 senior-expert human ground truth (inter-expert agreement
+  reported first) + a BUILT deterministic baseline + pre-reg + adversary. Not attempted here.
+- **Do NOT run the full doc-16 k=3 sweep** — the corpus cannot answer the question it was
+  built for; spawning ~160 more Claude Code instances on a leaked corpus buys nothing.
+- **Phase A schema/plumbing remains UNBLOCKED** (this was never a plumbing test); no
+  automation/coverage/semantic-capability claim. `nmemo-uhp.6` stays OPEN, specified-and-paused.
