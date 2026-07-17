@@ -761,7 +761,63 @@ export async function mergeEntities(params: MergeEntitiesParams): Promise<MergeE
       ON CONFLICT (entity_id, alias) DO NOTHING
     `);
 
-    // ── 4. Re-point facts where source is the SUBJECT. UPDATE ... RETURNING
+    // ── 4. Deduplicate BEFORE re-pointing (nmemo-9vk). The partial unique index
+    //       uniq_facts_active_triple (mig 037) forbids two ACTIVE rows with the
+    //       same (subject, predicate, object) triple. Re-pointing a source fact
+    //       whose POST-merge triple already exists (active) on target would create
+    //       a second active identical triple, and the index rejects that UPDATE
+    //       mid-transaction — before any post-re-point dedup could run, rolling the
+    //       whole merge back. So expire the losing duplicates FIRST, keyed on the
+    //       triple each fact WILL carry after the re-point (source id → target id on
+    //       BOTH the subject and object side). Keep-the-winner ranking is identical
+    //       to the old post-re-point pass (highest confidence, then latest created).
+    //       The expired losers are still re-pointed by steps 5/6 (those UPDATEs have
+    //       no expired_at filter) but, being expired, they never enter the partial
+    //       index and so never collide. UPDATE...RETURNING so the audit set matches
+    //       the mutation set exactly (same race rationale as step 5).
+    const duplicateRows = unwrapRows<{ id: string }>(await tx.execute(sql`
+      WITH candidates AS (
+        SELECT
+          f.id, f.confidence, f.created_at, f.predicate, f.object_value,
+          CASE WHEN f.subject_entity_id = ${sourceId}::uuid THEN ${targetId}::uuid
+               ELSE f.subject_entity_id END AS pm_subject,
+          CASE WHEN f.object_entity_id = ${sourceId}::uuid THEN ${targetId}::uuid
+               ELSE f.object_entity_id END AS pm_object_entity
+        FROM public.facts f
+        WHERE f.expired_at IS NULL
+          AND ( f.subject_entity_id = ${sourceId}::uuid
+             OR f.subject_entity_id = ${targetId}::uuid
+             OR f.object_entity_id = ${sourceId}::uuid
+             OR f.object_entity_id = ${targetId}::uuid )
+      ),
+      ranked AS (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY pm_subject, predicate,
+            COALESCE(pm_object_entity::text, ''), COALESCE(object_value, '')
+          ORDER BY confidence DESC NULLS LAST, created_at DESC
+        ) AS rn
+        FROM candidates
+      )
+      UPDATE public.facts
+      SET expired_at = NOW(),
+          expire_reason = 'Duplicate removed during entity merge'
+      WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+      RETURNING id::text AS id
+    `));
+    if (duplicateRows.length > 0) {
+      const dedupReasoning = `Entity merge: duplicate fact expired (pre-re-point dedup) for target ${targetId}. Merge reason: ${reason}`;
+      for (const row of duplicateRows) {
+        await recordFactChange({
+          factId: row.id,
+          eventType: 'merged',
+          reasoning: dedupReasoning,
+          actor,
+          tx,
+        });
+      }
+    }
+
+    // ── 5. Re-point facts where source is the SUBJECT. UPDATE ... RETURNING
     //       so the audit set EXACTLY matches the mutation set — a SELECT-then-
     //       UPDATE pair would race with concurrent inserters (the platform's
     //       READ COMMITTED default isolation lets a fact with
@@ -785,8 +841,8 @@ export async function mergeEntities(params: MergeEntitiesParams): Promise<MergeE
       }
     }
 
-    // ── 5. Re-point facts where source is the OBJECT. Same UPDATE...RETURNING
-    //       shape — see step 4 comment for the race-window rationale.
+    // ── 6. Re-point facts where source is the OBJECT. Same UPDATE...RETURNING
+    //       shape — see step 5 comment for the race-window rationale.
     const objectFactRows = unwrapRows<{ id: string }>(await tx.execute(sql`
       UPDATE public.facts SET object_entity_id = ${targetId}::uuid
       WHERE object_entity_id = ${sourceId}::uuid
@@ -805,40 +861,9 @@ export async function mergeEntities(params: MergeEntitiesParams): Promise<MergeE
       }
     }
 
-    // ── 6. Deduplicate exact-match facts after re-pointing. UPDATE...RETURNING
-    //       on a ranked CTE — keep the highest-confidence / latest-created
-    //       row, expire the rest. RETURNING gives the exact mutation set so
-    //       the audit emission can't drift from it (same race-rationale as
-    //       step 4).
-    const duplicateRows = unwrapRows<{ id: string }>(await tx.execute(sql`
-      WITH ranked AS (
-        SELECT f.id, ROW_NUMBER() OVER (
-          PARTITION BY f.subject_entity_id, f.predicate,
-            COALESCE(f.object_entity_id::text, ''), COALESCE(f.object_value, '')
-          ORDER BY f.confidence DESC NULLS LAST, f.created_at DESC
-        ) AS rn
-        FROM public.facts f
-        WHERE (f.subject_entity_id = ${targetId}::uuid OR f.object_entity_id = ${targetId}::uuid)
-          AND f.expired_at IS NULL
-      )
-      UPDATE public.facts
-      SET expired_at = NOW(),
-          expire_reason = 'Duplicate removed during entity merge'
-      WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
-      RETURNING id::text AS id
-    `));
-    if (duplicateRows.length > 0) {
-      const dedupReasoning = `Entity merge: duplicate fact expired after subject/object re-point to ${targetId}. Merge reason: ${reason}`;
-      for (const row of duplicateRows) {
-        await recordFactChange({
-          factId: row.id,
-          eventType: 'merged',
-          reasoning: dedupReasoning,
-          actor,
-          tx,
-        });
-      }
-    }
+    // ── (dedup ran in step 4, BEFORE the re-point — see nmemo-9vk. Doing it here,
+    //     after re-pointing, is what tripped uniq_facts_active_triple: the colliding
+    //     UPDATE threw before this pass could expire the duplicate.)
 
     // ── 7. Re-point entity_merges where source was the target of an
     //       earlier merge (transitive merge bookkeeping). No audit needed —
