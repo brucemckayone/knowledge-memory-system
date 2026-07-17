@@ -93,40 +93,50 @@ async function seedTopology(args: {
   betweenness?: number | null;
   communityId?: number | null;
   pagerank?: number | null;
+  isArticulationPoint?: boolean;
 }): Promise<void> {
   await testDb`
     INSERT INTO public.entity_topology
-      (entity_id, betweenness_sampled, community_id, pagerank)
+      (entity_id, betweenness_sampled, community_id, pagerank, is_articulation_point)
     VALUES (
       ${args.entityId}::uuid,
       ${args.betweenness ?? null},
       ${args.communityId ?? null},
-      ${args.pagerank ?? null}
+      ${args.pagerank ?? null},
+      ${args.isArticulationPoint ?? false}
     )
     ON CONFLICT (entity_id) DO UPDATE SET
       betweenness_sampled = EXCLUDED.betweenness_sampled,
       community_id = EXCLUDED.community_id,
-      pagerank = EXCLUDED.pagerank
+      pagerank = EXCLUDED.pagerank,
+      is_articulation_point = EXCLUDED.is_articulation_point
   `;
 }
 
-/** Seed an entity_meta row (counts + first_mentioned_at for isNewThisMonth). */
+/**
+ * Seed an entity_meta row. `firstMentionedAt` feeds the existing isNewThisMonth
+ * (first-seen) signal; `lastMentionedAt` feeds the recency lens facet — the two
+ * are deliberately distinct timestamps.
+ */
 async function seedMeta(args: {
   entityId: string;
   sourceMemoryCount?: number;
   firstMentionedAt?: Date | null;
+  lastMentionedAt?: Date | null;
 }): Promise<void> {
   await testDb`
     INSERT INTO public.entity_meta
-      (entity_id, source_memory_count, first_mentioned_at)
+      (entity_id, source_memory_count, first_mentioned_at, last_mentioned_at)
     VALUES (
       ${args.entityId}::uuid,
       ${args.sourceMemoryCount ?? 0},
-      ${args.firstMentionedAt ?? null}
+      ${args.firstMentionedAt ?? null},
+      ${args.lastMentionedAt ?? null}
     )
     ON CONFLICT (entity_id) DO UPDATE SET
       source_memory_count = EXCLUDED.source_memory_count,
-      first_mentioned_at = EXCLUDED.first_mentioned_at
+      first_mentioned_at = EXCLUDED.first_mentioned_at,
+      last_mentioned_at = EXCLUDED.last_mentioned_at
   `;
 }
 
@@ -429,6 +439,76 @@ describe('bridge — composeExploreNode (service)', () => {
     expect(res.node.isSelf).toBe(true);
     expect(res.node.type).toBe('self');
     expect(res.neighbors).toEqual([]); // no edges seeded
+  });
+
+  // ---------------------------------------------------------------------------
+  // Lens-facet contract (iOS exploration lens chip row). The ask surface joins
+  // these per-node facets (keyed by entityId) against the visible graph to light
+  // the bridges / type / community / recency chips. They are ADDITIVE sibling
+  // fields — the existing type/isBridge/isNewThisMonth stay untouched.
+  // ---------------------------------------------------------------------------
+
+  it('emits per-node lens facets — raw entityType, articulation, community, lastMentionedAt', async () => {
+    // node: a person, a true articulation point, Leiden community 1, last
+    // mentioned THIS month (but first mentioned long ago).
+    const node = await createTestEntity({ canonicalName: 'maya', entityType: 'person' });
+    // neighbor: a project, not an articulation point, community 2, last
+    // mentioned LAST month.
+    const nbr = await createTestEntity({ canonicalName: 'the arch league', entityType: 'project' });
+
+    await seedTopology({ entityId: node.id, betweenness: 0.9, communityId: 1, pagerank: 0.5, isArticulationPoint: true });
+    await seedTopology({ entityId: nbr.id, betweenness: 0.0, communityId: 2, pagerank: 0.3, isArticulationPoint: false });
+
+    const nodeLast = new Date('2027-05-10T09:00:00.000Z'); // same month as NOW
+    const nbrLast = new Date('2027-04-20T09:00:00.000Z');  // previous month
+    await seedMeta({ entityId: node.id, sourceMemoryCount: 5, firstMentionedAt: new Date('2026-01-01T00:00:00Z'), lastMentionedAt: nodeLast });
+    await seedMeta({ entityId: nbr.id, sourceMemoryCount: 2, firstMentionedAt: nbrLast, lastMentionedAt: nbrLast });
+
+    await seedGraphNode(node.id, 'maya', 'entity');
+    await seedGraphNode(nbr.id, 'the arch league', 'entity');
+    await seedGraphEdge(node.id, nbr.id);
+
+    const res = await composeExploreNode(node.id, NOW);
+
+    // TYPE lens — the RAW entity type, not the collapsed NodeType discriminator.
+    // `type` still buckets 'person' → 'entity' (existing behavior); the new
+    // `entityType` field carries the real taxonomy the type chip filters on.
+    expect(res.node.type).toBe('entity');
+    expect(res.node.entityType).toBe('person');
+    expect(res.neighbors[0]!.entityType).toBe('project');
+
+    // BRIDGES lens — true graph articulation, the SAME field + semantics as
+    // /api/hero's topology.isArticulationPoint (distinct from the betweenness-max
+    // `isBridge` heuristic, which is unchanged and coexists).
+    expect(res.node.isArticulationPoint).toBe(true);
+    expect(res.neighbors[0]!.isArticulationPoint).toBe(false);
+
+    // COMMUNITY lens — the Leiden community id as a string (matches
+    // ClusterSpoke.communityId on the bridge surface).
+    expect(res.node.communityId).toBe('1');
+    expect(res.neighbors[0]!.communityId).toBe('2');
+
+    // RECENCY lens — last_mentioned_at as an ISO-8601 string. NOT the
+    // first-mention-based isNewThisMonth: the node was first seen in january 2026
+    // so it is not "new" this month, yet it WAS last mentioned this month. The
+    // two signals are deliberately different.
+    expect(res.node.lastMentionedAt).toBe(nodeLast.toISOString());
+    expect(res.neighbors[0]!.lastMentionedAt).toBe(nbrLast.toISOString());
+    expect(res.node.isNewThisMonth).toBe(false);
+  });
+
+  it('facets degrade to honest nulls when topology/meta rows are absent', async () => {
+    // A node with an entities row but no entity_topology and no entity_meta —
+    // the "no facet distinguishes this field" state must be graceful, never a
+    // throw, so the lens row can legitimately stay empty rather than break.
+    const node = await createTestEntity({ canonicalName: 'lonely', entityType: 'place' });
+    await seedGraphNode(node.id, 'lonely', 'entity');
+
+    const res = await composeExploreNode(node.id, NOW);
+    expect(res.node.entityType).toBe('place');        // still read from entities
+    expect(res.node.isArticulationPoint).toBe(false); // absent topology → false
+    expect(res.node.communityId).toBeNull();          // absent → null
+    expect(res.node.lastMentionedAt).toBeNull();      // absent → null
   });
 
   it('unknown id → ExploreNodeNotFoundError', async () => {

@@ -124,6 +124,23 @@ export interface ExploreNode {
   drawerText: string;
   drawerAnnotations: VoiceCAnnotation[];
   meta: NodeMeta;
+  // --- Lens-facet fields (iOS exploration lens chip row) ---------------------
+  // Additive per-node facets the ask surface joins against the visible graph to
+  // light the bridges / type / community / recency chips. Kept as flat sibling
+  // scalars — never nest or restructure drawerAnnotations (bare-array contract).
+  /** Raw entity taxonomy (person/place/company/project/…) for the TYPE lens.
+   *  Distinct from `type`, which collapses every real entity to 'entity'. */
+  entityType: string;
+  /** True graph articulation point — the BRIDGES lens. Same field + semantics
+   *  as /api/hero's topology.isArticulationPoint (NOT the betweenness-max
+   *  `isBridge` heuristic above, which is unchanged and coexists). */
+  isArticulationPoint: boolean;
+  /** Leiden community id as a string, null when uncomputed — the COMMUNITY lens.
+   *  Matches ClusterSpoke.communityId on the bridge surface. */
+  communityId: string | null;
+  /** entity_meta.last_mentioned_at as ISO-8601, null when absent — the RECENCY
+   *  lens. Deliberately NOT the first-mention-based isNewThisMonth. */
+  lastMentionedAt: string | null;
 }
 
 export interface ExploreNeighbor {
@@ -133,6 +150,11 @@ export interface ExploreNeighbor {
   edgeStrength: number;
   isBridge: boolean;
   isNewThisMonth: boolean;
+  // Lens-facet fields — see ExploreNode for semantics.
+  entityType: string;
+  isArticulationPoint: boolean;
+  communityId: string | null;
+  lastMentionedAt: string | null;
 }
 
 export interface ExploreSecondDegreeNode {
@@ -554,15 +576,36 @@ export async function composeExploreNode(
     bridgeId = withBetweenness[0]?.id ?? null;
   }
 
-  // entity_meta counts + first_mentioned_at for isNewThisMonth.
+  // Per-node lens facets. Articulation (bridges lens) + community (community
+  // lens) come straight from the topology snapshot already in hand — no extra
+  // query. communityId 0 is a valid Leiden community, so only null/undefined
+  // (no topology row) resolves to a null string.
+  const topoById = new Map(topo.entities.map((e) => [e.id, e]));
+  const communityIdStr = (id: string): string | null => {
+    const c = topoById.get(id)?.communityId;
+    return c === null || c === undefined ? null : String(c);
+  };
+  const isoOrNull = (d: unknown): string | null => {
+    if (d instanceof Date) return d.toISOString();
+    if (typeof d === 'string' && d.length > 0) return new Date(d).toISOString();
+    return null;
+  };
+
+  // entity_meta counts + first_mentioned_at (isNewThisMonth) + last_mentioned_at
+  // (the recency lens facet).
   const metaRows = (await db.execute(sql`
     SELECT
       source_memory_count::int AS source_memory_count,
-      first_mentioned_at       AS first_mentioned_at
+      first_mentioned_at       AS first_mentioned_at,
+      last_mentioned_at        AS last_mentioned_at
     FROM public.entity_meta
     WHERE entity_id = ${entityId}::uuid
     LIMIT 1
-  `)) as unknown as Array<{ source_memory_count: number | null; first_mentioned_at: Date | null }>;
+  `)) as unknown as Array<{
+    source_memory_count: number | null;
+    first_mentioned_at: Date | null;
+    last_mentioned_at: Date | null;
+  }>;
   const meta = metaRows[0];
 
   const oneHopNeighbors = oneHop.nodes.filter((n) => n.entityId !== entityId);
@@ -594,6 +637,10 @@ export async function composeExploreNode(
     drawerText: composed.text,
     drawerAnnotations: composed.annotations,
     meta: { threadsCount, entriesCount },
+    entityType: profile.entity.entityType ?? 'other',
+    isArticulationPoint: topoById.get(entityId)?.isArticulationPoint ?? false,
+    communityId: communityIdStr(entityId),
+    lastMentionedAt: isoOrNull(meta?.last_mentioned_at ?? null),
   };
 
   // Neighbor isNewThisMonth + bridge flags: resolve via topology (bridge) and
@@ -601,15 +648,43 @@ export async function composeExploreNode(
   const neighborIds = oneHopNeighbors.map((n) => n.entityId);
   const newNeighbors = await newThisMonthSet(neighborIds, now);
 
-  const neighbors: ExploreNeighbor[] = oneHopNeighbors.map((n) => ({
-    entityId: n.entityId,
-    name: normalizeName(n.name),
-    type: toNodeType(n.type, false),
-    // AGE subgraph carries no per-edge weight in v1 — unit strength (see hero.ts).
-    edgeStrength: 1.0,
-    isBridge: bridgeId === n.entityId,
-    isNewThisMonth: newNeighbors.has(n.entityId),
-  }));
+  // Per-neighbor type (type lens) + last_mentioned_at (recency lens), batched.
+  // Articulation + community read from the topology snapshot above.
+  const neighborFacets = new Map<string, { entityType: string; lastMentionedAt: string | null }>();
+  if (neighborIds.length > 0) {
+    const idList = sql.join(neighborIds.map((id) => sql`${id}::uuid`), sql`, `);
+    const rows = (await db.execute(sql`
+      SELECT e.id::text          AS entity_id,
+             e.entity_type       AS entity_type,
+             m.last_mentioned_at  AS last_mentioned_at
+      FROM public.entities e
+      LEFT JOIN public.entity_meta m ON m.entity_id = e.id
+      WHERE e.id IN (${idList})
+    `)) as unknown as Array<{ entity_id: string; entity_type: string | null; last_mentioned_at: Date | null }>;
+    for (const r of rows) {
+      neighborFacets.set(r.entity_id, {
+        entityType: r.entity_type ?? 'other',
+        lastMentionedAt: isoOrNull(r.last_mentioned_at),
+      });
+    }
+  }
+
+  const neighbors: ExploreNeighbor[] = oneHopNeighbors.map((n) => {
+    const facets = neighborFacets.get(n.entityId);
+    return {
+      entityId: n.entityId,
+      name: normalizeName(n.name),
+      type: toNodeType(n.type, false),
+      // AGE subgraph carries no per-edge weight in v1 — unit strength (see hero.ts).
+      edgeStrength: 1.0,
+      isBridge: bridgeId === n.entityId,
+      isNewThisMonth: newNeighbors.has(n.entityId),
+      entityType: facets?.entityType ?? 'other',
+      isArticulationPoint: topoById.get(n.entityId)?.isArticulationPoint ?? false,
+      communityId: communityIdStr(n.entityId),
+      lastMentionedAt: facets?.lastMentionedAt ?? null,
+    };
+  });
 
   return {
     node,
