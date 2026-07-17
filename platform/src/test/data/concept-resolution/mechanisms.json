@@ -1,0 +1,41 @@
+{
+  "name": "concept-resolution",
+  "version": "1.0",
+  "purpose": "Doc-17 pre-registered corpus for the embedding+adjudicator concept-resolution test (nmemo-uhp.19). 12 canonical memory/lifetime/concurrency mechanisms in 6 hard near-miss sibling pairs. Each mechanism has a NEUTRAL behavioural spec (the ground-truth pivot that fixes which mechanism it is) written to avoid dictating register vocabulary. Three prose REGISTERS per mechanism (normative/advisory/reference) are authored at run time by three INDEPENDENT blind Haiku calls that never see each other's output and are never told this is a matching test — so any vocabulary gap arises from independent authorship, not from me.",
+  "registers": {
+    "normative": "Formal standards / rule language: state what a program 'shall not' do and why it is a correctness or safety hazard. Use your register's natural vocabulary; do NOT quote the specification text you are given.",
+    "advisory": "Practitioner guideline language: advise what to prefer and what to avoid in day-to-day coding, in terms of idioms and habits. Use your register's natural vocabulary; do NOT quote the specification text you are given.",
+    "reference": "Reference-manual / textbook language: describe neutrally how the underlying language mechanism behaves and what its semantics are. Use your register's natural vocabulary; do NOT quote the specification text you are given."
+  },
+  "mechanisms": [
+    { "id": "heap-allocation", "near_miss": "stack-storage",
+      "spec": "Storage for data is obtained while the program runs, for an amount that need not be known in advance, and the program must later return that storage explicitly." },
+    { "id": "stack-storage", "near_miss": "heap-allocation",
+      "spec": "Storage for data comes into being automatically when a region of code is entered and is reclaimed automatically the instant that region is left." },
+
+    { "id": "double-release", "near_miss": "use-after-release",
+      "spec": "A single block of previously-obtained storage is given back to the system on two separate occasions." },
+    { "id": "use-after-release", "near_miss": "double-release",
+      "spec": "A block of storage is accessed for reading or writing after it has already been given back to the system." },
+
+    { "id": "dangling-reference", "near_miss": "null-dereference",
+      "spec": "A handle continues to be followed even though the storage it designates has already ceased to exist." },
+    { "id": "null-dereference", "near_miss": "dangling-reference",
+      "spec": "A handle that currently designates nothing is followed as though it designated valid storage." },
+
+    { "id": "deallocation-form-mismatch", "near_miss": "wrong-allocator-family",
+      "spec": "Storage obtained for a group of items is given back using the single-item form of the release operation, or the reverse." },
+    { "id": "wrong-allocator-family", "near_miss": "deallocation-form-mismatch",
+      "spec": "Storage obtained through one management facility is given back through a different, incompatible management facility." },
+
+    { "id": "ownership-transfer-ambiguity", "near_miss": "shared-ownership",
+      "spec": "Responsibility for releasing a resource passes across an interface boundary without it being made clear which side is obliged to release it." },
+    { "id": "shared-ownership", "near_miss": "ownership-transfer-ambiguity",
+      "spec": "Several independent parts of a program jointly hold one resource, and it is released only after the last of them has finished using it." },
+
+    { "id": "lock-not-released", "near_miss": "lock-held-across-blocking-call",
+      "spec": "A program acquires exclusive access to a shared region but, on at least one path of execution, leaves without giving that access back." },
+    { "id": "lock-held-across-blocking-call", "near_miss": "lock-not-released",
+      "spec": "A program retains exclusive access to a shared region while performing a lengthy or waiting operation that does not require that access to be held." }
+  ]
+}
