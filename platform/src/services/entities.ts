@@ -865,6 +865,49 @@ export async function mergeEntities(params: MergeEntitiesParams): Promise<MergeE
     //     after re-pointing, is what tripped uniq_facts_active_triple: the colliding
     //     UPDATE threw before this pass could expire the duplicate.)
 
+    // ── 6.7. Re-point bridge_edges (cross-corpus concept layer, nmemo-uhp.22).
+    //        Entities now participate in bridges (exhibits/addresses/violates/…) as
+    //        a_ref and/or b_ref, with NO FK — so a merge that did not carry them
+    //        would orphan those edges (e.g. the concept JOIN would break when two
+    //        concept nodes merge). Same dedup-BEFORE-repoint discipline as the fact
+    //        steps (nmemo-9vk): the partial-unique idx_bridge_edges_unique
+    //        (a_ref, b_ref, relation) WHERE expired_at IS NULL rejects a re-point
+    //        that would create a 2nd LIVE row on the post-merge key mid-transaction,
+    //        so expire the losing duplicates FIRST — keyed on the POST-merge
+    //        endpoints (source id → target id on BOTH sides), keep-the-winner ranked
+    //        by corroboration then recency. Expired losers are still re-pointed by
+    //        the UPDATEs below (no expired_at filter) but never enter the partial
+    //        index. No per-row audit — bridge_edges has no mutation-history table
+    //        (mirrors the memory_entities re-point, step 8).
+    await tx.execute(sql`
+      WITH candidates AS (
+        SELECT id, corroboration_count, created_at, relation,
+          CASE WHEN a_ref = ${sourceId}::uuid THEN ${targetId}::uuid ELSE a_ref END AS pm_a,
+          CASE WHEN b_ref = ${sourceId}::uuid THEN ${targetId}::uuid ELSE b_ref END AS pm_b
+        FROM public.bridge_edges
+        WHERE expired_at IS NULL
+          AND ( a_ref = ${sourceId}::uuid OR a_ref = ${targetId}::uuid
+             OR b_ref = ${sourceId}::uuid OR b_ref = ${targetId}::uuid )
+      ),
+      ranked AS (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY pm_a, pm_b, relation
+          ORDER BY corroboration_count DESC, created_at DESC
+        ) AS rn
+        FROM candidates
+      )
+      UPDATE public.bridge_edges
+      SET expired_at = NOW(),
+          expire_reason = 'Duplicate removed during entity merge'
+      WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+    `);
+    await tx.execute(sql`
+      UPDATE public.bridge_edges SET a_ref = ${targetId}::uuid WHERE a_ref = ${sourceId}::uuid
+    `);
+    await tx.execute(sql`
+      UPDATE public.bridge_edges SET b_ref = ${targetId}::uuid WHERE b_ref = ${sourceId}::uuid
+    `);
+
     // ── 7. Re-point entity_merges where source was the target of an
     //       earlier merge (transitive merge bookkeeping). No audit needed —
     //       entity_merges is itself an audit table.
