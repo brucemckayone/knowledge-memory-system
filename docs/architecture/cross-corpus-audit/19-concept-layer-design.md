@@ -22,8 +22,16 @@ edge**, the **JOIN recall**, and **concept merge**.
 
 Confirmed by reading the shipped Phase A code, not memory:
 
-- **Elements are bare catalog rows, never entities** — `code_elements` / `rule_elements`
-  (mig 053), keyed by `element_ref = uuidV5(...)`. Zero fusion surface by construction (D1).
+- **The shipped ingest path represents code/rule elements as corpus-scoped `entities`, NOT
+  catalog rows.** `corpus-ingest.ts` (`ingestCodeElement`/`ingestRuleElement` →
+  `upsertCorpusElementEntity`) writes an `entities` row with `entity_type='code_element'` /
+  `'rule_element'`, a `corpus_id`, a description, and a `name\ndescription` embedding (the .12.4
+  EMBED_DESCRIPTIONS lever), dedup keyed corpus-scoped on `properties.element_key` so distinct
+  same-named elements never fuse. The `code_elements`/`rule_elements` catalog (mig 053) +
+  `recallAcrossCorpus` are the older .10 substrate, superseded for ingest by this entity path.
+  **Consequence:** every node — code element, rule element, concept — is an `entities` row, so
+  `exhibits`/`addresses` connect entity→entity (`a_kind='entity'` on both sides) and the JOIN
+  returns rule *entity* ids — exactly the audit pass's `ruleId` space.
 - **`bridge_edges` is already polymorphic and already knows about entities.** `bridge-promotion.ts`
   defines `ElementKind = 'code_element' | 'rule_element' | 'entity'`, and `catalogHas(ref,
   'entity')` already validates an endpoint against the `entities` table. **But** the DB CHECK
@@ -60,15 +68,16 @@ vocabulary, adjacent to the "ontology stays global" stance mig 052 already takes
 
 ### 3.2 exhibits / addresses — the typed edges (bridge_edges)
 
-- A `code_element` **exhibits** a concept: it does the thing (calls `new[]`, holds a raw owner).
-- A `rule_element` **addresses** a concept: it governs the thing.
+- A code element **exhibits** a concept: it does the thing (calls `new[]`, holds a raw owner).
+- A rule element **addresses** a concept: it governs the thing.
 
 Both are `bridge_edges` rows (not facts — facts can't cross corpora):
-`a_kind='code_element'|'rule_element'`, `a_ref=element_ref`, `b_kind='entity'`,
-`b_ref=concept_entity_id`, `source_corpus_id`=the element's corpus, `target_corpus_id='_concepts'`,
-`relation ∈ {'exhibits','addresses'}`. `reasoning` + `source_references` stay **NON-NEGOTIABLE**
-(the mig 054 CHECKs already enforce this) — every exhibits edge carries why + the element/line it
-came from. Written through the existing staging → `applyBridgePromotion` → corroborate-or-insert
+`a_kind='entity'`, `a_ref=<code|rule entity id>`, `b_kind='entity'`,
+`b_ref=<concept entity id>`, `source_corpus_id`=the element's corpus, `target_corpus_id='_concepts'`,
+`relation ∈ {'exhibits','addresses'}` (the relation, not `a_kind`, distinguishes the code side
+from the rule side). `reasoning` + `source_references` stay **NON-NEGOTIABLE** (the mig 054
+CHECKs already enforce this) — every exhibits edge carries why + the element/line it came from.
+Written through the existing staging → `applyBridgePromotion` → corroborate-or-insert
 path.
 
 ### 3.3 Recall = a symbolic JOIN, not cosine
@@ -80,16 +89,22 @@ code_element --exhibits--> concept <--addresses-- rule_element
 ```
 
 ```sql
-SELECT DISTINCT be_rule.a_ref AS rule_element_ref, count(*) AS shared_concepts
+SELECT be_rule.a_ref AS rule_element_ref,
+       count(DISTINCT be_code.b_ref) AS shared_concepts,
+       array_agg(DISTINCT be_code.b_ref) AS concept_refs
 FROM bridge_edges be_code
 JOIN bridge_edges be_rule ON be_rule.b_ref = be_code.b_ref      -- shared concept node
 WHERE be_code.a_ref = :codeElementRef
-  AND be_code.relation = 'exhibits'  AND be_code.expired_at IS NULL
-  AND be_rule.relation = 'addresses' AND be_rule.expired_at IS NULL
-  AND be_rule.a_kind = 'rule_element'
+  AND be_code.relation = 'exhibits'  AND be_code.b_kind = 'entity' AND be_code.expired_at IS NULL
+  AND be_rule.relation = 'addresses' AND be_rule.b_kind = 'entity' AND be_rule.expired_at IS NULL
+  -- optional: AND be_rule.source_corpus_id = :ruleCorpusId
 GROUP BY be_rule.a_ref
 ORDER BY shared_concepts DESC;
 ```
+
+The relation (`exhibits` vs `addresses`) discriminates the two sides; `b_kind='entity'` asserts
+the shared pivot is a concept node. Returns rule *entity* ids ranked by how many concepts they
+share with the code element.
 
 This is the candidate-generation that feeds the stage-2 adjudicator, replacing the cosine kNN.
 The cosine path is not deleted — it stays as a fallback/helper (§3.5).
@@ -123,7 +138,7 @@ resolve to one node, the JOIN won't connect. Resolution:
 |----|----------|-----------|
 | **D-C1** | Concepts = `entities` with `entity_type='concept'`. | User-agreed fork (doc-18 "concept resolution IS entity resolution"); reuses mergeEntities/gardener wholesale. |
 | **D-C2** | All concepts live in one reserved corpus `_concepts`. | Makes concept merge native under the same-corpus guards — no fusion-guard surgery. Concepts are shared vocabulary. |
-| **D-C3** | exhibits/addresses = `bridge_edges` (`b_kind='entity'`), not facts. | Facts can't cross corpora (mig 052 composite FK); bridges are the cross-corpus edge and already accept `entity`. |
+| **D-C3** | exhibits/addresses = `bridge_edges`, entity→entity (`a_kind=b_kind='entity'`), not facts. | Shipped ingest stores code/rule elements as entities (§2); facts can't cross corpora (mig 052 composite FK); bridges are the cross-corpus edge and now accept `entity` (mig 057). |
 | **D-C4** | Two relations: `exhibits` (code→concept), `addresses` (rule→concept). | Legible JOIN; a_kind alone would work but the label makes direction explicit. Small vocab add to the CHECK. |
 | **D-C5** | reasoning + source_references stay non-negotiable on exhibits edges. | Consistent with the whole architecture; already CHECK-enforced. |
 | **D-C6** | Concept extraction is a Haiku pass, may share the authoring call. | Haiku-first; authoring already runs per element. |

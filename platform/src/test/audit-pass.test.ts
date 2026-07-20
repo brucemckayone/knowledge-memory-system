@@ -146,6 +146,45 @@ describe('cross-corpus audit pass spine (nmemo-uhp.12.3)', () => {
     expect(c2.edge_id).toBeNull();
   });
 
+  it('consumes concept-JOIN candidates that cosine recall misses (doc-19 §3.3, D-C7)', async () => {
+    // Hygiene: this suite's cleanCorpora does not touch the reserved _concepts corpus.
+    await testDb`DELETE FROM public.entities WHERE corpus_id = '_concepts'`;
+
+    // code and rule are cosine-ORTHOGONAL (one-hot on different axes) so the .14
+    // cosine recall returns nothing at threshold 0.9 — the ONLY way this cell gets
+    // seeded is the symbolic exhibits/addresses JOIN over a shared concept node.
+    const code = await seedEntity('vector_in_isr', SRC, unit(0), 'std::vector inside an ISR');
+    const rule = await seedEntity('Rule 22.1', TGT, unit(7), 'no dynamic memory in safety-critical');
+    const concept = await seedEntity('heap-allocation', '_concepts', unit(3), 'dynamic allocation');
+    await testDb`
+      INSERT INTO public.bridge_edges
+        (a_kind, a_ref, b_kind, b_ref, source_corpus_id, target_corpus_id, relation, reasoning, source_references)
+      VALUES
+        ('entity', ${code}::uuid, 'entity', ${concept}::uuid, ${SRC}, '_concepts', 'exhibits',
+         'std::vector allocates on the heap', ${testDb.json([{ type: 'entity', id: code }])}::jsonb),
+        ('entity', ${rule}::uuid, 'entity', ${concept}::uuid, ${TGT}, '_concepts', 'addresses',
+         'Rule 22.1 governs heap allocation', ${testDb.json([{ type: 'entity', id: rule }])}::jsonb)
+    `;
+
+    const seen: string[] = [];
+    const fake = async (scope: AuditCellScope): Promise<void> => {
+      seen.push(`${scope.element.ref}|${scope.rule.ref}`);
+    };
+
+    // Cosine sanity: at threshold 0.9 the orthogonal pair is NOT a cosine candidate.
+    const cosineOnly = await recallCrossCorpusCandidates(SRC, TGT, { k: 8, threshold: 0.9 });
+    expect(cosineOnly.some((c) => c.elementRef === code && c.ruleId === rule)).toBe(false);
+
+    const res = await runAuditPass(
+      { name: 'concept-join-1', sourceCorpusId: SRC, targetCorpusId: TGT, ruleSetHash: 'h', recall: { k: 8, threshold: 0.9 } },
+      { invokeAuditAgent: fake },
+    );
+
+    // The concept-JOIN cell is seeded and reaches the adjudicator — cosine alone would seed 0.
+    expect(res.seeded).toBe(1);
+    expect(seen).toEqual([`${code}|${rule}`]);
+  });
+
   it('resume-by-name: a re-run neither re-seeds nor re-sweeps drained cells', async () => {
     await seedEntity('memcpy', SRC, unit(0), 'unbounded copy');
     await seedEntity('Rule 21.18', TGT, unit(0), 'no unbounded copy');

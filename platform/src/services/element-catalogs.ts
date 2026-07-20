@@ -231,3 +231,66 @@ export async function recallAcrossCorpus(
     LIMIT ${k}
   `);
 }
+
+/** A concept-mediated recall hit: a rule element reachable from a code element
+ *  because they share one or more concept nodes. */
+export interface ConceptRecallHit {
+  /** The rule element's ref (entity id in the shipped ingest representation). */
+  ruleElementRef: string;
+  /** How many distinct concept nodes the code and rule elements share. */
+  sharedConcepts: number;
+  /** The shared concept node ids (the JOIN pivots) — the "why" for the adjudicator. */
+  conceptRefs: string[];
+}
+
+/**
+ * Symbolic-JOIN recall (doc 19 §3.3) — the concept layer's load-bearing recall
+ * path, replacing the cosine gamble of {@link recallAcrossCorpus}. Given a code
+ * element, walk
+ *
+ *   code_element --exhibits--> concept <--addresses-- rule_element
+ *
+ * over the bridge_edges family (live edges only) and return the rule elements
+ * sharing at least one concept node, ranked by shared-concept count. No
+ * embedding — the shared concept node IS the bridge. The relation discriminates
+ * the two sides ('exhibits' = code, 'addresses' = rule); b_kind='entity' asserts
+ * the shared pivot is a concept node.
+ *
+ * Returns []
+ *  — when the code element has no exhibits edges yet (e.g. before extraction has
+ *    run), so this composes safely as an *additional* candidate source.
+ *
+ * @param codeElementRef the code element's ref (a_ref of its exhibits edges)
+ * @param opts.ruleCorpusId restrict rule matches to this corpus (be_rule.source_corpus_id)
+ * @param opts.k            cap on rows returned (default: unbounded)
+ */
+export async function recallByConcept(
+  codeElementRef: string,
+  opts: { ruleCorpusId?: string; k?: number } = {},
+): Promise<ConceptRecallHit[]> {
+  const { ruleCorpusId, k } = opts;
+  const ruleCorpusFilter = ruleCorpusId
+    ? sql`AND be_rule.source_corpus_id = ${ruleCorpusId}`
+    : sql``;
+  const limit = k != null ? sql`LIMIT ${k}` : sql``;
+  return rawQuery<ConceptRecallHit>(sql`
+    SELECT
+      be_rule.a_ref::text                     AS rule_element_ref,
+      count(DISTINCT be_code.b_ref)::int      AS shared_concepts,
+      array_agg(DISTINCT be_code.b_ref::text) AS concept_refs
+    FROM public.bridge_edges be_code
+    JOIN public.bridge_edges be_rule
+      ON be_rule.b_ref = be_code.b_ref
+    WHERE be_code.a_ref      = ${codeElementRef}::uuid
+      AND be_code.relation   = 'exhibits'
+      AND be_code.b_kind     = 'entity'
+      AND be_code.expired_at IS NULL
+      AND be_rule.relation   = 'addresses'
+      AND be_rule.b_kind     = 'entity'
+      AND be_rule.expired_at IS NULL
+      ${ruleCorpusFilter}
+    GROUP BY be_rule.a_ref
+    ORDER BY shared_concepts DESC, rule_element_ref
+    ${limit}
+  `);
+}

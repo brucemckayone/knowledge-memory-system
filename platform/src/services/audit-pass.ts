@@ -125,6 +125,45 @@ export async function recallCrossCorpusCandidates(
   }));
 }
 
+/**
+ * Concept-mediated recall (doc 19 §3.3) — the symbolic-JOIN candidate source that
+ * AUGMENTS {@link recallCrossCorpusCandidates} (D-C7: the concept path never
+ * replaces cosine). For every source-corpus element, the target-corpus rules that
+ * share >=1 concept node via the exhibits/addresses bridge_edges family:
+ *
+ *   code --exhibits--> concept <--addresses-- rule
+ *
+ * No embedding — the shared concept node IS the bridge. Returns [] until concept
+ * extraction has populated exhibits/addresses edges, so this composes as a pure
+ * addition to the cosine set (zero behaviour change before extraction exists).
+ *
+ * `similarity` is 0 — a concept-derived cell carries no cosine colour; the union
+ * in runAuditPass lets a cosine hit on the same cell supply the real value.
+ */
+export async function recallConceptCandidates(
+  sourceCorpusId: string,
+  targetCorpusId: string,
+): Promise<CandidatePair[]> {
+  const r = rows(
+    await db.execute(sql`
+      SELECT be_code.a_ref::text AS element_ref,
+             be_rule.a_ref::text AS rule_id
+      FROM public.bridge_edges be_code
+      JOIN public.bridge_edges be_rule ON be_rule.b_ref = be_code.b_ref
+      WHERE be_code.source_corpus_id = ${sourceCorpusId}
+        AND be_code.relation = 'exhibits'  AND be_code.b_kind = 'entity' AND be_code.expired_at IS NULL
+        AND be_rule.source_corpus_id = ${targetCorpusId}
+        AND be_rule.relation = 'addresses' AND be_rule.b_kind = 'entity' AND be_rule.expired_at IS NULL
+      GROUP BY be_code.a_ref, be_rule.a_ref
+    `),
+  );
+  return r.map((row) => ({
+    elementRef: row.element_ref as string,
+    ruleId: row.rule_id as string,
+    similarity: 0,
+  }));
+}
+
 // ============================================
 // The agent invoker seam (default = production; tests inject a fake)
 // ============================================
@@ -261,12 +300,23 @@ export async function runAuditPass(
   });
   await setAuditRunStatus(run.id, 'running');
 
-  // 1. Recall-at-seed — deterministic cross-corpus candidate generation (.14 lever).
-  const candidates = await recallCrossCorpusCandidates(
+  // 1. Recall-at-seed — deterministic cross-corpus candidate generation. Cosine
+  // recall (the .14 lever) UNIONed with concept-JOIN recall (doc 19 §3.3, D-C7:
+  // the symbolic path augments — never replaces — cosine). Deduped by cell; a
+  // cosine hit supplies the similarity colour, concept-only cells keep 0.
+  const conceptCandidates = await recallConceptCandidates(
+    params.sourceCorpusId,
+    params.targetCorpusId,
+  );
+  const cosineCandidates = await recallCrossCorpusCandidates(
     params.sourceCorpusId,
     params.targetCorpusId,
     params.recall,
   );
+  const byCell = new Map<string, CandidatePair>();
+  for (const c of conceptCandidates) byCell.set(`${c.elementRef} ${c.ruleId}`, c);
+  for (const c of cosineCandidates) byCell.set(`${c.elementRef} ${c.ruleId}`, c);
+  const candidates = [...byCell.values()];
   const units: AuditUnit[] = candidates.map((c) => ({ elementRef: c.elementRef, ruleId: c.ruleId }));
   const seeded = await seedCoverageUnits(run.id, units);
   // Similarity is scope colour for the agent prompt; index it for O(1) lookup.
