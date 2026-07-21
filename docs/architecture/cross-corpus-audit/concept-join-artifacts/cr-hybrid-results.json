@@ -1,0 +1,290 @@
+{
+  "prereg": "doc-22",
+  "rrfK": 60,
+  "macro": {
+    "cosine": {
+      "1": 0.25925925925925924,
+      "3": 0.337037037037037,
+      "5": 0.4666666666666667,
+      "8": 0.625925925925926
+    },
+    "join": {
+      "1": 0.15925925925925927,
+      "3": 0.3111111111111111,
+      "5": 0.4444444444444444,
+      "8": 0.4444444444444444
+    },
+    "hybridFullRanking": {
+      "1": 0.24814814814814815,
+      "3": 0.40370370370370373,
+      "5": 0.4444444444444444,
+      "8": 0.4444444444444444
+    },
+    "hybridRetrievedSet": {
+      "1": 0.3296296296296297,
+      "3": 0.4444444444444444,
+      "5": 0.6481481481481483,
+      "8": 0.6666666666666666
+    }
+  },
+  "oracleFusionCeiling5": 0.6481481481481483,
+  "bootstrap": {
+    "fullRankingVsCosine": {
+      "mean": -0.02096851851851805,
+      "lo": -0.38888888888888895,
+      "hi": 0.3185185185185185
+    },
+    "fullRankingVsJoin": {
+      "mean": 0,
+      "lo": 0,
+      "hi": 0
+    },
+    "retrievedSetVsCosine": {
+      "mean": 0.18173333333332858,
+      "lo": 0,
+      "hi": 0.37777777777777777
+    }
+  },
+  "retrievedSetNote": "retrieved-set RRF is NOT pre-registered; recorded as exploratory/confirmatory, not banked as the gate result",
+  "consistency": {
+    "cosineReproduced": true,
+    "joinMacro5": 0.4444444444444444
+  },
+  "bar": {
+    "cond1": false,
+    "at1Regress": true,
+    "pass": false
+  },
+  "perGuideline": [
+    {
+      "guideline": "C.12",
+      "cos": 1,
+      "join": 1,
+      "hybrid": 1
+    },
+    {
+      "guideline": "C.48",
+      "cos": 0,
+      "join": 0,
+      "hybrid": 0
+    },
+    {
+      "guideline": "ES.20",
+      "cos": 0,
+      "join": 0,
+      "hybrid": 0
+    },
+    {
+      "guideline": "ES.30",
+      "cos": 0.5,
+      "join": 1,
+      "hybrid": 1
+    },
+    {
+      "guideline": "ES.42",
+      "cos": 0.2,
+      "join": 1,
+      "hybrid": 1
+    },
+    {
+      "guideline": "ES.45",
+      "cos": 0.833,
+      "join": 0,
+      "hybrid": 0
+    },
+    {
+      "guideline": "ES.75",
+      "cos": 0,
+      "join": 0,
+      "hybrid": 0
+    },
+    {
+      "guideline": "F.16",
+      "cos": 1,
+      "join": 0,
+      "hybrid": 0
+    },
+    {
+      "guideline": "Type.1",
+      "cos": 0.667,
+      "join": 1,
+      "hybrid": 1
+    }
+  ],
+  "perElement": {
+    "E001": {
+      "trueRule": "ES.42",
+      "cos": 2,
+      "join": 1,
+      "hybrid": 1
+    },
+    "E002": {
+      "trueRule": "Type.1",
+      "cos": 6,
+      "join": 2,
+      "hybrid": 3
+    },
+    "E003": {
+      "trueRule": "ES.42",
+      "cos": 7,
+      "join": 2,
+      "hybrid": 2
+    },
+    "E004": {
+      "trueRule": "ES.42",
+      "cos": 6,
+      "join": 1,
+      "hybrid": 1
+    },
+    "E005": {
+      "trueRule": "Type.1",
+      "cos": 3,
+      "join": 2,
+      "hybrid": 2
+    },
+    "E006": {
+      "trueRule": "Type.1",
+      "cos": 4,
+      "join": 2,
+      "hybrid": 1
+    },
+    "E007": {
+      "trueRule": "ES.42",
+      "cos": 7,
+      "join": 1,
+      "hybrid": 2
+    },
+    "E008": {
+      "trueRule": "F.16",
+      "cos": 1,
+      "join": 27,
+      "hybrid": 11
+    },
+    "E009": {
+      "trueRule": "F.16",
+      "cos": 1,
+      "join": 27,
+      "hybrid": 12
+    },
+    "E010": {
+      "trueRule": "ES.45",
+      "cos": 7,
+      "join": 27,
+      "hybrid": 17
+    },
+    "E011": {
+      "trueRule": "ES.45",
+      "cos": 4,
+      "join": 27,
+      "hybrid": 13
+    },
+    "E012": {
+      "trueRule": "ES.45",
+      "cos": 5,
+      "join": 27,
+      "hybrid": 14
+    },
+    "E013": {
+      "trueRule": "ES.45",
+      "cos": 5,
+      "join": 27,
+      "hybrid": 14
+    },
+    "E014": {
+      "trueRule": "ES.45",
+      "cos": 5,
+      "join": 27,
+      "hybrid": 14
+    },
+    "E015": {
+      "trueRule": "ES.45",
+      "cos": 5,
+      "join": 27,
+      "hybrid": 14
+    },
+    "E016": {
+      "trueRule": "C.12",
+      "cos": 1,
+      "join": 4,
+      "hybrid": 1
+    },
+    "E017": {
+      "trueRule": "C.48",
+      "cos": 25,
+      "join": 27,
+      "hybrid": 27
+    },
+    "E018": {
+      "trueRule": "Type.1",
+      "cos": 3,
+      "join": 2,
+      "hybrid": 2
+    },
+    "E019": {
+      "trueRule": "Type.1",
+      "cos": 7,
+      "join": 3,
+      "hybrid": 3
+    },
+    "E020": {
+      "trueRule": "ES.42",
+      "cos": 9,
+      "join": 4,
+      "hybrid": 4
+    },
+    "E021": {
+      "trueRule": "Type.1",
+      "cos": 3,
+      "join": 2,
+      "hybrid": 1
+    },
+    "E022": {
+      "trueRule": "ES.20",
+      "cos": 16,
+      "join": 27,
+      "hybrid": 25
+    },
+    "E023": {
+      "trueRule": "ES.75",
+      "cos": 17,
+      "join": 27,
+      "hybrid": 25
+    },
+    "E024": {
+      "trueRule": "ES.30",
+      "cos": 1,
+      "join": 1,
+      "hybrid": 1
+    },
+    "E025": {
+      "trueRule": "ES.30",
+      "cos": 9,
+      "join": 1,
+      "hybrid": 2
+    },
+    "E026": {
+      "trueRule": "ES.30",
+      "cos": 8,
+      "join": 1,
+      "hybrid": 4
+    },
+    "E027": {
+      "trueRule": "ES.30",
+      "cos": 6,
+      "join": 2,
+      "hybrid": 3
+    },
+    "E028": {
+      "trueRule": "ES.30",
+      "cos": 4,
+      "join": 1,
+      "hybrid": 1
+    },
+    "E029": {
+      "trueRule": "ES.30",
+      "cos": 1,
+      "join": 1,
+      "hybrid": 1
+    }
+  }
+}
