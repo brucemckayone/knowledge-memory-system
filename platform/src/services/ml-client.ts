@@ -173,6 +173,32 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/**
+ * Extract the first balanced JSON object/array from arbitrary model text,
+ * tolerating leading code fences, trailing prose, and rationale blocks a model
+ * may append despite the system prompt. Respects string literals and escapes so
+ * braces inside strings don't miscount. Mirrors `_find_json_structure` in
+ * ml-services/app/core/llm.py. Returns the JSON substring, or null if none.
+ */
+function firstBalancedJson(text: string): string | null {
+  for (let i = 0; i < text.length; i++) {
+    const open = text[i];
+    if (open !== '{' && open !== '[') continue;
+    const close = open === '{' ? '}' : ']';
+    let depth = 0, inStr = false, esc = false;
+    for (let j = i; j < text.length; j++) {
+      const c = text[j];
+      if (esc) { esc = false; continue; }
+      if (c === '\\' && inStr) { esc = true; continue; }
+      if (c === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (c === open) depth++;
+      else if (c === close) { depth--; if (depth === 0) return text.slice(i, j + 1); }
+    }
+  }
+  return null;
+}
+
 // --- Predicate resolution (doc 42 §6, PC3/PC4) ---
 
 export interface ResolvePredicateCandidate {
@@ -298,21 +324,28 @@ export const ml = {
       message: prompt,
       system_prompt: SYSTEM,
     }, 60_000);
+    // Fast path: strip an enclosing code fence and parse. Fall back to scanning
+    // for the first balanced JSON structure — a model sometimes appends a code
+    // fence + rationale block AFTER the JSON despite the system prompt, which
+    // trailing-fence stripping alone cannot handle (surfaced by nmemo-uhp.24).
     const cleaned = result.response
       .trim()
       .replace(/^```(?:json)?\s*/i, '')
       .replace(/```\s*$/i, '')
       .trim();
-    try {
-      return JSON.parse(cleaned) as T;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new MlClientError(
-        '/chat',
-        422,
-        `generateJson: response is not valid JSON (${message}); cleaned=${JSON.stringify(cleaned.slice(0, 200))}`,
-      );
+    const candidates = [cleaned, firstBalancedJson(result.response)].filter((c): c is string => !!c);
+    for (const candidate of candidates) {
+      try {
+        return JSON.parse(candidate) as T;
+      } catch {
+        // try the next candidate
+      }
     }
+    throw new MlClientError(
+      '/chat',
+      422,
+      `generateJson: response is not valid JSON; response=${JSON.stringify(result.response.slice(0, 200))}`,
+    );
   },
 
   async health(): Promise<boolean> {
