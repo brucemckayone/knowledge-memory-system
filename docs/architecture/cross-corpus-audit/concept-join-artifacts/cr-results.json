@@ -1,0 +1,124 @@
+{
+  "prereg": "doc-21",
+  "generated": "concept-reconcile-recall",
+  "guards": {
+    "relationsTotal": 27,
+    "realRelations": 27,
+    "decoyRelations": 0,
+    "decoyAligned": 0,
+    "density": 0.008852459016393442,
+    "byType": {
+      "specializes": 13,
+      "equivalent": 8,
+      "addresses": 6
+    }
+  },
+  "macro": {
+    "baseline": {
+      "1": 0.23703703703703705,
+      "3": 0.25555555555555554,
+      "5": 0.25555555555555554,
+      "8": 0.25555555555555554
+    },
+    "reconciled": {
+      "1": 0.15925925925925927,
+      "3": 0.3111111111111111,
+      "5": 0.4444444444444444,
+      "8": 0.4444444444444444
+    },
+    "cosine": {
+      "1": 0.25925925925925924,
+      "3": 0.337037037037037,
+      "5": 0.4666666666666667,
+      "8": 0.625925925925926
+    }
+  },
+  "connectivity": {
+    "baseline": 8,
+    "reconciled": 18,
+    "of": 29
+  },
+  "bootstrap": {
+    "reconVsCosine": {
+      "mean": -0.02096851851851805,
+      "lo": -0.38888888888888895,
+      "hi": 0.3185185185185185
+    },
+    "reconVsBaseline": {
+      "mean": 0.18975555555554985,
+      "lo": 0,
+      "hi": 0.4444444444444444
+    }
+  },
+  "bar": {
+    "cond1": true,
+    "cond2": true,
+    "pass": true
+  },
+  "consistencyReproduced": true,
+  "perGuideline": [
+    {
+      "guideline": "C.12",
+      "n": 1,
+      "baseHit5": 1,
+      "reconHit5": 1,
+      "cosHit5": 1
+    },
+    {
+      "guideline": "C.48",
+      "n": 1,
+      "baseHit5": 0,
+      "reconHit5": 0,
+      "cosHit5": 0
+    },
+    {
+      "guideline": "ES.20",
+      "n": 1,
+      "baseHit5": 0,
+      "reconHit5": 0,
+      "cosHit5": 0
+    },
+    {
+      "guideline": "ES.30",
+      "n": 6,
+      "baseHit5": 0.5,
+      "reconHit5": 1,
+      "cosHit5": 0.5
+    },
+    {
+      "guideline": "ES.42",
+      "n": 5,
+      "baseHit5": 0.8,
+      "reconHit5": 1,
+      "cosHit5": 0.2
+    },
+    {
+      "guideline": "ES.45",
+      "n": 6,
+      "baseHit5": 0,
+      "reconHit5": 0,
+      "cosHit5": 0.833
+    },
+    {
+      "guideline": "ES.75",
+      "n": 1,
+      "baseHit5": 0,
+      "reconHit5": 0,
+      "cosHit5": 0
+    },
+    {
+      "guideline": "F.16",
+      "n": 2,
+      "baseHit5": 0,
+      "reconHit5": 0,
+      "cosHit5": 1
+    },
+    {
+      "guideline": "Type.1",
+      "n": 6,
+      "baseHit5": 0,
+      "reconHit5": 1,
+      "cosHit5": 0.667
+    }
+  ]
+}

@@ -1,0 +1,140 @@
+{
+  "generated": "doc-21 concept-reconcile",
+  "relations": [
+    {
+      "a": "reinterpret-cast",
+      "b": "type-punning",
+      "type": "specializes"
+    },
+    {
+      "a": "integer-narrowing",
+      "b": "implicit-conversion",
+      "type": "specializes"
+    },
+    {
+      "a": "reinterpret-cast",
+      "b": "unsafe-cast",
+      "type": "specializes"
+    },
+    {
+      "a": "reinterpret-cast",
+      "b": "unsafe-casting",
+      "type": "specializes"
+    },
+    {
+      "a": "const-member-variable",
+      "b": "const-data-member",
+      "type": "equivalent"
+    },
+    {
+      "a": "move-semantics",
+      "b": "unnecessary-copy",
+      "type": "addresses"
+    },
+    {
+      "a": "integer-narrowing",
+      "b": "lossy-conversion",
+      "type": "specializes"
+    },
+    {
+      "a": "shared-pointer",
+      "b": "polymorphic-deletion",
+      "type": "addresses"
+    },
+    {
+      "a": "numeric-limits-sentinel",
+      "b": "magic-constant",
+      "type": "addresses"
+    },
+    {
+      "a": "internal-linkage",
+      "b": "unnecessary-class-coupling",
+      "type": "addresses"
+    },
+    {
+      "a": "size-checking",
+      "b": "bounds-checking",
+      "type": "specializes"
+    },
+    {
+      "a": "pointer-arithmetic",
+      "b": "pointer-arithmetic",
+      "type": "equivalent"
+    },
+    {
+      "a": "raw-pointer-arithmetic",
+      "b": "pointer-arithmetic",
+      "type": "specializes"
+    },
+    {
+      "a": "preprocessor-macro",
+      "b": "preprocessor-macro",
+      "type": "equivalent"
+    },
+    {
+      "a": "macro-definition",
+      "b": "preprocessor-macro",
+      "type": "equivalent"
+    },
+    {
+      "a": "integer-conversion",
+      "b": "type-coercion",
+      "type": "specializes"
+    },
+    {
+      "a": "explicit-type-casting",
+      "b": "type-coercion",
+      "type": "specializes"
+    },
+    {
+      "a": "numeric-cast",
+      "b": "type-coercion",
+      "type": "specializes"
+    },
+    {
+      "a": "integer-narrowing",
+      "b": "type-coercion",
+      "type": "specializes"
+    },
+    {
+      "a": "reinterpret-cast",
+      "b": "type-coercion",
+      "type": "specializes"
+    },
+    {
+      "a": "size-checking",
+      "b": "off-by-one-error",
+      "type": "addresses"
+    },
+    {
+      "a": "const-reference-parameter",
+      "b": "pass-by-const-reference",
+      "type": "equivalent"
+    },
+    {
+      "a": "shared-pointer",
+      "b": "shared-ownership",
+      "type": "equivalent"
+    },
+    {
+      "a": "heap-allocation",
+      "b": "explicit-allocation",
+      "type": "equivalent"
+    },
+    {
+      "a": "shared-pointer",
+      "b": "pointer-ownership",
+      "type": "specializes"
+    },
+    {
+      "a": "macro-definition",
+      "b": "macro-constant",
+      "type": "equivalent"
+    },
+    {
+      "a": "state-guard",
+      "b": "public-data-member",
+      "type": "addresses"
+    }
+  ]
+}
