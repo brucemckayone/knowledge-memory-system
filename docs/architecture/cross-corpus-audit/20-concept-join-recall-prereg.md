@@ -187,3 +187,60 @@ Both outcomes are acceptable dispositions. This is stated now precisely so that 
 tempts a post-hoc bar (R32: "both outcomes → same decision" is only a launder when the discriminating
 test is declared optional — here the test is mandatory and the outcomes differ in the *claim*, which
 is the thing under test).
+
+---
+
+## 13. RESULT (2026-07-21) — GATE FAIL, adversary-confirmed SOUND
+
+Run: `platform/src/test/tools/concept-join-recall.ts` (real Haiku extraction, provider=claude, on
+`cognitive_test`). Artifacts frozen in `concept-join-artifacts/` (`cj-extracted.json`,
+`cj-results.json`). Plumbing clean: 29/29 code + 27/27 rule entities, no fusion (R40).
+
+**Macro recall@k (primary):**
+
+| arm | @1 | @3 | @5 | @8 |
+|-----|----|----|----|----|
+| JOIN | 0.237 | 0.256 | 0.256 | 0.256 |
+| cosine | 0.259 | 0.337 | **0.467** | 0.626 |
+| BM25 | 0.156 | 0.248 | 0.433 | 0.548 |
+
+- **cond1 FAIL:** JOIN − max(cos,bm25) macro@5 = **−0.211** (bar was +0.15). Wrong direction.
+- **cond2 FAIL:** JOIN below the better baseline at every k.
+- **cond3 FAIL (decisive):** sub-lexical slice (n=14) — cosine 0.429 **beat** JOIN 0.214. The concept
+  layer lost exactly where it was supposed to win (BM25 = 0 there by construction).
+
+**Root cause (the pre-registered §9 FAIL path, not a scoring artifact):** only **8 of 29** code
+elements ever get their true rule connected by a shared concept node. Two independent Haiku passes
+pick different abstraction levels for the same mechanism (code `reinterpret-cast` vs rule
+`unsafe-cast`; code `constexpr-constant`/`floating-point-literal` vs rule `magic-constant`), and
+lexical resolution can't bridge them. Resolution merged 5/37 pairs — all correct lexical variants;
+even a *perfect* resolver ceilings the JOIN at **0.444 < cosine 0.467**. Convergence, not resolution
+or ranking, is the bottleneck.
+
+**Blind adversary verdict: FAIL SOUND**, with one correction it forced on me (a FAIL-direction
+overstatement — R7/R17/R29). My first report used a bootstrap CI computed against the per-element
+`max(cos,bm25)` union, harsher than the pre-registered §8 arm-vs-arm difference, and I called the
+loss "significant." The honest §8 arm-vs-arm CIs:
+
+- **JOIN − cosine macro@5: mean −0.214, 95% CI [−0.537, +0.100] — includes 0**
+- **JOIN − BM25 macro@5: mean −0.178, 95% CI [−0.463, +0.081] — includes 0**
+
+So at n=9 the JOIN is a **statistical tie** with cosine (point estimate below, underpowered), **not**
+significantly worse. The harness was corrected to report arm-vs-arm CIs. Adversary checks: tie-break
+cost the JOIN 0 hits@5; no recall/bridge bug (97 exhibits + 51 addresses edges verified); cosine win
+real and concentrated on multi-element buckets (not the 4 singletons); embeddings ran *unprefixed*
+(if anything an under-powered cosine); sub-lexical membership verified exact.
+
+**What this licenses (§12 FAIL branch):** on this constructed floor the concept-JOIN does **not** beat
+direct cosine/BM25 recall and **loses on the sub-lexical slice** that justified it. The concept layer
+stays built + shipped as a symbolic, explainable substrate (the audit-pass union is empty-safe), but
+is **NOT** credited as a recall win. doc-18's "lean symbolic" survives as an *engineering* choice,
+not a measured recall advantage.
+
+**What it does NOT license:** (a) NOT "concept layer worthless" — where the sides converge on a term
+it is high-precision and traceable (ES.42: JOIN 0.80 vs cosine 0.20); it's a precision/explainability
+substrate, not a recall lever. (b) NOT "significantly worse than cosine" — the honest CI includes 0
+(n=9 underpowered). (c) NOT any field/prevalence claim — n=29 / 9 guidelines, constructed floor;
+field-prevalence run still owed. (d) NOT "convergence is impossible" — a convergence-forcing extractor
+could raise the ceiling, but even the generous 0.444 ceiling here still fails the bar, and that change
+needs its own pre-registration + adversary.
