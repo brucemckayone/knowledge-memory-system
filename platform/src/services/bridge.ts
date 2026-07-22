@@ -12,8 +12,9 @@
  *      (fresh graph / no topology).
  *
  *   2. composeExploreNode(entityId) -> ExploreNodeResponse
- *      One node + its 1-hop neighbors (+ edge strengths), for the endless walk.
- *      secondDegree / secondDegreeStubs are [] in this v1 (see SIMPLIFICATIONS).
+ *      One node + its 1-hop neighbors (+ edge strengths) + a BOUNDED depth-2
+ *      ghost ring (secondDegree) and faint outward stub hints
+ *      (secondDegreeStubs), for the endless walk (see SIMPLIFICATIONS).
  *
  * DEFERRED (out of scope for this v1, iOS keeps 501 stubs): the three handle
  * endpoints (confirm / reject / rename) and the bridgeShift notification.
@@ -54,8 +55,17 @@
  *   - edgeStrength for explore neighbors is 1.0 (unit strength). The AGE
  *     subgraph carries no per-edge weight in v1 (same as hero.ts). FLAGGED.
  *
- *   - secondDegree = [] and secondDegreeStubs = [] for this v1. iOS defaults
- *     both to [] and the renderer simply shows no ghost ring. FLAGGED.
+ *   - secondDegree is a BOUNDED depth-2 ghost ring: for the first
+ *     MAX_EXPAND_NEIGHBORS first-degree neighbors we walk one hop further and
+ *     surface up to PER_NEIGHBOR ghost nodes each, capped at MAX_SECOND_DEGREE
+ *     total (an explore frame is a peek, never the whole graph —
+ *     09-edge-cases §"never dump the whole graph", L322). Each ghost carries the
+ *     same facet-less second-hop shape iOS decodes (entityId/name/type/
+ *     parentEntityId/edgeStrength). edgeStrength is 1.0 (AGE has no per-edge
+ *     weight in v1 — same as first-degree). secondDegreeStubs is a faint
+ *     outward hint (fromEntityId + deterministic directionHint angle) for each
+ *     expanded neighbor that reaches MORE off-canvas structure than we drew as
+ *     ghosts. FLAGGED (depth-3+ is hinted, not walked).
  */
 
 import { sql } from 'drizzle-orm';
@@ -75,6 +85,17 @@ import {
 
 const UUID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+/**
+ * Per-cluster label fetch budget (ms). /api/bridge/current fetches this BEFORE
+ * iOS can draw the constellation, so a slow/unresponsive ml-services
+ * /label-cluster must NOT stall the whole request: an unbounded fetch here hung
+ * the endpoint >60s and left the ask/explore basin empty on first paint. On
+ * timeout the fetch aborts, labelClusterViaLLM catches and returns null, and the
+ * spoke falls back to its highest-pagerank member name (the v1 heuristic) — the
+ * payload shape is unchanged, only the label content degrades.
+ */
+const LABEL_CLUSTER_TIMEOUT_MS = 4000;
 
 // =============================================================================
 // Wire DTOs (camelCase — match the iOS CodingKeys exactly; see BridgeData.swift)
@@ -155,6 +176,11 @@ export interface ExploreNeighbor {
   isArticulationPoint: boolean;
   communityId: string | null;
   lastMentionedAt: string | null;
+  /** Total graph degree — distinct active-fact neighbors this entity has in the
+   *  whole graph, regardless of how many are drawn in this frame. Additive; iOS
+   *  derives hidden = neighborCount − edgesShown to cue "more nodes here". 0 when
+   *  the entity has no computable degree. */
+  neighborCount: number;
 }
 
 export interface ExploreSecondDegreeNode {
@@ -163,6 +189,8 @@ export interface ExploreSecondDegreeNode {
   type: NodeType;
   parentEntityId: string;
   edgeStrength: number;
+  /** Total graph degree — see ExploreNeighbor.neighborCount. */
+  neighborCount: number;
 }
 
 export interface SecondDegreeStub {
@@ -175,6 +203,32 @@ export interface ExploreNodeResponse {
   neighbors: ExploreNeighbor[];
   secondDegree: ExploreSecondDegreeNode[];
   secondDegreeStubs: SecondDegreeStub[];
+}
+
+/**
+ * iOS CommunityCluster — the graph-wide community-label snapshot the COMMUNITY
+ * lens joins against (contract: Sources/MnemoBackend/ASK/Community/Community.swift,
+ * consumed via MnemoHome/CommunityLabelProvider.fetchCommunities()).
+ *
+ * `communityId` is the SAME key the explore surface joins on: the stringified
+ * Leiden community id ExploreNode.communityId already carries (bridge.ts's
+ * communityIdStr -> String(cid), "0".."6"), NOT the HDBSCAN cluster_id. Keeping
+ * one keyspace lets a rendered pearl resolve its community name without a
+ * translation table.
+ *
+ * `label` is the readable community name (entities.properties.community modal
+ * per community). Absent -> the iOS color-only floor (hue still renders). We
+ * only emit COMMUNITIES THAT HAVE A NAME, so `label` is always present here;
+ * the optional-label degradation path stays exercised by unnamed communities
+ * (simply absent from the array).
+ *
+ * `labeledAt` is deliberately OMITTED: Leiden community detection carries no
+ * per-community label timestamp, and the iOS field is carried-not-consumed and
+ * optional (absent -> nil). Adding it later is a single-property change.
+ */
+export interface CommunityLabel {
+  communityId: string;
+  label: string;
 }
 
 // Raised when an EXPLICIT entityId does not resolve to a profile, so the route
@@ -211,6 +265,21 @@ function toNodeType(raw: string | null | undefined, isSelf: boolean): NodeType {
     default:
       return 'entity';
   }
+}
+
+/**
+ * Deterministic direction angle (radians, [0, 2π)) for a second-degree stub,
+ * hashed from the first-degree neighbor's entity id. Stable across frames (AGE
+ * node ordering is NOT stable, so an index-based angle would jump); the explore
+ * renderer treats directionHint as a free perimeter angle, so any finite value
+ * is valid — this just distributes the hints deterministically.
+ */
+function angleFromId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  return ((h % 3600) / 3600) * 2 * Math.PI;
 }
 
 interface CommunityMember {
@@ -336,6 +405,13 @@ async function labelClusterViaLLM(
   memberNames: string[],
   memberSummaries: string[],
 ): Promise<string | null> {
+  // Bound the fetch: without a signal a hung ml-services stalls this await
+  // forever, and since composeBridgeCurrent labels every spoke via Promise.all,
+  // ONE stuck /label-cluster hangs the entire /api/bridge/current response.
+  // Abort at LABEL_CLUSTER_TIMEOUT_MS; the AbortError lands in the catch below,
+  // returns null, and the caller falls back to the heuristic member name.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LABEL_CLUSTER_TIMEOUT_MS);
   try {
     const response = await fetch(`${config.ML_SERVICES_URL}/label-cluster`, {
       method: 'POST',
@@ -344,6 +420,7 @@ async function labelClusterViaLLM(
         member_names: memberNames,
         member_summaries: memberSummaries.length > 0 ? memberSummaries : undefined,
       }),
+      signal: controller.signal,
     });
     if (!response.ok) return null;
     const body = (await response.json()) as { label?: unknown };
@@ -351,6 +428,8 @@ async function labelClusterViaLLM(
     return label.length > 0 ? label : null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -535,6 +614,54 @@ function composeBridgeNarrative(
 }
 
 // =============================================================================
+// GET /api/explore/communities — composeExploreCommunities
+// =============================================================================
+
+/**
+ * Compose the graph-wide community-label snapshot: one { communityId, label }
+ * per NAMED Leiden community, keyed by the stringified community id the explore
+ * surface already joins on (see CommunityLabel).
+ *
+ * The readable name lives in entities.properties.community. A community may span
+ * members with mixed/blank community properties, so the label per community id
+ * is the MODAL (most-frequent) non-blank value, ties broken alphabetically for
+ * determinism (no Math.random / clock in the projection). Communities with no
+ * named member are omitted (the iOS color-only floor).
+ *
+ * Read-only projection over entity_topology ⋈ entities; never mutates.
+ */
+export async function composeExploreCommunities(): Promise<CommunityLabel[]> {
+  const rows = (await db.execute(sql`
+    SELECT community_id::text AS community_id, label
+    FROM (
+      SELECT
+        et.community_id AS community_id,
+        e.properties->>'community' AS label,
+        ROW_NUMBER() OVER (
+          PARTITION BY et.community_id
+          ORDER BY COUNT(*) DESC, (e.properties->>'community') ASC
+        ) AS rn
+      FROM public.entity_topology et
+      JOIN public.entities e ON e.id = et.entity_id
+      WHERE et.community_id IS NOT NULL
+        AND NULLIF(TRIM(e.properties->>'community'), '') IS NOT NULL
+      GROUP BY et.community_id, e.properties->>'community'
+    ) ranked
+    WHERE rn = 1
+    ORDER BY community_id::int
+  `)) as unknown as Array<{ community_id: string | null; label: string | null }>;
+
+  const out: CommunityLabel[] = [];
+  for (const r of rows) {
+    const communityId = r.community_id == null ? '' : String(r.community_id).trim();
+    const label = typeof r.label === 'string' ? r.label.trim() : '';
+    if (communityId.length === 0 || label.length === 0) continue;
+    out.push({ communityId, label });
+  }
+  return out;
+}
+
+// =============================================================================
 // GET /api/explore/node/:entityId — composeExploreNode
 // =============================================================================
 
@@ -546,7 +673,8 @@ function composeBridgeNarrative(
  * let-go success-shape, so an unknown node is a transport error, NOT an empty
  * frame; differs deliberately from rise's let-go 200).
  *
- * secondDegree / secondDegreeStubs are [] in this v1 (see SIMPLIFICATIONS).
+ * secondDegree is a BOUNDED depth-2 ghost ring + secondDegreeStubs the faint
+ * outward hints beyond it (see SIMPLIFICATIONS).
  */
 export async function composeExploreNode(
   entityId: string,
@@ -683,15 +811,124 @@ export async function composeExploreNode(
       isArticulationPoint: topoById.get(n.entityId)?.isArticulationPoint ?? false,
       communityId: communityIdStr(n.entityId),
       lastMentionedAt: facets?.lastMentionedAt ?? null,
+      neighborCount: 0, // populated in batch below (neighborDegrees)
     };
   });
+
+  // --- Depth-2 ghost ring + off-canvas stub hints ---------------------------
+  //
+  // For each first-degree neighbor we walk ONE hop further and stage its
+  // neighbors as faint "ghost" pearls (bridge.md L111 — the receding second
+  // tier). BOUNDED per the graph edge-case discipline (09-edge-cases §"never
+  // dump the whole graph", L322): expand only the first MAX_EXPAND_NEIGHBORS
+  // neighbors, take at most PER_NEIGHBOR ghosts each, cap the total at
+  // MAX_SECOND_DEGREE — an explore frame is a peek, not the whole graph.
+  const MAX_EXPAND_NEIGHBORS = 8; // 1-hop neighbors we walk outward from
+  const PER_NEIGHBOR = 3;         // max ghost pearls one neighbor contributes
+  const MAX_SECOND_DEGREE = 18;   // hard ceiling on ghost pearls in one frame
+
+  // Already on-canvas — the center and every displayed first-degree neighbor.
+  // A depth-2 hop that lands back on one of these is not a ghost.
+  const onCanvas = new Set<string>([entityId, ...neighborIds]);
+
+  const expandTargets = oneHopNeighbors.slice(0, MAX_EXPAND_NEIGHBORS);
+  const expandedSubgraphs = await Promise.all(
+    expandTargets.map((n) =>
+      getSubgraph([n.entityId], { maxDepth: 1, limit: 25 }).then((sg) => ({
+        parentId: n.entityId,
+        // getSubgraph([parent], depth 1) returns the parent itself + its 1-hop
+        // neighbors; keep only nodes that are NOT already on-canvas.
+        offCanvas: sg.nodes.filter((nd) => !onCanvas.has(nd.entityId)),
+      })),
+    ),
+  );
+
+  const secondDegree: ExploreSecondDegreeNode[] = [];
+  const secondDegreeStubs: SecondDegreeStub[] = [];
+  const seenGhosts = new Set<string>(); // global dedupe — first parent wins
+
+  for (const { parentId, offCanvas } of expandedSubgraphs) {
+    let takenForParent = 0;
+    for (const nd of offCanvas) {
+      if (secondDegree.length >= MAX_SECOND_DEGREE) break;
+      if (takenForParent >= PER_NEIGHBOR) break;
+      if (seenGhosts.has(nd.entityId)) continue; // shown off another parent already
+      seenGhosts.add(nd.entityId);
+      secondDegree.push({
+        entityId: nd.entityId,
+        name: normalizeName(nd.name),
+        type: toNodeType(nd.type, false),
+        parentEntityId: parentId,
+        // AGE subgraph carries no per-edge weight in v1 — unit strength, same as
+        // the first-degree neighbors above (see hero.ts). FLAGGED.
+        edgeStrength: 1.0,
+        neighborCount: 0, // populated in batch below (neighborDegrees)
+      });
+      takenForParent += 1;
+    }
+    // This neighbor reaches more off-canvas structure than we drew as ghosts
+    // (capped out, deduped, or simply deeper than depth-2 for this frame) → a
+    // faint outward stub hint (bridge.md L111, the gradient stub threads).
+    if (offCanvas.length > takenForParent) {
+      secondDegreeStubs.push({
+        fromEntityId: parentId,
+        directionHint: angleFromId(parentId),
+      });
+    }
+  }
+
+  // Per-node total graph degree (the "more hidden here" cue). ONE batched query
+  // over public.facts covering every first- AND second-degree id at once — no
+  // per-node round-trip. Ids with no computable degree stay 0.
+  const degreeIds = [...new Set([...neighborIds, ...secondDegree.map((s) => s.entityId)])];
+  const degrees = await neighborDegrees(degreeIds);
+  for (const n of neighbors) n.neighborCount = degrees.get(n.entityId) ?? 0;
+  for (const s of secondDegree) s.neighborCount = degrees.get(s.entityId) ?? 0;
 
   return {
     node,
     neighbors,
-    secondDegree: [],
-    secondDegreeStubs: [],
+    secondDegree,
+    secondDegreeStubs,
   };
+}
+
+/**
+ * Total graph degree for each id in `entityIds`: the number of DISTINCT neighbors
+ * that entity has across the whole active-fact graph, regardless of how many are
+ * drawn in a given explore frame. Edge source is public.facts (object_entity_id
+ * present, not expired) — the same entity-to-entity edges the topology/connectivity
+ * code counts (causal-agent connectivity map). Counts distinct neighbors in EITHER
+ * direction, excluding self-loops. ONE batched query (filter pushed into both
+ * direction branches so only edges touching the target ids are scanned). Batched;
+ * empty input -> empty map. Ids absent from the result have degree 0 at the call site.
+ */
+async function neighborDegrees(entityIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (entityIds.length === 0) return out;
+  const idList = sql.join(entityIds.map((id) => sql`${id}::uuid`), sql`, `);
+  const rows = (await db.execute(sql`
+    WITH undirected AS (
+      SELECT subject_entity_id AS id, object_entity_id AS nb
+      FROM public.facts
+      WHERE object_entity_id IS NOT NULL AND expired_at IS NULL
+        AND subject_entity_id IN (${idList})
+      UNION ALL
+      SELECT object_entity_id AS id, subject_entity_id AS nb
+      FROM public.facts
+      WHERE object_entity_id IS NOT NULL AND expired_at IS NULL
+        AND object_entity_id IN (${idList})
+    )
+    SELECT id::text AS id, COUNT(DISTINCT nb)::int AS degree
+    FROM undirected
+    WHERE nb <> id
+    GROUP BY id
+  `)) as unknown as Array<{ id: string; degree: number | null }>;
+  for (const r of rows) {
+    const d = Number(r.degree ?? 0);
+    out.set(r.id, Number.isFinite(d) && d > 0 ? Math.trunc(d) : 0);
+  }
+  return out;
 }
 
 /**

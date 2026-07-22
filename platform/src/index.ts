@@ -37,7 +37,7 @@ import {
   renameFocusHandler,
 } from './routes/onboarding.js';
 import { riseHandler } from './routes/rise.js';
-import { bridgeCurrentHandler, exploreNodeHandler } from './routes/bridge.js';
+import { bridgeCurrentHandler, exploreCommunitiesHandler, exploreNodeHandler } from './routes/bridge.js';
 import {
   reReadCurrentHandler,
   reReadAllHandler,
@@ -1459,6 +1459,10 @@ app.get('/api/rise/:annotationId', riseHandler);
 // endpoints (confirm/reject/rename) + bridgeShift are DEFERRED (iOS 501 stubs).
 app.get('/api/bridge/current', bridgeCurrentHandler);
 app.get('/api/explore/node/:entityId', exploreNodeHandler);
+// /api/explore/communities — graph-wide community-label snapshot (bare array of
+// { communityId, label }) the iOS CommunityLabelProvider joins against. Keyed by
+// the SAME stringified Leiden community id ExploreNode.communityId carries.
+app.get('/api/explore/communities', exploreCommunitiesHandler);
 
 // /api/re-read/* — the pregenerated re-read letters (ASK-011 read-path v1). iOS
 // reads what is already prepared and NEVER waits (letters are pregenerated). All

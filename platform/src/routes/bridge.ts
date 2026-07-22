@@ -27,6 +27,7 @@
 import type { Context } from 'hono';
 import {
   composeBridgeCurrent,
+  composeExploreCommunities,
   composeExploreNode,
   ExploreNodeNotFoundError,
 } from '../services/bridge.js';
@@ -60,6 +61,22 @@ export async function exploreNodeHandler(c: Context): Promise<Response> {
     if (err instanceof ExploreNodeNotFoundError) {
       return c.json({ error: err.message }, 404);
     }
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+}
+
+/**
+ * GET /api/explore/communities. Returns a BARE ARRAY of { communityId, label }
+ * — the graph-wide community-label snapshot the iOS CommunityLabelProvider
+ * decodes into [CommunityCluster] (bare array; mirrors the explore-node bare
+ * shape, and fetchCommunities() returns a bare array). An empty graph / no
+ * named communities is [] (200), never 404. 500 only on a real failure.
+ */
+export async function exploreCommunitiesHandler(c: Context): Promise<Response> {
+  try {
+    const communities = await composeExploreCommunities();
+    return c.json(communities);
+  } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
 }

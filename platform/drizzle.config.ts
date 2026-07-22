@@ -5,7 +5,7 @@ export default {
   out: './drizzle',
   driver: 'pg',
   dbCredentials: {
-    connectionString: process.env.DATABASE_URL || 'postgres://cognitive:cognitive@localhost:5433/cognitive',
+    connectionString: process.env.DATABASE_URL || 'postgres://cognitive:cognitive@localhost:5434/cognitive',
   },
   verbose: true,
   strict: true,

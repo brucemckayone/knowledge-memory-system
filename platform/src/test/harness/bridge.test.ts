@@ -28,10 +28,15 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import {
   composeBridgeCurrent,
+  composeExploreCommunities,
   composeExploreNode,
   ExploreNodeNotFoundError,
 } from '../../services/bridge.js';
-import { bridgeCurrentHandler, exploreNodeHandler } from '../../routes/bridge.js';
+import {
+  bridgeCurrentHandler,
+  exploreCommunitiesHandler,
+  exploreNodeHandler,
+} from '../../routes/bridge.js';
 
 // ---------------------------------------------------------------------------
 // AGE graph helpers — getSubgraph reads the `knowledge_graph` Cypher graph,
@@ -587,5 +592,122 @@ describe('bridge — routes', () => {
     // bare object — node at top level.
     expect(body.node.entityId).toBe(node.id);
     expect(Array.isArray(body.neighbors)).toBe(true);
+  });
+
+  it('GET /api/explore/communities → 200 bare array of { communityId, label }', async () => {
+    // Two named communities; the handler answers with a bare array (the shape
+    // iOS CommunityLabelProvider decodes into [CommunityCluster]).
+    const a = await createTestEntity({
+      canonicalName: 'the arch',
+      entityType: 'concept',
+      properties: { community: 'climbing' },
+    });
+    const b = await createTestEntity({
+      canonicalName: 'the office',
+      entityType: 'concept',
+      properties: { community: 'work' },
+    });
+    await seedTopology({ entityId: a.id, communityId: 0, pagerank: 0.5 });
+    await seedTopology({ entityId: b.id, communityId: 6, pagerank: 0.5 });
+
+    const calls: Array<[any, number?]> = [];
+    const c = {
+      json: (body: any, status?: number) => {
+        calls.push([body, status]);
+        return new Response();
+      },
+    } as unknown as Parameters<typeof exploreCommunitiesHandler>[0];
+    await exploreCommunitiesHandler(c);
+    const [body, status] = calls[0]!;
+    expect(status ?? 200).toBe(200);
+    expect(body).toEqual([
+      { communityId: '0', label: 'climbing' },
+      { communityId: '6', label: 'work' },
+    ]);
+  });
+});
+
+// ===========================================================================
+// composeExploreCommunities (service)
+// ===========================================================================
+
+describe('bridge — composeExploreCommunities (service)', () => {
+  beforeAll(async () => {
+    await loadAge();
+    await cleanSlate();
+  });
+  beforeEach(async () => {
+    await cleanSlate();
+  });
+  afterEach(async () => {
+    await cleanSlate();
+  });
+
+  it('projects id→label keyed by the stringified Leiden community id', async () => {
+    // The join keyspace is String(community_id) — the SAME key ExploreNode
+    // .communityId carries — NOT the HDBSCAN cluster_id.
+    const climbing = await createTestEntity({
+      canonicalName: 'the arch',
+      entityType: 'concept',
+      properties: { community: 'climbing' },
+    });
+    const work = await createTestEntity({
+      canonicalName: 'the office',
+      entityType: 'concept',
+      properties: { community: 'work' },
+    });
+    await seedTopology({ entityId: climbing.id, communityId: 0, pagerank: 0.5 });
+    await seedTopology({ entityId: work.id, communityId: 6, pagerank: 0.5 });
+
+    const out = await composeExploreCommunities();
+    expect(out).toEqual([
+      { communityId: '0', label: 'climbing' },
+      { communityId: '6', label: 'work' },
+    ]);
+  });
+
+  it('picks the MODAL label per community and ignores blank / null members', async () => {
+    // Community 3: two "music" members, one blank, one null-property member —
+    // the modal non-blank label wins; the blank/null members do not create a
+    // spurious community and do not override the name.
+    const m1 = await createTestEntity({
+      canonicalName: 'the setlist',
+      entityType: 'concept',
+      properties: { community: 'music' },
+    });
+    const m2 = await createTestEntity({
+      canonicalName: 'the amp',
+      entityType: 'concept',
+      properties: { community: 'music' },
+    });
+    const blank = await createTestEntity({
+      canonicalName: 'the pick',
+      entityType: 'concept',
+      properties: { community: '  ' },
+    });
+    const bare = await createTestEntity({
+      canonicalName: 'the case',
+      entityType: 'concept',
+      properties: {},
+    });
+    for (const e of [m1, m2, blank, bare]) {
+      await seedTopology({ entityId: e.id, communityId: 3, pagerank: 0.4 });
+    }
+
+    const out = await composeExploreCommunities();
+    expect(out).toEqual([{ communityId: '3', label: 'music' }]);
+  });
+
+  it('omits communities with no named member (the iOS color-only floor) and returns [] on an empty graph', async () => {
+    // A community whose only member has no community property is absent from the
+    // snapshot entirely — iOS renders the deterministic hue with no name.
+    const unnamed = await createTestEntity({
+      canonicalName: 'the fog',
+      entityType: 'concept',
+      properties: {},
+    });
+    await seedTopology({ entityId: unnamed.id, communityId: 2, pagerank: 0.3 });
+
+    expect(await composeExploreCommunities()).toEqual([]);
   });
 });

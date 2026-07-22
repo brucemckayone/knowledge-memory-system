@@ -41,7 +41,7 @@ services:
       dockerfile: Dockerfile
     command: postgres -c shared_preload_libraries='age' -c session_preload_libraries='age'
     ports:
-      - "5433:5432"
+      - "5434:5432"
     environment:
       - POSTGRES_DB=cognitive
       - POSTGRES_USER=cognitive
