@@ -1,0 +1,60 @@
+# Arm B reuse diagnostic
+
+docs in seeded cache: 162 / 162
+vocab size: 646
+
+## reuse rate by provenance (reuse = label already in vocab when seen)
+  base        341/856 reused (40%)
+  verbatim    96/116 reused (83%)
+  paraphrase  69/97 reused (71%)
+  distinct    31/114 reused (27%)
+
+## cond3 verbatim detail (each verbatim doc = identical text to a base doc → should reuse ALL)
+  verb:2607.18235v1: reused 5, fresh 1  NEW: harness-ensemble
+  verb:2607.18232v1: reused 9, fresh 1  NEW: linguistic-form-sensitivity
+  verb:2607.18228v1: reused 5, fresh 3  NEW: soft-prefix, syllogistic-reasoning, answer-override
+  verb:2607.18213v1: reused 6, fresh 2  NEW: context-pruning, tool-output-pruning
+  verb:2607.18199v1: reused 6, fresh 2  NEW: perplexity-based-selection, sample-difficulty-assessment
+  verb:2607.18181v1: reused 6, fresh 2  NEW: vibration-energy-harvesting, response-control-profile
+  verb:2607.18144v1: reused 4, fresh 3  NEW: physics-constraint-reasoning, 3d-spatial-reasoning, multi-constraint-synthesis
+  verb:2607.18142v1: reused 7, fresh 1  NEW: spatio-temporal-dynamics
+  verb:2607.18114v1: reused 8, fresh 2  NEW: alignment-tuning, leave-one-dataset-out-transfer
+  verb:2607.18110v1: reused 7, fresh 1  NEW: coach-based-feedback
+  verb:2607.18102v1: reused 8, fresh 0
+  verb:2607.18098v1: reused 6, fresh 0
+  verb:2607.18084v1: reused 8, fresh 0
+  verb:2607.18076v1: reused 4, fresh 2  NEW: gender-classification, synthetic-content-generation
+  verb:2607.18066v1: reused 7, fresh 0
+
+## cond2 over-merge detail: distinct-field concepts that matched a BASE-origin label (4 events)
+  dist:2607.18224v1 reused "trajectory-reasoning" (introduced by base:2607.18142v1)
+  dist:2607.18224v1 reused "temporal-reasoning" (introduced by base:2607.18084v1)
+  dist:2607.18124v1 reused "bayesian-posterior-sampling" (introduced by base:2607.16001v1)
+  dist:2607.18124v1 reused "thermodynamic-phase-transition" (introduced by base:2607.17146v1)
+
+## most-reused labels (spot-check: are the sharing docs really about the same concept?)
+  "retrieval-augmented-generation" ×19: base:2607.18102v1 base:2607.18084v1 base:2607.17952v1 base:2607.17935v1 base:2607.17883v1 base:2607.17849v1 base:2607.17766v1 base:2607.17715v1
+  "agentic-framework" ×15: base:2607.18142v1 base:2607.18102v1 base:2607.18084v1 base:2607.18006v1 base:2607.17986v1 base:2607.17935v1 base:2607.17598v1 base:2607.17535v1
+  "model-scale" ×11: base:2607.18232v1 base:2607.17902v1 base:2607.17713v1 base:2607.17270v1 base:2607.16609v1 base:2607.16549v1 base:2607.16097v1 base:2607.16051v2
+  "model-heterogeneity" ×11: base:2607.18228v1 base:2607.18181v1 base:2607.18144v1 base:2607.18066v1 base:2607.17738v1 base:2607.17427v1 base:2607.17420v1 base:2607.16712v1
+  "reasoning-evaluation" ×10: base:2607.17812v1 base:2607.17523v1 base:2607.16972v1 base:2607.16872v1 base:2607.16704v1 base:2607.16609v1 base:2607.16097v1 base:2607.15957v1
+  "multimodal-models" ×10: base:2607.17812v1 base:2607.17523v1 base:2607.17366v1 base:2607.16898v1 base:2607.16609v1 base:2607.16165v1 base:2607.16131v1 base:2607.16076v1
+  "multilingual-evaluation" ×10: base:2607.17713v1 base:2607.17689v1 base:2607.17466v1 base:2607.17270v1 base:2607.17173v1 base:2607.17111v1 base:2607.16777v1 base:2607.16117v1
+  "generalization-problem" ×9: base:2607.18235v1 base:2607.18228v1 base:2607.18199v1 base:2607.18144v1 base:2607.18110v1 base:2607.17952v1 base:2607.17524v1 base:2607.17452v1
+  "probing" ×9: base:2607.18114v1 base:2607.18056v1 base:2607.17627v1 base:2607.17427v1 base:2607.16799v1 base:2607.16549v1 base:2607.16451v1 verb:2607.18213v1
+  "temporal-reasoning" ×9: base:2607.18084v1 base:2607.17849v1 base:2607.17766v1 base:2607.17523v1 base:2607.17366v1 base:2607.17111v1 verb:2607.18084v1 para:para-2607.17849v1
+  "chain-of-thought-prompting" ×9: base:2607.17902v1 base:2607.17828v1 base:2607.17627v1 base:2607.16704v1 base:2607.16603v1 base:2607.16431v1 base:2607.15736v1 para:para-2607.17902v1
+  "accuracy-efficiency-trade-off" ×9: base:2607.16790v1 base:2607.16712v1 base:2607.16117v1 base:2607.15879v2 base:2607.15829v1 base:2607.15736v1 base:2607.15655v1 verb:2607.18213v1
+  "instruction-tuning" ×8: base:2607.18232v1 base:2607.18199v1 base:2607.18114v1 base:2607.17620v1 base:2607.17043v1 base:2607.16799v1 base:2607.15736v1 verb:2607.18232v1
+  "training-free-inference" ×8: base:2607.18142v1 base:2607.18098v1 base:2607.17766v1 base:2607.17738v1 base:2607.16451v1 base:2607.15847v1 verb:2607.18142v1 verb:2607.18098v1
+  "lora-adaptation" ×8: base:2607.18006v1 base:2607.17952v1 base:2607.17620v1 base:2607.17524v1 base:2607.17230v1 base:2607.16808v1 para:para-2607.18006v1 para:para-2607.17952v1
+  "fine-tuning" ×8: base:2607.17902v1 base:2607.17738v1 base:2607.17620v1 base:2607.17382v1 base:2607.16872v1 base:2607.16097v1 verb:2607.18199v1 para:para-2607.17902v1
+  "long-context-inference" ×8: base:2607.17715v1 base:2607.17598v1 base:2607.17299v1 base:2607.16808v1 base:2607.16117v1 base:2607.16072v1 base:2607.15829v1 verb:2607.18213v1
+  "context-following" ×7: base:2607.18232v1 base:2607.18228v1 base:2607.18213v1 base:2607.17738v1 base:2607.17366v1 base:2607.16021v1 verb:2607.18232v1
+  "trajectory-reasoning" ×7: base:2607.18142v1 base:2607.17523v1 base:2607.17250v1 base:2607.17082v1 base:2607.16621v1 verb:2607.18142v1 dist:2607.18224v1
+  "evidence-grounding" ×7: base:2607.17122v1 base:2607.16989v1 base:2607.16131v1 base:2607.15766v1 verb:2607.18102v1 para:para-2607.17935v1 para:para-2607.17883v1
+  "cross-domain-transfer" ×7: base:2607.16799v1 base:2607.16621v1 base:2607.16609v1 base:2607.16097v1 base:2607.16021v1 base:2607.15861v1 verb:2607.18142v1
+  "budget-allocation" ×6: base:2607.18235v1 base:2607.18199v1 base:2607.18098v1 base:2607.17152v1 verb:2607.18235v1 verb:2607.18199v1
+  "representational-distinctness" ×6: base:2607.18114v1 base:2607.17843v1 base:2607.16898v1 base:2607.16799v1 base:2607.16451v1 verb:2607.18114v1
+  "dynamic-benchmark" ×6: base:2607.18084v1 base:2607.18066v1 base:2607.17812v1 base:2607.17738v1 base:2607.16609v1 verb:2607.18084v1
+  "hallucination" ×6: base:2607.17883v1 base:2607.17524v1 base:2607.17266v1 base:2607.17230v1 base:2607.17082v1 para:para-2607.17883v1
