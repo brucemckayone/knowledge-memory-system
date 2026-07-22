@@ -21,7 +21,7 @@ import { dirname, join } from 'node:path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
 const ARM = (() => { const i = process.argv.indexOf('--arm'); return i >= 0 ? (process.argv[i + 1] ?? '0') : '0'; })();
-if (!['0', 'A', 'B'].includes(ARM)) { console.error(`bad --arm ${ARM}`); process.exit(1); }
+if (!['0', 'A', 'B', 'R'].includes(ARM)) { console.error(`bad --arm ${ARM}`); process.exit(1); }
 const ML = process.env.ML_SERVICES_URL ?? 'http://127.0.0.1:8000';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '../../../../docs/architecture/cross-corpus-audit/convergence-artifacts');
@@ -33,6 +33,7 @@ const TAU_HIGH = 0.85;
 const TAU_LOW = 0.65;
 const POOL = 6;
 const VOCAB_CAP = 500; // arm B: MRU labels passed to the extractor
+const REL_K = 100;     // arm R: relevance-window size (top-K nearest existing labels by embedding)
 
 // ---- HTTP helpers (long timeout; hook doesn't intercept tsx file fetches) ----
 function firstBalancedJson(t: string): string | null {
@@ -181,6 +182,47 @@ async function conformOrGrowVocab(stream: Array<{ key: string; provenance: strin
   return { perDoc, vocab, origin };
 }
 
+// ---- relevance-window conform/grow (arm R) — ONLY diff vs arm B is window selection ----
+async function conformOrGrowRelevance(
+  stream: Array<{ key: string; provenance: string; text: string }>,
+  seededCache: Record<string, string[]>,
+  docEmb: Record<string, number[]>,
+  labelEmb: Record<string, number[]>,
+): Promise<{ perDoc: PerDoc[]; vocab: string[]; origin: Record<string, string> }> {
+  const vocab: string[] = [];
+  const origin: Record<string, string> = {};
+  const windowLog: Record<string, string[]> = {}; // doc.key -> retrieved window (adversary can verify twin labels present)
+  const perDoc: PerDoc[] = [];
+  let di = 0;
+  for (const doc of stream) {
+    if (di % 10 === 0) console.log(`  [arm R] doc ${di}/${stream.length} vocab=${vocab.length}`);
+    di++;
+    if (!docEmb[doc.key]) { docEmb[doc.key] = await embed(doc.text); saveCache('doc-embeddings.json', docEmb); }
+    const de = docEmb[doc.key]!;
+    // relevance window: top-REL_K existing labels nearest the document (all if |V|<=K)
+    let window: string[];
+    if (vocab.length <= REL_K) window = [...vocab];
+    else window = vocab.filter((l) => labelEmb[l]).map((l) => ({ l, s: cosine(de, labelEmb[l]!) })).sort((a, b) => b.s - a.s).slice(0, REL_K).map((x) => x.l);
+    windowLog[doc.key] = window;
+    let labels = seededCache[doc.key];
+    if (!labels) { labels = await extractSeeded(doc.text, window); seededCache[doc.key] = labels; saveCache('seeded-extractions-R.json', seededCache); }
+    const vocabSet = new Set(vocab);
+    let nw = 0, conf2base = 0;
+    for (const label of labels) {
+      if (vocabSet.has(label)) { if (origin[label] === 'base' && doc.provenance !== 'base') conf2base++; }
+      else {
+        vocab.push(label); vocabSet.add(label); origin[label] = doc.provenance; nw++;
+        if (!labelEmb[label]) { labelEmb[label] = await embed(label); }
+      }
+    }
+    perDoc.push({ key: doc.key, provenance: doc.provenance, newNodes: nw, conformedToBase: conf2base, concepts: labels.length });
+  }
+  saveCache('label-embeddings-R.json', labelEmb);
+  saveCache('doc-embeddings.json', docEmb);
+  saveCache('rel-window-log.json', windowLog);
+  return { perDoc, vocab, origin };
+}
+
 // ---- shared metrics (identical across arms; pre-reg §3) ----
 function computeMetrics(perDoc: PerDoc[], freeFormBase: number) {
   const basePerDoc = perDoc.filter((p) => p.provenance === 'base');
@@ -296,8 +338,8 @@ async function main(): Promise<void> {
     metrics = computeMetrics(perDoc, freeFormBase);
     extra.bandJudged = perDoc.reduce((a, b) => a + (b.bandJudged ?? 0), 0);
     extra.totalNodes = r.nodes.length;
-  } else {
-    // ARM B: sequential vocabulary-seeded extraction
+  } else if (ARM === 'B') {
+    // ARM B: sequential vocabulary-seeded extraction (MRU window)
     const seededCache = loadCache<Record<string, string[]>>('seeded-extractions.json') ?? {};
     const stream: Array<{ key: string; provenance: string; text: string }> = [];
     for (const b of corpus.base) stream.push({ key: 'base:' + b.id, provenance: 'base', text: b.text });
@@ -311,6 +353,25 @@ async function main(): Promise<void> {
     perDoc = r.perDoc;
     metrics = computeMetrics(perDoc, freeFormBase);
     extra.vocabSize = r.vocab.length;
+    extra.vocabSample = r.vocab.slice(0, 40);
+  } else {
+    // ARM R: sequential seeded extraction with a RELEVANCE window (top-REL_K nearest labels)
+    const seededCache = loadCache<Record<string, string[]>>('seeded-extractions-R.json') ?? {};
+    const docEmb = loadCache<Record<string, number[]>>('doc-embeddings.json') ?? {};
+    const labelEmb = loadCache<Record<string, number[]>>('label-embeddings-R.json') ?? {};
+    const stream: Array<{ key: string; provenance: string; text: string }> = [];
+    for (const b of corpus.base) stream.push({ key: 'base:' + b.id, provenance: 'base', text: b.text });
+    for (const vid of corpus.verbatimIds) stream.push({ key: 'verb:' + vid, provenance: 'verbatim', text: corpus.base.find((x) => x.id === vid)!.text });
+    for (const p of corpus.paraphrase) stream.push({ key: 'para:' + p.id, provenance: 'paraphrase', text: p.text });
+    for (const d of corpus.distinct) stream.push({ key: 'dist:' + d.id, provenance: 'distinct', text: d.text });
+    const already = stream.filter((s) => s.key in seededCache).length;
+    console.log(`arm R: relevance-window (K=${REL_K}) seeded extraction over ${stream.length} docs (${already} cached)...`);
+    const r = await conformOrGrowRelevance(stream, seededCache, docEmb, labelEmb);
+    saveCache('seeded-extractions-R.json', seededCache);
+    perDoc = r.perDoc;
+    metrics = computeMetrics(perDoc, freeFormBase);
+    extra.vocabSize = r.vocab.length;
+    extra.relK = REL_K;
     extra.vocabSample = r.vocab.slice(0, 40);
   }
 
