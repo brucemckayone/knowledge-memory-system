@@ -142,3 +142,73 @@ directions — this synthesis is untrustworthy without the adversary.
   Free-form remains the honest description of what the system does.
 
 Either way: one field, one modality; general-across-fields/modalities is a later, broader gate.
+
+---
+
+## 10. RESULT (2026-07-22) — all three arms GATE FAIL; adversary QUALIFIED; problem relocated to the vocab window
+
+Arms 0/A/B ran on the frozen corpus. A blind adversary independently replayed every arm from raw per-doc data
+(**0/162 mismatches** on Arm B, replaying `seeded-extractions.json`+`corpus.json` through its own conform/grow)
+and audited the interpretation both directions. Verdict: **numbers PASS-SOUND, interpretation QUALIFIED** (4
+corrections). Artifacts: `convergence-artifacts/cv2-results-arm{0,A,B}.json`, `armB-reuse-diagnostic.txt`.
+
+| arm | reduction (≥40%) | growth Q4/Q1 (≤0.5) | distinct-separate (≥90%) | verbatim (≤0.10) | gate |
+|---|---|---|---|---|---|
+| 0 control (bare-label embed) | 4.5% | 0.87 | 100% | 0.47 | **FAIL** (c1,c3) |
+| A description-embedding | 6.7% | 0.96 | 100% | 0.51 | **FAIL** (c1,c3) |
+| B controlled-vocab extraction | **43.2%** ✓ | 0.72 | **96.5%** ✓ | 0.36 | **FAIL** (c1,c3) |
+
+**No arm passes.** Corpus byte-identical across arms (sha256 `d1af6fc4…`, no re-fetch), bars frozen pre-run
+(pre-reg `75c741e` 09:52 precedes every result write), denominator 906 clean.
+
+### Arm A — clean negative result
+Embedding a one-sentence gloss instead of the bare label moved reduction only 4.5%→6.7% and *worsened* growth
+(0.87→0.96) and verbatim (0.47→0.51). Adversary confirmed the glosses were genuinely embedded (0/1237 gloss
+keys coincide with a label key; avg 117 vs 21 chars). **The embedding representation is not the bottleneck** —
+a much richer text vector barely helps. The problem is not how concepts are *compared*; it is how they are
+*named at extraction*.
+
+### Arm B — the strong signal, and the load-bearing correction
+Telling the extractor to reuse existing labels gave **43.2% explosion reduction** (10× arms 0/A; base vocab
+515 vs free-form 906) with **over-merge controlled at 96.5%** (4/114 distinct-field concepts absorbed, and
+those are defensible cross-domain concepts — `bayesian-posterior-sampling`, `thermodynamic-phase-transition`).
+Reuse is *mostly* genuine and coherent (`retrieval-augmented-generation` ×16 across real RAG papers,
+`multilingual-evaluation`, `instruction-tuning`) — **with a qualifier the adversary required:** a tail of
+vague-umbrella / polysemous labels rides along (`generalization-problem`, `model-heterogeneity`,
+`trajectory-reasoning` — two senses), i.e. some within-field lumping. That case is *ungated* here (doc-23 §3).
+
+**Adversary's load-bearing correction — why the discipline exists.** My draft headline for Arm B — "even shown
+the exact vocab, Haiku coins ~1.3 novel labels per identical re-read (residual extraction non-determinism)" —
+is **substantially a harness artifact**, not non-determinism. The MRU-500 vocab cap (pre-reg §2's own knob)
+triggered at stream index 118, so only 2/120 base docs were capped **but all 15 verbatim probes were** — and
+the verbatim probes' base-twins are the *first 15 base docs* (the oldest labels), which recency-based MRU
+eviction drops first: **38 base-twin labels were evicted from the shown window** before their verbatim doc
+re-extracted. The extractor cannot reuse a label it was never shown. Of the 20 verbatim new nodes, **9 are
+demonstrable cap artifacts** (token-variants of evicted twins: `soft-prefix`~`soft-prefix-bias`,
+`3d-spatial-reasoning`~`spatial-reasoning`, `gender-classification`~`speaker-gender-classification`, …); only
+~3 are clean non-determinism. Stripping the 9 artifacts drops verbRatio 0.36→0.198; the clean-only residue is
+0.054 (a cond3 pass). **So cond3's FAIL is the MRU-cap eviction knob, not an intrinsic property of
+controlled-vocabulary extraction, and it is re-runnable with a relevance-preserving window.** (NOT banked as a
+cond3 pass — this is a post-hoc re-attribution; the proper test is an uncapped / retrieval-window re-run.)
+
+**What the gate FAIL rests on, artifact-free.** With cond3 discounted as a cap artifact, Arm B still FAILs —
+on **cond1 growth-saturation (0.72 > 0.5)**. The reduction sub-bar passes (43.2%, computed on base docs, only
+2 capped) and cond2 passes (96.5%). Honest statement: **controlled-vocabulary extraction genuinely cuts
+explosion ~43% and controls over-merge, but the concept count still grows near-linearly across 120 same-field
+papers.** Whether that is genuine field-vocabulary size or under-conforming is **not distinguishable from 120
+docs** — untested speculation, not an observation (frozen bar stands; this is a FAIL).
+
+### Net + next
+The doc-23 relocation holds and sharpens: the concept layer's problem was never the graph/JOIN/judge — it is
+the **extraction front-end**. doc-24 rules out the embedding representation (Arm A) and shows
+controlled-vocabulary extraction (Arm B) is the right direction (10× reduction, over-merge controlled), while
+locating **two remaining blockers precisely**:
+1. **The vocab window** — naive MRU-500 truncation evicts old canonical labels and breaks conform-on-duplicate.
+   Fix: relevance-preserving retrieval (show the extractor the embedding-nearest existing labels, not the
+   most-recent). This is the next experiment (its own pre-reg + adversary); it should recover cond3.
+2. **Growth saturation** — even with good reuse, a real field keeps introducing new concepts; whether the ≤0.5
+   sublinearity bar is fair at 120 docs is a bar-appropriateness question for a larger-corpus gate, not a
+   mechanism verdict from this run.
+
+No capability claim; no held-out run (nothing passed). Free-form remains the honest description of the shipped
+system; controlled-vocab extraction with a relevance window is the most promising unfinished lever.
