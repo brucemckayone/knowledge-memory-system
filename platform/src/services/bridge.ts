@@ -181,6 +181,15 @@ export interface ExploreNeighbor {
    *  derives hidden = neighborCount − edgesShown to cue "more nodes here". 0 when
    *  the entity has no computable degree. */
   neighborCount: number;
+  /** The specific relationship predicate on the active↔neighbor tie (e.g.
+   *  "works_at", "founded"), from public.facts.predicate — the "why connected"
+   *  iOS surfaces as the in-line edge label. Absent/null when no active fact
+   *  links the pair; active→neighbor direction preferred, one predicate per tie. */
+  relationshipPredicate?: string | null;
+  /** The coarse relationship category (public.fact_predicates.category) for the
+   *  thread-hue taxonomy, or null when the predicate is off-ontology
+   *  (tolerate-unknown — iOS renders the colour-only floor). */
+  relationshipCategory?: string | null;
 }
 
 export interface ExploreSecondDegreeNode {
@@ -613,6 +622,53 @@ function composeBridgeNarrative(
   return composition;
 }
 
+/**
+ * Per-edge relationship predicate + coarse category for the active↔neighbor ties
+ * (MNEMO-5n4p). For each id in `neighborIds`, the predicate on its fact-edge to
+ * `activeId` (either direction; active→neighbor preferred), plus the coarse
+ * category from fact_predicates (null when off-ontology → iOS tolerate-unknown).
+ * ONE batched query over public.facts ⋈ fact_predicates; empty input → empty map.
+ * DISTINCT ON picks ONE predicate per neighbor deterministically (active→neighbor
+ * direction first, then predicate name — no clock / random in the projection).
+ */
+async function edgePredicates(
+  activeId: string,
+  neighborIds: string[],
+): Promise<Map<string, { predicate: string; category: string | null }>> {
+  const out = new Map<string, { predicate: string; category: string | null }>();
+  if (neighborIds.length === 0) return out;
+  const idList = sql.join(neighborIds.map((id) => sql`${id}::uuid`), sql`, `);
+  const rows = (await db.execute(sql`
+    SELECT DISTINCT ON (nb) nb::text AS nb, predicate, category
+    FROM (
+      SELECT f.object_entity_id AS nb, f.predicate AS predicate, fp.category AS category, 0 AS dir
+      FROM public.facts f
+      LEFT JOIN public.fact_predicates fp ON fp.predicate = f.predicate
+      WHERE f.expired_at IS NULL
+        AND f.subject_entity_id = ${activeId}::uuid
+        AND f.object_entity_id IN (${idList})
+      UNION ALL
+      SELECT f.subject_entity_id AS nb, f.predicate AS predicate, fp.category AS category, 1 AS dir
+      FROM public.facts f
+      LEFT JOIN public.fact_predicates fp ON fp.predicate = f.predicate
+      WHERE f.expired_at IS NULL
+        AND f.object_entity_id = ${activeId}::uuid
+        AND f.subject_entity_id IN (${idList})
+    ) edges
+    ORDER BY nb, dir ASC, predicate ASC
+  `)) as unknown as Array<{ nb: string | null; predicate: string | null; category: string | null }>;
+
+  for (const r of rows) {
+    if (r.nb == null || typeof r.predicate !== 'string') continue;
+    const predicate = r.predicate.trim();
+    if (predicate.length === 0) continue;
+    const category =
+      typeof r.category === 'string' && r.category.trim().length > 0 ? r.category.trim() : null;
+    out.set(String(r.nb), { predicate, category });
+  }
+  return out;
+}
+
 // =============================================================================
 // GET /api/explore/communities — composeExploreCommunities
 // =============================================================================
@@ -625,30 +681,59 @@ function composeBridgeNarrative(
  * The readable name lives in entities.properties.community. A community may span
  * members with mixed/blank community properties, so the label per community id
  * is the MODAL (most-frequent) non-blank value, ties broken alphabetically for
- * determinism (no Math.random / clock in the projection). Communities with no
- * named member are omitted (the iOS color-only floor).
+ * determinism (no Math.random / clock in the projection). A community with NO
+ * curated name falls back to its highest-pagerank member's canonical name
+ * (MNEMO-i4xe durability), so a real (non-seeded) graph still gets a readable
+ * label rather than the numeric floor; only a community with no topology row at
+ * all is omitted.
  *
  * Read-only projection over entity_topology ⋈ entities; never mutates.
  */
 export async function composeExploreCommunities(): Promise<CommunityLabel[]> {
   const rows = (await db.execute(sql`
-    SELECT community_id::text AS community_id, label
-    FROM (
-      SELECT
-        et.community_id AS community_id,
-        e.properties->>'community' AS label,
-        ROW_NUMBER() OVER (
-          PARTITION BY et.community_id
-          ORDER BY COUNT(*) DESC, (e.properties->>'community') ASC
-        ) AS rn
-      FROM public.entity_topology et
-      JOIN public.entities e ON e.id = et.entity_id
-      WHERE et.community_id IS NOT NULL
-        AND NULLIF(TRIM(e.properties->>'community'), '') IS NOT NULL
-      GROUP BY et.community_id, e.properties->>'community'
-    ) ranked
-    WHERE rn = 1
-    ORDER BY community_id::int
+    WITH curated AS (
+      -- Modal non-blank curated name per community (entities.properties.community).
+      SELECT community_id, label
+      FROM (
+        SELECT
+          et.community_id AS community_id,
+          e.properties->>'community' AS label,
+          ROW_NUMBER() OVER (
+            PARTITION BY et.community_id
+            ORDER BY COUNT(*) DESC, (e.properties->>'community') ASC
+          ) AS rn
+        FROM public.entity_topology et
+        JOIN public.entities e ON e.id = et.entity_id
+        WHERE et.community_id IS NOT NULL
+          AND NULLIF(TRIM(e.properties->>'community'), '') IS NOT NULL
+        GROUP BY et.community_id, e.properties->>'community'
+      ) ranked
+      WHERE rn = 1
+    ),
+    rep AS (
+      -- Durability fallback: the highest-pagerank (name-tiebroken) member per
+      -- community, so a community with NO curated name still gets a readable label
+      -- on real graphs (MNEMO-i4xe) instead of being omitted → iOS numeric floor.
+      SELECT community_id, canonical_name
+      FROM (
+        SELECT
+          et.community_id AS community_id,
+          e.canonical_name AS canonical_name,
+          ROW_NUMBER() OVER (
+            PARTITION BY et.community_id
+            ORDER BY et.pagerank DESC NULLS LAST, e.canonical_name ASC
+          ) AS rn
+        FROM public.entity_topology et
+        JOIN public.entities e ON e.id = et.entity_id
+        WHERE et.community_id IS NOT NULL
+      ) ranked
+      WHERE rn = 1
+    )
+    SELECT rep.community_id::text AS community_id,
+           COALESCE(NULLIF(TRIM(curated.label), ''), rep.canonical_name) AS label
+    FROM rep
+    LEFT JOIN curated ON curated.community_id = rep.community_id
+    ORDER BY rep.community_id::int
   `)) as unknown as Array<{ community_id: string | null; label: string | null }>;
 
   const out: CommunityLabel[] = [];
@@ -812,6 +897,8 @@ export async function composeExploreNode(
       communityId: communityIdStr(n.entityId),
       lastMentionedAt: facets?.lastMentionedAt ?? null,
       neighborCount: 0, // populated in batch below (neighborDegrees)
+      relationshipPredicate: null, // populated in batch below (edgePredicates)
+      relationshipCategory: null,
     };
   });
 
@@ -884,6 +971,20 @@ export async function composeExploreNode(
   const degrees = await neighborDegrees(degreeIds);
   for (const n of neighbors) n.neighborCount = degrees.get(n.entityId) ?? 0;
   for (const s of secondDegree) s.neighborCount = degrees.get(s.entityId) ?? 0;
+
+  // Per-edge relationship predicate + coarse category on each FIRST-degree tie
+  // (MNEMO-5n4p) — the "why connected" iOS surfaces as an in-line edge label.
+  // ONE batched query over public.facts ⋈ fact_predicates for the active↔neighbor
+  // pairs; second-degree ghosts are display-only and take no predicate. Neighbors
+  // with no active fact linking them stay null (iOS tolerates unknown).
+  const edgePreds = await edgePredicates(entityId, neighborIds);
+  for (const n of neighbors) {
+    const ep = edgePreds.get(n.entityId);
+    if (ep) {
+      n.relationshipPredicate = ep.predicate;
+      n.relationshipCategory = ep.category;
+    }
+  }
 
   return {
     node,
