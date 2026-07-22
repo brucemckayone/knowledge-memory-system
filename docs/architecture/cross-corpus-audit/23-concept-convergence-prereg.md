@@ -141,4 +141,62 @@ across fields/modalities is a later, broader gate.
 
 ---
 
-## 10. RESULT — PENDING (mechanism not built; pre-reg under review)
+## 10. RESULT (2026-07-21) — GATE FAIL, adversary QUALIFIED (sound FAIL, cause is upstream)
+
+Run: `platform/src/test/tools/concept-convergence.ts` on 120 cs.CL abstracts + 15 astro-ph.GA distinct-field
+probes + 15 verbatim + 12 paraphrase. Artifacts in `convergence-artifacts/` (corpus, extractions,
+label-embeddings, judge-cache, cv-results). Thresholds τ=[0.65,0.85]; band→Haiku judge (batched).
+
+| bar (§5.1) | result | verdict |
+|---|---|---|
+| explosion reduced ≥40% AND growth ratio ≤0.5 | free-form 906 → conform **865** nodes = **4.5%**; Q1 221→Q4 192 = **0.87** | **FAIL** |
+| distinct-field stay separate ≥90% | 0/126 absorbed = **100%** | pass (low-power — see below) |
+| verbatim dup adds ≤10% of fresh | 3.0 vs 6.4 new/doc = **0.47** | **FAIL** |
+
+**GATE FAIL.** Of 938 base concepts only ~73 conformed (7.8%) — the mechanism is **near-pure-grow**; the
+concept space exploded almost as much as free-form.
+
+**Blind adversary verdict: QUALIFIED** (agent a08cecfb). It re-implemented `conformOrGrow` line-for-line
+and reproduced every number to full float precision (906/865/4.5%, 0.869, 100%, 0.469, 7.8%) with
+`missingEmb=0 / missingJudgeKeys=0` — no scoring bug, no off-by-one. Bars confirmed frozen in git
+(e392745, 16:13) ~68 min before the numbers (cv-results 17:21). Probes clean (distinct-field: 0
+exact-overlap + 0 embedding ≥0.85 to base; verbatim identical text; paraphrases genuine, len ratio 1.19).
+No recall smuggled. **The FAIL is SOUND and holds.**
+
+But it forced two corrections on the *interpretation* (both directions of the launder risk):
+
+1. **Cause is UPSTREAM, not the conformer.** The conform arithmetic and the Haiku judge both behave
+   correctly on what they're handed (judge said "same" 6/1485, all 6 correct merges; declined near-misses
+   sensibly). The dominant drivers are:
+   - **Extraction non-determinism** — re-extracting the *identical* verbatim text yields **47% novel
+     labels** (55/117); those novel labels produce **every one** of the 45 verbatim new nodes. This alone
+     is the entire cond3 FAIL. (The 62 exact-string-match labels all conformed correctly — cosine 1.0.)
+   - **Near-unique naming** — across 120 same-field docs only **3.4%** (32/938) of concepts are exact-string
+     repeats; the extractor invents a near-unique kebab label per mention, starving *any* conformer. This is
+     the cond1 near-linear growth.
+   - **Bare-label embedding is the weakest leg** — true synonyms sit at 0.70–0.84 (in-band), not ≥0.85, so
+     75% of decisions fall to the judge. (This is exactly the lever noted long ago: embed the concept
+     *description*, not the bare NAME.)
+2. **cond2's PASS is low-power / characterising, NOT strong discrimination.** Only ~19 genuine near-miss
+   decline opportunities; the 100% survives *only because τ_high is high*, and it is in direct, confirmed
+   tension with cond1 — a threshold sweep shows **no single global threshold clears both** (T≈0.65 hits 50%
+   reduction but drops distinct-separation to ~85% < 90%). Reported as characterising per §6, not banked.
+
+**What this licenses (§9 FAIL branch, narrowed):** THIS naive conform-on-ingest pipeline (free-form Haiku
+re-extraction → bare-label nomic embedding → fixed 0.85/0.65 thresholds → top-3 band judge → first-mention
+node identity) **does not converge** on real same-field prose — it stays in grow mode and explodes nearly as
+much as free-form. Free-form remains the honest description of what the system does today; the convergent
+space is aspirational, not achieved.
+
+**What it does NOT license (adversary's explicit cut):** NOT "a convergent concept space is
+unbuildable/impossible." The bottleneck is upstream (extraction non-determinism + near-unique naming +
+bare-label embedding), and each has an **untried lever**: deterministic/normalized/controlled-vocabulary
+extraction, embedding the concept *description* not the label, centroid (not first-mention) node identity.
+None of these was tested; the result does not speak to them. NOT any claim from cond2 that the space
+discriminates well (low-power, threshold-conditional).
+
+**Net:** the first honest data point on the north-star convergence claim is a clean FAIL that **relocates
+the problem**: it is not the conform/grow logic or the judge that fails, it is that free-form LLM extraction
+produces a near-unique label per mention (even for identical text), so there is almost nothing to conform.
+The next experiment must attack **extraction stability / controlled vocabulary** (and description-embedding),
+not the conformer — each its own pre-registration + adversary.
