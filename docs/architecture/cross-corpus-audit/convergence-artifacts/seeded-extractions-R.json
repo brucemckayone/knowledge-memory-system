@@ -332,5 +332,1137 @@
     "content-poisoning",
     "prompt-injection",
     "attribute-binding"
+  ],
+  "base:2607.17531v1": [
+    "verifier-guided-search",
+    "agreement-scoring",
+    "oracle-gap",
+    "signal-fidelity",
+    "recoverable-mass",
+    "signal-coverage",
+    "best-of-n-selection",
+    "harm-analysis"
+  ],
+  "base:2607.17524v1": [
+    "off-policy-training",
+    "token-level-labeling",
+    "low-rank-adaptation",
+    "generalization-problem",
+    "representation-steering",
+    "faithful-generation"
+  ],
+  "base:2607.17523v1": [
+    "world-models",
+    "video-generation",
+    "causal-reasoning",
+    "spatiotemporal-dynamics",
+    "visual-question-answering",
+    "perception-prediction-gap",
+    "hallucination",
+    "generation-traceability",
+    "audio-visual-misalignment"
+  ],
+  "base:2607.17513v1": [
+    "curvature-preconditioning",
+    "hyperbolic-loss-placement",
+    "low-rank-adaptation",
+    "manifold-invariant-preservation",
+    "hierarchical-expert-structure",
+    "depth-structure-dilution",
+    "adapter-manifold-collapse"
+  ],
+  "base:2607.17466v1": [
+    "multilingual-sentence-embeddings",
+    "native-language-embeddings",
+    "translation-based-evaluation",
+    "semantic-preservation",
+    "agreement-scoring",
+    "recoverable-mass",
+    "cross-lingual-equivalence"
+  ],
+  "base:2607.17452v1": [
+    "acoustic-robustness",
+    "cognitive-load",
+    "generalization-problem",
+    "interaction-features",
+    "linguistic-features",
+    "power-role-classification",
+    "speaker-normalization",
+    "test-retest-reliability"
+  ],
+  "base:2607.17447v1": [
+    "linguistic-framing",
+    "semantic-preservation",
+    "probability-match-score",
+    "semiparametric-inference",
+    "latent-state-inference",
+    "uncertainty-coverage"
+  ],
+  "base:2607.17427v1": [
+    "abliteration",
+    "refusal-removal",
+    "optimism-bias",
+    "epistemic-stance",
+    "disposition-probe",
+    "provenance-audit",
+    "content-poisoning",
+    "performance-attribution"
+  ],
+  "base:2607.17420v1": [
+    "biographical-persona-effects",
+    "model-dependent-policy-bias",
+    "in-character-behavior",
+    "pre-registered-analysis",
+    "post-hoc-exploratory-analysis",
+    "token-efficiency",
+    "task-aware-scoring"
+  ],
+  "base:2607.17382v1": [
+    "data-selection",
+    "fine-tuning",
+    "generated-text-detection",
+    "ood-robustness",
+    "bayesian-classification",
+    "shortcut-learning",
+    "prediction-calibration"
+  ],
+  "base:2607.17366v1": [
+    "multimodal-emotion-recognition",
+    "emotional-inertia",
+    "supervised-contrastive-learning",
+    "context-integration",
+    "temporal-prediction",
+    "emotion-shift"
+  ],
+  "base:2607.17299v1": [
+    "long-horizon-rollout-generation",
+    "stage-dependent-capability",
+    "speculative-decoding",
+    "suffix-pattern-reuse",
+    "cache-aware-scheduling",
+    "kv-cache-reuse"
+  ],
+  "base:2607.17291v1": [
+    "content-poisoning",
+    "verification-inertia",
+    "evidence-based-verification",
+    "chain-of-thought-reasoning",
+    "provenance-audit",
+    "critical-evaluation-prompting",
+    "evidential-validity",
+    "evidence-package"
+  ],
+  "base:2607.17270v1": [
+    "harm-analysis",
+    "cross-lingual-equivalence",
+    "model-scale",
+    "cultural-knowledge-grounding",
+    "clinical-correctness-evaluation",
+    "quantized-model-evaluation",
+    "inter-rater-reliability",
+    "clinical-knowledge-recall"
+  ],
+  "base:2607.17266v1": [
+    "hallucination",
+    "knowledge-graph-reasoning",
+    "evidence-retrieval",
+    "uncertain-knowledge-graphs",
+    "multi-agent-debate",
+    "heuristic-search",
+    "confidence-scoring"
+  ],
+  "base:2607.17262v1": [
+    "multimodal-sentiment-analysis",
+    "analytical-oracle",
+    "modality-sufficiency",
+    "sample-dependent-modality-selection",
+    "evidential-gating",
+    "epistemic-uncertainty",
+    "loss-gap-signal"
+  ],
+  "base:2607.17250v1": [
+    "long-horizon-rollout-generation",
+    "world-models",
+    "in-character-behavior",
+    "object-state-tracking",
+    "ontology-evolution",
+    "faithful-generation",
+    "interaction-features",
+    "agent-internal-representations",
+    "temporal-prediction"
+  ],
+  "base:2607.17237v1": [
+    "error-correction-feedback",
+    "multilingual-vocabulary-alignment",
+    "semantic-preservation",
+    "cross-source-adaptation",
+    "clinical-correctness-evaluation",
+    "polarity-cue-preservation",
+    "script-consistency-metric"
+  ],
+  "base:2607.17230v1": [
+    "low-rank-adaptation",
+    "fine-tuning",
+    "hallucination",
+    "acoustic-robustness",
+    "ood-robustness",
+    "cross-source-adaptation",
+    "policy-optimization"
+  ],
+  "base:2607.17228v1": [
+    "generated-text-detection",
+    "linguistic-features",
+    "n-gram-distribution",
+    "semantic-range",
+    "style-semantics-coupling"
+  ],
+  "base:2607.17219v1": [
+    "question-order-effects",
+    "pre-registered-analysis",
+    "quantum-question-model",
+    "contextuality-by-default",
+    "order-sensitivity-score",
+    "saturation-diagnostic",
+    "next-token-probability-audit",
+    "label-counterbalancing"
+  ],
+  "base:2607.17173v1": [
+    "translation-based-evaluation",
+    "localized-lm-evaluation",
+    "native-speaker-evaluation",
+    "linguistic-features",
+    "cross-lingual-transfer",
+    "multilingual-benchmarking",
+    "translation-artifacts",
+    "zero-shot-evaluation",
+    "few-shot-prompting"
+  ],
+  "base:2607.17152v1": [
+    "attack-success-rate",
+    "jailbreak-prompts",
+    "defender-centric-evaluation",
+    "red-teaming-data",
+    "shapley-attribution",
+    "attack-subset-selection",
+    "safety-utility-estimation"
+  ],
+  "base:2607.17147v1": [
+    "typed-slot-encoding",
+    "format-preserving-synthesis",
+    "cross-turn-linking",
+    "semantic-preservation",
+    "safety-utility-estimation"
+  ],
+  "base:2607.17146v1": [
+    "scaled-dot-product-attention",
+    "integro-differential-equation",
+    "rotary-position-encoding",
+    "non-equilibrium-thermodynamics",
+    "schrodinger-bridge",
+    "stochastic-differential-geometry",
+    "topological-stability",
+    "semantic-fiber-bundle"
+  ],
+  "base:2607.17142v1": [
+    "evidence-retrieval",
+    "temporal-fence",
+    "deployability-audit",
+    "performance-attribution",
+    "future-evidence-leakage"
+  ],
+  "base:2607.17139v1": [
+    "semantic-reranking",
+    "supervised-contrastive-learning",
+    "cost-performance-tradeoff",
+    "data-selection",
+    "quality-aware-ranking",
+    "ordinal-quality-ranking"
+  ],
+  "base:2607.17122v1": [
+    "evidence-based-verification",
+    "generation-traceability",
+    "provenance-audit",
+    "raw-document-navigation",
+    "cross-source-adaptation",
+    "table-reconstruction",
+    "hybrid-rule-llm-extraction"
+  ],
+  "base:2607.17117v1": [
+    "sparse-autoencoders",
+    "persistence-coefficient",
+    "agent-internal-representations",
+    "semantic-preservation",
+    "feature-timescales",
+    "latent-state-inference",
+    "causal-effectiveness",
+    "feature-interpretability"
+  ],
+  "base:2607.17111v1": [
+    "multilingual-benchmarking",
+    "temporal-legislation-analysis",
+    "raw-document-navigation",
+    "provenance-audit",
+    "legislative-versioning",
+    "civil-law-corpus",
+    "data-selection"
+  ],
+  "base:2607.17082v1": [
+    "agent-trajectory-evaluation",
+    "optimal-transport-planning",
+    "execution-graph",
+    "graph-distance-metric",
+    "plan-reordering-invariance",
+    "plan-granularity",
+    "unbalanced-optimal-transport",
+    "dependency-graph-inference"
+  ],
+  "base:2607.17075v1": [
+    "contradiction-detection",
+    "regulatory-compliance-analysis",
+    "privacy-policy-summarization",
+    "semantic-role-labeling",
+    "hybrid-rule-llm-extraction",
+    "privacy-entity-classification",
+    "model-suitability-estimation"
+  ],
+  "base:2607.17043v1": [
+    "instruction-tuning",
+    "data-selection",
+    "epistemic-uncertainty",
+    "model-collapse",
+    "competence-polarization",
+    "failure-guided-generation",
+    "boundary-aware-uncertainty"
+  ],
+  "base:2607.16989v1": [
+    "evidence-retrieval",
+    "inter-rater-reliability",
+    "human-in-the-loop",
+    "user-satisfaction-assessment",
+    "ordinal-quality-ranking",
+    "synthesis-screening",
+    "cross-source-adaptation",
+    "agent-trajectory-evaluation"
+  ],
+  "base:2607.16972v1": [
+    "chain-of-thought-reasoning",
+    "latent-state-inference",
+    "direct-supervision",
+    "token-efficiency",
+    "indirect-supervision",
+    "autoregressive-training",
+    "reasoning-complexity-scaling"
+  ],
+  "base:2607.16903v1": [
+    "value-alignment",
+    "value-learning",
+    "value-grounding",
+    "multi-objective-reward-model",
+    "pairwise-preference-learning",
+    "value-system-representation",
+    "reward-scalarization"
+  ],
+  "base:2607.16898v1": [],
+  "base:2607.16872v1": [],
+  "base:2607.16850v1": [],
+  "base:2607.16808v1": [],
+  "base:2607.16799v1": [
+    "hidden-state-readout",
+    "representation-steering",
+    "instruction-tuning",
+    "transfer-asymmetry",
+    "direction-polarity",
+    "self-judgment-bias"
+  ],
+  "base:2607.16790v1": [
+    "cascaded-decomposition",
+    "joint-multi-task-learning",
+    "label-counterbalancing",
+    "hierarchical-classification",
+    "cascade-error-propagation",
+    "fine-grained-classification"
+  ],
+  "base:2607.16777v1": [
+    "multilingual-benchmarking",
+    "translation-based-evaluation",
+    "or-problem-formulation",
+    "cross-lingual-equivalence",
+    "pragmatic-disambiguation-failure",
+    "localized-lm-evaluation"
+  ],
+  "base:2607.16712v1": [
+    "multi-agent-debate",
+    "model-suitability-estimation",
+    "dialogue-tree",
+    "reliability-weighted-consensus",
+    "cluster-based-imputation",
+    "disposition-probe",
+    "agent-skills",
+    "inter-rater-reliability"
+  ],
+  "base:2607.16704v1": [
+    "conformal-prediction",
+    "absolute-coherent-factuality",
+    "physical-law-compliance",
+    "cascade-error-propagation",
+    "dependency-graph-inference",
+    "failure-guided-generation",
+    "contradiction-detection",
+    "evidential-validity"
+  ],
+  "base:2607.16693v1": [
+    "mechanistic-interpretability",
+    "attribution-patching",
+    "activation-patching",
+    "arithmetic-heuristics",
+    "format-invariant-computation",
+    "sparse-neuron-circuits",
+    "latent-state-inference",
+    "causal-intervention"
+  ],
+  "base:2607.16692v1": [
+    "dependency-graph-inference",
+    "sparse-matrix-factorization",
+    "interaction-features",
+    "semantic-preservation",
+    "format-preserving-synthesis",
+    "structured-guidance"
+  ],
+  "base:2607.16673v1": [
+    "speculative-decoding",
+    "autoregressive-decoding",
+    "linear-attention-models",
+    "recurrent-states",
+    "confidence-pruning",
+    "verifier-guided-search",
+    "topology-aware-kernels"
+  ],
+  "base:2607.16669v1": [
+    "model-scale",
+    "autoregressive-training",
+    "scaled-dot-product-attention",
+    "mixed-precision-training",
+    "architecture-transparency",
+    "block-composition",
+    "weak-scaling-efficiency"
+  ],
+  "base:2607.16621v1": [
+    "training-free-agents",
+    "memory-skill-coevolution",
+    "agent-skills",
+    "generation-traceability",
+    "reflection-weighted-value-backfilling",
+    "cross-domain-transferability",
+    "lifelong-evolution"
+  ],
+  "base:2607.16609v1": [
+    "vision-language-models",
+    "fine-grained-classification",
+    "visual-question-answering",
+    "hierarchical-classification",
+    "clinical-correctness-evaluation",
+    "chain-of-thought-reasoning",
+    "model-scale",
+    "oct-image-analysis"
+  ],
+  "base:2607.16603v1": [
+    "evidence-retrieval",
+    "semantic-reranking",
+    "chain-of-thought-reasoning",
+    "difficulty-aware-retrieval",
+    "pairwise-preference-learning",
+    "retrieval-augmented-generation",
+    "consensus-ensemble",
+    "adaptive-cutoff-prediction"
+  ],
+  "base:2607.16549v1": [
+    "event-related-potential",
+    "surprisal",
+    "next-token-probability-audit",
+    "human-model-alignment",
+    "cognitive-plausibility",
+    "semantic-content",
+    "model-scale"
+  ],
+  "base:2607.16451v1": [
+    "probing",
+    "mechanistic-interpretability",
+    "latent-state-inference",
+    "chain-of-thought-reasoning",
+    "answer-commitment-bias"
+  ],
+  "base:2607.16442v1": [
+    "vision-language-models",
+    "machine-unlearning",
+    "cross-modal-transfer",
+    "typographic-attacks",
+    "influence-functions",
+    "shallow-unlearning",
+    "centered-kernel-alignment",
+    "transfer-asymmetry"
+  ],
+  "base:2607.16431v1": [
+    "retrieval-augmented-generation",
+    "preference-optimization",
+    "rejection-sampling",
+    "synthetic-chain-of-thought",
+    "smooth-aggregation",
+    "margin-aware-selection",
+    "gradient-alignment",
+    "multi-hop-reasoning"
+  ],
+  "base:2607.16427v1": [
+    "mixture-of-experts",
+    "expert-selection",
+    "cross-layer-semantic-aggregation",
+    "routing-consistency",
+    "token-level-interaction",
+    "representation-steering",
+    "context-integration",
+    "semantic-content"
+  ],
+  "base:2607.16165v1": [
+    "vision-language-models",
+    "visual-question-answering",
+    "chain-of-thought-reasoning",
+    "hallucination",
+    "human-model-alignment",
+    "active-visual-observation",
+    "perception-reasoning-loop"
+  ],
+  "base:2607.16131v1": [
+    "evidence-based-verification",
+    "visual-question-answering",
+    "vision-language-models",
+    "evidence-retrieval",
+    "table-reconstruction",
+    "retrieval-augmented-generation",
+    "chain-of-thought-reasoning",
+    "learned-tool-use",
+    "visual-evidence-grounding"
+  ],
+  "base:2607.16117v1": [
+    "rate-utility-tradeoff",
+    "subword-tokenization",
+    "multilingual-sentence-embeddings",
+    "script-consistency-metric",
+    "cross-lingual-equivalence",
+    "surface-form-preservation",
+    "topic-classification",
+    "token-efficiency"
+  ],
+  "base:2607.16097v1": [
+    "policy-optimization",
+    "synthetic-chain-of-thought",
+    "model-scale",
+    "early-performance-prediction",
+    "reasoning-complexity-scaling",
+    "performance-attribution",
+    "reward-scalarization",
+    "pretraining-rl-scaling-laws"
+  ],
+  "base:2607.16085v1": [
+    "shortcut-learning",
+    "feature-interpretability",
+    "speech-model-evaluation",
+    "acoustic-robustness",
+    "native-speaker-evaluation"
+  ],
+  "base:2607.16076v1": [
+    "contradiction-detection",
+    "cross-modal-incongruity",
+    "graph-attention-networks",
+    "hierarchical-attention-mechanism",
+    "multi-granularity-representation",
+    "token-level-interaction",
+    "multimodal-sarcasm-detection",
+    "multimodal-reasoning"
+  ],
+  "base:2607.16072v1": [
+    "rotary-position-encoding",
+    "shortcut-learning",
+    "long-context",
+    "2d-rope"
+  ],
+  "base:2607.16057v1": [
+    "case-based-benchmarking",
+    "analytical-reasoning",
+    "rubric-based-evaluation",
+    "epistemic-uncertainty",
+    "professional-analytical-skills",
+    "multi-stakeholder-reasoning",
+    "information-synthesis",
+    "strategic-reasoning"
+  ],
+  "base:2607.16051v2": [
+    "mixture-of-experts",
+    "recurrent-transformer-scaling",
+    "sparse-parameter-scaling",
+    "policy-optimization",
+    "reasoning-complexity-scaling"
+  ],
+  "base:2607.16021v1": [
+    "dialogue-state-tracking",
+    "task-oriented-dialogue",
+    "zero-shot-learning",
+    "cross-domain-transferability",
+    "multi-domain-dialogue",
+    "pretrained-language-models",
+    "schema-based-dialogue",
+    "user-belief-modeling"
+  ],
+  "base:2607.16010v1": [
+    "generated-text-detection",
+    "semantic-preservation",
+    "attack-success-rate",
+    "evidential-validity",
+    "provenance-audit",
+    "calibrated-abstention",
+    "counterfactual-baseline"
+  ],
+  "base:2607.16001v1": [
+    "heuristic-search",
+    "instruction-tuning",
+    "pretrained-language-models",
+    "bayesian-prompt-optimization",
+    "energy-based-sampling",
+    "markov-chain-monte-carlo",
+    "parallel-tempering"
+  ],
+  "base:2607.15957v1": [
+    "self-explanation-generation",
+    "cognitive-plausibility",
+    "explanation-faithfulness",
+    "explanation-actionability",
+    "post-hoc-exploratory-analysis",
+    "multi-stakeholder-reasoning",
+    "evidential-validity"
+  ],
+  "base:2607.15893v2": [
+    "autoregressive-decoding",
+    "diffusion-language-models",
+    "in-context-induction",
+    "iterative-denoising",
+    "bidirectional-context-access",
+    "mechanistic-interpretability",
+    "implicit-timestep-inference",
+    "token-relative-attention"
+  ],
+  "base:2607.15879v2": [
+    "hybrid-rule-llm-extraction",
+    "case-based-benchmarking",
+    "dense-supervision",
+    "human-model-alignment",
+    "prompt-design-strategies",
+    "information-extraction"
+  ],
+  "base:2607.15870v1": [
+    "label-entropy",
+    "semantic-monotonicity",
+    "boundary-aware-uncertainty",
+    "feature-interpretability",
+    "anomaly-detection",
+    "persistence-coefficient"
+  ],
+  "base:2607.15865v1": [
+    "autoregressive-decoding",
+    "kv-cache-reuse",
+    "mlir-compilation",
+    "graph-dialect-representation",
+    "hardware-target-dialect",
+    "quantization-aware-compilation",
+    "memory-layout-optimization"
+  ],
+  "base:2607.15861v1": [
+    "code-mixing",
+    "multilingual-detoxification",
+    "transliteration",
+    "trust-fusion",
+    "conditional-reliability",
+    "cross-source-adaptation",
+    "source-gating"
+  ],
+  "base:2607.15856v1": [
+    "surprisal",
+    "semantic-relevance",
+    "context-integration",
+    "hemodynamic-response",
+    "region-of-interest",
+    "generalized-additive-mixed-models",
+    "fir-deconvolution-analysis"
+  ],
+  "base:2607.15847v1": [
+    "cultural-knowledge-grounding",
+    "representation-learning",
+    "semantic-smearing",
+    "multi-granularity-representation",
+    "compositionality",
+    "metaphor-detection",
+    "morphological-grounding",
+    "curriculum-learning",
+    "native-language-embeddings"
+  ],
+  "base:2607.15829v1": [
+    "automated-essay-scoring",
+    "long-context",
+    "generative-summarization",
+    "linguistic-feature-extraction",
+    "semantic-preservation",
+    "agreement-scoring",
+    "information-retention",
+    "semantic-similarity",
+    "model-scale"
+  ],
+  "base:2607.15766v1": [
+    "prospective-hypothesis-discovery",
+    "case-based-benchmarking",
+    "hypothesis-space-construction",
+    "pairwise-ranking-aggregation",
+    "anomaly-interpretability",
+    "analytical-reasoning",
+    "rubric-based-evaluation",
+    "epistemic-uncertainty"
+  ],
+  "base:2607.15736v1": [
+    "chain-of-thought-reasoning",
+    "on-policy-self-distillation",
+    "reverse-kl-distillation",
+    "instruction-tuning",
+    "token-efficiency",
+    "prefix-distillation",
+    "answer-correctness-filtering"
+  ],
+  "base:2607.16352v1": [
+    "task-oriented-dialogue",
+    "strategic-reasoning",
+    "policy-optimization",
+    "agent-skills",
+    "3d-spatial-reasoning",
+    "learned-tool-use",
+    "multimodal-reasoning",
+    "clarification-dialogue"
+  ],
+  "base:2607.15655v1": [
+    "diffusion-language-models",
+    "iterative-denoising",
+    "lookahead-based-decoding",
+    "long-horizon-rollout-generation",
+    "adaptive-cutoff-prediction",
+    "latent-state-inference",
+    "variance-guided-branching"
+  ],
+  "base:2607.15648v1": [
+    "addressee-detection",
+    "multi-party-dialogue",
+    "latent-state-inference",
+    "turn-taking",
+    "backchannel-signals",
+    "gaze-detection",
+    "continuous-address-modeling"
+  ],
+  "verb:2607.18235v1": [
+    "discovery-harness",
+    "evolutionary-search",
+    "adaptive-allocation",
+    "generalization-problem",
+    "early-performance-prediction",
+    "parent-selection",
+    "pre-registered-analysis"
+  ],
+  "verb:2607.18232v1": [
+    "expressions-of-belief",
+    "epistemic-stance",
+    "linguistic-framing",
+    "evidentiality",
+    "context-following",
+    "model-scale",
+    "instruction-tuning",
+    "prompt-design-strategies"
+  ],
+  "verb:2607.18228v1": [
+    "soft-prefixes",
+    "logical-stability",
+    "answer-preference-bias",
+    "cue-induced-bias",
+    "semantic-monotonicity",
+    "syllogistic-reasoning",
+    "model-dependent-policy-bias"
+  ],
+  "verb:2607.18213v1": [
+    "context-pruning",
+    "agent-internal-representations",
+    "pruning-head",
+    "token-level-labeling",
+    "length-aware-embedding",
+    "learned-tool-use",
+    "code-context-relevance",
+    "long-context",
+    "token-efficiency"
+  ],
+  "verb:2607.18199v1": [
+    "data-selection",
+    "fine-tuning",
+    "sample-difficulty",
+    "sample-efficiency",
+    "perplexity-based-selection",
+    "task-aware-selection",
+    "budget-aware-selection",
+    "chain-of-thought-reasoning"
+  ],
+  "verb:2607.18181v1": [
+    "verifier-guided-search",
+    "corrupted-state-recovery",
+    "stage-dependent-capability",
+    "response-control-profiles",
+    "policy-optimization",
+    "specification-triage",
+    "physics-oracle-evaluation",
+    "vibration-energy-harvesting",
+    "coupled-physical-design"
+  ],
+  "verb:2607.18144v1": [
+    "structure-based-drug-design",
+    "3d-spatial-reasoning",
+    "pocket-conditioned-generation",
+    "spatial-constraints",
+    "constrained-execution",
+    "diffusion-language-models",
+    "token-efficiency"
+  ],
+  "verb:2607.18142v1": [
+    "anomaly-detection",
+    "object-state-tracking",
+    "spatiotemporal-dynamics",
+    "vision-language-models",
+    "training-free-agents",
+    "anomaly-interpretability",
+    "object-trajectory-reasoning",
+    "physics-constraint-reasoning"
+  ],
+  "verb:2607.18114v1": [
+    "cue-induced-bias",
+    "bias-direction",
+    "alignment-tuning",
+    "causal-intervention",
+    "representation-steering",
+    "probing",
+    "mechanistic-interpretability"
+  ],
+  "verb:2607.18110v1": [
+    "rubric-based-evaluation",
+    "scalar-reward",
+    "reward-scalarization",
+    "experiential-learning",
+    "dense-supervision",
+    "on-policy-self-distillation",
+    "reward-hacking"
+  ],
+  "verb:2607.18102v1": [
+    "prior-corpus-misalignment",
+    "corpus-aligned-retrieval",
+    "semantic-reranking",
+    "query-decomposition",
+    "feature-gated-reranking",
+    "evidential-validity",
+    "multi-agent-debate",
+    "retrieval-augmented-generation"
+  ],
+  "verb:2607.18098v1": [
+    "llm-routing",
+    "difficulty-aware-retrieval",
+    "model-suitability-estimation",
+    "cost-performance-tradeoff",
+    "sample-difficulty",
+    "reward-scalarization",
+    "semantic-similarity",
+    "evidence-retrieval"
+  ],
+  "verb:2607.18084v1": [
+    "temporal-prediction",
+    "joint-multi-task-learning",
+    "evidence-retrieval",
+    "agent-skills",
+    "human-model-alignment",
+    "future-evidence-leakage",
+    "task-aware-scoring",
+    "production-context-comparison"
+  ],
+  "verb:2607.18076v1": [
+    "silence-gap-analysis",
+    "audiovisual-corpus-analysis",
+    "synthetic-media-analysis",
+    "speaker-gender-classification",
+    "fundamental-frequency-detection",
+    "production-context-comparison"
+  ],
+  "verb:2607.18066v1": [
+    "value-alignment",
+    "dilemma-based-evaluation",
+    "native-speaker-evaluation",
+    "cultural-value-assessment",
+    "agreement-scoring",
+    "localized-lm-evaluation",
+    "pretrained-language-models"
+  ],
+  "para:para-2607.18056v1": [
+    "jailbreak-prompts",
+    "attack-success-rate",
+    "bio-red-teaming",
+    "wet-lab-validation",
+    "binding-affinity-prediction",
+    "safety-utility-estimation",
+    "harm-analysis",
+    "harmful-sequence-generation"
+  ],
+  "para:para-2607.18027v1": [
+    "scaled-dot-product-attention",
+    "l1-augmented-attention",
+    "directional-alignment",
+    "attention-head-specialization",
+    "low-dimensional-projection",
+    "magnitude-control"
+  ],
+  "para:para-2607.18006v1": [
+    "multi-agent-debate",
+    "low-rank-adaptation",
+    "counterfactual-baseline",
+    "policy-optimization",
+    "preference-optimization",
+    "credit-assignment"
+  ],
+  "para:para-2607.17986v1": [
+    "self-state-attacks",
+    "attack-space-characterization",
+    "access-control-prevention",
+    "anomaly-detection",
+    "workload-conditioned-detection",
+    "corrupted-state-recovery",
+    "defender-centric-evaluation",
+    "attack-success-rate"
+  ],
+  "para:para-2607.17952v1": [
+    "cross-source-adaptation",
+    "distribution-shift-robustness",
+    "semantic-descriptions",
+    "in-context-exemplar-selection",
+    "low-rank-adaptation",
+    "topic-classification"
+  ],
+  "para:para-2607.17935v1": [
+    "evidence-retrieval",
+    "knowledge-graph-reasoning",
+    "multi-hop-reasoning",
+    "evidence-based-verification",
+    "reinforcement-learning-search",
+    "question-decomposition",
+    "policy-optimization"
+  ],
+  "para:para-2607.17902v1": [
+    "semantic-relationship-classification",
+    "ontology-evolution",
+    "chain-of-thought-reasoning",
+    "knowledge-graph-reasoning",
+    "sparse-parameter-scaling",
+    "analytical-reasoning",
+    "supervised-fine-tuning",
+    "biomedical-semantic-classification"
+  ],
+  "para:para-2607.17883v1": [
+    "retrieval-augmented-generation",
+    "deterministic-execution",
+    "multi-channel-validation",
+    "calibrated-abstention",
+    "provenance-audit",
+    "evidence-based-verification",
+    "error-correction-feedback"
+  ],
+  "para:para-2607.17849v1": [
+    "analytical-oracle",
+    "oracle-gap",
+    "surface-image-reconstruction",
+    "graphematic-element-decomposition",
+    "diachronic-morphology",
+    "semantic-similarity",
+    "chain-of-thought-reasoning",
+    "corpus-aligned-retrieval",
+    "human-model-alignment"
+  ],
+  "para:para-2607.17843v1": [
+    "depth-role-superposition",
+    "block-position-independence",
+    "cyclic-depth-folding",
+    "distributed-block-allocation",
+    "cache-aware-scheduling",
+    "weak-scaling-efficiency",
+    "hierarchical-attention-mechanism",
+    "block-composition"
+  ],
+  "para:para-2607.17828v1": [
+    "cultural-knowledge-grounding",
+    "dominant-meaning-bias",
+    "homograph-disambiguation",
+    "contrastive-prompting",
+    "chain-of-thought-reasoning",
+    "language-specific-pretraining",
+    "multilingual-benchmarking",
+    "parameter-efficient-models"
+  ],
+  "para:para-2607.17812v1": [
+    "speech-model-evaluation",
+    "acoustic-robustness",
+    "analytical-reasoning",
+    "speech-variation",
+    "multi-audio-input",
+    "expert-selection",
+    "case-based-benchmarking"
+  ],
+  "dist:2607.18224v1": [
+    "gaussian-mixture-decomposition",
+    "binary-cluster-interaction",
+    "astrometric-classification",
+    "n-body-simulation",
+    "orbital-integration",
+    "tidal-interaction",
+    "escape-velocity",
+    "gravitational-unbinding",
+    "age-determination"
+  ],
+  "dist:2607.18124v1": [
+    "bayesian-inference",
+    "phase-transition-inference",
+    "twin-star-observability",
+    "information-gain",
+    "posterior-distribution",
+    "shannon-entropy",
+    "observational-efficiency",
+    "information-saturation"
+  ],
+  "dist:2607.18065v1": [
+    "astrometry",
+    "spectroscopy",
+    "radio-observations",
+    "star-formation",
+    "stellar-feedback",
+    "interstellar-medium",
+    "galactic-dynamics"
+  ],
+  "dist:2607.18048v1": [
+    "stellar-population-synthesis",
+    "spectroscopy",
+    "spectral-energy-distribution",
+    "near-infrared-analysis",
+    "age-determination",
+    "emission-line-galaxies",
+    "spectrophotometric-analysis"
+  ],
+  "dist:2607.18005v1": [
+    "ergodicity",
+    "star-formation",
+    "star-forming-main-sequence",
+    "star-formation-histories",
+    "n-body-simulation",
+    "diachronic-morphology",
+    "ensemble-averaging",
+    "active-galactic-nuclei"
+  ],
+  "dist:2607.17932v1": [
+    "age-determination",
+    "epistemic-uncertainty",
+    "spectrophotometric-analysis",
+    "stellar-population-synthesis",
+    "uncertainty-coverage",
+    "semiparametric-inference",
+    "prediction-calibration"
+  ],
+  "dist:2607.17870v1": [
+    "astrometry",
+    "star-formation",
+    "trigonometric-parallax",
+    "photometric-parallax",
+    "oh-maser",
+    "proper-motion",
+    "period-luminosity-relation",
+    "circumstellar-envelope"
+  ],
+  "dist:2607.17869v1": [
+    "spin-mass-correlation",
+    "vector-resonant-relaxation",
+    "spin-tilt",
+    "bayesian-evidence",
+    "accretion",
+    "star-formation",
+    "orbital-angular-momentum"
+  ],
+  "dist:2607.17815v1": [
+    "accretion",
+    "active-galactic-nuclei",
+    "spectral-energy-distribution",
+    "star-formation",
+    "tidal-disruption-event",
+    "dust-reprocessing",
+    "phase-resolved-analysis",
+    "color-hysteresis",
+    "circumnuclear-dust",
+    "dust-echo-model"
+  ],
+  "dist:2607.17792v1": [
+    "intracluster-light",
+    "dark-matter-halo",
+    "self-interacting-dark-matter",
+    "halo-morphology",
+    "tidal-stripping",
+    "hydrodynamical-simulation",
+    "accretion",
+    "large-scale-structure"
+  ],
+  "dist:2607.17788v1": [
+    "emission-line-galaxies",
+    "star-formation-rate",
+    "spectral-energy-distribution",
+    "spectral-fitting",
+    "active-galactic-nuclei",
+    "narrow-line-region",
+    "dust-extinction",
+    "metallicity"
+  ],
+  "dist:2607.17787v1": [
+    "gravitational-waves",
+    "binary-white-dwarfs",
+    "stellar-population-synthesis",
+    "binary-stellar-evolution",
+    "common-envelope-evolution",
+    "galactic-background",
+    "mass-transfer-efficiency"
+  ],
+  "dist:2607.17776v1": [
+    "tidal-dwarf-galaxy",
+    "star-formation",
+    "starburst",
+    "metallicity",
+    "spectral-energy-distribution",
+    "emission-line-galaxies",
+    "radio-observations",
+    "tidal-interaction"
+  ],
+  "dist:2607.17763v1": [
+    "n-body-simulation",
+    "radial-velocity-anisotropy",
+    "internal-rotation",
+    "triaxiality",
+    "radial-orbit-instability",
+    "phase-space-distribution",
+    "density-modes",
+    "bar-formation",
+    "collisionless-dynamics"
+  ],
+  "dist:2607.17752v1": [
+    "star-formation-rate",
+    "spectral-energy-distribution",
+    "spectral-fitting",
+    "star-forming-main-sequence",
+    "active-galactic-nuclei",
+    "accretion",
+    "fir-deconvolution-analysis",
+    "submillimeter-observations"
   ]
 }
