@@ -87,3 +87,80 @@ without held-out. Verdict even if it retracts.
 Names the outcome per §4. This remains one field, one modality; controlled-vocab extraction's viability as the
 product's convergence mechanism rests on (a) cond3 recovery here, (b) a resolution of the growth-saturation
 bar (this run or a larger-corpus gate), and (c) eventual held-out + multi-field generality — each its own gate.
+
+---
+
+## 8. RESULT (2026-07-23) — Arm R GATE FAIL; adversary QUALIFIED; cond3 residual is ANOTHER window artifact
+
+Arm R (relevance-window, K=100) ran on the frozen corpus. Blind adversary independently replayed it from raw
+data (**0/162 perDoc mismatches**) and audited the interpretation. Verdict: **numbers SOUND, interpretation
+QUALIFIED** — my central "genuine non-determinism floor" claim was **retracted**. Artifacts:
+`convergence-artifacts/cv2-results-armR.json`, `rel-window-log.json` (the exact window shown per doc).
+
+| metric | Arm B (MRU-500) | Arm R (relevance-100) | bar |
+|---|---|---|---|
+| explosion reduction | 43.2% | **46.7%** (483/906) ✓ | ≥40% |
+| growth ratio Q4/Q1 | 0.72 (154→111) | **0.72** (149→107) | ≤0.5 ✗ |
+| distinct stay-separate | 96.5% | **95.0%** (6/119) ✓ | ≥90% |
+| verbatim ratio | 0.36 | **0.19** (0.67/3.57) | ≤0.10 ✗ |
+| **gate** | FAIL | **FAIL** (c1,c3) | |
+
+Corpus byte-identical (sha256 `d1af6fc4…`, unchanged since doc-23), pre-reg `a4ec317` frozen before the result
+`eb6573f`, and the only harness difference vs Arm B is window selection (conform/prompt/metric/corpus identical)
+— **plus** window *size* (100 vs up-to-500), a confound noted below.
+
+### What holds
+- **The MRU-cap artifact was real (doc-24 claim a confirmed).** Switching recency→relevance nearly halved
+  verbatim leakage (0.36 → 0.19) with no other change. The window genuinely mattered.
+- **Growth-saturation is the robust, window-independent blocker.** Arm B 0.721 (154→111) vs Arm R 0.718
+  (149→107) — near-identical, both ≈4× over the ≤0.5 bar. No window choice touches it. This is the binding
+  reason controlled-vocab extraction FAILs the gate. (Scope: "window-independent," since only two window
+  mechanisms were tested.)
+- **cond2 PASS is sound, even conservative.** Of the 6 distinct-field "over-merges," ~4 are *legitimate*
+  cross-domain concept shares (`epistemic-uncertainty`, `semiparametric-inference`, `prediction-calibration`,
+  `uncertainty-coverage`); only 2 are genuine homonym errors exact-match can't catch (`fir-deconvolution` =
+  far-infrared vs finite-impulse-response; `diachronic-morphology` = galaxies vs oracle-bone-script). True
+  separation is if anything >95%.
+
+### What was RETRACTED (adversary's load-bearing correction)
+My write-up claimed a **"genuine residual non-determinism floor" — "even shown the relevant twin labels, the
+extractor coins ~0.67 fresh labels per identical re-read."** The raw `rel-window-log.json` **contradicts** it:
+- Top-100 window **coverage of a verbatim doc's own twin labels = only 72%** — for byte-identical text, 28% of
+  the twin's labels were never shown.
+- Of 31 twin labels the verbatim re-read failed to reproduce, **27 (87%) were NEVER in the window**
+  (retrieval-miss); only **4 were shown-but-not-reused** (the sole clean non-determinism signal).
+- Of the 10 verbatim fresh labels, **0** came from a doc with full twin coverage; **10/10** came from docs with
+  ≥1 twin label hidden. On the 2 docs where the full twin set *was* shown, fresh = **0**. Smoking gun: doc
+  `18199` coined `[perplexity-based-selection, task-aware-selection, budget-aware-selection]` while its twin's
+  `[perplexity-scoring, task-aware-scoring, budget-allocation]` were **all hidden** — rewordings of concepts
+  whose canonical label simply wasn't shown.
+
+So the residual 0.19 is **dominated by a K=100 retrieval-miss — the same *class* of window artifact as the
+MRU-cap, relocated from recency-eviction to relevance-ranking-eviction.** A genuine non-determinism component
+exists but is a **minority (≤4 label-events), unquantified**, and this design **cannot isolate it** because
+K=100 confounds it. **I have NOT run the test that could establish a floor** (uncapped / full-vocab, or larger-K,
+verbatim re-read — the prior adversary's actual spec). Predicted: verbRatio drops further as the 27 hidden twins
+re-enter the window. The "~half genuine" claim in the commit was an unquantified guess and is withdrawn.
+
+### Both directions
+- **Over-optimism:** this is the **5th consecutive GATE FAIL** (0/A/B/R). "Best reduction yet" (43→47%) moves a
+  sub-metric that *already cleared* its ≥40% threshold in Arm B; cond1 fails on **growth**, which reduction
+  cannot rescue. Real but strategically irrelevant.
+- **Over-pessimism (the one I actually committed this time):** I over-claimed an *irreducible* limit ("genuine
+  floor") that the shown-window log refutes — a pessimistic over-reach, banked before checking the log. Corrected.
+
+### Net + next (NOT run this session — user paused after Arm R)
+Across five arms the honest state is:
+1. **Extraction front-end is the bottleneck** (graph/JOIN/judge are fine) — holds since doc-23.
+2. **Embedding representation is not it** (Arm A, clean negative).
+3. **Controlled-vocab extraction is the right lever** — ~43–47% explosion reduction, over-merge controlled.
+4. **cond3 (verbatim conform) is a WINDOW-COVERAGE problem, not proven intrinsic** — improved 0.47→0.36→0.19 as
+   the window improved (recency→relevance); the remaining leakage is mostly labels-not-shown. **Next test:
+   uncapped / full-vocab (or K≥ vocab) verbatim re-read** to find the true non-determinism floor.
+5. **cond1 growth-saturation (~0.72) is the deep, window-independent blocker** — the real open question: does
+   same-field prose genuinely saturate at 120 docs (then the ≤0.5 bar needs a larger-corpus gate), or can no
+   label-reuse mechanism force sublinearity while real new concepts keep arriving?
+
+No capability claim; no held-out run (nothing passed; and Arm R FAILed). The two owed experiments — uncapped
+verbatim re-read (cond3 floor) and a larger-corpus / bar-appropriateness gate (cond1 growth) — each need their
+own pre-registration + adversary.
