@@ -1,0 +1,9 @@
+{
+  "swap:bias-direction|||direction-polarity": "SIBLING",
+  "swap:human-model-alignment|||value-alignment": "SAME",
+  "swap:few-shot-examples|||few-shot-prompting": "SIBLING",
+  "swap:lookahead-based-decoding|||speculative-decoding": "SIBLING",
+  "swap:evidential-gating|||source-gating": "SIBLING",
+  "swap:ordinal-quality-ranking|||quality-aware-ranking": "SIBLING",
+  "swap:consensus-ensemble|||reliability-weighted-consensus": "SAME"
+}

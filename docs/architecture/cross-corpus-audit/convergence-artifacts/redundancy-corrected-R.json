@@ -1,0 +1,24 @@
+{
+  "prereg": "doc-27",
+  "space": "R",
+  "n": 483,
+  "samePairs": 7,
+  "confirmedPairs": 2,
+  "highCosSiblingsPromoted": 4,
+  "R_strict": 0.014492753623188406,
+  "R_confirmed": 0.004140786749482402,
+  "R_upper": 0.022774327122153208,
+  "orderSwapDropped": [
+    "bias-direction|direction-polarity->SIBLING",
+    "few-shot-examples|few-shot-prompting->SIBLING",
+    "lookahead-based-decoding|speculative-decoding->SIBLING",
+    "evidential-gating|source-gating->SIBLING",
+    "ordinal-quality-ranking|quality-aware-ranking->SIBLING"
+  ],
+  "promotedPairs": [
+    "evidential-validity|evidentiality",
+    "reward-scalarization|scalar-reward",
+    "context-distillation|explanation-distillation",
+    "explanation-distillation|prefix-distillation"
+  ]
+}
