@@ -1,0 +1,26 @@
+{
+  "prereg": "doc-26",
+  "space": "R",
+  "n": 483,
+  "candidates": 204,
+  "verdicts": {
+    "SAME": 7,
+    "SIBLING": 187,
+    "UNRELATED": 10
+  },
+  "redundancyStrict": 0.014492753623188406,
+  "redundancyLenient": 0.32298136645962733,
+  "componentsStrict": 476,
+  "componentsLenient": 327,
+  "mergesStrict": 7,
+  "mergesLenient": 156,
+  "largestStrictComponent": 2,
+  "largestLenientComponent": 23,
+  "spotCheck": {
+    "belowPoolSize": 116199,
+    "sampled": 100,
+    "same": 0,
+    "sibling": 28,
+    "sameRate": 0
+  }
+}

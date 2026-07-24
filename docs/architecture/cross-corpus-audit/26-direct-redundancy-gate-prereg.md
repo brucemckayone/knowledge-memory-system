@@ -174,6 +174,80 @@ multi-field generality, held-out corpora, or cond3 window engineering — each r
 
 ---
 
-## 9. RESULT
+## 9. RESULT (2026-07-24) — cond-R FAILS as pre-registered (lenient bound); strict+comparative SOUND; adversary QUALIFIED
 
-*(added after the run + blind adversary)*
+Ran the redundancy gate on both spaces (harness `redundancy-gate.ts`; ~970 cached Haiku 3-way judgments).
+Blind adversary (Opus, fresh context, raw artifacts only) **independently reproduced every number to the digit
+— 0 mismatches**, candidate set == judged set exactly (204/664, no gerrymander), seed reproduced 100/100
+spot-check keys. Then it ruled against my inclination on the contested bar. Artifacts:
+`redundancy-{judge,spot,result}-{R,FF}.json`.
+
+| space | N | strict redundancy | lenient (SAME∪SIB) | strict largest | lenient largest | spot SAME/100 |
+|---|---|---|---|---|---|---|
+| **Arm R** (relevance-window) | 483 | **1.45%** (7 SAME) | 32.3% | 2 | 23 | 0 |
+| **free-form** (no conform) | 906 | **5.63%** (51 merges) | 48.8% | 4 | 148 | 2 (cos 0.36–0.39) |
+
+**Bars:** absolute strict ≤5% → R 1.45% ✓ · absolute lenient ≤10% → R 32.3% ✗ · comparative ≤0.5×FF (2.8%)
+→ R 1.45% ✓. cond-R = (absolute AND comparative), and absolute needs BOTH strict AND lenient →
+**cond-R FAILS on the lenient bound.**
+
+### What the adversary CONFIRMED (holds)
+- **Numbers sound, procedure honest.** Independent recompute identical; prefilter (cos≥0.70 ∪ lexical) is the
+  exact judged set; spot-check genuinely random.
+- **The space is not strict-redundant, and the mechanism earned it.** Arm R strict ≤~2%, free-form 5.6%,
+  comparative cleared robustly (holds even discounting a few borderline FF SAMEs). The reframe's core insight —
+  **direct strict redundancy, not count-plateau, is the right operationalization of "no explosion"** — is
+  vindicated: the best mechanism's space has essentially no true duplicates.
+- **The growth-ratio retirement is principled, not just convenient.** The conflation argument (a clean space
+  meeting novel ideas and a dirty space both show high growth) is sound independent of growth-ratio being the
+  metric that failed; and it was replaced with a direct, pre-registered, adversary-checked metric, not dropped.
+
+### What the adversary CORRECTED (two over-claims I would have banked)
+1. **1.45% is within the judge's false-SAME noise floor — report it as "≤~2%," not a precise 1.4%.** The two FF
+   below-threshold SAMEs sit at **cos 0.36–0.39** (`group-entropy`|`semantic-smearing`;
+   `dual-bound-tight-similarity-sensing`|`gromov-wasserstein-transport`) — near-orthogonal, unmistakably
+   distinct → **judge noise, not prefilter misses.** Good: the strict numbers are *not* prefilter undercounts.
+   Bad: the judge false-SAMEs ~2% of random pairs, so R's 7 SAMEs are statistically indistinguishable from zero
+   — a *ceiling* of ~2%, not a point estimate of 1.4%.
+2. **This is SURFACE-variant dedup, not semantic dedup.** Free-form's 53 SAMEs are overwhelmingly
+   plurals / hyphenation / acronym-expansion (`world-models`|`world-model` 0.98, `lora-fine-tuning`|`lora-finetuning`).
+   Arm R's controlled-vocab conform collapses these at coining time. The R-vs-FF gap is **real but surface-level**;
+   claim "suppresses surface-variant proliferation," NOT "deduplicates semantically."
+
+### The contested lenient bar — adversary RULING: ill-posed metric, but the FAIL stands
+The observation that the lenient metric is broken is **legitimate and provable on both spaces**: the R 23-node
+lenient "component" (2 SAME edges out of 38 — the rest SIBLING) chains genuinely distinct concepts
+(`value-alignment` … `gradient-alignment` … `centered-kernel-alignment` [a representation-similarity *metric*],
+plus seven distinct *biases* and three *tuning* variants) that share only a word; FF's 148-node blob has 266
+edges, 23 SAME. "Merging" these would destroy ~22 / ~125 distinct concepts — the opposite of dedup, and
+directly contrary to the pre-reg's own SIBLING definition ("should stay as separate nodes"). Counting
+sibling-transitive-closure as removable duplication is internally incoherent and explodes whenever siblings are
+common. **So the lenient-via-components metric does not measure redundancy — I was right about that.**
+
+**BUT** (the load-bearing ruling): discovering *after seeing the number* that a frozen bar is ill-posed and using
+that to claim a pass is exactly the documented launder pattern. The ill-posedness is real; the *rescue it
+enables* is not. **Honest disposition: cond-R FAILS as pre-registered — a metric-design defect I own (I
+mis-operationalized the lenient guard as component-collapse instead of, e.g., "fraction of nodes with ≥1 SAME
+edge"). This triggers a corrected re-pre-registration, NOT a banked pass.**
+
+### Integrity flag (adversary)
+The harness passes a one-line system string (`"You classify concept-label pairs… Respond with exactly one
+word."`) not present in the frozen §3 prompt block. Benign (the user-prompt is verbatim §3), but technically
+outside the frozen artifact — noted for the record.
+
+### OVERALL: PASS-ON-STRICT-AND-COMPARATIVE-ONLY; cond-R FAILS as written
+- **Can claim:** the space is not strict-redundant (R ≤~2%, FF 5.6%, comparative cleared); candidate gen /
+  seeding / prefilter recall sound; the mechanism suppresses surface-variant proliferation; growth-ratio's
+  retirement is principled.
+- **Cannot claim:** cond-R "passes" (it fails its own frozen lenient AND-bound); deep-semantic dedup (removed
+  redundancy is surface variants); precision below the ~2% judge-noise floor; any generality (single field,
+  single corpus; held-out, cond2, cond3 not re-verified here).
+
+### Next (owed)
+1. **Corrected re-pre-registration (doc-27):** a **non-chaining** lenient guard — e.g. redundancy = fraction of
+   nodes with ≥1 SAME edge (no transitive sibling closure), or SAME-rate among high-cos pairs. Computable from
+   the **existing cached verdicts (0 new LLM calls)** — but must be pre-registered before recompute, and the
+   judge false-SAME floor (~2%) must be modeled (e.g. subtract a noise estimate, or require SAME confirmed by
+   ≥2 independent judgments) so the strict number isn't reported below its own noise.
+2. Unchanged owed items: held-out confirmation (astro-ph.GA base / cs.CL distinct), multi-field generality,
+   cond3 window engineering — each its own gate. No winner banked without held-out (doc-24 §4).
