@@ -111,6 +111,66 @@ follow-up if positive) or the semantic-vs-surface question (doc-27).
 
 ---
 
-## 10. RESULT
+## 10. RESULT (2026-07-24) — GATE FAILS both bars as pre-registered; but my tie-rule dramatized it, and convergence DID move JOIN above lexical
 
-*(added after the run + blind adversary)*
+Built the shared concept space over 294 papers (Arm R mechanism, shared vocab 521) and scored four arms vs the
+external OpenAlex oracle. Blind adversary (Opus, fresh context, raw artifacts only) **reproduced every number to
+4 dp including both bootstrap CIs** (replicated the LCG seed exactly), verified the oracle is external (0 of 521
+labels are OpenAlex IDs; no leakage), and then caught me over-reading the fail.
+
+| L≥2 (n=287, med 22 related) | JOIN | embedding | BM25 | RRF |
+|---|---|---|---|---|
+| recall@10 | 0.061 | **0.162** | 0.064 | 0.067 |
+| recall@5 | 0.039 | **0.091** | 0.032 | 0.044 |
+| MRR | 0.352 | **0.521** | 0.340 | 0.380 |
+
+**Bars:** H1 (JOIN − BM25 ≥ +0.05, CI excl 0): **FAIL** — tie, CI [−0.015, +0.017]. H2 (JOIN ≥ embedding − 0.05):
+**FAIL** — JOIN 0.10 below dense, CI [−0.120, −0.088]. Robust at L≥3 and across @5/MRR. **GATE FAILS.**
+
+### What holds (adversary-confirmed)
+- **Embedding is the best single cross-corpus recall signal** (0.162 vs JOIN 0.061), reproducing doc-20's
+  ordering. Not a rigged/capped fail: perfect-ranker recall@10 = 0.539 (embedding sits at only 30% of ceiling —
+  huge headroom, no metric compression), and BM25 is canonical Okapi that works (recall@50 0.345).
+- **Convergence itself worked** — 96 genuine concept nodes bridge NLP↔CV (`zero-shot-learning`,
+  `vision-language-models`, `domain-adaptation`, `diffusion-models`, `contrastive-learning`; only 17/96 are thin
+  1×1). The vocabulary conforms across corpora.
+- **JOIN's recall is structurally CEILINGED at ~13%** — only 976/7566 (12.9%) of oracle-related cross-pairs share
+  ≥1 of our extracted nodes, because extraction surfaces 4–10 concepts/doc and misses most latent shared concepts.
+  Independently confirmed: JOIN recall SATURATES at 0.13 at recall@50 while embedding/BM25 keep climbing. Real,
+  not a tie-rule artifact.
+
+### What the adversary CORRECTED (I dramatized the fail — via a knob I set in the pre-reg)
+My pre-registered **"ties broken AGAINST JOIN"** rule (§4, a conservative choice) turned out **load-bearing and
+undisclosed in magnitude**: it roughly **halves** JOIN's realized recall. JOIN recall@10 by tie-break —
+**against (pre-reg) 0.061 / neutral (fair) 0.104 / positive-score-only 0.124.** So ~40% of the reported shortfall
+is the tie penalty, not sparsity. Consequences the honest read must state:
+- The **fair** gap vs dense is ~**0.06** at L≥2 / ~**0.03** at L≥3 — NOT the "0.10 below dense" the frozen numbers
+  show. And under a neutral tie-break **H2 PASSES at L≥3** (0.136 ≥ 0.115).
+- Under a neutral tie-break **JOIN SIGNIFICANTLY BEATS BM25**: +0.040, CI [0.028, 0.058] (excludes 0) — just under
+  the +0.05 H1 threshold. So **doc-20's "JOIN ≤ lexical" is NOT cleanly reproduced** — convergence measurably
+  moved JOIN from ≈BM25 to >BM25. My "concept layer adds nothing over lexical" framing (in chat) was wrong;
+  corrected. See [[verify-empirical-gates]] iter-24 (rule 58).
+
+The gate still **FAILS as pre-registered** (the frozen tie rule is faithful, not a bug — analogous to doc-22's
+full-ranking RRF), but its magnitude was overstated and the neutral-tie-break signal must be reported alongside.
+
+### OVERALL: FAIL (as written) — honest disposition is HYBRID, not "useless" and not "just tuning"
+- **CAN claim:** the convergent concept layer, used ALONE as a cross-corpus retrieval signal, does not clear the
+  pre-registered bars — embedding is required for recall (2.6× JOIN on recall@10). The cause is real extraction
+  sparsity (~13% coverage ceiling), independent of the tie rule. Convergence is real (96 bridges).
+- **CANNOT claim:** "convergence bought nothing / JOIN ≡ lexical" (FALSE under a fair tie-break — JOIN
+  significantly > BM25); "JOIN is 0.10 worse than dense" as a signal statement (fair gap ~0.03–0.06); any
+  generality (one pairing; §9 scopes this exploratory pending a second pairing).
+- **Product disposition:** the concept layer is NOT a standalone recall engine — embedding carries cross-corpus
+  recall. But it provides real, explainable, above-lexical bridges for the ~13% of pairs that share a concept →
+  **hybrid (embedding recall + concept-layer explanation/structure), human-in-the-loop** — matching the E1
+  terminal disposition ([[cross-corpus-audit-feature]]). This directly answers the user's question: **the concept
+  mappings do NOT, on their own, make cross-graph query recall better than dense embedding; they add an
+  explainable symbolic layer on top of it.**
+
+### Owed
+- A **fair-tie-break** re-pre-registration if we want to bank "JOIN > lexical" (the neutral variant is exploratory
+  here, not banked — same discipline as doc-22's retrieved-set RRF).
+- Second corpus pairing for generality. The extraction-sparsity ceiling (concepts/doc) is the lever if recall
+  from the concept layer is ever wanted — but embedding already covers recall, so the layer's real value is
+  structure/explainability, not retrieval.

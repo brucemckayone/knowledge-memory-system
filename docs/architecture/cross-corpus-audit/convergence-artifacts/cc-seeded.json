@@ -1,0 +1,2254 @@
+{
+  "A:W4387994521": [
+    "systematic-review",
+    "title-abstract-screening",
+    "full-text-review",
+    "data-extraction",
+    "human-out-of-the-loop",
+    "reliable-prompts",
+    "inter-rater-agreement",
+    "multilingual-evaluation",
+    "grey-literature"
+  ],
+  "B:W4377371526": [
+    "sensor-fusion",
+    "rgb-d",
+    "thermal-imaging",
+    "3d-reconstruction",
+    "object-detection",
+    "segmentation",
+    "image-registration",
+    "feature-based-methods"
+  ],
+  "A:W4318718936": [
+    "vision-language-pretraining",
+    "frozen-image-encoders",
+    "frozen-language-models",
+    "querying-transformer",
+    "modality-gap",
+    "zero-shot-learning",
+    "image-to-text-generation"
+  ],
+  "B:W4377090795": [
+    "object-detection",
+    "transfer-learning",
+    "single-shot-detector",
+    "yolo-v8",
+    "real-time-inference",
+    "occlusion",
+    "mean-average-precision"
+  ],
+  "A:W4366330503": [
+    "instruction-tuning",
+    "multimodal-llm",
+    "zero-shot-learning",
+    "image-to-text-generation",
+    "transfer-learning",
+    "vision-encoder",
+    "synthetic-instruction-data",
+    "end-to-end-training"
+  ],
+  "B:W4383472654": [
+    "latent-diffusion-models",
+    "text-to-image-generation",
+    "text-encoder",
+    "cross-attention",
+    "image-to-image-generation",
+    "refinement-models"
+  ],
+  "A:W4366850747": [
+    "frozen-image-encoders",
+    "frozen-language-models",
+    "multimodal-llm",
+    "image-to-text-generation",
+    "projection-layer",
+    "visual-feature-alignment"
+  ],
+  "B:W4367189325": [
+    "segmentation",
+    "transfer-learning",
+    "adapter-modules",
+    "domain-adaptation",
+    "prompt-conditioning",
+    "parameter-efficient-adaptation",
+    "3d-adaptation"
+  ],
+  "A:W4376312115": [
+    "instruction-tuning",
+    "vision-language-pretraining",
+    "querying-transformer",
+    "multimodal-llm",
+    "zero-shot-learning",
+    "transfer-learning",
+    "vision-encoder"
+  ],
+  "B:W4378501865": [
+    "text-to-3d-generation",
+    "latent-diffusion-models",
+    "score-distillation-sampling",
+    "variational-score-distillation",
+    "neural-radiance-fields",
+    "mesh-refinement",
+    "classifier-free-guidance"
+  ],
+  "A:W4320165837": [
+    "zero-shot-learning",
+    "tool-use",
+    "self-supervised-learning",
+    "api-integration",
+    "few-shot-learning",
+    "language-modeling"
+  ],
+  "B:W4382322597": [
+    "segmentation",
+    "zero-shot-learning",
+    "vision-encoder",
+    "transfer-learning",
+    "real-time-inference",
+    "knowledge-distillation",
+    "model-compression",
+    "mobile-deployment"
+  ],
+  "A:W4319793302": [
+    "multilingual-evaluation",
+    "zero-shot-learning",
+    "multimodal-llm",
+    "hallucination",
+    "prompt-engineering",
+    "reasoning-evaluation",
+    "commonsense-reasoning",
+    "multitask-learning"
+  ],
+  "B:W4367365477": [
+    "segmentation",
+    "parameter-efficient-adaptation",
+    "vision-encoder",
+    "transfer-learning",
+    "domain-adaptation",
+    "prompt-conditioning",
+    "end-to-end-training"
+  ],
+  "A:W4323572061": [
+    "multimodal-llm",
+    "embodied-language-models",
+    "vision-language-pretraining",
+    "transfer-learning",
+    "end-to-end-training",
+    "sensor-fusion",
+    "robotic-manipulation",
+    "language-grounding",
+    "visual-question-answering"
+  ],
+  "B:W4313484371": [
+    "text-to-image-generation",
+    "zero-shot-learning",
+    "vision-language-pretraining",
+    "masked-generative-transformers",
+    "discrete-tokens",
+    "parallel-decoding",
+    "image-editing"
+  ],
+  "A:W4385681388": [
+    "language-modeling",
+    "transfer-learning",
+    "instruction-tuning",
+    "multilingual-evaluation",
+    "language-specific-pretraining",
+    "benchmark-compilation"
+  ],
+  "B:W4320722432": [
+    "vision-encoder",
+    "frozen-image-encoders",
+    "transfer-learning",
+    "vision-transformer-scaling",
+    "fairness-performance-tradeoff",
+    "shape-texture-bias"
+  ],
+  "A:W4377009978": [
+    "large-language-models",
+    "prompt-engineering",
+    "domain-adaptation",
+    "ensemble-refinement",
+    "medical-reasoning",
+    "human-evaluation",
+    "medical-question-answering"
+  ],
+  "B:W4313484219": [
+    "sensor-fusion",
+    "object-detection",
+    "3d-reconstruction",
+    "self-supervised-learning",
+    "point-cloud-forecasting",
+    "motion-forecasting",
+    "pose-estimation"
+  ],
+  "A:W4320167623": [
+    "multilingual-evaluation",
+    "prompt-engineering",
+    "large-language-models",
+    "zero-shot-learning",
+    "hallucination",
+    "domain-adaptation",
+    "benchmark-compilation",
+    "pivot-prompting"
+  ],
+  "B:W4379474533": [
+    "segmentation",
+    "zero-shot-learning",
+    "transfer-learning",
+    "domain-adaptation",
+    "parameter-efficient-adaptation",
+    "adapter-modules",
+    "prompt-conditioning",
+    "feature-fusion",
+    "mask-refinement"
+  ],
+  "A:W4361866125": [
+    "large-language-models",
+    "language-modeling",
+    "domain-adaptation",
+    "sentiment-analysis",
+    "named-entity-recognition",
+    "question-answering"
+  ],
+  "B:W4382766104": [
+    "3d-reconstruction",
+    "neural-radiance-fields",
+    "latent-diffusion-models",
+    "view-conditioned-diffusion",
+    "sdf-based-reconstruction",
+    "multi-view-generation",
+    "text-to-3d-generation"
+  ],
+  "A:W4385473486": [
+    "vision-language-pretraining",
+    "vision-language-action-models",
+    "visual-question-answering",
+    "robotic-manipulation",
+    "end-to-end-training",
+    "discrete-tokens",
+    "chain-of-thought-reasoning",
+    "zero-shot-learning"
+  ],
+  "B:W4318719586": [
+    "latent-diffusion-models",
+    "text-to-image-generation",
+    "memorization",
+    "training-data-extraction",
+    "privacy-vulnerabilities",
+    "generative-adversarial-networks",
+    "privacy-preserving-training"
+  ],
+  "A:W4361866031": [
+    "large-language-models",
+    "tool-use",
+    "task-planning",
+    "model-selection",
+    "prompt-engineering",
+    "api-integration",
+    "multimodal-llm",
+    "task-decomposition"
+  ],
+  "B:W4364383051": [
+    "segmentation",
+    "zero-shot-learning",
+    "prompt-conditioning",
+    "few-shot-learning",
+    "whole-slide-imaging",
+    "instance-segmentation",
+    "digital-pathology",
+    "medical-image-analysis"
+  ],
+  "A:W4324128075": [
+    "open-set-object-detection",
+    "language-grounding",
+    "feature-fusion",
+    "zero-shot-learning",
+    "referring-expression-comprehension"
+  ],
+  "B:W4367000115": [
+    "segmentation",
+    "few-shot-learning",
+    "prompt-conditioning",
+    "transfer-learning",
+    "frozen-image-encoders",
+    "video-object-tracking",
+    "temporal-consistency"
+  ],
+  "A:W4316116392": [
+    "question-answering",
+    "text-to-image-generation",
+    "text-to-3d-generation",
+    "image-to-text-generation",
+    "language-modeling",
+    "text-to-video-generation",
+    "text-to-audio-generation",
+    "text-to-code-generation"
+  ],
+  "B:W4388651085": [
+    "time-series-forecasting",
+    "multi-layer-perceptrons",
+    "frequency-domain",
+    "fourier-transform",
+    "signal-processing",
+    "energy-compaction"
+  ],
+  "A:W4379259189": [
+    "multimodal-llm",
+    "visual-question-answering",
+    "medical-image-analysis",
+    "instruction-tuning",
+    "synthetic-instruction-data",
+    "curriculum-learning",
+    "domain-adaptation",
+    "transfer-learning"
+  ],
+  "B:W4367000547": [
+    "segmentation",
+    "medical-image-analysis",
+    "foundation-models",
+    "cross-modality-generalization"
+  ],
+  "A:W4321472057": [
+    "machine-translation",
+    "large-language-models",
+    "prompt-engineering",
+    "domain-adaptation",
+    "multilingual-evaluation",
+    "human-evaluation",
+    "document-level-translation",
+    "system-combination"
+  ],
+  "B:W4383994075": [
+    "text-to-image-generation",
+    "latent-diffusion-models",
+    "parameter-efficient-adaptation",
+    "transfer-learning",
+    "temporal-consistency",
+    "text-to-video-generation",
+    "motion-module"
+  ],
+  "A:W4318351475": [
+    "multimodal-llm",
+    "audio-language-models",
+    "benchmark-compilation",
+    "human-evaluation",
+    "reasoning-evaluation",
+    "music-understanding",
+    "music-information-retrieval",
+    "question-answering"
+  ],
+  "B:W4318719552": [
+    "segmentation",
+    "object-detection",
+    "image-classification",
+    "vision-transformers",
+    "mobile-deployment",
+    "knowledge-distillation",
+    "model-compression",
+    "real-time-inference",
+    "axial-transformer"
+  ],
+  "A:W4367367040": [
+    "multimodal-llm",
+    "large-language-models",
+    "instruction-tuning",
+    "parameter-efficient-adaptation",
+    "visual-feature-alignment",
+    "frozen-language-models",
+    "foundation-models",
+    "zero-shot-learning"
+  ],
+  "B:W4353007232": [
+    "graph-neural-networks",
+    "over-smoothing",
+    "node-features",
+    "network-depth",
+    "similarity-measures",
+    "continuous-time-gnns",
+    "graph-learning-tasks"
+  ],
+  "A:W4322718246": [
+    "multimodal-llm",
+    "few-shot-learning",
+    "zero-shot-learning",
+    "chain-of-thought-reasoning",
+    "visual-question-answering",
+    "image-to-text-generation",
+    "image-classification",
+    "cross-modality-generalization"
+  ],
+  "B:W4376312146": [
+    "video-object-tracking",
+    "segmentation",
+    "instance-segmentation",
+    "foundation-models",
+    "tool-use",
+    "benchmark-compilation",
+    "text-guided-segmentation"
+  ],
+  "A:W4313679638": [
+    "language-modeling",
+    "text-to-audio-generation",
+    "discrete-tokens",
+    "zero-shot-learning",
+    "prompt-conditioning",
+    "in-context-learning"
+  ],
+  "B:W4383047560": [
+    "neural-radiance-fields",
+    "image-to-3d-generation",
+    "mesh-refinement",
+    "latent-diffusion-models",
+    "view-conditioned-diffusion",
+    "textual-inversion",
+    "monocular-depth"
+  ],
+  "A:W4365601444": [
+    "large-language-models",
+    "zero-shot-learning",
+    "human-evaluation",
+    "inter-rater-agreement",
+    "commonsense-reasoning",
+    "reasoning-evaluation"
+  ],
+  "B:W4386395766": [
+    "multi-view-generation",
+    "text-to-3d-generation",
+    "score-distillation-sampling",
+    "image-to-3d-generation",
+    "few-shot-learning"
+  ],
+  "A:W4353007481": [
+    "large-language-models",
+    "zero-shot-learning",
+    "ai-generated-text-detection",
+    "text-watermarking",
+    "adversarial-attacks",
+    "paraphrasing",
+    "detector-robustness"
+  ],
+  "B:W4389115686": [
+    "latent-diffusion-models",
+    "text-to-video-generation",
+    "image-to-video-generation",
+    "motion-module",
+    "multi-view-generation",
+    "text-to-image-generation",
+    "parameter-efficient-adaptation",
+    "video-pretraining"
+  ],
+  "A:W4318351452": [
+    "ai-generated-text-detection",
+    "large-language-models",
+    "zero-shot-learning",
+    "log-probability-curvature",
+    "frozen-language-models"
+  ],
+  "B:W4321276804": [
+    "text-to-image-generation",
+    "latent-diffusion-models",
+    "prompt-conditioning",
+    "segmentation",
+    "spatial-guidance",
+    "diffusion-path-fusion",
+    "layout-control"
+  ],
+  "A:W4322718421": [
+    "large-language-models",
+    "hallucination",
+    "question-answering",
+    "prompt-engineering",
+    "external-knowledge",
+    "factuality-evaluation",
+    "automated-feedback",
+    "task-oriented-dialog"
+  ],
+  "B:W4365816982": [
+    "segmentation",
+    "foundation-models",
+    "zero-shot-learning",
+    "medical-image-analysis",
+    "prompt-conditioning",
+    "domain-adaptation"
+  ],
+  "A:W4321524280": [
+    "large-language-models",
+    "paraphrasing",
+    "similarity-measures",
+    "sentiment-analysis",
+    "question-answering",
+    "prompt-engineering",
+    "fine-tuning",
+    "natural-language-inference"
+  ],
+  "B:W4366552071": [
+    "segmentation",
+    "medical-image-segmentation",
+    "foundation-models",
+    "zero-shot-learning",
+    "similarity-measures",
+    "cross-modality-generalization",
+    "model-selection"
+  ],
+  "A:W4321524373": [
+    "zero-shot-learning",
+    "data-extraction",
+    "large-language-models",
+    "prompt-engineering",
+    "question-answering",
+    "named-entity-recognition",
+    "relation-extraction",
+    "event-extraction",
+    "task-decomposition"
+  ],
+  "B:W4372283850": [
+    "segmentation",
+    "few-shot-learning",
+    "foundation-models",
+    "prompt-conditioning",
+    "target-guided-attention",
+    "mask-refinement",
+    "parameter-efficient-adaptation",
+    "video-object-segmentation",
+    "text-to-image-generation"
+  ],
+  "A:W4315881236": [
+    "large-language-models",
+    "language-modeling",
+    "ai-generated-text-detection",
+    "factuality-evaluation",
+    "influence-operations",
+    "automated-disinformation"
+  ],
+  "B:W4377143267": [
+    "segmentation",
+    "foundation-models",
+    "weakly-supervised-learning",
+    "pseudo-labeling",
+    "mask-refinement",
+    "multi-scale-feature-grouping",
+    "ensemble-refinement"
+  ],
+  "A:W4366735603": [
+    "named-entity-recognition",
+    "large-language-models",
+    "prompt-engineering",
+    "in-context-learning",
+    "sequence-labeling",
+    "hallucination",
+    "self-verification"
+  ],
+  "B:W4319453767": [
+    "vision-transformers",
+    "frozen-image-encoders",
+    "parameter-efficient-adaptation",
+    "spatial-adaptation",
+    "temporal-adaptation",
+    "transfer-learning",
+    "video-action-recognition"
+  ],
+  "A:W4386185600": [
+    "vision-language-models",
+    "image-to-text-generation",
+    "question-answering",
+    "referring-expression-comprehension",
+    "scene-text-recognition",
+    "zero-shot-learning",
+    "few-shot-learning",
+    "instruction-tuning"
+  ],
+  "B:W4362707078": [
+    "in-context-learning",
+    "instance-segmentation",
+    "semantic-segmentation",
+    "panoptic-segmentation",
+    "video-object-segmentation",
+    "part-segmentation",
+    "contour-segmentation",
+    "text-segmentation",
+    "few-shot-learning"
+  ],
+  "A:W4321177655": [
+    "augmented-language-models",
+    "large-language-models",
+    "chain-of-thought-reasoning",
+    "tool-use",
+    "task-decomposition",
+    "in-context-learning"
+  ],
+  "B:W4379261327": [
+    "hierarchical-vision-transformers",
+    "vision-transformers",
+    "masked-autoencoders",
+    "self-supervised-learning",
+    "image-classification",
+    "video-action-recognition",
+    "real-time-inference"
+  ],
+  "A:W4366341216": [
+    "large-language-models",
+    "fine-tuning",
+    "human-evaluation",
+    "multilingual-evaluation",
+    "rlhf",
+    "model-alignment",
+    "conversation-corpus",
+    "crowdsourced-data"
+  ],
+  "B:W4388685310": [
+    "foundation-models",
+    "self-supervised-learning",
+    "semantic-segmentation",
+    "image-classification",
+    "spectral-remote-sensing",
+    "3d-generative-transformers",
+    "change-detection",
+    "multi-scale-feature-grouping"
+  ],
+  "A:W4382490555": [
+    "vision-language-models",
+    "language-grounding",
+    "referring-expression-comprehension",
+    "referring-expression-generation",
+    "phrase-grounding",
+    "object-detection",
+    "in-context-learning",
+    "instruction-tuning"
+  ],
+  "B:W4366196888": [
+    "segmentation",
+    "image-inpainting",
+    "text-to-image-generation",
+    "prompt-conditioning"
+  ],
+  "A:W4377297670": [
+    "large-language-models",
+    "language-modeling",
+    "instruction-tuning",
+    "fine-tuning",
+    "model-alignment",
+    "human-evaluation",
+    "in-context-learning",
+    "transfer-learning"
+  ],
+  "B:W4385291271": [
+    "image-super-resolution",
+    "diffusion-models",
+    "accelerated-sampling",
+    "residual-shifting",
+    "noise-schedule"
+  ],
+  "A:W4386942538": [
+    "large-language-models",
+    "language-modeling",
+    "multilingual-language-models",
+    "prompt-engineering",
+    "domain-adaptation",
+    "benchmark-compilation",
+    "foundation-models"
+  ],
+  "B:W4367369767": [
+    "3d-occupancy-prediction",
+    "autonomous-driving",
+    "semantic-segmentation",
+    "occlusion",
+    "voxel-refinement",
+    "image-guided-refinement",
+    "benchmark-compilation"
+  ],
+  "A:W4321854470": [
+    "time-series-forecasting",
+    "time-series-classification",
+    "anomaly-detection",
+    "few-shot-learning",
+    "frozen-pretrained-models",
+    "foundation-models",
+    "transfer-learning",
+    "domain-adaptation"
+  ],
+  "B:W4386554984": [
+    "diffusion-models",
+    "multi-view-generation",
+    "view-conditioned-diffusion",
+    "cross-attention",
+    "feature-fusion",
+    "image-to-3d-generation",
+    "text-to-3d-generation"
+  ],
+  "A:W4378105483": [
+    "self-supervised-learning",
+    "speech-pretraining",
+    "audio-language-models",
+    "multilingual-language-models",
+    "speech-recognition",
+    "text-to-audio-generation",
+    "language-identification"
+  ],
+  "B:W4379958469": [
+    "diffusion-models",
+    "forward-process",
+    "reverse-process",
+    "sampling-process"
+  ],
+  "A:W4318149317": [
+    "text-watermarking",
+    "large-language-models",
+    "sampling-process",
+    "green-tokens",
+    "watermark-detection",
+    "watermark-robustness"
+  ],
+  "B:W4386302521": [
+    "latent-diffusion-models",
+    "diffusion-models",
+    "image-super-resolution",
+    "image-guided-refinement",
+    "image-inpainting",
+    "classifier-free-guidance",
+    "blind-image-restoration",
+    "image-denoising"
+  ],
+  "A:W4323066695": [
+    "speech-recognition",
+    "multilingual-language-models",
+    "speech-pretraining",
+    "self-supervised-learning",
+    "transfer-learning",
+    "speech-to-text-translation",
+    "random-projection-quantization",
+    "speech-text-modality-matching"
+  ],
+  "B:W4389218071": [
+    "medical-image-segmentation",
+    "skip-connections",
+    "encoder-decoder-networks",
+    "multi-scale-feature-grouping",
+    "feature-fusion",
+    "refinement-models"
+  ],
+  "A:W4322760121": [
+    "large-language-models",
+    "machine-translation",
+    "multilingual-evaluation",
+    "zero-shot-learning",
+    "prompt-engineering",
+    "human-evaluation",
+    "reference-free-translation-evaluation"
+  ],
+  "B:W4327810495": [
+    "object-detection",
+    "spectral-remote-sensing",
+    "selective-kernels",
+    "oriented-bounding-boxes",
+    "large-receptive-field",
+    "long-range-context",
+    "tiny-object-detection"
+  ],
+  "A:W4319049323": [
+    "large-language-models",
+    "prompt-engineering",
+    "arithmetic-reasoning",
+    "instruction-tuning",
+    "self-consistency-decoding",
+    "context-distractibility"
+  ],
+  "B:W4385261412": [],
+  "A:W4363671827": [],
+  "B:W4367000526": [],
+  "A:W4381586770": [],
+  "B:W4385965844": [],
+  "A:W4319165821": [],
+  "B:W4365440873": [],
+  "A:W4323697341": [],
+  "B:W4319166718": [],
+  "A:W4322759378": [],
+  "B:W4322100000": [],
+  "A:W4319653860": [],
+  "B:W4330337219": [],
+  "A:W4323066559": [],
+  "B:W4367393626": [],
+  "A:W4387225871": [],
+  "B:W4379912396": [],
+  "A:W4366198844": [],
+  "B:W4387596621": [],
+  "A:W4385889719": [],
+  "B:W4387994729": [],
+  "A:W4382142077": [],
+  "B:W4379261331": [],
+  "A:W4378509427": [],
+  "B:W4318347829": [],
+  "A:W4321276803": [],
+  "B:W4366548765": [],
+  "A:W4360891421": [],
+  "B:W4385018097": [],
+  "A:W4382132560": [],
+  "B:W4386043787": [],
+  "A:W4361806892": [],
+  "B:W4378771704": [],
+  "A:W4318752004": [],
+  "B:W4321392758": [],
+  "A:W4389216598": [],
+  "B:W4322717261": [],
+  "A:W4319793767": [],
+  "B:W4377130860": [],
+  "A:W4319991848": [],
+  "B:W4380551362": [],
+  "A:W4364385323": [],
+  "B:W4385292085": [],
+  "A:W4388482029": [],
+  "B:W4327810286": [],
+  "A:W4318239126": [],
+  "B:W4383180710": [],
+  "A:W4377371819": [],
+  "B:W4387647991": [],
+  "A:W4386794805": [],
+  "B:W4321471917": [],
+  "A:W4378464611": [],
+  "B:W4366457071": [],
+  "A:W4380715494": [],
+  "B:W4384261892": [
+    "multi-view-generation",
+    "zero-shot-learning",
+    "image-to-3d-generation",
+    "3d-reconstruction",
+    "novel-view-synthesis",
+    "photogrammetry"
+  ],
+  "A:W4382618460": [
+    "large-language-models",
+    "synthetic-instruction-data",
+    "prompt-engineering",
+    "domain-adaptation",
+    "attributed-prompts",
+    "data-bias",
+    "training-data-generation",
+    "attribute-diversity"
+  ],
+  "B:W4385373773": [
+    "monocular-depth",
+    "vision-transformers",
+    "vision-encoder",
+    "real-time-inference",
+    "vision-transformer-backbones",
+    "convolutional-encoders"
+  ],
+  "A:W4361193900": [
+    "large-language-models",
+    "text-annotation",
+    "crowdsourced-data",
+    "zero-shot-learning",
+    "text-classification",
+    "inter-coder-agreement",
+    "stance-detection",
+    "topic-detection"
+  ],
+  "B:W4388093548": [
+    "diffusion-models",
+    "text-to-video-generation",
+    "image-to-video-generation",
+    "foundation-models"
+  ],
+  "A:W4382491206": [
+    "vision-language-models",
+    "large-language-models",
+    "vision-encoder",
+    "visual-feature-alignment",
+    "spatial-guidance",
+    "referring-expression-comprehension",
+    "visual-question-answering",
+    "image-to-text-generation"
+  ],
+  "B:W4327810111": [
+    "text-to-3d-generation",
+    "score-distillation-sampling",
+    "diffusion-models",
+    "neural-radiance-fields",
+    "zero-shot-learning",
+    "multi-view-generation",
+    "3d-consistency",
+    "semantic-consistency",
+    "depth-map-conditioning"
+  ],
+  "A:W4385970122": [
+    "vision-language-models",
+    "vision-language-pretraining",
+    "autoregressive-models",
+    "foundation-models",
+    "language-modeling"
+  ],
+  "B:W4380994596": [
+    "similarity-measures",
+    "human-evaluation",
+    "text-to-image-generation",
+    "pose-estimation",
+    "visual-feature-alignment",
+    "attribute-diversity",
+    "semantic-consistency",
+    "image-retrieval",
+    "image-layout"
+  ],
+  "A:W4317547647": [
+    "machine-translation",
+    "prompt-engineering",
+    "in-context-learning",
+    "zero-shot-learning",
+    "transfer-learning",
+    "domain-adaptation",
+    "document-level-translation",
+    "similarity-measures",
+    "training-data-generation"
+  ],
+  "B:W4321855132": [
+    "text-to-image-generation",
+    "model-alignment",
+    "prompt-conditioning",
+    "human-evaluation",
+    "training-data-generation",
+    "reward-function-learning",
+    "image-text-alignment"
+  ],
+  "A:W4318719006": [
+    "augmented-language-models",
+    "frozen-language-models",
+    "large-language-models",
+    "language-modeling",
+    "fine-tuning",
+    "cross-attention",
+    "question-answering"
+  ],
+  "B:W4323568911": [
+    "kernel-basis-attention",
+    "multi-axis-feature-fusion",
+    "spatial-adaptation",
+    "image-denoising",
+    "image-deraining",
+    "image-deblurring"
+  ],
+  "A:W4361866080": [
+    "large-language-models",
+    "prompt-engineering",
+    "chain-of-thought-reasoning",
+    "in-context-learning",
+    "recursive-self-criticism",
+    "autonomous-task-execution"
+  ],
+  "B:W4368755703": [
+    "large-language-models",
+    "text-to-code-generation",
+    "encoder-decoder-networks",
+    "language-modeling",
+    "representation-learning",
+    "infill-sampling",
+    "span-corruption"
+  ],
+  "A:W4385327621": [
+    "foundation-models",
+    "vision-language-models",
+    "prompt-engineering",
+    "vision-language-pretraining",
+    "visual-question-answering",
+    "compositional-reasoning",
+    "contrastive-learning",
+    "embodied-language-models"
+  ],
+  "B:W4381798022": [
+    "blind-image-restoration",
+    "image-denoising",
+    "image-deraining",
+    "image-dehazing",
+    "prompt-conditioning",
+    "dynamic-guidance",
+    "domain-adaptation"
+  ],
+  "A:W4361806442": [
+    "named-entity-recognition",
+    "prompt-engineering",
+    "large-language-models",
+    "in-context-learning",
+    "prompt-conditioning",
+    "domain-adaptation",
+    "text-annotation",
+    "data-extraction"
+  ],
+  "B:W4387929748": [
+    "multi-view-generation",
+    "3d-consistency",
+    "view-conditioned-diffusion",
+    "image-to-3d-generation",
+    "frozen-pretrained-models",
+    "latent-diffusion-models",
+    "novel-view-synthesis",
+    "image-guided-refinement"
+  ],
+  "A:W4382538068": [
+    "large-language-models",
+    "deductive-coding",
+    "content-analysis",
+    "prompt-engineering",
+    "inter-coder-agreement",
+    "human-evaluation",
+    "text-classification",
+    "natural-language-processing"
+  ],
+  "B:W4323076533": [
+    "diffusion-models",
+    "text-to-motion-generation",
+    "sequential-composition",
+    "parallel-composition",
+    "model-composition",
+    "motion-editing"
+  ],
+  "A:W4323697401": [
+    "large-language-models",
+    "zero-shot-learning",
+    "text-classification",
+    "multilingual-language-models",
+    "genre-identification",
+    "multilingual-evaluation",
+    "text-annotation"
+  ],
+  "B:W4366781106": [
+    "3d-reconstruction",
+    "vision-language-models",
+    "neural-radiance-fields",
+    "text-to-image-generation",
+    "segmentation",
+    "image-to-text-generation",
+    "diffusion-models",
+    "text-to-3d-generation",
+    "instance-segmentation"
+  ],
+  "A:W4387723654": [
+    "large-language-models",
+    "vision-language-models",
+    "image-to-text-generation",
+    "visual-question-answering",
+    "referring-expression-comprehension",
+    "multitask-learning",
+    "multimodal-llm",
+    "prompt-engineering"
+  ],
+  "B:W4377865162": [
+    "text-to-video-generation",
+    "diffusion-models",
+    "cross-frame-attention",
+    "frame-interpolation",
+    "hierarchical-sampling",
+    "motion-conditioning"
+  ],
+  "A:W4366733439": [
+    "large-language-models",
+    "text-annotation",
+    "stance-detection",
+    "sentiment-analysis",
+    "human-evaluation",
+    "pseudo-labeling",
+    "hate-speech-detection",
+    "bot-detection"
+  ],
+  "B:W4377866048": [
+    "hallucination",
+    "large-language-models",
+    "factuality-evaluation",
+    "human-evaluation",
+    "sampling-process",
+    "chain-of-thought-reasoning",
+    "language-grounding"
+  ],
+  "A:W4376122449": [
+    "vision-language-models",
+    "multimodal-llm",
+    "instruction-tuning",
+    "low-rank-adapter",
+    "image-to-text-generation",
+    "visual-question-answering",
+    "cross-attention"
+  ],
+  "B:W4380993529": [
+    "ai-generated-image-detection",
+    "diffusion-models",
+    "generative-adversarial-networks",
+    "benchmark-compilation",
+    "image-classification",
+    "detector-robustness"
+  ],
+  "A:W4378473834": [
+    "text-to-image-generation",
+    "diffusion-models",
+    "representation-learning",
+    "vision-language-pretraining",
+    "zero-shot-learning",
+    "image-editing",
+    "multimodal-encoder"
+  ],
+  "B:W4387156659": [
+    "text-to-video-generation",
+    "text-to-image-generation",
+    "latent-diffusion-models",
+    "temporal-self-attention",
+    "rotary-positional-encoding",
+    "image-video-finetuning",
+    "video-super-resolution",
+    "frame-interpolation"
+  ],
+  "A:W4320858112": [
+    "large-language-models",
+    "text-summarization",
+    "human-evaluation",
+    "instruction-tuning",
+    "zero-shot-learning",
+    "few-shot-learning",
+    "fine-tuning",
+    "model-scaling",
+    "prompt-engineering"
+  ],
+  "B:W4318906029": [
+    "neural-radiance-fields",
+    "domain-adaptation",
+    "3d-reconstruction",
+    "motion-conditioning",
+    "audio-to-motion-generation",
+    "lip-reading",
+    "video-pretraining"
+  ],
+  "A:W4385262478": [
+    "prompt-engineering",
+    "vision-language-models",
+    "image-to-text-generation",
+    "image-text-alignment",
+    "text-to-image-generation",
+    "foundation-models",
+    "instruction-tuning"
+  ],
+  "B:W4327811186": [
+    "text-to-image-generation",
+    "textual-inversion",
+    "diffusion-models",
+    "latent-diffusion-models",
+    "per-layer-conditioning",
+    "object-style-mixing"
+  ],
+  "A:W4372283945": [
+    "large-language-models",
+    "synthetic-instruction-data",
+    "in-context-learning",
+    "prompt-engineering",
+    "fine-tuning",
+    "instruction-tuning",
+    "weakly-supervised-learning",
+    "model-alignment"
+  ],
+  "B:W4362597724": [
+    "vision-transformers",
+    "lightweight-vision-transformers",
+    "context-aware-local-enhancement",
+    "high-frequency-feature-extraction",
+    "image-classification",
+    "object-detection",
+    "semantic-segmentation"
+  ],
+  "A:W4385681674": [
+    "contrastive-learning",
+    "representation-learning",
+    "text-encoder",
+    "self-supervised-learning",
+    "foundation-models",
+    "multitask-learning",
+    "model-scaling",
+    "code-retrieval"
+  ],
+  "B:W4379961490": [
+    "segmentation",
+    "foundation-models",
+    "3d-reconstruction",
+    "ensemble-refinement",
+    "3d-segmentation"
+  ],
+  "A:W4320854883": [
+    "large-language-models",
+    "natural-language-processing",
+    "zero-shot-learning",
+    "arithmetic-reasoning",
+    "sequence-labeling",
+    "reasoning-evaluation"
+  ],
+  "B:W4381714048": [
+    "instance-segmentation",
+    "image-segmentation",
+    "image-editing",
+    "real-time-inference",
+    "vision-transformer-backbones"
+  ],
+  "A:W4383605243": [
+    "large-language-models",
+    "long-range-context",
+    "question-answering",
+    "in-context-learning",
+    "key-value-retrieval",
+    "positional-bias",
+    "context-robustness"
+  ],
+  "B:W4383473992": [
+    "text-to-image-generation",
+    "image-editing",
+    "diffusion-models",
+    "classifier-guidance",
+    "drag-style-manipulation",
+    "feature-correspondence",
+    "cross-branch-self-attention",
+    "multi-scale-guidance"
+  ],
+  "A:W4389421203": [
+    "natural-language-processing",
+    "large-language-models",
+    "text-annotation",
+    "human-evaluation",
+    "training-data-generation",
+    "medical-information-extraction"
+  ],
+  "B:W4385713986": [
+    "neural-radiance-fields",
+    "novel-view-synthesis",
+    "gaussian-splatting",
+    "real-time-rendering",
+    "volumetric-rendering",
+    "density-control",
+    "anisotropic-covariance"
+  ],
+  "A:W4366999773": [
+    "information-extraction",
+    "large-language-models",
+    "explainability",
+    "calibration",
+    "faithfulness",
+    "human-evaluation",
+    "open-information-extraction"
+  ],
+  "B:W4387725608": [
+    "4d-gaussian-splatting",
+    "novel-view-synthesis",
+    "real-time-rendering",
+    "3d-reconstruction",
+    "volumetric-rendering",
+    "view-dependent-appearance",
+    "deformation-modeling",
+    "neural-radiance-fields"
+  ],
+  "A:W4377121462": [
+    "visual-question-answering",
+    "medical-question-answering",
+    "vision-encoder",
+    "large-language-models",
+    "vision-language-models",
+    "image-to-text-generation",
+    "medical-image-analysis",
+    "instruction-tuning",
+    "training-data-generation"
+  ],
+  "B:W4323066717": [
+    "object-detection",
+    "image-classification",
+    "bounding-box-regression",
+    "representation-learning",
+    "high-frequency-feature-extraction",
+    "feature-fusion",
+    "spatial-adaptation",
+    "multi-scale-feature-grouping"
+  ],
+  "A:W4361230825": [
+    "large-language-models",
+    "natural-language-processing",
+    "text-classification",
+    "zero-shot-classification",
+    "mental-health-classification"
+  ],
+  "B:W4378501269": [
+    "anomaly-detection",
+    "image-denoising",
+    "diffusion-models",
+    "image-reconstruction",
+    "image-guided-refinement",
+    "domain-adaptation",
+    "feature-based-methods"
+  ],
+  "A:W4362655849": [
+    "large-language-models",
+    "natural-language-processing",
+    "grammatical-error-correction",
+    "chain-of-thought-reasoning",
+    "zero-shot-learning",
+    "few-shot-learning",
+    "in-context-learning",
+    "multilingual-evaluation",
+    "human-evaluation"
+  ],
+  "B:W4382131005": [
+    "semantic-segmentation",
+    "medical-image-segmentation",
+    "promptable-segmentation",
+    "3d-segmentation",
+    "tumor-segmentation",
+    "3d-adaptation",
+    "domain-adaptation",
+    "parameter-efficient-adaptation",
+    "adapter-modules",
+    "vision-transformer-backbones"
+  ],
+  "A:W4318146754": [
+    "scholarly-pdf-extraction",
+    "knowledge-graph-construction",
+    "vector-embeddings",
+    "text-summarization",
+    "information-extraction",
+    "structured-text-parsing",
+    "academic-knowledge-graph",
+    "citation-graph"
+  ],
+  "B:W4388093086": [
+    "anomaly-detection",
+    "vision-language-models",
+    "zero-shot-learning",
+    "prompt-learning",
+    "image-segmentation",
+    "medical-image-analysis"
+  ],
+  "A:W4367623495": [
+    "large-language-models",
+    "medical-question-answering",
+    "foundation-models",
+    "domain-adaptation",
+    "instruction-tuning",
+    "conversation-corpus"
+  ],
+  "B:W4385645314": [
+    "open-vocabulary-segmentation",
+    "vision-language-models",
+    "frozen-image-encoders",
+    "convolutional-encoders",
+    "panoptic-segmentation",
+    "mask-generation",
+    "contrastive-learning",
+    "zero-shot-segmentation"
+  ],
+  "A:W4323650985": [
+    "event-extraction",
+    "natural-language-processing",
+    "large-language-models",
+    "prompt-engineering",
+    "machine-translation",
+    "text-summarization",
+    "question-answering"
+  ],
+  "B:W4388555505": [
+    "neural-radiance-fields",
+    "image-to-3d-generation",
+    "vision-transformers",
+    "3d-generative-transformers",
+    "3d-reconstruction",
+    "model-scaling",
+    "foundation-models"
+  ],
+  "A:W4378465262": [
+    "sentiment-analysis",
+    "natural-language-processing",
+    "large-language-models",
+    "aspect-based-sentiment-analysis",
+    "few-shot-learning",
+    "small-language-models"
+  ],
+  "B:W4320343052": [
+    "diffusion-models",
+    "accelerated-sampling",
+    "latent-diffusion-models",
+    "image-denoising",
+    "predictor-corrector-framework",
+    "conditional-sampling",
+    "sampling-process"
+  ],
+  "A:W2783892510": [
+    "sign-language-recognition",
+    "hand-tracking",
+    "hand-segmentation",
+    "video-action-recognition",
+    "sign-language-translation",
+    "representation-learning"
+  ],
+  "B:W4377864980": [
+    "image-deblurring",
+    "diffusion-models",
+    "latent-diffusion-models",
+    "image-reconstruction",
+    "multi-scale-feature-grouping",
+    "hierarchical-integration"
+  ],
+  "A:W4364387438": [
+    "large-language-models",
+    "machine-translation",
+    "multilingual-language-models",
+    "prompt-learning",
+    "prompt-engineering",
+    "low-resource-translation",
+    "cross-lingual-transfer"
+  ],
+  "B:W4378771767": [
+    "text-to-image-generation",
+    "diffusion-models",
+    "low-rank-adaptation",
+    "multi-concept-customization",
+    "model-composition",
+    "embedding-decomposed-adaptation",
+    "region-controlled-sampling"
+  ],
+  "A:W4378473736": [
+    "large-language-models",
+    "prompt-engineering",
+    "in-context-learning",
+    "instruction-tuning",
+    "training-data-generation",
+    "model-alignment",
+    "human-evaluation"
+  ],
+  "B:W4380136622": [
+    "multi-object-tracking",
+    "pseudo-depth-estimation",
+    "depth-cascading-matching",
+    "scene-decomposition",
+    "data-association",
+    "occlusion-handling"
+  ],
+  "A:W4364387756": [
+    "ai-generated-text-detection",
+    "large-language-models",
+    "detector-robustness",
+    "information-theory",
+    "sample-complexity-bounds",
+    "benchmark-compilation"
+  ],
+  "B:W4380352196": [
+    "graph-neural-networks",
+    "diffusion-models",
+    "sampling-process",
+    "molecular-structure-prediction",
+    "equilibrium-distribution-prediction",
+    "density-estimation",
+    "thermodynamic-annealing"
+  ],
+  "A:W4365460657": [
+    "large-language-models",
+    "natural-language-processing",
+    "multilingual-language-models",
+    "zero-shot-learning",
+    "multilingual-evaluation"
+  ],
+  "B:W4387164994": [
+    "text-to-image-generation",
+    "latent-diffusion-models",
+    "fine-tuning",
+    "quality-tuning",
+    "image-text-alignment",
+    "masked-generative-transformers",
+    "pixel-diffusion"
+  ],
+  "A:W4386556635": [
+    "retrieval-augmented-generation",
+    "large-language-models",
+    "hallucination-mitigation",
+    "noise-robustness",
+    "negative-rejection",
+    "information-integration",
+    "counterfactual-robustness",
+    "benchmark-compilation"
+  ],
+  "B:W4317552994": [
+    "pose-estimation",
+    "one-shot-learning",
+    "feature-correspondence",
+    "3d-reconstruction",
+    "structure-from-motion",
+    "detector-free-feature-matching"
+  ],
+  "A:W4361230777": [
+    "text-summarization",
+    "factuality-evaluation",
+    "large-language-models",
+    "natural-language-inference",
+    "question-answering",
+    "semantic-consistency",
+    "zero-shot-learning"
+  ],
+  "B:W4324319985": [
+    "diffusion-models",
+    "text-to-image-generation",
+    "image-to-text-generation",
+    "vision-language-models",
+    "multimodal-encoder",
+    "conditional-sampling",
+    "multitask-learning",
+    "joint-distribution-learning"
+  ],
+  "A:W4389713766": [
+    "text-classification",
+    "safety-taxonomy",
+    "instruction-tuning",
+    "small-language-models",
+    "prompt-learning",
+    "domain-adaptation"
+  ],
+  "B:W4380994557": [
+    "segmentation",
+    "3d-segmentation",
+    "foundation-models",
+    "cross-modality-generalization",
+    "knowledge-distillation",
+    "few-shot-learning",
+    "representation-learning",
+    "temporal-consistency"
+  ],
+  "A:W4319049530": [
+    "multimodal-llm",
+    "vision-language-pretraining",
+    "video-text-understanding",
+    "visual-question-answering",
+    "text-to-video-generation",
+    "image-to-text-generation",
+    "feature-fusion"
+  ],
+  "B:W4382173244": [
+    "open-vocabulary-segmentation",
+    "3d-segmentation",
+    "instance-segmentation",
+    "zero-shot-segmentation",
+    "vision-language-models",
+    "vector-embeddings",
+    "feature-fusion",
+    "text-guided-segmentation"
+  ],
+  "A:W4319989813": [
+    "diffusion-models",
+    "text-to-audio-generation",
+    "prompt-conditioning",
+    "large-language-models",
+    "refinement-models",
+    "representation-learning"
+  ],
+  "B:W4382319386": [
+    "zero-shot-segmentation",
+    "medical-image-segmentation",
+    "frozen-image-encoders",
+    "parameter-efficient-adaptation",
+    "mask-generation",
+    "prompt-free-segmentation",
+    "label-efficient-segmentation",
+    "vision-transformer-head"
+  ],
+  "A:W4321276774": [
+    "large-language-models",
+    "domain-adaptation",
+    "parameter-efficient-adaptation",
+    "in-context-learning",
+    "medical-information-extraction",
+    "model-scaling",
+    "clinical-pretraining"
+  ],
+  "B:W4385681573": [
+    "camouflaged-object-detection",
+    "generative-adversarial-networks",
+    "training-data-generation",
+    "image-segmentation",
+    "detector-robustness",
+    "mask-refinement",
+    "representation-learning"
+  ],
+  "A:W4321594373": [
+    "large-language-models",
+    "natural-language-generation",
+    "question-answering",
+    "semantic-entropy",
+    "uncertainty-estimation",
+    "linguistic-invariances",
+    "semantic-equivalence"
+  ],
+  "B:W4386694334": [
+    "tiny-object-detection",
+    "vision-transformers",
+    "object-detection",
+    "video-object-detection",
+    "convolutional-neural-networks",
+    "medical-image-analysis"
+  ],
+  "A:W4361019538": [
+    "large-language-models",
+    "grammatical-error-correction",
+    "human-evaluation",
+    "benchmark-compilation",
+    "natural-language-generation",
+    "semantic-consistency",
+    "explainability"
+  ],
+  "B:W4386755257": [
+    "medical-image-segmentation",
+    "ultrasound-segmentation",
+    "end-to-end-training",
+    "foundation-models",
+    "prompt-free-segmentation",
+    "cross-branch-self-attention",
+    "domain-adaptation"
+  ],
+  "A:W4361866100": [
+    "text-to-code-generation",
+    "multilingual-language-models",
+    "large-language-models",
+    "model-scaling",
+    "benchmark-compilation",
+    "code-translation",
+    "cross-lingual-transfer"
+  ],
+  "B:W4387323833": [
+    "vision-language-models",
+    "hallucination",
+    "hallucination-mitigation",
+    "object-detection",
+    "image-to-text-generation",
+    "visual-question-answering",
+    "visual-summarization",
+    "visual-reasoning"
+  ],
+  "A:W4379958452": [
+    "prompt-robustness",
+    "adversarial-attacks",
+    "large-language-models",
+    "sentiment-analysis",
+    "natural-language-inference",
+    "reading-comprehension",
+    "machine-translation",
+    "semantic-equivalence",
+    "transferability",
+    "math-problem-solving"
+  ],
+  "B:W4387635982": [
+    "4d-gaussian-splatting",
+    "real-time-rendering",
+    "neural-voxel-encoding",
+    "deformation-modeling",
+    "volumetric-rendering",
+    "multi-layer-perceptrons",
+    "temporal-adaptation",
+    "3d-gaussian-splatting"
+  ],
+  "A:W4390307319": [
+    "large-language-models",
+    "prompt-engineering",
+    "model-scaling",
+    "instruction-tuning",
+    "prompt-robustness",
+    "prompting-principles"
+  ],
+  "B:W4361807184": [
+    "hierarchical-vision-transformers",
+    "multi-scale-feature-grouping",
+    "encoder-decoder-networks",
+    "cross-attention",
+    "vision-transformers",
+    "ensemble-refinement",
+    "medical-image-segmentation",
+    "semantic-segmentation"
+  ],
+  "A:W4386839891": [
+    "sparse-autoencoders",
+    "polysemanticity",
+    "superposition",
+    "monosemanticity",
+    "large-language-models",
+    "interpretability",
+    "mechanistic-interpretability"
+  ],
+  "B:W4378506819": [
+    "text-to-video-generation",
+    "diffusion-models",
+    "depth-map-conditioning",
+    "motion-prior",
+    "first-frame-conditioning",
+    "optical-flow-initialization",
+    "motion-consistency",
+    "reward-feedback-learning"
+  ],
+  "A:W4323706301": [
+    "explainability",
+    "hate-speech-detection",
+    "safety-taxonomy",
+    "text-annotation",
+    "benchmark-compilation",
+    "domain-adaptation",
+    "model-selection"
+  ],
+  "B:W4378718233": [
+    "diffusion-models",
+    "image-steganography",
+    "conditional-sampling",
+    "image-to-image-generation",
+    "noise-robustness",
+    "control-nets",
+    "low-rank-adaptation"
+  ],
+  "A:W4366400290": [
+    "instruction-tuning",
+    "information-extraction",
+    "multitask-learning",
+    "large-language-models",
+    "zero-shot-learning",
+    "inter-task-dependency",
+    "benchmark-compilation"
+  ],
+  "B:W4389217304": [
+    "3d-gaussian-splatting",
+    "real-time-rendering",
+    "model-compression",
+    "gaussian-pruning",
+    "knowledge-distillation",
+    "gaussian-vector-quantization",
+    "pseudo-view-augmentation"
+  ],
+  "A:W4321392937": [
+    "sentiment-analysis",
+    "multilingual-evaluation",
+    "text-annotation",
+    "benchmark-compilation",
+    "crowdsourced-data",
+    "language-identification"
+  ],
+  "B:W4318350327": [
+    "diffusion-models",
+    "pixel-diffusion",
+    "latent-diffusion-models",
+    "image-super-resolution",
+    "high-resolution-generation",
+    "noise-schedule",
+    "model-scaling",
+    "downsampling"
+  ],
+  "A:W4376652984": [
+    "small-language-models",
+    "natural-language-processing",
+    "natural-language-generation",
+    "training-data-generation",
+    "model-scaling",
+    "reasoning-evaluation",
+    "human-evaluation",
+    "model-compression"
+  ],
+  "B:W4330338276": [
+    "calibration",
+    "pose-estimation",
+    "3d-reconstruction",
+    "pinhole-camera-model",
+    "distortion-camera-model",
+    "cross-view-camera-model",
+    "cross-sensor-camera-model",
+    "benchmark-compilation",
+    "training-data-generation"
+  ],
+  "A:W4378501037": [
+    "hallucination-mitigation",
+    "large-language-models",
+    "natural-language-generation",
+    "prompting-principles",
+    "question-answering",
+    "semantic-consistency",
+    "self-contradiction"
+  ],
+  "B:W4366456807": [
+    "text-to-video-generation",
+    "latent-diffusion-models",
+    "text-to-image-generation",
+    "frame-interpolation",
+    "video-super-resolution",
+    "temporal-self-attention",
+    "motion-module",
+    "encoder-decoder-networks"
+  ],
+  "A:W4320559489": [
+    "large-language-models",
+    "natural-language-processing",
+    "task-planning",
+    "commonsense-reasoning",
+    "prompt-engineering",
+    "text-to-code-generation"
+  ],
+  "B:W4388184254": [
+    "brain-decoding",
+    "visual-perception",
+    "meg-neuroimaging",
+    "contrastive-learning",
+    "image-retrieval",
+    "image-to-image-generation",
+    "real-time-inference",
+    "vision-transformers"
+  ],
+  "A:W4366733551": [
+    "recommender-systems",
+    "large-language-models",
+    "prompt-engineering",
+    "few-shot-learning",
+    "natural-language-processing",
+    "explainability",
+    "human-evaluation",
+    "transfer-learning"
+  ],
+  "B:W4323076585": [
+    "diffusion-models",
+    "consistency-models",
+    "one-step-generation",
+    "model-distillation",
+    "sampling-process",
+    "image-super-resolution",
+    "image-editing",
+    "zero-shot-editing"
+  ],
+  "A:W4378711593": [
+    "large-language-models",
+    "multimodal-encoder",
+    "vision-language-models",
+    "image-to-text-generation",
+    "audio-language-models",
+    "video-text-understanding",
+    "cross-modality-generalization",
+    "visual-question-answering"
+  ],
+  "B:W4367190920": [
+    "image-quality-assessment",
+    "video-quality-assessment",
+    "visual-difference-prediction",
+    "contrast-distortion-prediction",
+    "high-dynamic-range"
+  ],
+  "A:W4382603054": [
+    "text-to-audio-generation",
+    "zero-shot-learning",
+    "multilingual-language-models",
+    "cross-lingual-transfer",
+    "flow-matching-models",
+    "in-context-learning",
+    "speech-style-conversion",
+    "speech-denoising"
+  ],
+  "B:W4383180531": [
+    "multi-view-generation",
+    "text-to-image-generation",
+    "correspondence-aware-attention",
+    "depth-map-conditioning",
+    "panorama-generation",
+    "mesh-refinement"
+  ],
+  "A:W4321855256": [
+    "large-language-models",
+    "chain-of-thought-reasoning",
+    "arithmetic-reasoning",
+    "commonsense-reasoning",
+    "prompt-engineering",
+    "few-shot-learning",
+    "in-context-learning",
+    "uncertainty-estimation",
+    "active-prompting"
+  ],
+  "B:W4383180696": [
+    "image-segmentation",
+    "promptable-segmentation",
+    "point-prompt-augmentation",
+    "mask-generation",
+    "mask-refinement",
+    "active-prompting"
+  ],
+  "A:W4385958573": [
+    "reasoning-segmentation",
+    "large-language-models",
+    "text-guided-segmentation",
+    "vision-language-models",
+    "zero-shot-segmentation",
+    "embedding-as-mask",
+    "mask-generation",
+    "natural-language-generation"
+  ],
+  "B:W4318751475": [
+    "anomaly-detection",
+    "few-shot-learning",
+    "rotation-invariant-features",
+    "visual-isometric-invariant-features",
+    "graph-representation"
+  ],
+  "A:W4387799916": [
+    "large-language-models",
+    "prompt-robustness",
+    "few-shot-prompting",
+    "instruction-tuning",
+    "prompting-principles",
+    "representation-learning",
+    "model-selection"
+  ],
+  "B:W4322760941": [
+    "monocular-depth",
+    "diffusion-models",
+    "depth-infilling",
+    "self-supervised-learning",
+    "image-to-image-generation",
+    "text-to-3d-generation"
+  ],
+  "A:W4318903120": [
+    "machine-translation",
+    "large-language-models",
+    "domain-adaptation",
+    "in-context-learning",
+    "encoder-decoder-networks",
+    "few-shot-learning",
+    "real-time-adaptation",
+    "fuzzy-matching"
+  ],
+  "B:W4376312579": [
+    "vision-language-models",
+    "video-question-answering",
+    "representation-learning",
+    "temporal-keyframe-localization",
+    "self-refinement",
+    "zero-shot-learning",
+    "pseudo-labeling"
+  ],
+  "A:W4381253519": [
+    "large-language-models",
+    "natural-language-processing",
+    "instruction-fine-tuning",
+    "clinical-pretraining",
+    "medical-question-answering",
+    "medical-reasoning",
+    "task-oriented-dialog",
+    "language-grounding",
+    "factuality-evaluation",
+    "domain-adaptation"
+  ],
+  "B:W4379260519": [
+    "text-to-image-generation",
+    "style-transfer",
+    "parameter-efficient-fine-tuning",
+    "few-shot-adaptation",
+    "reward-feedback-learning"
+  ],
+  "A:W4387796530": [
+    "time-series-forecasting",
+    "foundation-models",
+    "large-language-models",
+    "natural-language-processing",
+    "decoder-only-models",
+    "patch-based-models",
+    "pretraining",
+    "zero-shot-forecasting"
+  ],
+  "B:W4386555501": [
+    "instruction-tuning",
+    "large-language-models",
+    "vision-language-models",
+    "multimodal-llm",
+    "image-text-alignment",
+    "cross-modality-generalization",
+    "embedding-decomposed-adaptation"
+  ],
+  "A:W4365460740": [
+    "vision-language-pretraining",
+    "vision-language-models",
+    "contrastive-learning",
+    "explainability",
+    "interpretability",
+    "class-activation-map",
+    "self-attention",
+    "visualization",
+    "open-vocabulary-segmentation"
+  ],
+  "B:W4387946888": [
+    "image-to-3d-generation",
+    "cross-domain-diffusion",
+    "multi-view-generation",
+    "normal-map-generation",
+    "geometry-aware-fusion",
+    "3d-reconstruction",
+    "3d-consistency"
+  ],
+  "A:W4377164418": [
+    "representation-learning",
+    "multimodal-encoder",
+    "contrastive-learning",
+    "feature-fusion",
+    "model-scaling",
+    "modality-adapters",
+    "image-classification",
+    "semantic-segmentation",
+    "visual-question-answering"
+  ],
+  "B:W4319241004": [
+    "text-to-video-generation",
+    "monocular-depth",
+    "novel-view-synthesis",
+    "3d-consistency",
+    "mesh-refinement",
+    "real-time-adaptation",
+    "depth-map-conditioning",
+    "geometry-aware-fusion"
+  ],
+  "A:W4362598103": [
+    "large-language-models",
+    "credibility-ratings",
+    "political-bias",
+    "inter-rater-agreement",
+    "human-evaluation",
+    "model-scaling",
+    "uncertainty-estimation"
+  ],
+  "B:W4323066621": [
+    "vision-language-models",
+    "robotic-manipulation",
+    "zero-shot-learning",
+    "embodied-language-models",
+    "object-detection",
+    "open-set-object-detection",
+    "visual-reasoning"
+  ],
+  "A:W4378711639": [
+    "large-language-models",
+    "biomedical-nlp",
+    "benchmark-compilation",
+    "prompt-learning",
+    "fine-tuning",
+    "hallucination-mitigation",
+    "medical-question-answering",
+    "medical-reasoning",
+    "domain-adaptation"
+  ],
+  "B:W4377164421": [
+    "diffusion-models",
+    "text-to-image-generation",
+    "condition-to-image-generation",
+    "spatial-geometric-control",
+    "zero-shot-generation",
+    "task-conditioned-generation"
+  ],
+  "A:W4381827575": [
+    "large-language-models",
+    "audio-language-models",
+    "multimodal-llm",
+    "speech-recognition",
+    "speech-to-text-translation",
+    "speech-to-speech-translation",
+    "pretraining",
+    "cross-lingual-transfer"
+  ],
+  "B:W4387800098": [
+    "referring-expression-comprehension",
+    "segmentation",
+    "vision-language-models",
+    "active-prompting",
+    "zero-shot-segmentation",
+    "promptable-segmentation",
+    "visual-reasoning",
+    "language-grounding"
+  ],
+  "A:W4389600306": [
+    "speech-to-speech-translation",
+    "speech-to-text-translation",
+    "multilingual-language-models",
+    "expressive-speech-translation",
+    "streaming-speech-translation",
+    "prosody-preservation",
+    "speech-watermarking"
+  ],
+  "B:W4387994852": [
+    "score-distillation-sampling",
+    "view-conditioned-diffusion",
+    "image-to-3d-generation",
+    "3d-reconstruction",
+    "diffusion-models",
+    "deformation-modeling",
+    "3d-consistency",
+    "texture-optimization"
+  ],
+  "A:W4324321291": [
+    "visual-question-answering",
+    "large-language-models",
+    "image-to-text-generation",
+    "question-generation",
+    "object-detection",
+    "human-evaluation"
+  ],
+  "B:W4388962899": [
+    "3d-gaussian-splatting",
+    "mesh-reconstruction",
+    "surface-alignment",
+    "poisson-reconstruction",
+    "sdf-based-reconstruction",
+    "neural-radiance-fields",
+    "mesh-editing"
+  ],
+  "A:W4362706570": [
+    "ai-generated-text-detection",
+    "detector-robustness",
+    "data-bias",
+    "natural-language-processing",
+    "prompt-robustness",
+    "text-classification"
+  ],
+  "B:W4318350983": [
+    "text-to-4d-generation",
+    "4d-neural-radiance-fields",
+    "text-to-video-generation",
+    "novel-view-synthesis",
+    "motion-consistency",
+    "diffusion-models"
+  ],
+  "A:W4366330426": [
+    "large-language-models",
+    "in-context-learning",
+    "text-summarization",
+    "natural-language-generation",
+    "medical-reasoning",
+    "domain-adaptation",
+    "prompt-learning",
+    "automatic-evaluation"
+  ],
+  "B:W4318719538": [
+    "zero-shot-learning",
+    "commonsense-reasoning",
+    "vision-language-models",
+    "embodied-language-models",
+    "phrase-grounding",
+    "open-vocabulary-segmentation",
+    "visual-reasoning",
+    "soft-logic-constraints"
+  ],
+  "A:W4378465439": [
+    "large-language-models",
+    "domain-adaptation",
+    "instruction-tuning",
+    "retrieval-augmented-generation",
+    "training-data-extraction",
+    "hallucination-mitigation"
+  ],
+  "B:W4320513480": [
+    "domain-adversarial-training",
+    "environment-label-smoothing",
+    "domain-adaptation",
+    "out-of-distribution-generalization",
+    "noise-robustness",
+    "invariant-feature-learning"
+  ],
+  "A:W4380558379": [
+    "large-language-models",
+    "multimodal-llm",
+    "instruction-tuning",
+    "visual-perception",
+    "cross-modality-generalization",
+    "training-data-generation",
+    "multitask-learning"
+  ],
+  "B:W4321177576": [
+    "diffusion-models",
+    "image-super-resolution",
+    "blind-image-restoration",
+    "image-to-image-generation",
+    "self-supervised-learning",
+    "convolutional-neural-networks",
+    "image-quality-assessment",
+    "image-denoising",
+    "model-scaling"
+  ],
+  "A:W4385262477": [
+    "large-language-models",
+    "vision-language-models",
+    "3d-point-clouds",
+    "spatial-reasoning",
+    "question-answering",
+    "language-grounding",
+    "image-to-text-generation",
+    "dense-captioning"
+  ],
+  "B:W4361866143": [
+    "zero-shot-editing",
+    "video-editing",
+    "diffusion-models",
+    "text-to-image-generation",
+    "text-to-video-generation",
+    "null-text-inversion",
+    "motion-consistency",
+    "spatial-regularization"
+  ],
+  "A:W4386942462": [
+    "chain-of-verification",
+    "hallucination",
+    "large-language-models",
+    "hallucination-mitigation",
+    "self-refinement",
+    "factuality-evaluation",
+    "question-answering",
+    "natural-language-generation"
+  ],
+  "B:W4365460648": [
+    "medical-image-segmentation",
+    "promptable-segmentation",
+    "mask-generation",
+    "3d-segmentation",
+    "visualization"
+  ],
+  "A:W4321471609": [
+    "semantic-segmentation",
+    "semi-supervised-learning",
+    "pseudo-labeling",
+    "label-efficient-segmentation",
+    "self-supervised-learning",
+    "weakly-supervised-learning"
+  ],
+  "B:W4379261328": [
+    "text-to-image-generation",
+    "representation-learning",
+    "self-supervised-learning",
+    "contrastive-learning",
+    "classifier-guidance",
+    "vision-language-models",
+    "training-data-generation"
+  ],
+  "A:W4378942562": [
+    "vision-language-models",
+    "multilingual-language-models",
+    "model-scaling",
+    "image-to-text-generation",
+    "question-answering",
+    "video-question-answering",
+    "few-shot-learning",
+    "object-detection",
+    "video-to-text-generation",
+    "document-understanding"
+  ],
+  "B:W4381586948": [
+    "diffusion-models",
+    "stochastic-inverse-problems",
+    "forward-model",
+    "inverse-graphics",
+    "3d-reconstruction",
+    "conditional-sampling",
+    "sampling-process"
+  ],
+  "A:W4380715596": [
+    "vision-language-models",
+    "medical-image-analysis",
+    "large-language-models",
+    "image-text-alignment",
+    "medical-question-answering",
+    "vision-encoder",
+    "medical-reasoning",
+    "visual-summarization"
+  ],
+  "B:W4382766099": [
+    "medical-image-segmentation",
+    "3d-segmentation",
+    "self-supervised-learning",
+    "pretraining",
+    "volume-fusion",
+    "foundation-models",
+    "convolutional-neural-networks",
+    "vision-transformer-backbones"
+  ]
+}
