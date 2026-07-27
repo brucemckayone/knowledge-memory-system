@@ -135,6 +135,78 @@ production cost/latency. Each its own follow-up.
 
 ---
 
-## 10. RESULT
+## 10. RESULT (2026-07-27) — H-B robust (graph adds nothing over reading); "agent < mechanical" RETRACTED as an oracle artifact
 
-*(added after the run + blind adversary)*
+Ran Part 1 (structural), Part 2 (matched-pool STRUCT/TEXT/JOIN/EMB, Haiku), Part 3 (free-nav autonomous
+exploration, Haiku). **Operational note:** the ML service died between sessions and the first Part-2 run cached
+80 empty agent responses (silently — retries exhausted → `{}`); caught, ML restarted, cache cleared, re-run.
+(Harden: fail loud on all-empty, not silent-cache.) Blind adversary (Opus, fresh) reproduced **every number to
+the digit** (incl. both bootstrap CIs), verified the harnesses are honest (free-nav uses NO embedding in
+navigation — `cosine` only in the `embFull` baseline; real traversal logged; STRUCT/TEXT isolation clean), and
+then **overturned my headline**.
+
+| L=2 primary | STRUCT | TEXT | JOIN | EMB | free-nav |
+|---|---|---|---|---|---|
+| MRR | 0.40 | 0.40 | 0.52 | 0.50 | 0.47 |
+| precision@5 | 0.21 | 0.21 | 0.34 | 0.38 | 0.30 |
+| recall@10 | 0.05 | 0.05 | 0.12 | 0.16 | 0.08 |
+
+Part 1: 1-hop reachability-recall 13% → 2-hop 62% (sweeps 91/147) → 3-hop 65%. Multi-hop breaks the single-hop
+ceiling but near-indiscriminately (H-A holds, structural).
+
+### The ONE robust finding — H-B: the graph representation adds NO retrieval value over reading
+STRUCT vs TEXT differ only in representation (named concept structure vs raw abstract), same agent, same pool.
+**Tie at L=2 on every metric** (MRR 0.404 vs 0.399, CI straddles 0), and STRUCT **loses** at L=3. Both arms eat
+the same oracle noise, so it cancels in this same-oracle same-pool contrast → **oracle-independent and robust.**
+For the Haiku agent, reasoning over the named concept graph does not beat the same agent reading the text. This
+is the clean confound-controlled null the pre-reg set out to test, and it holds.
+
+### RETRACTED (adversary's decisive correction): "agent < mechanical" is NOT a capability verdict — it is an ORACLE ARTIFACT
+I framed doc-29 as a "consistent negative — neither pooled agent nor free-nav beats mechanical embedding." The
+adversary showed that cross-arm comparison is not trustworthy, because **the OpenAlex oracle is not a credible
+relatedness ground truth here:**
+- **Coarse:** base rate 0.196 (28.9 "related" B-docs per query); **85% of related pairs share exactly ONE L2
+  concept.**
+- **Junk-laden:** the top pair-generating "concepts" are OpenAlex disambiguation noise — `Task (project
+  management)` (160 pairs), `Code (set theory)` (94), `Pattern recognition (psychology)` (89), `Image
+  (mathematics)`, `Process (computing)`. A conservative 13-term junk filter dissolves **25% of all "related"
+  pairs.** (Q0 "LLMs for systematic review" is scored related to diffusion/video-gen papers solely via `Process
+  (computing)`.)
+- **EMB is graded against its own bias:** doc-embedding cosine and a coarse topical-concept oracle are BOTH
+  surface-topical-similarity functions → "EMB wins" is partly circular. (This confound is **inherited by doc-28**
+  too — its "concept-JOIN loses to embedding" is likewise oracle-shaped, noted retroactively.)
+- **Where the data actually adjudicates — agent/oracle disagreements — the agent is FREQUENTLY RIGHT:** STRUCT
+  returned `CodeGen2` (an LLM paper) for 4 LLM queries (genuinely related) though the oracle marks it related to
+  0/40 (its L2 tags are junk: `Infill`, `Sampling (signal processing)`, `Representation (politics)`); InstructBLIP
+  → `ImageBind-LLM instruction tuning`; BLIP-2 → `object hallucination in vision-language models` — all
+  agent-right / oracle-blind. The agent applies orthogonal **categorical** judgment ("both are LLM papers") that
+  the topical oracle penalizes as false positives.
+
+So the agent was doing a **different, arguably better KIND of discrimination** (categorical/semantic) than
+embedding's surface-topical match — exactly what the concept layer is *for* — but this oracle cannot reward it
+and mechanical EMB is scored against its own yardstick. **The "agent retrieves worse" claim is withdrawn.**
+
+### But NOT laundered toward the agent either (adversary's counter-evidence)
+The agent is not a proven good retriever: it returns the same hubs across unrelated queries (`B130` in 22/40
+STRUCT lists, `B75` in 10/40 despite 0/40 oracle support), collapses at L=3, one free-nav query degenerated to
+reached=0, and its whole-list precision is ~0.37 even against the generous oracle. Free-nav's low recall (0.079)
+is largely a harness cap (REACH_CAP=60, ~7-item returns, greedy Haiku picks) — the substrate reaches 62% at 2
+hops — so it understates reach, but doesn't prove strength. **Honest state: this oracle cannot adjudicate
+agent-vs-mechanical either way. The retrieval question is OPEN, not negative.**
+
+### OVERALL
+- **Can claim:** (H-A) multi-hop breaks the 13% ceiling, near-indiscriminately; **(H-B) the graph REPRESENTATION
+  earns nothing over the agent reading the text** — robust, oracle-independent, the load-bearing result; all
+  numbers sound, harnesses honest; and the agent demonstrably makes categorical cross-corpus judgments the coarse
+  topical oracle + embedding both miss.
+- **Cannot claim:** "agent retrieves worse than embedding" (oracle-artifact; retracted); anything about capable
+  models (Haiku-floor); that free-nav's low recall is a graph limit (harness cap). doc-28's embedding-beats-JOIN
+  is retroactively caveated by the same oracle confound.
+- **Owed to actually settle the retrieval question:** a relatedness oracle NOT self-aligned with embedding —
+  citation links, human judgment, or a de-junked fine concept oracle; capable-model agent; B→A; second pairing.
+
+### Discipline note
+This is a **pessimistic-direction over-extension** I made and the adversary caught (rule 29 / the pessimistic
+mirror): I built a comparison whose oracle is self-aligned with the winning baseline and reported the resulting
+"negative" as a capability fact. The user's live surprise ("the agent didn't discriminate better?!") flagged it
+before the adversary confirmed it. See [[verify-empirical-gates]] iter-25 (rule 59).

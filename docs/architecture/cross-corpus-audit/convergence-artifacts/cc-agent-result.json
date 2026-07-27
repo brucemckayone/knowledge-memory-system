@@ -1,0 +1,69 @@
+{
+  "prereg": "doc-29",
+  "levels": {
+    "L>=2": {
+      "queries": 40,
+      "meanPoolRecall": 0.277,
+      "meanRelInPool": 7.2,
+      "meanRel": 28.9,
+      "precision5": {
+        "struct": 0.21,
+        "text": 0.21,
+        "join": 0.34,
+        "emb": 0.38
+      },
+      "recall10": {
+        "struct": 0.05,
+        "text": 0.0507,
+        "join": 0.1235,
+        "emb": 0.1503
+      },
+      "mrr": {
+        "struct": 0.4042,
+        "text": 0.3986,
+        "join": 0.517,
+        "emb": 0.5039
+      },
+      "ci_p5_struct_minus_text": [
+        -0.065,
+        0.065
+      ],
+      "ci_p5_struct_minus_join": [
+        -0.205,
+        -0.045
+      ]
+    },
+    "L>=3": {
+      "queries": 16,
+      "meanPoolRecall": 0.336,
+      "meanRelInPool": 4.6,
+      "meanRel": 16.3,
+      "precision5": {
+        "struct": 0.1375,
+        "text": 0.2375,
+        "join": 0.275,
+        "emb": 0.3125
+      },
+      "recall10": {
+        "struct": 0.0464,
+        "text": 0.0976,
+        "join": 0.1445,
+        "emb": 0.2283
+      },
+      "mrr": {
+        "struct": 0.2485,
+        "text": 0.401,
+        "join": 0.4445,
+        "emb": 0.5032
+      },
+      "ci_p5_struct_minus_text": [
+        -0.225,
+        0.0125
+      ],
+      "ci_p5_struct_minus_join": [
+        -0.25,
+        -0.025
+      ]
+    }
+  }
+}

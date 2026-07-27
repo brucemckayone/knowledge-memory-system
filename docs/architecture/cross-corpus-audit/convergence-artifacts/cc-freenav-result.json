@@ -1,0 +1,53 @@
+{
+  "prereg": "doc-29 Part 3",
+  "levels": {
+    "L>=2": {
+      "queries": 20,
+      "navBehavior": {
+        "meanRounds": 4,
+        "meanExpanded": 15,
+        "meanReached": 40,
+        "meanRanked": 7
+      },
+      "recall10": {
+        "freenav": 0.0793,
+        "join": 0.1089,
+        "emb": 0.1642
+      },
+      "precision5": {
+        "freenav": 0.3,
+        "join": 0.33,
+        "emb": 0.38
+      },
+      "mrr": {
+        "freenav": 0.4696,
+        "join": 0.5353,
+        "emb": 0.4929
+      }
+    },
+    "L>=3": {
+      "queries": 9,
+      "navBehavior": {
+        "meanRounds": 4,
+        "meanExpanded": 15.4,
+        "meanReached": 43.3,
+        "meanRanked": 10.3
+      },
+      "recall10": {
+        "freenav": 0.0698,
+        "join": 0.1149,
+        "emb": 0.2213
+      },
+      "precision5": {
+        "freenav": 0.2222,
+        "join": 0.2667,
+        "emb": 0.3556
+      },
+      "mrr": {
+        "freenav": 0.3635,
+        "join": 0.42,
+        "emb": 0.5992
+      }
+    }
+  }
+}
