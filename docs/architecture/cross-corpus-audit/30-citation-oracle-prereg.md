@@ -27,17 +27,21 @@ dependence*, which is orthogonal to how similar their abstracts read. This gate 
   intellectual relatedness better than surface similarity does.
 
 ## 2. Citation oracle (frozen; fetched + calibrated BEFORE any score)
-Fetch `referenced_works` (and `id`) for all 294 papers (corpus-A/B) from OpenAlex — independent of our pipeline
-AND of embedding. A cross-pair (a∈NLP, b∈CV) is **CITE-RELATED** under:
-- **direct:** a ∈ refs(b) OR b ∈ refs(a) (one cites the other), OR
-- **coupled:** |refs(a) ∩ refs(b)| ≥ k (bibliographic coupling — share ≥k references).
 
-Report **direct-only** and **direct∪coupled** separately (direct is the cleanest embedding-orthogonal signal;
-coupling is mildly topical — flagged). **k is calibrated on the oracle distribution alone** (choose the smallest
-k giving a median ≥2 cross-related B per A-query and ≥50% of queries with ≥1; if citations are too sparse,
-report that as the finding and fall back to co-citation via `cited_by`). Report base rate + cross-corpus direct-
-citation density + the overlap between the citation oracle and the doc-28 topical oracle (if citations were just
-the topical oracle again, the test is void — a required check).
+**AMENDMENT (2026-07-27, before any score):** the pre-registered `referenced_works` (outgoing) is **empty for
+these arXiv preprints** — only 4/294 have any references (OpenAlex doesn't parse preprint reference lists). So
+bibliographic coupling and direct-outgoing citation are not computable. **Incoming citations (`cited_by`) ARE
+rich** (BLIP-2 920, LLaVA 687, …). The oracle is therefore built from **co-citation**, a standard
+embedding-independent relatedness signal: two papers are related if the later literature *cites them together*.
+This is a data-availability method change made BEFORE scoring (documented, not post-hoc goalpost-moving).
+
+Fetch, per paper P, the set of works citing P (`filter=cites:P`, capped at the first `C` citers — cap disclosed).
+A cross-pair (a∈NLP, b∈CV) is **CO-CITED** if |citers(a) ∩ citers(b)| ≥ k (a common later paper cites both).
+**k calibrated on the oracle distribution alone** (smallest k giving a median ≥2 co-related B per A-query and
+≥50% of queries with ≥1; if too sparse at k=1, report that as the finding). Report base rate + cross-corpus
+co-citation density + **overlap with the doc-28 topical oracle** (Jaccard on related-pair sets; if citations are
+just the topical oracle again, the test is void — required check) + evidence that co-cited pairs are often
+textually dissimilar (the embedding-independence check).
 
 ## 3. Arms (RE-SCORE frozen rankings — 0 new LLM calls)
 The rankings are oracle-independent (each arm ranks by its own criterion); only scoring changes. Re-score the
