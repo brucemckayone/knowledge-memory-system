@@ -1,0 +1,78 @@
+{
+  "prereg": "doc-30",
+  "cap": 200,
+  "K": 1,
+  "kSweep": [
+    {
+      "k": 1,
+      "medianRelated": 3,
+      "meanRelated": 7.3,
+      "queriesWithRel": "124/147",
+      "pct": 84
+    },
+    {
+      "k": 2,
+      "medianRelated": 0,
+      "meanRelated": 2.2,
+      "queriesWithRel": "71/147",
+      "pct": 48
+    },
+    {
+      "k": 3,
+      "medianRelated": 0,
+      "meanRelated": 0.9,
+      "queriesWithRel": "46/147",
+      "pct": 31
+    }
+  ],
+  "baseRate": 0.0499,
+  "voidCheck": {
+    "citeRelatedPairs": 1079,
+    "topicalRelatedPairs": 3783,
+    "jaccardOverlap": 0.065,
+    "note": "oracles distinct — test valid"
+  },
+  "embeddingIndependence": {
+    "meanCosCoCited": 0.687,
+    "meanCosRandom": 0.615,
+    "note": "co-cited pairs vs random; near-equal => oracle embedding-independent"
+  },
+  "PRIMARY_mechanical_fullcorpus": {
+    "queries": 124,
+    "precision5": {
+      "join": 0.1855,
+      "emb": 0.3016
+    },
+    "recall10": {
+      "join": 0.2144,
+      "emb": 0.4104
+    },
+    "mrr": {
+      "join": 0.3648,
+      "emb": 0.6043
+    },
+    "ci_p5_join_minus_emb": [
+      -0.1565,
+      -0.0742
+    ]
+  },
+  "SECONDARY_agent": {
+    "queries": 38,
+    "struct_p5": 0.3211,
+    "text_p5": 0.3211,
+    "emb_p5": 0.3842,
+    "ci_p5_struct_minus_emb": [
+      -0.1421,
+      0.0158
+    ]
+  },
+  "SECONDARY_freenav": {
+    "queries": 18,
+    "freenav_p5": 0.5222,
+    "emb_p5": 0.4889,
+    "ci_p5_freenav_minus_emb": [
+      -0.0778,
+      0.1667
+    ]
+  }
+}

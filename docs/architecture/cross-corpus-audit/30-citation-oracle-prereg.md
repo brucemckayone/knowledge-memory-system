@@ -98,6 +98,62 @@ capable-model agent, generality. Each its own follow-up.
 
 ---
 
-## 8. RESULT
+## 8. RESULT (2026-07-27) — does NOT settle the deep question; oracle is embedding-CORRELATED, not independent; my read overclaimed 3 ways
 
-*(added after the run + blind adversary)*
+Built the co-citation oracle (K=1 by the frozen rule; base rate 0.05), re-scored the frozen doc-29 rankings.
+Blind adversary (Opus, fresh) reproduced **every number to the last decimal** (K-sweep, void Jaccard, cosine
+gaps, all arm scores + CIs) and then corrected my interpretation in three places — two pessimistic, one optimistic.
+
+| on co-citation oracle | concept-JOIN | embedding | STRUCT | TEXT | free-nav |
+|---|---|---|---|---|---|
+| precision@5 | 0.19 | 0.30 | 0.32 | 0.32 | 0.52 (n=18) |
+| MRR | 0.36 | 0.60 | — | — | — |
+
+### Correction 1 (my CENTRAL overclaim): the oracle is NOT embedding-independent
+I called co-citation "largely embedding-independent" from a +0.072 mean-cosine gap. Wrong statistic. The
+adversary: **cosine predicts co-citation at AUC 0.79, Cohen's d 1.17**; only 14.8% of co-cited pairs sit below
+the random-mean cosine. So the oracle is **dominated by textually-similar pairs** and embedding (which ranks by
+cosine) gets a large mechanical boost from it. It IS a genuine, behaviorally-derived oracle *distinct* from the
+topical one (Jaccard 0.065, robust to K=2) — a real improvement — but it **de-circularizes doc-29 only
+partially.** It can settle the narrow "does EMB rank co-citation better than JOIN," NOT the deep "surface
+similarity vs real relatedness." **The settling experiment did not settle the deep question** — because even
+co-citation is ~79% cosine-predictable.
+
+### Correction 2 (my PESSIMISTIC overclaim): "concept layer genuinely loses, not an artifact" is overstated
+Embedding does robustly out-rank concept-JOIN (p@5 0.30 vs 0.19; MRR 0.60 vs 0.36; CI [−0.157,−0.074], holds at
+K=2). BUT JOIN's loss is **largely an extraction-sparsity artifact: 73.4% of co-cited pairs share ZERO concept
+nodes** (median ~7 nodes/doc), so JOIN is structurally blind to them; and where overlap exists, joinScore is
+barely above chance (AUC 0.54 vs cosine 0.77). **Earned claim: dense embedding beats the concept layer AS
+CURRENTLY EXTRACTED (~6 sparse nodes/doc). NOT earned: the concept signal intrinsically loses** — a denser /
+description-aligned extraction is untested (and is exactly the [[project-concept-layer]] EMBED_DESCRIPTIONS lever).
+
+### Correction 3 (my mild OPTIMISTIC oversell): free-nav "parity" is NOISE
+n=18, CI [−0.078,+0.167] straddles 0; **embedding actually wins more queries (7 vs 5, 6 ties)**; the +0.033
+"lead" rides 2–3 high-variance queries; and the 18 free-nav queries are the **easiest-for-embedding subset** (EMB
+p@5 0.489 there vs 0.302 full-corpus). "Not a win, underpowered" was right; "reaches parity" oversold noise on
+EMB's home turf. **No defensible signal the autonomous agent matches embedding.**
+
+### Integrity (adversary)
+Rankings frozen, no refit; oracle built before scoring (prereg+amendment committed before result). Flags: I
+**failed to report the pre-reg-required citation-pool-recall** = **0.648** (STRUCT/TEXT recall-capped at ~65% by
+the pool) — omission, now recorded. STRUCT==TEXT 0.3211 is coincidence (61/190 hits each; 32/40 rankings differ),
+not a bug. 200-citer cap saturates 19/294 popular papers (undercounts some co-citations; noise, not bias).
+
+### OVERALL — what doc-30 does and does not establish
+- **CAN claim:** on a behaviorally-derived (non-text-*derived*) co-citation oracle, dense embedding decisively
+  and robustly out-ranks the concept-JOIN signal **as currently extracted**; the concept signal carries
+  real-but-weak information (AUC 0.60); numbers reproduce; H-B (graph representation ≈ reading) replicates.
+- **CANNOT claim:** that the oracle is embedding-independent or that doc-30 "settles" the doc-29 circularity
+  (cosine AUC 0.79); that the concept signal is *intrinsically* weaker than embedding (73% sparsity confound —
+  denser extraction untested); that the agent-over-graph matches/beats dense retrieval (noise).
+- **The deep question is still OPEN and needs a text-orthogonal oracle** — human relevance judgment, or
+  co-citation *restricted to textually-dissimilar pairs* (co-cited but low-cosine), where embedding's mechanical
+  edge is removed. The actionable lever for the concept layer is **extraction density** (the untested denser /
+  description-aligned extraction), not the retrieval mechanism.
+
+### Discipline note
+Third consecutive both-directions miscalibration this arc (iters 24/25/26): I landed conclusions at the wrong
+STRENGTH — over-claimed oracle independence (mean-gap not AUC), over-claimed a pessimistic "settled loss"
+(ignored the 73% sparsity confound), and mildly over-claimed an optimistic "parity" (n=18 noise). The
+quantitative adversary checks (AUC 0.79, Cohen's d 1.17, per-query win counts, zero-overlap decomposition) are
+what calibrate; my prose reads consistently over-strength. See [[verify-empirical-gates]] iter-26 (rule 60).
