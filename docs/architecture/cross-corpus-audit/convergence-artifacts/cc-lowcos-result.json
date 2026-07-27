@@ -1,0 +1,113 @@
+{
+  "prereg": "doc-31",
+  "K": 1,
+  "results": {
+    "tau=0.615": {
+      "queries": 17,
+      "coverageCeiling": {
+        "lowCosCoCitedPairs": 160,
+        "shareGE1Node": 7,
+        "ceiling": 0.044
+      },
+      "precision5": {
+        "join": 0.1647,
+        "emb": 0.1176,
+        "random": 0.1176
+      },
+      "recall10": {
+        "join": 0.256,
+        "emb": 0.1887
+      },
+      "mrr": {
+        "join": 0.2464,
+        "emb": 0.2565,
+        "random": 0.2899
+      },
+      "ci_p5_join_minus_emb": [
+        -0.0353,
+        0.1412
+      ],
+      "ci_p5_join_minus_random": [
+        -0.0353,
+        0.1412
+      ]
+    },
+    "tau=0.6": {
+      "queries": 10,
+      "coverageCeiling": {
+        "lowCosCoCitedPairs": 110,
+        "shareGE1Node": 2,
+        "ceiling": 0.018
+      },
+      "precision5": {
+        "join": 0.12,
+        "emb": 0.12,
+        "random": 0.08
+      },
+      "recall10": {
+        "join": 0.2683,
+        "emb": 0.2217
+      },
+      "mrr": {
+        "join": 0.2239,
+        "emb": 0.2689,
+        "random": 0.2006
+      },
+      "ci_p5_join_minus_emb": [
+        -0.1,
+        0.1
+      ],
+      "ci_p5_join_minus_random": [
+        -0.04,
+        0.14
+      ]
+    },
+    "tau=0.65": {
+      "queries": 38,
+      "coverageCeiling": {
+        "lowCosCoCitedPairs": 322,
+        "shareGE1Node": 24,
+        "ceiling": 0.075
+      },
+      "precision5": {
+        "join": 0.1474,
+        "emb": 0.1211,
+        "random": 0.1
+      },
+      "recall10": {
+        "join": 0.195,
+        "emb": 0.242
+      },
+      "mrr": {
+        "join": 0.2839,
+        "emb": 0.3011,
+        "random": 0.2589
+      },
+      "ci_p5_join_minus_emb": [
+        -0.0263,
+        0.0842
+      ],
+      "ci_p5_join_minus_random": [
+        -0.0053,
+        0.1053
+      ]
+    }
+  },
+  "H2_hybrid_fullOracle": {
+    "queries": 124,
+    "emb_recall10": 0.4104,
+    "rrf_recall10": 0.3742,
+    "ci_rrf_minus_emb": [
+      -0.0786,
+      0.0109
+    ]
+  },
+  "agent_lowcos": {
+    "struct_queries": 27,
+    "struct_recall_lc": 0,
+    "emb_recall_lc_sameQ": 0,
+    "freenav_queries": 13,
+    "freenav_recall_lc": 0,
+    "emb_recall_lc_fnQ": 0
+  }
+}

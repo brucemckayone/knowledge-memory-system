@@ -76,6 +76,56 @@ Does NOT settle: human-relevance gold, denser extraction, capable-model agent, g
 
 ---
 
-## 8. RESULT
+## 8. RESULT (2026-07-27) — the concept layer is BLIND in embedding's blind spot too; retrieval thesis closed FOR THIS EXTRACTION
 
-*(added after the run + blind adversary)*
+Re-scored the frozen doc-29/30 rankings on the text-dissimilar (cos<τ) co-citation slice. Blind adversary (Opus)
+reproduced **every number bit-exact** and — for the first time this arc — found the stated strength correctly
+calibrated (neither over- nor under-stated).
+
+**Coverage ceiling (deterministic, load-bearing):** of 160 text-dissimilar (cos<0.615) co-cited pairs, only
+**7 share ≥1 extracted concept node = 4.4%** (1.8% at τ=0.60, 7.5% at τ=0.65; <8% at every cut). The concept
+layer is **~95% blind** in embedding's blind spot.
+
+**H1 (concept beats embedding/random in the band): FAIL.** precision@5 JOIN 0.165 vs EMB 0.118 vs RANDOM 0.118,
+n=17, both CIs straddle 0. EMB = RANDOM in the band (and EMB MRR 0.257 < random 0.290) — embedding is genuinely
+disabled here, as designed. **The adversary killed the point-estimate "edge":** only 3 of JOIN's 14 top-5 true
+positives are concept-driven (joinScore>0); 11 are 0-score tie-order artifacts (a low-B-index popularity prior).
+So the apparent lift *flatters* concept and isn't real signal — "no signal" is conservative-toward-concept.
+
+**H2 (hybrid helps overall): FAIL.** RRF(emb,join) recall@10 0.374 vs embedding-alone 0.410 (CI [−0.079,+0.011],
+leans negative) — the sparse concept signal *dilutes* rather than complements (doc-22 redux).
+
+**Agent: recovers ZERO** of 92 low-cosine co-cited targets (STRUCT + free-nav both), verified not a parse bug.
+
+**Blind, not wrong-where-covered.** The 7 covered pairs are GENUINE cross-domain links on real shared
+abstractions (PaLM-E ↔ Faster-SAM via `transfer-learning`; RT-2 ↔ Customized-SAM-medical via
+`end-to-end-training`; Annotated-Point-Clouds ↔ Faster-SAM via `zero-shot-learning`, 8 co-citers; Kosmos ↔
+SAM-Medical via `cross-modality-generalization`). The mechanism is SOUND; it just fires on 4.4% of the slice.
+
+**"Lever = extraction density" is grounded but untested.** Extraction is thin: mean ~6 concepts/doc, capped at
+10, **18% of docs (27/147) got ZERO concepts**, from a 521-term vocab. Of the 160 band misses, 33% involve a
+zero-concept doc (density would directly attack these) but **62.5% are populated-but-disjoint** — denser
+extraction *might* surface a shared abstraction there, but this is unproven. So density is a real, grounded
+lever, correctly labeled untested; the disjoint-majority means it is **not guaranteed** to make the concept
+signal competitive.
+
+τ=0.615 is fair (= the A–B all-pairs cosine mean 0.617 / median 0.613); the story holds across 0.60/0.65.
+Integrity clean (no refit, seeded random baseline, agent-0 is real); one caveat (0-score tie-order popularity
+prior flatters JOIN but doesn't change the verdict — a cleaner harness would randomize ties).
+
+### OVERALL — the settled close across doc-28 → 31
+- **CAN claim:** for cross-corpus RETRIEVAL, the concept layer as currently extracted (~6 sparse nodes/doc) does
+  not beat, match, or complement dense embedding — anywhere, **including embedding's own text-dissimilar blind
+  spot** (4.4% coverage; H1/H2 fail; RRF hurts; agent recovers 0). The failure is **blindness from extraction
+  sparsity**, not a wrong mechanism (the 7 covered links are genuine). Embedding is the retrieval engine.
+- **CANNOT claim:** that denser extraction WOULD make it competitive (62.5% disjoint-concept misses, untested);
+  anything about human-relevance gold, capable-model agents, or generality.
+- **The only surviving untested retrieval lever is extraction density.** The concept layer's demonstrated value
+  remains NON-retrieval: structural audit / navigation / rare-bridge discovery / explanation (the five-agent
+  exploration), which was genuinely graph-powered.
+
+### Discipline note
+First correctly-calibrated conclusion of the arc (iters 24/25/26 were all both-directions strength-
+miscalibrations; the adversary said this one matches the evidence). The load-bearing claim here is a
+deterministic coverage ceiling (4.4%), not an interpretation — which is why it held. See
+[[verify-empirical-gates]] iter-27.
