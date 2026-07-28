@@ -132,3 +132,62 @@ first version needs a notion of path cost or specificity weighting, not merely t
    above 4 of 104 once a construct→hazard relation exists? If not, the idea dies cheaply.
 
 Anything measured before step 1 re-measures the degenerate case.
+
+---
+
+## 7. Extractor probe (2026-07-28) — the corpus choice, decided by measurement not preference
+
+§6 step 1 says "ingest through the real extraction path." That path is a **prose** entity/
+relationship extractor, and nobody had checked what it does with C++ or with normative rule text.
+Building the first multi-hop graph on a corpus the extractor cannot read would produce an
+uninterpretable result — the exact failure mode this doc exists to prevent. So: an inspection first
+(harness `platform/src/test/tools/extractor-probe.ts`, artifacts `sweep-coverage-artifacts/
+extractor-probe.json`). No bar, no claim.
+
+| input | entities/doc | facts/doc |
+|---|---|---|
+| doc-20 C++ code snippets | **0.0** | **0.0** |
+| doc-20 rule texts (C++ Core Guidelines) | **0.0** | **0.0** |
+| arXiv abstracts (corpus-A) | 6.8 | 3.0 |
+
+**Code and rules yield literally nothing.** The production extractor returns zero entities from a
+C++ snippet and zero from a guideline sentence. So doc-20's corpus **cannot** be turned into an
+entity+fact graph by this path at all; real code structure needs Phase C (SCIP/tree-sitter,
+`nmemo-uhp.13`).
+
+Abstracts work, and the facts are genuinely traversable — e.g. `BLIP-2 --outperforms--> Flamingo80B`,
+`BLIP-2 --evaluated_on--> VQAv2`, `Flamingo80B --evaluated_on--> VQAv2`, `LLaVA --fine_tuned_on-->
+Science QA`. Note the third: two papers' entities meeting at a shared benchmark node is precisely the
+multi-hop path the architecture needs.
+
+**Decision: arXiv abstracts** (`arxiv-nlp` / `arxiv-cv`). Chosen by the probe, against my stated
+prior only in the sense that the probe made it non-optional.
+
+**The cost of that choice, stated plainly:** it forfeits the good oracle. doc-20's clang-tidy oracle
+is external and concept-independent; the arXiv oracle is co-citation, which doc-30's adversary showed
+is ~79% cosine-predictable (AUC 0.79) and therefore only partially independent of embedding. doc-31's
+text-dissimilar slice (cos<0.615) remains available as the hard subset. Any multi-hop result must
+carry that limitation — it is a weaker oracle than the one we are unable to use.
+
+Two probe caveats: entity **types** are memory-domain (`project`, `other`), carrying no scientific
+signal; and the endpoint returns **mentions**, so one abstract yielded `GPT-4` six times — canonical
+dedup happens later in promotion.
+
+### 7.1 Pilot through the real path (4 docs)
+
+With corpus-scoped promotion in place (commit `dcfcfb8`), 4 abstracts through
+`ingestBatch(mode:'epoch', corpusId:'arxiv-nlp')` produced **12 canonical entities and 57 facts** —
+~14 facts/doc, far richer than the probe's raw-endpoint 3.0, because the epoch path runs the unified
+graph agent rather than the two bare endpoints. The causal pass also fired, promoting 10 causal edges.
+
+The graph branches: `minigpt-4` degree 20, `gpt-4` 17, `blip-2` 13, and real chains exist
+(`llava --trained_on_data_from--> gpt-4 --built_by--> openai`). This is the first time in this
+investigation that a corpus in this system has had traversable internal structure.
+
+Observations carried forward: (a) `fact_embedding` was NULL until `EMBED_DESCRIPTIONS=true` (doc-10
+already justified `on` as the cross-corpus default), so the pilot was discarded and both corpora
+re-ingested with it enabled, for consistency; (b) `store()` creates a `User (stream default)` speaker
+anchor in corpus `default` — inert here, since mig 052 pins facts to their own corpus, but a fact
+attributed to the speaker inside a corpus-scoped epoch would be rejected 23503; the harness fails
+loud and does not mark such a batch done; (c) AGE emits a non-fatal `causal_graph does not exist`
+warning on this DB — known drift, unrelated.
