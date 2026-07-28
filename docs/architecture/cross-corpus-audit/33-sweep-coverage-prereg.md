@@ -106,7 +106,7 @@ reported **once**, labelled, for comparability with doc-20 — and used for no d
 - **`complementarity`** (the load-bearing number) = true pairs in **B but not in A** at shipped
   defaults. This is the set-overlap question doc-20 never asked because it compared rankings.
 
-## 6. The equal-budget control (frozen procedure)
+## 6. The equal-budget control (frozen procedure) — **SUPERSEDED by §13; retained for audit**
 
 1. Run arm C at **shipped defaults** (`k=8`, `threshold=0.5`). Record `cells` = **N** and its coverage.
 2. Grid arm A over `k ∈ {1..27}` × `threshold ∈ {0.00, 0.05, …, 0.95}`, recording (cells, coverage)
@@ -121,7 +121,7 @@ reported **once**, labelled, for comparability with doc-20 — and used for no d
 Report the full arm-A (cells, coverage) curve so the matched point is auditable and cannot be
 cherry-picked.
 
-## 7. Bars (FROZEN — R1; must be able to fail, and the likely failure is named in §9)
+## 7. Bars — **SUPERSEDED by §13; retained for audit**
 
 The concept leg is **worth its cells in the sweep** iff **both**:
 
@@ -141,7 +141,7 @@ The concept leg is **worth its cells in the sweep** iff **both**:
 - **Complementarity = 0** → **FAIL**: retire the concept leg from the candidate path; its remaining
   value is explanation/provenance, not candidate generation.
 
-## 8. Statistics (R25/R30/R39)
+## 8. Statistics (R25/R30/R39) — **demoted to secondary by §13; retained for audit**
 
 - **Paired bootstrap over the 29 elements**, 10k resamples, for `coverage(C) − coverage(A @ matched)`.
   Report point estimate **and** 95% CI. **A CI including 0 is a tie, reported as such — including if
@@ -202,3 +202,94 @@ logic? (6) plumbing: 29/27/104 + 97/51 unchanged by the run (n-in == n-out, R40)
 Note on sequencing: the doc-32 adversary was consciously **skipped** by user decision this session,
 so doc-32's verdict remains provisional. That does not license skipping this one — but it is recorded
 here that the debt exists and is being carried, not silently cleared.
+
+---
+
+## 13. AMENDMENT (2026-07-28, BEFORE any number was computed) — supersedes §6–§7, demotes §8
+
+**Provenance of this amendment, stated plainly:** committed in a separate commit *after* §1–§12 and
+*before* any arm was executed. **No arm's cell count, coverage, or complementarity had been computed
+or inspected when this was written** — deliberately, because peeking and then amending is exactly the
+launder pattern this project has hit five times (R7/R17/R26). Amending a bar before data exists is
+legitimate; amending it after is not, and after this commit the bar is closed.
+
+### 13.1 Why the original bar was wrong
+
+The §6 matched-budget point can be **decided by an artifact rather than by the question**.
+`recallConceptCandidates` returns every pair sharing ≥1 concept, so if any concepts are hubs the JOIN
+may return a large slice of the 783 cells. That sets N large; arm A matched to a large N runs at
+k≈27 / threshold≈0, i.e. essentially the **full cross-product, which covers 29/29 trivially** → the
+union loses by construction. At only 783 total cells, "sweep everything" is always affordable and
+always wins on coverage, so a single matched-budget comparison **degenerates on this corpus**. §11
+recorded that as a generalisation caveat; it is in fact capable of deciding the primary bar, which
+makes it a design flaw, not a caveat.
+
+Second flaw: a 3-of-29 gap bootstrapped over binary per-element outcomes will almost certainly produce
+a CI touching 0, so §7+§8 as written would report "tie" nearly regardless of outcome. A gate that
+cannot clear its own bar is not a gate.
+
+### 13.2 The replacement: a cost/coverage frontier (deterministic)
+
+Both legs are put on a **cost/coverage plane** and compared as curves, not at one point. This is
+immune to the sweep-everything degeneracy and — decisively for this project — it is **deterministic
+set arithmetic, not inference**. The claims that have survived adversaries here (doc-31's coverage
+ceiling) were deterministic; the ones that got cut were interpretive.
+
+Frozen definitions:
+
+- **Arm A curve:** for every `(k, threshold)` in `k ∈ {1..27} × threshold ∈ {0.00, 0.05, …, 0.95}`,
+  the point `(cells, coverage)`.
+- **`A_frontier_at(c)`** = max coverage over all arm-A settings with `cells ≤ c`. (The upper-left
+  staircase: the best cosine-only can do for a budget of `c` cells or fewer.)
+- **Dominance:** an arm with point `(cells_X, coverage_X)` **sits above cosine's frontier** iff
+  `coverage_X > A_frontier_at(cells_X)` — it covers more true pairs than *any* cosine-only setting
+  costing the same or less.
+- Computed and reported for **both** arm B (concept-only) and arm C (the shipped union at defaults).
+- The full arm-A grid is published so the frontier is independently re-derivable and no point can be
+  cherry-picked.
+
+### 13.3 Primary bars (frozen, both deterministic)
+
+The concept leg **earns its cells in the sweep** iff **both**:
+
+1. **Complementarity** — `complementarity ≥ 1`: the concept leg surfaces at least one true pair that
+   cosine-only at shipped defaults misses. **The specific element ids are reported**, not just the
+   count. If 0, the leg is strictly dead weight and nothing else matters.
+2. **Frontier dominance** — `coverage(C) > A_frontier_at(cells_C)`: the shipped union covers more true
+   pairs than any cosine-only configuration costing the same or fewer cells.
+
+**Grading of the magnitude** (deterministic, so a strict win is a *fact* even at one pair; the grade
+governs how far it may be generalised, not whether it happened):
+
+- **≥3 pairs above the frontier** → clear win on this floor.
+- **1–2 pairs above** → real but singleton-fragile dominance. Reported as *"dominates by N pairs,
+  fragile to corpus idiosyncrasy, no transfer claim."* Not upgraded to a clear win.
+- **0 or below** → fail.
+
+### 13.4 Secondary (reported, NOT gating)
+
+The entire §6 matched-budget procedure and the §8 paired bootstrap still run and are reported —
+demoted to illustration. Their CI will likely include 0; that is expected and is **not** evidence
+against a deterministic frontier result, nor may a favourable bootstrap be cited as support for one.
+
+### 13.5 Narrowed disposition (closes an over-read I left open)
+
+This measures the concept leg **with the conform mechanism doc-20 §13 already blamed** — blind
+per-element extraction (`buildConceptExtractionPrompt` shows the extractor no existing vocabulary)
+followed by `resolveConcepts` merging on `pg_trgm similarity > 0.4` over names plus a Haiku judge.
+That is why `reinterpret-cast` never met `unsafe-cast`.
+
+Therefore a FAIL here licenses **only**: *"the concept leg **as currently conformed** does not earn its
+cells as a candidate generator on this corpus."* It does **not** license "concept-JOIN is a poor
+candidate generator" or "the concept layer is dead" — the conform mechanism is a known-broken
+confound, and the convergence-forcing variant (relevance-window shared-vocabulary extraction, docs
+25–27, owed since doc-20 §13(d)) remains a live, unrun question either way.
+
+A PASS licenses keeping the leg in the sweep union on this floor, and nothing about capability.
+
+### 13.6 Unchanged by this amendment
+
+§1 (question), §2 (scope fences), §3 (corpus/oracle/graph + the disclosed embedding backfill),
+§4 (arms = shipped functions, no reimplementation), §5 (metric definitions and the element-level
+lens), §9 (honest priors, including the doc-31/RRF non-transfer), §10 (out of scope), §11 (limits),
+§12 (adversary protocol).
