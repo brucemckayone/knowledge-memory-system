@@ -1,0 +1,69 @@
+{
+  "prereg": "doc-32",
+  "tau": 0.615,
+  "bars": "LIVE iff textDissimilar ceiling >=0.25 AND dense joinAUC_fullOracle >=0.63",
+  "DENSE": {
+    "label": "DENSE",
+    "meanNodesPerDoc": 21.9,
+    "vocab": 4181,
+    "emptyDocs": 101,
+    "coverageCeiling_textDissimilar": {
+      "pairs": 160,
+      "shared": 10,
+      "ceiling": 0.063
+    },
+    "coverageCeiling_fullOracle": {
+      "pairs": 1079,
+      "shared": 210,
+      "ceiling": 0.195
+    },
+    "joinAUC_fullOracle": 0.579,
+    "joinAUC_amongOverlap": 0.575,
+    "topSharedNodes": [
+      "representation-learning(110,df=21)",
+      "large-language-models(86,df=45)",
+      "model-generalization(72,df=17)",
+      "large-language-model(48,df=26)",
+      "zero-shot-generalization(48,df=14)",
+      "model-performance-comparison(48,df=19)",
+      "deep-learning(36,df=13)",
+      "vision-language-alignment(36,df=15)",
+      "vision-encoder(35,df=12)",
+      "cross-modal-learning(24,df=11)"
+    ]
+  },
+  "SPARSE": {
+    "label": "SPARSE (doc-31 baseline)",
+    "meanNodesPerDoc": 5.8,
+    "vocab": 521,
+    "emptyDocs": 54,
+    "coverageCeiling_textDissimilar": {
+      "pairs": 160,
+      "shared": 7,
+      "ceiling": 0.044
+    },
+    "coverageCeiling_fullOracle": {
+      "pairs": 1079,
+      "shared": 287,
+      "ceiling": 0.266
+    },
+    "joinAUC_fullOracle": 0.596,
+    "joinAUC_amongOverlap": 0.54,
+    "topSharedNodes": [
+      "zero-shot-learning(336,df=40)",
+      "large-language-models(234,df=81)",
+      "domain-adaptation(190,df=29)",
+      "vision-language-models(180,df=27)",
+      "foundation-models(117,df=22)",
+      "transfer-learning(90,df=19)",
+      "few-shot-learning(77,df=18)",
+      "text-to-image-generation(69,df=26)",
+      "diffusion-models(58,df=31)",
+      "human-evaluation(57,df=22)"
+    ]
+  },
+  "verdict": {
+    "coverage": "DEAD(<0.10)",
+    "discrimination": "FAIL(<0.63 = hub-noise risk)"
+  }
+}

@@ -67,6 +67,42 @@ doc-33, gated on a LIVE outcome here.
 
 ---
 
-## 8. RESULT
+## 8. RESULT (2026-07-28) — DEAD on both bars (coverage + discrimination); disjoint-concept wall is real. Adversary OWED.
 
-*(added after the run + blind adversary)*
+Re-extracted all 294 docs denser (prompt "25 to 40"). **Execution flaw:** the aggressive prompt failed
+extraction on **101/294 docs (34%, empty)** vs 54 in the sparse baseline (more parse-fragile long responses) —
+a real harness-robustness issue that confounds the raw coverage comparison. Neutralized by recomputing on
+both-docs-populated pairs (below).
+
+| metric | DENSE | SPARSE (doc-31) | bar |
+|---|---|---|---|
+| mean nodes/doc (all) | 21.9 (33 among populated) | 5.8 | — |
+| vocab | 4181 | 521 | — |
+| text-dissimilar coverage, all band pairs | 6.3% | 4.4% | ≥25% |
+| **text-dissimilar coverage, both-populated** | **9.1%** (10/110) | 6.5% (7/107) | ≥25% |
+| full-oracle coverage | 19.5% (empty-dragged) | 26.6% | — |
+| **joinAUC full oracle (discrimination)** | **0.579** | 0.596 | ≥0.63 |
+| joinAUC among-overlap | 0.575 | 0.540 | — |
+
+**Verdict: DEAD on BOTH bars, robust to the confound.**
+- **Coverage FAIL:** even removing the 101 empty docs, dense text-dissimilar coverage is **9.1%** (vs sparse
+  6.5%) — a hair up, still <10%, ~1/3 of the 25% bar. Density does NOT make text-dissimilar related papers share
+  concepts.
+- **Discrimination FAIL:** dense JOIN AUC 0.579 < sparse 0.596 < bar 0.63; the top shared dense nodes are generic
+  hubs (`representation-learning` df=21, `large-language-models` df=45, `model-generalization`, `deep-learning`).
+  Density adds hub-noise, not discriminative shared concepts — exactly the pre-registered anti-hub failure mode.
+
+**The disjoint-concept wall is real:** co-cited-but-textually-dissimilar cross-corpus papers genuinely do not
+share nameable concepts, even at 5.6× extraction density. This CLOSES the retrieval thesis not just for the
+sparse extraction (doc-31) but for a dense one too.
+
+**Caveats / owed:** (1) the 34% extraction-failure rate is a harness flaw — a robust re-extraction (retry-on-empty,
+sturdier parse) would clean the coverage number, but the both-populated analysis already shows the verdict holds,
+and the discrimination FAIL is failure-rate-independent. (2) **Blind adversary NOT yet run** (session limit) — the
+load-bearing claims are deterministic (coverage ceilings verified two ways; AUC tie-corrected), but the adversary
+re-check is owed before this is fully banked. (3) description-aligned nodes (vs raw concept-count density) remain
+a distinct, untested variant — but the disjoint-concept evidence makes it a long shot.
+
+**NET across doc-28→32:** the concept layer is NOT a cross-corpus retrieval mechanism — sparse OR dense, mechanical
+OR agentic, on every oracle. Retrieval is dense embedding's job. The concept layer's demonstrated value is
+non-retrieval (structural audit / navigation / rare-bridge / explanation). See [[verify-empirical-gates]] iter-28.
