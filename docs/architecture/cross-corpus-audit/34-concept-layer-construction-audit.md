@@ -184,6 +184,70 @@ The graph branches: `minigpt-4` degree 20, `gpt-4` 17, `blip-2` 13, and real cha
 (`llava --trained_on_data_from--> gpt-4 --built_by--> openai`). This is the first time in this
 investigation that a corpus in this system has had traversable internal structure.
 
+### 7.2 Setup state (2026-07-28) — built, blocked, and what remains
+
+**Built and committed:**
+
+1. **Corpus-scoped promotion** (`dcfcfb8`) — `applyPromotion` stamps `corpus_id` on minted entities
+   and inserted facts, and the entity reuse-by-name lookup is corpus-filtered (it was an unscoped
+   cross-corpus fusion path). Threaded `promote({corpusId})` → `loadPromotionInputs` +
+   `applyPromotion`, and `ingestBatch({corpusId})` → `runEpochBatch`. Only the `epoch` arm honours it;
+   the others throw rather than silently writing to `default`. 3 regression tests; 21/21 + 33/33 green.
+2. **Domain-neutral concept extraction** (`c631f82`) — a `side:'entity'` branch (the C/C++ prompts
+   return zero concepts on prose), an explicit `relation` (for a symmetric corpus pair the relation
+   carries direction, not semantics), and an optional **shared-vocabulary block** — the docs 25-27
+   relevance-window conform mechanism, owed since doc-20 §13(d). Additive: omit `vocabulary` and the
+   prompt is byte-identical.
+3. **Resumable ingest harness** `corpus-graph-ingest.ts`, with a ledger/DB drift guard.
+
+**Doc attribution — solved, design validated (not yet implemented):** the epoch path writes **no**
+`memory_entities` and **no** `fact_sources` (both 0 for the ingested corpus) — another gap of the same
+class as the 0-facts one, and it breaks the "tagged to source material" leg. But attribution is
+recoverable without schema change, because `promote()` does not delete consumed staging:
+
+```
+canonical fact --(facts.source_text = staging_proposed_facts.reasoning)--> staged fact
+staged fact --(source_id, chunk_index)--> windowPointId() --> Qdrant memory --> content --> paper id
+entity --> its facts --> those papers
+```
+
+Measured on real data: **587/587 canonical facts matched a staged fact**, only **9 ambiguous** (1.5%,
+and those are legitimately multi-paper). `chunk_index` confirmed 10 distinct values = the batch size.
+Content matching (rather than trusting my batch ordering) is what makes it robust.
+
+**BLOCKED:** the ingest is incomplete. The graph agent runs Haiku via `claude -p`, and the run hit the
+account limit — HTTP 429, `"You've hit your session limit · resets 2:50pm (Europe/London)"`. Not a code
+fault. Two process faults of mine, both recorded rather than smoothed over: (a) I piped `tsx` through
+`grep`, so `&&` saw **grep's** exit code and corpus B launched after corpus A had already failed;
+(b) an earlier killed run had ingested a batch before I deleted its ledger, so ~24 docs may have been
+ingested twice. Promotion's corroborate-or-insert makes that mostly idempotent, but I could not cheaply
+prove the base was clean at 24/294 docs, so both corpora were **wiped for a clean restart**. The doc-20
+substrate (104 concepts / 97 exhibits / 51 addresses) was verified intact afterwards.
+
+**Resume (after the limit resets) — note: no pipe, so failures propagate:**
+
+```
+cd platform && DATABASE_URL=postgres://cognitive:cognitive@127.0.0.1:5433/cognitive_test \
+  QDRANT_URL=http://localhost:6335 ML_SERVICES_URL=http://localhost:8000 \
+  NODE_ENV=test EMBED_DESCRIPTIONS=true \
+  npx tsx src/test/tools/corpus-graph-ingest.ts --corpus=A --batch=10 --concurrency=8
+```
+then `--corpus=B`. Ledger-resumable; ~1 min/doc observed, so ~5 h for 294 docs.
+
+**Remaining after ingest completes** (steps 3-4 need no LLM; step 2 does):
+1. Concept-link every arXiv entity via `extractAndLinkConcepts({side:'entity', relation, vocabulary})`
+   — corpus A `exhibits`, corpus B `addresses`, so the shipped `recallConceptCandidates` JOIN works
+   unchanged. Maintain concept embeddings so the vocabulary window is nearest-neighbour, and build the
+   window **only** from concepts linked to the arXiv corpora (the 104 C++ concepts from doc-20 share
+   `_concepts` and would otherwise pollute it).
+2. Implement the doc-attribution mapper per the validated chain above.
+3. Build the **multi-hop recall primitive** — the thing that does not exist. Proposed shape:
+   `source entity --facts*(≤h)--> entity --exhibits--> concept <--addresses-- entity --facts*(≤h)--> target`,
+   scored `Σ_c idf(c) · decay^(hops_source + hops_target)`. The decay/IDF **is** the path-cost rule
+   §5 warns is mandatory; without it traversal reaches everything.
+4. Pre-register the test (metric + bar committed before any number) and score on the co-citation oracle,
+   with doc-31's text-dissimilar slice as the hard subset, carrying §7's oracle caveat.
+
 Observations carried forward: (a) `fact_embedding` was NULL until `EMBED_DESCRIPTIONS=true` (doc-10
 already justified `on` as the cross-corpus default), so the pilot was discarded and both corpora
 re-ingested with it enabled, for consistency; (b) `store()` creates a `User (stream default)` speaker

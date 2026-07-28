@@ -1,0 +1,5971 @@
+{
+  "note": "Cross-corpus concept graph: A=NLP, B=CV arXiv 2023. concepts[label]={nlpN,cvN,nlp:[titles],cv:[titles]}",
+  "totals": {
+    "nlpDocs": 147,
+    "cvDocs": 147,
+    "concepts": 521,
+    "bridges": 96
+  },
+  "bridges": [
+    {
+      "c": "zero-shot-learning",
+      "nlpN": 28,
+      "cvN": 12
+    },
+    {
+      "c": "vision-language-models",
+      "nlpN": 15,
+      "cvN": 12
+    },
+    {
+      "c": "domain-adaptation",
+      "nlpN": 19,
+      "cvN": 10
+    },
+    {
+      "c": "transfer-learning",
+      "nlpN": 10,
+      "cvN": 9
+    },
+    {
+      "c": "foundation-models",
+      "nlpN": 9,
+      "cvN": 13
+    },
+    {
+      "c": "few-shot-learning",
+      "nlpN": 11,
+      "cvN": 7
+    },
+    {
+      "c": "representation-learning",
+      "nlpN": 6,
+      "cvN": 6
+    },
+    {
+      "c": "self-supervised-learning",
+      "nlpN": 5,
+      "cvN": 7
+    },
+    {
+      "c": "vision-encoder",
+      "nlpN": 5,
+      "cvN": 4
+    },
+    {
+      "c": "benchmark-compilation",
+      "nlpN": 12,
+      "cvN": 4
+    },
+    {
+      "c": "training-data-generation",
+      "nlpN": 7,
+      "cvN": 4
+    },
+    {
+      "c": "image-to-text-generation",
+      "nlpN": 16,
+      "cvN": 3
+    },
+    {
+      "c": "large-language-models",
+      "nlpN": 78,
+      "cvN": 3
+    },
+    {
+      "c": "human-evaluation",
+      "nlpN": 19,
+      "cvN": 3
+    },
+    {
+      "c": "feature-fusion",
+      "nlpN": 3,
+      "cvN": 5
+    },
+    {
+      "c": "text-to-image-generation",
+      "nlpN": 3,
+      "cvN": 23
+    },
+    {
+      "c": "medical-image-analysis",
+      "nlpN": 3,
+      "cvN": 5
+    },
+    {
+      "c": "cross-modality-generalization",
+      "nlpN": 3,
+      "cvN": 4
+    },
+    {
+      "c": "prompt-conditioning",
+      "nlpN": 3,
+      "cvN": 11
+    },
+    {
+      "c": "object-detection",
+      "nlpN": 3,
+      "cvN": 10
+    },
+    {
+      "c": "contrastive-learning",
+      "nlpN": 4,
+      "cvN": 3
+    },
+    {
+      "c": "model-scaling",
+      "nlpN": 9,
+      "cvN": 3
+    },
+    {
+      "c": "frozen-image-encoders",
+      "nlpN": 2,
+      "cvN": 5
+    },
+    {
+      "c": "end-to-end-training",
+      "nlpN": 3,
+      "cvN": 2
+    },
+    {
+      "c": "hallucination",
+      "nlpN": 5,
+      "cvN": 2
+    },
+    {
+      "c": "embodied-language-models",
+      "nlpN": 2,
+      "cvN": 2
+    },
+    {
+      "c": "language-grounding",
+      "nlpN": 5,
+      "cvN": 2
+    },
+    {
+      "c": "text-to-video-generation",
+      "nlpN": 2,
+      "cvN": 10
+    },
+    {
+      "c": "parameter-efficient-adaptation",
+      "nlpN": 2,
+      "cvN": 9
+    },
+    {
+      "c": "image-classification",
+      "nlpN": 2,
+      "cvN": 6
+    },
+    {
+      "c": "detector-robustness",
+      "nlpN": 3,
+      "cvN": 2
+    },
+    {
+      "c": "similarity-measures",
+      "nlpN": 2,
+      "cvN": 3
+    },
+    {
+      "c": "cross-attention",
+      "nlpN": 2,
+      "cvN": 3
+    },
+    {
+      "c": "pseudo-labeling",
+      "nlpN": 2,
+      "cvN": 2
+    },
+    {
+      "c": "diffusion-models",
+      "nlpN": 2,
+      "cvN": 29
+    },
+    {
+      "c": "image-text-alignment",
+      "nlpN": 2,
+      "cvN": 3
+    },
+    {
+      "c": "semantic-consistency",
+      "nlpN": 3,
+      "cvN": 2
+    },
+    {
+      "c": "semantic-segmentation",
+      "nlpN": 2,
+      "cvN": 6
+    },
+    {
+      "c": "vision-language-pretraining",
+      "nlpN": 9,
+      "cvN": 1
+    },
+    {
+      "c": "instruction-tuning",
+      "nlpN": 22,
+      "cvN": 1
+    },
+    {
+      "c": "multimodal-llm",
+      "nlpN": 15,
+      "cvN": 1
+    },
+    {
+      "c": "visual-feature-alignment",
+      "nlpN": 3,
+      "cvN": 1
+    },
+    {
+      "c": "tool-use",
+      "nlpN": 3,
+      "cvN": 1
+    },
+    {
+      "c": "language-modeling",
+      "nlpN": 10,
+      "cvN": 1
+    },
+    {
+      "c": "commonsense-reasoning",
+      "nlpN": 4,
+      "cvN": 1
+    },
+    {
+      "c": "multitask-learning",
+      "nlpN": 5,
+      "cvN": 1
+    },
+    {
+      "c": "sensor-fusion",
+      "nlpN": 1,
+      "cvN": 2
+    },
+    {
+      "c": "robotic-manipulation",
+      "nlpN": 2,
+      "cvN": 1
+    },
+    {
+      "c": "visual-question-answering",
+      "nlpN": 13,
+      "cvN": 1
+    },
+    {
+      "c": "ensemble-refinement",
+      "nlpN": 1,
+      "cvN": 3
+    },
+    {
+      "c": "discrete-tokens",
+      "nlpN": 2,
+      "cvN": 1
+    },
+    {
+      "c": "chain-of-thought-reasoning",
+      "nlpN": 6,
+      "cvN": 1
+    },
+    {
+      "c": "model-selection",
+      "nlpN": 3,
+      "cvN": 1
+    },
+    {
+      "c": "open-set-object-detection",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "referring-expression-comprehension",
+      "nlpN": 5,
+      "cvN": 1
+    },
+    {
+      "c": "text-to-3d-generation",
+      "nlpN": 1,
+      "cvN": 7
+    },
+    {
+      "c": "text-to-code-generation",
+      "nlpN": 3,
+      "cvN": 1
+    },
+    {
+      "c": "in-context-learning",
+      "nlpN": 17,
+      "cvN": 1
+    },
+    {
+      "c": "factuality-evaluation",
+      "nlpN": 5,
+      "cvN": 1
+    },
+    {
+      "c": "fine-tuning",
+      "nlpN": 7,
+      "cvN": 1
+    },
+    {
+      "c": "model-alignment",
+      "nlpN": 4,
+      "cvN": 1
+    },
+    {
+      "c": "phrase-grounding",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "time-series-forecasting",
+      "nlpN": 2,
+      "cvN": 1
+    },
+    {
+      "c": "anomaly-detection",
+      "nlpN": 1,
+      "cvN": 3
+    },
+    {
+      "c": "frozen-pretrained-models",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "sampling-process",
+      "nlpN": 1,
+      "cvN": 6
+    },
+    {
+      "c": "attribute-diversity",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "spatial-guidance",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "image-editing",
+      "nlpN": 1,
+      "cvN": 4
+    },
+    {
+      "c": "multimodal-encoder",
+      "nlpN": 3,
+      "cvN": 1
+    },
+    {
+      "c": "weakly-supervised-learning",
+      "nlpN": 2,
+      "cvN": 1
+    },
+    {
+      "c": "text-encoder",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "long-range-context",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "calibration",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "vector-embeddings",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "video-action-recognition",
+      "nlpN": 1,
+      "cvN": 2
+    },
+    {
+      "c": "prompt-learning",
+      "nlpN": 4,
+      "cvN": 1
+    },
+    {
+      "c": "hallucination-mitigation",
+      "nlpN": 5,
+      "cvN": 1
+    },
+    {
+      "c": "noise-robustness",
+      "nlpN": 1,
+      "cvN": 2
+    },
+    {
+      "c": "refinement-models",
+      "nlpN": 1,
+      "cvN": 2
+    },
+    {
+      "c": "model-compression",
+      "nlpN": 1,
+      "cvN": 3
+    },
+    {
+      "c": "active-prompting",
+      "nlpN": 1,
+      "cvN": 2
+    },
+    {
+      "c": "text-guided-segmentation",
+      "nlpN": 1,
+      "cvN": 2
+    },
+    {
+      "c": "zero-shot-segmentation",
+      "nlpN": 1,
+      "cvN": 4
+    },
+    {
+      "c": "mask-generation",
+      "nlpN": 1,
+      "cvN": 4
+    },
+    {
+      "c": "encoder-decoder-networks",
+      "nlpN": 1,
+      "cvN": 4
+    },
+    {
+      "c": "real-time-adaptation",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "pretraining",
+      "nlpN": 2,
+      "cvN": 1
+    },
+    {
+      "c": "visualization",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "open-vocabulary-segmentation",
+      "nlpN": 1,
+      "cvN": 3
+    },
+    {
+      "c": "training-data-extraction",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "visual-perception",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "self-refinement",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "label-efficient-segmentation",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "video-question-answering",
+      "nlpN": 1,
+      "cvN": 1
+    },
+    {
+      "c": "visual-summarization",
+      "nlpN": 1,
+      "cvN": 1
+    }
+  ],
+  "nlpOnlyTop": [
+    {
+      "c": "prompt-engineering",
+      "n": 29
+    },
+    {
+      "c": "question-answering",
+      "n": 16
+    },
+    {
+      "c": "natural-language-processing",
+      "n": 14
+    },
+    {
+      "c": "multilingual-evaluation",
+      "n": 11
+    },
+    {
+      "c": "multilingual-language-models",
+      "n": 10
+    },
+    {
+      "c": "machine-translation",
+      "n": 7
+    },
+    {
+      "c": "text-annotation",
+      "n": 7
+    },
+    {
+      "c": "natural-language-generation",
+      "n": 7
+    },
+    {
+      "c": "medical-question-answering",
+      "n": 6
+    },
+    {
+      "c": "sentiment-analysis",
+      "n": 6
+    },
+    {
+      "c": "text-classification",
+      "n": 6
+    },
+    {
+      "c": "frozen-language-models",
+      "n": 5
+    },
+    {
+      "c": "reasoning-evaluation",
+      "n": 5
+    },
+    {
+      "c": "medical-reasoning",
+      "n": 5
+    },
+    {
+      "c": "text-to-audio-generation",
+      "n": 5
+    },
+    {
+      "c": "ai-generated-text-detection",
+      "n": 5
+    },
+    {
+      "c": "text-summarization",
+      "n": 5
+    },
+    {
+      "c": "explainability",
+      "n": 5
+    },
+    {
+      "c": "synthetic-instruction-data",
+      "n": 4
+    },
+    {
+      "c": "named-entity-recognition",
+      "n": 4
+    },
+    {
+      "c": "audio-language-models",
+      "n": 4
+    },
+    {
+      "c": "cross-lingual-transfer",
+      "n": 4
+    },
+    {
+      "c": "prompt-robustness",
+      "n": 4
+    },
+    {
+      "c": "data-extraction",
+      "n": 3
+    },
+    {
+      "c": "inter-rater-agreement",
+      "n": 3
+    },
+    {
+      "c": "task-decomposition",
+      "n": 3
+    },
+    {
+      "c": "natural-language-inference",
+      "n": 3
+    },
+    {
+      "c": "crowdsourced-data",
+      "n": 3
+    },
+    {
+      "c": "speech-recognition",
+      "n": 3
+    },
+    {
+      "c": "speech-to-text-translation",
+      "n": 3
+    },
+    {
+      "c": "arithmetic-reasoning",
+      "n": 3
+    },
+    {
+      "c": "information-extraction",
+      "n": 3
+    },
+    {
+      "c": "small-language-models",
+      "n": 3
+    },
+    {
+      "c": "uncertainty-estimation",
+      "n": 3
+    },
+    {
+      "c": "prompting-principles",
+      "n": 3
+    },
+    {
+      "c": "querying-transformer",
+      "n": 2
+    },
+    {
+      "c": "api-integration",
+      "n": 2
+    },
+    {
+      "c": "task-planning",
+      "n": 2
+    },
+    {
+      "c": "document-level-translation",
+      "n": 2
+    },
+    {
+      "c": "text-watermarking",
+      "n": 2
+    }
+  ],
+  "cvOnlyTop": [
+    {
+      "c": "segmentation",
+      "n": 20
+    },
+    {
+      "c": "latent-diffusion-models",
+      "n": 17
+    },
+    {
+      "c": "3d-reconstruction",
+      "n": 14
+    },
+    {
+      "c": "neural-radiance-fields",
+      "n": 10
+    },
+    {
+      "c": "multi-view-generation",
+      "n": 9
+    },
+    {
+      "c": "vision-transformers",
+      "n": 9
+    },
+    {
+      "c": "image-to-3d-generation",
+      "n": 8
+    },
+    {
+      "c": "medical-image-segmentation",
+      "n": 8
+    },
+    {
+      "c": "real-time-inference",
+      "n": 7
+    },
+    {
+      "c": "instance-segmentation",
+      "n": 6
+    },
+    {
+      "c": "multi-scale-feature-grouping",
+      "n": 6
+    },
+    {
+      "c": "image-denoising",
+      "n": 6
+    },
+    {
+      "c": "novel-view-synthesis",
+      "n": 6
+    },
+    {
+      "c": "3d-segmentation",
+      "n": 6
+    },
+    {
+      "c": "image-to-image-generation",
+      "n": 5
+    },
+    {
+      "c": "mask-refinement",
+      "n": 5
+    },
+    {
+      "c": "view-conditioned-diffusion",
+      "n": 5
+    },
+    {
+      "c": "image-super-resolution",
+      "n": 5
+    },
+    {
+      "c": "3d-consistency",
+      "n": 5
+    },
+    {
+      "c": "score-distillation-sampling",
+      "n": 4
+    },
+    {
+      "c": "mesh-refinement",
+      "n": 4
+    },
+    {
+      "c": "knowledge-distillation",
+      "n": 4
+    },
+    {
+      "c": "pose-estimation",
+      "n": 4
+    },
+    {
+      "c": "monocular-depth",
+      "n": 4
+    },
+    {
+      "c": "image-guided-refinement",
+      "n": 4
+    },
+    {
+      "c": "vision-transformer-backbones",
+      "n": 4
+    },
+    {
+      "c": "depth-map-conditioning",
+      "n": 4
+    },
+    {
+      "c": "image-segmentation",
+      "n": 4
+    },
+    {
+      "c": "real-time-rendering",
+      "n": 4
+    },
+    {
+      "c": "promptable-segmentation",
+      "n": 4
+    },
+    {
+      "c": "conditional-sampling",
+      "n": 4
+    },
+    {
+      "c": "visual-reasoning",
+      "n": 4
+    },
+    {
+      "c": "adapter-modules",
+      "n": 3
+    },
+    {
+      "c": "generative-adversarial-networks",
+      "n": 3
+    },
+    {
+      "c": "temporal-consistency",
+      "n": 3
+    },
+    {
+      "c": "motion-module",
+      "n": 3
+    },
+    {
+      "c": "spatial-adaptation",
+      "n": 3
+    },
+    {
+      "c": "blind-image-restoration",
+      "n": 3
+    },
+    {
+      "c": "frame-interpolation",
+      "n": 3
+    },
+    {
+      "c": "volumetric-rendering",
+      "n": 3
+    }
+  ],
+  "concepts": {
+    "systematic-review": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Can large language models replace humans in the systematic review process? Evaluating GPT-4's efficacy in screening and extracting data from peer-reviewed and grey literature in multiple languages"
+      ],
+      "cv": []
+    },
+    "title-abstract-screening": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Can large language models replace humans in the systematic review process? Evaluating GPT-4's efficacy in screening and extracting data from peer-reviewed and grey literature in multiple languages"
+      ],
+      "cv": []
+    },
+    "full-text-review": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Can large language models replace humans in the systematic review process? Evaluating GPT-4's efficacy in screening and extracting data from peer-reviewed and grey literature in multiple languages"
+      ],
+      "cv": []
+    },
+    "data-extraction": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "Can large language models replace humans in the systematic review process? Evaluating GPT-4's efficacy in screening and extracting data from peer-reviewed and grey literature in multiple languages",
+        "ChatIE: Zero-Shot Information Extraction via Chatting with ChatGPT",
+        "Improving Large Language Models for Clinical Named Entity Recognition via Prompt Engineering"
+      ],
+      "cv": []
+    },
+    "human-out-of-the-loop": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Can large language models replace humans in the systematic review process? Evaluating GPT-4's efficacy in screening and extracting data from peer-reviewed and grey literature in multiple languages"
+      ],
+      "cv": []
+    },
+    "reliable-prompts": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Can large language models replace humans in the systematic review process? Evaluating GPT-4's efficacy in screening and extracting data from peer-reviewed and grey literature in multiple languages"
+      ],
+      "cv": []
+    },
+    "inter-rater-agreement": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "Can large language models replace humans in the systematic review process? Evaluating GPT-4's efficacy in screening and extracting data from peer-reviewed and grey literature in multiple languages",
+        "ChatGPT-4 Outperforms Experts and Crowd Workers in Annotating Political Twitter Messages with Zero-Shot Learning",
+        "Accuracy and Political Bias of News Source Credibility Ratings by Large Language Models"
+      ],
+      "cv": []
+    },
+    "multilingual-evaluation": {
+      "nlpN": 11,
+      "cvN": 0,
+      "nlp": [
+        "Can large language models replace humans in the systematic review process? Evaluating GPT-4's efficacy in screening and extracting data from peer-reviewed and grey literature in multiple languages",
+        "A Multitask, Multilingual, Multimodal Evaluation of ChatGPT on Reasoning, Hallucination, and Interactivity",
+        "Spanish Pre-trained BERT Model and Evaluation Data",
+        "Is ChatGPT A Good Translator? Yes With GPT-4 As The Engine",
+        "How Good Are GPT Models at Machine Translation? A Comprehensive Evaluation",
+        "OpenAssistant Conversations -- Democratizing Large Language Model Alignment",
+        "Large Language Models Are State-of-the-Art Evaluators of Translation Quality",
+        "ChatGPT: Beginning of an End of Manual Linguistic Data Annotation? Use Case of Automatic Genre Identification"
+      ],
+      "cv": []
+    },
+    "grey-literature": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Can large language models replace humans in the systematic review process? Evaluating GPT-4's efficacy in screening and extracting data from peer-reviewed and grey literature in multiple languages"
+      ],
+      "cv": []
+    },
+    "vision-language-pretraining": {
+      "nlpN": 9,
+      "cvN": 1,
+      "nlp": [
+        "BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models",
+        "InstructBLIP: Towards General-purpose Vision-Language Models with Instruction Tuning",
+        "PaLM-E: An Embodied Multimodal Language Model",
+        "RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control",
+        "OpenFlamingo: An Open-Source Framework for Training Large Autoregressive Vision-Language Models",
+        "Foundational Models Defining a New Era in Vision: A Survey and Outlook",
+        "BLIP-Diffusion: Pre-trained Subject Representation for Controllable Text-to-Image Generation and Editing",
+        "mPLUG-2: A Modularized Multi-modal Foundation Model Across Text, Image and Video"
+      ],
+      "cv": [
+        "Muse: Text-To-Image Generation via Masked Generative Transformers"
+      ]
+    },
+    "frozen-image-encoders": {
+      "nlpN": 2,
+      "cvN": 5,
+      "nlp": [
+        "BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models",
+        "MiniGPT-4: Enhancing Vision-Language Understanding with Advanced Large Language Models"
+      ],
+      "cv": [
+        "Scaling Vision Transformers to 22 Billion Parameters",
+        "Track Anything: Segment Anything Meets Videos",
+        "AIM: Adapting Image Models for Efficient Video Action Recognition",
+        "Convolutions Die Hard: Open-Vocabulary Segmentation with Single Frozen Convolutional CLIP",
+        "How to Efficiently Adapt Large Segmentation Model(SAM) to Medical Images"
+      ]
+    },
+    "frozen-language-models": {
+      "nlpN": 5,
+      "cvN": 0,
+      "nlp": [
+        "BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models",
+        "MiniGPT-4: Enhancing Vision-Language Understanding with Advanced Large Language Models",
+        "mPLUG-Owl: Modularization Empowers Large Language Models with Multimodality",
+        "Cognitive Constraint Simulation and the Geometry of Human Authorship: A First-Principles Theory of AI Text Detection",
+        "REPLUG: Retrieval-Augmented Black-Box Language Models"
+      ],
+      "cv": []
+    },
+    "querying-transformer": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models",
+        "InstructBLIP: Towards General-purpose Vision-Language Models with Instruction Tuning"
+      ],
+      "cv": []
+    },
+    "modality-gap": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models"
+      ],
+      "cv": []
+    },
+    "zero-shot-learning": {
+      "nlpN": 28,
+      "cvN": 12,
+      "nlp": [
+        "BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models",
+        "Visual Instruction Tuning",
+        "InstructBLIP: Towards General-purpose Vision-Language Models with Instruction Tuning",
+        "Toolformer: Language Models Can Teach Themselves to Use Tools",
+        "A Multitask, Multilingual, Multimodal Evaluation of ChatGPT on Reasoning, Hallucination, and Interactivity",
+        "Is ChatGPT A Good Translator? Yes With GPT-4 As The Engine",
+        "RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control",
+        "Annotated Point Clouds and Images from a Spatial-Semantic Perception Pipeline: Robotized Deconstruction at the Reference Construction Site, Aachen"
+      ],
+      "cv": [
+        "Faster Segment Anything: Towards Lightweight SAM for Mobile Applications",
+        "Muse: Text-To-Image Generation via Masked Generative Transformers",
+        "Segment Anything in High Quality",
+        "Segment Anything Model (SAM) for Digital Pathology: Assess Zero-shot Segmentation on Whole Slide Imaging",
+        "SAM.MD: Zero-shot medical image segmentation capabilities of the Segment Anything Model",
+        "Computer-Vision Benchmark Segment-Anything Model (SAM) in Medical Images: Accuracy in 12 Datasets",
+        "Objaverse-XL: A Universe of 10M+ 3D Objects",
+        "Let 2D Diffusion Model Know 3D-Consistency for Robust Text-to-3D Generation"
+      ]
+    },
+    "image-to-text-generation": {
+      "nlpN": 16,
+      "cvN": 3,
+      "nlp": [
+        "BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models",
+        "Visual Instruction Tuning",
+        "MiniGPT-4: Enhancing Vision-Language Understanding with Advanced Large Language Models",
+        "ChatGPT is not all you need. A State of the Art Review of large Generative AI models",
+        "Language Is Not All You Need: Aligning Perception with Language Models",
+        "Qwen-VL: A Versatile Vision-Language Model for Understanding, Localization, Text Reading, and Beyond",
+        "Shikra: Unleashing Multimodal LLM's Referential Dialogue Magic",
+        "MiniGPT-v2: large language model as a unified interface for vision-language multi-task learning"
+      ],
+      "cv": [
+        "Anything-3D: Towards Single-view Anything Reconstruction in the Wild",
+        "One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale",
+        "Analyzing and Mitigating Object Hallucination in Large Vision-Language Models"
+      ]
+    },
+    "instruction-tuning": {
+      "nlpN": 22,
+      "cvN": 1,
+      "nlp": [
+        "Visual Instruction Tuning",
+        "InstructBLIP: Towards General-purpose Vision-Language Models with Instruction Tuning",
+        "Spanish Pre-trained BERT Model and Evaluation Data",
+        "LLaVA-Med: Training a Large Language-and-Vision Assistant for Biomedicine in One Day",
+        "mPLUG-Owl: Modularization Empowers Large Language Models with Multimodality",
+        "Qwen-VL: A Versatile Vision-Language Model for Understanding, Localization, Text Reading, and Beyond",
+        "Kosmos-2: Grounding Multimodal Large Language Models to the World",
+        "LIMA: Less Is More for Alignment"
+      ],
+      "cv": [
+        "ImageBind-LLM: Multi-modality Instruction Tuning"
+      ]
+    },
+    "multimodal-llm": {
+      "nlpN": 15,
+      "cvN": 1,
+      "nlp": [
+        "Visual Instruction Tuning",
+        "MiniGPT-4: Enhancing Vision-Language Understanding with Advanced Large Language Models",
+        "InstructBLIP: Towards General-purpose Vision-Language Models with Instruction Tuning",
+        "A Multitask, Multilingual, Multimodal Evaluation of ChatGPT on Reasoning, Hallucination, and Interactivity",
+        "PaLM-E: An Embodied Multimodal Language Model",
+        "HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face",
+        "LLaVA-Med: Training a Large Language-and-Vision Assistant for Biomedicine in One Day",
+        "MuChoMusic dataset"
+      ],
+      "cv": [
+        "ImageBind-LLM: Multi-modality Instruction Tuning"
+      ]
+    },
+    "transfer-learning": {
+      "nlpN": 10,
+      "cvN": 9,
+      "nlp": [
+        "Visual Instruction Tuning",
+        "InstructBLIP: Towards General-purpose Vision-Language Models with Instruction Tuning",
+        "PaLM-E: An Embodied Multimodal Language Model",
+        "Spanish Pre-trained BERT Model and Evaluation Data",
+        "LLaVA-Med: Training a Large Language-and-Vision Assistant for Biomedicine in One Day",
+        "LIMA: Less Is More for Alignment",
+        "One Fits All:Power General Time Series Analysis by Pretrained LM",
+        "Google USM: Scaling Automatic Speech Recognition Beyond 100 Languages"
+      ],
+      "cv": [
+        "Real-Time Flying Object Detection with YOLOv8",
+        "Medical SAM Adapter: Adapting Segment Anything Model for Medical Image Segmentation",
+        "Faster Segment Anything: Towards Lightweight SAM for Mobile Applications",
+        "Customized Segment Anything Model for Medical Image Segmentation",
+        "Scaling Vision Transformers to 22 Billion Parameters",
+        "Segment Anything in High Quality",
+        "Track Anything: Segment Anything Meets Videos",
+        "AnimateDiff: Animate Your Personalized Text-to-Image Diffusion Models without Specific Tuning"
+      ]
+    },
+    "vision-encoder": {
+      "nlpN": 5,
+      "cvN": 4,
+      "nlp": [
+        "Visual Instruction Tuning",
+        "InstructBLIP: Towards General-purpose Vision-Language Models with Instruction Tuning",
+        "Shikra: Unleashing Multimodal LLM's Referential Dialogue Magic",
+        "PMC-VQA: Visual Instruction Tuning for Medical Visual Question Answering",
+        "XrayGPT: Chest Radiographs Summarization using Medical Vision-Language Models"
+      ],
+      "cv": [
+        "Faster Segment Anything: Towards Lightweight SAM for Mobile Applications",
+        "Customized Segment Anything Model for Medical Image Segmentation",
+        "Scaling Vision Transformers to 22 Billion Parameters",
+        "MiDaS v3.1 -- A Model Zoo for Robust Monocular Relative Depth Estimation"
+      ]
+    },
+    "synthetic-instruction-data": {
+      "nlpN": 4,
+      "cvN": 0,
+      "nlp": [
+        "Visual Instruction Tuning",
+        "LLaVA-Med: Training a Large Language-and-Vision Assistant for Biomedicine in One Day",
+        "Large Language Model as Attributed Training Data Generator: A Tale of Diversity and Bias",
+        "Principle-Driven Self-Alignment of Language Models from Scratch with Minimal Human Supervision"
+      ],
+      "cv": []
+    },
+    "end-to-end-training": {
+      "nlpN": 3,
+      "cvN": 2,
+      "nlp": [
+        "Visual Instruction Tuning",
+        "PaLM-E: An Embodied Multimodal Language Model",
+        "RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control"
+      ],
+      "cv": [
+        "Customized Segment Anything Model for Medical Image Segmentation",
+        "Beyond Adapting SAM: Towards End-to-End Ultrasound Image Segmentation via Auto Prompting"
+      ]
+    },
+    "projection-layer": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "MiniGPT-4: Enhancing Vision-Language Understanding with Advanced Large Language Models"
+      ],
+      "cv": []
+    },
+    "visual-feature-alignment": {
+      "nlpN": 3,
+      "cvN": 1,
+      "nlp": [
+        "MiniGPT-4: Enhancing Vision-Language Understanding with Advanced Large Language Models",
+        "mPLUG-Owl: Modularization Empowers Large Language Models with Multimodality",
+        "Shikra: Unleashing Multimodal LLM's Referential Dialogue Magic"
+      ],
+      "cv": [
+        "DreamSim: Learning New Dimensions of Human Visual Similarity using Synthetic Data"
+      ]
+    },
+    "tool-use": {
+      "nlpN": 3,
+      "cvN": 1,
+      "nlp": [
+        "Toolformer: Language Models Can Teach Themselves to Use Tools",
+        "HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face",
+        "Augmented Language Models: a Survey"
+      ],
+      "cv": [
+        "Segment and Track Anything"
+      ]
+    },
+    "self-supervised-learning": {
+      "nlpN": 5,
+      "cvN": 7,
+      "nlp": [
+        "Toolformer: Language Models Can Teach Themselves to Use Tools",
+        "Scaling Speech Technology to 1,000+ Languages",
+        "Google USM: Scaling Automatic Speech Recognition Beyond 100 Languages",
+        "Towards General Text Embeddings with Multi-stage Contrastive Learning",
+        "A Survey on Semi-Supervised Semantic Segmentation"
+      ],
+      "cv": [
+        "Argoverse 2: Next Generation Datasets for Self-Driving Perception and\\n Forecasting",
+        "Hiera: A Hierarchical Vision Transformer without the Bells-and-Whistles",
+        "SpectralGPT: Spectral Remote Sensing Foundation Model",
+        "Monocular Depth Estimation using Diffusion Models",
+        "Denoising Diffusion Probabilistic Models for Robust Image Super-Resolution in the Wild",
+        "StableRep: Synthetic Images from Text-to-Image Models Make Strong Visual Representation Learners",
+        "MIS-FM: 3D Medical Image Segmentation using Foundation Models Pretrained on a Large-Scale Unannotated Dataset"
+      ]
+    },
+    "api-integration": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Toolformer: Language Models Can Teach Themselves to Use Tools",
+        "HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face"
+      ],
+      "cv": []
+    },
+    "few-shot-learning": {
+      "nlpN": 11,
+      "cvN": 7,
+      "nlp": [
+        "Toolformer: Language Models Can Teach Themselves to Use Tools",
+        "Language Is Not All You Need: Aligning Perception with Language Models",
+        "Qwen-VL: A Versatile Vision-Language Model for Understanding, Localization, Text Reading, and Beyond",
+        "One Fits All:Power General Time Series Analysis by Pretrained LM",
+        "Benchmarking Large Language Models for News Summarization",
+        "Is ChatGPT a Highly Fluent Grammatical Error Correction System? A Comprehensive Evaluation",
+        "Sentiment Analysis in the Era of Large Language Models: A Reality Check",
+        "Is ChatGPT a Good Recommender? A Preliminary Study"
+      ],
+      "cv": [
+        "Segment Anything Model (SAM) for Digital Pathology: Assess Zero-shot Segmentation on Whole Slide Imaging",
+        "Track Anything: Segment Anything Meets Videos",
+        "MVDream: Multi-view Diffusion for 3D Generation",
+        "Personalize Segment Anything Model with One Shot",
+        "SegGPT: Segmenting Everything In Context",
+        "Segment Any Point Cloud Sequences by Distilling Vision Foundation Models",
+        "Pushing the Limits of Fewshot Anomaly Detection in Industry Vision: Graphcore"
+      ]
+    },
+    "language-modeling": {
+      "nlpN": 10,
+      "cvN": 1,
+      "nlp": [
+        "Toolformer: Language Models Can Teach Themselves to Use Tools",
+        "Spanish Pre-trained BERT Model and Evaluation Data",
+        "BloombergGPT: A Large Language Model for Finance",
+        "ChatGPT is not all you need. A State of the Art Review of large Generative AI models",
+        "Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers",
+        "Generative Language Models and Automated Influence Operations: Emerging Threats and Potential Mitigations",
+        "LIMA: Less Is More for Alignment",
+        "Baichuan 2: Open Large-scale Language Models"
+      ],
+      "cv": [
+        "CodeGen2: Lessons for Training LLMs on Programming and Natural Languages"
+      ]
+    },
+    "hallucination": {
+      "nlpN": 5,
+      "cvN": 2,
+      "nlp": [
+        "A Multitask, Multilingual, Multimodal Evaluation of ChatGPT on Reasoning, Hallucination, and Interactivity",
+        "Is ChatGPT A Good Translator? Yes With GPT-4 As The Engine",
+        "Check Your Facts and Try Again: Improving Large Language Models with External Knowledge and Automated Feedback",
+        "GPT-NER: Named Entity Recognition via Large Language Models",
+        "Chain-of-Verification Reduces Hallucination in Large Language Models"
+      ],
+      "cv": [
+        "HaluEval: A Large-Scale Hallucination Evaluation Benchmark for Large Language Models",
+        "Analyzing and Mitigating Object Hallucination in Large Vision-Language Models"
+      ]
+    },
+    "prompt-engineering": {
+      "nlpN": 29,
+      "cvN": 0,
+      "nlp": [
+        "A Multitask, Multilingual, Multimodal Evaluation of ChatGPT on Reasoning, Hallucination, and Interactivity",
+        "Towards Expert-Level Medical Question Answering with Large Language Models",
+        "Is ChatGPT A Good Translator? Yes With GPT-4 As The Engine",
+        "HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face",
+        "How Good Are GPT Models at Machine Translation? A Comprehensive Evaluation",
+        "Check Your Facts and Try Again: Improving Large Language Models with External Knowledge and Automated Feedback",
+        "Can ChatGPT Understand Too? A Comparative Study on ChatGPT and Fine-tuned BERT",
+        "ChatIE: Zero-Shot Information Extraction via Chatting with ChatGPT"
+      ],
+      "cv": []
+    },
+    "reasoning-evaluation": {
+      "nlpN": 5,
+      "cvN": 0,
+      "nlp": [
+        "A Multitask, Multilingual, Multimodal Evaluation of ChatGPT on Reasoning, Hallucination, and Interactivity",
+        "MuChoMusic dataset",
+        "ChatGPT-4 Outperforms Experts and Crowd Workers in Annotating Political Twitter Messages with Zero-Shot Learning",
+        "Is ChatGPT a General-Purpose Natural Language Processing Task Solver?",
+        "TinyStories: How Small Can Language Models Be and Still Speak Coherent English?"
+      ],
+      "cv": []
+    },
+    "commonsense-reasoning": {
+      "nlpN": 4,
+      "cvN": 1,
+      "nlp": [
+        "A Multitask, Multilingual, Multimodal Evaluation of ChatGPT on Reasoning, Hallucination, and Interactivity",
+        "ChatGPT-4 Outperforms Experts and Crowd Workers in Annotating Political Twitter Messages with Zero-Shot Learning",
+        "Translating Natural Language to Planning Goals with Large-Language Models",
+        "Active Prompting with Chain-of-Thought for Large Language Models"
+      ],
+      "cv": [
+        "ESC: Exploration with Soft Commonsense Constraints for Zero-shot Object Navigation"
+      ]
+    },
+    "multitask-learning": {
+      "nlpN": 5,
+      "cvN": 1,
+      "nlp": [
+        "A Multitask, Multilingual, Multimodal Evaluation of ChatGPT on Reasoning, Hallucination, and Interactivity",
+        "MiniGPT-v2: large language model as a unified interface for vision-language multi-task learning",
+        "Towards General Text Embeddings with Multi-stage Contrastive Learning",
+        "InstructUIE: Multi-task Instruction Tuning for Unified Information Extraction",
+        "LAMM: Language-Assisted Multi-Modal Instruction-Tuning Dataset, Framework, and Benchmark"
+      ],
+      "cv": [
+        "One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale"
+      ]
+    },
+    "embodied-language-models": {
+      "nlpN": 2,
+      "cvN": 2,
+      "nlp": [
+        "PaLM-E: An Embodied Multimodal Language Model",
+        "Foundational Models Defining a New Era in Vision: A Survey and Outlook"
+      ],
+      "cv": [
+        "Open-World Object Manipulation using Pre-trained Vision-Language Models",
+        "ESC: Exploration with Soft Commonsense Constraints for Zero-shot Object Navigation"
+      ]
+    },
+    "sensor-fusion": {
+      "nlpN": 1,
+      "cvN": 2,
+      "nlp": [
+        "PaLM-E: An Embodied Multimodal Language Model"
+      ],
+      "cv": [
+        "RGB-D And Thermal Sensor Fusion: A Systematic Literature Review",
+        "Argoverse 2: Next Generation Datasets for Self-Driving Perception and\\n Forecasting"
+      ]
+    },
+    "robotic-manipulation": {
+      "nlpN": 2,
+      "cvN": 1,
+      "nlp": [
+        "PaLM-E: An Embodied Multimodal Language Model",
+        "RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control"
+      ],
+      "cv": [
+        "Open-World Object Manipulation using Pre-trained Vision-Language Models"
+      ]
+    },
+    "language-grounding": {
+      "nlpN": 5,
+      "cvN": 2,
+      "nlp": [
+        "PaLM-E: An Embodied Multimodal Language Model",
+        "Annotated Point Clouds and Images from a Spatial-Semantic Perception Pipeline: Robotized Deconstruction at the Reference Construction Site, Aachen",
+        "Kosmos-2: Grounding Multimodal Large Language Models to the World",
+        "ClinicalGPT: Large Language Models Finetuned with Diverse Medical Data and Comprehensive Evaluation",
+        "3D-LLM: Injecting the 3D World into Large Language Models"
+      ],
+      "cv": [
+        "HaluEval: A Large-Scale Hallucination Evaluation Benchmark for Large Language Models",
+        "Set-of-Mark Prompting Unleashes Extraordinary Visual Grounding in GPT-4V"
+      ]
+    },
+    "visual-question-answering": {
+      "nlpN": 13,
+      "cvN": 1,
+      "nlp": [
+        "PaLM-E: An Embodied Multimodal Language Model",
+        "RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control",
+        "LLaVA-Med: Training a Large Language-and-Vision Assistant for Biomedicine in One Day",
+        "Language Is Not All You Need: Aligning Perception with Language Models",
+        "Shikra: Unleashing Multimodal LLM's Referential Dialogue Magic",
+        "Foundational Models Defining a New Era in Vision: A Survey and Outlook",
+        "MiniGPT-v2: large language model as a unified interface for vision-language multi-task learning",
+        "MultiModal-GPT: A Vision and Language Model for Dialogue with Humans"
+      ],
+      "cv": [
+        "Analyzing and Mitigating Object Hallucination in Large Vision-Language Models"
+      ]
+    },
+    "language-specific-pretraining": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Spanish Pre-trained BERT Model and Evaluation Data"
+      ],
+      "cv": []
+    },
+    "benchmark-compilation": {
+      "nlpN": 12,
+      "cvN": 4,
+      "nlp": [
+        "Spanish Pre-trained BERT Model and Evaluation Data",
+        "Is ChatGPT A Good Translator? Yes With GPT-4 As The Engine",
+        "MuChoMusic dataset",
+        "Baichuan 2: Open Large-scale Language Models",
+        "On the Possibilities of AI-Generated Text Detection",
+        "Benchmarking Large Language Models in Retrieval-Augmented Generation",
+        "ChatGPT or Grammarly? Evaluating ChatGPT on Grammatical Error Correction Benchmark",
+        "CodeGeeX: A Pre-Trained Model for Code Generation with Multilingual Benchmarking on HumanEval-X"
+      ],
+      "cv": [
+        "Segment and Track Anything",
+        "Occ3D: A Large-Scale 3D Occupancy Prediction Benchmark for Autonomous Driving",
+        "GenImage: A Million-Scale Benchmark for Detecting AI-Generated Image",
+        "Deep Learning for Camera Calibration and Beyond: A Survey"
+      ]
+    },
+    "large-language-models": {
+      "nlpN": 78,
+      "cvN": 3,
+      "nlp": [
+        "Towards Expert-Level Medical Question Answering with Large Language Models",
+        "Is ChatGPT A Good Translator? Yes With GPT-4 As The Engine",
+        "BloombergGPT: A Large Language Model for Finance",
+        "HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face",
+        "How Good Are GPT Models at Machine Translation? A Comprehensive Evaluation",
+        "mPLUG-Owl: Modularization Empowers Large Language Models with Multimodality",
+        "ChatGPT-4 Outperforms Experts and Crowd Workers in Annotating Political Twitter Messages with Zero-Shot Learning",
+        "Can AI-Generated Text be Reliably Detected?"
+      ],
+      "cv": [
+        "CodeGen2: Lessons for Training LLMs on Programming and Natural Languages",
+        "HaluEval: A Large-Scale Hallucination Evaluation Benchmark for Large Language Models",
+        "ImageBind-LLM: Multi-modality Instruction Tuning"
+      ]
+    },
+    "domain-adaptation": {
+      "nlpN": 19,
+      "cvN": 10,
+      "nlp": [
+        "Towards Expert-Level Medical Question Answering with Large Language Models",
+        "Is ChatGPT A Good Translator? Yes With GPT-4 As The Engine",
+        "BloombergGPT: A Large Language Model for Finance",
+        "LLaVA-Med: Training a Large Language-and-Vision Assistant for Biomedicine in One Day",
+        "How Good Are GPT Models at Machine Translation? A Comprehensive Evaluation",
+        "Baichuan 2: Open Large-scale Language Models",
+        "One Fits All:Power General Time Series Analysis by Pretrained LM",
+        "Large Language Model as Attributed Training Data Generator: A Tale of Diversity and Bias"
+      ],
+      "cv": [
+        "Medical SAM Adapter: Adapting Segment Anything Model for Medical Image Segmentation",
+        "Customized Segment Anything Model for Medical Image Segmentation",
+        "Segment Anything in High Quality",
+        "SAM.MD: Zero-shot medical image segmentation capabilities of the Segment Anything Model",
+        "PromptIR: Prompting for All-in-One Blind Image Restoration",
+        "GeneFace: Generalized and High-Fidelity Audio-Driven 3D Talking Face Synthesis",
+        "Anomaly Detection with Conditioned Denoising Diffusion Models",
+        "3DSAM-adapter: Holistic adaptation of SAM from 2D to 3D for promptable tumor segmentation"
+      ]
+    },
+    "ensemble-refinement": {
+      "nlpN": 1,
+      "cvN": 3,
+      "nlp": [
+        "Towards Expert-Level Medical Question Answering with Large Language Models"
+      ],
+      "cv": [
+        "Weakly-Supervised Concealed Object Segmentation with SAM-based Pseudo Labeling and Multi-scale Feature Grouping",
+        "SAM3D: Segment Anything in 3D Scenes",
+        "Multi-scale Hierarchical Vision Transformer with Cascaded Attention Decoding for Medical Image Segmentation"
+      ]
+    },
+    "medical-reasoning": {
+      "nlpN": 5,
+      "cvN": 0,
+      "nlp": [
+        "Towards Expert-Level Medical Question Answering with Large Language Models",
+        "ClinicalGPT: Large Language Models Finetuned with Diverse Medical Data and Comprehensive Evaluation",
+        "Benchmarking large language models for biomedical natural language processing applications and recommendations",
+        "An Iterative Optimizing Framework for Radiology Report Summarization with ChatGPT",
+        "XrayGPT: Chest Radiographs Summarization using Medical Vision-Language Models"
+      ],
+      "cv": []
+    },
+    "human-evaluation": {
+      "nlpN": 19,
+      "cvN": 3,
+      "nlp": [
+        "Towards Expert-Level Medical Question Answering with Large Language Models",
+        "How Good Are GPT Models at Machine Translation? A Comprehensive Evaluation",
+        "MuChoMusic dataset",
+        "ChatGPT-4 Outperforms Experts and Crowd Workers in Annotating Political Twitter Messages with Zero-Shot Learning",
+        "OpenAssistant Conversations -- Democratizing Large Language Model Alignment",
+        "LIMA: Less Is More for Alignment",
+        "Large Language Models Are State-of-the-Art Evaluators of Translation Quality",
+        "LLM-Assisted Content Analysis: Using Large Language Models to Support Deductive Coding"
+      ],
+      "cv": [
+        "DreamSim: Learning New Dimensions of Human Visual Similarity using Synthetic Data",
+        "Aligning Text-to-Image Models using Human Feedback",
+        "HaluEval: A Large-Scale Hallucination Evaluation Benchmark for Large Language Models"
+      ]
+    },
+    "medical-question-answering": {
+      "nlpN": 6,
+      "cvN": 0,
+      "nlp": [
+        "Towards Expert-Level Medical Question Answering with Large Language Models",
+        "PMC-VQA: Visual Instruction Tuning for Medical Visual Question Answering",
+        "PMC-LLaMA: Towards Building Open-source Language Models for Medicine",
+        "ClinicalGPT: Large Language Models Finetuned with Diverse Medical Data and Comprehensive Evaluation",
+        "Benchmarking large language models for biomedical natural language processing applications and recommendations",
+        "XrayGPT: Chest Radiographs Summarization using Medical Vision-Language Models"
+      ],
+      "cv": []
+    },
+    "pivot-prompting": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Is ChatGPT A Good Translator? Yes With GPT-4 As The Engine"
+      ],
+      "cv": []
+    },
+    "sentiment-analysis": {
+      "nlpN": 6,
+      "cvN": 0,
+      "nlp": [
+        "BloombergGPT: A Large Language Model for Finance",
+        "Can ChatGPT Understand Too? A Comparative Study on ChatGPT and Fine-tuned BERT",
+        "Can ChatGPT Reproduce Human-Generated Labels? A Study of Social Computing Tasks",
+        "Sentiment Analysis in the Era of Large Language Models: A Reality Check",
+        "PromptRobust: Towards Evaluating the Robustness of Large Language Models on Adversarial Prompts",
+        "AfriSenti: A Twitter Sentiment Analysis Benchmark for African Languages"
+      ],
+      "cv": []
+    },
+    "named-entity-recognition": {
+      "nlpN": 4,
+      "cvN": 0,
+      "nlp": [
+        "BloombergGPT: A Large Language Model for Finance",
+        "ChatIE: Zero-Shot Information Extraction via Chatting with ChatGPT",
+        "GPT-NER: Named Entity Recognition via Large Language Models",
+        "Improving Large Language Models for Clinical Named Entity Recognition via Prompt Engineering"
+      ],
+      "cv": []
+    },
+    "question-answering": {
+      "nlpN": 16,
+      "cvN": 0,
+      "nlp": [
+        "BloombergGPT: A Large Language Model for Finance",
+        "ChatGPT is not all you need. A State of the Art Review of large Generative AI models",
+        "MuChoMusic dataset",
+        "Check Your Facts and Try Again: Improving Large Language Models with External Knowledge and Automated Feedback",
+        "Can ChatGPT Understand Too? A Comparative Study on ChatGPT and Fine-tuned BERT",
+        "ChatIE: Zero-Shot Information Extraction via Chatting with ChatGPT",
+        "Qwen-VL: A Versatile Vision-Language Model for Understanding, Localization, Text Reading, and Beyond",
+        "REPLUG: Retrieval-Augmented Black-Box Language Models"
+      ],
+      "cv": []
+    },
+    "vision-language-action-models": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control"
+      ],
+      "cv": []
+    },
+    "discrete-tokens": {
+      "nlpN": 2,
+      "cvN": 1,
+      "nlp": [
+        "RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control",
+        "Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers"
+      ],
+      "cv": [
+        "Muse: Text-To-Image Generation via Masked Generative Transformers"
+      ]
+    },
+    "chain-of-thought-reasoning": {
+      "nlpN": 6,
+      "cvN": 1,
+      "nlp": [
+        "RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control",
+        "Language Is Not All You Need: Aligning Perception with Language Models",
+        "Augmented Language Models: a Survey",
+        "Language Models can Solve Computer Tasks",
+        "Is ChatGPT a Highly Fluent Grammatical Error Correction System? A Comprehensive Evaluation",
+        "Active Prompting with Chain-of-Thought for Large Language Models"
+      ],
+      "cv": [
+        "HaluEval: A Large-Scale Hallucination Evaluation Benchmark for Large Language Models"
+      ]
+    },
+    "task-planning": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face",
+        "Translating Natural Language to Planning Goals with Large-Language Models"
+      ],
+      "cv": []
+    },
+    "model-selection": {
+      "nlpN": 3,
+      "cvN": 1,
+      "nlp": [
+        "HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face",
+        "SemEval-2023 Task 10: Explainable Detection of Online Sexism",
+        "Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design or: How I learned to start worrying about prompt formatting"
+      ],
+      "cv": [
+        "Computer-Vision Benchmark Segment-Anything Model (SAM) in Medical Images: Accuracy in 12 Datasets"
+      ]
+    },
+    "task-decomposition": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "HuggingGPT: Solving AI Tasks with ChatGPT and its Friends in Hugging Face",
+        "ChatIE: Zero-Shot Information Extraction via Chatting with ChatGPT",
+        "Augmented Language Models: a Survey"
+      ],
+      "cv": []
+    },
+    "open-set-object-detection": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "Annotated Point Clouds and Images from a Spatial-Semantic Perception Pipeline: Robotized Deconstruction at the Reference Construction Site, Aachen"
+      ],
+      "cv": [
+        "Open-World Object Manipulation using Pre-trained Vision-Language Models"
+      ]
+    },
+    "feature-fusion": {
+      "nlpN": 3,
+      "cvN": 5,
+      "nlp": [
+        "Annotated Point Clouds and Images from a Spatial-Semantic Perception Pipeline: Robotized Deconstruction at the Reference Construction Site, Aachen",
+        "mPLUG-2: A Modularized Multi-modal Foundation Model Across Text, Image and Video",
+        "ONE-PEACE: Exploring One General Representation Model Toward Unlimited Modalities"
+      ],
+      "cv": [
+        "Segment Anything in High Quality",
+        "SyncDreamer: Generating Multiview-consistent Images from a Single-view Image",
+        "U-Net v2: Rethinking the Skip Connections of U-Net for Medical Image Segmentation",
+        "Task-Specific Context Decoupling for Object Detection",
+        "OpenMask3D: Open-Vocabulary 3D Instance Segmentation"
+      ]
+    },
+    "referring-expression-comprehension": {
+      "nlpN": 5,
+      "cvN": 1,
+      "nlp": [
+        "Annotated Point Clouds and Images from a Spatial-Semantic Perception Pipeline: Robotized Deconstruction at the Reference Construction Site, Aachen",
+        "Qwen-VL: A Versatile Vision-Language Model for Understanding, Localization, Text Reading, and Beyond",
+        "Kosmos-2: Grounding Multimodal Large Language Models to the World",
+        "Shikra: Unleashing Multimodal LLM's Referential Dialogue Magic",
+        "MiniGPT-v2: large language model as a unified interface for vision-language multi-task learning"
+      ],
+      "cv": [
+        "Set-of-Mark Prompting Unleashes Extraordinary Visual Grounding in GPT-4V"
+      ]
+    },
+    "text-to-image-generation": {
+      "nlpN": 3,
+      "cvN": 23,
+      "nlp": [
+        "ChatGPT is not all you need. A State of the Art Review of large Generative AI models",
+        "BLIP-Diffusion: Pre-trained Subject Representation for Controllable Text-to-Image Generation and Editing",
+        "A Systematic Survey of Prompt Engineering on Vision-Language Foundation Models"
+      ],
+      "cv": [
+        "SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis",
+        "Muse: Text-To-Image Generation via Masked Generative Transformers",
+        "Extracting Training Data from Diffusion Models",
+        "AnimateDiff: Animate Your Personalized Text-to-Image Diffusion Models without Specific Tuning",
+        "Stable Video Diffusion: Scaling Latent Video Diffusion Models to Large Datasets",
+        "MultiDiffusion: Fusing Diffusion Paths for Controlled Image Generation",
+        "Personalize Segment Anything Model with One Shot",
+        "Inpaint Anything: Segment Anything Meets Image Inpainting"
+      ]
+    },
+    "text-to-3d-generation": {
+      "nlpN": 1,
+      "cvN": 7,
+      "nlp": [
+        "ChatGPT is not all you need. A State of the Art Review of large Generative AI models"
+      ],
+      "cv": [
+        "ProlificDreamer: High-Fidelity and Diverse Text-to-3D Generation with Variational Score Distillation",
+        "One-2-3-45: Any Single Image to 3D Mesh in 45 Seconds without Per-Shape Optimization",
+        "MVDream: Multi-view Diffusion for 3D Generation",
+        "SyncDreamer: Generating Multiview-consistent Images from a Single-view Image",
+        "Let 2D Diffusion Model Know 3D-Consistency for Robust Text-to-3D Generation",
+        "Anything-3D: Towards Single-view Anything Reconstruction in the Wild",
+        "Monocular Depth Estimation using Diffusion Models"
+      ]
+    },
+    "text-to-video-generation": {
+      "nlpN": 2,
+      "cvN": 10,
+      "nlp": [
+        "ChatGPT is not all you need. A State of the Art Review of large Generative AI models",
+        "mPLUG-2: A Modularized Multi-modal Foundation Model Across Text, Image and Video"
+      ],
+      "cv": [
+        "AnimateDiff: Animate Your Personalized Text-to-Image Diffusion Models without Specific Tuning",
+        "Stable Video Diffusion: Scaling Latent Video Diffusion Models to Large Datasets",
+        "VideoCrafter1: Open Diffusion Models for High-Quality Video Generation",
+        "ControlVideo: Training-free Controllable Text-to-Video Generation",
+        "LAVIE: High-Quality Video Generation with Cascaded Latent Diffusion Models",
+        "Control-A-Video: Controllable Text-to-Video Diffusion Models with Motion Prior and Reward Feedback Learning",
+        "Latent-Shift: Latent Diffusion with Temporal Shift for Efficient Text-to-Video Generation",
+        "SceneScape: Text-Driven Consistent Scene Generation"
+      ]
+    },
+    "text-to-audio-generation": {
+      "nlpN": 5,
+      "cvN": 0,
+      "nlp": [
+        "ChatGPT is not all you need. A State of the Art Review of large Generative AI models",
+        "Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers",
+        "Scaling Speech Technology to 1,000+ Languages",
+        "Noise2Music: Text-conditioned Music Generation with Diffusion Models",
+        "Voicebox: Text-Guided Multilingual Universal Speech Generation at Scale"
+      ],
+      "cv": []
+    },
+    "text-to-code-generation": {
+      "nlpN": 3,
+      "cvN": 1,
+      "nlp": [
+        "ChatGPT is not all you need. A State of the Art Review of large Generative AI models",
+        "CodeGeeX: A Pre-Trained Model for Code Generation with Multilingual Benchmarking on HumanEval-X",
+        "Translating Natural Language to Planning Goals with Large-Language Models"
+      ],
+      "cv": [
+        "CodeGen2: Lessons for Training LLMs on Programming and Natural Languages"
+      ]
+    },
+    "medical-image-analysis": {
+      "nlpN": 3,
+      "cvN": 5,
+      "nlp": [
+        "LLaVA-Med: Training a Large Language-and-Vision Assistant for Biomedicine in One Day",
+        "PMC-VQA: Visual Instruction Tuning for Medical Visual Question Answering",
+        "XrayGPT: Chest Radiographs Summarization using Medical Vision-Language Models"
+      ],
+      "cv": [
+        "Segment Anything Model (SAM) for Digital Pathology: Assess Zero-shot Segmentation on Whole Slide Imaging",
+        "Segment Anything in Medical Images",
+        "SAM.MD: Zero-shot medical image segmentation capabilities of the Segment Anything Model",
+        "AnomalyCLIP: Object-agnostic Prompt Learning for Zero-shot Anomaly Detection",
+        "Transformers in Small Object Detection: A Benchmark and Survey of State-of-the-Art"
+      ]
+    },
+    "curriculum-learning": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "LLaVA-Med: Training a Large Language-and-Vision Assistant for Biomedicine in One Day"
+      ],
+      "cv": []
+    },
+    "machine-translation": {
+      "nlpN": 7,
+      "cvN": 0,
+      "nlp": [
+        "How Good Are GPT Models at Machine Translation? A Comprehensive Evaluation",
+        "Large Language Models Are State-of-the-Art Evaluators of Translation Quality",
+        "Prompting Large Language Model for Machine Translation: A Case Study",
+        "Exploring the Feasibility of ChatGPT for Event Extraction",
+        "Multilingual Machine Translation with Large Language Models: Empirical Results and Analysis",
+        "PromptRobust: Towards Evaluating the Robustness of Large Language Models on Adversarial Prompts",
+        "Adaptive Machine Translation with Large Language Models"
+      ],
+      "cv": []
+    },
+    "document-level-translation": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "How Good Are GPT Models at Machine Translation? A Comprehensive Evaluation",
+        "Prompting Large Language Model for Machine Translation: A Case Study"
+      ],
+      "cv": []
+    },
+    "system-combination": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "How Good Are GPT Models at Machine Translation? A Comprehensive Evaluation"
+      ],
+      "cv": []
+    },
+    "audio-language-models": {
+      "nlpN": 4,
+      "cvN": 0,
+      "nlp": [
+        "MuChoMusic dataset",
+        "Scaling Speech Technology to 1,000+ Languages",
+        "PandaGPT: One Model To Instruction-Follow Them All",
+        "AudioPaLM: A Large Language Model That Can Speak and Listen"
+      ],
+      "cv": []
+    },
+    "music-understanding": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "MuChoMusic dataset"
+      ],
+      "cv": []
+    },
+    "music-information-retrieval": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "MuChoMusic dataset"
+      ],
+      "cv": []
+    },
+    "parameter-efficient-adaptation": {
+      "nlpN": 2,
+      "cvN": 9,
+      "nlp": [
+        "mPLUG-Owl: Modularization Empowers Large Language Models with Multimodality",
+        "Do We Still Need Clinical Language Models?"
+      ],
+      "cv": [
+        "Medical SAM Adapter: Adapting Segment Anything Model for Medical Image Segmentation",
+        "Customized Segment Anything Model for Medical Image Segmentation",
+        "Segment Anything in High Quality",
+        "AnimateDiff: Animate Your Personalized Text-to-Image Diffusion Models without Specific Tuning",
+        "Stable Video Diffusion: Scaling Latent Video Diffusion Models to Large Datasets",
+        "Personalize Segment Anything Model with One Shot",
+        "AIM: Adapting Image Models for Efficient Video Action Recognition",
+        "3DSAM-adapter: Holistic adaptation of SAM from 2D to 3D for promptable tumor segmentation"
+      ]
+    },
+    "foundation-models": {
+      "nlpN": 9,
+      "cvN": 13,
+      "nlp": [
+        "mPLUG-Owl: Modularization Empowers Large Language Models with Multimodality",
+        "Baichuan 2: Open Large-scale Language Models",
+        "One Fits All:Power General Time Series Analysis by Pretrained LM",
+        "OpenFlamingo: An Open-Source Framework for Training Large Autoregressive Vision-Language Models",
+        "Foundational Models Defining a New Era in Vision: A Survey and Outlook",
+        "A Systematic Survey of Prompt Engineering on Vision-Language Foundation Models",
+        "Towards General Text Embeddings with Multi-stage Contrastive Learning",
+        "PMC-LLaMA: Towards Building Open-source Language Models for Medicine"
+      ],
+      "cv": [
+        "Segment Anything in Medical Images",
+        "Segment and Track Anything",
+        "SAM.MD: Zero-shot medical image segmentation capabilities of the Segment Anything Model",
+        "Computer-Vision Benchmark Segment-Anything Model (SAM) in Medical Images: Accuracy in 12 Datasets",
+        "Personalize Segment Anything Model with One Shot",
+        "Weakly-Supervised Concealed Object Segmentation with SAM-based Pseudo Labeling and Multi-scale Feature Grouping",
+        "SpectralGPT: Spectral Remote Sensing Foundation Model",
+        "VideoCrafter1: Open Diffusion Models for High-Quality Video Generation"
+      ]
+    },
+    "image-classification": {
+      "nlpN": 2,
+      "cvN": 6,
+      "nlp": [
+        "Language Is Not All You Need: Aligning Perception with Language Models",
+        "ONE-PEACE: Exploring One General Representation Model Toward Unlimited Modalities"
+      ],
+      "cv": [
+        "SeaFormer++: Squeeze-enhanced Axial Transformer for Mobile Visual Recognition",
+        "Hiera: A Hierarchical Vision Transformer without the Bells-and-Whistles",
+        "SpectralGPT: Spectral Remote Sensing Foundation Model",
+        "GenImage: A Million-Scale Benchmark for Detecting AI-Generated Image",
+        "Rethinking Local Perception in Lightweight Vision Transformer",
+        "Task-Specific Context Decoupling for Object Detection"
+      ]
+    },
+    "cross-modality-generalization": {
+      "nlpN": 3,
+      "cvN": 4,
+      "nlp": [
+        "Language Is Not All You Need: Aligning Perception with Language Models",
+        "PandaGPT: One Model To Instruction-Follow Them All",
+        "LAMM: Language-Assisted Multi-Modal Instruction-Tuning Dataset, Framework, and Benchmark"
+      ],
+      "cv": [
+        "Segment Anything in Medical Images",
+        "Computer-Vision Benchmark Segment-Anything Model (SAM) in Medical Images: Accuracy in 12 Datasets",
+        "Segment Any Point Cloud Sequences by Distilling Vision Foundation Models",
+        "ImageBind-LLM: Multi-modality Instruction Tuning"
+      ]
+    },
+    "prompt-conditioning": {
+      "nlpN": 3,
+      "cvN": 11,
+      "nlp": [
+        "Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers",
+        "Improving Large Language Models for Clinical Named Entity Recognition via Prompt Engineering",
+        "Noise2Music: Text-conditioned Music Generation with Diffusion Models"
+      ],
+      "cv": [
+        "Medical SAM Adapter: Adapting Segment Anything Model for Medical Image Segmentation",
+        "Customized Segment Anything Model for Medical Image Segmentation",
+        "Segment Anything in High Quality",
+        "Segment Anything Model (SAM) for Digital Pathology: Assess Zero-shot Segmentation on Whole Slide Imaging",
+        "Track Anything: Segment Anything Meets Videos",
+        "MultiDiffusion: Fusing Diffusion Paths for Controlled Image Generation",
+        "SAM.MD: Zero-shot medical image segmentation capabilities of the Segment Anything Model",
+        "Personalize Segment Anything Model with One Shot"
+      ]
+    },
+    "in-context-learning": {
+      "nlpN": 17,
+      "cvN": 1,
+      "nlp": [
+        "Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers",
+        "GPT-NER: Named Entity Recognition via Large Language Models",
+        "Augmented Language Models: a Survey",
+        "Kosmos-2: Grounding Multimodal Large Language Models to the World",
+        "LIMA: Less Is More for Alignment",
+        "Prompting Large Language Model for Machine Translation: A Case Study",
+        "Language Models can Solve Computer Tasks",
+        "Improving Large Language Models for Clinical Named Entity Recognition via Prompt Engineering"
+      ],
+      "cv": [
+        "SegGPT: Segmenting Everything In Context"
+      ]
+    },
+    "ai-generated-text-detection": {
+      "nlpN": 5,
+      "cvN": 0,
+      "nlp": [
+        "Can AI-Generated Text be Reliably Detected?",
+        "Cognitive Constraint Simulation and the Geometry of Human Authorship: A First-Principles Theory of AI Text Detection",
+        "Generative Language Models and Automated Influence Operations: Emerging Threats and Potential Mitigations",
+        "On the Possibilities of AI-Generated Text Detection",
+        "GPT detectors are biased against non-native English writers"
+      ],
+      "cv": []
+    },
+    "text-watermarking": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Can AI-Generated Text be Reliably Detected?",
+        "A Watermark for Large Language Models"
+      ],
+      "cv": []
+    },
+    "adversarial-attacks": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Can AI-Generated Text be Reliably Detected?",
+        "PromptRobust: Towards Evaluating the Robustness of Large Language Models on Adversarial Prompts"
+      ],
+      "cv": []
+    },
+    "paraphrasing": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Can AI-Generated Text be Reliably Detected?",
+        "Can ChatGPT Understand Too? A Comparative Study on ChatGPT and Fine-tuned BERT"
+      ],
+      "cv": []
+    },
+    "detector-robustness": {
+      "nlpN": 3,
+      "cvN": 2,
+      "nlp": [
+        "Can AI-Generated Text be Reliably Detected?",
+        "On the Possibilities of AI-Generated Text Detection",
+        "GPT detectors are biased against non-native English writers"
+      ],
+      "cv": [
+        "GenImage: A Million-Scale Benchmark for Detecting AI-Generated Image",
+        "Strategic Preys Make Acute Predators: Enhancing Camouflaged Object Detectors by Generating Camouflaged Objects"
+      ]
+    },
+    "log-probability-curvature": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Cognitive Constraint Simulation and the Geometry of Human Authorship: A First-Principles Theory of AI Text Detection"
+      ],
+      "cv": []
+    },
+    "external-knowledge": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Check Your Facts and Try Again: Improving Large Language Models with External Knowledge and Automated Feedback"
+      ],
+      "cv": []
+    },
+    "factuality-evaluation": {
+      "nlpN": 5,
+      "cvN": 1,
+      "nlp": [
+        "Check Your Facts and Try Again: Improving Large Language Models with External Knowledge and Automated Feedback",
+        "Generative Language Models and Automated Influence Operations: Emerging Threats and Potential Mitigations",
+        "ChatGPT as a Factual Inconsistency Evaluator for Text Summarization",
+        "ClinicalGPT: Large Language Models Finetuned with Diverse Medical Data and Comprehensive Evaluation",
+        "Chain-of-Verification Reduces Hallucination in Large Language Models"
+      ],
+      "cv": [
+        "HaluEval: A Large-Scale Hallucination Evaluation Benchmark for Large Language Models"
+      ]
+    },
+    "automated-feedback": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Check Your Facts and Try Again: Improving Large Language Models with External Knowledge and Automated Feedback"
+      ],
+      "cv": []
+    },
+    "task-oriented-dialog": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Check Your Facts and Try Again: Improving Large Language Models with External Knowledge and Automated Feedback",
+        "ClinicalGPT: Large Language Models Finetuned with Diverse Medical Data and Comprehensive Evaluation"
+      ],
+      "cv": []
+    },
+    "similarity-measures": {
+      "nlpN": 2,
+      "cvN": 3,
+      "nlp": [
+        "Can ChatGPT Understand Too? A Comparative Study on ChatGPT and Fine-tuned BERT",
+        "Prompting Large Language Model for Machine Translation: A Case Study"
+      ],
+      "cv": [
+        "A Survey on Oversmoothing in Graph Neural Networks",
+        "Computer-Vision Benchmark Segment-Anything Model (SAM) in Medical Images: Accuracy in 12 Datasets",
+        "DreamSim: Learning New Dimensions of Human Visual Similarity using Synthetic Data"
+      ]
+    },
+    "fine-tuning": {
+      "nlpN": 7,
+      "cvN": 1,
+      "nlp": [
+        "Can ChatGPT Understand Too? A Comparative Study on ChatGPT and Fine-tuned BERT",
+        "OpenAssistant Conversations -- Democratizing Large Language Model Alignment",
+        "LIMA: Less Is More for Alignment",
+        "REPLUG: Retrieval-Augmented Black-Box Language Models",
+        "Benchmarking Large Language Models for News Summarization",
+        "Principle-Driven Self-Alignment of Language Models from Scratch with Minimal Human Supervision",
+        "Benchmarking large language models for biomedical natural language processing applications and recommendations"
+      ],
+      "cv": [
+        "Emu: Enhancing Image Generation Models Using Photogenic Needles in a Haystack"
+      ]
+    },
+    "natural-language-inference": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "Can ChatGPT Understand Too? A Comparative Study on ChatGPT and Fine-tuned BERT",
+        "ChatGPT as a Factual Inconsistency Evaluator for Text Summarization",
+        "PromptRobust: Towards Evaluating the Robustness of Large Language Models on Adversarial Prompts"
+      ],
+      "cv": []
+    },
+    "relation-extraction": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "ChatIE: Zero-Shot Information Extraction via Chatting with ChatGPT"
+      ],
+      "cv": []
+    },
+    "event-extraction": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "ChatIE: Zero-Shot Information Extraction via Chatting with ChatGPT",
+        "Exploring the Feasibility of ChatGPT for Event Extraction"
+      ],
+      "cv": []
+    },
+    "influence-operations": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Generative Language Models and Automated Influence Operations: Emerging Threats and Potential Mitigations"
+      ],
+      "cv": []
+    },
+    "automated-disinformation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Generative Language Models and Automated Influence Operations: Emerging Threats and Potential Mitigations"
+      ],
+      "cv": []
+    },
+    "sequence-labeling": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "GPT-NER: Named Entity Recognition via Large Language Models",
+        "Is ChatGPT a General-Purpose Natural Language Processing Task Solver?"
+      ],
+      "cv": []
+    },
+    "self-verification": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "GPT-NER: Named Entity Recognition via Large Language Models"
+      ],
+      "cv": []
+    },
+    "vision-language-models": {
+      "nlpN": 15,
+      "cvN": 12,
+      "nlp": [
+        "Qwen-VL: A Versatile Vision-Language Model for Understanding, Localization, Text Reading, and Beyond",
+        "Kosmos-2: Grounding Multimodal Large Language Models to the World",
+        "Shikra: Unleashing Multimodal LLM's Referential Dialogue Magic",
+        "OpenFlamingo: An Open-Source Framework for Training Large Autoregressive Vision-Language Models",
+        "Foundational Models Defining a New Era in Vision: A Survey and Outlook",
+        "MiniGPT-v2: large language model as a unified interface for vision-language multi-task learning",
+        "MultiModal-GPT: A Vision and Language Model for Dialogue with Humans",
+        "A Systematic Survey of Prompt Engineering on Vision-Language Foundation Models"
+      ],
+      "cv": [
+        "Anything-3D: Towards Single-view Anything Reconstruction in the Wild",
+        "AnomalyCLIP: Object-agnostic Prompt Learning for Zero-shot Anomaly Detection",
+        "Convolutions Die Hard: Open-Vocabulary Segmentation with Single Frozen Convolutional CLIP",
+        "One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale",
+        "OpenMask3D: Open-Vocabulary 3D Instance Segmentation",
+        "Analyzing and Mitigating Object Hallucination in Large Vision-Language Models",
+        "Self-Chained Image-Language Model for Video Localization and Question Answering",
+        "ImageBind-LLM: Multi-modality Instruction Tuning"
+      ]
+    },
+    "scene-text-recognition": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Qwen-VL: A Versatile Vision-Language Model for Understanding, Localization, Text Reading, and Beyond"
+      ],
+      "cv": []
+    },
+    "augmented-language-models": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Augmented Language Models: a Survey",
+        "REPLUG: Retrieval-Augmented Black-Box Language Models"
+      ],
+      "cv": []
+    },
+    "rlhf": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "OpenAssistant Conversations -- Democratizing Large Language Model Alignment"
+      ],
+      "cv": []
+    },
+    "model-alignment": {
+      "nlpN": 4,
+      "cvN": 1,
+      "nlp": [
+        "OpenAssistant Conversations -- Democratizing Large Language Model Alignment",
+        "LIMA: Less Is More for Alignment",
+        "Principle-Driven Self-Alignment of Language Models from Scratch with Minimal Human Supervision",
+        "ExpertPrompting: Instructing Large Language Models to be Distinguished Experts"
+      ],
+      "cv": [
+        "Aligning Text-to-Image Models using Human Feedback"
+      ]
+    },
+    "conversation-corpus": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "OpenAssistant Conversations -- Democratizing Large Language Model Alignment",
+        "PMC-LLaMA: Towards Building Open-source Language Models for Medicine"
+      ],
+      "cv": []
+    },
+    "crowdsourced-data": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "OpenAssistant Conversations -- Democratizing Large Language Model Alignment",
+        "ChatGPT Outperforms Crowd-Workers for Text-Annotation Tasks",
+        "AfriSenti: A Twitter Sentiment Analysis Benchmark for African Languages"
+      ],
+      "cv": []
+    },
+    "referring-expression-generation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Kosmos-2: Grounding Multimodal Large Language Models to the World"
+      ],
+      "cv": []
+    },
+    "phrase-grounding": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "Kosmos-2: Grounding Multimodal Large Language Models to the World"
+      ],
+      "cv": [
+        "ESC: Exploration with Soft Commonsense Constraints for Zero-shot Object Navigation"
+      ]
+    },
+    "object-detection": {
+      "nlpN": 3,
+      "cvN": 10,
+      "nlp": [
+        "Kosmos-2: Grounding Multimodal Large Language Models to the World",
+        "ChatGPT Asks, BLIP-2 Answers: Automatic Questioning Towards Enriched Visual Descriptions",
+        "PaLI-X: On Scaling up a Multilingual Vision and Language Model"
+      ],
+      "cv": [
+        "RGB-D And Thermal Sensor Fusion: A Systematic Literature Review",
+        "Real-Time Flying Object Detection with YOLOv8",
+        "Argoverse 2: Next Generation Datasets for Self-Driving Perception and\\n Forecasting",
+        "SeaFormer++: Squeeze-enhanced Axial Transformer for Mobile Visual Recognition",
+        "Large Selective Kernel Network for Remote Sensing Object Detection",
+        "Rethinking Local Perception in Lightweight Vision Transformer",
+        "Task-Specific Context Decoupling for Object Detection",
+        "Transformers in Small Object Detection: A Benchmark and Survey of State-of-the-Art"
+      ]
+    },
+    "multilingual-language-models": {
+      "nlpN": 10,
+      "cvN": 0,
+      "nlp": [
+        "Baichuan 2: Open Large-scale Language Models",
+        "Scaling Speech Technology to 1,000+ Languages",
+        "Google USM: Scaling Automatic Speech Recognition Beyond 100 Languages",
+        "ChatGPT: Beginning of an End of Manual Linguistic Data Annotation? Use Case of Automatic Genre Identification",
+        "Multilingual Machine Translation with Large Language Models: Empirical Results and Analysis",
+        "ChatGPT Beyond English: Towards a Comprehensive Evaluation of Large Language Models in Multilingual Learning",
+        "CodeGeeX: A Pre-Trained Model for Code Generation with Multilingual Benchmarking on HumanEval-X",
+        "Voicebox: Text-Guided Multilingual Universal Speech Generation at Scale"
+      ],
+      "cv": []
+    },
+    "time-series-forecasting": {
+      "nlpN": 2,
+      "cvN": 1,
+      "nlp": [
+        "One Fits All:Power General Time Series Analysis by Pretrained LM",
+        "A decoder-only foundation model for time-series forecasting"
+      ],
+      "cv": [
+        "Frequency-domain MLPs are More Effective Learners in Time Series Forecasting"
+      ]
+    },
+    "time-series-classification": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "One Fits All:Power General Time Series Analysis by Pretrained LM"
+      ],
+      "cv": []
+    },
+    "anomaly-detection": {
+      "nlpN": 1,
+      "cvN": 3,
+      "nlp": [
+        "One Fits All:Power General Time Series Analysis by Pretrained LM"
+      ],
+      "cv": [
+        "Anomaly Detection with Conditioned Denoising Diffusion Models",
+        "AnomalyCLIP: Object-agnostic Prompt Learning for Zero-shot Anomaly Detection",
+        "Pushing the Limits of Fewshot Anomaly Detection in Industry Vision: Graphcore"
+      ]
+    },
+    "frozen-pretrained-models": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "One Fits All:Power General Time Series Analysis by Pretrained LM"
+      ],
+      "cv": [
+        "Zero123++: a Single Image to Consistent Multi-view Diffusion Base Model"
+      ]
+    },
+    "speech-pretraining": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Scaling Speech Technology to 1,000+ Languages",
+        "Google USM: Scaling Automatic Speech Recognition Beyond 100 Languages"
+      ],
+      "cv": []
+    },
+    "speech-recognition": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "Scaling Speech Technology to 1,000+ Languages",
+        "Google USM: Scaling Automatic Speech Recognition Beyond 100 Languages",
+        "AudioPaLM: A Large Language Model That Can Speak and Listen"
+      ],
+      "cv": []
+    },
+    "language-identification": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Scaling Speech Technology to 1,000+ Languages",
+        "AfriSenti: A Twitter Sentiment Analysis Benchmark for African Languages"
+      ],
+      "cv": []
+    },
+    "sampling-process": {
+      "nlpN": 1,
+      "cvN": 6,
+      "nlp": [
+        "A Watermark for Large Language Models"
+      ],
+      "cv": [
+        "On the Design Fundamentals of Diffusion Models: A Survey",
+        "HaluEval: A Large-Scale Hallucination Evaluation Benchmark for Large Language Models",
+        "UniPC: A Unified Predictor-Corrector Framework for Fast Sampling of Diffusion Models",
+        "Towards Predicting Equilibrium Distributions for Molecular Systems with Deep Learning",
+        "Consistency Models",
+        "Diffusion with Forward Models: Solving Stochastic Inverse Problems Without Direct Supervision"
+      ]
+    },
+    "green-tokens": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "A Watermark for Large Language Models"
+      ],
+      "cv": []
+    },
+    "watermark-detection": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "A Watermark for Large Language Models"
+      ],
+      "cv": []
+    },
+    "watermark-robustness": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "A Watermark for Large Language Models"
+      ],
+      "cv": []
+    },
+    "speech-to-text-translation": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "Google USM: Scaling Automatic Speech Recognition Beyond 100 Languages",
+        "AudioPaLM: A Large Language Model That Can Speak and Listen",
+        "Seamless: Multilingual Expressive and Streaming Speech Translation"
+      ],
+      "cv": []
+    },
+    "random-projection-quantization": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Google USM: Scaling Automatic Speech Recognition Beyond 100 Languages"
+      ],
+      "cv": []
+    },
+    "speech-text-modality-matching": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Google USM: Scaling Automatic Speech Recognition Beyond 100 Languages"
+      ],
+      "cv": []
+    },
+    "reference-free-translation-evaluation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Large Language Models Are State-of-the-Art Evaluators of Translation Quality"
+      ],
+      "cv": []
+    },
+    "arithmetic-reasoning": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "Large Language Models Can Be Easily Distracted by Irrelevant Context",
+        "Is ChatGPT a General-Purpose Natural Language Processing Task Solver?",
+        "Active Prompting with Chain-of-Thought for Large Language Models"
+      ],
+      "cv": []
+    },
+    "self-consistency-decoding": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Large Language Models Can Be Easily Distracted by Irrelevant Context"
+      ],
+      "cv": []
+    },
+    "context-distractibility": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Large Language Models Can Be Easily Distracted by Irrelevant Context"
+      ],
+      "cv": []
+    },
+    "attributed-prompts": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Large Language Model as Attributed Training Data Generator: A Tale of Diversity and Bias"
+      ],
+      "cv": []
+    },
+    "data-bias": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Large Language Model as Attributed Training Data Generator: A Tale of Diversity and Bias",
+        "GPT detectors are biased against non-native English writers"
+      ],
+      "cv": []
+    },
+    "training-data-generation": {
+      "nlpN": 7,
+      "cvN": 4,
+      "nlp": [
+        "Large Language Model as Attributed Training Data Generator: A Tale of Diversity and Bias",
+        "Prompting Large Language Model for Machine Translation: A Case Study",
+        "LLMs Accelerate Annotation for Medical Information Extraction",
+        "PMC-VQA: Visual Instruction Tuning for Medical Visual Question Answering",
+        "ExpertPrompting: Instructing Large Language Models to be Distinguished Experts",
+        "TinyStories: How Small Can Language Models Be and Still Speak Coherent English?",
+        "LAMM: Language-Assisted Multi-Modal Instruction-Tuning Dataset, Framework, and Benchmark"
+      ],
+      "cv": [
+        "Aligning Text-to-Image Models using Human Feedback",
+        "Strategic Preys Make Acute Predators: Enhancing Camouflaged Object Detectors by Generating Camouflaged Objects",
+        "Deep Learning for Camera Calibration and Beyond: A Survey",
+        "StableRep: Synthetic Images from Text-to-Image Models Make Strong Visual Representation Learners"
+      ]
+    },
+    "attribute-diversity": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "Large Language Model as Attributed Training Data Generator: A Tale of Diversity and Bias"
+      ],
+      "cv": [
+        "DreamSim: Learning New Dimensions of Human Visual Similarity using Synthetic Data"
+      ]
+    },
+    "text-annotation": {
+      "nlpN": 7,
+      "cvN": 0,
+      "nlp": [
+        "ChatGPT Outperforms Crowd-Workers for Text-Annotation Tasks",
+        "Improving Large Language Models for Clinical Named Entity Recognition via Prompt Engineering",
+        "ChatGPT: Beginning of an End of Manual Linguistic Data Annotation? Use Case of Automatic Genre Identification",
+        "Can ChatGPT Reproduce Human-Generated Labels? A Study of Social Computing Tasks",
+        "LLMs Accelerate Annotation for Medical Information Extraction",
+        "SemEval-2023 Task 10: Explainable Detection of Online Sexism",
+        "AfriSenti: A Twitter Sentiment Analysis Benchmark for African Languages"
+      ],
+      "cv": []
+    },
+    "text-classification": {
+      "nlpN": 6,
+      "cvN": 0,
+      "nlp": [
+        "ChatGPT Outperforms Crowd-Workers for Text-Annotation Tasks",
+        "LLM-Assisted Content Analysis: Using Large Language Models to Support Deductive Coding",
+        "ChatGPT: Beginning of an End of Manual Linguistic Data Annotation? Use Case of Automatic Genre Identification",
+        "Evaluation of ChatGPT for NLP-based Mental Health Applications",
+        "Llama Guard: LLM-based Input-Output Safeguard for Human-AI Conversations",
+        "GPT detectors are biased against non-native English writers"
+      ],
+      "cv": []
+    },
+    "inter-coder-agreement": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "ChatGPT Outperforms Crowd-Workers for Text-Annotation Tasks",
+        "LLM-Assisted Content Analysis: Using Large Language Models to Support Deductive Coding"
+      ],
+      "cv": []
+    },
+    "stance-detection": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "ChatGPT Outperforms Crowd-Workers for Text-Annotation Tasks",
+        "Can ChatGPT Reproduce Human-Generated Labels? A Study of Social Computing Tasks"
+      ],
+      "cv": []
+    },
+    "topic-detection": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "ChatGPT Outperforms Crowd-Workers for Text-Annotation Tasks"
+      ],
+      "cv": []
+    },
+    "spatial-guidance": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "Shikra: Unleashing Multimodal LLM's Referential Dialogue Magic"
+      ],
+      "cv": [
+        "MultiDiffusion: Fusing Diffusion Paths for Controlled Image Generation"
+      ]
+    },
+    "autoregressive-models": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "OpenFlamingo: An Open-Source Framework for Training Large Autoregressive Vision-Language Models"
+      ],
+      "cv": []
+    },
+    "cross-attention": {
+      "nlpN": 2,
+      "cvN": 3,
+      "nlp": [
+        "REPLUG: Retrieval-Augmented Black-Box Language Models",
+        "MultiModal-GPT: A Vision and Language Model for Dialogue with Humans"
+      ],
+      "cv": [
+        "SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis",
+        "SyncDreamer: Generating Multiview-consistent Images from a Single-view Image",
+        "Multi-scale Hierarchical Vision Transformer with Cascaded Attention Decoding for Medical Image Segmentation"
+      ]
+    },
+    "recursive-self-criticism": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Language Models can Solve Computer Tasks"
+      ],
+      "cv": []
+    },
+    "autonomous-task-execution": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Language Models can Solve Computer Tasks"
+      ],
+      "cv": []
+    },
+    "compositional-reasoning": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Foundational Models Defining a New Era in Vision: A Survey and Outlook"
+      ],
+      "cv": []
+    },
+    "contrastive-learning": {
+      "nlpN": 4,
+      "cvN": 3,
+      "nlp": [
+        "Foundational Models Defining a New Era in Vision: A Survey and Outlook",
+        "Towards General Text Embeddings with Multi-stage Contrastive Learning",
+        "A Closer Look at the Explainability of Contrastive Language-Image Pre-training",
+        "ONE-PEACE: Exploring One General Representation Model Toward Unlimited Modalities"
+      ],
+      "cv": [
+        "Convolutions Die Hard: Open-Vocabulary Segmentation with Single Frozen Convolutional CLIP",
+        "Brain decoding: toward real-time reconstruction of visual perception",
+        "StableRep: Synthetic Images from Text-to-Image Models Make Strong Visual Representation Learners"
+      ]
+    },
+    "deductive-coding": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "LLM-Assisted Content Analysis: Using Large Language Models to Support Deductive Coding"
+      ],
+      "cv": []
+    },
+    "content-analysis": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "LLM-Assisted Content Analysis: Using Large Language Models to Support Deductive Coding"
+      ],
+      "cv": []
+    },
+    "natural-language-processing": {
+      "nlpN": 14,
+      "cvN": 0,
+      "nlp": [
+        "LLM-Assisted Content Analysis: Using Large Language Models to Support Deductive Coding",
+        "Is ChatGPT a General-Purpose Natural Language Processing Task Solver?",
+        "LLMs Accelerate Annotation for Medical Information Extraction",
+        "Evaluation of ChatGPT for NLP-based Mental Health Applications",
+        "Is ChatGPT a Highly Fluent Grammatical Error Correction System? A Comprehensive Evaluation",
+        "Exploring the Feasibility of ChatGPT for Event Extraction",
+        "Sentiment Analysis in the Era of Large Language Models: A Reality Check",
+        "ChatGPT Beyond English: Towards a Comprehensive Evaluation of Large Language Models in Multilingual Learning"
+      ],
+      "cv": []
+    },
+    "genre-identification": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "ChatGPT: Beginning of an End of Manual Linguistic Data Annotation? Use Case of Automatic Genre Identification"
+      ],
+      "cv": []
+    },
+    "pseudo-labeling": {
+      "nlpN": 2,
+      "cvN": 2,
+      "nlp": [
+        "Can ChatGPT Reproduce Human-Generated Labels? A Study of Social Computing Tasks",
+        "A Survey on Semi-Supervised Semantic Segmentation"
+      ],
+      "cv": [
+        "Weakly-Supervised Concealed Object Segmentation with SAM-based Pseudo Labeling and Multi-scale Feature Grouping",
+        "Self-Chained Image-Language Model for Video Localization and Question Answering"
+      ]
+    },
+    "hate-speech-detection": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Can ChatGPT Reproduce Human-Generated Labels? A Study of Social Computing Tasks",
+        "SemEval-2023 Task 10: Explainable Detection of Online Sexism"
+      ],
+      "cv": []
+    },
+    "bot-detection": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Can ChatGPT Reproduce Human-Generated Labels? A Study of Social Computing Tasks"
+      ],
+      "cv": []
+    },
+    "low-rank-adapter": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "MultiModal-GPT: A Vision and Language Model for Dialogue with Humans"
+      ],
+      "cv": []
+    },
+    "diffusion-models": {
+      "nlpN": 2,
+      "cvN": 29,
+      "nlp": [
+        "BLIP-Diffusion: Pre-trained Subject Representation for Controllable Text-to-Image Generation and Editing",
+        "Noise2Music: Text-conditioned Music Generation with Diffusion Models"
+      ],
+      "cv": [
+        "ResShift: Efficient Diffusion Model for Image Super-resolution by Residual Shifting",
+        "SyncDreamer: Generating Multiview-consistent Images from a Single-view Image",
+        "On the Design Fundamentals of Diffusion Models: A Survey",
+        "DiffBIR: Towards Blind Image Restoration with Generative Diffusion Prior",
+        "VideoCrafter1: Open Diffusion Models for High-Quality Video Generation",
+        "Let 2D Diffusion Model Know 3D-Consistency for Robust Text-to-3D Generation",
+        "Human Motion Diffusion as a Generative Prior",
+        "Anything-3D: Towards Single-view Anything Reconstruction in the Wild"
+      ]
+    },
+    "representation-learning": {
+      "nlpN": 6,
+      "cvN": 6,
+      "nlp": [
+        "BLIP-Diffusion: Pre-trained Subject Representation for Controllable Text-to-Image Generation and Editing",
+        "Towards General Text Embeddings with Multi-stage Contrastive Learning",
+        "LSA64: An Argentinian Sign Language Dataset",
+        "Noise2Music: Text-conditioned Music Generation with Diffusion Models",
+        "Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design or: How I learned to start worrying about prompt formatting",
+        "ONE-PEACE: Exploring One General Representation Model Toward Unlimited Modalities"
+      ],
+      "cv": [
+        "CodeGen2: Lessons for Training LLMs on Programming and Natural Languages",
+        "Task-Specific Context Decoupling for Object Detection",
+        "Segment Any Point Cloud Sequences by Distilling Vision Foundation Models",
+        "Strategic Preys Make Acute Predators: Enhancing Camouflaged Object Detectors by Generating Camouflaged Objects",
+        "Self-Chained Image-Language Model for Video Localization and Question Answering",
+        "StableRep: Synthetic Images from Text-to-Image Models Make Strong Visual Representation Learners"
+      ]
+    },
+    "image-editing": {
+      "nlpN": 1,
+      "cvN": 4,
+      "nlp": [
+        "BLIP-Diffusion: Pre-trained Subject Representation for Controllable Text-to-Image Generation and Editing"
+      ],
+      "cv": [
+        "Muse: Text-To-Image Generation via Masked Generative Transformers",
+        "Fast Segment Anything",
+        "DragonDiffusion: Enabling Drag-style Manipulation on Diffusion Models",
+        "Consistency Models"
+      ]
+    },
+    "multimodal-encoder": {
+      "nlpN": 3,
+      "cvN": 1,
+      "nlp": [
+        "BLIP-Diffusion: Pre-trained Subject Representation for Controllable Text-to-Image Generation and Editing",
+        "PandaGPT: One Model To Instruction-Follow Them All",
+        "ONE-PEACE: Exploring One General Representation Model Toward Unlimited Modalities"
+      ],
+      "cv": [
+        "One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale"
+      ]
+    },
+    "text-summarization": {
+      "nlpN": 5,
+      "cvN": 0,
+      "nlp": [
+        "Benchmarking Large Language Models for News Summarization",
+        "The Semantic Scholar Open Data Platform",
+        "Exploring the Feasibility of ChatGPT for Event Extraction",
+        "ChatGPT as a Factual Inconsistency Evaluator for Text Summarization",
+        "An Iterative Optimizing Framework for Radiology Report Summarization with ChatGPT"
+      ],
+      "cv": []
+    },
+    "model-scaling": {
+      "nlpN": 9,
+      "cvN": 3,
+      "nlp": [
+        "Benchmarking Large Language Models for News Summarization",
+        "Towards General Text Embeddings with Multi-stage Contrastive Learning",
+        "Do We Still Need Clinical Language Models?",
+        "CodeGeeX: A Pre-Trained Model for Code Generation with Multilingual Benchmarking on HumanEval-X",
+        "Principled Instructions Are All You Need for Questioning LLaMA-1/2, GPT-3.5/4",
+        "TinyStories: How Small Can Language Models Be and Still Speak Coherent English?",
+        "ONE-PEACE: Exploring One General Representation Model Toward Unlimited Modalities",
+        "Accuracy and Political Bias of News Source Credibility Ratings by Large Language Models"
+      ],
+      "cv": [
+        "LRM: Large Reconstruction Model for Single Image to 3D",
+        "Simple diffusion: End-to-end diffusion for high resolution images",
+        "Denoising Diffusion Probabilistic Models for Robust Image Super-Resolution in the Wild"
+      ]
+    },
+    "image-text-alignment": {
+      "nlpN": 2,
+      "cvN": 3,
+      "nlp": [
+        "A Systematic Survey of Prompt Engineering on Vision-Language Foundation Models",
+        "XrayGPT: Chest Radiographs Summarization using Medical Vision-Language Models"
+      ],
+      "cv": [
+        "Aligning Text-to-Image Models using Human Feedback",
+        "Emu: Enhancing Image Generation Models Using Photogenic Needles in a Haystack",
+        "ImageBind-LLM: Multi-modality Instruction Tuning"
+      ]
+    },
+    "weakly-supervised-learning": {
+      "nlpN": 2,
+      "cvN": 1,
+      "nlp": [
+        "Principle-Driven Self-Alignment of Language Models from Scratch with Minimal Human Supervision",
+        "A Survey on Semi-Supervised Semantic Segmentation"
+      ],
+      "cv": [
+        "Weakly-Supervised Concealed Object Segmentation with SAM-based Pseudo Labeling and Multi-scale Feature Grouping"
+      ]
+    },
+    "text-encoder": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "Towards General Text Embeddings with Multi-stage Contrastive Learning"
+      ],
+      "cv": [
+        "SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis"
+      ]
+    },
+    "code-retrieval": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Towards General Text Embeddings with Multi-stage Contrastive Learning"
+      ],
+      "cv": []
+    },
+    "long-range-context": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "Lost in the Middle: How Language Models Use Long Contexts"
+      ],
+      "cv": [
+        "Large Selective Kernel Network for Remote Sensing Object Detection"
+      ]
+    },
+    "key-value-retrieval": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Lost in the Middle: How Language Models Use Long Contexts"
+      ],
+      "cv": []
+    },
+    "positional-bias": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Lost in the Middle: How Language Models Use Long Contexts"
+      ],
+      "cv": []
+    },
+    "context-robustness": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Lost in the Middle: How Language Models Use Long Contexts"
+      ],
+      "cv": []
+    },
+    "medical-information-extraction": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "LLMs Accelerate Annotation for Medical Information Extraction",
+        "Do We Still Need Clinical Language Models?"
+      ],
+      "cv": []
+    },
+    "information-extraction": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "Evaluating ChatGPT's Information Extraction Capabilities: An Assessment of Performance, Explainability, Calibration, and Faithfulness",
+        "The Semantic Scholar Open Data Platform",
+        "InstructUIE: Multi-task Instruction Tuning for Unified Information Extraction"
+      ],
+      "cv": []
+    },
+    "explainability": {
+      "nlpN": 5,
+      "cvN": 0,
+      "nlp": [
+        "Evaluating ChatGPT's Information Extraction Capabilities: An Assessment of Performance, Explainability, Calibration, and Faithfulness",
+        "ChatGPT or Grammarly? Evaluating ChatGPT on Grammatical Error Correction Benchmark",
+        "SemEval-2023 Task 10: Explainable Detection of Online Sexism",
+        "Is ChatGPT a Good Recommender? A Preliminary Study",
+        "A Closer Look at the Explainability of Contrastive Language-Image Pre-training"
+      ],
+      "cv": []
+    },
+    "calibration": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "Evaluating ChatGPT's Information Extraction Capabilities: An Assessment of Performance, Explainability, Calibration, and Faithfulness"
+      ],
+      "cv": [
+        "Deep Learning for Camera Calibration and Beyond: A Survey"
+      ]
+    },
+    "faithfulness": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Evaluating ChatGPT's Information Extraction Capabilities: An Assessment of Performance, Explainability, Calibration, and Faithfulness"
+      ],
+      "cv": []
+    },
+    "open-information-extraction": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Evaluating ChatGPT's Information Extraction Capabilities: An Assessment of Performance, Explainability, Calibration, and Faithfulness"
+      ],
+      "cv": []
+    },
+    "zero-shot-classification": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Evaluation of ChatGPT for NLP-based Mental Health Applications"
+      ],
+      "cv": []
+    },
+    "mental-health-classification": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Evaluation of ChatGPT for NLP-based Mental Health Applications"
+      ],
+      "cv": []
+    },
+    "grammatical-error-correction": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Is ChatGPT a Highly Fluent Grammatical Error Correction System? A Comprehensive Evaluation",
+        "ChatGPT or Grammarly? Evaluating ChatGPT on Grammatical Error Correction Benchmark"
+      ],
+      "cv": []
+    },
+    "scholarly-pdf-extraction": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "The Semantic Scholar Open Data Platform"
+      ],
+      "cv": []
+    },
+    "knowledge-graph-construction": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "The Semantic Scholar Open Data Platform"
+      ],
+      "cv": []
+    },
+    "vector-embeddings": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "The Semantic Scholar Open Data Platform"
+      ],
+      "cv": [
+        "OpenMask3D: Open-Vocabulary 3D Instance Segmentation"
+      ]
+    },
+    "structured-text-parsing": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "The Semantic Scholar Open Data Platform"
+      ],
+      "cv": []
+    },
+    "academic-knowledge-graph": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "The Semantic Scholar Open Data Platform"
+      ],
+      "cv": []
+    },
+    "citation-graph": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "The Semantic Scholar Open Data Platform"
+      ],
+      "cv": []
+    },
+    "aspect-based-sentiment-analysis": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Sentiment Analysis in the Era of Large Language Models: A Reality Check"
+      ],
+      "cv": []
+    },
+    "small-language-models": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "Sentiment Analysis in the Era of Large Language Models: A Reality Check",
+        "Llama Guard: LLM-based Input-Output Safeguard for Human-AI Conversations",
+        "TinyStories: How Small Can Language Models Be and Still Speak Coherent English?"
+      ],
+      "cv": []
+    },
+    "sign-language-recognition": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "LSA64: An Argentinian Sign Language Dataset"
+      ],
+      "cv": []
+    },
+    "hand-tracking": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "LSA64: An Argentinian Sign Language Dataset"
+      ],
+      "cv": []
+    },
+    "hand-segmentation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "LSA64: An Argentinian Sign Language Dataset"
+      ],
+      "cv": []
+    },
+    "video-action-recognition": {
+      "nlpN": 1,
+      "cvN": 2,
+      "nlp": [
+        "LSA64: An Argentinian Sign Language Dataset"
+      ],
+      "cv": [
+        "AIM: Adapting Image Models for Efficient Video Action Recognition",
+        "Hiera: A Hierarchical Vision Transformer without the Bells-and-Whistles"
+      ]
+    },
+    "sign-language-translation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "LSA64: An Argentinian Sign Language Dataset"
+      ],
+      "cv": []
+    },
+    "prompt-learning": {
+      "nlpN": 4,
+      "cvN": 1,
+      "nlp": [
+        "Multilingual Machine Translation with Large Language Models: Empirical Results and Analysis",
+        "Llama Guard: LLM-based Input-Output Safeguard for Human-AI Conversations",
+        "Benchmarking large language models for biomedical natural language processing applications and recommendations",
+        "An Iterative Optimizing Framework for Radiology Report Summarization with ChatGPT"
+      ],
+      "cv": [
+        "AnomalyCLIP: Object-agnostic Prompt Learning for Zero-shot Anomaly Detection"
+      ]
+    },
+    "low-resource-translation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Multilingual Machine Translation with Large Language Models: Empirical Results and Analysis"
+      ],
+      "cv": []
+    },
+    "cross-lingual-transfer": {
+      "nlpN": 4,
+      "cvN": 0,
+      "nlp": [
+        "Multilingual Machine Translation with Large Language Models: Empirical Results and Analysis",
+        "CodeGeeX: A Pre-Trained Model for Code Generation with Multilingual Benchmarking on HumanEval-X",
+        "Voicebox: Text-Guided Multilingual Universal Speech Generation at Scale",
+        "AudioPaLM: A Large Language Model That Can Speak and Listen"
+      ],
+      "cv": []
+    },
+    "information-theory": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "On the Possibilities of AI-Generated Text Detection"
+      ],
+      "cv": []
+    },
+    "sample-complexity-bounds": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "On the Possibilities of AI-Generated Text Detection"
+      ],
+      "cv": []
+    },
+    "retrieval-augmented-generation": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Benchmarking Large Language Models in Retrieval-Augmented Generation",
+        "Lawyer LLaMA Technical Report"
+      ],
+      "cv": []
+    },
+    "hallucination-mitigation": {
+      "nlpN": 5,
+      "cvN": 1,
+      "nlp": [
+        "Benchmarking Large Language Models in Retrieval-Augmented Generation",
+        "Self-contradictory Hallucinations of Large Language Models: Evaluation, Detection and Mitigation",
+        "Benchmarking large language models for biomedical natural language processing applications and recommendations",
+        "Lawyer LLaMA Technical Report",
+        "Chain-of-Verification Reduces Hallucination in Large Language Models"
+      ],
+      "cv": [
+        "Analyzing and Mitigating Object Hallucination in Large Vision-Language Models"
+      ]
+    },
+    "noise-robustness": {
+      "nlpN": 1,
+      "cvN": 2,
+      "nlp": [
+        "Benchmarking Large Language Models in Retrieval-Augmented Generation"
+      ],
+      "cv": [
+        "CRoSS: Diffusion Model Makes Controllable, Robust and Secure Image Steganography",
+        "Free Lunch for Domain Adversarial Training: Environment Label Smoothing"
+      ]
+    },
+    "negative-rejection": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Benchmarking Large Language Models in Retrieval-Augmented Generation"
+      ],
+      "cv": []
+    },
+    "information-integration": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Benchmarking Large Language Models in Retrieval-Augmented Generation"
+      ],
+      "cv": []
+    },
+    "counterfactual-robustness": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Benchmarking Large Language Models in Retrieval-Augmented Generation"
+      ],
+      "cv": []
+    },
+    "semantic-consistency": {
+      "nlpN": 3,
+      "cvN": 2,
+      "nlp": [
+        "ChatGPT as a Factual Inconsistency Evaluator for Text Summarization",
+        "ChatGPT or Grammarly? Evaluating ChatGPT on Grammatical Error Correction Benchmark",
+        "Self-contradictory Hallucinations of Large Language Models: Evaluation, Detection and Mitigation"
+      ],
+      "cv": [
+        "Let 2D Diffusion Model Know 3D-Consistency for Robust Text-to-3D Generation",
+        "DreamSim: Learning New Dimensions of Human Visual Similarity using Synthetic Data"
+      ]
+    },
+    "safety-taxonomy": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Llama Guard: LLM-based Input-Output Safeguard for Human-AI Conversations",
+        "SemEval-2023 Task 10: Explainable Detection of Online Sexism"
+      ],
+      "cv": []
+    },
+    "video-text-understanding": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "mPLUG-2: A Modularized Multi-modal Foundation Model Across Text, Image and Video",
+        "PandaGPT: One Model To Instruction-Follow Them All"
+      ],
+      "cv": []
+    },
+    "refinement-models": {
+      "nlpN": 1,
+      "cvN": 2,
+      "nlp": [
+        "Noise2Music: Text-conditioned Music Generation with Diffusion Models"
+      ],
+      "cv": [
+        "SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis",
+        "U-Net v2: Rethinking the Skip Connections of U-Net for Medical Image Segmentation"
+      ]
+    },
+    "clinical-pretraining": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Do We Still Need Clinical Language Models?",
+        "ClinicalGPT: Large Language Models Finetuned with Diverse Medical Data and Comprehensive Evaluation"
+      ],
+      "cv": []
+    },
+    "natural-language-generation": {
+      "nlpN": 7,
+      "cvN": 0,
+      "nlp": [
+        "Semantic Uncertainty: Linguistic Invariances for Uncertainty Estimation in Natural Language Generation",
+        "ChatGPT or Grammarly? Evaluating ChatGPT on Grammatical Error Correction Benchmark",
+        "TinyStories: How Small Can Language Models Be and Still Speak Coherent English?",
+        "Self-contradictory Hallucinations of Large Language Models: Evaluation, Detection and Mitigation",
+        "LISA: Reasoning Segmentation via Large Language Model",
+        "An Iterative Optimizing Framework for Radiology Report Summarization with ChatGPT",
+        "Chain-of-Verification Reduces Hallucination in Large Language Models"
+      ],
+      "cv": []
+    },
+    "semantic-entropy": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Semantic Uncertainty: Linguistic Invariances for Uncertainty Estimation in Natural Language Generation"
+      ],
+      "cv": []
+    },
+    "uncertainty-estimation": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "Semantic Uncertainty: Linguistic Invariances for Uncertainty Estimation in Natural Language Generation",
+        "Active Prompting with Chain-of-Thought for Large Language Models",
+        "Accuracy and Political Bias of News Source Credibility Ratings by Large Language Models"
+      ],
+      "cv": []
+    },
+    "linguistic-invariances": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Semantic Uncertainty: Linguistic Invariances for Uncertainty Estimation in Natural Language Generation"
+      ],
+      "cv": []
+    },
+    "semantic-equivalence": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Semantic Uncertainty: Linguistic Invariances for Uncertainty Estimation in Natural Language Generation",
+        "PromptRobust: Towards Evaluating the Robustness of Large Language Models on Adversarial Prompts"
+      ],
+      "cv": []
+    },
+    "code-translation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "CodeGeeX: A Pre-Trained Model for Code Generation with Multilingual Benchmarking on HumanEval-X"
+      ],
+      "cv": []
+    },
+    "prompt-robustness": {
+      "nlpN": 4,
+      "cvN": 0,
+      "nlp": [
+        "PromptRobust: Towards Evaluating the Robustness of Large Language Models on Adversarial Prompts",
+        "Principled Instructions Are All You Need for Questioning LLaMA-1/2, GPT-3.5/4",
+        "Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design or: How I learned to start worrying about prompt formatting",
+        "GPT detectors are biased against non-native English writers"
+      ],
+      "cv": []
+    },
+    "reading-comprehension": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "PromptRobust: Towards Evaluating the Robustness of Large Language Models on Adversarial Prompts"
+      ],
+      "cv": []
+    },
+    "transferability": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "PromptRobust: Towards Evaluating the Robustness of Large Language Models on Adversarial Prompts"
+      ],
+      "cv": []
+    },
+    "math-problem-solving": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "PromptRobust: Towards Evaluating the Robustness of Large Language Models on Adversarial Prompts"
+      ],
+      "cv": []
+    },
+    "prompting-principles": {
+      "nlpN": 3,
+      "cvN": 0,
+      "nlp": [
+        "Principled Instructions Are All You Need for Questioning LLaMA-1/2, GPT-3.5/4",
+        "Self-contradictory Hallucinations of Large Language Models: Evaluation, Detection and Mitigation",
+        "Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design or: How I learned to start worrying about prompt formatting"
+      ],
+      "cv": []
+    },
+    "sparse-autoencoders": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Sparse Autoencoders Find Highly Interpretable Features in Language Models"
+      ],
+      "cv": []
+    },
+    "polysemanticity": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Sparse Autoencoders Find Highly Interpretable Features in Language Models"
+      ],
+      "cv": []
+    },
+    "superposition": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Sparse Autoencoders Find Highly Interpretable Features in Language Models"
+      ],
+      "cv": []
+    },
+    "monosemanticity": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Sparse Autoencoders Find Highly Interpretable Features in Language Models"
+      ],
+      "cv": []
+    },
+    "interpretability": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "Sparse Autoencoders Find Highly Interpretable Features in Language Models",
+        "A Closer Look at the Explainability of Contrastive Language-Image Pre-training"
+      ],
+      "cv": []
+    },
+    "mechanistic-interpretability": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Sparse Autoencoders Find Highly Interpretable Features in Language Models"
+      ],
+      "cv": []
+    },
+    "inter-task-dependency": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "InstructUIE: Multi-task Instruction Tuning for Unified Information Extraction"
+      ],
+      "cv": []
+    },
+    "model-compression": {
+      "nlpN": 1,
+      "cvN": 3,
+      "nlp": [
+        "TinyStories: How Small Can Language Models Be and Still Speak Coherent English?"
+      ],
+      "cv": [
+        "Faster Segment Anything: Towards Lightweight SAM for Mobile Applications",
+        "SeaFormer++: Squeeze-enhanced Axial Transformer for Mobile Visual Recognition",
+        "LightGaussian: Unbounded 3D Gaussian Compression with 15x Reduction and 200+ FPS"
+      ]
+    },
+    "self-contradiction": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Self-contradictory Hallucinations of Large Language Models: Evaluation, Detection and Mitigation"
+      ],
+      "cv": []
+    },
+    "recommender-systems": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Is ChatGPT a Good Recommender? A Preliminary Study"
+      ],
+      "cv": []
+    },
+    "flow-matching-models": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Voicebox: Text-Guided Multilingual Universal Speech Generation at Scale"
+      ],
+      "cv": []
+    },
+    "speech-style-conversion": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Voicebox: Text-Guided Multilingual Universal Speech Generation at Scale"
+      ],
+      "cv": []
+    },
+    "speech-denoising": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Voicebox: Text-Guided Multilingual Universal Speech Generation at Scale"
+      ],
+      "cv": []
+    },
+    "active-prompting": {
+      "nlpN": 1,
+      "cvN": 2,
+      "nlp": [
+        "Active Prompting with Chain-of-Thought for Large Language Models"
+      ],
+      "cv": [
+        "SAMAug: Point Prompt Augmentation for Segment Anything Model",
+        "Set-of-Mark Prompting Unleashes Extraordinary Visual Grounding in GPT-4V"
+      ]
+    },
+    "reasoning-segmentation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "LISA: Reasoning Segmentation via Large Language Model"
+      ],
+      "cv": []
+    },
+    "text-guided-segmentation": {
+      "nlpN": 1,
+      "cvN": 2,
+      "nlp": [
+        "LISA: Reasoning Segmentation via Large Language Model"
+      ],
+      "cv": [
+        "Segment and Track Anything",
+        "OpenMask3D: Open-Vocabulary 3D Instance Segmentation"
+      ]
+    },
+    "zero-shot-segmentation": {
+      "nlpN": 1,
+      "cvN": 4,
+      "nlp": [
+        "LISA: Reasoning Segmentation via Large Language Model"
+      ],
+      "cv": [
+        "Convolutions Die Hard: Open-Vocabulary Segmentation with Single Frozen Convolutional CLIP",
+        "OpenMask3D: Open-Vocabulary 3D Instance Segmentation",
+        "How to Efficiently Adapt Large Segmentation Model(SAM) to Medical Images",
+        "Set-of-Mark Prompting Unleashes Extraordinary Visual Grounding in GPT-4V"
+      ]
+    },
+    "embedding-as-mask": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "LISA: Reasoning Segmentation via Large Language Model"
+      ],
+      "cv": []
+    },
+    "mask-generation": {
+      "nlpN": 1,
+      "cvN": 4,
+      "nlp": [
+        "LISA: Reasoning Segmentation via Large Language Model"
+      ],
+      "cv": [
+        "Convolutions Die Hard: Open-Vocabulary Segmentation with Single Frozen Convolutional CLIP",
+        "How to Efficiently Adapt Large Segmentation Model(SAM) to Medical Images",
+        "SAMAug: Point Prompt Augmentation for Segment Anything Model",
+        "SAMM (Segment Any Medical Model): A 3D Slicer Integration to SAM"
+      ]
+    },
+    "few-shot-prompting": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design or: How I learned to start worrying about prompt formatting"
+      ],
+      "cv": []
+    },
+    "encoder-decoder-networks": {
+      "nlpN": 1,
+      "cvN": 4,
+      "nlp": [
+        "Adaptive Machine Translation with Large Language Models"
+      ],
+      "cv": [
+        "U-Net v2: Rethinking the Skip Connections of U-Net for Medical Image Segmentation",
+        "CodeGen2: Lessons for Training LLMs on Programming and Natural Languages",
+        "Multi-scale Hierarchical Vision Transformer with Cascaded Attention Decoding for Medical Image Segmentation",
+        "Latent-Shift: Latent Diffusion with Temporal Shift for Efficient Text-to-Video Generation"
+      ]
+    },
+    "real-time-adaptation": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "Adaptive Machine Translation with Large Language Models"
+      ],
+      "cv": [
+        "SceneScape: Text-Driven Consistent Scene Generation"
+      ]
+    },
+    "fuzzy-matching": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Adaptive Machine Translation with Large Language Models"
+      ],
+      "cv": []
+    },
+    "instruction-fine-tuning": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "ClinicalGPT: Large Language Models Finetuned with Diverse Medical Data and Comprehensive Evaluation"
+      ],
+      "cv": []
+    },
+    "decoder-only-models": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "A decoder-only foundation model for time-series forecasting"
+      ],
+      "cv": []
+    },
+    "patch-based-models": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "A decoder-only foundation model for time-series forecasting"
+      ],
+      "cv": []
+    },
+    "pretraining": {
+      "nlpN": 2,
+      "cvN": 1,
+      "nlp": [
+        "A decoder-only foundation model for time-series forecasting",
+        "AudioPaLM: A Large Language Model That Can Speak and Listen"
+      ],
+      "cv": [
+        "MIS-FM: 3D Medical Image Segmentation using Foundation Models Pretrained on a Large-Scale Unannotated Dataset"
+      ]
+    },
+    "zero-shot-forecasting": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "A decoder-only foundation model for time-series forecasting"
+      ],
+      "cv": []
+    },
+    "class-activation-map": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "A Closer Look at the Explainability of Contrastive Language-Image Pre-training"
+      ],
+      "cv": []
+    },
+    "self-attention": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "A Closer Look at the Explainability of Contrastive Language-Image Pre-training"
+      ],
+      "cv": []
+    },
+    "visualization": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "A Closer Look at the Explainability of Contrastive Language-Image Pre-training"
+      ],
+      "cv": [
+        "SAMM (Segment Any Medical Model): A 3D Slicer Integration to SAM"
+      ]
+    },
+    "open-vocabulary-segmentation": {
+      "nlpN": 1,
+      "cvN": 3,
+      "nlp": [
+        "A Closer Look at the Explainability of Contrastive Language-Image Pre-training"
+      ],
+      "cv": [
+        "Convolutions Die Hard: Open-Vocabulary Segmentation with Single Frozen Convolutional CLIP",
+        "OpenMask3D: Open-Vocabulary 3D Instance Segmentation",
+        "ESC: Exploration with Soft Commonsense Constraints for Zero-shot Object Navigation"
+      ]
+    },
+    "modality-adapters": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "ONE-PEACE: Exploring One General Representation Model Toward Unlimited Modalities"
+      ],
+      "cv": []
+    },
+    "semantic-segmentation": {
+      "nlpN": 2,
+      "cvN": 6,
+      "nlp": [
+        "ONE-PEACE: Exploring One General Representation Model Toward Unlimited Modalities",
+        "A Survey on Semi-Supervised Semantic Segmentation"
+      ],
+      "cv": [
+        "SegGPT: Segmenting Everything In Context",
+        "SpectralGPT: Spectral Remote Sensing Foundation Model",
+        "Occ3D: A Large-Scale 3D Occupancy Prediction Benchmark for Autonomous Driving",
+        "Rethinking Local Perception in Lightweight Vision Transformer",
+        "3DSAM-adapter: Holistic adaptation of SAM from 2D to 3D for promptable tumor segmentation",
+        "Multi-scale Hierarchical Vision Transformer with Cascaded Attention Decoding for Medical Image Segmentation"
+      ]
+    },
+    "credibility-ratings": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Accuracy and Political Bias of News Source Credibility Ratings by Large Language Models"
+      ],
+      "cv": []
+    },
+    "political-bias": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Accuracy and Political Bias of News Source Credibility Ratings by Large Language Models"
+      ],
+      "cv": []
+    },
+    "biomedical-nlp": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Benchmarking large language models for biomedical natural language processing applications and recommendations"
+      ],
+      "cv": []
+    },
+    "speech-to-speech-translation": {
+      "nlpN": 2,
+      "cvN": 0,
+      "nlp": [
+        "AudioPaLM: A Large Language Model That Can Speak and Listen",
+        "Seamless: Multilingual Expressive and Streaming Speech Translation"
+      ],
+      "cv": []
+    },
+    "expressive-speech-translation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Seamless: Multilingual Expressive and Streaming Speech Translation"
+      ],
+      "cv": []
+    },
+    "streaming-speech-translation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Seamless: Multilingual Expressive and Streaming Speech Translation"
+      ],
+      "cv": []
+    },
+    "prosody-preservation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Seamless: Multilingual Expressive and Streaming Speech Translation"
+      ],
+      "cv": []
+    },
+    "speech-watermarking": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Seamless: Multilingual Expressive and Streaming Speech Translation"
+      ],
+      "cv": []
+    },
+    "question-generation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "ChatGPT Asks, BLIP-2 Answers: Automatic Questioning Towards Enriched Visual Descriptions"
+      ],
+      "cv": []
+    },
+    "automatic-evaluation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "An Iterative Optimizing Framework for Radiology Report Summarization with ChatGPT"
+      ],
+      "cv": []
+    },
+    "training-data-extraction": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "Lawyer LLaMA Technical Report"
+      ],
+      "cv": [
+        "Extracting Training Data from Diffusion Models"
+      ]
+    },
+    "visual-perception": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "LAMM: Language-Assisted Multi-Modal Instruction-Tuning Dataset, Framework, and Benchmark"
+      ],
+      "cv": [
+        "Brain decoding: toward real-time reconstruction of visual perception"
+      ]
+    },
+    "3d-point-clouds": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "3D-LLM: Injecting the 3D World into Large Language Models"
+      ],
+      "cv": []
+    },
+    "spatial-reasoning": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "3D-LLM: Injecting the 3D World into Large Language Models"
+      ],
+      "cv": []
+    },
+    "dense-captioning": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "3D-LLM: Injecting the 3D World into Large Language Models"
+      ],
+      "cv": []
+    },
+    "chain-of-verification": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "Chain-of-Verification Reduces Hallucination in Large Language Models"
+      ],
+      "cv": []
+    },
+    "self-refinement": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "Chain-of-Verification Reduces Hallucination in Large Language Models"
+      ],
+      "cv": [
+        "Self-Chained Image-Language Model for Video Localization and Question Answering"
+      ]
+    },
+    "semi-supervised-learning": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "A Survey on Semi-Supervised Semantic Segmentation"
+      ],
+      "cv": []
+    },
+    "label-efficient-segmentation": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "A Survey on Semi-Supervised Semantic Segmentation"
+      ],
+      "cv": [
+        "How to Efficiently Adapt Large Segmentation Model(SAM) to Medical Images"
+      ]
+    },
+    "video-question-answering": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "PaLI-X: On Scaling up a Multilingual Vision and Language Model"
+      ],
+      "cv": [
+        "Self-Chained Image-Language Model for Video Localization and Question Answering"
+      ]
+    },
+    "video-to-text-generation": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "PaLI-X: On Scaling up a Multilingual Vision and Language Model"
+      ],
+      "cv": []
+    },
+    "document-understanding": {
+      "nlpN": 1,
+      "cvN": 0,
+      "nlp": [
+        "PaLI-X: On Scaling up a Multilingual Vision and Language Model"
+      ],
+      "cv": []
+    },
+    "visual-summarization": {
+      "nlpN": 1,
+      "cvN": 1,
+      "nlp": [
+        "XrayGPT: Chest Radiographs Summarization using Medical Vision-Language Models"
+      ],
+      "cv": [
+        "Analyzing and Mitigating Object Hallucination in Large Vision-Language Models"
+      ]
+    },
+    "rgb-d": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "RGB-D And Thermal Sensor Fusion: A Systematic Literature Review"
+      ]
+    },
+    "thermal-imaging": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "RGB-D And Thermal Sensor Fusion: A Systematic Literature Review"
+      ]
+    },
+    "3d-reconstruction": {
+      "nlpN": 0,
+      "cvN": 14,
+      "nlp": [],
+      "cv": [
+        "RGB-D And Thermal Sensor Fusion: A Systematic Literature Review",
+        "Argoverse 2: Next Generation Datasets for Self-Driving Perception and\\n Forecasting",
+        "One-2-3-45: Any Single Image to 3D Mesh in 45 Seconds without Per-Shape Optimization",
+        "Objaverse-XL: A Universe of 10M+ 3D Objects",
+        "Anything-3D: Towards Single-view Anything Reconstruction in the Wild",
+        "GeneFace: Generalized and High-Fidelity Audio-Driven 3D Talking Face Synthesis",
+        "SAM3D: Segment Anything in 3D Scenes",
+        "Real-time Photorealistic Dynamic Scene Representation and Rendering with 4D Gaussian Splatting"
+      ]
+    },
+    "segmentation": {
+      "nlpN": 0,
+      "cvN": 20,
+      "nlp": [],
+      "cv": [
+        "RGB-D And Thermal Sensor Fusion: A Systematic Literature Review",
+        "Medical SAM Adapter: Adapting Segment Anything Model for Medical Image Segmentation",
+        "Faster Segment Anything: Towards Lightweight SAM for Mobile Applications",
+        "Customized Segment Anything Model for Medical Image Segmentation",
+        "Segment Anything in High Quality",
+        "Segment Anything Model (SAM) for Digital Pathology: Assess Zero-shot Segmentation on Whole Slide Imaging",
+        "Track Anything: Segment Anything Meets Videos",
+        "Segment Anything in Medical Images"
+      ]
+    },
+    "image-registration": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "RGB-D And Thermal Sensor Fusion: A Systematic Literature Review"
+      ]
+    },
+    "feature-based-methods": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "RGB-D And Thermal Sensor Fusion: A Systematic Literature Review",
+        "Anomaly Detection with Conditioned Denoising Diffusion Models"
+      ]
+    },
+    "single-shot-detector": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Real-Time Flying Object Detection with YOLOv8"
+      ]
+    },
+    "yolo-v8": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Real-Time Flying Object Detection with YOLOv8"
+      ]
+    },
+    "real-time-inference": {
+      "nlpN": 0,
+      "cvN": 7,
+      "nlp": [],
+      "cv": [
+        "Real-Time Flying Object Detection with YOLOv8",
+        "Faster Segment Anything: Towards Lightweight SAM for Mobile Applications",
+        "SeaFormer++: Squeeze-enhanced Axial Transformer for Mobile Visual Recognition",
+        "Hiera: A Hierarchical Vision Transformer without the Bells-and-Whistles",
+        "MiDaS v3.1 -- A Model Zoo for Robust Monocular Relative Depth Estimation",
+        "Fast Segment Anything",
+        "Brain decoding: toward real-time reconstruction of visual perception"
+      ]
+    },
+    "occlusion": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Real-Time Flying Object Detection with YOLOv8",
+        "Occ3D: A Large-Scale 3D Occupancy Prediction Benchmark for Autonomous Driving"
+      ]
+    },
+    "mean-average-precision": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Real-Time Flying Object Detection with YOLOv8"
+      ]
+    },
+    "latent-diffusion-models": {
+      "nlpN": 0,
+      "cvN": 17,
+      "nlp": [],
+      "cv": [
+        "SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis",
+        "ProlificDreamer: High-Fidelity and Diverse Text-to-3D Generation with Variational Score Distillation",
+        "One-2-3-45: Any Single Image to 3D Mesh in 45 Seconds without Per-Shape Optimization",
+        "Extracting Training Data from Diffusion Models",
+        "AnimateDiff: Animate Your Personalized Text-to-Image Diffusion Models without Specific Tuning",
+        "Magic123: One Image to High-Quality 3D Object Generation Using Both 2D and 3D Diffusion Priors",
+        "Stable Video Diffusion: Scaling Latent Video Diffusion Models to Large Datasets",
+        "MultiDiffusion: Fusing Diffusion Paths for Controlled Image Generation"
+      ]
+    },
+    "image-to-image-generation": {
+      "nlpN": 0,
+      "cvN": 5,
+      "nlp": [],
+      "cv": [
+        "SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis",
+        "CRoSS: Diffusion Model Makes Controllable, Robust and Secure Image Steganography",
+        "Brain decoding: toward real-time reconstruction of visual perception",
+        "Monocular Depth Estimation using Diffusion Models",
+        "Denoising Diffusion Probabilistic Models for Robust Image Super-Resolution in the Wild"
+      ]
+    },
+    "adapter-modules": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "Medical SAM Adapter: Adapting Segment Anything Model for Medical Image Segmentation",
+        "Segment Anything in High Quality",
+        "3DSAM-adapter: Holistic adaptation of SAM from 2D to 3D for promptable tumor segmentation"
+      ]
+    },
+    "3d-adaptation": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Medical SAM Adapter: Adapting Segment Anything Model for Medical Image Segmentation",
+        "3DSAM-adapter: Holistic adaptation of SAM from 2D to 3D for promptable tumor segmentation"
+      ]
+    },
+    "score-distillation-sampling": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "ProlificDreamer: High-Fidelity and Diverse Text-to-3D Generation with Variational Score Distillation",
+        "MVDream: Multi-view Diffusion for 3D Generation",
+        "Let 2D Diffusion Model Know 3D-Consistency for Robust Text-to-3D Generation",
+        "DreamCraft3D: Hierarchical 3D Generation with Bootstrapped Diffusion Prior"
+      ]
+    },
+    "variational-score-distillation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "ProlificDreamer: High-Fidelity and Diverse Text-to-3D Generation with Variational Score Distillation"
+      ]
+    },
+    "neural-radiance-fields": {
+      "nlpN": 0,
+      "cvN": 10,
+      "nlp": [],
+      "cv": [
+        "ProlificDreamer: High-Fidelity and Diverse Text-to-3D Generation with Variational Score Distillation",
+        "One-2-3-45: Any Single Image to 3D Mesh in 45 Seconds without Per-Shape Optimization",
+        "Magic123: One Image to High-Quality 3D Object Generation Using Both 2D and 3D Diffusion Priors",
+        "Let 2D Diffusion Model Know 3D-Consistency for Robust Text-to-3D Generation",
+        "Anything-3D: Towards Single-view Anything Reconstruction in the Wild",
+        "GeneFace: Generalized and High-Fidelity Audio-Driven 3D Talking Face Synthesis",
+        "3D Gaussian Splatting for Real-Time Radiance Field Rendering",
+        "Real-time Photorealistic Dynamic Scene Representation and Rendering with 4D Gaussian Splatting"
+      ]
+    },
+    "mesh-refinement": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "ProlificDreamer: High-Fidelity and Diverse Text-to-3D Generation with Variational Score Distillation",
+        "Magic123: One Image to High-Quality 3D Object Generation Using Both 2D and 3D Diffusion Priors",
+        "MVDiffusion: Enabling Holistic Multi-view Image Generation with Correspondence-Aware Diffusion",
+        "SceneScape: Text-Driven Consistent Scene Generation"
+      ]
+    },
+    "classifier-free-guidance": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "ProlificDreamer: High-Fidelity and Diverse Text-to-3D Generation with Variational Score Distillation",
+        "DiffBIR: Towards Blind Image Restoration with Generative Diffusion Prior"
+      ]
+    },
+    "knowledge-distillation": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "Faster Segment Anything: Towards Lightweight SAM for Mobile Applications",
+        "SeaFormer++: Squeeze-enhanced Axial Transformer for Mobile Visual Recognition",
+        "Segment Any Point Cloud Sequences by Distilling Vision Foundation Models",
+        "LightGaussian: Unbounded 3D Gaussian Compression with 15x Reduction and 200+ FPS"
+      ]
+    },
+    "mobile-deployment": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Faster Segment Anything: Towards Lightweight SAM for Mobile Applications",
+        "SeaFormer++: Squeeze-enhanced Axial Transformer for Mobile Visual Recognition"
+      ]
+    },
+    "masked-generative-transformers": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Muse: Text-To-Image Generation via Masked Generative Transformers",
+        "Emu: Enhancing Image Generation Models Using Photogenic Needles in a Haystack"
+      ]
+    },
+    "parallel-decoding": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Muse: Text-To-Image Generation via Masked Generative Transformers"
+      ]
+    },
+    "vision-transformer-scaling": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Scaling Vision Transformers to 22 Billion Parameters"
+      ]
+    },
+    "fairness-performance-tradeoff": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Scaling Vision Transformers to 22 Billion Parameters"
+      ]
+    },
+    "shape-texture-bias": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Scaling Vision Transformers to 22 Billion Parameters"
+      ]
+    },
+    "point-cloud-forecasting": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Argoverse 2: Next Generation Datasets for Self-Driving Perception and\\n Forecasting"
+      ]
+    },
+    "motion-forecasting": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Argoverse 2: Next Generation Datasets for Self-Driving Perception and\\n Forecasting"
+      ]
+    },
+    "pose-estimation": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "Argoverse 2: Next Generation Datasets for Self-Driving Perception and\\n Forecasting",
+        "DreamSim: Learning New Dimensions of Human Visual Similarity using Synthetic Data",
+        "OnePose++: Keypoint-Free One-Shot Object Pose Estimation without CAD Models",
+        "Deep Learning for Camera Calibration and Beyond: A Survey"
+      ]
+    },
+    "mask-refinement": {
+      "nlpN": 0,
+      "cvN": 5,
+      "nlp": [],
+      "cv": [
+        "Segment Anything in High Quality",
+        "Personalize Segment Anything Model with One Shot",
+        "Weakly-Supervised Concealed Object Segmentation with SAM-based Pseudo Labeling and Multi-scale Feature Grouping",
+        "Strategic Preys Make Acute Predators: Enhancing Camouflaged Object Detectors by Generating Camouflaged Objects",
+        "SAMAug: Point Prompt Augmentation for Segment Anything Model"
+      ]
+    },
+    "view-conditioned-diffusion": {
+      "nlpN": 0,
+      "cvN": 5,
+      "nlp": [],
+      "cv": [
+        "One-2-3-45: Any Single Image to 3D Mesh in 45 Seconds without Per-Shape Optimization",
+        "Magic123: One Image to High-Quality 3D Object Generation Using Both 2D and 3D Diffusion Priors",
+        "SyncDreamer: Generating Multiview-consistent Images from a Single-view Image",
+        "Zero123++: a Single Image to Consistent Multi-view Diffusion Base Model",
+        "DreamCraft3D: Hierarchical 3D Generation with Bootstrapped Diffusion Prior"
+      ]
+    },
+    "sdf-based-reconstruction": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "One-2-3-45: Any Single Image to 3D Mesh in 45 Seconds without Per-Shape Optimization",
+        "SuGaR: Surface-Aligned Gaussian Splatting for Efficient 3D Mesh Reconstruction and High-Quality Mesh Rendering"
+      ]
+    },
+    "multi-view-generation": {
+      "nlpN": 0,
+      "cvN": 9,
+      "nlp": [],
+      "cv": [
+        "One-2-3-45: Any Single Image to 3D Mesh in 45 Seconds without Per-Shape Optimization",
+        "MVDream: Multi-view Diffusion for 3D Generation",
+        "Stable Video Diffusion: Scaling Latent Video Diffusion Models to Large Datasets",
+        "SyncDreamer: Generating Multiview-consistent Images from a Single-view Image",
+        "Objaverse-XL: A Universe of 10M+ 3D Objects",
+        "Let 2D Diffusion Model Know 3D-Consistency for Robust Text-to-3D Generation",
+        "Zero123++: a Single Image to Consistent Multi-view Diffusion Base Model",
+        "MVDiffusion: Enabling Holistic Multi-view Image Generation with Correspondence-Aware Diffusion"
+      ]
+    },
+    "memorization": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Extracting Training Data from Diffusion Models"
+      ]
+    },
+    "privacy-vulnerabilities": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Extracting Training Data from Diffusion Models"
+      ]
+    },
+    "generative-adversarial-networks": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "Extracting Training Data from Diffusion Models",
+        "GenImage: A Million-Scale Benchmark for Detecting AI-Generated Image",
+        "Strategic Preys Make Acute Predators: Enhancing Camouflaged Object Detectors by Generating Camouflaged Objects"
+      ]
+    },
+    "privacy-preserving-training": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Extracting Training Data from Diffusion Models"
+      ]
+    },
+    "whole-slide-imaging": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Segment Anything Model (SAM) for Digital Pathology: Assess Zero-shot Segmentation on Whole Slide Imaging"
+      ]
+    },
+    "instance-segmentation": {
+      "nlpN": 0,
+      "cvN": 6,
+      "nlp": [],
+      "cv": [
+        "Segment Anything Model (SAM) for Digital Pathology: Assess Zero-shot Segmentation on Whole Slide Imaging",
+        "Segment and Track Anything",
+        "SegGPT: Segmenting Everything In Context",
+        "Anything-3D: Towards Single-view Anything Reconstruction in the Wild",
+        "Fast Segment Anything",
+        "OpenMask3D: Open-Vocabulary 3D Instance Segmentation"
+      ]
+    },
+    "digital-pathology": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Segment Anything Model (SAM) for Digital Pathology: Assess Zero-shot Segmentation on Whole Slide Imaging"
+      ]
+    },
+    "video-object-tracking": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Track Anything: Segment Anything Meets Videos",
+        "Segment and Track Anything"
+      ]
+    },
+    "temporal-consistency": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "Track Anything: Segment Anything Meets Videos",
+        "AnimateDiff: Animate Your Personalized Text-to-Image Diffusion Models without Specific Tuning",
+        "Segment Any Point Cloud Sequences by Distilling Vision Foundation Models"
+      ]
+    },
+    "multi-layer-perceptrons": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Frequency-domain MLPs are More Effective Learners in Time Series Forecasting",
+        "4D Gaussian Splatting for Real-Time Dynamic Scene Rendering"
+      ]
+    },
+    "frequency-domain": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Frequency-domain MLPs are More Effective Learners in Time Series Forecasting"
+      ]
+    },
+    "fourier-transform": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Frequency-domain MLPs are More Effective Learners in Time Series Forecasting"
+      ]
+    },
+    "signal-processing": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Frequency-domain MLPs are More Effective Learners in Time Series Forecasting"
+      ]
+    },
+    "energy-compaction": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Frequency-domain MLPs are More Effective Learners in Time Series Forecasting"
+      ]
+    },
+    "motion-module": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "AnimateDiff: Animate Your Personalized Text-to-Image Diffusion Models without Specific Tuning",
+        "Stable Video Diffusion: Scaling Latent Video Diffusion Models to Large Datasets",
+        "Latent-Shift: Latent Diffusion with Temporal Shift for Efficient Text-to-Video Generation"
+      ]
+    },
+    "vision-transformers": {
+      "nlpN": 0,
+      "cvN": 9,
+      "nlp": [],
+      "cv": [
+        "SeaFormer++: Squeeze-enhanced Axial Transformer for Mobile Visual Recognition",
+        "AIM: Adapting Image Models for Efficient Video Action Recognition",
+        "Hiera: A Hierarchical Vision Transformer without the Bells-and-Whistles",
+        "MiDaS v3.1 -- A Model Zoo for Robust Monocular Relative Depth Estimation",
+        "Rethinking Local Perception in Lightweight Vision Transformer",
+        "LRM: Large Reconstruction Model for Single Image to 3D",
+        "Transformers in Small Object Detection: A Benchmark and Survey of State-of-the-Art",
+        "Multi-scale Hierarchical Vision Transformer with Cascaded Attention Decoding for Medical Image Segmentation"
+      ]
+    },
+    "axial-transformer": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SeaFormer++: Squeeze-enhanced Axial Transformer for Mobile Visual Recognition"
+      ]
+    },
+    "graph-neural-networks": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "A Survey on Oversmoothing in Graph Neural Networks",
+        "Towards Predicting Equilibrium Distributions for Molecular Systems with Deep Learning"
+      ]
+    },
+    "over-smoothing": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "A Survey on Oversmoothing in Graph Neural Networks"
+      ]
+    },
+    "node-features": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "A Survey on Oversmoothing in Graph Neural Networks"
+      ]
+    },
+    "network-depth": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "A Survey on Oversmoothing in Graph Neural Networks"
+      ]
+    },
+    "continuous-time-gnns": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "A Survey on Oversmoothing in Graph Neural Networks"
+      ]
+    },
+    "graph-learning-tasks": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "A Survey on Oversmoothing in Graph Neural Networks"
+      ]
+    },
+    "image-to-3d-generation": {
+      "nlpN": 0,
+      "cvN": 8,
+      "nlp": [],
+      "cv": [
+        "Magic123: One Image to High-Quality 3D Object Generation Using Both 2D and 3D Diffusion Priors",
+        "MVDream: Multi-view Diffusion for 3D Generation",
+        "SyncDreamer: Generating Multiview-consistent Images from a Single-view Image",
+        "Objaverse-XL: A Universe of 10M+ 3D Objects",
+        "Zero123++: a Single Image to Consistent Multi-view Diffusion Base Model",
+        "LRM: Large Reconstruction Model for Single Image to 3D",
+        "Wonder3D: Single Image to 3D using Cross-Domain Diffusion",
+        "DreamCraft3D: Hierarchical 3D Generation with Bootstrapped Diffusion Prior"
+      ]
+    },
+    "textual-inversion": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Magic123: One Image to High-Quality 3D Object Generation Using Both 2D and 3D Diffusion Priors",
+        "P+: Extended Textual Conditioning in Text-to-Image Generation"
+      ]
+    },
+    "monocular-depth": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "Magic123: One Image to High-Quality 3D Object Generation Using Both 2D and 3D Diffusion Priors",
+        "MiDaS v3.1 -- A Model Zoo for Robust Monocular Relative Depth Estimation",
+        "Monocular Depth Estimation using Diffusion Models",
+        "SceneScape: Text-Driven Consistent Scene Generation"
+      ]
+    },
+    "image-to-video-generation": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Stable Video Diffusion: Scaling Latent Video Diffusion Models to Large Datasets",
+        "VideoCrafter1: Open Diffusion Models for High-Quality Video Generation"
+      ]
+    },
+    "video-pretraining": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Stable Video Diffusion: Scaling Latent Video Diffusion Models to Large Datasets",
+        "GeneFace: Generalized and High-Fidelity Audio-Driven 3D Talking Face Synthesis"
+      ]
+    },
+    "diffusion-path-fusion": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "MultiDiffusion: Fusing Diffusion Paths for Controlled Image Generation"
+      ]
+    },
+    "layout-control": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "MultiDiffusion: Fusing Diffusion Paths for Controlled Image Generation"
+      ]
+    },
+    "medical-image-segmentation": {
+      "nlpN": 0,
+      "cvN": 8,
+      "nlp": [],
+      "cv": [
+        "Computer-Vision Benchmark Segment-Anything Model (SAM) in Medical Images: Accuracy in 12 Datasets",
+        "U-Net v2: Rethinking the Skip Connections of U-Net for Medical Image Segmentation",
+        "3DSAM-adapter: Holistic adaptation of SAM from 2D to 3D for promptable tumor segmentation",
+        "How to Efficiently Adapt Large Segmentation Model(SAM) to Medical Images",
+        "Beyond Adapting SAM: Towards End-to-End Ultrasound Image Segmentation via Auto Prompting",
+        "Multi-scale Hierarchical Vision Transformer with Cascaded Attention Decoding for Medical Image Segmentation",
+        "SAMM (Segment Any Medical Model): A 3D Slicer Integration to SAM",
+        "MIS-FM: 3D Medical Image Segmentation using Foundation Models Pretrained on a Large-Scale Unannotated Dataset"
+      ]
+    },
+    "target-guided-attention": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Personalize Segment Anything Model with One Shot"
+      ]
+    },
+    "video-object-segmentation": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Personalize Segment Anything Model with One Shot",
+        "SegGPT: Segmenting Everything In Context"
+      ]
+    },
+    "multi-scale-feature-grouping": {
+      "nlpN": 0,
+      "cvN": 6,
+      "nlp": [],
+      "cv": [
+        "Weakly-Supervised Concealed Object Segmentation with SAM-based Pseudo Labeling and Multi-scale Feature Grouping",
+        "SpectralGPT: Spectral Remote Sensing Foundation Model",
+        "U-Net v2: Rethinking the Skip Connections of U-Net for Medical Image Segmentation",
+        "Task-Specific Context Decoupling for Object Detection",
+        "Hierarchical Integration Diffusion Model for Realistic Image Deblurring",
+        "Multi-scale Hierarchical Vision Transformer with Cascaded Attention Decoding for Medical Image Segmentation"
+      ]
+    },
+    "spatial-adaptation": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "AIM: Adapting Image Models for Efficient Video Action Recognition",
+        "KBNet: Kernel Basis Network for Image Restoration",
+        "Task-Specific Context Decoupling for Object Detection"
+      ]
+    },
+    "temporal-adaptation": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "AIM: Adapting Image Models for Efficient Video Action Recognition",
+        "4D Gaussian Splatting for Real-Time Dynamic Scene Rendering"
+      ]
+    },
+    "panoptic-segmentation": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "SegGPT: Segmenting Everything In Context",
+        "Convolutions Die Hard: Open-Vocabulary Segmentation with Single Frozen Convolutional CLIP"
+      ]
+    },
+    "part-segmentation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SegGPT: Segmenting Everything In Context"
+      ]
+    },
+    "contour-segmentation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SegGPT: Segmenting Everything In Context"
+      ]
+    },
+    "text-segmentation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SegGPT: Segmenting Everything In Context"
+      ]
+    },
+    "hierarchical-vision-transformers": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Hiera: A Hierarchical Vision Transformer without the Bells-and-Whistles",
+        "Multi-scale Hierarchical Vision Transformer with Cascaded Attention Decoding for Medical Image Segmentation"
+      ]
+    },
+    "masked-autoencoders": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Hiera: A Hierarchical Vision Transformer without the Bells-and-Whistles"
+      ]
+    },
+    "spectral-remote-sensing": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "SpectralGPT: Spectral Remote Sensing Foundation Model",
+        "Large Selective Kernel Network for Remote Sensing Object Detection"
+      ]
+    },
+    "3d-generative-transformers": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "SpectralGPT: Spectral Remote Sensing Foundation Model",
+        "LRM: Large Reconstruction Model for Single Image to 3D"
+      ]
+    },
+    "change-detection": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SpectralGPT: Spectral Remote Sensing Foundation Model"
+      ]
+    },
+    "image-inpainting": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Inpaint Anything: Segment Anything Meets Image Inpainting",
+        "DiffBIR: Towards Blind Image Restoration with Generative Diffusion Prior"
+      ]
+    },
+    "image-super-resolution": {
+      "nlpN": 0,
+      "cvN": 5,
+      "nlp": [],
+      "cv": [
+        "ResShift: Efficient Diffusion Model for Image Super-resolution by Residual Shifting",
+        "DiffBIR: Towards Blind Image Restoration with Generative Diffusion Prior",
+        "Simple diffusion: End-to-end diffusion for high resolution images",
+        "Consistency Models",
+        "Denoising Diffusion Probabilistic Models for Robust Image Super-Resolution in the Wild"
+      ]
+    },
+    "accelerated-sampling": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "ResShift: Efficient Diffusion Model for Image Super-resolution by Residual Shifting",
+        "UniPC: A Unified Predictor-Corrector Framework for Fast Sampling of Diffusion Models"
+      ]
+    },
+    "residual-shifting": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "ResShift: Efficient Diffusion Model for Image Super-resolution by Residual Shifting"
+      ]
+    },
+    "noise-schedule": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "ResShift: Efficient Diffusion Model for Image Super-resolution by Residual Shifting",
+        "Simple diffusion: End-to-end diffusion for high resolution images"
+      ]
+    },
+    "3d-occupancy-prediction": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Occ3D: A Large-Scale 3D Occupancy Prediction Benchmark for Autonomous Driving"
+      ]
+    },
+    "autonomous-driving": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Occ3D: A Large-Scale 3D Occupancy Prediction Benchmark for Autonomous Driving"
+      ]
+    },
+    "voxel-refinement": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Occ3D: A Large-Scale 3D Occupancy Prediction Benchmark for Autonomous Driving"
+      ]
+    },
+    "image-guided-refinement": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "Occ3D: A Large-Scale 3D Occupancy Prediction Benchmark for Autonomous Driving",
+        "DiffBIR: Towards Blind Image Restoration with Generative Diffusion Prior",
+        "Zero123++: a Single Image to Consistent Multi-view Diffusion Base Model",
+        "Anomaly Detection with Conditioned Denoising Diffusion Models"
+      ]
+    },
+    "forward-process": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "On the Design Fundamentals of Diffusion Models: A Survey"
+      ]
+    },
+    "reverse-process": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "On the Design Fundamentals of Diffusion Models: A Survey"
+      ]
+    },
+    "blind-image-restoration": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "DiffBIR: Towards Blind Image Restoration with Generative Diffusion Prior",
+        "PromptIR: Prompting for All-in-One Blind Image Restoration",
+        "Denoising Diffusion Probabilistic Models for Robust Image Super-Resolution in the Wild"
+      ]
+    },
+    "image-denoising": {
+      "nlpN": 0,
+      "cvN": 6,
+      "nlp": [],
+      "cv": [
+        "DiffBIR: Towards Blind Image Restoration with Generative Diffusion Prior",
+        "KBNet: Kernel Basis Network for Image Restoration",
+        "PromptIR: Prompting for All-in-One Blind Image Restoration",
+        "Anomaly Detection with Conditioned Denoising Diffusion Models",
+        "UniPC: A Unified Predictor-Corrector Framework for Fast Sampling of Diffusion Models",
+        "Denoising Diffusion Probabilistic Models for Robust Image Super-Resolution in the Wild"
+      ]
+    },
+    "skip-connections": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "U-Net v2: Rethinking the Skip Connections of U-Net for Medical Image Segmentation"
+      ]
+    },
+    "selective-kernels": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Large Selective Kernel Network for Remote Sensing Object Detection"
+      ]
+    },
+    "oriented-bounding-boxes": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Large Selective Kernel Network for Remote Sensing Object Detection"
+      ]
+    },
+    "large-receptive-field": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Large Selective Kernel Network for Remote Sensing Object Detection"
+      ]
+    },
+    "tiny-object-detection": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Large Selective Kernel Network for Remote Sensing Object Detection",
+        "Transformers in Small Object Detection: A Benchmark and Survey of State-of-the-Art"
+      ]
+    },
+    "novel-view-synthesis": {
+      "nlpN": 0,
+      "cvN": 6,
+      "nlp": [],
+      "cv": [
+        "Objaverse-XL: A Universe of 10M+ 3D Objects",
+        "Zero123++: a Single Image to Consistent Multi-view Diffusion Base Model",
+        "3D Gaussian Splatting for Real-Time Radiance Field Rendering",
+        "Real-time Photorealistic Dynamic Scene Representation and Rendering with 4D Gaussian Splatting",
+        "SceneScape: Text-Driven Consistent Scene Generation",
+        "Text-To-4D Dynamic Scene Generation"
+      ]
+    },
+    "photogrammetry": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Objaverse-XL: A Universe of 10M+ 3D Objects"
+      ]
+    },
+    "vision-transformer-backbones": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "MiDaS v3.1 -- A Model Zoo for Robust Monocular Relative Depth Estimation",
+        "Fast Segment Anything",
+        "3DSAM-adapter: Holistic adaptation of SAM from 2D to 3D for promptable tumor segmentation",
+        "MIS-FM: 3D Medical Image Segmentation using Foundation Models Pretrained on a Large-Scale Unannotated Dataset"
+      ]
+    },
+    "convolutional-encoders": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "MiDaS v3.1 -- A Model Zoo for Robust Monocular Relative Depth Estimation",
+        "Convolutions Die Hard: Open-Vocabulary Segmentation with Single Frozen Convolutional CLIP"
+      ]
+    },
+    "3d-consistency": {
+      "nlpN": 0,
+      "cvN": 5,
+      "nlp": [],
+      "cv": [
+        "Let 2D Diffusion Model Know 3D-Consistency for Robust Text-to-3D Generation",
+        "Zero123++: a Single Image to Consistent Multi-view Diffusion Base Model",
+        "Wonder3D: Single Image to 3D using Cross-Domain Diffusion",
+        "SceneScape: Text-Driven Consistent Scene Generation",
+        "DreamCraft3D: Hierarchical 3D Generation with Bootstrapped Diffusion Prior"
+      ]
+    },
+    "depth-map-conditioning": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "Let 2D Diffusion Model Know 3D-Consistency for Robust Text-to-3D Generation",
+        "Control-A-Video: Controllable Text-to-Video Diffusion Models with Motion Prior and Reward Feedback Learning",
+        "MVDiffusion: Enabling Holistic Multi-view Image Generation with Correspondence-Aware Diffusion",
+        "SceneScape: Text-Driven Consistent Scene Generation"
+      ]
+    },
+    "image-retrieval": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "DreamSim: Learning New Dimensions of Human Visual Similarity using Synthetic Data",
+        "Brain decoding: toward real-time reconstruction of visual perception"
+      ]
+    },
+    "image-layout": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "DreamSim: Learning New Dimensions of Human Visual Similarity using Synthetic Data"
+      ]
+    },
+    "reward-function-learning": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Aligning Text-to-Image Models using Human Feedback"
+      ]
+    },
+    "kernel-basis-attention": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "KBNet: Kernel Basis Network for Image Restoration"
+      ]
+    },
+    "multi-axis-feature-fusion": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "KBNet: Kernel Basis Network for Image Restoration"
+      ]
+    },
+    "image-deraining": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "KBNet: Kernel Basis Network for Image Restoration",
+        "PromptIR: Prompting for All-in-One Blind Image Restoration"
+      ]
+    },
+    "image-deblurring": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "KBNet: Kernel Basis Network for Image Restoration",
+        "Hierarchical Integration Diffusion Model for Realistic Image Deblurring"
+      ]
+    },
+    "infill-sampling": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "CodeGen2: Lessons for Training LLMs on Programming and Natural Languages"
+      ]
+    },
+    "span-corruption": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "CodeGen2: Lessons for Training LLMs on Programming and Natural Languages"
+      ]
+    },
+    "image-dehazing": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "PromptIR: Prompting for All-in-One Blind Image Restoration"
+      ]
+    },
+    "dynamic-guidance": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "PromptIR: Prompting for All-in-One Blind Image Restoration"
+      ]
+    },
+    "text-to-motion-generation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Human Motion Diffusion as a Generative Prior"
+      ]
+    },
+    "sequential-composition": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Human Motion Diffusion as a Generative Prior"
+      ]
+    },
+    "parallel-composition": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Human Motion Diffusion as a Generative Prior"
+      ]
+    },
+    "model-composition": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Human Motion Diffusion as a Generative Prior",
+        "Mix-of-Show: Decentralized Low-Rank Adaptation for Multi-Concept Customization of Diffusion Models"
+      ]
+    },
+    "motion-editing": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Human Motion Diffusion as a Generative Prior"
+      ]
+    },
+    "cross-frame-attention": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "ControlVideo: Training-free Controllable Text-to-Video Generation"
+      ]
+    },
+    "frame-interpolation": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "ControlVideo: Training-free Controllable Text-to-Video Generation",
+        "LAVIE: High-Quality Video Generation with Cascaded Latent Diffusion Models",
+        "Latent-Shift: Latent Diffusion with Temporal Shift for Efficient Text-to-Video Generation"
+      ]
+    },
+    "hierarchical-sampling": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "ControlVideo: Training-free Controllable Text-to-Video Generation"
+      ]
+    },
+    "motion-conditioning": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "ControlVideo: Training-free Controllable Text-to-Video Generation",
+        "GeneFace: Generalized and High-Fidelity Audio-Driven 3D Talking Face Synthesis"
+      ]
+    },
+    "ai-generated-image-detection": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "GenImage: A Million-Scale Benchmark for Detecting AI-Generated Image"
+      ]
+    },
+    "temporal-self-attention": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "LAVIE: High-Quality Video Generation with Cascaded Latent Diffusion Models",
+        "Latent-Shift: Latent Diffusion with Temporal Shift for Efficient Text-to-Video Generation"
+      ]
+    },
+    "rotary-positional-encoding": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "LAVIE: High-Quality Video Generation with Cascaded Latent Diffusion Models"
+      ]
+    },
+    "image-video-finetuning": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "LAVIE: High-Quality Video Generation with Cascaded Latent Diffusion Models"
+      ]
+    },
+    "video-super-resolution": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "LAVIE: High-Quality Video Generation with Cascaded Latent Diffusion Models",
+        "Latent-Shift: Latent Diffusion with Temporal Shift for Efficient Text-to-Video Generation"
+      ]
+    },
+    "audio-to-motion-generation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "GeneFace: Generalized and High-Fidelity Audio-Driven 3D Talking Face Synthesis"
+      ]
+    },
+    "lip-reading": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "GeneFace: Generalized and High-Fidelity Audio-Driven 3D Talking Face Synthesis"
+      ]
+    },
+    "per-layer-conditioning": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "P+: Extended Textual Conditioning in Text-to-Image Generation"
+      ]
+    },
+    "object-style-mixing": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "P+: Extended Textual Conditioning in Text-to-Image Generation"
+      ]
+    },
+    "lightweight-vision-transformers": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Rethinking Local Perception in Lightweight Vision Transformer"
+      ]
+    },
+    "context-aware-local-enhancement": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Rethinking Local Perception in Lightweight Vision Transformer"
+      ]
+    },
+    "high-frequency-feature-extraction": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Rethinking Local Perception in Lightweight Vision Transformer",
+        "Task-Specific Context Decoupling for Object Detection"
+      ]
+    },
+    "3d-segmentation": {
+      "nlpN": 0,
+      "cvN": 6,
+      "nlp": [],
+      "cv": [
+        "SAM3D: Segment Anything in 3D Scenes",
+        "3DSAM-adapter: Holistic adaptation of SAM from 2D to 3D for promptable tumor segmentation",
+        "Segment Any Point Cloud Sequences by Distilling Vision Foundation Models",
+        "OpenMask3D: Open-Vocabulary 3D Instance Segmentation",
+        "SAMM (Segment Any Medical Model): A 3D Slicer Integration to SAM",
+        "MIS-FM: 3D Medical Image Segmentation using Foundation Models Pretrained on a Large-Scale Unannotated Dataset"
+      ]
+    },
+    "image-segmentation": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "Fast Segment Anything",
+        "AnomalyCLIP: Object-agnostic Prompt Learning for Zero-shot Anomaly Detection",
+        "Strategic Preys Make Acute Predators: Enhancing Camouflaged Object Detectors by Generating Camouflaged Objects",
+        "SAMAug: Point Prompt Augmentation for Segment Anything Model"
+      ]
+    },
+    "classifier-guidance": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "DragonDiffusion: Enabling Drag-style Manipulation on Diffusion Models",
+        "StableRep: Synthetic Images from Text-to-Image Models Make Strong Visual Representation Learners"
+      ]
+    },
+    "drag-style-manipulation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "DragonDiffusion: Enabling Drag-style Manipulation on Diffusion Models"
+      ]
+    },
+    "feature-correspondence": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "DragonDiffusion: Enabling Drag-style Manipulation on Diffusion Models",
+        "OnePose++: Keypoint-Free One-Shot Object Pose Estimation without CAD Models"
+      ]
+    },
+    "cross-branch-self-attention": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "DragonDiffusion: Enabling Drag-style Manipulation on Diffusion Models",
+        "Beyond Adapting SAM: Towards End-to-End Ultrasound Image Segmentation via Auto Prompting"
+      ]
+    },
+    "multi-scale-guidance": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "DragonDiffusion: Enabling Drag-style Manipulation on Diffusion Models"
+      ]
+    },
+    "gaussian-splatting": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "3D Gaussian Splatting for Real-Time Radiance Field Rendering"
+      ]
+    },
+    "real-time-rendering": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "3D Gaussian Splatting for Real-Time Radiance Field Rendering",
+        "Real-time Photorealistic Dynamic Scene Representation and Rendering with 4D Gaussian Splatting",
+        "4D Gaussian Splatting for Real-Time Dynamic Scene Rendering",
+        "LightGaussian: Unbounded 3D Gaussian Compression with 15x Reduction and 200+ FPS"
+      ]
+    },
+    "volumetric-rendering": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "3D Gaussian Splatting for Real-Time Radiance Field Rendering",
+        "Real-time Photorealistic Dynamic Scene Representation and Rendering with 4D Gaussian Splatting",
+        "4D Gaussian Splatting for Real-Time Dynamic Scene Rendering"
+      ]
+    },
+    "density-control": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "3D Gaussian Splatting for Real-Time Radiance Field Rendering"
+      ]
+    },
+    "anisotropic-covariance": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "3D Gaussian Splatting for Real-Time Radiance Field Rendering"
+      ]
+    },
+    "4d-gaussian-splatting": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Real-time Photorealistic Dynamic Scene Representation and Rendering with 4D Gaussian Splatting",
+        "4D Gaussian Splatting for Real-Time Dynamic Scene Rendering"
+      ]
+    },
+    "view-dependent-appearance": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Real-time Photorealistic Dynamic Scene Representation and Rendering with 4D Gaussian Splatting"
+      ]
+    },
+    "deformation-modeling": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "Real-time Photorealistic Dynamic Scene Representation and Rendering with 4D Gaussian Splatting",
+        "4D Gaussian Splatting for Real-Time Dynamic Scene Rendering",
+        "DreamCraft3D: Hierarchical 3D Generation with Bootstrapped Diffusion Prior"
+      ]
+    },
+    "bounding-box-regression": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Task-Specific Context Decoupling for Object Detection"
+      ]
+    },
+    "image-reconstruction": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Anomaly Detection with Conditioned Denoising Diffusion Models",
+        "Hierarchical Integration Diffusion Model for Realistic Image Deblurring"
+      ]
+    },
+    "promptable-segmentation": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "3DSAM-adapter: Holistic adaptation of SAM from 2D to 3D for promptable tumor segmentation",
+        "SAMAug: Point Prompt Augmentation for Segment Anything Model",
+        "Set-of-Mark Prompting Unleashes Extraordinary Visual Grounding in GPT-4V",
+        "SAMM (Segment Any Medical Model): A 3D Slicer Integration to SAM"
+      ]
+    },
+    "tumor-segmentation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "3DSAM-adapter: Holistic adaptation of SAM from 2D to 3D for promptable tumor segmentation"
+      ]
+    },
+    "predictor-corrector-framework": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "UniPC: A Unified Predictor-Corrector Framework for Fast Sampling of Diffusion Models"
+      ]
+    },
+    "conditional-sampling": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "UniPC: A Unified Predictor-Corrector Framework for Fast Sampling of Diffusion Models",
+        "One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale",
+        "CRoSS: Diffusion Model Makes Controllable, Robust and Secure Image Steganography",
+        "Diffusion with Forward Models: Solving Stochastic Inverse Problems Without Direct Supervision"
+      ]
+    },
+    "hierarchical-integration": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Hierarchical Integration Diffusion Model for Realistic Image Deblurring"
+      ]
+    },
+    "low-rank-adaptation": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Mix-of-Show: Decentralized Low-Rank Adaptation for Multi-Concept Customization of Diffusion Models",
+        "CRoSS: Diffusion Model Makes Controllable, Robust and Secure Image Steganography"
+      ]
+    },
+    "multi-concept-customization": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Mix-of-Show: Decentralized Low-Rank Adaptation for Multi-Concept Customization of Diffusion Models"
+      ]
+    },
+    "embedding-decomposed-adaptation": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Mix-of-Show: Decentralized Low-Rank Adaptation for Multi-Concept Customization of Diffusion Models",
+        "ImageBind-LLM: Multi-modality Instruction Tuning"
+      ]
+    },
+    "region-controlled-sampling": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Mix-of-Show: Decentralized Low-Rank Adaptation for Multi-Concept Customization of Diffusion Models"
+      ]
+    },
+    "multi-object-tracking": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SparseTrack: Multi-Object Tracking by Performing Scene Decomposition based on Pseudo-Depth"
+      ]
+    },
+    "pseudo-depth-estimation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SparseTrack: Multi-Object Tracking by Performing Scene Decomposition based on Pseudo-Depth"
+      ]
+    },
+    "depth-cascading-matching": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SparseTrack: Multi-Object Tracking by Performing Scene Decomposition based on Pseudo-Depth"
+      ]
+    },
+    "scene-decomposition": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SparseTrack: Multi-Object Tracking by Performing Scene Decomposition based on Pseudo-Depth"
+      ]
+    },
+    "data-association": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SparseTrack: Multi-Object Tracking by Performing Scene Decomposition based on Pseudo-Depth"
+      ]
+    },
+    "occlusion-handling": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SparseTrack: Multi-Object Tracking by Performing Scene Decomposition based on Pseudo-Depth"
+      ]
+    },
+    "molecular-structure-prediction": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Towards Predicting Equilibrium Distributions for Molecular Systems with Deep Learning"
+      ]
+    },
+    "equilibrium-distribution-prediction": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Towards Predicting Equilibrium Distributions for Molecular Systems with Deep Learning"
+      ]
+    },
+    "density-estimation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Towards Predicting Equilibrium Distributions for Molecular Systems with Deep Learning"
+      ]
+    },
+    "thermodynamic-annealing": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Towards Predicting Equilibrium Distributions for Molecular Systems with Deep Learning"
+      ]
+    },
+    "quality-tuning": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Emu: Enhancing Image Generation Models Using Photogenic Needles in a Haystack"
+      ]
+    },
+    "pixel-diffusion": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Emu: Enhancing Image Generation Models Using Photogenic Needles in a Haystack",
+        "Simple diffusion: End-to-end diffusion for high resolution images"
+      ]
+    },
+    "one-shot-learning": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "OnePose++: Keypoint-Free One-Shot Object Pose Estimation without CAD Models"
+      ]
+    },
+    "structure-from-motion": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "OnePose++: Keypoint-Free One-Shot Object Pose Estimation without CAD Models"
+      ]
+    },
+    "detector-free-feature-matching": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "OnePose++: Keypoint-Free One-Shot Object Pose Estimation without CAD Models"
+      ]
+    },
+    "joint-distribution-learning": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale"
+      ]
+    },
+    "prompt-free-segmentation": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "How to Efficiently Adapt Large Segmentation Model(SAM) to Medical Images",
+        "Beyond Adapting SAM: Towards End-to-End Ultrasound Image Segmentation via Auto Prompting"
+      ]
+    },
+    "vision-transformer-head": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "How to Efficiently Adapt Large Segmentation Model(SAM) to Medical Images"
+      ]
+    },
+    "camouflaged-object-detection": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Strategic Preys Make Acute Predators: Enhancing Camouflaged Object Detectors by Generating Camouflaged Objects"
+      ]
+    },
+    "video-object-detection": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Transformers in Small Object Detection: A Benchmark and Survey of State-of-the-Art"
+      ]
+    },
+    "convolutional-neural-networks": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "Transformers in Small Object Detection: A Benchmark and Survey of State-of-the-Art",
+        "Denoising Diffusion Probabilistic Models for Robust Image Super-Resolution in the Wild",
+        "MIS-FM: 3D Medical Image Segmentation using Foundation Models Pretrained on a Large-Scale Unannotated Dataset"
+      ]
+    },
+    "ultrasound-segmentation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Beyond Adapting SAM: Towards End-to-End Ultrasound Image Segmentation via Auto Prompting"
+      ]
+    },
+    "visual-reasoning": {
+      "nlpN": 0,
+      "cvN": 4,
+      "nlp": [],
+      "cv": [
+        "Analyzing and Mitigating Object Hallucination in Large Vision-Language Models",
+        "Open-World Object Manipulation using Pre-trained Vision-Language Models",
+        "Set-of-Mark Prompting Unleashes Extraordinary Visual Grounding in GPT-4V",
+        "ESC: Exploration with Soft Commonsense Constraints for Zero-shot Object Navigation"
+      ]
+    },
+    "neural-voxel-encoding": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "4D Gaussian Splatting for Real-Time Dynamic Scene Rendering"
+      ]
+    },
+    "3d-gaussian-splatting": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "4D Gaussian Splatting for Real-Time Dynamic Scene Rendering",
+        "LightGaussian: Unbounded 3D Gaussian Compression with 15x Reduction and 200+ FPS",
+        "SuGaR: Surface-Aligned Gaussian Splatting for Efficient 3D Mesh Reconstruction and High-Quality Mesh Rendering"
+      ]
+    },
+    "motion-prior": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Control-A-Video: Controllable Text-to-Video Diffusion Models with Motion Prior and Reward Feedback Learning"
+      ]
+    },
+    "first-frame-conditioning": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Control-A-Video: Controllable Text-to-Video Diffusion Models with Motion Prior and Reward Feedback Learning"
+      ]
+    },
+    "optical-flow-initialization": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Control-A-Video: Controllable Text-to-Video Diffusion Models with Motion Prior and Reward Feedback Learning"
+      ]
+    },
+    "motion-consistency": {
+      "nlpN": 0,
+      "cvN": 3,
+      "nlp": [],
+      "cv": [
+        "Control-A-Video: Controllable Text-to-Video Diffusion Models with Motion Prior and Reward Feedback Learning",
+        "Text-To-4D Dynamic Scene Generation",
+        "Zero-Shot Video Editing Using Off-The-Shelf Image Diffusion Models"
+      ]
+    },
+    "reward-feedback-learning": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Control-A-Video: Controllable Text-to-Video Diffusion Models with Motion Prior and Reward Feedback Learning",
+        "StyleDrop: Text-to-Image Generation in Any Style"
+      ]
+    },
+    "image-steganography": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "CRoSS: Diffusion Model Makes Controllable, Robust and Secure Image Steganography"
+      ]
+    },
+    "control-nets": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "CRoSS: Diffusion Model Makes Controllable, Robust and Secure Image Steganography"
+      ]
+    },
+    "gaussian-pruning": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "LightGaussian: Unbounded 3D Gaussian Compression with 15x Reduction and 200+ FPS"
+      ]
+    },
+    "gaussian-vector-quantization": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "LightGaussian: Unbounded 3D Gaussian Compression with 15x Reduction and 200+ FPS"
+      ]
+    },
+    "pseudo-view-augmentation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "LightGaussian: Unbounded 3D Gaussian Compression with 15x Reduction and 200+ FPS"
+      ]
+    },
+    "high-resolution-generation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Simple diffusion: End-to-end diffusion for high resolution images"
+      ]
+    },
+    "downsampling": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Simple diffusion: End-to-end diffusion for high resolution images"
+      ]
+    },
+    "pinhole-camera-model": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Deep Learning for Camera Calibration and Beyond: A Survey"
+      ]
+    },
+    "distortion-camera-model": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Deep Learning for Camera Calibration and Beyond: A Survey"
+      ]
+    },
+    "cross-view-camera-model": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Deep Learning for Camera Calibration and Beyond: A Survey"
+      ]
+    },
+    "cross-sensor-camera-model": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Deep Learning for Camera Calibration and Beyond: A Survey"
+      ]
+    },
+    "brain-decoding": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Brain decoding: toward real-time reconstruction of visual perception"
+      ]
+    },
+    "meg-neuroimaging": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Brain decoding: toward real-time reconstruction of visual perception"
+      ]
+    },
+    "consistency-models": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Consistency Models"
+      ]
+    },
+    "one-step-generation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Consistency Models"
+      ]
+    },
+    "model-distillation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Consistency Models"
+      ]
+    },
+    "zero-shot-editing": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Consistency Models",
+        "Zero-Shot Video Editing Using Off-The-Shelf Image Diffusion Models"
+      ]
+    },
+    "image-quality-assessment": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "HDR-VDP-3: A multi-metric for predicting image differences, quality and contrast distortions in high dynamic range and regular content",
+        "Denoising Diffusion Probabilistic Models for Robust Image Super-Resolution in the Wild"
+      ]
+    },
+    "video-quality-assessment": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "HDR-VDP-3: A multi-metric for predicting image differences, quality and contrast distortions in high dynamic range and regular content"
+      ]
+    },
+    "visual-difference-prediction": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "HDR-VDP-3: A multi-metric for predicting image differences, quality and contrast distortions in high dynamic range and regular content"
+      ]
+    },
+    "contrast-distortion-prediction": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "HDR-VDP-3: A multi-metric for predicting image differences, quality and contrast distortions in high dynamic range and regular content"
+      ]
+    },
+    "high-dynamic-range": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "HDR-VDP-3: A multi-metric for predicting image differences, quality and contrast distortions in high dynamic range and regular content"
+      ]
+    },
+    "correspondence-aware-attention": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "MVDiffusion: Enabling Holistic Multi-view Image Generation with Correspondence-Aware Diffusion"
+      ]
+    },
+    "panorama-generation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "MVDiffusion: Enabling Holistic Multi-view Image Generation with Correspondence-Aware Diffusion"
+      ]
+    },
+    "point-prompt-augmentation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SAMAug: Point Prompt Augmentation for Segment Anything Model"
+      ]
+    },
+    "rotation-invariant-features": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Pushing the Limits of Fewshot Anomaly Detection in Industry Vision: Graphcore"
+      ]
+    },
+    "visual-isometric-invariant-features": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Pushing the Limits of Fewshot Anomaly Detection in Industry Vision: Graphcore"
+      ]
+    },
+    "graph-representation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Pushing the Limits of Fewshot Anomaly Detection in Industry Vision: Graphcore"
+      ]
+    },
+    "depth-infilling": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Monocular Depth Estimation using Diffusion Models"
+      ]
+    },
+    "temporal-keyframe-localization": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Self-Chained Image-Language Model for Video Localization and Question Answering"
+      ]
+    },
+    "style-transfer": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "StyleDrop: Text-to-Image Generation in Any Style"
+      ]
+    },
+    "parameter-efficient-fine-tuning": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "StyleDrop: Text-to-Image Generation in Any Style"
+      ]
+    },
+    "few-shot-adaptation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "StyleDrop: Text-to-Image Generation in Any Style"
+      ]
+    },
+    "cross-domain-diffusion": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Wonder3D: Single Image to 3D using Cross-Domain Diffusion"
+      ]
+    },
+    "normal-map-generation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Wonder3D: Single Image to 3D using Cross-Domain Diffusion"
+      ]
+    },
+    "geometry-aware-fusion": {
+      "nlpN": 0,
+      "cvN": 2,
+      "nlp": [],
+      "cv": [
+        "Wonder3D: Single Image to 3D using Cross-Domain Diffusion",
+        "SceneScape: Text-Driven Consistent Scene Generation"
+      ]
+    },
+    "condition-to-image-generation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "UniControl: A Unified Diffusion Model for Controllable Visual Generation In the Wild"
+      ]
+    },
+    "spatial-geometric-control": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "UniControl: A Unified Diffusion Model for Controllable Visual Generation In the Wild"
+      ]
+    },
+    "zero-shot-generation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "UniControl: A Unified Diffusion Model for Controllable Visual Generation In the Wild"
+      ]
+    },
+    "task-conditioned-generation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "UniControl: A Unified Diffusion Model for Controllable Visual Generation In the Wild"
+      ]
+    },
+    "texture-optimization": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "DreamCraft3D: Hierarchical 3D Generation with Bootstrapped Diffusion Prior"
+      ]
+    },
+    "mesh-reconstruction": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SuGaR: Surface-Aligned Gaussian Splatting for Efficient 3D Mesh Reconstruction and High-Quality Mesh Rendering"
+      ]
+    },
+    "surface-alignment": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SuGaR: Surface-Aligned Gaussian Splatting for Efficient 3D Mesh Reconstruction and High-Quality Mesh Rendering"
+      ]
+    },
+    "poisson-reconstruction": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SuGaR: Surface-Aligned Gaussian Splatting for Efficient 3D Mesh Reconstruction and High-Quality Mesh Rendering"
+      ]
+    },
+    "mesh-editing": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "SuGaR: Surface-Aligned Gaussian Splatting for Efficient 3D Mesh Reconstruction and High-Quality Mesh Rendering"
+      ]
+    },
+    "text-to-4d-generation": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Text-To-4D Dynamic Scene Generation"
+      ]
+    },
+    "4d-neural-radiance-fields": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Text-To-4D Dynamic Scene Generation"
+      ]
+    },
+    "soft-logic-constraints": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "ESC: Exploration with Soft Commonsense Constraints for Zero-shot Object Navigation"
+      ]
+    },
+    "domain-adversarial-training": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Free Lunch for Domain Adversarial Training: Environment Label Smoothing"
+      ]
+    },
+    "environment-label-smoothing": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Free Lunch for Domain Adversarial Training: Environment Label Smoothing"
+      ]
+    },
+    "out-of-distribution-generalization": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Free Lunch for Domain Adversarial Training: Environment Label Smoothing"
+      ]
+    },
+    "invariant-feature-learning": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Free Lunch for Domain Adversarial Training: Environment Label Smoothing"
+      ]
+    },
+    "video-editing": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Zero-Shot Video Editing Using Off-The-Shelf Image Diffusion Models"
+      ]
+    },
+    "null-text-inversion": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Zero-Shot Video Editing Using Off-The-Shelf Image Diffusion Models"
+      ]
+    },
+    "spatial-regularization": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Zero-Shot Video Editing Using Off-The-Shelf Image Diffusion Models"
+      ]
+    },
+    "stochastic-inverse-problems": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Diffusion with Forward Models: Solving Stochastic Inverse Problems Without Direct Supervision"
+      ]
+    },
+    "forward-model": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Diffusion with Forward Models: Solving Stochastic Inverse Problems Without Direct Supervision"
+      ]
+    },
+    "inverse-graphics": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "Diffusion with Forward Models: Solving Stochastic Inverse Problems Without Direct Supervision"
+      ]
+    },
+    "volume-fusion": {
+      "nlpN": 0,
+      "cvN": 1,
+      "nlp": [],
+      "cv": [
+        "MIS-FM: 3D Medical Image Segmentation using Foundation Models Pretrained on a Large-Scale Unannotated Dataset"
+      ]
+    }
+  }
+}

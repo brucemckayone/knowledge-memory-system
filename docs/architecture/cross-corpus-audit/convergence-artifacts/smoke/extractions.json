@@ -1,0 +1,164 @@
+{
+  "base:2607.18235v1": [
+    "evolutionary-search",
+    "parent-selection",
+    "budget-allocation",
+    "adaptive-allocation",
+    "early-performance-prediction",
+    "pruning",
+    "harness-ensemble",
+    "budget-matching"
+  ],
+  "base:2607.18232v1": [
+    "expressions-of-belief",
+    "linguistic-typology",
+    "epistemic-stance",
+    "evidentiality",
+    "context-integration",
+    "controlled-eob-pairs",
+    "instruction-tuning",
+    "prompt-engineering",
+    "model-robustness"
+  ],
+  "base:2607.18228v1": [
+    "soft-prefix",
+    "syllogistic-reasoning",
+    "logical-stability",
+    "context-override",
+    "answer-preference-bias",
+    "interface-invariance",
+    "flip-rate",
+    "diagnostic-score-model",
+    "model-specific-variation"
+  ],
+  "base:2607.18213v1": [
+    "context-pruning",
+    "tool-output-pruning",
+    "internal-representations",
+    "pruning-head",
+    "length-aware-embedding",
+    "token-efficiency",
+    "multi-turn-reasoning",
+    "swe-bench-verified"
+  ],
+  "base:2607.18199v1": [
+    "perplexity-scoring",
+    "task-aware-selection",
+    "budget-aware-selection",
+    "sample-difficulty",
+    "data-quality-heuristic",
+    "data-diversity-heuristic",
+    "reasoning-trace-length",
+    "language-model-fine-tuning"
+  ],
+  "base:2607.18181v1": [
+    "vibration-energy-harvester",
+    "battery-free-iot",
+    "specification-triage",
+    "verifier-guided-search",
+    "corrupted-state-recovery",
+    "policy-conditioned-selection",
+    "physical-oracle",
+    "response-control-profiles",
+    "stage-dependent-capability"
+  ],
+  "base:2607.18144v1": [
+    "structure-based-drug-design",
+    "diffusion-models",
+    "pocket-conditioned-generation",
+    "anchor-fragments",
+    "pharmacophore-points",
+    "protein-ligand-interactions",
+    "spatial-constraint-reasoning",
+    "3d-fit"
+  ],
+  "base:2607.18142v1": [
+    "vlm-reasoning",
+    "spatial-temporal-dynamics",
+    "object-state-evolution",
+    "temporal-state-trajectories",
+    "training-free-framework",
+    "agentic-framework",
+    "procedural-constraint-reasoning",
+    "interpretable-anomaly-reports"
+  ],
+  "dist:2607.18224v1": [
+    "gmm-decomposition",
+    "double-cluster",
+    "unbound-flyby-interaction",
+    "orbital-integration",
+    "n-body-simulation",
+    "escape-velocity",
+    "jacobi-radius",
+    "tidal-interaction"
+  ],
+  "dist:2607.18124v1": [
+    "twin-neutron-stars",
+    "hadron-quark-phase-transition",
+    "bayesian-inference",
+    "radius-measurements",
+    "posterior-distribution",
+    "branch-distinguishability",
+    "shannon-entropy",
+    "information-gain"
+  ],
+  "dist:2607.18065v1": [
+    "stellar-formation",
+    "stellar-feedback",
+    "interstellar-medium",
+    "radio-spectroscopy",
+    "astrometry",
+    "square-kilometre-array",
+    "galactic-model",
+    "high-resolution-spectroscopy"
+  ],
+  "para:para-2607.18213v1": [
+    "context-window-compression",
+    "learned-representation-pruning",
+    "classification-head",
+    "per-line-retention-scoring",
+    "dimension-adaptive-embeddings",
+    "hidden-state-projection"
+  ],
+  "para:para-2607.18199v1": [
+    "fine-tuning",
+    "data-selection",
+    "perplexity-scoring",
+    "task-alignment",
+    "budget-awareness",
+    "sample-difficulty",
+    "proxy-metrics",
+    "learning-signal-divergence"
+  ],
+  "verb:2607.18235v1": [
+    "evolutionary-search",
+    "parent-selection",
+    "budget-allocation",
+    "adaptive-allocation",
+    "early-performance-prediction",
+    "generalization-problem",
+    "partial-run-pruning"
+  ],
+  "verb:2607.18232v1": [
+    "expressions-of-belief",
+    "context-integration",
+    "linguistic-typology",
+    "presuppositions",
+    "evidentiality",
+    "epistemic-stance",
+    "controlled-prompting",
+    "instruction-tuning",
+    "parameter-scaling"
+  ],
+  "verb:2607.18228v1": [
+    "soft-prefix",
+    "syllogistic-reasoning",
+    "logical-stability",
+    "contextual-pressure",
+    "answer-preference",
+    "flip-rate",
+    "prompt-invariance",
+    "score-model",
+    "model-specific-differences"
+  ]
+}

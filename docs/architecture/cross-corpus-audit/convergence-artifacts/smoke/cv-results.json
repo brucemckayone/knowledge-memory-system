@@ -1,0 +1,166 @@
+{
+  "prereg": "doc-23",
+  "smoke": true,
+  "config": {
+    "N_BASE": 8,
+    "BASE_FIELD": "cs.CL",
+    "DISTINCT_FIELD": "astro-ph.GA",
+    "K_VERBATIM": 3,
+    "K_PARAPHRASE": 2,
+    "K_DISTINCT": 3,
+    "TAU_LOW": 0.65,
+    "TAU_HIGH": 0.85
+  },
+  "metrics": {
+    "freeFormBase": 67,
+    "baseNodes": 66,
+    "reduction": 0.014925373134328401,
+    "firstQ": 17,
+    "lastQ": 16,
+    "growthRatio": 0.9411764705882353,
+    "distConcepts": 24,
+    "distConf2base": 0,
+    "distStaySeparate": 1,
+    "verbNewPerDoc": 2.3333333333333335,
+    "freshNewPerDoc": 8,
+    "verbRatio": 0.2916666666666667,
+    "paraNewPerDoc": 6,
+    "totalBand": 24
+  },
+  "bar": {
+    "cond1": false,
+    "cond2": true,
+    "cond3": false,
+    "pass": false
+  },
+  "perDoc": [
+    {
+      "key": "base:2607.18235v1",
+      "provenance": "base",
+      "newNodes": 8,
+      "conformedToBase": 0,
+      "concepts": 8,
+      "bandJudged": 2
+    },
+    {
+      "key": "base:2607.18232v1",
+      "provenance": "base",
+      "newNodes": 9,
+      "conformedToBase": 0,
+      "concepts": 9,
+      "bandJudged": 0
+    },
+    {
+      "key": "base:2607.18228v1",
+      "provenance": "base",
+      "newNodes": 9,
+      "conformedToBase": 0,
+      "concepts": 9,
+      "bandJudged": 0
+    },
+    {
+      "key": "base:2607.18213v1",
+      "provenance": "base",
+      "newNodes": 7,
+      "conformedToBase": 0,
+      "concepts": 8,
+      "bandJudged": 2
+    },
+    {
+      "key": "base:2607.18199v1",
+      "provenance": "base",
+      "newNodes": 8,
+      "conformedToBase": 0,
+      "concepts": 8,
+      "bandJudged": 3
+    },
+    {
+      "key": "base:2607.18181v1",
+      "provenance": "base",
+      "newNodes": 9,
+      "conformedToBase": 0,
+      "concepts": 9,
+      "bandJudged": 1
+    },
+    {
+      "key": "base:2607.18144v1",
+      "provenance": "base",
+      "newNodes": 8,
+      "conformedToBase": 0,
+      "concepts": 8,
+      "bandJudged": 0
+    },
+    {
+      "key": "base:2607.18142v1",
+      "provenance": "base",
+      "newNodes": 8,
+      "conformedToBase": 0,
+      "concepts": 8,
+      "bandJudged": 2
+    },
+    {
+      "key": "verb:2607.18235v1",
+      "provenance": "verbatim",
+      "newNodes": 2,
+      "conformedToBase": 5,
+      "concepts": 7,
+      "bandJudged": 1
+    },
+    {
+      "key": "verb:2607.18232v1",
+      "provenance": "verbatim",
+      "newNodes": 3,
+      "conformedToBase": 6,
+      "concepts": 9,
+      "bandJudged": 0
+    },
+    {
+      "key": "verb:2607.18228v1",
+      "provenance": "verbatim",
+      "newNodes": 2,
+      "conformedToBase": 7,
+      "concepts": 9,
+      "bandJudged": 1
+    },
+    {
+      "key": "para:para-2607.18213v1",
+      "provenance": "paraphrase",
+      "newNodes": 6,
+      "conformedToBase": 0,
+      "concepts": 6,
+      "bandJudged": 4
+    },
+    {
+      "key": "para:para-2607.18199v1",
+      "provenance": "paraphrase",
+      "newNodes": 6,
+      "conformedToBase": 2,
+      "concepts": 8,
+      "bandJudged": 3
+    },
+    {
+      "key": "dist:2607.18224v1",
+      "provenance": "distinct",
+      "newNodes": 8,
+      "conformedToBase": 0,
+      "concepts": 8,
+      "bandJudged": 1
+    },
+    {
+      "key": "dist:2607.18124v1",
+      "provenance": "distinct",
+      "newNodes": 8,
+      "conformedToBase": 0,
+      "concepts": 8,
+      "bandJudged": 1
+    },
+    {
+      "key": "dist:2607.18065v1",
+      "provenance": "distinct",
+      "newNodes": 8,
+      "conformedToBase": 0,
+      "concepts": 8,
+      "bandJudged": 3
+    }
+  ]
+}

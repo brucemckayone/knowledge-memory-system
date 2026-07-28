@@ -12,11 +12,11 @@
   "plumbing": {
     "before": {
       "entities:cj-code": 29,
-      "embedded:cj-code": 0,
+      "embedded:cj-code": 29,
       "entities:_concepts": 104,
       "embedded:_concepts": 0,
       "entities:cj-rules": 27,
-      "embedded:cj-rules": 0,
+      "embedded:cj-rules": 27,
       "bridge:exhibits": 97,
       "bridge:addresses": 51
     },
