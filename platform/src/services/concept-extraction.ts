@@ -79,8 +79,61 @@ export function coerceConceptLabels(raw: unknown): ConceptLabel[] {
   return out;
 }
 
+/**
+ * Optional shared-vocabulary block (docs 25-27 relevance-window conform mechanism, owed
+ * since doc-20 §13(d)). Blind extraction + trigram-0.4 name merge left only 4 of 104
+ * concepts touched by BOTH sides (doc 34 §2) — showing the extractor the existing labels
+ * and asking for verbatim reuse is the mechanism measured to produce a materially cleaner
+ * shared space. Empty/absent vocabulary ⇒ the prompt is byte-identical to before.
+ */
+function vocabularyBlock(vocabulary?: string[]): string {
+  if (!vocabulary || vocabulary.length === 0) return '';
+  return [
+    '',
+    'EXISTING CONCEPT VOCABULARY (other documents already use these labels):',
+    ...vocabulary.map((v) => `- ${v}`),
+    '',
+    'For EACH concept you emit: if the SAME concept already appears above, reuse that EXACT',
+    'label (copy it verbatim, character for character). Only coin a new label when none of',
+    'the above means the same thing. Reusing labels is what makes the graph connect.',
+  ].join('\n');
+}
+
 /** Build the blind concept-extraction prompt (doc 19 §3.4). Pure; no LLM. */
-export function buildConceptExtractionPrompt(side: 'code' | 'rule', name: string, text: string): string {
+export function buildConceptExtractionPrompt(
+  side: 'code' | 'rule' | 'entity',
+  name: string,
+  text: string,
+  vocabulary?: string[],
+): string {
+  if (side === 'entity') {
+    // Domain-neutral side (doc 34 §6): the C/C++ prompts below return ZERO concepts on
+    // non-code corpora, and the production prose extractor likewise returns zero entities
+    // from code — the two paths are domain-disjoint. This branch labels an arbitrary graph
+    // entity from its own name + description ONLY (blind to the other corpus and to any
+    // oracle), so two independently-ingested corpora can meet on a shared concept node.
+    return [
+      'You are labelling a node in a knowledge graph with the technical CONCEPTS it belongs to,',
+      'so that nodes from independently-built corpora can be connected through shared concepts.',
+      'A concept is a short, REUSABLE noun-phrase naming a topic, method, task, or mechanism —',
+      'e.g. instruction-tuning, contrastive-learning, benchmark-evaluation, transfer-learning.',
+      '',
+      'STRICT RULES:',
+      '- Base your answer solely on the node below. Do not speculate about other corpora,',
+      '  documents, or what a comparison might be looking for.',
+      '- Use concise lower-case hyphenated names. Prefer established, reusable terms so the',
+      '  SAME topic mentioned elsewhere gets the SAME name.',
+      '- Name the concepts at a level that could plausibly be shared by other work — not',
+      '  one-off specifics that nothing else would ever match.',
+      '- Give a one-line reason grounded in the node text.',
+      vocabularyBlock(vocabulary),
+      '',
+      'Return a JSON object: { "concepts": [ { "name": "<concept>", "reason": "<why>" } ] }.',
+      '',
+      `Node name: ${name}`,
+      `Node description: ${text}`,
+    ].join('\n');
+  }
   if (side === 'code') {
     return [
       'You are labelling a C or C++ code element with the technical CONCEPTS (mechanisms)',
@@ -95,6 +148,7 @@ export function buildConceptExtractionPrompt(side: 'code' | 'rule', name: string
       '- Use concise lower-case hyphenated names, and prefer established reusable terms so the',
       '  SAME mechanism in different code gets the SAME name.',
       '- List only concepts the code actually exhibits; give a one-line reason grounded in the code.',
+      vocabularyBlock(vocabulary),
       '',
       'Return a JSON object: { "concepts": [ { "name": "<concept>", "reason": "<why, from the code>" } ] }.',
       '',
@@ -115,6 +169,7 @@ export function buildConceptExtractionPrompt(side: 'code' | 'rule', name: string
     '- Use concise lower-case hyphenated names, and prefer established reusable terms so a code',
     '  element exhibiting the SAME mechanism will match by the SAME name.',
     '- Give a one-line reason grounded in the guideline.',
+    vocabularyBlock(vocabulary),
     '',
     'Return a JSON object: { "concepts": [ { "name": "<concept>", "reason": "<why, from the guideline>" } ] }.',
     '',
@@ -158,12 +213,28 @@ export interface ExtractConceptsParams {
   elementEntityId: string;
   /** The element's corpus — source_corpus_id of the bridges. */
   corpusId: string;
-  /** 'code' → exhibits edges; 'rule' → addresses edges. */
-  side: 'code' | 'rule';
-  /** Symbol / rule id — prompt context only. */
+  /**
+   * 'code' → exhibits edges; 'rule' → addresses edges; 'entity' → domain-neutral, and
+   * `relation` must be supplied (the code/rule prompts return nothing on non-code corpora).
+   */
+  side: 'code' | 'rule' | 'entity';
+  /**
+   * Bridge relation. Defaults to the side mapping above. For a symmetric corpus PAIR (two
+   * document corpora rather than code-vs-standard) the relation carries DIRECTION, not
+   * semantics — doc 19 D-C4 already makes the relation the side discriminator — so one
+   * corpus uses 'exhibits' and the other 'addresses' to keep the shipped
+   * recallConceptCandidates JOIN working unchanged.
+   */
+  relation?: 'exhibits' | 'addresses';
+  /** Symbol / rule id / entity name — prompt context only. */
   name: string;
   /** Source text: the code for a code element, the guideline text for a rule. */
   text: string;
+  /**
+   * Existing concept labels to offer for verbatim reuse (docs 25-27 conform mechanism).
+   * Omitted ⇒ prompt is byte-identical to the blind original.
+   */
+  vocabulary?: string[];
   /** Injectable JSON generator (default = Haiku ml.generateJson). Tests inject a fake. */
   generate?: FacetGenerator;
 }
@@ -186,11 +257,16 @@ export interface ExtractConceptsResult {
  */
 export async function extractAndLinkConcepts(params: ExtractConceptsParams): Promise<ExtractConceptsResult> {
   const generate = params.generate ?? defaultGenerator;
-  const raw = await generate(buildConceptExtractionPrompt(params.side, params.name, params.text));
+  const raw = await generate(
+    buildConceptExtractionPrompt(params.side, params.name, params.text, params.vocabulary),
+  );
   const labels = coerceConceptLabels(raw);
   if (labels.length === 0) return { labels, conceptIds: [], linked: 0 };
 
-  const relation = params.side === 'code' ? 'exhibits' : 'addresses';
+  if (params.side === 'entity' && !params.relation) {
+    throw new Error("extractAndLinkConcepts: side 'entity' requires an explicit relation");
+  }
+  const relation = params.relation ?? (params.side === 'code' ? 'exhibits' : 'addresses');
   const invocationId = randomUUID();
   const conceptIds: string[] = [];
   for (const label of labels) {

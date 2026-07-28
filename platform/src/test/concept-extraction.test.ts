@@ -40,15 +40,40 @@ async function ent(name: string, corpusId: string, entityType: string): Promise<
   return (r[0] as { id: string }).id;
 }
 
+/**
+ * Cleanup, scoped to THIS test's corpora.
+ *
+ * It previously deleted every bridge targeting `_concepts` and every `_concepts` entity.
+ * `_concepts` is a GLOBAL corpus shared by every other corpus (doc 19 D-C2), so that wiped
+ * unrelated work in the same database — it destroyed the doc-20 concept graph (97 exhibits
+ * + 51 addresses) that doc-33's substrate gate depends on, and the entity DELETE then threw
+ * on an `entity_merges` FK, leaving the damage half-applied because each statement commits
+ * on its own. Now: only bridges from this test's corpora, and only concept nodes left
+ * orphaned by that (plus their merge-audit rows, which are what blocked the delete).
+ */
 async function clean(): Promise<void> {
   for (const c of [CODE, RULES]) {
     await testDb`DELETE FROM public.bridge_edges WHERE source_corpus_id = ${c}`;
     await testDb`DELETE FROM public.staging_bridge_edges WHERE source_corpus_id = ${c}`;
     await testDb`DELETE FROM public.entities WHERE corpus_id = ${c}`;
   }
-  await testDb`DELETE FROM public.bridge_edges WHERE target_corpus_id = ${CONCEPT_CORPUS}`;
-  await testDb`DELETE FROM public.staging_bridge_edges WHERE target_corpus_id = ${CONCEPT_CORPUS}`;
-  await testDb`DELETE FROM public.entities WHERE corpus_id = ${CONCEPT_CORPUS}`;
+  // Orphaned concepts only: no live bridge from ANY corpus still points at them.
+  await testDb`
+    DELETE FROM public.entity_merges
+    WHERE target_entity_id IN (
+            SELECT id FROM public.entities WHERE corpus_id = ${CONCEPT_CORPUS}
+            AND id NOT IN (SELECT b_ref FROM public.bridge_edges WHERE b_ref IS NOT NULL))
+       OR source_entity_id IN (
+            SELECT id FROM public.entities WHERE corpus_id = ${CONCEPT_CORPUS}
+            AND id NOT IN (SELECT b_ref FROM public.bridge_edges WHERE b_ref IS NOT NULL))
+  `;
+  await testDb`
+    DELETE FROM public.entities
+    WHERE corpus_id = ${CONCEPT_CORPUS}
+      AND id NOT IN (SELECT b_ref FROM public.bridge_edges WHERE b_ref IS NOT NULL)
+      AND id NOT IN (SELECT target_entity_id FROM public.entity_merges WHERE target_entity_id IS NOT NULL)
+      AND id NOT IN (SELECT source_entity_id FROM public.entity_merges WHERE source_entity_id IS NOT NULL)
+  `;
 }
 
 describe('concept extraction (nmemo-uhp.21, doc-19 §3.4)', () => {
