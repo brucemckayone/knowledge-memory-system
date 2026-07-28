@@ -293,3 +293,100 @@ A PASS licenses keeping the leg in the sweep union on this floor, and nothing ab
 §4 (arms = shipped functions, no reimplementation), §5 (metric definitions and the element-level
 lens), §9 (honest priors, including the doc-31/RRF non-transfer), §10 (out of scope), §11 (limits),
 §12 (adversary protocol).
+
+---
+
+## 14. RESULT (2026-07-28) — both primary bars met at the WEAKEST grade; the real finding is a 4-of-104 pivot ceiling. Adversary OWED.
+
+Harness `platform/src/test/tools/sweep-coverage.ts`, artifacts
+`sweep-coverage-artifacts/sweep-results.json` (includes the full 540-setting grid).
+Substrate gate passed: 29 / 27 / 104 entities, 97 `exhibits` + 51 `addresses`, unchanged
+before and after (R40). Deterministic; no LLM ran.
+
+**Harness bug caught and fixed before any number was trusted:** the first execution connected to
+the dev DB instead of `cognitive_test` and produced all-zeros silently — `UPDATE` on a missing id
+affects 0 rows without error. A hard substrate gate (throw unless the doc-20 counts match exactly)
+was added and the run repeated. The zero-run is not reported as a result because it measured nothing.
+
+### 14.1 The three arms
+
+| arm | cells | true pairs | coverage | cells that were true |
+|---|---|---|---|---|
+| A cosine-only @ shipped defaults (k=8, thr=0.5) | 229 | 24 / 29 | 0.828 | **0.105** |
+| B concept-only (JOIN, no knobs) | **10** | **8 / 29** | 0.276 | **0.800** |
+| C union @ shipped defaults | 231 | 25 / 29 | 0.862 | 0.108 |
+
+### 14.2 Primary bars (frozen §13.3)
+
+- **Primary 1 — complementarity ≥ 1: PASS, at the minimum possible value.** Exactly **1** true pair
+  the concept leg surfaces that cosine@defaults misses: **E020** (`ES.42`). `ES.42` has 5 elements, so
+  this is not a singleton-*guideline* artifact — but it is a single element. **The reverse asymmetry is
+  severe and reported per R29: cosine surfaces 17 true pairs the concept leg misses.**
+- **Primary 2 — frontier dominance of the shipped union C: `coverage(C)=0.862 > A_frontier_at(231
+  cells)=0.828`, i.e. 1 pair above → `FRAGILE_DOMINANCE`.** Per §13.3 this grade is explicitly *"real
+  but singleton-fragile, no transfer claim"* and is **not** upgraded to a clear win.
+- **Secondary (demoted §13.4):** matched-budget arm A = k=8/thr=0 (232 cells, 0.828). Paired bootstrap
+  of `coverage(C) − coverage(A@matched)`: mean **+0.036, 95% CI [0.000, 0.103] — includes 0 → a TIE**,
+  exactly as §13.1 predicted. It is not cited as support for the frontier result.
+
+**So both frozen primary bars are technically met, at the weakest grade the pre-registration defines.
+Substantively the union result is a hair's breadth: +1 pair of 29, CI touching 0.**
+
+### 14.3 A number I am DISCARDING as an artifact (self-caught, before the adversary)
+
+The harness graded **arm B as `CLEAR_WIN` (8 pairs above frontier)**. That is **void**. `A_frontier_at(10
+cells) = 0` only because the frozen threshold grid (0.05 steps) has **no cosine operating point between
+1 cell and ~29 cells** — every setting with `cells ≤ 10` is `threshold=0.70`, which returns exactly
+**1** cell for every k. Cosine's natural floor is k=1 → 29 cells (one per element). So the frontier is
+**undefined in arm B's budget region**, and "8 pairs above frontier" measures grid granularity, not
+mechanism. It is struck, not reported as a finding. (This is exactly adversary check §12.2, caught in
+advance rather than in defence.)
+
+The grid-real dual, which does not depend on granularity: cosine's **cheapest** setting reaching the
+concept leg's coverage is **k=3 at 84 cells** (9 true pairs) — versus the concept leg's **10 cells for
+8**. Roughly **8× the adjudicator budget for comparable coverage.** Reported as a descriptive
+efficiency observation, **not** as a bar and not as a substitute for the struck grade.
+
+Marginal rates, also deterministic: the concept leg's 1 added pair costs **+2 cells**; the cheapest way
+to buy extra pairs by widening cosine (k=8→k=9) costs **+26 cells for +2 pairs ≈ 13 cells/pair**.
+Directionally the concept leg is a cheap marginal addition — resting on one pair.
+
+### 14.4 The finding no bar anticipated (deterministic, and the most valuable output here)
+
+**Only 4 of the 104 concept nodes are touched by both sides.** Independently confirmed in raw SQL
+(not via the shipped function): code-side `exhibits` reaches **59** distinct concepts, rule-side
+`addresses` reaches **49**, and the intersection is **4**. The shipped JOIN's 10 pairs were reproduced
+exactly by an independent query, so the function is faithful — it is not under-returning.
+
+That is doc-20's diagnosed conform failure **quantified as a hard ceiling**: ~96% of the concept
+vocabulary is single-sided, so the JOIN can only ever fire through 4 pivot nodes. It reaches only
+**3 of 9 guidelines** (`ES.42`, `ES.30`, `C.12`) and exactly the **8 of 29** elements doc-20 reported.
+
+My pre-run worry in §13.1 was the **opposite** — that hub fan-out would make the JOIN return a large
+slice of the 783 cells and force the comparison to degenerate. It returns 10. The concept leg's problem
+is near-total **under**-generation, not over-generation. Recording that my stated prior was wrong in
+this specific direction.
+
+**Union coverage gap:** 4 true pairs are reached by **neither** leg — E017 (`C.48`), E022 (`ES.20`),
+E023 (`ES.75`), E025 (`ES.30`).
+
+### 14.5 What this licenses, and what it does not
+
+**Licensed:** on this floor, the shipped union clears both frozen bars at the fragile grade — keep the
+concept leg in the sweep union (it is empty-safe and its one added pair is cheap). The deterministic
+structural facts: the concept leg is **sparse and precise** (0.80 of its cells true) where cosine is
+**broad and wasteful** (0.105), and its reach is ceilinged at 4 shared pivot nodes.
+
+**NOT licensed:** any transfer or capability claim (§13.3 fragile grade; n=29; CI includes 0). Not
+"concept-JOIN is an efficient candidate generator" as a general statement — the 8× efficiency figure is
+descriptive on one corpus. Not arm B's struck `CLEAR_WIN`. And per **§13.5**, a reader may **not**
+conclude anything about concept-JOIN as a mechanism: this ran the conform mechanism doc-20 §13 already
+blamed (blind per-element extraction, then `pg_trgm > 0.4` name merge), and the 4-of-104 intersection
+is precisely that mechanism failing. The convergence-forcing variant (relevance-window shared-vocab
+extraction, docs 25–27, owed since doc-20 §13(d)) is now **more** clearly the live question, not less:
+it targets exactly the quantity this run shows to be the binding constraint.
+
+**OWED:** the §12 blind adversary has **not** run. The load-bearing claims here are deterministic and
+two of them were verified by independent SQL, and I struck the one artifact myself — but per R2 this is
+not fully banked until an adversary attacks it in both directions. Recorded as debt, alongside the
+consciously-skipped doc-32 adversary.
