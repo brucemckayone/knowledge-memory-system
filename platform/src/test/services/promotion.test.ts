@@ -681,3 +681,81 @@ describe('promotion-escalation arbiter (nmemo-vpz.5 / E5)', () => {
     expect(freshHelix).toHaveLength(1);
   });
 });
+
+/**
+ * Corpus-scoped promotion (doc 34 §6 step 1). The multi-hop concept test needs each
+ * corpus to be its OWN entity+fact graph; before this, applyPromotion had no corpus
+ * awareness at all, so every ingest landed in 'default' and the entity reuse-by-name
+ * lookup was a cross-corpus fusion path.
+ */
+describe('corpus-scoped promotion (doc 34 §6 step 1)', () => {
+  const CA = 'promtest-corpus-a';
+  const CB = 'promtest-corpus-b';
+  const SHARED = `${TAG} Shared Name Co`;
+
+  async function cleanCorpora(): Promise<void> {
+    for (const c of [CA, CB]) {
+      await testDb.unsafe(`DELETE FROM fact_history WHERE fact_id IN (SELECT id FROM facts WHERE corpus_id = '${c}')`);
+      await testDb.unsafe(`DELETE FROM causal_events WHERE fact_id IN (SELECT id FROM facts WHERE corpus_id = '${c}')`);
+      await testDb.unsafe(`DELETE FROM facts WHERE corpus_id = '${c}'`);
+      await testDb.unsafe(`DELETE FROM entities WHERE corpus_id = '${c}'`);
+    }
+  }
+
+  beforeEach(cleanCorpora);
+  afterAll(cleanCorpora);
+
+  /** One staged entity of the shared name, optionally with a fact hanging off it. */
+  function staged(withFact: boolean): StagedProposals {
+    const handle = randomUUID();
+    return {
+      entities: [{ handle, name: SHARED, type: 'organization', summary: null, anchorCanonicalId: null }],
+      facts: withFact
+        ? [{
+          stagedFactId: randomUUID(), subjectHandle: handle, predicate: 'located_in',
+          objectHandle: null, objectValue: 'Testville', validAt: new Date('2026-01-01'),
+          undated: false, chunkIndex: 0, confidence: 0.9, reasoning: `${TAG} corpus scope`,
+          exclusiveGroup: null, supersedesFactId: null,
+        }]
+        : [],
+    };
+  }
+
+  const apply = async (corpusId?: string, withFact = true): Promise<string> => {
+    const plan = planPromotion({ entities: [], activeFacts: [] }, staged(withFact));
+    const res = await applyPromotion(randomUUID(), plan, corpusId);
+    return Object.values(res.mintedEntityIds)[0]!;
+  };
+
+  it('mints a SEPARATE entity per corpus for the same name (no cross-corpus fusion)', async () => {
+    const idA = await apply(CA);
+    const idB = await apply(CB);
+    expect(idA).not.toBe(idB);
+
+    // Grouped over the two dedicated test corpora (cleaned in beforeEach) rather than
+    // filtered on canonical_name — promotion canonicalises the staged name, so a name
+    // filter is brittle and tests the wrong thing.
+    const rows = await testDb.unsafe(
+      `SELECT corpus_id, count(*)::int AS n FROM entities WHERE corpus_id IN ('${CA}','${CB}') GROUP BY corpus_id ORDER BY corpus_id`,
+    );
+    expect(rows).toEqual([{ corpus_id: CA, n: 1 }, { corpus_id: CB, n: 1 }]);
+  });
+
+  it('writes facts into the same corpus as their endpoints (mig 052 composite FK)', async () => {
+    await apply(CA);
+    const rows = await testDb.unsafe(
+      `SELECT f.corpus_id AS fc, e.corpus_id AS ec FROM facts f JOIN entities e ON e.id = f.subject_entity_id WHERE f.corpus_id = '${CA}'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.fc).toBe(CA);
+    expect(rows[0]!.ec).toBe(CA);
+  });
+
+  it('still reuses by name WITHIN one corpus (scoping did not disable dedup)', async () => {
+    // Entity-only: re-staging the same fact would hit uniq_facts_active_triple (mig 037),
+    // which is correct behaviour and not what this test is about.
+    const first = await apply(CA, false);
+    const second = await apply(CA, false);
+    expect(second).toBe(first);
+  });
+});

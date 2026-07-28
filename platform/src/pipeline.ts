@@ -834,6 +834,13 @@ export interface BatchIngestOptions {
   /** Which pipeline arm to run. Default 'serial' (the baseline control). */
   mode?: IngestMode;
   /**
+   * Corpus for this batch's canonical entities/facts (doc 34 §6 step 1). Omitted ⇒
+   * 'default', so existing callers are unchanged. **Only the 'epoch' arm honours it** —
+   * it is the single-writer promote path. Supplying it with mode 'serial'/'optimistic'
+   * THROWS rather than silently writing to 'default'.
+   */
+  corpusId?: string;
+  /**
    * Max concurrent agent extractions for the parallel arms (epoch/optimistic).
    * Per-run override; falls back to EPOCH_CONCURRENCY / OPTIMISTIC_CONCURRENCY
    * env (default 6). Ignored by the serial arm. Lets the benchmark driver tune
@@ -991,7 +998,11 @@ async function propose(
  * promotion is the single writer, so there is no concurrent-merge race to filter
  * against (doc 41 §11, I6 retired; the band-aid was deleted entirely in E7).
  */
-async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<ExtractResult[]> {
+async function runEpochBatch(
+  items: BatchItem[],
+  concurrency?: number,
+  corpusId?: string,
+): Promise<ExtractResult[]> {
   const limit = concurrency ?? EPOCH_CONCURRENCY;
   const epochId = randomUUID();
 
@@ -1039,7 +1050,10 @@ async function runEpochBatch(items: BatchItem[], concurrency?: number): Promise<
 
   // Phase 3: PROMOTE — the deterministic authority writes canonical in one tx.
   const tPromote = Date.now();
-  const result = await promote(epochId);
+  // corpusId threaded through so a separately-ingested corpus gets its own canonical
+  // entities/facts instead of fusing into 'default' (doc 34 §6 step 1). Omitted ⇒ 'default',
+  // i.e. every existing caller is unchanged.
+  const result = await promote(epochId, { corpusId });
   const promoteMs = Date.now() - tPromote;
 
   // Phase 4: CAUSAL PASS — post-promotion, conditional, delta-scoped (doc 41 §6;
@@ -1193,10 +1207,19 @@ export async function ingestBatch(
   const start = Date.now();
   console.log(`${tag} start chunks=${chunks.length} source=${opts.source ?? 'unknown'}`);
 
+  // Fail loud rather than silently writing a corpus-scoped batch into 'default' — only the
+  // epoch arm reaches promote(), which is where corpus scoping is enforced.
+  if (opts.corpusId != null && mode !== 'epoch') {
+    throw new Error(
+      `ingestBatch: corpusId='${opts.corpusId}' requires mode 'epoch' (got '${mode}') — ` +
+        `the serial/optimistic arms do not route through promote() and would write to 'default'`,
+    );
+  }
+
   const items = prepareBatch(chunks, { source: opts.source, sourceId, contentType: opts.contentType, streamId: opts.streamId });
   const runner =
     mode === 'serial' ? runSerialBatch : mode === 'epoch' ? runEpochBatch : runOptimisticBatch;
-  const results = await runner(items, opts.concurrency);
+  const results = await runner(items, opts.concurrency, opts.corpusId);
 
   const total = Date.now() - start;
   console.log(`${tag} done chunks=${chunks.length} results=${results.length} +${total}ms`);

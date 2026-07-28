@@ -1,0 +1,243 @@
+{
+  "code": [
+    {
+      "label": "CODE E001 (true rule ES.42)",
+      "entities": [],
+      "facts": []
+    },
+    {
+      "label": "CODE E002 (true rule Type.1)",
+      "entities": [],
+      "facts": []
+    },
+    {
+      "label": "CODE E003 (true rule ES.42)",
+      "entities": [],
+      "facts": []
+    },
+    {
+      "label": "CODE E004 (true rule ES.42)",
+      "entities": [],
+      "facts": []
+    }
+  ],
+  "rule": [
+    {
+      "label": "RULE C.12",
+      "entities": [],
+      "facts": []
+    },
+    {
+      "label": "RULE C.131",
+      "entities": [],
+      "facts": []
+    },
+    {
+      "label": "RULE C.21",
+      "entities": [],
+      "facts": []
+    },
+    {
+      "label": "RULE C.35",
+      "entities": [],
+      "facts": []
+    }
+  ],
+  "abstract": [
+    {
+      "label": "ABSTRACT W4387994521",
+      "entities": [
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        }
+      ],
+      "facts": []
+    },
+    {
+      "label": "ABSTRACT W4318718936",
+      "entities": [
+        {
+          "name": "BLIP-2",
+          "type": "project"
+        },
+        {
+          "name": "Flamingo80B",
+          "type": "project"
+        },
+        {
+          "name": "VQAv2",
+          "type": "project"
+        }
+      ],
+      "facts": [
+        {
+          "subject": "BLIP-2",
+          "predicate": "outperforms",
+          "object": "Flamingo80B"
+        },
+        {
+          "subject": "BLIP-2",
+          "predicate": "evaluated_on",
+          "object": "VQAv2"
+        },
+        {
+          "subject": "Flamingo80B",
+          "predicate": "evaluated_on",
+          "object": "VQAv2"
+        },
+        {
+          "subject": "BLIP-2",
+          "predicate": "has_fewer_parameters_than",
+          "object": "Flamingo80B"
+        }
+      ]
+    },
+    {
+      "label": "ABSTRACT W4366330503",
+      "entities": [
+        {
+          "name": "Visual Instruction Tuning",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "LLaVA",
+          "type": "project"
+        },
+        {
+          "name": "LLaVA",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "Science QA",
+          "type": "project"
+        },
+        {
+          "name": "LLaVA",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        }
+      ],
+      "facts": [
+        {
+          "subject": "Visual Instruction Tuning",
+          "predicate": "uses",
+          "object": "GPT-4"
+        },
+        {
+          "subject": "Visual Instruction Tuning",
+          "predicate": "creates",
+          "object": "LLaVA"
+        },
+        {
+          "subject": "LLaVA",
+          "predicate": "emulates",
+          "object": "GPT-4"
+        },
+        {
+          "subject": "LLaVA",
+          "predicate": "compared_with",
+          "object": "GPT-4"
+        },
+        {
+          "subject": "LLaVA",
+          "predicate": "fine_tuned_on",
+          "object": "Science QA"
+        },
+        {
+          "subject": "LLaVA",
+          "predicate": "synergizes_with",
+          "object": "GPT-4"
+        }
+      ]
+    },
+    {
+      "label": "ABSTRACT W4366850747",
+      "entities": [
+        {
+          "name": "MiniGPT-4",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "MiniGPT-4",
+          "type": "project"
+        },
+        {
+          "name": "Vicuna",
+          "type": "project"
+        },
+        {
+          "name": "GPT-4",
+          "type": "project"
+        },
+        {
+          "name": "MiniGPT-4",
+          "type": "project"
+        }
+      ],
+      "facts": [
+        {
+          "subject": "MiniGPT-4",
+          "predicate": "uses",
+          "object": "Vicuna"
+        },
+        {
+          "subject": "MiniGPT-4",
+          "predicate": "replicates",
+          "object": "GPT-4"
+        }
+      ]
+    }
+  ]
+}

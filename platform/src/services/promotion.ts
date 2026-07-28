@@ -44,6 +44,16 @@ import { entityEmbedTextFor, entityEmbedModeFromFlag, factEmbedTextFor } from '.
 /** Options for {@link promote}. `invokeArbiter` is injectable for tests (E5). */
 export interface PromoteOptions {
   invokeArbiter?: ArbiterInvoker;
+  /**
+   * Corpus this epoch's canonical output belongs to (doc 34 §6 step 1). Defaults to
+   * 'default', so every existing caller is byte-identical. Supplying it makes the
+   * whole promote path corpus-scoped: the prior-canonical load, the entity
+   * reuse-by-name lookup, and the entity/fact inserts. Without it the reuse-by-name
+   * lookup is a CROSS-CORPUS FUSION PATH — two corpora sharing an entity name would
+   * silently collapse onto one node, which is exactly what the Phase A fusion guards
+   * exist to prevent.
+   */
+  corpusId?: string;
 }
 
 const PROMOTION_ACTOR = 'promotion' as const;
@@ -216,6 +226,7 @@ const vectorLiteral = (v: number[]): string => `[${v.join(',')}]`;
 export async function applyPromotion(
   epochId: string,
   plan: PromotionPlan,
+  corpusId = 'default',
 ): Promise<PromotionResult> {
   // 1. Embeddings up front (outside the tx — the only network calls, kept out of
   // the transaction so it stays pure DB work). Entity vectors embed a name+
@@ -299,7 +310,14 @@ export async function applyPromotion(
       const existing = await tx
         .select({ id: entities.id })
         .from(entities)
-        .where(and(sql`lower(${entities.canonicalName}) = ${e.name.toLowerCase()}`, eq(entities.entityType, e.type)))
+        // corpus-scoped (doc 34 §6): without eq(corpusId) this reuse-by-name lookup is a
+        // cross-corpus fusion path — two separately-ingested corpora sharing an entity name
+        // would collapse onto one node. Default corpus behaviour is unchanged.
+        .where(and(
+          sql`lower(${entities.canonicalName}) = ${e.name.toLowerCase()}`,
+          eq(entities.entityType, e.type),
+          eq(entities.corpusId, corpusId),
+        ))
         .limit(1);
       let id = existing[0]?.id;
       if (!id) {
@@ -309,6 +327,7 @@ export async function applyPromotion(
           canonicalName: e.name,
           entityType: e.type,
           description: e.summary ?? undefined,
+          corpusId,
         });
         const vec = entityEmbeddings.get(e.clusterKey);
         if (vec && vec.length > 0) {
@@ -344,6 +363,9 @@ export async function applyPromotion(
         extractionMethod: 'llm',
         expiredAt,
         expireReason: f.expireReason,
+        // mig 052 composite FK pins a fact's endpoints into its own corpus, so this must
+        // match the entities minted above or the insert is rejected (23503).
+        corpusId,
       });
       // nmemo-uhp.14: populate fact_embedding on the epoch path too (aligns with
       // the serial createFact path). Guarded ⇒ NULL exactly as before when off.
@@ -521,7 +543,8 @@ export async function cleanupAbandonedStaging(
 }
 
 export async function promote(epochId: string, opts: PromoteOptions = {}): Promise<PromotionResult> {
-  const { prior, staged, mode } = await loadPromotionInputs(epochId);
+  const corpusId = opts.corpusId ?? 'default';
+  const { prior, staged, mode } = await loadPromotionInputs(epochId, corpusId);
 
   // Canonicalize staged predicates against the registry BEFORE planning (doc 42
   // §7, PC4 — "the spine"). Mutates StagedFact.predicate to the canonical string,
@@ -563,7 +586,7 @@ export async function promote(epochId: string, opts: PromoteOptions = {}): Promi
     }
   }
 
-  const result = await applyPromotion(epochId, plan);
+  const result = await applyPromotion(epochId, plan, corpusId);
 
   console.log(
     `[promotion] epoch=${epochId.slice(0, 8)} minted=${Object.keys(result.mintedEntityIds).length} ` +
