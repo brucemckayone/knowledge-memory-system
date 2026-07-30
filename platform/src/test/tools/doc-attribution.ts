@@ -98,17 +98,38 @@ async function main(): Promise<void> {
     WHERE f.corpus_id IN ('arxiv-nlp', 'arxiv-cv')
   `));
 
-  const factToPapers = new Map<string, Set<string>>();
-  const entityToPapers = new Map<string, Set<string>>();
-  const paperToEntities = new Map<string, Set<string>>();
+  // Collect candidate papers per fact FIRST, then commit only unambiguous ones.
+  //
+  // Why conservative: `promote()` keeps consumed staging, and an interrupted run leaves rows
+  // from an epoch that never promoted. A canonical fact matched by reasoning text can then hit
+  // both a promoted and an abandoned staged row. In practice a retry re-processes the same
+  // slice so both resolve to the SAME paper (harmless) — but that depends on ledger ordering,
+  // and "probably harmless" is not good enough to score on. So: a fact whose matches disagree
+  // on the paper is EXCLUDED, not attributed to all of them. Measured cost on the pilot was
+  // 9 facts (1.5%). This also removes any need to reason about epoch provenance.
+  const factCandidates = new Map<string, Set<string>>();
   for (const r of factRows) {
     const paper = chunkToPaper.get(`${r.source_id as string}#${Number(r.chunk_index)}`);
     if (!paper) continue;
-    push(factToPapers, r.fact_id as string, paper);
-    for (const e of [r.subj, r.obj]) {
+    push(factCandidates, r.fact_id as string, paper);
+  }
+  const factEndpoints = new Map<string, Array<string | null>>();
+  for (const r of factRows) {
+    factEndpoints.set(r.fact_id as string, [r.subj as string | null, r.obj as string | null]);
+  }
+
+  const factToPapers = new Map<string, Set<string>>();
+  const entityToPapers = new Map<string, Set<string>>();
+  const paperToEntities = new Map<string, Set<string>>();
+  let ambiguousExcluded = 0;
+  for (const [factId, papers] of factCandidates) {
+    if (papers.size > 1) { ambiguousExcluded += 1; continue; }
+    const paper = [...papers][0]!;
+    push(factToPapers, factId, paper);
+    for (const e of factEndpoints.get(factId) ?? []) {
       if (!e) continue;
-      push(entityToPapers, e as string, paper);
-      push(paperToEntities, paper, e as string);
+      push(entityToPapers, e, paper);
+      push(paperToEntities, paper, e);
     }
   }
 
@@ -119,7 +140,8 @@ async function main(): Promise<void> {
   const totalEntities = (rows(await db.execute(
     sql`SELECT count(*)::int AS n FROM public.entities WHERE corpus_id IN ('arxiv-nlp','arxiv-cv')`,
   ))[0]!.n) as number;
-  const ambiguous = [...factToPapers.values()].filter((s) => s.size > 1).length;
+  // Every committed fact maps to exactly one paper by construction now; the ambiguous ones
+  // were excluded above and are reported so the loss is visible, never silent.
 
   const result = {
     generatedFor: ['arxiv-nlp', 'arxiv-cv'],
@@ -129,8 +151,9 @@ async function main(): Promise<void> {
       chunksResolved: chunkToPaper.size,
       chunksUnresolved: unresolvedChunks,
       factsTotal: totalFacts,
+      factsMatchedToStaging: factCandidates.size,
       factsAttributed: factToPapers.size,
-      factsAmbiguousMultiPaper: ambiguous,
+      factsExcludedAmbiguous: ambiguousExcluded,
       entitiesTotal: totalEntities,
       entitiesAttributed: entityToPapers.size,
       papersWithEntities: paperToEntities.size,

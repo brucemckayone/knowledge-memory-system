@@ -45,6 +45,75 @@ function rows(r: unknown): Array<Record<string, unknown>> {
   return r as unknown as Array<Record<string, unknown>>;
 }
 
+/**
+ * Snapshot paper attribution for ONE just-completed batch, immediately.
+ *
+ * This must happen per batch, not at the end of the run. Two facts force it:
+ *   1. `runEpochBatch` returns ONE aggregated ExtractResult per epoch — the pipeline says so
+ *      itself ("Per-chunk attribution is gone (promotion is epoch-wide)") — so a batch of 10
+ *      papers yields batch-level, not paper-level, attribution.
+ *   2. `cleanupAbandonedStaging()` runs on EVERY epoch batch and deletes staging older than
+ *      STAGING_TTL_MS (default 1 HOUR). Consumed staging is therefore garbage-collected
+ *      mid-run — an earlier design that read it after the fact was relying on a transient
+ *      window and silently lost corpus A's provenance.
+ *
+ * Here chunk_index → paper needs no Qdrant lookup or content matching: this harness built the
+ * slice, so it knows the mapping exactly. Facts are matched to canonical rows by the reasoning
+ * text promotion copies into `facts.source_text`; a fact whose matches disagree on the paper is
+ * EXCLUDED rather than attributed to several, so a stale row can never mis-attribute.
+ */
+async function snapshotAttribution(
+  corpusId: string,
+  sourceId: string,
+  slice: Doc[],
+): Promise<{ facts: number; entities: number; excluded: number }> {
+  const chunkToPaper = new Map<number, string>(slice.map((d, i) => [i, d.id]));
+
+  const r = rows(await db.execute(sql`
+    SELECT f.id::text AS fact_id,
+           f.subject_entity_id::text AS subj,
+           f.object_entity_id::text AS obj,
+           s.chunk_index AS chunk_index
+    FROM public.facts f
+    JOIN public.staging_proposed_facts s ON s.reasoning = f.source_text
+    WHERE f.corpus_id = ${corpusId} AND s.source_id = ${sourceId}::uuid
+  `));
+
+  const candidates = new Map<string, Set<string>>();
+  const endpoints = new Map<string, Array<string | null>>();
+  for (const row of r) {
+    const paper = chunkToPaper.get(Number(row.chunk_index));
+    if (!paper) continue;
+    const fid = row.fact_id as string;
+    const set = candidates.get(fid) ?? new Set<string>();
+    set.add(paper);
+    candidates.set(fid, set);
+    endpoints.set(fid, [row.subj as string | null, row.obj as string | null]);
+  }
+
+  const path = join(OUT, `attribution-${corpusId}.json`);
+  const acc: { paperToEntities: Record<string, string[]>; factToPaper: Record<string, string> } =
+    existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : { paperToEntities: {}, factToPaper: {} };
+
+  let excluded = 0, factsAdded = 0;
+  const touchedEntities = new Set<string>();
+  for (const [fid, papers] of candidates) {
+    if (papers.size > 1) { excluded += 1; continue; }
+    const paper = [...papers][0]!;
+    acc.factToPaper[fid] = paper;
+    factsAdded += 1;
+    const list = new Set(acc.paperToEntities[paper] ?? []);
+    for (const e of endpoints.get(fid) ?? []) {
+      if (!e) continue;
+      list.add(e);
+      touchedEntities.add(e);
+    }
+    acc.paperToEntities[paper] = [...list].sort();
+  }
+  writeFileSync(path, JSON.stringify(acc, null, 2));
+  return { facts: factsAdded, entities: touchedEntities.size, excluded };
+}
+
 async function graphStats(corpusId: string): Promise<{ entities: number; facts: number }> {
   const e = rows(await db.execute(sql`SELECT count(*)::int AS n FROM public.entities WHERE corpus_id = ${corpusId}`));
   const f = rows(await db.execute(sql`SELECT count(*)::int AS n FROM public.facts WHERE corpus_id = ${corpusId}`));
@@ -101,12 +170,19 @@ async function main(): Promise<void> {
       });
       const ents = res.results.reduce((s, r) => s + r.entities.length, 0);
       const fcts = res.results.reduce((s, r) => s + r.facts.length, 0);
+
+      // BEFORE marking done: capture paper attribution while this batch's staging is fresh.
+      // If this throws, the batch is not marked done and the whole run stops — attribution is
+      // load-bearing for the doc-35 measurement, so a graph without it is worse than no graph.
+      const attr = await snapshotAttribution(corpusId, res.sourceId, slice);
+
       for (const d of slice) doneSet.add(d.id);
       writeFileSync(ledgerPath, JSON.stringify([...doneSet], null, 2));
       const st = await graphStats(corpusId);
       console.log(
         `  batch ${Math.floor(i / batchSize) + 1}: ${slice.length} docs → ${ents} entities, ${fcts} facts ` +
-          `(+${((Date.now() - t0) / 1000).toFixed(0)}s) | corpus now ${st.entities} entities / ${st.facts} facts`,
+          `(+${((Date.now() - t0) / 1000).toFixed(0)}s) | corpus now ${st.entities} entities / ${st.facts} facts ` +
+          `| attributed ${attr.facts} facts / ${attr.entities} entities (excluded ${attr.excluded})`,
       );
     } catch (err) {
       // Fail loud but keep the ledger honest — this batch is NOT marked done, so a re-run retries it.
