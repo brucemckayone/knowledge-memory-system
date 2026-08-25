@@ -60,6 +60,25 @@ function arg(name: string, dflt?: string): string | undefined {
 function rows(r: unknown): Array<Record<string, unknown>> {
   return r as unknown as Array<Record<string, unknown>>;
 }
+
+/**
+ * Retry predicate for one linking call. `isRetryableAgentError` covers 503 backpressure and
+ * the flaky `claude -p` subprocess (`rc=1`), and correctly refuses to retry a session limit.
+ * It does NOT cover an ML client TIMEOUT: `generateJson` aborts at 60s and ml-client rethrows
+ * the AbortError as `ML /chat failed (0): Request timed out` without retrying it. Observed
+ * calls average ~24s, so a slow tail call is ordinary variance — and it killed a run at
+ * 44/1218 entities. Retrying re-issues the SAME call for the SAME entity, so the
+ * one-call-per-entity accounting is unchanged.
+ *
+ * Kept local to this harness on purpose: `isRetryableAgentError` is shared production code
+ * whose scope (agent-subprocess flakiness) is deliberate, and broadening it as a side effect
+ * of a test harness's needs would change retry behaviour for every caller.
+ */
+function isRetryableLinkError(err: unknown): boolean {
+  if (isRetryableAgentError(err)) return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /request timed out/i.test(msg);
+}
 function cosine(a: number[], b: number[]): number {
   let d = 0, na = 0, nb = 0;
   for (let i = 0; i < a.length; i++) { d += a[i]! * b[i]!; na += a[i]! * a[i]!; nb += b[i]! * b[i]!; }
@@ -138,9 +157,9 @@ async function main(): Promise<void> {
       ? withVec.map((v) => ({ v, s: cosine(eVec, v.vec!) })).sort((a, b) => b.s - a.s).slice(0, WINDOW).map((x) => x.v.name)
       : snapshot.slice(0, WINDOW).map((v) => v.name);
 
-    // Retry transient ML backpressure (503) exactly as the ingest path does. A session limit
-    // is NOT retryable (isRetryableAgentError excludes it), so the run fails loud with every
-    // finished entity still recorded in the ledger.
+    // Retry transient ML backpressure, flaky subprocesses and slow-tail timeouts. A session
+    // limit is NOT retryable, so the run fails loud with every finished entity still recorded
+    // in the ledger.
     const res = await withRetry(() => extractAndLinkConcepts({
       elementEntityId: e.id as string,
       corpusId,
@@ -149,7 +168,7 @@ async function main(): Promise<void> {
       name,
       text,
       vocabulary: window,
-    }), { retries: 4, isRetryable: isRetryableAgentError, baseDelayMs: 500 });
+    }), { retries: 4, isRetryable: isRetryableLinkError, baseDelayMs: 500 });
 
     if (res.labels.length === 0) empty += 1;
     linked += res.linked;
