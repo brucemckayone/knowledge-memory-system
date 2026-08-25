@@ -14,7 +14,7 @@ import type { IngestMode } from './services/batch.js';
 import { isSessionLimitError } from './services/session-limit.js';
 import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, captureIdempotency, stagingProposedEntities, stagingProposedFacts } from './db/index.js';
-import { isNull, sql, eq, desc } from 'drizzle-orm';
+import { isNull, sql, eq, desc, and } from 'drizzle-orm';
 import { heroRoute } from './routes/hero.js';
 import { notificationsHandler } from './routes/notifications.js';
 import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
@@ -296,7 +296,37 @@ app.get('/viz/js/*', async (c) => {
   }
 });
 
+// Corpora present in the graph, largest first — populates the viz corpus picker so a
+// multi-corpus DB can be viewed one corpus at a time instead of as an arbitrary blend.
+app.get('/api/viz/corpora', async (c) => {
+  const rows = await db.execute(sql`
+    SELECT e.corpus_id AS corpus_id,
+           count(*)::int AS entities,
+           (SELECT count(*)::int FROM public.facts f
+             WHERE f.corpus_id = e.corpus_id AND f.expired_at IS NULL
+               AND f.object_entity_id IS NOT NULL) AS edges
+    FROM public.entities e
+    GROUP BY e.corpus_id
+    ORDER BY entities DESC
+  `);
+  return c.json({ corpora: rows as unknown as Array<Record<string, unknown>> });
+});
+
 app.get('/api/viz/unified', async (c) => {
+  // Corpus scoping + caps (viz fix). The unfiltered 200-entity cap made this endpoint
+  // useless once the DB held more than one corpus: it returned an arbitrary slice
+  // dominated by whichever rows Postgres happened to emit first (old test fixtures),
+  // and drew an edge only when BOTH endpoints landed in that slice — so a 1,548-edge
+  // corpus rendered as ~149 edges. `?corpus=<id>` scopes entities AND facts; the caps
+  // are raised and overridable via `?limit=`.
+  const corpus = c.req.query('corpus')?.trim() || null;
+  // Default sized for an interactive canvas: force layout over a few thousand nodes
+  // saturates the browser. Raise with ?limit= when you want the whole corpus.
+  const entLimit = Math.min(Number(c.req.query('limit') ?? 600) || 600, 20000);
+  const factLimit = Math.min(entLimit * 3, 40000);
+  const entityCorpus = corpus ? eq(entities.corpusId, corpus) : undefined;
+  const factCorpus = corpus ? eq(facts.corpusId, corpus) : undefined;
+
   // Fetch all data in parallel
   const [ents, fcts, memLinks, events, edges_raw, metaRows, candidates, sameAsRows] = await Promise.all([
     db.select({
@@ -304,7 +334,14 @@ app.get('/api/viz/unified', async (c) => {
       canonicalName: entities.canonicalName,
       entityType: entities.entityType,
       confidence: entities.confidence,
-    }).from(entities).limit(200),
+      // Ordered by degree so that when the cap bites, what survives is the connected
+      // core rather than an arbitrary slice (an unordered cap is why this endpoint
+      // rendered 149 of 1,548 edges).
+    }).from(entities).where(entityCorpus).orderBy(desc(sql`(
+        SELECT count(*) FROM public.facts f
+        WHERE f.expired_at IS NULL AND f.object_entity_id IS NOT NULL
+          AND (f.subject_entity_id = ${entities.id} OR f.object_entity_id = ${entities.id})
+      )`)).limit(entLimit),
     db.select({
       id: facts.id,
       subjectEntityId: facts.subjectEntityId,
@@ -315,7 +352,7 @@ app.get('/api/viz/unified', async (c) => {
       sourceText: facts.sourceText,
       sourceMemoryId: facts.sourceMemoryId,
       createdAt: facts.createdAt,
-    }).from(facts).where(isNull(facts.expiredAt)).limit(500),
+    }).from(facts).where(and(isNull(facts.expiredAt), factCorpus)).limit(factLimit),
     db.select({
       entityId: memoryEntities.entityId,
       memoryId: memoryEntities.memoryId,

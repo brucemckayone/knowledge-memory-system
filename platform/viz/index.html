@@ -339,6 +339,8 @@ svg { flex: 1; }
     <button class="layout-btn active" data-layout="force">Force</button>
     <button class="layout-btn" data-layout="dag">DAG</button>
   </div>
+  <span class="viz-select-label">corpus</span>
+  <select class="viz-select" id="corpusSelect" title="Scope the canvas to one corpus. The database holds several at once (papers, the C++ experiment, old test fixtures); viewing them blended mixes unrelated graphs and hides edges whose other end falls outside the sample."></select>
   <span class="viz-select-label">color</span>
   <select class="viz-select" id="colorModeSelect" title="Entity color encoding">
     <option value="type" selected>by Type</option>

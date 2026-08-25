@@ -41,6 +41,9 @@ export const state = {
   // flagged `_staged` so render.js styles them amber/dashed. stagingMeta holds
   // the latest counts for the toggle label.
   showStaging: false,
+  // Which corpus the canvas is scoped to (null = all, which blends unrelated corpora
+  // and silently drops cross-slice edges — see /api/viz/unified).
+  corpus: null,
   stagingMeta: null,
   // viz.4 — unified merge candidates (bead nmemo-2yv.47 — subsumes legacy
   // cross-cluster panel). mergeCandidatesSourceFilter is one of the keys in

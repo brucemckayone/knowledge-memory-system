@@ -3,7 +3,7 @@
 // overlays/, panels/, and agents/ subtrees plus state/api/poll/util.
 
 import { state } from './state.js';
-import { getUnified, getStaging } from './api.js';
+import { getUnified, getStaging, getCorpora } from './api.js';
 import { register, startAll, stopAll } from './poll.js';
 import { initSvg } from './canvas/simulation.js';
 import { renderAll } from './canvas/render.js';
@@ -31,7 +31,7 @@ import { bindForcesPanel, computePredicateAffinityLinks } from './canvas/forces.
 
 export async function fetchData() {
   try {
-    const unified = await getUnified();
+    const unified = await getUnified(state.corpus);
 
     // Staging overlay: merge the current epoch's proposed (pre-promote) nodes
     // and edges in, flagged `_staged`. Best-effort — a staging fetch failure
@@ -163,6 +163,13 @@ bindDriftStrip();
 bindReasoningReportsPanel();
 bindForcesPanel();
 
+// Scope to a corpus BEFORE the first fetch, so the initial render is one coherent
+// corpus rather than an arbitrary blend of every experiment in the database.
+await initCorpusPicker(async () => {
+  await fetchData();
+  await refreshStats();
+});
+
 // Polling registry — runs every poller once on start, then on its interval.
 register('graph', async () => {
   await fetchData();
@@ -191,4 +198,32 @@ else {
   refreshMergeCandidates();
   refreshDrift();
   refreshReasoningReports();
+}
+
+
+// ---- Corpus picker -------------------------------------------------------
+// The graph DB holds several corpora at once (papers, the C++ experiment, old test
+// fixtures). Viewing them blended is meaningless, so the viz scopes to one corpus and
+// defaults to the largest.
+export async function initCorpusPicker(onChange) {
+  const sel = document.getElementById('corpusSelect');
+  if (!sel) return;
+  try {
+    const { corpora } = await getCorpora();
+    sel.innerHTML = '';
+    for (const row of corpora) {
+      const opt = document.createElement('option');
+      opt.value = row.corpus_id;
+      opt.textContent = `${row.corpus_id} (${row.entities} nodes, ${row.edges} edges)`;
+      sel.appendChild(opt);
+    }
+    if (corpora.length > 0 && !state.corpus) state.corpus = corpora[0].corpus_id;
+    sel.value = state.corpus ?? '';
+    sel.addEventListener('change', async () => {
+      state.corpus = sel.value || null;
+      if (typeof onChange === 'function') await onChange();
+    });
+  } catch (err) {
+    console.warn('[corpus] picker init failed:', err);
+  }
 }
