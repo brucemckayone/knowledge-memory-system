@@ -1,4 +1,4 @@
-import { state, COLOR_ENTITY, COLOR_TRANSITION, COLOR_MERGE } from '../state.js';
+import { state, COLOR_MERGE } from '../state.js';
 import { nodeRadius, chargeStrength } from './simulation.js';
 import { isNodeVisible, isEdgeVisible } from './visibility.js';
 import { applyDagLayout } from './layout-dag.js';
@@ -6,7 +6,7 @@ import { showTooltip, hideTooltip, updatePinnedTooltipPosition, pinTooltipForNod
 import { toggleFocus } from './focus.js';
 import { showNodeDetail, showEdgeDetail } from '../panels/detail.js';
 import { renderContradictionsOverlay } from '../overlays/contradictions.js';
-import { resolveEntityColor, resolveEntityStrokeOpacity, renderTopologyOverlay } from '../layers/topology.js';
+import { renderTopologyOverlay } from '../layers/topology.js';
 import { renderClusterHulls } from '../layers/clusters.js';
 import { renderGhostMarkers } from '../overlays/ghosts.js';
 import { applyForces, isPinnedArticulationNode, isRingPinnedCausalEvent } from './forces.js';
@@ -179,14 +179,6 @@ export function renderEdges(group, edges, opts) {
       .attr('font-size', '9px').attr('fill', '#8b949e').attr('text-anchor', 'middle').attr('pointer-events', 'none');
     lblEnter.merge(lbl).text(d => opts.label(d));
   }
-}
-
-export function renderLabels(group, edges, textFn) {
-  const lbl = group.selectAll('text.edge-label').data(edges, d => d.id);
-  lbl.exit().remove();
-  const lblEnter = lbl.enter().append('text').attr('class', 'edge-label')
-    .attr('font-size', '9px').attr('fill', '#484f58').attr('text-anchor', 'middle').attr('pointer-events', 'none');
-  lblEnter.merge(lbl).text(textFn);
 }
 
 export function renderNodes(group, nodeData, opts) {

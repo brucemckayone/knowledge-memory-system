@@ -88,6 +88,47 @@ forces, reheat settle x3 + warm 10s FPS window:
 
 Settle now comfortably under the 5s bar; FPS unchanged within noise (>>30). No
 effect on drawn counts.
+
+## Final verification — 3 consecutive runs (canvas + alphaDecay 0.035)
+
+Each run: fresh navigate to the full workload (FPS + settle + invariant), then
+fresh navigate to the default workload (FPS + invariant). Default force config
+(sameAsFusion + causalRadial). Warm 10s FPS window, sim held hot; settle is a
+reheat from alpha 0.3 to alphaMin. Drawn counts from `getDrawCounts()`.
+
+| run | full median FPS (>=30) | full p5 | full settle ms (<=5000) | default median FPS (>=50) | default p5 | long tasks | invariant |
+|---|---|---|---|---|---|---|---|
+| 1 | 57.1 | 28.5 | 3229 | 56.8 | 54.9 | 0 | PASS |
+| 2 | 56.8 | 28.2 | 3294 | 56.8 | 54.3 | 0 | PASS |
+| 3 | 56.5 | 28.2 | 3246 | 59.9 | 59.5 | 0 | PASS |
+
+Invariant every run: full drawn 3044 nodes / 3370 edges == payload; default
+drawn 1763 / 1725 == payload. All four bar criteria hold on all 3 runs.
+
+**Bar status: PASS on 3 consecutive runs.**
+1. median FPS >= 30 full: 57.1 / 56.8 / 56.5 — PASS
+2. time-to-settle <= 5000ms full: 3229 / 3294 / 3246 — PASS
+3. default view >= 50 FPS: 56.8 / 56.8 / 59.9 — PASS
+4. invariant (drawn == payload): PASS every run
+
+Interactivity re-verified on the canvas hit-test: hover -> tooltip, click ->
+select + detail panel open (entity "extrinsic hallucination", synthetic
+pointer/click at its screen position).
+
+### Notes / limitations
+
+- FPS is measured in Playwright (Chromium) with the simulation held hot — the
+  worst case, and the state that froze. A settled static graph idles at the
+  display cap; the hot-sim number is the honest sustained figure.
+- The decorative overlays (topology rings/halos, cluster hulls, ghosts,
+  contradictions, bridges) still render on the SVG layer above the canvas. They
+  are off/empty by default and not on the bar; when toggled on they draw on top
+  of the canvas (correct for rings/ghosts/bridges; hulls read as translucent
+  overlays rather than underlays). Not a perf regression — the default/bar view
+  has no overlay elements, so the per-tick SVG sync is a no-op there.
+- The `?limit=` cap is the server's existing entity cap (degree-ordered, so the
+  connected core survives). It is a data-fetch bound, not a render cull: the
+  canvas draws 100% of whatever the payload contains.
 - **The bottleneck is SVG paint, not JS.** Profiled in-page: the entire per-tick
   attribute write (edge x1/y1/x2/y2 + label x/y + node transform over
   1725+1280+1100 elements) is **6.3ms**. The remaining ~890ms/frame is the
