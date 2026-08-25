@@ -11,6 +11,9 @@
 window.__vizPerf = {
   _frames: [], _running: false, _raf: 0, _lt: 0, _obs: null,
   start() {
+    // Cancel any prior loop/observer first so a second start() can't leave two
+    // rAF chains pushing to the same buffer (duplicate frames, 0ms deltas).
+    this.stop();
     this._frames = []; this._lt = 0; this._running = true;
     try {
       this._obs = new PerformanceObserver((list) => {
@@ -32,16 +35,22 @@ window.__vizPerf = {
   },
   report() {
     const f = this._frames;
-    if (f.length < 2) return { frames: f.length, medianFps: 0, p5Fps: 0, durationMs: 0, longTasks: this._lt };
+    if (f.length < 3) return { frames: f.length, medianFps: 0, p5Fps: 0, avgFps: 0, durationMs: 0, longTasks: this._lt };
+    // Work in frame-time (ms) deltas — always finite — then invert to FPS.
+    // median FPS  = 1000 / median frame time.
+    // p5 FPS      = 1000 / 95th-percentile frame time (the worst-5% frames).
     const d = [];
     for (let i = 1; i < f.length; i++) d.push(f[i] - f[i - 1]);
-    const fps = d.map((x) => 1000 / x).sort((a, b) => a - b);
-    const q = (p) => fps[Math.min(fps.length - 1, Math.max(0, Math.floor(fps.length * p)))];
+    d.sort((a, b) => a - b);
+    const durationMs = Math.round(f[f.length - 1] - f[0]);
+    const qd = (p) => d[Math.min(d.length - 1, Math.max(0, Math.floor(d.length * p)))];
+    const toFps = (ms) => (ms > 0 ? +(1000 / ms).toFixed(1) : 0);
     return {
       frames: f.length,
-      durationMs: Math.round(f[f.length - 1] - f[0]),
-      medianFps: +q(0.5).toFixed(1),
-      p5Fps: +q(0.05).toFixed(1),
+      durationMs,
+      avgFps: +(((f.length - 1) / (durationMs / 1000)) || 0).toFixed(1),
+      medianFps: toFps(qd(0.5)),
+      p5Fps: toFps(qd(0.95)),
       longTasks: this._lt,
     };
   },

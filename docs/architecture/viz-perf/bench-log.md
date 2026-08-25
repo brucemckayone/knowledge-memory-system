@@ -33,13 +33,19 @@ view >= 50 FPS, without ever drawing fewer nodes/edges than the API payload.
 
 | timestamp | render | workload | median FPS | p5 FPS | settle ms | API ms | payload KB | long tasks | invariant |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026-08-25T09:05Z | SVG (24da355) | full (1500) | 1 | 1 | >15000 (no settle) | 34 | 1845 | 10/10 frames | **FAIL** — 1314/1314 value nodes undrawn |
-| 2026-08-25T09:05Z | SVG (24da355) | default (600) | 1 | 1 | >15000 (no settle) | 22 | 1023 | 9/9 frames | **FAIL** — 663/663 value nodes undrawn |
+| 2026-08-25T09:18Z | SVG (24da355) | full (1500) warm | 12.0 | 7.5 | >15000 (no settle) | 34 | 1845 | 113 | **FAIL** — 1314/1314 value nodes undrawn |
+| 2026-08-25T09:18Z | SVG (24da355) | default (600) warm | 29.9 | 15.0 | >15000 (no settle) | 22 | 1023 | 21 | **FAIL** — 663/663 value nodes undrawn |
+| 2026-08-25T09:05Z | SVG (24da355) | full (1500) cold | 1 | 1 | >15000 (no settle) | 34 | 1845 | 10 | (first-load, pre-warm) |
 
 ### Baseline notes (SVG, commit 24da355)
 
-- **~1 FPS at both workloads under active simulation.** Confirms the reported
-  freeze. Each tick takes ~900ms.
+- **Warm sustained: 12 FPS full / 30 FPS default. Cold first-load: ~1 FPS.**
+  The metric is *sustained* FPS, so the warm number (2s warm-up discarded, then
+  a 10s window with the sim held hot) is the fair figure to beat. The ~1 FPS
+  cold reading is real too — it is the first-load freeze the user reported,
+  where thousands of new SVG elements are laid out for the first time.
+- Neither workload settles within 15s; both miss every FPS bar (need 30 full /
+  50 default) and the 5s settle bar.
 - **The bottleneck is SVG paint, not JS.** Profiled in-page: the entire per-tick
   attribute write (edge x1/y1/x2/y2 + label x/y + node transform over
   1725+1280+1100 elements) is **6.3ms**. The remaining ~890ms/frame is the
