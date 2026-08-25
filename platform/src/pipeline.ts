@@ -1042,7 +1042,11 @@ async function runEpochBatch(
   const tPropose = Date.now();
   await mapWithConcurrency(stored, limit, ({ memoryId, item }) =>
     withRetry(
-      () => propose(memoryId, { epochId, sourceId: item.sourceId, chunkIndex: item.chunkIndex, totalChunks: items.length }, { contentType: item.contentType }),
+      // corpusId rides the epoch context into the proposer's MCP env (MNEMO_CORPUS_ID),
+      // so resolve_anchor scopes identity resolution to THIS corpus. Without it the
+      // agent anchors to a same-named entity in another corpus and promotion writes a
+      // cross-corpus fact that migration 052's composite FK rejects (doc 36 §4).
+      () => propose(memoryId, { epochId, sourceId: item.sourceId, chunkIndex: item.chunkIndex, totalChunks: items.length, corpusId }, { contentType: item.contentType }),
       { retries: 4, isRetryable: isRetryableAgentError, baseDelayMs: 500 },
     ),
   );

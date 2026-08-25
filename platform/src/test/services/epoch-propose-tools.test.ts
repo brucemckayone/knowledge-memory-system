@@ -58,8 +58,20 @@ const FIXTURE_ENTITY_NAMES = ['Dr. Elena Vasquez', 'Helix Corp', 'Acme Inc', 'Gl
 async function cleanFixtureEntities(): Promise<void> {
   const names = FIXTURE_ENTITY_NAMES.map((n) => `'${n.replace(/'/g, "''")}'`).join(', ');
   const ids = `SELECT id FROM entities WHERE canonical_name IN (${names})`;
-  await testDb.unsafe(`DELETE FROM fact_history WHERE fact_id IN (SELECT id FROM facts WHERE subject_entity_id IN (${ids}))`);
-  await testDb.unsafe(`DELETE FROM facts WHERE subject_entity_id IN (${ids})`);
+  // Every table that pins one of these entities has to go first, and the cleanup used
+  // to cover only the SUBJECT side of facts. The shared cognitive_test DB is never
+  // truncated, so debris from other suites accumulates against these very common
+  // fixture names and then this whole file fails in beforeEach rather than in a test:
+  //   - a fact whose OBJECT is a fixture entity — object_entity_id is ON DELETE SET
+  //     NULL, and nulling it trips the `has_object` CHECK on a fact with no
+  //     object_value (observed: a July `works_at` row).
+  //   - entity_merges.target_entity_id / source_entity_id are plain FKs with no
+  //     cascade, so one merge audit row pins the entity permanently.
+  const factIds = `SELECT id FROM facts WHERE subject_entity_id IN (${ids}) OR object_entity_id IN (${ids})`;
+  await testDb.unsafe(`DELETE FROM causal_events WHERE fact_id IN (${factIds})`);
+  await testDb.unsafe(`DELETE FROM fact_history WHERE fact_id IN (${factIds})`);
+  await testDb.unsafe(`DELETE FROM facts WHERE subject_entity_id IN (${ids}) OR object_entity_id IN (${ids})`);
+  await testDb.unsafe(`DELETE FROM entity_merges WHERE target_entity_id IN (${ids}) OR source_entity_id IN (${ids})`);
   await testDb.unsafe(`DELETE FROM entities WHERE canonical_name IN (${names})`);
 }
 
@@ -275,6 +287,85 @@ describe('epoch-v2 propose tool surface + allow-lists (nmemo-vpz.2 / E2)', () =>
       const res = await call('resolve_anchor',
         { mention: 'Zzqx Nonexistent Entity 4711' }, proposerCtx(randomUUID()));
       expect(res.matched).toBe(false);
+    });
+  });
+
+  /**
+   * resolve_anchor corpus scoping (doc 36 §4). Corpus separation was enforced on the
+   * WRITE path (`dcfcfb8`) but not on the READ path the agent uses to decide identity:
+   * `resolve_anchor` looked entities up by name with no corpus filter. So an agent
+   * extracting corpus B saw "GPT-4", matched corpus A's node, and registered its
+   * corpus-B entity as anchored across the boundary; promotion then tried to write an
+   * `arxiv-cv` fact whose object lives in `arxiv-nlp` and migration 052's composite FK
+   * `facts_object_corpus_fk` rejected the whole batch. This was the fifth unscoped
+   * corpus path, and it can only appear once two corpora that discuss the same things
+   * coexist — which is the entire point of the feature.
+   *
+   * Fixtures are inserted with a NULL embedding on purpose, so branch 3 (the semantic
+   * fallback) can never match them and the assertions below hold whether or not the ML
+   * service is running. Branch 3's own scoping comes from `findSimilarEntities`, which
+   * has been corpus-filtered since Phase A.
+   */
+  describe('resolve_anchor is corpus-scoped (doc 36 §4)', () => {
+    const CA = 'anchortest-corpus-a';
+    const CB = 'anchortest-corpus-b';
+    const SHARED = 'Anchortest Shared Model';
+    const SHARED_ALIAS = 'anchortest-shared-alias';
+
+    async function cleanAnchorCorpora(): Promise<void> {
+      for (const c of [CA, CB]) {
+        await testDb.unsafe(`DELETE FROM entity_aliases WHERE entity_id IN (SELECT id FROM entities WHERE corpus_id = '${c}')`);
+        await testDb.unsafe(`DELETE FROM entities WHERE corpus_id = '${c}'`);
+      }
+    }
+
+    /** Insert a bare entity directly — createTestEntity has no corpus parameter. */
+    async function seed(corpusId: string, name: string): Promise<string> {
+      const rows = await testDb`
+        INSERT INTO entities (canonical_name, entity_type, corpus_id)
+        VALUES (${name}, 'other', ${corpusId})
+        RETURNING id
+      `;
+      return rows[0]!.id as string;
+    }
+
+    beforeEach(cleanAnchorCorpora);
+    afterAll(cleanAnchorCorpora);
+
+    it('does NOT anchor across the corpus boundary — the bug that blocked corpus B', async () => {
+      await seed(CA, SHARED);
+      const res = await call('resolve_anchor', { mention: SHARED }, proposerCtx(randomUUID(), { corpusId: CB }));
+      expect(res.matched).toBe(false);
+    });
+
+    it('resolves the same name to each corpus OWN node', async () => {
+      const idA = await seed(CA, SHARED);
+      const idB = await seed(CB, SHARED);
+      expect(idA).not.toBe(idB);
+
+      const inA = await call('resolve_anchor', { mention: SHARED }, proposerCtx(randomUUID(), { corpusId: CA }));
+      const inB = await call('resolve_anchor', { mention: SHARED }, proposerCtx(randomUUID(), { corpusId: CB }));
+      expect(inA.canonicalId).toBe(idA);
+      expect(inB.canonicalId).toBe(idB);
+    });
+
+    it('scopes the ALIAS branch too (entity_aliases has no corpus_id of its own)', async () => {
+      const idA = await seed(CA, SHARED);
+      await testDb`INSERT INTO entity_aliases (entity_id, alias) VALUES (${idA}, ${SHARED_ALIAS})`;
+
+      const inA = await call('resolve_anchor', { mention: SHARED_ALIAS }, proposerCtx(randomUUID(), { corpusId: CA }));
+      expect(inA.matched).toBe(true);
+      expect(inA.canonicalId).toBe(idA);
+
+      const inB = await call('resolve_anchor', { mention: SHARED_ALIAS }, proposerCtx(randomUUID(), { corpusId: CB }));
+      expect(inB.matched).toBe(false);
+    });
+
+    it('an absent corpusId still resolves in the default corpus (legacy callers unchanged)', async () => {
+      const ent = await createTestEntity({ canonicalName: 'Globex', entityType: 'organization' });
+      const res = await call('resolve_anchor', { mention: 'Globex' }, proposerCtx(randomUUID()));
+      expect(res.matched).toBe(true);
+      expect(res.canonicalId).toBe(ent.id);
     });
   });
 });

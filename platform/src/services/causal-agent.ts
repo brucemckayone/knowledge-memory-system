@@ -1430,6 +1430,17 @@ export interface ToolCallContext {
    * pass = one invocation; a replay reuses it so applyBridgePromotion is idempotent.
    */
   invocationId?: string | null;
+  /**
+   * Cross-corpus audit (doc 36 §4): the corpus partition this invocation reads and
+   * writes within. INJECTED BY THE HARNESS (env MNEMO_CORPUS_ID), never by the agent.
+   *
+   * `resolve_anchor` uses it to scope identity resolution. Without it that lookup is
+   * global, so an agent extracting corpus B anchors to a same-named corpus-A entity and
+   * promotion then writes a corpus-B fact pointing across the boundary — which migration
+   * 052's composite FK (`facts_object_corpus_fk`) rejects. Null means the `default`
+   * corpus, matching `findSimilarEntities`.
+   */
+  corpusId?: string | null;
 }
 
 /**
@@ -1631,6 +1642,7 @@ function resolveContext(ctx?: ToolCallContext): ToolCallContext {
     sourceId: process.env.MNEMO_SOURCE_ID || null,
     chunkIndex: Number.isFinite(chunkIndex) ? chunkIndex : null,
     invocationId: process.env.MNEMO_INVOCATION_ID || null,
+    corpusId: process.env.MNEMO_CORPUS_ID || null,
   };
 }
 
@@ -3169,8 +3181,18 @@ async function _handleToolCallInner(
         return rows.map((r) => r.alias);
       };
 
+      // Corpus scope for identity resolution (doc 36 §4). Every branch below is
+      // filtered by it: an unscoped lookup matches a same-named entity in ANOTHER
+      // corpus, the agent anchors across the boundary, and promotion then writes a
+      // fact whose object lives in a different corpus — rejected by migration 052's
+      // composite FK. Null ⇒ 'default', matching findSimilarEntities' own default.
+      const corpusId = context.corpusId ?? 'default';
+
       // 1. Exact canonical-name match (ilike with no wildcard = case-insensitive equality).
-      const nameConds = [ilike(entitiesTable.canonicalName, mention)];
+      const nameConds = [
+        ilike(entitiesTable.canonicalName, mention),
+        eq(entitiesTable.corpusId, corpusId),
+      ];
       if (typeFilter) nameConds.push(eq(entitiesTable.entityType, typeFilter));
       const exact = await db
         .select({ id: entitiesTable.id, name: entitiesTable.canonicalName, type: entitiesTable.entityType })
@@ -3188,28 +3210,29 @@ async function _handleToolCallInner(
         });
       }
 
-      // 2. Alias match.
+      // 2. Alias match. `entity_aliases` carries no corpus_id of its own, so the
+      // corpus filter has to come from the owning entity — hence the join rather
+      // than a bare alias lookup followed by a fetch.
       const aliasHit = await db
-        .select({ entityId: entityAliases.entityId })
+        .select({
+          id: entitiesTable.id,
+          name: entitiesTable.canonicalName,
+          type: entitiesTable.entityType,
+        })
         .from(entityAliases)
-        .where(ilike(entityAliases.alias, mention))
+        .innerJoin(entitiesTable, eq(entityAliases.entityId, entitiesTable.id))
+        .where(and(ilike(entityAliases.alias, mention), eq(entitiesTable.corpusId, corpusId)))
         .limit(1);
-      if (aliasHit[0]) {
-        const ent = await db
-          .select({ id: entitiesTable.id, name: entitiesTable.canonicalName, type: entitiesTable.entityType })
-          .from(entitiesTable)
-          .where(eq(entitiesTable.id, aliasHit[0].entityId))
-          .limit(1);
-        if (ent[0] && (!typeFilter || ent[0].type === typeFilter)) {
-          return JSON.stringify({
-            matched: true,
-            canonicalId: ent[0].id,
-            name: ent[0].name,
-            type: ent[0].type,
-            aliases: await aliasesFor(ent[0].id),
-            confidence: 0.95,
-          });
-        }
+      const aliased = aliasHit[0];
+      if (aliased && (!typeFilter || aliased.type === typeFilter)) {
+        return JSON.stringify({
+          matched: true,
+          canonicalId: aliased.id,
+          name: aliased.name,
+          type: aliased.type,
+          aliases: await aliasesFor(aliased.id),
+          confidence: 0.95,
+        });
       }
 
       // 3. High-confidence semantic-similarity fallback. Degrades to matched:false
@@ -3220,6 +3243,7 @@ async function _handleToolCallInner(
           threshold: 0.85,
           limit: 1,
           type: typeFilter,
+          corpusId,
         });
         if (similar[0]) {
           return JSON.stringify({
@@ -3638,6 +3662,14 @@ export interface EpochContext {
    * bridge-promotion D4 idempotency token). One per swept coverage cell.
    */
   invocationId?: string;
+  /**
+   * Cross-corpus audit (doc 36 §4). Set as MNEMO_CORPUS_ID so the proposer's
+   * `resolve_anchor` scopes identity resolution to this corpus instead of matching
+   * a same-named entity in a different one. Threaded from `ingestBatch({corpusId})`
+   * → `runEpochBatch` → `propose()`; omitted ⇒ the `default` corpus, i.e. every
+   * existing caller is unchanged.
+   */
+  corpusId?: string;
 }
 
 export function getMcpEnv(actor: Actor, epoch?: EpochContext): Record<string, string> {
@@ -3652,6 +3684,7 @@ export function getMcpEnv(actor: Actor, epoch?: EpochContext): Record<string, st
   if (epoch?.sourceId) env.MNEMO_SOURCE_ID = epoch.sourceId;
   if (epoch?.chunkIndex != null) env.MNEMO_CHUNK_INDEX = String(epoch.chunkIndex);
   if (epoch?.invocationId) env.MNEMO_INVOCATION_ID = epoch.invocationId;
+  if (epoch?.corpusId) env.MNEMO_CORPUS_ID = epoch.corpusId;
   return env;
 }
 
