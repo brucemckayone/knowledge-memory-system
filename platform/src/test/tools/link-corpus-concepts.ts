@@ -22,9 +22,19 @@
  *
  * Resumable via a per-corpus ledger of entity ids.
  *
+ * CONCURRENCY, and what it costs the measurement (user decision, 2026-08-25). Strictly
+ * serial this is one LLM call per entity over ~2,680 entities: 3-6h and several
+ * session-limit interruptions. `--concurrency` runs N calls in flight instead. The
+ * population, the per-entity prompt and the one-call-per-entity accounting are all
+ * UNCHANGED; the single difference is that an entity's shared-vocabulary window cannot see
+ * concepts minted by the N-1 calls running beside it, so label reuse is marginally LOWER
+ * than strictly serial would give. That biases the run AGAINST the concept layer, which is
+ * the safe direction for the quantity under test, and it is recorded here rather than left
+ * to be discovered in the artifacts. Default 6 matches the ML service's LLM worker pool.
+ *
  * Run: cd platform && DATABASE_URL=...cognitive_test QDRANT_URL=http://localhost:6335 \
  *   ML_SERVICES_URL=http://localhost:8000 NODE_ENV=test \
- *   npx tsx src/test/tools/link-corpus-concepts.ts --corpus=A [--limit=N]
+ *   npx tsx src/test/tools/link-corpus-concepts.ts --corpus=A [--limit=N] [--concurrency=6]
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -33,6 +43,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { extractAndLinkConcepts, CONCEPT_CORPUS } from '../../services/concept-extraction.js';
 import { ml } from '../../services/ml-client.js';
+import { mapWithConcurrency, withRetry, isRetryableAgentError } from '../../services/concurrency.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '../../../../docs/architecture/cross-corpus-audit/multihop-artifacts');
@@ -92,6 +103,7 @@ async function main(): Promise<void> {
   if (!CORPORA[which]) throw new Error(`--corpus must be A or B, got '${which}'`);
   const { corpusId, relation } = CORPORA[which];
   const limit = Number(arg('limit', '0'));
+  const concurrency = Math.max(1, Number(arg('concurrency', '6')));
 
   const entities = rows(await db.execute(sql`
     SELECT id::text AS id, canonical_name AS name, coalesce(description, '') AS description,
@@ -104,23 +116,32 @@ async function main(): Promise<void> {
   const done = new Set<string>(existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : []);
   let todo = entities.filter((e) => !done.has(e.id as string));
   if (limit > 0) todo = todo.slice(0, limit);
-  console.log(`[${corpusId}] entities=${entities.length} already=${done.size} todo=${todo.length} relation=${relation}`);
+  console.log(
+    `[${corpusId}] entities=${entities.length} already=${done.size} todo=${todo.length} ` +
+      `relation=${relation} concurrency=${concurrency}`,
+  );
 
   let vocab = await loadArxivConcepts();
-  let linked = 0, empty = 0;
-  for (let i = 0; i < todo.length; i++) {
-    const e = todo[i]!;
+  let linked = 0, empty = 0, completed = 0;
+
+  await mapWithConcurrency(todo, concurrency, async (e) => {
     const name = e.name as string;
     const text = (e.description as string) ? `${name}. ${e.description as string}` : name;
 
-    // Nearest existing labels by embedding; falls back to the most recent when vectors are absent.
+    // Nearest existing labels by embedding; falls back to the most recent when vectors are
+    // absent. This is whatever vocabulary snapshot is current when the call starts — see the
+    // header note on what concurrency costs the window.
     const eVec = e.emb ? (JSON.parse(e.emb as string) as number[]) : null;
-    const withVec = vocab.filter((v) => v.vec);
+    const snapshot = vocab;
+    const withVec = snapshot.filter((v) => v.vec);
     const window = (eVec && withVec.length > 0)
       ? withVec.map((v) => ({ v, s: cosine(eVec, v.vec!) })).sort((a, b) => b.s - a.s).slice(0, WINDOW).map((x) => x.v.name)
-      : vocab.slice(0, WINDOW).map((v) => v.name);
+      : snapshot.slice(0, WINDOW).map((v) => v.name);
 
-    const res = await extractAndLinkConcepts({
+    // Retry transient ML backpressure (503) exactly as the ingest path does. A session limit
+    // is NOT retryable (isRetryableAgentError excludes it), so the run fails loud with every
+    // finished entity still recorded in the ledger.
+    const res = await withRetry(() => extractAndLinkConcepts({
       elementEntityId: e.id as string,
       corpusId,
       side: 'entity',
@@ -128,20 +149,25 @@ async function main(): Promise<void> {
       name,
       text,
       vocabulary: window,
-    });
+    }), { retries: 4, isRetryable: isRetryableAgentError, baseDelayMs: 500 });
+
     if (res.labels.length === 0) empty += 1;
     linked += res.linked;
-
     await backfillConceptEmbeddings(res.conceptIds);
+
+    // writeFileSync from an async callback is atomic against the other in-flight workers:
+    // Node is single-threaded, so no interleaved ledger write is possible.
     done.add(e.id as string);
     writeFileSync(ledgerPath, JSON.stringify([...done], null, 2));
 
-    // Refresh the window periodically rather than per-entity — one query per 10 entities.
-    if (i % 10 === 9) vocab = await loadArxivConcepts();
-    if (i % 20 === 0) {
-      console.log(`  ${i + 1}/${todo.length} entities | vocab=${vocab.length} | bridges=${linked} | empty=${empty}`);
+    completed += 1;
+    // Refresh the window on a completion counter rather than a loop index — one query per 10
+    // finished entities, the same cadence the serial version used.
+    if (completed % 10 === 0) vocab = await loadArxivConcepts();
+    if (completed % 20 === 0) {
+      console.log(`  ${completed}/${todo.length} entities | vocab=${vocab.length} | bridges=${linked} | empty=${empty}`);
     }
-  }
+  });
 
   const finalVocab = await loadArxivConcepts();
   const bridgeCount = rows(await db.execute(sql`
