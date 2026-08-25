@@ -112,7 +112,16 @@ async function main(): Promise<void> {
   };
   const eA = A.map((d) => demb[`A:${d.id}`]);
   const eB = B.map((d) => demb[`B:${d.id}`]);
-  const cos = (i: number, j: number): number => (eA[i] && eB[j]) ? cosine(eA[i]!, eB[j]!) : 1;
+  // A missing paper vector used to fall back to 1 — a PERFECT score, which would silently
+  // inflate arm E's coverage and corrupt its AUC in its own favour. Verified 0 missing for both
+  // corpora in the frozen cc-docemb.json, so this never fires; it fails loud rather than
+  // scoring a hole as a maximal match.
+  const cos = (i: number, j: number): number => {
+    if (!eA[i] || !eB[j]) {
+      throw new Error(`missing paper embedding for A:${A[i]!.id} / B:${B[j]!.id} — arm E cannot be scored`);
+    }
+    return cosine(eA[i]!, eB[j]!);
+  };
 
   const pairIdx: Array<[number, number]> = [];
   for (let i = 0; i < A.length; i++) for (let j = 0; j < B.length; j++) pairIdx.push([i, j]);
@@ -196,30 +205,85 @@ async function main(): Promise<void> {
   results.push(scoreArm('B BM25', bmScores));
 
   // ── hub diagnostic (doc-35 §6): top linking concepts + AUC excluding the top 3
+  // Concept id is carried, not just the name: bar 3 needs to EXCLUDE the top 3 by id.
   const hubs = rows(await db.execute(sql`
-    SELECT c.canonical_name AS name, count(DISTINCT be.a_ref)::int AS degree
+    SELECT c.id::text AS id, c.canonical_name AS name, count(DISTINCT be.a_ref)::int AS degree
     FROM public.entities c
     JOIN public.bridge_edges be ON be.b_ref = c.id AND be.expired_at IS NULL
     WHERE c.corpus_id = '_concepts' AND be.source_corpus_id IN (${SRC}, ${TGT})
-    GROUP BY c.canonical_name ORDER BY degree DESC LIMIT 10
-  `)).map((r) => ({ name: r.name as string, degree: r.degree as number }));
+    GROUP BY c.id, c.canonical_name ORDER BY degree DESC, c.canonical_name LIMIT 10
+  `)).map((r) => ({ id: r.id as string, name: r.name as string, degree: r.degree as number }));
+
+  // ── bar 3 (doc-35 §6, §7.3): re-score every hop arm with the top-3 concepts removed from
+  // the pivot set. This is the doc-32 failure detector — reach that evaporates once three
+  // generic hubs are gone was never structure. Ordered by degree then name so the top-3 choice
+  // is deterministic under ties rather than dependent on Postgres row order.
+  const top3 = hubs.slice(0, 3).map((h) => h.id);
+  const exResults: Record<string, ArmResult> = {};
+  for (const hops of [0, 1, 2]) {
+    const pairs = await recallMultiHopConcepts(SRC, TGT, { hops, decay: DECAY, excludeConceptIds: top3 });
+    exResults[`hops${hops}`] = scoreArm(hops === 0 ? 'S0 single-hop' : `M${hops} multi-hop`, liftToPapers(pairs));
+  }
 
   const s0 = results.find((r) => r.arm.startsWith('S0'))!;
-  const verdict = (m: ArmResult): Record<string, unknown> => ({
-    arm: m.arm,
-    bar1_reach: m.coverageDissim >= 0.25 && s0.coverageDissim > 0 && m.coverageDissim >= 3 * s0.coverageDissim
-      ? 'PASS' : `FAIL (need >=0.25 AND >=3x S0's ${s0.coverageDissim})`,
-    bar2_discrimination: m.auc >= 0.63 && m.auc >= s0.auc ? 'PASS' : `FAIL (need >=0.63 AND >= S0's ${s0.auc})`,
-    bar3_notHubDriven: 'requires the top-3-excluded recomputation (reported separately)',
-  });
+  const s0Ex = exResults.hops0!;
+
+  const verdict = (m: ArmResult, exKey: string): Record<string, unknown> => {
+    const mEx = exResults[exKey]!;
+    // doc-35 §7.1 reads "rises by >=3x over S0 AND reaches >=25% absolute". When S0 covers
+    // NOTHING on the hard slice the multiplier is trivially satisfied (x >= 3*0) and the
+    // absolute bar governs. The previous guard (`s0.coverageDissim > 0`) turned that case into
+    // a FAIL on a divide-by-zero technicality rather than on the pre-registered criterion, and
+    // doc 34 §3 makes S0 = 0 a live possibility. Both readings are reported side by side so no
+    // interpretation is baked into the verdict silently.
+    const s0Zero = s0.coverageDissim === 0;
+    const ratioOk = s0Zero ? m.coverageDissim > 0 : m.coverageDissim >= 3 * s0.coverageDissim;
+    const absOk = m.coverageDissim >= 0.25;
+
+    // "retains >= half its gain over S0" — measured with the top-3 gone on BOTH sides, so the
+    // baseline is comparable rather than mixing an excluded arm against a full-pivot S0.
+    const gain = m.coverageDissim - s0.coverageDissim;
+    const gainEx = mEx.coverageDissim - s0Ex.coverageDissim;
+    const bar3 = gain <= 0 ? 'N/A (no gain over S0 to retain)' : (gainEx >= 0.5 * gain ? 'PASS' : 'FAIL');
+
+    return {
+      arm: m.arm,
+      bar1_reach: (absOk && ratioOk) ? 'PASS' : 'FAIL',
+      bar1_detail: {
+        coverageDissim: m.coverageDissim, s0CoverageDissim: s0.coverageDissim,
+        absoluteBar: 0.25, absoluteMet: absOk,
+        ratioBar: '3x S0', ratioMet: ratioOk,
+        s0IsZero: s0Zero,
+        note: s0Zero
+          ? 'S0 covers nothing on the hard slice, so the 3x multiplier is trivially satisfied and the absolute bar governs (doc-35 §7.1 as written)'
+          : null,
+      },
+      bar2_discrimination: (m.auc >= 0.63 && m.auc >= s0.auc) ? 'PASS' : 'FAIL',
+      bar2_detail: { auc: m.auc, s0Auc: s0.auc, absoluteBar: 0.63 },
+      bar3_notHubDriven: bar3,
+      bar3_detail: {
+        excludedConcepts: hubs.slice(0, 3).map((h) => `${h.name} (deg ${h.degree})`),
+        gainOverS0: +gain.toFixed(4), gainWithTop3Excluded: +gainEx.toFixed(4),
+        retentionBar: 'half the gain',
+        aucWithTop3Excluded: mEx.auc,
+      },
+      // doc-35 §7 requires ALL THREE to hold.
+      overall: (absOk && ratioOk && m.auc >= 0.63 && m.auc >= s0.auc && bar3 === 'PASS')
+        ? 'LIVE MECHANISM (all three bars)' : 'FAIL',
+    };
+  };
 
   const out = {
     prereg: 'doc-35', frozen: { tau: TAU, decay: DECAY, attributionFloor: ATTRIBUTION_FLOOR },
     attribution: { rate: +attrRate.toFixed(4), ...attr.stats },
     oracle: { coCitedPairs: coFull, coCitedTextDissimilar: coDissim, totalPairs: pairIdx.length },
     arms: results,
+    armsTop3Excluded: Object.values(exResults),
     hubDiagnostic: hubs,
-    verdicts: results.filter((r) => r.arm.startsWith('M')).map(verdict),
+    verdicts: [
+      results.find((r) => r.arm.startsWith('M1')) ? verdict(results.find((r) => r.arm.startsWith('M1'))!, 'hops1') : null,
+      results.find((r) => r.arm.startsWith('M2')) ? verdict(results.find((r) => r.arm.startsWith('M2'))!, 'hops2') : null,
+    ].filter(Boolean),
   };
   writeFileSync(join(OUT, 'multihop-results.json'), JSON.stringify(out, null, 2));
   writeFileSync(join(OUT, 'multihop-raw-pairs.json'), JSON.stringify(rawByArm, null, 2));

@@ -36,6 +36,17 @@ export interface MultiHopOptions {
   minScore?: number;
   /** Hard cap on returned pairs; the caller is warned rather than silently truncated. */
   maxPairs?: number;
+  /**
+   * Concept entity ids to exclude from the pivot set entirely — they link nothing, and they
+   * drop out of the `concept_df` denominator too, since df is derived from the same CTEs.
+   *
+   * This exists for doc-35 §6/§7.3's hub diagnostic: "coverage and AUC recomputed with the
+   * top-3 highest-degree concepts excluded", the detector for doc-32's failure where reach
+   * rose only because a few generic hubs joined everything. It cannot be done by filtering
+   * the returned pairs — a `MultiHopPair` is already aggregated over its linking concepts and
+   * does not carry per-concept contributions — so the exclusion has to happen in the query.
+   */
+  excludeConceptIds?: string[];
 }
 
 export interface MultiHopPair {
@@ -68,6 +79,17 @@ export async function recallMultiHopConcepts(
   const maxPairs = opts.maxPairs ?? 100_000;
   if (hops < 0 || hops > 4) throw new Error(`hops must be 0..4 (got ${hops}) — deeper is unbounded in practice`);
   if (decay <= 0 || decay > 1) throw new Error(`decay must be in (0,1] (got ${decay})`);
+  const exclude = opts.excludeConceptIds ?? [];
+  // Inlined as a literal list rather than a bound array: this query is already assembled with
+  // sql`` interpolation, and the ids are validated UUIDs from our own concept table.
+  for (const id of exclude) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      throw new Error(`excludeConceptIds must be UUIDs (got '${id}')`);
+    }
+  }
+  const excludeSql = exclude.length === 0
+    ? sql`TRUE`
+    : sql.raw(`be.b_ref NOT IN (${exclude.map((i) => `'${i}'::uuid`).join(', ')})`);
 
   const r = rows(
     await db.execute(sql`
@@ -111,6 +133,7 @@ export async function recallMultiHopConcepts(
         JOIN public.bridge_edges be
           ON be.a_ref = r.node AND be.relation = 'exhibits'
          AND be.b_kind = 'entity' AND be.target_corpus_id = ${CONCEPT_CORPUS} AND be.expired_at IS NULL
+        WHERE ${excludeSql}
         GROUP BY r.root, be.b_ref
       ),
       tgt_concept AS (
@@ -119,6 +142,7 @@ export async function recallMultiHopConcepts(
         JOIN public.bridge_edges be
           ON be.a_ref = r.node AND be.relation = 'addresses'
          AND be.b_kind = 'entity' AND be.target_corpus_id = ${CONCEPT_CORPUS} AND be.expired_at IS NULL
+        WHERE ${excludeSql}
         GROUP BY r.root, be.b_ref
       ),
       -- Document frequency of a concept = how many roots (either side) can reach it. This is the
