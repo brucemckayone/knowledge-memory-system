@@ -78,6 +78,12 @@ export function initSvg(updatePinnedTooltipPosition) {
   // this <g>'s transform in lock-step). The old svg.call(d3.zoom(...)) is gone.
 
   const simulation = d3.forceSimulation()
+    // Cool a touch faster than the d3 default (0.0228 -> 0.035) so the layout
+    // reaches rest in ~160 ticks instead of ~247 — the extra ~90 ticks buy no
+    // visible relaxation at this node count but push time-to-settle at the full
+    // workload comfortably under the 5s bar. Purely a schedule change: every
+    // node/edge is still drawn every tick (viz-perf goal, invariant untouched).
+    .alphaDecay(0.035)
     .force('link', d3.forceLink().id(d => d.id).distance(defaultLinkDistance).strength(defaultLinkStrength))
     .force('charge', d3.forceManyBody().strength(chargeStrength))
     .force('center', d3.forceCenter(width / 2, height / 2))

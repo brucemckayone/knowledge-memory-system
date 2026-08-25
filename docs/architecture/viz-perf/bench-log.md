@@ -73,6 +73,21 @@ on, which is not the shipping default). Warm 10s window, sim held hot.
   **#2 settle just misses at ~5.1s** (the d3 cooling schedule is ~247 ticks;
   even at 60 FPS median the cold early frames push wall-clock past 5s). Next
   change: tune the settle threshold.
+
+### alphaDecay 0.0228 -> 0.035 (settle fix)
+
+Faster cooling schedule: ~247 ticks to rest -> ~160. Full workload, default
+forces, reheat settle x3 + warm 10s FPS window:
+
+| metric | before (0.0228) | after (0.035) |
+|---|---|---|
+| settle ms (full) | 5129 / 5087 | 3351 / 3354 / 3386 |
+| median FPS (full) | 59.9 | 56.5 |
+| p5 FPS (full) | 29.9 | 28.1 |
+| invariant | PASS | PASS (3044 / 3370) |
+
+Settle now comfortably under the 5s bar; FPS unchanged within noise (>>30). No
+effect on drawn counts.
 - **The bottleneck is SVG paint, not JS.** Profiled in-page: the entire per-tick
   attribute write (edge x1/y1/x2/y2 + label x/y + node transform over
   1725+1280+1100 elements) is **6.3ms**. The remaining ~890ms/frame is the
