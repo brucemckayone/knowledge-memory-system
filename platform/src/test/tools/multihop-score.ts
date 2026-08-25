@@ -225,6 +225,36 @@ async function main(): Promise<void> {
     exResults[`hops${hops}`] = scoreArm(hops === 0 ? 'S0 single-hop' : `M${hops} multi-hop`, liftToPapers(pairs));
   }
 
+  // ── frontier (doc-35 §6): "each arm as a (cells, coverage) point; frontier_at(c) = best
+  // coverage any arm-E setting achieves for <=c cells, per doc 33 §13.2". This is the
+  // COST-ADJUSTED comparison, and it is the metric that turned doc-33's self-claimed
+  // CLEAR_WIN into FRAGILE_DOMINANCE — reporting a concept arm's coverage without it invites
+  // exactly that error again, since a cheap arm always looks good until you ask what the
+  // incumbent does at the same cost.
+  //
+  // Built on EXACT thresholds (every achievable prefix of the cosine-sorted pair list) rather
+  // than doc-33's 0.05 threshold grid. doc-33 self-caught a grid artifact — its frontier at
+  // <=10 cells read 0 only because the grid had no cosine point between 1 and ~29 cells — and
+  // an exact sweep removes that failure mode by construction rather than by a finer grid.
+  const embRanked = pairIdx
+    .map(([i, j], p) => ({ p, score: cos(i, j) }))
+    .sort((a, b) => b.score - a.score);
+  // cumCoveredFull[c] / cumCoveredDissim[c] = co-cited pairs inside the top-c cells.
+  const cumFull: number[] = [0];
+  const cumDissim: number[] = [0];
+  for (const { p } of embRanked) {
+    cumFull.push(cumFull[cumFull.length - 1]! + (isCo[p] ? 1 : 0));
+    cumDissim.push(cumDissim[cumDissim.length - 1]! + (isCo[p] && isDissim[p] ? 1 : 0));
+  }
+  /** Best coverage arm E reaches spending at most `c` cells. Exact, no grid. */
+  const frontierAt = (c: number): { full: number; dissim: number } => {
+    const k = Math.max(0, Math.min(c, embRanked.length));
+    return {
+      full: coFull ? +(cumFull[k]! / coFull).toFixed(4) : 0,
+      dissim: coDissim ? +(cumDissim[k]! / coDissim).toFixed(4) : 0,
+    };
+  };
+
   const s0 = results.find((r) => r.arm.startsWith('S0'))!;
   const s0Ex = exResults.hops0!;
 
@@ -279,6 +309,21 @@ async function main(): Promise<void> {
     oracle: { coCitedPairs: coFull, coCitedTextDissimilar: coDissim, totalPairs: pairIdx.length },
     arms: results,
     armsTop3Excluded: Object.values(exResults),
+    // Each concept arm against what dense embedding achieves for the SAME cell budget.
+    // aboveFrontier=false means the incumbent matches or beats this arm at equal cost, which
+    // is a negative for the product question however the three bars land.
+    frontier: results
+      .filter((r) => r.arm.startsWith('S0') || r.arm.startsWith('M'))
+      .map((r) => {
+        const f = frontierAt(r.cells);
+        return {
+          arm: r.arm, cells: r.cells,
+          coverageFull: r.coverageFull, embeddingCoverageAtSameCells: f.full,
+          coverageDissim: r.coverageDissim, embeddingCoverageDissimAtSameCells: f.dissim,
+          aboveFrontierFull: r.coverageFull > f.full,
+          aboveFrontierDissim: r.coverageDissim > f.dissim,
+        };
+      }),
     hubDiagnostic: hubs,
     verdicts: [
       results.find((r) => r.arm.startsWith('M1')) ? verdict(results.find((r) => r.arm.startsWith('M1'))!, 'hops1') : null,
