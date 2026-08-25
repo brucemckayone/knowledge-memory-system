@@ -23,8 +23,13 @@ export const getStats = () => getJson('/api/viz/stats');
 export const getCorpora = () => getJson('/api/viz/corpora');
 // Corpus-scoped: an unscoped call returns an arbitrary slice once the DB holds more
 // than one corpus, and drops every edge whose other end fell outside that slice.
-export const getUnified = (corpus) =>
-  getJson('/api/viz/unified' + (corpus ? `?corpus=${encodeURIComponent(corpus)}` : ''));
+export const getUnified = (corpus, limit) => {
+  const qs = new URLSearchParams();
+  if (corpus) qs.set('corpus', corpus);
+  if (limit) qs.set('limit', String(limit));
+  const s = qs.toString();
+  return getJson('/api/viz/unified' + (s ? `?${s}` : ''));
+};
 // Live pre-promote view: the current epoch's staged (proposed) entities/facts,
 // grouped by normalized (name, type). Same node/edge shape as unified, flagged
 // `_staged`. Lets you watch the propose phase fill before promote commits.

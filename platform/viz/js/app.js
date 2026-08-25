@@ -31,7 +31,7 @@ import { bindForcesPanel, computePredicateAffinityLinks } from './canvas/forces.
 
 export async function fetchData() {
   try {
-    const unified = await getUnified(state.corpus);
+    const unified = await getUnified(state.corpus, state.limit);
 
     // Staging overlay: merge the current epoch's proposed (pre-promote) nodes
     // and edges in, flagged `_staged`. Best-effort — a staging fetch failure
@@ -134,6 +134,23 @@ function bindResize() {
 }
 
 // ---- Init ----
+// Deep-link / benchmark support: honor ?corpus= and ?limit= from the URL so a
+// fixed workload is reproducible (viz-perf goal). Read before the corpus picker
+// so its default doesn't override an explicit choice.
+{
+  const params = new URLSearchParams(window.location.search);
+  const urlCorpus = params.get('corpus');
+  const urlLimit = params.get('limit');
+  if (urlCorpus) state.corpus = urlCorpus;
+  if (urlLimit && /^\d+$/.test(urlLimit)) state.limit = parseInt(urlLimit, 10);
+}
+
+// Introspection handle for the perf benchmark (read-only use). Exposes the
+// live state + a couple of controls so the Playwright harness can hold the
+// simulation hot, halt pollers, and count drawn elements per group against the
+// API payload (invariant check). No effect on normal rendering.
+window.__mnemo = { state, fetchData, renderAll, startAll, stopAll };
+
 initSvg(updatePinnedTooltipPosition);
 bindLayerToggles();
 bindFocusEscape();
