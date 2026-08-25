@@ -50,12 +50,47 @@ doc 35 when it runs. Do not quietly drop them.
 | | |
 |---|---|
 | Corpus A `arxiv-nlp` | **147/147 papers**, 1,230 entities, 2,862 facts (1,548 of them entity→entity edges) |
-| Paper attribution | Complete for corpus A — all 2,862 facts mapped, 0 ambiguous |
-| Corpus B `arxiv-cv` | **0 — blocked, see §4** |
-| doc-20 substrate | Intact: 104 concepts, 97 `exhibits` + 51 `addresses` |
+| Corpus B `arxiv-cv` | **147/147 papers**, 1,282 entities, 2,852 facts (1,350 entity→entity) — ingested 2026-08-25 |
+| Paper attribution | **100.00%** — 5,714/5,714 facts, 2,512/2,512 entities, 294/294 papers, 0 ambiguous. Well clear of doc-35 §3's 95% void floor. |
+| doc-20 substrate | 104 concepts, 97 `exhibits` + 51 `addresses` — DESTROYED and restored on 2026-08-25, see §7 |
+| Reduction anchor | Re-run after the restore: **10 pairs shipped / 10 at hops=0 / zero set difference** (doc-35 §9) |
 | Concept links on arXiv | None yet — that is step 3 of §5 |
 
-Everything is committed on `feat/cross-corpus-audit`. Nothing is running.
+The two corpora came out near-symmetric (1,230/2,862 vs 1,282/2,852, both 54% entity→entity edges),
+and corpus B has real internal structure with genuine CV hubs (`segment anything model` degree 98,
+`diffusion models` 84). **40 entity names now exist in BOTH corpora as separate nodes** — shared
+vocabulary, no fusion, which is the condition §4's bug needed in order to appear at all.
+
+### 3.1 Known substrate handicap: entity fragmentation (recorded before any number)
+
+Identical names are split across free-text `entity_type` variants. `chatgpt` exists **21 times** in
+corpus A — as `LLM`, `llm_model`, `LLM_Model`, `SoftwareTool`, `artifact`, `tool`, `system`, and 14
+more. The cause is exact: `promotion.ts:313` reuses an entity only on `lower(canonical_name)` **AND**
+an exact `entityType` match, and the extraction agent invents a fresh free-text type per batch.
+
+| | corpus A | corpus B |
+|---|---|---|
+| entity rows | 1,230 | 1,282 |
+| distinct lowercased names | 1,070 | 1,028 |
+| rows that are fragments | 241 (19.6%) | 173 (15.3%) |
+| facts touching a fragmented node | 1,062 (37%) | 641 (26%) |
+
+**Direction of the bias, stated before the numbers exist:** splitting a hub gives each fragment fewer
+facts and its own concept links, so it **reduces** what the concept arms can reach, while the
+paper-text arms (**E**, **B**) are untouched — they never read the entity graph. So this handicaps the
+primary metric *against* the hypothesis. The effect on discrimination is genuinely ambiguous rather
+than favourable: fragmentation lowers per-node reach but raises the document frequency of concepts
+attached to many fragments, which cuts their IDF.
+
+**Decision (user, 2026-08-25): proceed and record, do not fix.** doc 35 §3 specifies ingestion
+"through the production epoch pipeline", and this is what that pipeline produces — the run measures
+the real system. The two alternatives were an in-place variant merge (walks into `nmemo-9vk`, whose
+`mergeEntities` re-points facts before deduping and so trips `uniq_facts_active_triple` exactly on
+fragmented hubs) and constraining the type vocabulary plus re-ingesting both corpora (~2h + API,
+restarts step 2). Recorded here **before any number is computed**, so if the run fails this is a named
+alternative explanation rather than a post-hoc excuse; if it passes, the handicap only strengthens it.
+
+Everything is committed on `feat/cross-corpus-audit`.
 
 ## 4. Why corpus B is blocked — the bug to fix first
 
@@ -88,7 +123,15 @@ not a passing test; it was a test that could not fail.
 **Root cause:** corpus separation is enforced on the *write* path (fixed in `dcfcfb8`) but not on the
 *read* path the agent uses to decide identity. This is the **fifth** unscoped path found.
 
-**The fix (agreed, not yet started — no code was written):**
+**The fix — LANDED `c1da213` (2026-08-25).** All five parts below are in, and corpus B ingests.
+The deterministic confirmation is not "the batch passed" but the anchor count: of the first
+batch's 106 staged corpus-B entities, **0 were anchored to any entity**, where previously 36
+anchored across into corpus A. `resolve_anchor` now answers `matched:false` for a corpus-B
+mention of a corpus-A name, so the agent proposes its own node. Four regression tests; three
+of them fail if either name filter is removed, the fourth pins the legacy default-corpus
+behaviour.
+
+**The fix as specified:**
 
 1. `ToolCallContext` (causal-agent.ts:1412) += `corpusId?: string | null`
 2. `resolveContext` (causal-agent.ts:1616) += `corpusId: process.env.MNEMO_CORPUS_ID || null` — same
@@ -110,14 +153,30 @@ warning, entirely plausible-looking results.
 
 1. **Fix `resolve_anchor` scoping** (§4). No API budget needed.
 2. **Ingest corpus B** — 147 papers, ~1h at ~27s/paper, needs API budget. Command in §6.
-3. **Concept-link both corpora** — `link-corpus-concepts.ts --corpus=A` then `=B`. **Size this before
-   running:** the harness makes **one LLM call per entity**, and there will be ~2,400 entities. That is
-   3+ hours and several session-limit interruptions. Cheaper options — link only entities that
-   participate in facts, batch several entities per call, or sample — all change what the test
-   measures, so this is a **user decision, not an implementer's**.
-4. **Reconcile an artifact format mismatch** (~10 min, no API): the ingest writes
-   `{paperToEntities, factToPaper}`; `multihop-score.ts` expects the older
-   `{stats, entityToPapers}` shape.
+3. **Concept-link both corpora** — `link-corpus-concepts.ts --corpus=A` then `=B`. One LLM call per
+   entity over ~2,680 entities. **Decided 2026-08-25 (user): run the FULL population with bounded
+   concurrency** (`--concurrency=6`, matching the ML service's LLM worker pool; `095edf7`). Population,
+   per-entity prompt and one-call-per-entity accounting are unchanged; the only difference is that an
+   entity's shared-vocabulary window cannot see concepts minted by the 5 calls beside it, so label
+   reuse comes out marginally **lower** than strictly serial. That biases the run **against** the
+   concept layer, which is the safe direction for the quantity under test.
+
+   The three cheaper variants, and why they were not taken:
+   - *Link only entities that participate in facts* — **saves nothing, measured:** 1230/1230 corpus-A
+     and 99/99 corpus-B entities already participate in at least one live fact. Dead variant; do not
+     re-propose it.
+   - *Batch N entities per call* — **rejected as a launder risk.** Showing the extractor several
+     entities at once lets it reuse labels across the batch, inflating cross-corpus concept
+     convergence, which is the exact quantity doc 35 measures.
+   - *Sample a subset* — changes the population the frozen doc-35 coverage denominators describe, so
+     the run would no longer be the pre-registered test.
+4. **Reconcile an artifact format mismatch** — DONE `0def393`. `attribution-merge.ts` inverts the
+   per-batch ingest capture into the `{stats, entityToPapers}` shape the scorer reads, and nothing
+   else. `multihop-score.ts` is deliberately untouched: it encodes the frozen doc-35 bars, and the
+   95% attribution floor stays where the pre-registration put it. Denominators come from the DB, not
+   the artifacts, so the floor is computed against every canonical row. `doc-attribution.ts` is
+   superseded and now refuses to run without `--force` — it reads consumed staging, which is
+   garbage-collected within the hour, so run after the fact it under-attributes **silently**.
 5. **Run `multihop-score.ts`** — deterministic, minutes, no API.
 6. **Blind adversary** on doc 35, then bank or retract.
 
@@ -167,9 +226,27 @@ performance; that work is read-only on the database and must not touch the pipel
 - **Do not attribute papers by matching entity names against abstract text.** It is the lexical
   confound this whole investigation keeps tripping over; contaminating the substrate is worse than
   paying for a re-ingest.
-- **`concept-extraction.test.ts` used to wipe the global `_concepts` corpus** and destroyed doc-20's
-  97+51 bridges; its cleanup is now scoped, and `rebuild-doc20-bridges.ts` restores from the committed
-  artifact if needed (it re-points 5 merged-away ids through `entity_merges`).
+- **Two test suites have now destroyed doc-20's 97+51 bridges, for the same reason.**
+  `concept-extraction.test.ts` wiped the global `_concepts` corpus (scoped since), and on
+  2026-08-25 `cross-corpus.test.ts` did it again with an unscoped `DELETE FROM
+  public.bridge_edges` in `cleanCrossCorpus`, under the comment "these tables are exclusive to
+  this suite, so a full wipe is safe" — true when written, false once anything else laid down
+  bridges. Both are scoped now (`7a4c5e9`). **The loss is SILENT:** the 104 concept nodes
+  survive, so nothing errors; the only symptom is `multihop-identity-check.ts` reporting
+  `0 pairs / 0 pairs / PASS`, a vacuous 0==0 that reads like the anchor holding. **Treat a
+  0-pair anchor as a destroyed substrate, never as a pass** — the real result is 10/10 with
+  zero set difference. `rebuild-doc20-bridges.ts` restores from the committed artifact (it
+  re-points 5 merged-away ids through `entity_merges`). Case 6 of `cross-corpus.test.ts` also
+  had the bug in its *assertion*, counting every live bridge in the database and expecting
+  one, so it silently depended on the global wipe to pass. **Before running any suite against
+  this database, check what its cleanup deletes unscoped.**
+- **The causal pass fails on every arXiv batch** with `Causal agent failed: [WinError 206] The
+  filename or extension is too long` when the ML service spawns the agent — the epoch scope
+  (~195 promoted facts at `batch=10`) overflows the Windows command-line limit. Pre-existing
+  and symmetric across both corpora: corpus A's full 147-paper ingest produced 9 causal edges
+  in total. It is best-effort and non-fatal by design, and `concept-multihop.ts` references no
+  causal edges at all, so the doc-35 arms are unaffected. Recorded, not fixed — fixing it would
+  change the substrate mid-experiment (user decision, 2026-08-25).
 - **Both API interruptions were the session limit**, not bugs. The ledger makes a re-run a no-op over
   finished work.
 
