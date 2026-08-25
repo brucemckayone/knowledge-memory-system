@@ -79,11 +79,25 @@ async function seedEntityMeta(entityId: string, centroid: number[]): Promise<voi
 
 /** Wipe every cross-corpus artefact this suite creates, FK-order-respecting. */
 async function cleanCrossCorpus(): Promise<void> {
-  // bridge family first (bridge_source_refs cascade from bridge_edges). These
-  // tables are exclusive to this suite, so a full wipe is safe.
-  await testDb`DELETE FROM public.bridge_source_refs`;
-  await testDb`DELETE FROM public.bridge_edges`;
-  await testDb`DELETE FROM public.staging_bridge_edges`;
+  // Bridge family first (bridge_source_refs cascade from bridge_edges), SCOPED to this
+  // suite's own corpora. The comment here used to read "these tables are exclusive to this
+  // suite, so a full wipe is safe" and the wipe was unscoped — which was true when it was
+  // written and false the moment anything else started laying down bridges. It destroyed
+  // doc-20's 97 exhibits + 51 addresses (the concept nodes survived, so the loss was silent
+  // and only showed up as the multi-hop reduction anchor returning 0 pairs instead of 10).
+  // `rebuild-doc20-bridges.ts` restores that graph from the committed artifact. This is the
+  // same failure mode concept-extraction.test.ts already had scoped out of it.
+  await testDb`
+    DELETE FROM public.bridge_source_refs WHERE bridge_edge_id IN (
+      SELECT id FROM public.bridge_edges
+      WHERE source_corpus_id = ANY(${[...CORPORA]}) OR target_corpus_id = ANY(${[...CORPORA]})
+    )`;
+  await testDb`
+    DELETE FROM public.bridge_edges
+    WHERE source_corpus_id = ANY(${[...CORPORA]}) OR target_corpus_id = ANY(${[...CORPORA]})`;
+  await testDb`
+    DELETE FROM public.staging_bridge_edges
+    WHERE source_corpus_id = ANY(${[...CORPORA]}) OR target_corpus_id = ANY(${[...CORPORA]})`;
   for (const c of CORPORA) {
     await testDb`DELETE FROM public.merge_candidates WHERE corpus_id = ${c}`;
     await testDb`DELETE FROM public.entity_meta WHERE entity_id IN (SELECT id FROM public.entities WHERE corpus_id = ${c})`;
@@ -364,7 +378,13 @@ describe('cross-corpus Phase A acceptance (nmemo-uhp.11, spec §5 tests 3–7)',
     expect(run1.created).toHaveLength(1);
     const edgeId = run1.created[0]!.edgeId;
 
-    const after1 = await testDb`SELECT id::text AS id, corroboration_count FROM public.bridge_edges WHERE expired_at IS NULL`;
+    // Scoped to this test's own corpus pair. This used to count EVERY live bridge in the
+    // database and only passed because cleanCrossCorpus wiped bridge_edges globally — so
+    // the assertion silently depended on the same unscoped delete that destroyed doc-20's
+    // substrate. "Exactly one row for this invocation's corpora" is what D4 actually claims.
+    const after1 = await testDb`
+      SELECT id::text AS id, corroboration_count FROM public.bridge_edges
+      WHERE expired_at IS NULL AND source_corpus_id = 'code' AND target_corpus_id = 'std'`;
     expect(after1).toHaveLength(1);
     expect(Number((after1[0] as { corroboration_count: number }).corroboration_count)).toBe(1);
 
@@ -374,7 +394,9 @@ describe('cross-corpus Phase A acceptance (nmemo-uhp.11, spec §5 tests 3–7)',
     expect(run2.created).toHaveLength(0);
     expect(run2.corroborated.every((c) => c.bumped === false)).toBe(true);
 
-    const after2 = await testDb`SELECT id::text AS id, corroboration_count FROM public.bridge_edges WHERE expired_at IS NULL`;
+    const after2 = await testDb`
+      SELECT id::text AS id, corroboration_count FROM public.bridge_edges
+      WHERE expired_at IS NULL AND source_corpus_id = 'code' AND target_corpus_id = 'std'`;
     expect(after2).toHaveLength(1); // identical row set
     expect((after2[0] as { id: string }).id).toBe(edgeId);
     expect(Number((after2[0] as { corroboration_count: number }).corroboration_count)).toBe(1); // UNCHANGED
