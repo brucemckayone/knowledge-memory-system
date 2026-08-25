@@ -1,12 +1,15 @@
 import { state } from '../state.js';
 import { edgeEndpoint } from './edge-utils.js';
+import { drawScene } from './canvas.js';
 
 export function toggleFocus(entityId) {
   const { svg, g } = state.refs;
   if (state.focusedEntityId === entityId) {
     state.focusedEntityId = null;
+    state.focusConnected = null;
     svg.classed('focused', false);
     g.selectAll('.faded').classed('faded', false);
+    drawScene();
     return;
   }
 
@@ -20,6 +23,9 @@ export function toggleFocus(entityId) {
     if (srcId === entityId) connected.add(tgtId);
     if (tgtId === entityId) connected.add(srcId);
   }
+  // Published for the canvas draw (canvas.js dims non-connected nodes/edges).
+  state.focusConnected = connected;
+  drawScene();
 
   g.selectAll('g.node').classed('faded', d => !connected.has(d.id));
   g.selectAll('line.edge').classed('faded', d => {

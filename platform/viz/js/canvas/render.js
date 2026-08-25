@@ -11,6 +11,7 @@ import { renderClusterHulls } from '../layers/clusters.js';
 import { renderGhostMarkers } from '../overlays/ghosts.js';
 import { applyForces, isPinnedArticulationNode, isRingPinnedCausalEvent } from './forces.js';
 import { edgeEndpoint } from './edge-utils.js';
+import { setSceneData, drawScene, invalidateQuadtree } from './canvas.js';
 
 export function renderAll() {
   const { nodes, edges } = state.data;
@@ -72,61 +73,11 @@ export function renderAll() {
     label: d => `≡ ${(d.confidence || 0).toFixed(2)}`,
   });
 
-  // Fact edges — staged (pre-promote) facts render amber + dashed.
-  renderEdges(groups.factEdges, visibleEdges.filter(e => e._edgeType === 'fact'), {
-    stroke: d => d._staged ? '#d29922' : '#3d444d',
-    width: d => d._staged ? 1.2 : 1,
-    opacity: d => d._staged ? 0.5 : 0.4,
-    dash: d => d._staged ? '5,4' : null,
-    marker: 'url(#arrow-fact)',
-  });
-  renderLabels(groups.factLabels, visibleEdges.filter(e => e._edgeType === 'fact'), d => d.predicate || '');
-
-  // Causal anchor edges
-  renderEdges(groups.causalAnchors, visibleEdges.filter(e => e._edgeType === 'causalAnchor'), {
-    stroke: '#21262d', width: 0.5, opacity: 0.15, dash: '2,4',
-  });
-
-  // Causal edges — width scales with corroborationCount (bead nmemo-e2i.9).
-  // Base width follows strength (legacy behaviour) and an extra log term
-  // thickens edges that have been corroborated multiple times. log2 keeps the
-  // visual readable even for the long tail (count=16 → +4px); a single-source
-  // edge (count=1) renders at exactly the previous stroke-width.
-  renderEdges(groups.causalEdges, visibleEdges.filter(e => e._edgeType === 'causal'), {
-    stroke: d => d3.interpolateReds(0.3 + (d.strength || 0.5) * 0.4),
-    width: d => 1 + (d.strength || 0.5) * 2 + Math.log2(Math.max(1, d.corroborationCount || 1)),
-    opacity: 0.6, marker: 'url(#arrow-causal)',
-  });
-
-  // Causal event nodes (no canvas label)
-  renderNodes(groups.causalNodes, visibleNodes.filter(n => n._nodeType === 'causalEvent'), {
-    fill: d => COLOR_TRANSITION[d.transitionType] || '#95a5a6',
-    stroke: '#21262d', strokeWidth: 1.5, opacity: 0.75,
-    labelColor: 'transparent', fontSize: '0px',
-    hideLabel: true,
-  });
-
-  // Value nodes
-  renderNodes(groups.entityNodes, visibleNodes.filter(n => n._nodeType === 'value'), {
-    fill: () => '#555e68',
-    stroke: d => d.id === state.selectedId ? '#fff' : '#21262d',
-    strokeWidth: 1.5,
-    opacity: 0.7,
-    hideLabel: true,
-  });
-
-  // Entity nodes (color via resolveEntityColor — driven by state.colorMode).
-  // Staged (pre-promote) entities render amber + translucent to read as
-  // provisional, regardless of colorMode.
-  renderNodes(groups.entityNodes, visibleNodes.filter(n => n._nodeType === 'entity'), {
-    fill: d => d._staged ? '#d29922' : resolveEntityColor(d),
-    stroke: d => d.id === state.selectedId ? '#fff' : (d._staged ? '#8a6d1a' : '#21262d'),
-    strokeWidth: d => d.id === state.selectedId ? 3 : 1.5 + Math.min((d.factCount || 0), 10) * 0.2,
-    // Soft cluster_probability (viz.3): when colorMode === 'cluster' the
-    // border opacity reads as crisp on hard membership / faded on soft.
-    opacity: d => d._staged ? 0.55 : resolveEntityStrokeOpacity(d),
-    labelColor: d => d._staged ? '#e0b050' : '#c9d1d9', fontSize: '11px', fontWeight: '500',
-  });
+  // Fact / causalAnchor / causal edges, causal-event / value / entity nodes,
+  // and their labels + arrowheads are drawn on the CANVAS (canvas.js) — the
+  // high-count bulk whose per-tick SVG paint caused the freeze. render.js hands
+  // canvas the full visible set below (setSceneData); canvas draws every one,
+  // so drawn == payload for the enabled layers (no cap / cull / LOD).
 
   // Cluster hulls (viz.3 — only visible when colorMode === 'cluster' and the
   // hulls toggle is on; renders into the back-most group).
@@ -141,6 +92,17 @@ export function renderAll() {
   // Contradictions overlay (Phase 5 — viz.1)
   renderContradictionsOverlay();
 
+  // Hand the full visible bulk to the canvas renderer (every fact/causal/anchor
+  // edge and entity/value/causalEvent node — no cap). Called before layout so
+  // the node/link references the canvas draws are the same objects d3 resolves.
+  setSceneData(visibleNodes, visibleEdges);
+
+  // Resolve node + link references for BOTH layouts up front — d3 rewrites each
+  // edge's source/target from a string id to the node object here, which the
+  // canvas draw and the SVG-layer sync both read.
+  simulation.nodes(visibleNodes);
+  simulation.force('link').links(visibleEdges);
+
   // Layout
   if (state.layoutMode === 'dag') {
     applyDagLayout(visibleNodes, visibleEdges);
@@ -150,13 +112,17 @@ export function renderAll() {
     const height = svg.node().clientHeight;
     simulation.force('center', d3.forceCenter(width / 2, height / 2));
     simulation.force('charge').strength(chargeStrength);
-    simulation.nodes(visibleNodes);
-    simulation.force('link').links(visibleEdges);
     applyForces(simulation);
     simulation.alpha(0.3).restart();
   }
 
   simulation.on('tick', () => {
+    // Bulk layers on the canvas (fast). Positions moved, so the hit-test
+    // quadtree is stale until the next interaction rebuilds it.
+    drawScene();
+    invalidateQuadtree();
+    // Remaining SVG-layer elements are the low-count / off-by-default layers
+    // (source, merge, sameAs) + overlays — cheap to keep on SVG.
     g.selectAll('line.edge').attr('x1', d => d.source.x).attr('y1', d => d.source.y)
       .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
     g.selectAll('text.edge-label')
@@ -176,6 +142,10 @@ export function renderAll() {
     if (state.showClusterHulls) renderClusterHulls();
     updatePinnedTooltipPosition();
   });
+
+  // Initial paint — covers the static DAG layout (which does not restart the
+  // simulation) and shows the first frame before the force ticks begin.
+  drawScene();
 }
 
 export function renderEdges(group, edges, opts) {

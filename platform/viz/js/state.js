@@ -12,6 +12,9 @@ export const state = {
   },
   selectedId: null,
   focusedEntityId: null,
+  // Set<nodeId> of the focused entity + its neighbours, published by focus.js
+  // so the canvas draw dims everything outside it. null = no focus.
+  focusConnected: null,
   layoutMode: 'force',
   scrubberTime: null,
   timeRange: { min: null, max: null },

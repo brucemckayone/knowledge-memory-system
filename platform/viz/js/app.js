@@ -28,6 +28,7 @@ import { bindMergeCandidatesPanel, refreshMergeCandidates } from './panels/merge
 import { bindDriftStrip, refreshDrift } from './panels/drift.js';
 import { bindReasoningReportsPanel, refreshReasoningReports } from './panels/reasoning-reports.js';
 import { bindForcesPanel, computePredicateAffinityLinks } from './canvas/forces.js';
+import { resizeCanvas, getDrawCounts } from './canvas/canvas.js';
 
 export async function fetchData() {
   try {
@@ -129,6 +130,7 @@ function bindResize() {
     const width = svg.node().clientWidth;
     const height = svg.node().clientHeight;
     sim.force('center', d3.forceCenter(width / 2, height / 2));
+    resizeCanvas();
     sim.alpha(0.1).restart();
   });
 }
@@ -149,7 +151,7 @@ function bindResize() {
 // live state + a couple of controls so the Playwright harness can hold the
 // simulation hot, halt pollers, and count drawn elements per group against the
 // API payload (invariant check). No effect on normal rendering.
-window.__mnemo = { state, fetchData, renderAll, startAll, stopAll };
+window.__mnemo = { state, fetchData, renderAll, startAll, stopAll, getDrawCounts };
 
 initSvg(updatePinnedTooltipPosition);
 bindLayerToggles();

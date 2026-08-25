@@ -46,6 +46,33 @@ view >= 50 FPS, without ever drawing fewer nodes/edges than the API payload.
   where thousands of new SVG elements are laid out for the first time.
 - Neither workload settles within 15s; both miss every FPS bar (need 30 full /
   50 default) and the 5s settle bar.
+
+### Canvas 2D renderer (commit pending)
+
+Moved the high-count bulk (entity/value/causalEvent nodes; fact/causal/anchor
+edges; fact + entity labels; arrowheads) off SVG onto a `<canvas>` drawn in
+immediate mode each tick (`canvas.js`). The low-count / off-by-default layers
+(source, merge, sameAs) and the decorative overlays stay on the SVG that sits
+above the canvas; both share one pan/zoom transform. Node interactions
+(hover / click / drag / dblclick / focus) are ported to a d3.quadtree hit-test.
+
+Measured under the **default** force config (sameAsFusion + causalRadial only;
+the earlier localStorage had all six forces — incl. O(N^2) predicate affinity —
+on, which is not the shipping default). Warm 10s window, sim held hot.
+
+| workload | median FPS | p5 FPS | avg FPS | settle ms | long tasks | invariant |
+|---|---|---|---|---|---|---|
+| full (1500) | 59.9 | 29.9 | 47.6 | 5129 / 5087 | 0 | **PASS** — 3044 nodes / 3370 edges drawn == payload |
+| default (600) | 59.9 | 59.5 | 60.0 | (well under) | 0 | **PASS** — 1763 nodes / 1725 edges drawn == payload |
+
+- Primary metric (median FPS): full 12 -> 59.9, default 30 -> 60. Long tasks
+  113 -> 0.
+- **Invariant now holds** (canvas draw-count == payload): the 1314/663 value
+  nodes the SVG renderer wiped are drawn, verified via `getDrawCounts()`.
+- Bar status: #1 FPS full PASS, #3 FPS default PASS, #4 invariant PASS.
+  **#2 settle just misses at ~5.1s** (the d3 cooling schedule is ~247 ticks;
+  even at 60 FPS median the cold early frames push wall-clock past 5s). Next
+  change: tune the settle threshold.
 - **The bottleneck is SVG paint, not JS.** Profiled in-page: the entire per-tick
   attribute write (edge x1/y1/x2/y2 + label x/y + node transform over
   1725+1280+1100 elements) is **6.3ms**. The remaining ~890ms/frame is the

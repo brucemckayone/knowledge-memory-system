@@ -107,7 +107,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 /* Main layout */
 .main { display: flex; flex: 1; overflow: hidden; }
-svg { flex: 1; }
+/* The graph area stacks a canvas (bulk nodes/edges, fast) beneath the SVG
+   (low-count overlays + all pointer interaction). Both fill the wrap and share
+   one pan/zoom transform. */
+.graph-wrap { position: relative; flex: 1; overflow: hidden; }
+#graphCanvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#graph { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 /* Detail panel — collapsible drawer */
 .detail { width: 360px; border-left: 1px solid #21262d; background: #161b22; padding: 16px; overflow-y: auto; flex-shrink: 0; font-size: 13px; transition: margin-right 0.2s ease, opacity 0.2s ease; position: relative; }
@@ -522,7 +527,10 @@ svg { flex: 1; }
   <div id="reasoningReportsList"></div>
 </div>
 <div class="main">
-  <svg id="graph"></svg>
+  <div class="graph-wrap">
+    <canvas id="graphCanvas"></canvas>
+    <svg id="graph"></svg>
+  </div>
   <div class="detail collapsed" id="detail">
     <button class="detail-close" id="detailClose">&times;</button>
     <div id="detailContent">

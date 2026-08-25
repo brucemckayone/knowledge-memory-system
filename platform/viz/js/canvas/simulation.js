@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { ensureCanvas } from './canvas.js';
 
 export function chargeStrength(d) {
   if (d._nodeType === 'entity') return -400;
@@ -73,10 +74,8 @@ export function initSvg(updatePinnedTooltipPosition) {
   groups.contradictionOverlay = g.append('g').attr('class', 'layer-contradictions');
   groups.entityNodes = g.append('g');
 
-  svg.call(d3.zoom().scaleExtent([0.05, 5]).on('zoom', (e) => {
-    g.attr('transform', e.transform);
-    if (updatePinnedTooltipPosition) updatePinnedTooltipPosition();
-  }));
+  // Pan/zoom is owned by canvas.js now (it drives both the canvas transform and
+  // this <g>'s transform in lock-step). The old svg.call(d3.zoom(...)) is gone.
 
   const simulation = d3.forceSimulation()
     .force('link', d3.forceLink().id(d => d.id).distance(defaultLinkDistance).strength(defaultLinkStrength))
@@ -88,5 +87,7 @@ export function initSvg(updatePinnedTooltipPosition) {
   state.refs.g = g;
   state.refs.groups = groups;
   state.refs.simulation = simulation;
+  // Create + size the canvas overlay and wire canvas-owned interactions.
+  ensureCanvas();
   return { svg, g, groups, simulation };
 }
