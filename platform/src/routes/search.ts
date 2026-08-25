@@ -26,8 +26,13 @@
  */
 
 import type { Context } from 'hono';
-import { search, searchEntities, type SearchResponse, type EntitySearchResponse } from '../services/search.js';
-
+import {
+  search,
+  searchEntities,
+  type SearchResponse,
+  type SearchResult,
+  type EntitySearchResponse,
+} from '../services/search.js';
 const DEFAULT_LIMIT = 10;
 
 /**
@@ -52,10 +57,18 @@ function nonBlank(v: unknown): v is string {
   return typeof v === 'string' && v.trim().length > 0;
 }
 
-function toWireResults(res: SearchResponse): SearchResponse {
-  const results = [];
-  for (const r of res.results ?? []) {
-    if (!nonBlank(r.memoryId) || !nonBlank(r.content) || !nonBlank(r.createdAt)) {
+/**
+ * The `/api/search` wire row. Deliberately NARROWER than the service's
+ * `SearchResult`: `excerpt` and `vectorScore` (MNEMO-96o8.1) exist for the ask
+ * composer's benefit and are NOT part of this endpoint's contract, so the
+ * whitelist below stays byte-identical to what shipped. Typed as an omission
+ * rather than hand-listed so a future service field has to be considered here
+ * explicitly instead of silently appearing on the wire.
+ */
+type SearchWireResult = Omit<SearchResult, 'excerpt' | 'vectorScore'>;
+
+function toWireResults(res: SearchResponse): { results: SearchWireResult[] } {  const results: SearchWireResult[] = [];
+  for (const r of res.results ?? []) {    if (!nonBlank(r.memoryId) || !nonBlank(r.content) || !nonBlank(r.createdAt)) {
       console.warn('[search] dropping result: blank memoryId/content/createdAt');
       continue;
     }

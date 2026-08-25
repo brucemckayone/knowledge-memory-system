@@ -79,7 +79,12 @@ TASK_DEFAULTS: Dict[str, Dict[str, str]] = {
     # lowercase/em-dash/encouraging-not-guilting persona; sonnet+medium is
     # the floor that passes the assertVoiceC lint deterministically.
     "voice_c_compose":       {"model": "sonnet", "effort": "medium"},
-}
+    # iOS API v1 — ask-mode composition (MNEMO-96o8.2). Harder than surfacing:
+    # it must answer the asked question from retrieved excerpts, decide whether
+    # the excerpts answer it at all, and hold a multi-turn thread. sonnet is the
+    # floor; haiku loses the answer-first discipline and drifts back into
+    # summarising whatever it was handed.
+    "voice_c_ask":           {"model": "sonnet", "effort": "medium"},}
 DEFAULT_MODEL = "haiku"
 DEFAULT_EFFORT = "low"
 

@@ -124,8 +124,35 @@ export interface SearchResult {
   matchedUnits: number;
   /** Arms that surfaced this memory. Non-empty (a memory with no arms is dropped). */
   arms: SearchArm[];
+  /**
+   * The UNDILUTED matched excerpt — `unit_text` of this parent's best-scoring
+   * unit (`UnitGroupedHit.bestUnitText`), or `content` when the window-fallback
+   * path surfaced it (pre-unit data, `matchedUnits === 0`).
+   *
+   * This is what the ask verb composes FROM. `content` is the whole parent
+   * window; feeding 8 whole windows to a composer buries the answer in
+   * surrounding prose, and the pre-96o8 deterministic floor concatenated them
+   * verbatim (the "wall of underlined entries" the epic exists to fix). The
+   * excerpt is the sentence-grained span that actually matched.
+   *
+   * Additive: NOT emitted on the `/api/search` wire (routes/search.ts
+   * whitelists fields), so no iOS decoder sees it.
+   */
+  excerpt: string;
+  /**
+   * RAW cosine similarity of the best-matching unit (0..1), straight from
+   * Qdrant — NOT the RRF `score`.
+   *
+   * RRF is rank-based: the top hit of a hopeless query scores identically to
+   * the top hit of a perfect one (1/(k+1)), so `score` can never answer "is
+   * anything here actually relevant?". That is why the honest-absence state
+   * (ask.md §"Empty (no match)") was unreachable — only a literally empty
+   * result set produced it. `vectorScore` is the calibrated signal the ask
+   * relevance gate reads. 0 when only the graph arm surfaced the memory (no
+   * unit vector was scored against the query).
+   */
+  vectorScore: number;
 }
-
 export interface SearchResponse {
   results: SearchResult[];
 }
@@ -286,6 +313,13 @@ export async function search(query: string, limit = DEFAULT_LIMIT): Promise<Sear
       console.warn(`[search] dropping memory ${f.id}: no contributing arms`);
       continue;
     }
+    // The matched excerpt (MNEMO-96o8.1): the best unit's own text when the
+    // unit-grained path surfaced this parent, else the whole window (the
+    // pre-unit window-fallback, where no finer span exists). Blank unit text
+    // degrades to `content` so `excerpt` is never empty — the ask composer
+    // always has material.
+    const bestUnit = hit?.bestUnitText;
+    const excerpt = nonBlank(bestUnit) ? bestUnit.trim() : content;
     results.push({
       memoryId: f.id,
       score: f.score,
@@ -293,8 +327,13 @@ export async function search(query: string, limit = DEFAULT_LIMIT): Promise<Sear
       createdAt,
       matchedUnits: Math.max(0, Math.trunc(hit?.matchedUnits ?? 0)),
       arms: f.arms,
-    });
-  }
+      excerpt,
+      // Raw cosine of the best unit. A graph-arm-only id has no vector-arm hit
+      // here, so it carries 0 — correct: nothing was scored against the query,
+      // and the ask gate must not treat a graph-expansion neighbour as a
+      // semantic match on its own.
+      vectorScore: Number.isFinite(hit?.score) ? (hit?.score ?? 0) : 0,
+    });  }
 
   return { results };
 }
