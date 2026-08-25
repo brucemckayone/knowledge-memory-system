@@ -1,4 +1,17 @@
 /**
+ * SUPERSEDED — do not use this to produce the doc-35 scoring input. Use
+ * `attribution-merge.ts`, which merges the per-batch capture the ingest harness writes.
+ *
+ * The chain below is sound but its evidence does not persist. `runEpochBatch` calls
+ * `cleanupAbandonedStaging()` on EVERY batch, deleting staging older than
+ * `STAGING_TTL_MS` (default 1 hour), so the consumed staging rows this reads are garbage
+ * collected within the hour. The 587/587 validation was measured DURING a live run, inside
+ * that transient window; run afterwards it under-attributes silently, and it destroyed
+ * corpus A's provenance once. Attribution is now captured per batch at ingest time
+ * (`corpus-graph-ingest.ts`), before a batch is marked done. Kept for the record, and
+ * because the chain itself is still the documented mapping; guarded with --force so it
+ * cannot be re-run into a quietly degraded map.
+ *
  * Paper attribution for the ingested arXiv corpora (doc 34 §7.2 step 2).
  *
  * The co-citation oracle is per PAPER, but the epoch pipeline writes no `memory_entities`
@@ -53,6 +66,14 @@ const toObj = (m: Map<string, Set<string>>): Record<string, string[]> =>
   Object.fromEntries([...m].map(([k, v]) => [k, [...v].sort()]));
 
 async function main(): Promise<void> {
+  if (!process.argv.includes('--force')) {
+    throw new Error(
+      'doc-attribution.ts is SUPERSEDED: it reads consumed staging, which cleanupAbandonedStaging() ' +
+        'deletes within STAGING_TTL_MS (default 1 hour), so outside a live run it under-attributes ' +
+        'SILENTLY. Use attribution-merge.ts. Pass --force only to reproduce the historical chain, ' +
+        'and never to produce a scoring input.',
+    );
+  }
   mkdirSync(OUT, { recursive: true });
 
   // Paper text → paper id, over both corpora. The exact string the ingest harness stored.
