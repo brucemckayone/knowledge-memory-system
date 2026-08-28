@@ -54,7 +54,9 @@ doc 35 when it runs. Do not quietly drop them.
 | Paper attribution | **100.00%** — 5,714/5,714 facts, 2,512/2,512 entities, 294/294 papers, 0 ambiguous. Well clear of doc-35 §3's 95% void floor. |
 | doc-20 substrate | 104 concepts, 97 `exhibits` + 51 `addresses` — DESTROYED and restored on 2026-08-25, see §7 |
 | Reduction anchor | Re-run after the restore: **10 pairs shipped / 10 at hops=0 / zero set difference** (doc-35 §9) |
-| Concept links on arXiv | None yet — that is step 3 of §5 |
+| Concept links on arXiv | **COMPLETE** 2026-08-27 — corpus A 2,014 `exhibits` (1230/1230 entities), corpus B 2,255 `addresses` (1282/1282), 564 concepts |
+| Both-sided concept pivots | **170** of 564 (303 exhibits-side + 431 addresses-side − 170 shared). doc 34 §2's audit found **4 of 104** — doc 34 §6 step 4's cheap kill-check is passed. |
+| Concept descriptions | **NONE — see §3.2. Every concept was labelled from a bare entity name.** |
 
 The two corpora came out near-symmetric (1,230/2,862 vs 1,282/2,852, both 54% entity→entity edges),
 and corpus B has real internal structure with genuine CV hubs (`segment anything model` degree 98,
@@ -89,6 +91,52 @@ the real system. The two alternatives were an in-place variant merge (walks into
 fragmented hubs) and constraining the type vocabulary plus re-ingesting both corpora (~2h + API,
 restarts step 2). Recorded here **before any number is computed**, so if the run fails this is a named
 alternative explanation rather than a post-hoc excuse; if it passes, the handicap only strengthens it.
+
+### 3.2 LOAD-BEARING LIMITATION: every concept was labelled from a bare entity NAME
+
+Found 2026-08-27, **after linking completed and before `multihop-score.ts` was ever run.** Recorded
+here, and committed, before any number existed.
+
+`planPromotion` builds `entitiesToMint` with **`summary: null` hardcoded**
+(`promotion-plan.ts:534`), with no comment justifying it, in a function that otherwise carefully
+derives the canonical display name. The plan type declares `summary: string | null` and
+`applyPromotion` (`promotion.ts:329`) does `description: e.summary ?? undefined` — it is ready to
+consume the value. So the epoch path silently discards every entity description.
+
+Measured: **all 2,512 canonical entities have `description` NULL**, while **1,430 of 1,558 surviving
+staged proposals (92%) carry a real summary** (`2D diffusion models` → "Diffusion models trained on
+2D image data"). The agents produce the content; the planner throws it away. Nothing else fills it on
+this arm — `update_entity_summary` is a canonical write and E2 removed all canonical writes from
+`extraction_proposer`.
+
+**Why this is more than a missing column.** `link-corpus-concepts.ts` does
+`text = description ? name + '. ' + description : name`. With `description` always empty, **every
+concept label in this substrate was extracted from the bare entity NAME with zero context** — an
+entity named `uhdfour` was labelled from the string `uhdfour`. Entity embeddings already embed the
+name rather than the description (`entities.ts:243`). Together: the **description-aligned nodes**
+variant, recorded across this investigation as the *one untested retrieval lever*, was not merely
+untested here — it was **silently unavailable**.
+
+**Direction of the bias:** labelling from a bare name yields shallower, noisier concepts than
+name+description would, so it handicaps the concept arms while leaving arms **E** and **B** untouched
+(neither reads the entity graph). Same direction as §3.1, and larger in kind.
+
+**Backfill is ruled out, with numbers.** Only the last batches' staging survives
+(`cleanupAbandonedStaging` past `STAGING_TTL_MS`), so a backfill would cover **corpus A 120/1,230
+(9.8%)** against **corpus B 1,278/1,282 (99.7%)** — it would give one corpus descriptions and not the
+other. That asymmetry is worse than the gap. Do not backfill.
+
+**Decision (user, 2026-08-27): score this substrate, record the limit, then fix the bug and re-run
+description-aligned — and do NOT discard this substrate.** So the re-run must write to **new corpus
+ids**, leaving `arxiv-nlp`/`arxiv-cv` intact, which turns the bug into a controlled
+name-only-vs-description-aligned comparison rather than lost work.
+
+**What this run therefore licenses, and what it does not.** It measures traversal over real
+entity+fact graphs with a conformed shared vocabulary — strictly less degenerate than docs 20-33,
+which had **zero facts** and **4 pivots** against this substrate's **170**. It does **not** measure
+the description-aligned architecture. A negative here bounds to *name-derived concepts*, not to the
+design; the rejoinder "you never gave it descriptions" would be **correct**, which is exactly why
+this is recorded before the numbers rather than after. Bead: `nmemo-` (description-drop, P1).
 
 Everything is committed on `feat/cross-corpus-audit`.
 
