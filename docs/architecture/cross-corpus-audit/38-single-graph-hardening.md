@@ -129,11 +129,56 @@ dates. Consequence: the bi-temporal machinery and supersession (`expired_at = 0`
 on this domain rather than broken. Worth recording so a future reader does not read `superseded = 0`
 as a bug.
 
+### 3.7 Sizing the ontology prize (measured 2026-08-28, zero API cost) — the answer is SEED
+
+Before authoring a migration for §3.1, the open question was whether 2,240 predicates represent ~80
+relations badly spelled (seed an ontology) or ~900 genuinely distinct relations (cannot author one,
+must cluster). Those need opposite fixes. Measured:
+
+- Lowercase + separator normalisation collapses **nothing** (2,240 to 2,240). These are not spelling
+  variants; they are already consistent snake_case.
+- De-inflected **head token**: 2,240 to **683** heads, of which **308 are used exactly once** and carry
+  negligible edge mass.
+- **Fact-mass concentration, the number that decides the fix:**
+
+| ontology size | share of all edges covered |
+|---|---|
+| top 20 heads | **46.4%** |
+| top 50 | **62.3%** |
+| top 100 | **75.0%** |
+| top 200 | **86.5%** |
+
+**An authorable ontology of 50-100 entries captures the bulk. Seeding is viable; clustering is not
+required.**
+
+**Why it exploded, and why head-collapsing is safe rather than lossy.** The `uses` family has 90
+variants splitting into exactly two mechanisms:
+
+- **grammatical voice** — `uses` (113), `used_for` (14), `used_in` (5), `is_used_in` (5)
+- **object-type qualifiers** — `uses_technique` (91), `uses_component` (30), `uses_architecture` (10),
+  `uses_model` (8), `uses_encoder` (6), `uses_metric` (6), `uses_dataset` (5), `uses_technology` (5)
+
+`fact_predicates` **already has `subject_type` and `object_type` columns**. So collapsing
+`uses_technique` into predicate `uses` plus `object_type: technique` loses **no** information — it
+moves specificity out of a free-text string into the typed column designed to hold it. The same pattern
+holds for `enables` (67 variants), `achieves` (59), `requires` (54), `trains` (52), `evaluates` (41).
+
+**Bonus: the two halves of §3.1 inform each other.** Those suffixes (`_technique`, `_dataset`,
+`_architecture`, `_encoder`, `_metric`) are the agent stating what **entity type** it had in mind. That
+is a free signal for deriving the domain's entity-type vocabulary — exactly what the 338 free-text
+`entity_type` values failed to produce. Mine the predicate tails to seed the type list rather than
+authoring it blind.
+
+**And do not run a re-ingest experiment to confirm the ontology helps.** The mechanism is deterministic
+code behaviour, and the concept-linking pass in this same run already showed the model reuses a shown
+vocabulary heavily (303 existing labels, only 17 new across corpus B's first 100 entities). Validate
+the *fix* on ~20 papers as normal engineering verification instead.
+
 ## 4. Hardening backlog
 
 | # | item | why it matters | cost |
 |---|---|---|---|
-| 1 | **Domain-scoped predicate + entity-type ontology** — seedable per corpus, with a growth path | root cause of 68.7% hapax edges and 47.3% hapax types; recurs on every new domain | design + migration |
+| 1 | **Domain-scoped predicate + entity-type ontology** — seed ~100 head relations, route qualifiers into `object_type`, use the existing candidate-promotion columns for the tail | root cause of 68.7% hapax edges and 47.3% hapax types; recurs on every new domain. **Sized in §3.7: top 100 heads cover 75% of edges, so seeding works** | design + migration |
 | 2 | **Carry the staged summary into `entitiesToMint`** (`promotion-plan.ts:534`) | restores descriptions AND un-breaks `EMBED_DESCRIPTIONS` | one line + a decision on reuse-path update |
 | 3 | **Give the epoch arm a dedup path** — relax reuse to name-with-type-as-attribute, or restore merge detection | fragmentation is currently a one-way ratchet | design |
 | 4 | **Write `fact_sources` / `memory_entities` on the epoch path** | provenance is a core promise; today it is unrecoverable after an hour | moderate |
