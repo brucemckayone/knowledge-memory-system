@@ -1,0 +1,154 @@
+{
+  "config": {
+    "weights": {
+      "cosine": 0.55,
+      "type_pair": 0.3,
+      "jaro": 0.1,
+      "conceptnet": 0.05
+    },
+    "merge_threshold": 0.89,
+    "distinct_threshold": 0.84,
+    "embed_model": "nomic-embed-text"
+  },
+  "input": {
+    "facts": 5714,
+    "seeds": 27,
+    "distinct_predicates_before": 2240,
+    "distinct_keys": 3963
+  },
+  "primary": {
+    "metrics": {
+      "facts": 5714,
+      "before": {
+        "hapax_predicates": 1539,
+        "distinct": 2240,
+        "hapax_rate": 0.6870535714285714,
+        "facts_on_hapax_rate": 0.2693384669233462,
+        "top100_edge_coverage": 0.4109205460273014
+      },
+      "after": {
+        "hapax_predicates": 1416,
+        "distinct": 2157,
+        "hapax_rate": 0.6564673157162726,
+        "facts_on_hapax_rate": 0.24781239061953098,
+        "top100_edge_coverage": 0.4128456422821141
+      },
+      "reduction_pct": 3.7053571428571463
+    },
+    "grade": {
+      "verdict": "FAIL",
+      "distinct_after": 2157,
+      "hapax_rate_after": 0.6564673157162726,
+      "pass_needs": {
+        "distinct_after<=": 900,
+        "hapax_rate<=": 0.45
+      },
+      "boundary_straddle": [],
+      "note": "graded on reduction only; merge precision not measured (doc 40 \u00a76)"
+    },
+    "stats_by_key": {
+      "reused": 1810,
+      "minted": 2153,
+      "deferred": 0
+    },
+    "stats_by_fact": {
+      "reused": 2968,
+      "minted": 2746,
+      "deferred": 0
+    },
+    "routes": {
+      "score_distinct": 1789,
+      "fast_path": 1722,
+      "score_merge": 88,
+      "score_ambiguous": 364
+    },
+    "deferred_note": "structurally 0 offline; production ml-down path not exercised",
+    "mint_description_policy": "label-only (description=''), matching predicate-resolve.ts:60-62",
+    "final_candidate_count": 2180,
+    "seed_reuse_vs_mint_and_grow": {
+      "merges_total": 1810,
+      "onto_seed": 10,
+      "onto_minted": 1800,
+      "onto_seed_by_route": {
+        "fast_path": 10
+      },
+      "onto_minted_by_route": {
+        "fast_path": 1712,
+        "score_merge": 88
+      }
+    },
+    "type_pair_overlap_utility": {
+      "scored_resolutions": 2241,
+      "with_tov_gt_0": 2195,
+      "share": 0.9794734493529674
+    }
+  },
+  "order_sensitivity": {
+    "shuffle_seed": 40,
+    "algorithm": "random.Random(seed).shuffle",
+    "distinct_after": 2152,
+    "hapax_rate_after": 0.662639405204461,
+    "stats_by_key": {
+      "reused": 1815,
+      "minted": 2148,
+      "deferred": 0
+    },
+    "stats_by_fact": {
+      "reused": 2805,
+      "minted": 2909,
+      "deferred": 0
+    },
+    "routes": {
+      "score_distinct": 1775,
+      "fast_path": 1720,
+      "score_ambiguous": 373,
+      "score_merge": 95
+    },
+    "delta_vs_primary": -5
+  },
+  "threshold_sensitivity": [
+    {
+      "merge_threshold": 0.84,
+      "distinct_after": 1867,
+      "hapax_rate_after": 0.5656132833422604,
+      "stats_by_key": {
+        "reused": 2100,
+        "minted": 1863,
+        "deferred": 0
+      },
+      "stats_by_fact": {
+        "reused": 3285,
+        "minted": 2429,
+        "deferred": 0
+      },
+      "routes": {
+        "score_distinct": 1863,
+        "fast_path": 1679,
+        "score_merge": 421
+      },
+      "graded": false
+    },
+    {
+      "merge_threshold": 0.94,
+      "distinct_after": 2236,
+      "hapax_rate_after": 0.6864937388193202,
+      "stats_by_key": {
+        "reused": 1731,
+        "minted": 2232,
+        "deferred": 0
+      },
+      "stats_by_fact": {
+        "reused": 2859,
+        "minted": 2855,
+        "deferred": 0
+      },
+      "routes": {
+        "score_distinct": 1784,
+        "fast_path": 1730,
+        "score_ambiguous": 448,
+        "score_merge": 1
+      },
+      "graded": false
+    }
+  ]
+}

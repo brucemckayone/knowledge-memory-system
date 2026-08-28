@@ -1,0 +1,819 @@
+{
+  "sample_seed": 40,
+  "n": 50,
+  "merges_total": 1810,
+  "sample": [
+    {
+      "raw_predicate": "preserves",
+      "base": "preserves",
+      "merged_onto": "preserves",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "model",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "improves",
+      "base": "improves",
+      "merged_onto": "improves",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "task",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "suffers_from",
+      "base": "suffers_from",
+      "merged_onto": "suffers_from",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "technique",
+        "concept"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "uses",
+      "base": "uses",
+      "merged_onto": "uses",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "system",
+        "operation"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "enables",
+      "base": "enables",
+      "merged_onto": "enables",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "machine_learning_model",
+        "domain"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "can_be_created_manually",
+      "base": "can_be_created_manually",
+      "merged_onto": "can_be_generated_automatically",
+      "onto_is_seed": false,
+      "route": "score_merge",
+      "score": 0.9080670910975511,
+      "query_type_pair": [
+        "concept",
+        null
+      ],
+      "signals": {
+        "cosine_sim": 0.9433008076249643,
+        "type_pair_overlap": 1.0,
+        "jaro_winkler": 0.8925164690382081,
+        "conceptnet": 0.0,
+        "combined": 0.9080670910975511
+      }
+    },
+    {
+      "raw_predicate": "generates_output_type",
+      "base": "generates_output_type",
+      "merged_onto": "generates_output_type",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "Technology",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "introduces",
+      "base": "introduces",
+      "merged_onto": "introduces",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "method",
+        "module"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "generalizes_to",
+      "base": "generalizes_to",
+      "merged_onto": "generalizes_to",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "method",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "requires_fine_tuning",
+      "base": "requires_fine_tuning",
+      "merged_onto": "requires_no_fine_tuning",
+      "onto_is_seed": false,
+      "route": "score_merge",
+      "score": 0.9307206221593786,
+      "query_type_pair": [
+        "method",
+        null
+      ],
+      "signals": {
+        "cosine_sim": 0.9787805778391864,
+        "type_pair_overlap": 1.0,
+        "jaro_winkler": 0.9239130434782609,
+        "conceptnet": 0.0,
+        "combined": 0.9307206221593786
+      }
+    },
+    {
+      "raw_predicate": "has_property",
+      "base": "has_property",
+      "merged_onto": "has_property",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "vision-language model",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "evaluates",
+      "base": "evaluates",
+      "merged_onto": "evaluates",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "framework",
+        "task"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "addresses_limitation",
+      "base": "addresses_limitation",
+      "merged_onto": "addresses_limitation",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "architecture",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "exhibits_issue",
+      "base": "exhibits_issue",
+      "merged_onto": "exhibits_behavior",
+      "onto_is_seed": false,
+      "route": "score_merge",
+      "score": 0.8933248623606367,
+      "query_type_pair": [
+        "model",
+        null
+      ],
+      "signals": {
+        "cosine_sim": 0.9208865127162629,
+        "type_pair_overlap": 1.0,
+        "jaro_winkler": 0.8683728036669213,
+        "conceptnet": 0.0,
+        "combined": 0.8933248623606367
+      }
+    },
+    {
+      "raw_predicate": "developed_by",
+      "base": "developed_by",
+      "merged_onto": "developed_by",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "software",
+        "organization"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "learns_from",
+      "base": "learns_from",
+      "merged_onto": "learns_from",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "technique",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "is_variant_of",
+      "base": "is_variant_of",
+      "merged_onto": "is_variant_of",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "artifact",
+        "artifact"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "dataset_size",
+      "base": "dataset_size",
+      "merged_onto": "dataset_size",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "dataset",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "uses_input",
+      "base": "uses_input",
+      "merged_onto": "uses_input",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "system",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "transforms",
+      "base": "transforms",
+      "merged_onto": "transforms",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "3DGenerationModel",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "applies_to",
+      "base": "applies_to",
+      "merged_onto": "applies_to",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "concept",
+        "technology"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "is_computationally",
+      "base": "is_computationally",
+      "merged_onto": "has_computational_property",
+      "onto_is_seed": false,
+      "route": "score_merge",
+      "score": 0.8925016772639792,
+      "query_type_pair": [
+        "method",
+        null
+      ],
+      "signals": {
+        "cosine_sim": 0.9330773826452043,
+        "type_pair_overlap": 1.0,
+        "jaro_winkler": 0.7930911680911681,
+        "conceptnet": 0.0,
+        "combined": 0.8925016772639792
+      }
+    },
+    {
+      "raw_predicate": "vulnerable_to",
+      "base": "vulnerable_to",
+      "merged_onto": "vulnerable_to",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "detection_technique",
+        "technique"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "uses_component",
+      "base": "uses_component",
+      "merged_onto": "uses_component",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "software_system",
+        "concept"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "outperforms",
+      "base": "outperforms",
+      "merged_onto": "outperforms",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "concept",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "is_methodology_for",
+      "base": "is_methodology_for",
+      "merged_onto": "is_methodology_for",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "methodology",
+        "methodology"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "uses_technique",
+      "base": "uses_technique",
+      "merged_onto": "uses_technique",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "method",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "is_based_on",
+      "base": "is_based_on",
+      "merged_onto": "is_based_on",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "method",
+        "method"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "authored",
+      "base": "created",
+      "merged_onto": "created",
+      "onto_is_seed": true,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "person",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "mitigates",
+      "base": "mitigates",
+      "merged_onto": "mitigates",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "component",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "instance_of",
+      "base": "instance_of",
+      "merged_onto": "instance_of",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "software",
+        "concept"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "evaluates_on",
+      "base": "evaluates_on",
+      "merged_onto": "evaluates_on",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "language_model",
+        "dataset"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "has_component",
+      "base": "has_component",
+      "merged_onto": "has_component",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "model",
+        "concept"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "trained_using",
+      "base": "trained_using",
+      "merged_onto": "trained_using",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "method",
+        "dataset"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "is_type",
+      "base": "is_type",
+      "merged_onto": "is_type",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "software",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "domain",
+      "base": "domain",
+      "merged_onto": "domain",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "task",
+        "field"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "has_capability",
+      "base": "has_capability",
+      "merged_onto": "has_capability",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "AI model",
+        "task domain"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "evaluates",
+      "base": "evaluates",
+      "merged_onto": "evaluates",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "paper",
+        "language_model"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "requires",
+      "base": "requires",
+      "merged_onto": "requires",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "Domain",
+        "Task_Category"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "improves_performance_on",
+      "base": "improves_performance_on",
+      "merged_onto": "improves_performance_on",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "method",
+        "dataset"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "improves_upon",
+      "base": "improves_upon",
+      "merged_onto": "improves_upon",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "task",
+        "method"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "based_on",
+      "base": "based_on",
+      "merged_onto": "based_on",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "framework",
+        "technique"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "aligns",
+      "base": "aligns",
+      "merged_onto": "aligns",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "component",
+        "technique"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "has_design_factors",
+      "base": "has_design_factors",
+      "merged_onto": "has_design_factors",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "concept",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "related_to",
+      "base": "related_to",
+      "merged_onto": "related_to",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "capability",
+        "task"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "improves",
+      "base": "improves",
+      "merged_onto": "improves",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "concept",
+        "system"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "includes",
+      "base": "includes",
+      "merged_onto": "includes",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "dataset",
+        "cartographic_asset"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "generated_by",
+      "base": "generated_by",
+      "merged_onto": "generated_by",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "technique",
+        "model_family"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "has_capability",
+      "base": "has_capability",
+      "merged_onto": "has_capability",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "language_model",
+        null
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    },
+    {
+      "raw_predicate": "applied_to",
+      "base": "applied_to",
+      "merged_onto": "applied_to",
+      "onto_is_seed": false,
+      "route": "fast_path",
+      "score": 1.0,
+      "query_type_pair": [
+        "process",
+        "technique"
+      ],
+      "signals": {
+        "combined": 1.0,
+        "exact_match": true
+      }
+    }
+  ]
+}
