@@ -1,0 +1,277 @@
+{
+  "prereg": "doc-35",
+  "frozen": {
+    "tau": 0.615,
+    "decay": 0.5,
+    "attributionFloor": 0.95
+  },
+  "attribution": {
+    "rate": 1,
+    "factsTotal": 5714,
+    "factsAttributed": 5714,
+    "entitiesTotal": 2512,
+    "entitiesAttributed": 2512,
+    "papersWithEntities": 294,
+    "perCorpus": {
+      "arxiv-nlp": {
+        "papers": 147,
+        "facts": 2862,
+        "entities": 1230
+      },
+      "arxiv-cv": {
+        "papers": 147,
+        "facts": 2852,
+        "entities": 1282
+      }
+    }
+  },
+  "oracle": {
+    "coCitedPairs": 1079,
+    "coCitedTextDissimilar": 160,
+    "totalPairs": 21609
+  },
+  "arms": [
+    {
+      "arm": "S0 single-hop",
+      "cells": 9420,
+      "coveredFull": 801,
+      "coCitedFull": 1079,
+      "coverageFull": 0.7424,
+      "coveredDissim": 85,
+      "coCitedDissim": 160,
+      "coverageDissim": 0.5313,
+      "auc": 0.6844
+    },
+    {
+      "arm": "M1 multi-hop",
+      "cells": 15238,
+      "coveredFull": 926,
+      "coCitedFull": 1079,
+      "coverageFull": 0.8582,
+      "coveredDissim": 127,
+      "coCitedDissim": 160,
+      "coverageDissim": 0.7937,
+      "auc": 0.6762
+    },
+    {
+      "arm": "M2 multi-hop",
+      "cells": 15747,
+      "coveredFull": 942,
+      "coCitedFull": 1079,
+      "coverageFull": 0.873,
+      "coveredDissim": 125,
+      "coCitedDissim": 160,
+      "coverageDissim": 0.7813,
+      "auc": 0.6567
+    },
+    {
+      "arm": "E dense embedding",
+      "cells": 21609,
+      "coveredFull": 1079,
+      "coCitedFull": 1079,
+      "coverageFull": 1,
+      "coveredDissim": 160,
+      "coCitedDissim": 160,
+      "coverageDissim": 1,
+      "auc": 0.7943
+    },
+    {
+      "arm": "B BM25",
+      "cells": 21609,
+      "coveredFull": 1079,
+      "coCitedFull": 1079,
+      "coverageFull": 1,
+      "coveredDissim": 160,
+      "coCitedDissim": 160,
+      "coverageDissim": 1,
+      "auc": 0.6696
+    }
+  ],
+  "armsTop3Excluded": [
+    {
+      "arm": "S0 single-hop",
+      "cells": 6758,
+      "coveredFull": 590,
+      "coCitedFull": 1079,
+      "coverageFull": 0.5468,
+      "coveredDissim": 60,
+      "coCitedDissim": 160,
+      "coverageDissim": 0.375,
+      "auc": 0.6448
+    },
+    {
+      "arm": "M1 multi-hop",
+      "cells": 13695,
+      "coveredFull": 823,
+      "coCitedFull": 1079,
+      "coverageFull": 0.7627,
+      "coveredDissim": 112,
+      "coCitedDissim": 160,
+      "coverageDissim": 0.7,
+      "auc": 0.6482
+    },
+    {
+      "arm": "M2 multi-hop",
+      "cells": 15099,
+      "coveredFull": 878,
+      "coCitedFull": 1079,
+      "coverageFull": 0.8137,
+      "coveredDissim": 118,
+      "coCitedDissim": 160,
+      "coverageDissim": 0.7375,
+      "auc": 0.6402
+    }
+  ],
+  "frontier": [
+    {
+      "arm": "S0 single-hop",
+      "cells": 9420,
+      "coverageFull": 0.7424,
+      "embeddingCoverageAtSameCells": 0.8239,
+      "coverageDissim": 0.5313,
+      "embeddingCoverageDissimAtSameCells": 0,
+      "aboveFrontierFull": false,
+      "aboveFrontierDissim": true
+    },
+    {
+      "arm": "M1 multi-hop",
+      "cells": 15238,
+      "coverageFull": 0.8582,
+      "embeddingCoverageAtSameCells": 0.9416,
+      "coverageDissim": 0.7937,
+      "embeddingCoverageDissimAtSameCells": 0.6062,
+      "aboveFrontierFull": false,
+      "aboveFrontierDissim": true
+    },
+    {
+      "arm": "M2 multi-hop",
+      "cells": 15747,
+      "coverageFull": 0.873,
+      "embeddingCoverageAtSameCells": 0.9527,
+      "coverageDissim": 0.7813,
+      "embeddingCoverageDissimAtSameCells": 0.6813,
+      "aboveFrontierFull": false,
+      "aboveFrontierDissim": true
+    }
+  ],
+  "hubDiagnostic": [
+    {
+      "id": "4b4a6644-fb7c-4b7d-a839-1816c7b9f673",
+      "name": "large-language-models",
+      "degree": 170
+    },
+    {
+      "id": "9b6e812a-3072-4480-9cb3-3ee4fedf15bb",
+      "name": "computer-vision",
+      "degree": 145
+    },
+    {
+      "id": "69f9061e-af67-40c4-9c95-541188f67782",
+      "name": "foundation-models",
+      "degree": 111
+    },
+    {
+      "id": "61674fbf-6403-4b16-bdb2-7cc4321595a7",
+      "name": "multimodal-learning",
+      "degree": 100
+    },
+    {
+      "id": "348472e9-0294-41fb-b51f-e9032192f17e",
+      "name": "prompting",
+      "degree": 68
+    },
+    {
+      "id": "c49a413b-6147-4fc5-a9e0-2672cff7376b",
+      "name": "deep-learning",
+      "degree": 67
+    },
+    {
+      "id": "4268ca62-b8fb-436a-ba95-44561d01bc74",
+      "name": "image-generation",
+      "degree": 67
+    },
+    {
+      "id": "cf9d4c2c-81c3-44ca-8b20-b22aa9e53aed",
+      "name": "vision-language-models",
+      "degree": 67
+    },
+    {
+      "id": "c4ad3b15-aae1-4d64-af1a-974e94544424",
+      "name": "text-generation",
+      "degree": 62
+    },
+    {
+      "id": "b2411c7f-646c-40c6-8909-92269ca0c839",
+      "name": "diffusion-models",
+      "degree": 60
+    }
+  ],
+  "verdicts": [
+    {
+      "arm": "M1 multi-hop",
+      "bar1_reach": "FAIL",
+      "bar1_detail": {
+        "coverageDissim": 0.7937,
+        "s0CoverageDissim": 0.5313,
+        "absoluteBar": 0.25,
+        "absoluteMet": true,
+        "ratioBar": "3x S0",
+        "ratioMet": false,
+        "s0IsZero": false,
+        "note": null
+      },
+      "bar2_discrimination": "FAIL",
+      "bar2_detail": {
+        "auc": 0.6762,
+        "s0Auc": 0.6844,
+        "absoluteBar": 0.63
+      },
+      "bar3_notHubDriven": "PASS",
+      "bar3_detail": {
+        "excludedConcepts": [
+          "large-language-models (deg 170)",
+          "computer-vision (deg 145)",
+          "foundation-models (deg 111)"
+        ],
+        "gainOverS0": 0.2624,
+        "gainWithTop3Excluded": 0.325,
+        "retentionBar": "half the gain",
+        "aucWithTop3Excluded": 0.6482
+      },
+      "overall": "FAIL"
+    },
+    {
+      "arm": "M2 multi-hop",
+      "bar1_reach": "FAIL",
+      "bar1_detail": {
+        "coverageDissim": 0.7813,
+        "s0CoverageDissim": 0.5313,
+        "absoluteBar": 0.25,
+        "absoluteMet": true,
+        "ratioBar": "3x S0",
+        "ratioMet": false,
+        "s0IsZero": false,
+        "note": null
+      },
+      "bar2_discrimination": "FAIL",
+      "bar2_detail": {
+        "auc": 0.6567,
+        "s0Auc": 0.6844,
+        "absoluteBar": 0.63
+      },
+      "bar3_notHubDriven": "PASS",
+      "bar3_detail": {
+        "excludedConcepts": [
+          "large-language-models (deg 170)",
+          "computer-vision (deg 145)",
+          "foundation-models (deg 111)"
+        ],
+        "gainOverS0": 0.25,
+        "gainWithTop3Excluded": 0.3625,
+        "retentionBar": "half the gain",
+        "aucWithTop3Excluded": 0.6402
+      },
+      "overall": "FAIL"
+    }
+  ]
+}
