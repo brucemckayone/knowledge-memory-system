@@ -251,6 +251,66 @@ p90 **9**, p99 **20**, max **89**, and **zero entities of degree 0**. A sparse g
 most nodes are near-leaves, so query-seeded PageRank will be dominated by a handful of hubs unless
 explicitly damped.
 
+### 3.12 Inverse relations are duplicated, not normalised (third consequence of 3.1)
+
+96 entity pairs assert a relationship in **both** directions, and **zero** of them use the same
+predicate both ways. Every sampled case is the same relationship stated twice under invented names:
+
+```
+palm 2      --is_base_model_for-->     med-palm 2  ||  med-palm 2 --bases_on-->          palm 2
+flamingo80b --used_as_baseline_for-->  med-palm 2  ||  med-palm 2 --outperforms-->       flamingo80b
+finetuning  --enables_performance_on--> med-palm 2 ||  med-palm 2 --applies_technique--> finetuning
+```
+
+`fact_predicates` has an **`inverse_predicate` column** for exactly this (it holds `works_at`/`employs`,
+`reports_to`/`manages`). With no domain ontology, inverse pairs are invented ad-hoc and stored as two
+independent edges: **192 edges = 6.2% of active entity-to-entity edges are one relationship counted
+twice.** Third distinct consequence of 3.1, after hapax predicates and object-type-in-predicate.
+
+### 3.13 Extraction volume is stable - a positive
+
+| corpus | papers | min facts/paper | median | mean | max | under 5 | under 10 |
+|---|---|---|---|---|---|---|---|
+| `arxiv-nlp` | 147 | 4 | 18 | 19.5 | 48 | 1 | 16 |
+| `arxiv-cv` | 147 | 9 | 18 | 19.4 | 44 | 0 | 1 |
+
+Near-identical distributions across two different subfields, and **no silent-failure tail** - extraction
+does not quietly collapse on particular inputs. Volume is domain-insensitive even though vocabulary is
+not.
+
+### 3.14 Entity/concept conflation - a third of "entities" are abstractions
+
+| shape | count | share |
+|---|---|---|
+| one word | 703 | 28.0% |
+| two words | 1,089 | 43.4% |
+| four or more words | 158 | 6.3% |
+| **ends in an abstract-noun suffix** (-ing, -tion, -ment, -ity, -ness, -ance, -ence) | **832** | **33.1%** |
+
+Sampling the 5+ word names shows they are not entities at all: "nervous system disorder-related adverse
+events", "sam evaluation on pathology segmentation tasks", "transformer architecture at high-resolution
+inputs", and "prompting strategies (bias mitigation/detector bypass" - the last with an unbalanced
+parenthesis, i.e. a malformed name that no validation caught.
+
+So the node population is a **mix of things, processes, properties and phrase fragments**, with no type
+signal separating them (2.3: 338 free-text types).
+
+**A hypothesis this raises about doc 37, held as a hypothesis and not a conclusion:** if a third of the
+entity population is *already abstractions*, then a concept layer above those entities is partly
+**redundant with the entity layer itself**. The concept layer may have added little not because
+concept-mediated linking is the wrong mechanism, but because the entities were already doing that job,
+untyped. That points at **node typing** - distinguishing things from topics - rather than at an
+additional layer, which is consistent with the single-graph disposition. It is untested.
+
+### 3.15 NODE_ENV=test does not isolate the vector store
+
+`qdrant.ts:25` resolves the collection as `process.env.QDRANT_COLLECTION ?? 'memories'`, and the
+comment at `:15` shows isolation depends on the **test setup** exporting
+`QDRANT_COLLECTION='memories_test'`. Standalone harness scripts do not. So this 294-document run wrote
+its vectors into the shared **`memories`** collection (11,927 points) while `memories_test` sits at
+**0**. `NODE_ENV=test` isolates Postgres via `DATABASE_URL` but leaves Qdrant pointing at the
+production-named collection.
+
 ## 4. Hardening backlog
 
 | # | item | why it matters | cost |
@@ -263,6 +323,9 @@ explicitly damped.
 | 6 | **`nmemo-kgy`** — `mlFetch` never retries its own timeout; `predicate-resolve` degrades silently | silent quality loss on the promotion path | small, needs a deadline cap |
 | 7 | **`maxPairs` silent truncation** in `recallMultiHopConcepts` | a shipped service silently caps results; warns to stderr only | small |
 | 8 | **AGE prune path** — DELETE triggers, or treat AGE as a rebuildable derived index | index is 2x oversized and cannot represent fact expiry, so Cypher traversal returns phantoms (§3.10) | small-moderate |
+| 9 | **Populate `inverse_predicate` and normalise reciprocal edges** | 6.2% of active edges are one relationship counted twice (3.12) | small, rides on item 1 |
+| 10 | **Node typing: separate things from topics/processes** | 33.1% of entities are abstract nouns, plus phrase fragments and a malformed name (3.14) | design |
+| 11 | **Make NODE_ENV=test isolate Qdrant**, or fail loudly on a production-named collection | harness runs wrote into the shared `memories` collection (3.15) | small |
 
 ## 5. What the cross-corpus work leaves behind, positively
 
