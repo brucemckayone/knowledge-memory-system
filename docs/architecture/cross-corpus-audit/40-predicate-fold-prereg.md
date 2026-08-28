@@ -169,3 +169,51 @@ A ~20-paper live ingest through the real epoch path, after running
 `platform/scripts/backfill-predicate-embeddings.ts` against the live `cognitive` DB. Its purpose is a
 **plumbing confirmation** — that the wired path stops logging `deferred=ALL` and matches the replay's
 prediction. It is not a second capability test and carries no bar.
+
+## 9. AMENDMENT (pre-run, derived from code, no results computed)
+
+Added while reading the scoring module to build the harness, **before any replay was executed**. It is
+recorded here rather than in the results doc because discovering it after a FAIL would be
+indistinguishable from post-hoc rationalisation.
+
+`predicate_scoring.py:53-60` fixes the decision as:
+
+```
+combined = 0.55*cosine + 0.30*type_pair_overlap + 0.10*jaro_winkler + 0.05*conceptnet
+MERGE_THRESHOLD    = 0.89
+DISTINCT_THRESHOLD = 0.84
+```
+
+`type_pair_overlap` (`:98-108`) is a three-valued step: **1.0** if both `(subject_type, object_type)`
+match exactly, **0.5** if one matches, **0.0** otherwise — and an unknown side counts as a miss, not a
+wildcard. Therefore the reachable maximum of `combined`, with every other signal saturated at 1.0:
+
+| `type_pair_overlap` | max reachable `combined` | can it reach 0.89? |
+|---|---|---|
+| 0.0 | 0.70 | **no — arithmetically impossible** |
+| 0.5 | 0.85 | **no — arithmetically impossible** |
+| 1.0 | 1.00 | yes |
+
+**A score-based merge therefore requires an exact match on BOTH entity types.** Against doc 39 §4's 338
+free-text entity types this is the binding constraint on the fold, and it is deterministic arithmetic,
+not a prediction.
+
+That leaves exactly two live merge routes:
+
+1. **The exact/alias fast path** (`resolve_predicate.py:116-129`): `normalize_tense` maps the raw
+   predicate onto a canonical by tense fold or alias table, returning `score=1.0, exact_match=True`
+   without embedding at all. Requires string identity with one of the 27 seeds.
+2. **Score merge within an identical type pair**, including onto candidates minted earlier in the run.
+   Doc 39 §4 records ~25 entity types covering 73.4% of entities, so common type pairs recur and this
+   route is genuinely open.
+
+A prior calibration result already points the same way. `predicate_scoring.py:44-52` records that the
+PC6 sweep found "score-reuse barely rises (0.18 → 0.19) — the multi-signal SCORE is NOT the primary
+over-minting lever; the alias table (deterministic) and the PC5 propose-time reuse hint are." That was
+measured on curated adversarial pairs, not on this corpus, so it does not settle the question — but it
+predicts a low reuse rate and it was written down long before this experiment.
+
+**No bar in §4 is changed by this amendment.** It sharpens two things: §5.6 stops being a curiosity and
+becomes the direct test of whether the binding constraint binds, and §5.1's split must be broken out by
+route (fast-path vs score merge) so a PASS or FAIL can be attributed to a mechanism rather than to the
+fold as a black box.
