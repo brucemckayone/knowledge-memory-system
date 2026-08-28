@@ -249,3 +249,22 @@ arXiv type pairs do recur, so that route is genuinely open and its size is unkno
 
 **This is a falsifiable pre-run prediction, not a hedge.** If the run reports any score merge onto a
 seed, this derivation is wrong and must be reported as wrong. §4's bars are unchanged.
+
+---
+
+## 11. POST-RUN NOTE (this document is otherwise frozen)
+
+Results, adversary review and the correction of record are in **doc 41**. Two items bear on this
+document specifically:
+
+- **§10 contains a false premise.** "No arXiv fact in the frozen input has `person` or `company` as a
+  subject type" is wrong — five facts have `person` (`associated_with`, `maintains_repository`,
+  `associated_with_project`, `authored`, `author_of`). §10's conclusion survives on the reason doc 41 §3
+  gives (none of their object types matches any seed's, capping `type_pair_overlap` at 0.5), but the
+  premise as written is false. This document is not edited; doc 41 §8 is the erratum of record.
+- **§5.3 and §5.7 were not delivered as pre-registered.** §5.3's top-100 *head* coverage was silently
+  substituted with full-string coverage in doc 41's first draft (corrected: 80.07% → 80.15%), and §5.7
+  was dropped entirely. Both are restored in doc 41 §1 and §7.
+- **§6's booked 50-merge uniform sample was the wrong population** — it drew 46 fast-path self-merges and
+  4 score merges. Adjudication was only possible because all 1,810 merges were dumped instead. Lesson
+  recorded in doc 41 §9.
