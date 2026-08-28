@@ -174,13 +174,53 @@ code behaviour, and the concept-linking pass in this same run already showed the
 vocabulary heavily (303 existing labels, only 17 new across corpus B's first 100 entities). Validate
 the *fix* on ~20 papers as normal engineering verification instead.
 
+### 3.8 Entity-type sizing, and what fragmentation actually costs
+
+**Entity types are MORE concentrated than predicates**, so the type half of §3.1 is the easier half:
+338 raw types normalise to 273, and **top 10 cover 57.4%**, **top 25 cover 73.4%**, top 50 cover 82.8%
+of all entities. A seeded type vocabulary needs roughly **25-50 entries**.
+
+**A useful negative: predicate fragmentation does NOT bloat the graph.** Of 2,976 distinct
+subject-object entity pairs carrying 3,092 active edges, only **103 pairs** carry more than one
+predicate, giving **116 redundant edges = 3.8%**. So the 2,240 predicates are spread across genuinely
+*different* assertions rather than duplicating the same ones. **The cost of predicate fragmentation is
+queryability, not volume** — 26.9% of edges are unusable for any query that generalises over relation
+type, but deduplicating them would not meaningfully shrink the graph. Worth stating before anyone
+assumes the ontology fix is a data-reduction exercise.
+
+### 3.9 Graph connectivity — the first clearly positive structural finding
+
+Union-find over the active entity→entity edges, per corpus:
+
+| corpus | entities | edges | components | giant component | isolated singletons |
+|---|---|---|---|---|---|
+| `arxiv-nlp` | 1,230 | 1,548 | 87 | **800 (65.0%)** | 31 (2.5%) |
+| `arxiv-cv` | 1,282 | 1,544 | 72 | **942 (73.5%)** | 31 (2.4%) |
+
+**Two thirds to three quarters of each graph is mutually reachable, with only ~2.5% isolated nodes.**
+Traversal is not structurally blocked. This is a genuine green light for the `nmemo-5co` Tier 0
+"anchor → filter → traverse" design, which had assumed navigability without evidence.
+
+**Counterfactual: what the fragmentation fix (§3.2) buys in connectivity.** Union entities sharing a
+canonical name, then recount. Measured in distinct names on both sides so the denominator is identical:
+
+| corpus | giant component as-is | after deduplication | components |
+|---|---|---|---|
+| `arxiv-nlp` | 66.8% | **85.6%** (+18.8pp) | 87 → 50 |
+| `arxiv-cv` | 74.3% | **86.8%** (+12.5pp) | 72 → 47 |
+
+So fixing fragmentation lifts the giant component to ~86% and removes ~40% of components. Note the two
+corpora **converge** to ~86% once deduplicated — which suggests ~86% is the natural connectivity
+ceiling at this extraction density, and that the gap between them as-is was fragmentation noise rather
+than a real difference between the corpora.
+
 ## 4. Hardening backlog
 
 | # | item | why it matters | cost |
 |---|---|---|---|
 | 1 | **Domain-scoped predicate + entity-type ontology** — seed ~100 head relations, route qualifiers into `object_type`, use the existing candidate-promotion columns for the tail | root cause of 68.7% hapax edges and 47.3% hapax types; recurs on every new domain. **Sized in §3.7: top 100 heads cover 75% of edges, so seeding works** | design + migration |
 | 2 | **Carry the staged summary into `entitiesToMint`** (`promotion-plan.ts:534`) | restores descriptions AND un-breaks `EMBED_DESCRIPTIONS` | one line + a decision on reuse-path update |
-| 3 | **Give the epoch arm a dedup path** — relax reuse to name-with-type-as-attribute, or restore merge detection | fragmentation is currently a one-way ratchet | design |
+| 3 | **Give the epoch arm a dedup path** — relax reuse to name-with-type-as-attribute, or restore merge detection | fragmentation is currently a one-way ratchet. **Sized in §3.9: deduplication lifts the giant connected component from 66.8%/74.3% to ~86% and removes ~40% of components** | design |
 | 4 | **Write `fact_sources` / `memory_entities` on the epoch path** | provenance is a core promise; today it is unrecoverable after an hour | moderate |
 | 5 | **Chunk or file-pass the causal agent scope** | Graph C does not populate at production batch size | moderate |
 | 6 | **`nmemo-kgy`** — `mlFetch` never retries its own timeout; `predicate-resolve` degrades silently | silent quality loss on the promotion path | small, needs a deadline cap |
