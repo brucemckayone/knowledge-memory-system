@@ -65,7 +65,40 @@ unusable for any query that generalises over relation type.
 
 ## 3. Root causes, in order of value
 
-### 3.1 The ontology is hardcoded to the personal-memory domain (root cause of §2.3)
+### 3.1 CORRECTED — the predicate fold never ran; the ontology content was never exercised
+
+**Correction, 2026-08-28, found while auditing the branch history for a known-truths summary.** The
+original §3.1 below blamed the ontology's personal-memory *content*. That is **not the primary cause
+and was never established.** The primary cause is simpler and more embarrassing:
+
+`canonicalizeStagedPredicates` (`predicate-resolve.ts:128-131`) calls `loadPredicateCandidates()`,
+which filters **`WHERE embedding IS NOT NULL`** (`:42`). `fact_predicates` has **48 rows and ZERO
+embeddings**. So the candidate list is empty and the function takes its own documented graceful-no-op
+path — `stats.deferred = facts.length` — which is exactly the `reused=0 minted=0 deferred=ALL` in every
+epoch log.
+
+**The predicate fold never attempted a single match.** `backfill-predicate-embeddings.ts` — an existing
+deploy step referenced in that function's own comment ("backfilled by the PC2 setup step … at deploy,
+or the harness/test before a run") — was never run on this database. The whole `nmemo-213` predicate-fold
+machinery (doc 42, `/resolve-predicate`, promote-time fold) is built, shipped, and **inert for want of a
+setup step**.
+
+**What this does and does not change:**
+- The **measurements stand**: 2,240 predicates, 68.7% hapax, 26.9% of edges on a once-used predicate,
+  and the collapsibility sizing in §3.7. Those are properties of the graph regardless of cause.
+- The **diagnosis changes**: fragmentation is caused by an unrun backfill, not by domain-locked
+  ontology content.
+- The domain-mismatch concern below is **still plausible but now untested** — it becomes the *second*
+  question, answerable only after the backfill runs. A scientific corpus may well match 48 CRM
+  predicates poorly; we simply have no evidence either way, because the comparison never happened.
+- **Fix order:** run the backfill first, re-measure the deferral rate, and only then decide whether a
+  domain ontology is needed. That is a much cheaper first step than authoring one.
+- **Silent-failure lesson:** a graceful no-op on an empty candidate set means a core canonicalisation
+  layer can be entirely absent while every epoch reports success. The log line
+  `predicates: reused=0 minted=0 deferred=196` is the only signal, and it reads like a statistic
+  rather than an alarm.
+
+### 3.1b (ORIGINAL, now demoted to a secondary and UNTESTED concern) The ontology content is personal-memory domain
 
 `fact_predicates` holds **48 canonical predicates**: `works_at`, `reports_to`, `founded`, with
 `subject_type: person`, `object_type: company`. CRM relations. **Every row has `usage_count = 0` and
@@ -77,8 +110,9 @@ exist in it. So `resolvePredicate` had nothing to match against and every promot
 
 doc 34 §7 had already noticed the entity half without naming the cause: *"entity types are
 memory-domain (`project`, `other`), carrying no scientific signal."* **Both layers of the semantic
-backbone are domain-locked, with no mechanism to grow or swap per corpus.** This is the highest-value
-finding in the document: it will recur on *every* non-personal-memory deployment.
+backbone are domain-locked, with no mechanism to grow or swap per corpus.** — **but see §3.1: this was
+never exercised, because the fold deferred everything for want of predicate embeddings. Treat the
+domain-lock as a hypothesis to test after the backfill, not as an established cause.**
 
 ### 3.2 Fragmentation has no cleanup path on the epoch arm
 
