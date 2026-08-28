@@ -217,3 +217,35 @@ predicts a low reuse rate and it was written down long before this experiment.
 becomes the direct test of whether the binding constraint binds, and §5.1's split must be broken out by
 route (fast-path vs score merge) so a PASS or FAIL can be attributed to a mechanism rather than to the
 fold as a black box.
+
+## 10. AMENDMENT 2 (pre-run, derived from the frozen input, no results computed)
+
+The 27 canonical seeds are dumped to `predicate-fold-artifacts/input-seeds.ndjson`. Their
+`(subject_type, object_type)` pairs are:
+
+```
+person/event  person/place  person/company  person/person  person/concept
+company/place
+```
+
+Twenty-six of the twenty-seven have `subject_type = 'person'`; the twenty-seventh
+(`headquartered_in`) has `company`. **No arXiv fact in the frozen input has `person` or `company` as a
+subject type** — the input's types are `language_model`, `research_model`, `methodology`,
+`neural_architecture`, `task`, `benchmark`, `capability` and so on.
+
+Combining that with §9: `type_pair_overlap` between any arXiv fold key and any seed can be at most
+**0.5** (object-side only, e.g. an arXiv `concept` object against `created`/`skilled_in`/`owns`), and
+§9's table shows 0.5 caps `combined` at 0.85, below the 0.89 merge threshold.
+
+**Therefore, deterministically and before the run: no arXiv predicate can score-merge onto any of the 27
+seeds.** The only route to a seed is the exact/alias fast path — string identity after tense fold or
+alias lookup.
+
+This resolves §1.1's competing mechanisms in advance, on arithmetic rather than measurement:
+**seed-reuse is structurally closed except by exact string match; any real reduction must come from
+mint-and-grow**, where an arXiv predicate merges onto an arXiv predicate minted earlier in the run and
+the two share an identical type pair. Doc 39 §4's ~25 types covering 73.4% of entities means common
+arXiv type pairs do recur, so that route is genuinely open and its size is unknown.
+
+**This is a falsifiable pre-run prediction, not a hedge.** If the run reports any score merge onto a
+seed, this derivation is wrong and must be reported as wrong. §4's bars are unchanged.

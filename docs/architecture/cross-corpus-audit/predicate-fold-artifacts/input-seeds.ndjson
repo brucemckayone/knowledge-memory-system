@@ -1,0 +1,27 @@
+{"predicate":"attended_event","description":"Attended an event","subject_type":"person","object_type":"event","inverse_predicate":null,"aliases":["went_to_event","participated_in"]}
+{"predicate":"born_in","description":"Born in location","subject_type":"person","object_type":"place","inverse_predicate":null,"aliases":["birthplace","native_of","from"]}
+{"predicate":"ceo_of","description":"CEO of organization","subject_type":"person","object_type":"company","inverse_predicate":null,"aliases":["chief_executive_of","runs","heads"]}
+{"predicate":"child_of","description":"Child of another person","subject_type":"person","object_type":"person","inverse_predicate":"parent_of","aliases":["son_of","daughter_of"]}
+{"predicate":"created","description":"Created something","subject_type":"person","object_type":"concept","inverse_predicate":"created_by","aliases":["authored","built","made","developed","wrote","designed"]}
+{"predicate":"founded","description":"Founded an organization","subject_type":"person","object_type":"company","inverse_predicate":null,"aliases":["started","established","co_founded"]}
+{"predicate":"friend_of","description":"Friends with another person","subject_type":"person","object_type":"person","inverse_predicate":null,"aliases":["friends_with","close_to"]}
+{"predicate":"has_degree","description":"Has academic degree","subject_type":"person","object_type":"concept","inverse_predicate":null,"aliases":["earned_degree","holds_degree","degree_in"]}
+{"predicate":"headquartered_in","description":"Headquarters location of an organization","subject_type":"company","object_type":"place","inverse_predicate":null,"aliases":["hq","headquarters","head_office","headquartered","hq_in","head_office_in"]}
+{"predicate":"interested_in","description":"Interested in topic","subject_type":"person","object_type":"concept","inverse_predicate":null,"aliases":["likes","enjoys","passionate_about","into"]}
+{"predicate":"job_title","description":"Current job title/role held by a person","subject_type":"person","object_type":"concept","inverse_predicate":null,"aliases":["title","role","position","job","occupation","role_at","current_title","job_role","current_role","designation"]}
+{"predicate":"knows","description":"Knows another person","subject_type":"person","object_type":"person","inverse_predicate":"known_by","aliases":["acquainted_with","met","familiar_with"]}
+{"predicate":"knows_about","description":"Has knowledge of topic","subject_type":"person","object_type":"concept","inverse_predicate":null,"aliases":["understands","familiar_with_topic","knowledgeable_in"]}
+{"predicate":"lives_in","description":"Residential relationship between person and location","subject_type":"person","object_type":"place","inverse_predicate":null,"aliases":["resides_in","based_in","located_in","living_in","lived_in","formerly_in","used_to_live_in"]}
+{"predicate":"manages","description":"Manages another person","subject_type":"person","object_type":"person","inverse_predicate":"reports_to","aliases":["supervises","leads","directs","oversees"]}
+{"predicate":"married_to","description":"Married to another person","subject_type":"person","object_type":"person","inverse_predicate":null,"aliases":["spouse_of","husband_of","wife_of","partner_of"]}
+{"predicate":"member_of","description":"Member of organization/group","subject_type":"person","object_type":"company","inverse_predicate":"has_member","aliases":["belongs_to","part_of","affiliated_with"]}
+{"predicate":"organized","description":"Organized an event","subject_type":"person","object_type":"event","inverse_predicate":null,"aliases":["hosted","arranged","planned"]}
+{"predicate":"owns","description":"Owns something","subject_type":"person","object_type":"concept","inverse_predicate":"owned_by","aliases":["possesses","owner_of"]}
+{"predicate":"parent_of","description":"Parent of another person","subject_type":"person","object_type":"person","inverse_predicate":"child_of","aliases":["father_of","mother_of"]}
+{"predicate":"reports_to","description":"Reports to another person","subject_type":"person","object_type":"person","inverse_predicate":"manages","aliases":["managed_by","supervised_by","under"]}
+{"predicate":"sibling_of","description":"Sibling of another person","subject_type":"person","object_type":"person","inverse_predicate":null,"aliases":["brother_of","sister_of"]}
+{"predicate":"skilled_in","description":"Has skill in area","subject_type":"person","object_type":"concept","inverse_predicate":null,"aliases":["proficient_in","expert_in","good_at","specializes_in"]}
+{"predicate":"spoke_at","description":"Spoke at an event","subject_type":"person","object_type":"event","inverse_predicate":null,"aliases":["presented_at","gave_talk_at","keynote_at"]}
+{"predicate":"studied_at","description":"Studied at institution","subject_type":"person","object_type":"company","inverse_predicate":null,"aliases":["attended","enrolled_at","graduated_from","alumnus_of"]}
+{"predicate":"visited","description":"Visited a location","subject_type":"person","object_type":"place","inverse_predicate":null,"aliases":["traveled_to","went_to","been_to"]}
+{"predicate":"works_at","description":"Employment relationship between person and organization","subject_type":"person","object_type":"company","inverse_predicate":"employs","aliases":["employed_at","works_for","employee_of","working_at","worked_at","formerly_at","ex_employee_of","used_to_work_at"]}
