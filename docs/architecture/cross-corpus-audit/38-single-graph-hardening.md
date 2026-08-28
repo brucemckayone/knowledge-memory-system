@@ -214,6 +214,43 @@ corpora **converge** to ~86% once deduplicated — which suggests ~86% is the na
 ceiling at this extraction density, and that the gap between them as-is was fragmentation noise rather
 than a real difference between the corpora.
 
+### 3.10 The AGE traversal index has no prune path
+
+Both sync triggers are `AFTER INSERT OR UPDATE`. **There is no DELETE trigger on `entities` or
+`facts`**, so a row deleted in Postgres leaves its AGE vertex/edge behind permanently. The index is
+append-only and diverges monotonically.
+
+| | AGE | Postgres | ratio |
+|---|---|---|---|
+| vertices | 6,973 | 3,406 entities | **2.05x** |
+| edges | 5,534 | 3,148 active entity→entity facts | **1.76x** |
+
+**Compounding issue.** CLAUDE.md already documents that AGE edge properties do not persist via `SET`
+in this version. So fact **expiry cannot be represented on an AGE edge** either. Combined with the
+missing DELETE trigger, Cypher traversal over `knowledge_graph` sees deleted entities and expired facts
+as **live**.
+
+**Honest caveat on magnitude:** this is the shared `cognitive_test` database, where test cleanups
+`DELETE FROM entities` directly, so the 2x is inflated by test churn. The *mechanism* — a missing
+DELETE trigger — is structural, not a test artifact. Production exposure depends on delete/merge
+volume, and fact expiry is invisible to AGE regardless.
+
+CLAUDE.md positions AGE as "a traversal index — canonical data lives in PostgreSQL tables". An index
+2x oversized that cannot represent expiry returns phantoms to anything that trusts it. Note the doc-35
+multi-hop primitive deliberately used **SQL recursive CTEs over `public.facts`, not AGE**, so it was
+unaffected — and that is currently the only expiry-correct traversal path in the codebase.
+
+### 3.11 Confidence and degree distribution (inputs to the query epic)
+
+**Confidence is a narrow high band.** min 0.6, max 1.0, 21 distinct values — but only **281 of 5,714
+facts (4.9%) below 0.9** and **8 below 0.8**. The agent rarely expresses doubt, so confidence is a weak
+ranking signal and not a usable filter threshold.
+
+**Degree distribution** (input to `nmemo-5co.7`, query-seeded PageRank): mean **3.51**, median **2**,
+p90 **9**, p99 **20**, max **89**, and **zero entities of degree 0**. A sparse graph with a heavy tail:
+most nodes are near-leaves, so query-seeded PageRank will be dominated by a handful of hubs unless
+explicitly damped.
+
 ## 4. Hardening backlog
 
 | # | item | why it matters | cost |
@@ -225,6 +262,7 @@ than a real difference between the corpora.
 | 5 | **Chunk or file-pass the causal agent scope** | Graph C does not populate at production batch size | moderate |
 | 6 | **`nmemo-kgy`** — `mlFetch` never retries its own timeout; `predicate-resolve` degrades silently | silent quality loss on the promotion path | small, needs a deadline cap |
 | 7 | **`maxPairs` silent truncation** in `recallMultiHopConcepts` | a shipped service silently caps results; warns to stderr only | small |
+| 8 | **AGE prune path** — DELETE triggers, or treat AGE as a rebuildable derived index | index is 2x oversized and cannot represent fact expiry, so Cypher traversal returns phantoms (§3.10) | small-moderate |
 
 ## 5. What the cross-corpus work leaves behind, positively
 
