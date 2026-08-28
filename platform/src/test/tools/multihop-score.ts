@@ -23,6 +23,15 @@ const TGT = 'arxiv-cv';
 const TAU = 0.615;          // frozen, doc-31
 const DECAY = 0.5;          // frozen, doc-35 §5
 const ATTRIBUTION_FLOOR = 0.95; // doc-35 §3
+// Blind adversary finding (2026-08-28): recallMultiHopConcepts defaults maxPairs = 100_000
+// (concept-multihop.ts:79) and this scorer never overrode it, so BOTH multi-hop arms were
+// silently TRUNCATED — true hops=1 is 137,922 pairs (27.5% dropped) and hops=2 is 736,882
+// (86.4% dropped). The truncation HID doc-35 §8's pre-registered "reaches everything" failure:
+// untruncated M2 proposes 88.5% of the entire pair space at 1.08x the base rate. maxPairs was
+// never in §5's frozen parameter list even though minScore was, so the one free parameter that
+// actually governed two of three arms went unfrozen and unreported. Set explicitly above the
+// measured hops=2 size and RECORDED in the artifact so it can never again be an invisible default.
+const MAX_PAIRS = 1_000_000;
 
 // ── BM25, copied verbatim from recall-hybrid.ts (R37: the real IDF retriever, never raw
 // Jaccard). Textbook untuned params; same frozen [a-z0-9]{2,} tokenizer.
@@ -180,7 +189,7 @@ async function main(): Promise<void> {
   const rawByArm: Record<string, MultiHopPair[]> = {};
   for (const hops of [0, 1, 2]) {
     const t0 = Date.now();
-    const pairs = await recallMultiHopConcepts(SRC, TGT, { hops, decay: DECAY });
+    const pairs = await recallMultiHopConcepts(SRC, TGT, { hops, decay: DECAY, maxPairs: MAX_PAIRS });
     rawByArm[`hops${hops}`] = pairs;
     results.push(scoreArm(hops === 0 ? 'S0 single-hop' : `M${hops} multi-hop`, liftToPapers(pairs)));
     console.log(`  hops=${hops}: ${pairs.length} entity pairs in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
@@ -221,7 +230,7 @@ async function main(): Promise<void> {
   const top3 = hubs.slice(0, 3).map((h) => h.id);
   const exResults: Record<string, ArmResult> = {};
   for (const hops of [0, 1, 2]) {
-    const pairs = await recallMultiHopConcepts(SRC, TGT, { hops, decay: DECAY, excludeConceptIds: top3 });
+    const pairs = await recallMultiHopConcepts(SRC, TGT, { hops, decay: DECAY, excludeConceptIds: top3, maxPairs: MAX_PAIRS });
     exResults[`hops${hops}`] = scoreArm(hops === 0 ? 'S0 single-hop' : `M${hops} multi-hop`, liftToPapers(pairs));
   }
 
@@ -304,7 +313,12 @@ async function main(): Promise<void> {
   };
 
   const out = {
-    prereg: 'doc-35', frozen: { tau: TAU, decay: DECAY, attributionFloor: ATTRIBUTION_FLOOR },
+    prereg: 'doc-35',
+    frozen: { tau: TAU, decay: DECAY, attributionFloor: ATTRIBUTION_FLOOR },
+    // Not frozen by doc 35 §5 — that omission is itself a recorded pre-registration defect.
+    maxPairs: MAX_PAIRS,
+    entityPairsPerArm: Object.fromEntries(Object.entries(rawByArm).map(([k, v]) => [k, v.length])),
+    reductionAnchor: 'see 37-results §anchor — doc 35 §9 requires it reported; it was absent from this artifact',
     attribution: { rate: +attrRate.toFixed(4), ...attr.stats },
     oracle: { coCitedPairs: coFull, coCitedTextDissimilar: coDissim, totalPairs: pairIdx.length },
     arms: results,

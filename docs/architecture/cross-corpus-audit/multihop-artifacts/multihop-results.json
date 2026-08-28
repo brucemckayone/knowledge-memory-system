@@ -5,6 +5,13 @@
     "decay": 0.5,
     "attributionFloor": 0.95
   },
+  "maxPairs": 1000000,
+  "entityPairsPerArm": {
+    "hops0": 19400,
+    "hops1": 137922,
+    "hops2": 736882
+  },
+  "reductionAnchor": "see 37-results §anchor — doc 35 §9 requires it reported; it was absent from this artifact",
   "attribution": {
     "rate": 1,
     "factsTotal": 5714,
@@ -44,25 +51,25 @@
     },
     {
       "arm": "M1 multi-hop",
-      "cells": 15238,
-      "coveredFull": 926,
+      "cells": 15580,
+      "coveredFull": 929,
       "coCitedFull": 1079,
-      "coverageFull": 0.8582,
+      "coverageFull": 0.861,
       "coveredDissim": 127,
       "coCitedDissim": 160,
       "coverageDissim": 0.7937,
-      "auc": 0.6762
+      "auc": 0.6755
     },
     {
       "arm": "M2 multi-hop",
-      "cells": 15747,
-      "coveredFull": 942,
+      "cells": 19117,
+      "coveredFull": 1027,
       "coCitedFull": 1079,
-      "coverageFull": 0.873,
-      "coveredDissim": 125,
+      "coverageFull": 0.9518,
+      "coveredDissim": 147,
       "coCitedDissim": 160,
-      "coverageDissim": 0.7813,
-      "auc": 0.6567
+      "coverageDissim": 0.9187,
+      "auc": 0.6578
     },
     {
       "arm": "E dense embedding",
@@ -112,14 +119,14 @@
     },
     {
       "arm": "M2 multi-hop",
-      "cells": 15099,
-      "coveredFull": 878,
+      "cells": 18439,
+      "coveredFull": 968,
       "coCitedFull": 1079,
-      "coverageFull": 0.8137,
-      "coveredDissim": 118,
+      "coverageFull": 0.8971,
+      "coveredDissim": 145,
       "coCitedDissim": 160,
-      "coverageDissim": 0.7375,
-      "auc": 0.6402
+      "coverageDissim": 0.9063,
+      "auc": 0.639
     }
   ],
   "frontier": [
@@ -135,21 +142,21 @@
     },
     {
       "arm": "M1 multi-hop",
-      "cells": 15238,
-      "coverageFull": 0.8582,
-      "embeddingCoverageAtSameCells": 0.9416,
+      "cells": 15580,
+      "coverageFull": 0.861,
+      "embeddingCoverageAtSameCells": 0.949,
       "coverageDissim": 0.7937,
-      "embeddingCoverageDissimAtSameCells": 0.6062,
+      "embeddingCoverageDissimAtSameCells": 0.6563,
       "aboveFrontierFull": false,
       "aboveFrontierDissim": true
     },
     {
       "arm": "M2 multi-hop",
-      "cells": 15747,
-      "coverageFull": 0.873,
-      "embeddingCoverageAtSameCells": 0.9527,
-      "coverageDissim": 0.7813,
-      "embeddingCoverageDissimAtSameCells": 0.6813,
+      "cells": 19117,
+      "coverageFull": 0.9518,
+      "embeddingCoverageAtSameCells": 0.9805,
+      "coverageDissim": 0.9187,
+      "embeddingCoverageDissimAtSameCells": 0.8688,
       "aboveFrontierFull": false,
       "aboveFrontierDissim": true
     }
@@ -222,7 +229,7 @@
       },
       "bar2_discrimination": "FAIL",
       "bar2_detail": {
-        "auc": 0.6762,
+        "auc": 0.6755,
         "s0Auc": 0.6844,
         "absoluteBar": 0.63
       },
@@ -244,7 +251,7 @@
       "arm": "M2 multi-hop",
       "bar1_reach": "FAIL",
       "bar1_detail": {
-        "coverageDissim": 0.7813,
+        "coverageDissim": 0.9187,
         "s0CoverageDissim": 0.5313,
         "absoluteBar": 0.25,
         "absoluteMet": true,
@@ -255,7 +262,7 @@
       },
       "bar2_discrimination": "FAIL",
       "bar2_detail": {
-        "auc": 0.6567,
+        "auc": 0.6578,
         "s0Auc": 0.6844,
         "absoluteBar": 0.63
       },
@@ -266,10 +273,10 @@
           "computer-vision (deg 145)",
           "foundation-models (deg 111)"
         ],
-        "gainOverS0": 0.25,
-        "gainWithTop3Excluded": 0.3625,
+        "gainOverS0": 0.3874,
+        "gainWithTop3Excluded": 0.5313,
         "retentionBar": "half the gain",
-        "aucWithTop3Excluded": 0.6402
+        "aucWithTop3Excluded": 0.639
       },
       "overall": "FAIL"
     }

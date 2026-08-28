@@ -50,11 +50,11 @@ doc 35 when it runs. Do not quietly drop them.
 | | |
 |---|---|
 | Corpus A `arxiv-nlp` | **147/147 papers**, 1,230 entities, 2,862 facts (1,548 of them entity→entity edges) |
-| Corpus B `arxiv-cv` | **147/147 papers**, 1,282 entities, 2,852 facts (1,350 entity→entity) — ingested 2026-08-25 |
+| Corpus B `arxiv-cv` | **147/147 papers**, 1,282 entities, 2,852 facts (**1,544** entity→entity) — ingested 2026-08-25 |
 | Paper attribution | **100.00%** — 5,714/5,714 facts, 2,512/2,512 entities, 294/294 papers, 0 ambiguous. Well clear of doc-35 §3's 95% void floor. |
 | doc-20 substrate | 104 concepts, 97 `exhibits` + 51 `addresses` — DESTROYED and restored on 2026-08-25, see §7 |
 | Reduction anchor | Re-run after the restore: **10 pairs shipped / 10 at hops=0 / zero set difference** (doc-35 §9) |
-| Concept links on arXiv | **COMPLETE** 2026-08-27 — corpus A 2,014 `exhibits` (1230/1230 entities), corpus B 2,255 `addresses` (1282/1282), 564 concepts |
+| Concept links on arXiv | **COMPLETE** 2026-08-27 — corpus A 2,014 `exhibits`, corpus B 2,255 `addresses`, 564 concepts. **Coverage is NOT total:** entities carrying ≥1 concept are **1,161/1,230 (94.4%)** and **1,195/1,282 (93.2%)** — 156 entities have none and cannot participate in S0 at all. Rate is non-uniform (5.6% vs 6.8%). |
 | Both-sided concept pivots | **170** of 564 (303 exhibits-side + 431 addresses-side − 170 shared). doc 34 §2's audit found **4 of 104** — doc 34 §6 step 4's cheap kill-check is passed. |
 | Concept descriptions | **NONE — see §3.2. Every concept was labelled from a bare entity name.** |
 
@@ -120,6 +120,15 @@ untested here — it was **silently unavailable**.
 **Direction of the bias:** labelling from a bare name yields shallower, noisier concepts than
 name+description would, so it handicaps the concept arms while leaving arms **E** and **B** untouched
 (neither reads the entity graph). Same direction as §3.1, and larger in kind.
+
+**CORRECTION (blind adversary, 2026-08-28): "all handicaps point against the hypothesis" was WRONG as
+a blanket claim.** The 156 concept-less entities above contribute nothing at hops=0 but *can* be
+reached through a neighbour at hops≥1, so they **flatter the multi-hop gain** — measured at ~1.2pp of
+hard-slice coverage (M1 restricted to concept-linked roots gives 0.7813 vs the reported 0.7937). Small,
+but it runs opposite to the framing, and the framing was mine. On the IDF worry raised in the
+adversary brief: `concept_df` counts distinct **roots** (`concept-multihop.ts:150-154`), so
+fragmentation *inflates* df and *cuts* idf — §3.1's stated direction is right there, but it was right
+by luck rather than by having been checked.
 
 **Backfill is ruled out, with numbers.** Only the last batches' staging survives
 (`cleanupAbandonedStaging` past `STAGING_TTL_MS`), so a backfill would cover **corpus A 120/1,230
