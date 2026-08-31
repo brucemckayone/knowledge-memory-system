@@ -80,7 +80,7 @@ describe('searchFacts — the fact-vector read end (nmemo-vga)', () => {
     const rows = await testDb.unsafe(
       `SELECT current_setting('hnsw.iterative_scan', true) AS setting`,
     );
-    expect((rows[0] as { setting: string | null }).setting).toBe('strict_order');
+    expect((rows[0] as unknown as { setting: string | null }).setting).toBe('strict_order');
   });
 
   it('finds a fact by semantic similarity within its own corpus', async () => {

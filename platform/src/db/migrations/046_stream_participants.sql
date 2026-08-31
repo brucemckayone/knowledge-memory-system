@@ -42,5 +42,5 @@ CREATE TABLE IF NOT EXISTS public.stream_participants (
 
 -- Reverse lookup: all stream rows owned by an entity (merge re-point in 3f9.6,
 -- future cross-stream convergence).
-CREATE INDEX idx_stream_participants_entity
+CREATE INDEX IF NOT EXISTS idx_stream_participants_entity
   ON public.stream_participants (entity_id);

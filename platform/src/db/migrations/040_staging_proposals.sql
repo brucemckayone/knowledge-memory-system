@@ -41,9 +41,9 @@ CREATE TABLE IF NOT EXISTS public.staging_proposed_entities (
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_staging_entities_epoch
+CREATE INDEX IF NOT EXISTS idx_staging_entities_epoch
   ON public.staging_proposed_entities (epoch_id);
-CREATE INDEX idx_staging_entities_anchor
+CREATE INDEX IF NOT EXISTS idx_staging_entities_anchor
   ON public.staging_proposed_entities (anchor_canonical_id)
   WHERE anchor_canonical_id IS NOT NULL;
 
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS public.staging_proposed_facts (
     CHECK (undated = (valid_at IS NULL))
 );
 
-CREATE INDEX idx_staging_facts_epoch
+CREATE INDEX IF NOT EXISTS idx_staging_facts_epoch
   ON public.staging_proposed_facts (epoch_id);
-CREATE INDEX idx_staging_facts_subject
+CREATE INDEX IF NOT EXISTS idx_staging_facts_subject
   ON public.staging_proposed_facts (subject_handle);

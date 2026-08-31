@@ -43,14 +43,34 @@ WHERE source_entity_id NOT IN (SELECT id FROM public.entities)
 -- ============================================
 -- 2. Add FK enforcement going forward.
 -- ============================================
-ALTER TABLE public.topology_bridges
-  ADD CONSTRAINT topology_bridges_source_entity_id_fkey
-  FOREIGN KEY (source_entity_id)
-  REFERENCES public.entities(id)
-  ON DELETE CASCADE;
+-- Guarded (bead nmemo-ved): ALTER TABLE ... ADD CONSTRAINT has no IF NOT EXISTS,
+-- and this runner re-runs every migration on every invocation (deliberately — see
+-- db/migrate.ts on why there is no journal). Unguarded, this ERRORed on the second
+-- run, which used to be swallowed and now correctly fails the run.
+DO $do$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'topology_bridges_source_entity_id_fkey'
+      AND conrelid = 'public.topology_bridges'::regclass
+  ) THEN
+    ALTER TABLE public.topology_bridges
+      ADD CONSTRAINT topology_bridges_source_entity_id_fkey
+      FOREIGN KEY (source_entity_id)
+      REFERENCES public.entities(id)
+      ON DELETE CASCADE;
+  END IF;
 
-ALTER TABLE public.topology_bridges
-  ADD CONSTRAINT topology_bridges_target_entity_id_fkey
-  FOREIGN KEY (target_entity_id)
-  REFERENCES public.entities(id)
-  ON DELETE CASCADE;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'topology_bridges_target_entity_id_fkey'
+      AND conrelid = 'public.topology_bridges'::regclass
+  ) THEN
+    ALTER TABLE public.topology_bridges
+      ADD CONSTRAINT topology_bridges_target_entity_id_fkey
+      FOREIGN KEY (target_entity_id)
+      REFERENCES public.entities(id)
+      ON DELETE CASCADE;
+  END IF;
+END
+$do$;

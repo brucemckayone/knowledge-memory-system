@@ -36,7 +36,9 @@ import { ensureCollections } from './qdrant.js';
 import { ml } from './ml-client.js';
 import { checkGraphMcpHealth } from './causal-agent.js';
 import { rawQuery } from '../db/raw.js';
-import { sql } from 'drizzle-orm';
+import { getTableName, is, sql } from 'drizzle-orm';
+import { PgTable } from 'drizzle-orm/pg-core';
+import * as schema from '../db/schema.js';
 
 export interface ValidatorResult {
   name: string;
@@ -184,6 +186,57 @@ const hnswIterativeScanValidator: Validator = {
   },
 };
 
+const schemaTablesValidator: Validator = {
+  name: 'schema_tables',
+  run: async () => {
+    // Bead nmemo-ajm: startup-validation checked no arc table at all, so a DB
+    // missing migration 052's composite FKs or 054/055's tables entirely would
+    // start clean and every "the constraint enforces X" claim rested on a
+    // migration state nothing verified. The live cognitive DB was in that state.
+    //
+    // The expected set is DERIVED from the drizzle schema rather than
+    // hand-listed: a hand-maintained allowlist drifts silently the moment a
+    // migration adds a table and nobody updates the check, which is the same
+    // class of defect. Every table this codebase declares must exist.
+    //
+    // SCOPE, stated precisely so this is not read as "migration state verified":
+    // it covers the 40 tables declared as drizzle objects, which is exactly the
+    // set the TypeScript code queries through the ORM — so it catches the 42P01
+    // failure mode. On a fully migrated DB (50 public tables) the 10 it does NOT
+    // cover are the gardener/topology/clustering tables (entity_topology,
+    // entity_clusters, topology_bridges, the *_compute_runs), which are reached
+    // by raw SQL and have no drizzle object. Every ARC table IS covered:
+    // corpus_policies, bridge_edges, bridge_source_refs, causal_edge_corroborations,
+    // staging_causal_edges, staging_bridge_edges, arbiter_verdicts, fact_units.
+    // `is(v, PgTable)` is the runtime test; the cast only bridges drizzle's
+    // generic Table type, which does not accept a concrete PgTableWithColumns.
+    type NamedTable = Parameters<typeof getTableName>[0];
+    const expected: string[] = [];
+    for (const v of Object.values(schema)) {
+      if (is(v, PgTable)) expected.push(getTableName(v as unknown as NamedTable));
+    }
+    if (expected.length === 0) {
+      return { ok: false, detail: 'no tables found in db/schema.ts — introspection is broken, not the DB' };
+    }
+    const present = new Set(
+      (await rawQuery<{ tablename: string }>(
+        sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`,
+      )).map((r) => r.tablename),
+    );
+    const missing = expected.filter((t) => !present.has(t)).sort();
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        detail:
+          `${missing.length} table(s) declared in db/schema.ts are absent from the database: ` +
+          `${missing.join(', ')}. The DB lags migrations — run them (and check the exit code; ` +
+          'the runner used to always exit 0).',
+      };
+    }
+    return { ok: true, detail: `${expected.length} declared tables present` };
+  },
+};
+
 /** The active validator list. Hand-maintained. Per-boundary fix beads
  *  (.121 .126 .127 .112) own the underlying check; new boundaries get a
  *  validator entry alongside their initial PR. */
@@ -193,6 +246,7 @@ const VALIDATORS: Validator[] = [
   transportValidator,
   portsValidator,
   hnswIterativeScanValidator,
+  schemaTablesValidator,
 ];
 
 /** Run every validator (no short-circuit) and return the result list.
