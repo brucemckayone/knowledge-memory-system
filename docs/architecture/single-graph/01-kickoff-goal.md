@@ -15,7 +15,7 @@ mechanism (settled on every config and oracle); iOS is stripped; LongMemEval is 
 the predicate fold (3.7% collapse at 0.43 merge precision, and merges are unrecoverable).
 
 **Why this order:** the write path starves the read path. Every Tier 0 primitive is built and its inputs
-are empty, so no retrieval measurement is currently meaningful.
+are empty, so no retrieval measurement is meaningful yet.
 
 1. `nmemo-vga` (P0) — fact vectors broken at both ends: `fact_embedding` NULL on the epoch path
    (`promotion.ts:250`), and `searchFacts` (`facts.ts:896`) is its only reader with **zero callers**.
@@ -24,22 +24,22 @@ are empty, so no retrieval measurement is currently meaningful.
 3. `nmemo-86z` (P0) — `promotion-plan.ts:534` hardcodes `summary: null`, so every entity vector embeds
    a bare name.
 4. `nmemo-ajm` + `nmemo-31k` — `migrate.ts` swallows failures and exits 0; `promote()` dies with `42P01`
-   if migration 055 is absent.
+   if mig 055 is missing.
 5. `nmemo-8rm` (P0) — Graph C: 9 edges from 147 papers because `llm.py:349` passes the prompt as an argv
    element (Windows caps it at 32,767). **The fix exists 14 lines below, applied to the system prompt.**
    Passes at batch=1, fails silently on every real run.
-6. Re-measure the **description-aligned retrieval lever** on the 294-document substrate, name-only graph
-   as control, new corpus ids. The one untested lever — items 2–3 are why it was silently unavailable.
-7. AGE prune-or-retire (~1,071 nodes against 4 entities; `/api/reset` skips it). Until then use SQL
-   recursion over `public.facts` — the only expiry-correct traversal path.
+6. Re-measure the **description-aligned retrieval lever** on the 294-doc substrate, name-only graph as
+   control, new corpus ids. The one untested lever — items 2–3 are why it was silently unavailable.
+7. AGE prune-or-retire (~1,071 nodes vs 4 entities; `/api/reset` skips it). Until then use SQL recursion
+   over `public.facts` — the only expiry-correct traversal.
 8. **Hybrid BM25 + retrieved-set RRF** (`nmemo-uhp.18`, P1) with a pre-registered bar. Four independent
    results back it; the 0.648-vs-0.467 figure is post-hoc and needs the clean run.
-9. `nmemo-5co.1` — measure `/api/reason/query` latency; the tiered design is motivated by it and none is
-   quantified. Then `.2`/`.3` (fact-query API, constraint extractor) — the real greenfield.
+9. `nmemo-5co.1` — measure `/api/reason/query` latency; the tiered design is motivated by it and none
+   exists. Then `.2`/`.3` (fact-query API, constraint extractor) — the real greenfield.
 10. `nmemo-4g9` (P0) — predicate scorer recalibration before any predicate backfill.
 
-Also: strip iOS, extracting the ~80-line UTF-16 span-attribution pattern from `voice-c-composer.ts`
-first. Ask before dropping migration 049's tables — they are applied to the live DB.
+Also: strip iOS, extracting the ~80-line span-attribution pattern from `voice-c-composer.ts` first. Ask
+before dropping mig 049's tables — they are applied to the live DB.
 
 **Traps.** Doc numbers collide across trees ("doc 39" has three candidates) — cite full paths. Verify any
 branch attribution with `git merge-base`; CLAUDE.md's is stale. `NODE_ENV=test` skips dotenv (pass
