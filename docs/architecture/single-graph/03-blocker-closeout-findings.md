@@ -325,8 +325,16 @@ TAG-scoped deletes, and missed these three inside the suite's own `clean()`.
 **Effect on the measurement, stated here rather than discovered in the results.** The loss cannot create
 FALSE query pairs — every pair the attribution artifact holds is still a true attribution. But it is
 **non-random** (one contiguous batch), it reduces `n`, and it mildly biases which entities reach the
-two-attribution threshold the held-out constraint requires. The 10 documents will be re-ingested once
-both corpora finish, so the repair is isolated and recorded.
+two-attribution threshold the held-out constraint requires.
+
+**REVERSED, and recorded rather than quietly dropped.** I said here that the 10 documents would be
+re-ingested. They were not. Once the substrate reached n = 300 query pairs, power stopped being the
+binding constraint, and re-ingesting would extract those 10 a second time — making 10 of 294 documents
+non-uniform in a substrate whose whole purpose is a controlled comparison. The deviation is instead
+declared in both pre-registrations and in `05-results-...md`. The blind adversarial review of that result
+confirmed the loss did not create the negative, but also showed the deviations matter in a worse way than
+"they only remove data": see doc 05 §2.3, where the per-corpus split puts the headline on the corpus the
+*other* deviation truncated.
 
 All three suites carrying this pattern (`promotion.test.ts`, `predicate-fold.test.ts`,
 `epoch-propose-tools.test.ts`) are now scoped to the epoch ids they stage into. Each fix was verified
