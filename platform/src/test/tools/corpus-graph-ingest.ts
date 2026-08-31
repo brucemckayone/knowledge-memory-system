@@ -124,7 +124,14 @@ async function main(): Promise<void> {
   mkdirSync(OUT, { recursive: true });
   const which = (arg('corpus', 'A') ?? 'A').toUpperCase() as keyof typeof CORPORA;
   if (!CORPORA[which]) throw new Error(`--corpus must be A or B, got '${which}'`);
-  const { file, corpusId } = CORPORA[which];
+  // --corpusId overrides the default id so the SAME source documents can be
+  // ingested into a fresh graph without touching an existing one. The ledger and
+  // attribution artifacts are already keyed by corpusId, so a new id gets its own
+  // resumable ledger automatically. Used by the description-aligned retrieval
+  // pre-registration (single-graph/02) to build dal-nlp / dal-cv beside the
+  // original arxiv-nlp / arxiv-cv graphs.
+  const { file, corpusId: defaultCorpusId } = CORPORA[which];
+  const corpusId = arg('corpusId', defaultCorpusId)!;
   const limit = Number(arg('limit', '0'));
   const batchSize = Number(arg('batch', '10'));
   const concurrency = Number(arg('concurrency', '4'));
