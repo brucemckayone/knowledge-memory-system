@@ -178,7 +178,7 @@ export interface SelfEntity {
  * join is the source of truth.
  *
  * Capture-works-offline: bootstrap is implicit on first ingest, so a fresh DB
- * has NO self entity yet. Returns null in that case — callers (the hero
+ * has NO self entity yet. Returns null in that case — callers (formerly the hero
  * handler) render a sparse stub with active:null rather than failing.
  */
 export async function getSelfEntity(): Promise<SelfEntity | null> {

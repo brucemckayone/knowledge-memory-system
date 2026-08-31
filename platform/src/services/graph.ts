@@ -349,7 +349,7 @@ export async function getSubgraph(
  * Entities connected to a given entity within `maxDepth` hops.
  *
  * The API is unchanged from the AGE implementation so its four callers
- * (causal-agent, entity-profile, graph-fallback, hero) need no edit — they now
+ * (causal-agent, entity-profile, graph-fallback) need no edit — they now
  * read a graph that matches Postgres and honours expiry.
  *
  * `relationshipType` keeps the AGE convention (uppercased, underscored) and is

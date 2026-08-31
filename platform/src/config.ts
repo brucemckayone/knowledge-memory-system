@@ -280,7 +280,7 @@ export const PRICING: Record<string, ModelRate> = {
  * literals). Split into ACTIVE (on the live call graph — capture is wired in)
  * vs RESERVED/future (endpoint test-only or not yet live — no capture, so
  * reports never show empty dimensions). `notify.phrase` is reserved: today
- * routes/notifications.ts assembles template prose with no LLM call.
+ * (The iOS notifications route that used this has been removed.)
  */
 export const OPERATION_VALUES = [
   // active

@@ -15,8 +15,6 @@ import { isSessionLimitError } from './services/session-limit.js';
 import { config } from './config.js';
 import { db, checkDatabaseHealth, entities, facts, memoryEntities, causalEvents, causalEdges, entityMeta, sameAsLinks, mergeCandidates, entityAliases, extractionReports, captureIdempotency, stagingProposedEntities, stagingProposedFacts } from './db/index.js';
 import { isNull, sql, eq, desc, and } from 'drizzle-orm';
-import { heroRoute } from './routes/hero.js';
-import { notificationsHandler } from './routes/notifications.js';
 import { getMergeCandidates, detectAgedOrphans } from './services/graph-meta.js';
 import { ml } from './services/ml-client.js';
 import { checkQdrantHealth } from './services/qdrant.js';
@@ -1306,24 +1304,19 @@ app.get('/api/entity/:id/profile', async (c) => {
   }
 });
 
-// ============================================
-// iOS API v1 — home surfaces (ASK-017 hero, ASK-018 notifications)
-// ============================================
-
-// GET /api/hero?nodeId=<entityId> — home hero composition (ASK-017). nodeId is
-// OPTIONAL (passed through to the handler); absent => the user's self entity
-// (ASK-006). Sparse-data / fresh DB => { active: null } (200) so iOS renders the
-// pre-data stub. An EXPLICIT nodeId that does not resolve => 404 (iOS "still
-// listening" fallback). Any other failure => 500 (same fallback). The route file
-// (routes/hero.ts) owns the wire normalization (toHeroResponse) and status map.
-app.get('/api/hero', heroRoute);
-
-// GET /api/notifications — active, already-composed notification cards (ASK-018).
-// Backend owns composition/persistence/age-out; iOS owns selection/sort/4-card
-// cap. Optional ?limit caps the rows read (default 20). The route file
-// (routes/notifications.ts) owns compose+persist and the encode-boundary
-// discipline (kind == target.type, no blank fields, unique notificationId).
-app.get('/api/notifications', notificationsHandler);
+// The iOS API v1 surface (GET /api/hero, GET /api/notifications) was removed
+// here — user's call, bad branch management rather than a technical verdict
+// (single-graph keep list §3). Its span-attribution pattern was extracted first,
+// to services/sourced-prose.ts, because it was the only implementation of
+// grounded synthesis with provenance in the repo.
+//
+// LEFT IN THE DATABASE DELIBERATELY. Migration 049 created two tables and they
+// are not equivalent:
+//   - `capture_idempotency` is STILL LIVE — the idempotent-replay path for
+//     POST /api/capture above reads it. It must not be dropped.
+//   - `notification_cards` now has no reader (0 rows in both cognitive and
+//     cognitive_test). Dropping it is a destructive schema change and is the
+//     user's decision, so it stays until asked.
 
 /**
  * Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order.
