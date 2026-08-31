@@ -1,10 +1,37 @@
-# Sparse Truth Graph Implementation - Mnemo Project
+# Mnemo Project
 
-I'm implementing the Sparse Truth Graph branch for the Mnemo project. This is a dual-graph knowledge system: Graph S (temporal state graph — entities, bi-temporal facts, Apache AGE) paired with Graph C (perpendicular causal graph — causal events, causal edges with LLM reasoning + source traceability, meta-causal patterns).
+A dual-graph knowledge system: Graph S (temporal state graph — entities, bi-temporal facts, Apache AGE) paired with Graph C (perpendicular causal graph — causal events, causal edges with LLM reasoning + source traceability, meta-causal patterns).
 
-## Branch & State
+## CURRENT DIRECTION (2026-08-31) — read this before the historical sections below
+
+**Optimising retrieval and knowledge synthesis on a SINGLE graph.** Deep refinement; learn what works
+and what does not.
+
+**Start here:** `docs/architecture/single-graph/00-consolidated-keep-list.md` — the keep/park/drop list,
+the blocker list, and the corrections of record. Detail is in `single-graph/appendices/` (7 surveys).
+
+**Decided, do not relitigate:** the single graph is the design; `corpus_id` is sufficient partitioning;
+the concept super-graph is NOT a retrieval mechanism (settled across every configuration and oracle);
+the iOS surface is being stripped; LongMemEval is parked.
+
+**Two traps that have already cost real time:**
+
+1. **Doc numbers collide across trees.** `truth-graph/` has TWO doc 38s and TWO doc 39s, and
+   `cross-corpus-audit/` runs a parallel 38–42 series. So "doc 39" has three candidate files and
+   "doc 42" has two. Always cite the full path. New work goes under `single-graph/` to stop adding to
+   it. (bead `nmemo-jcj`)
+2. **Everything below this section is from the March–April 2026 Sparse Truth Graph phase and is
+   historical.** The AGE / search_path gotchas and the test-infrastructure notes are still accurate and
+   load-bearing. The branch name, the 27-bead plan, and the phase structure are not.
+
+## Branch & State (historical — see CURRENT DIRECTION above)
 
 - **Branch:** `feat/sparse-truth-graph` (created from `feat/cognitive-platform-v1`)
+  — **STALE.** Later work ran on `feat/cross-corpus-audit`, whose real base is
+  `feat/cognitive-platform-v2` at `4d3c0b8` (2026-06-30), *not* `feat/cognitive-platform-v1`. That
+  mis-statement caused ~75 commits of inherited work (epoch-v2, the predicate machinery, the iOS
+  milestone, cost tracking) to be attributed to the wrong branch during the 2026-08-31 survey. Verify
+  the base with `git merge-base` before attributing anything.
 - **Beads tool path:** `C:/Users/bruce.mckay/AppData/Local/Programs/bd/bd.exe`
 - **Run `bd prime` first** to load workflow context
 - **Run `bd ready`** to see available work items
