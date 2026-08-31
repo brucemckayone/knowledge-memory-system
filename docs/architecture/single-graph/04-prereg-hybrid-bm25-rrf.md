@@ -168,3 +168,15 @@ an inhomogeneity.
 **n = 300 query pairs**, against the pre-registered kill threshold of 100. Description coverage is far
 above the 50% VOID threshold in both corpora. So the run proceeds, and its headline is reported for the
 substrate described above rather than for a complete 294-document one.
+
+---
+
+## UPDATE — Deviation 1 is RESOLVED
+
+The ingest was resumed once the API spend limit lifted and both corpora reached **147/147 documents**.
+The definitive run is **n = 354 query pairs** on the complete 294-document substrate. Deviation 2 (10 of
+corpus A's documents without attribution) stands.
+
+The adversarial review's strongest structural objection was that the headline might be carried by the
+corpus this deviation had truncated. It is not: at **equal n (177 pairs each)** the per-corpus split
+persists unchanged — `dal-nlp` ties, `dal-cv` harms. See `05-results-...md` §3 and §7.
