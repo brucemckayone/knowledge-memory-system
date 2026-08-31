@@ -487,6 +487,7 @@ export async function applyPromotion(
         mintedCausalEventIds.push(
           await mintCausalEvent(tx, {
             factId,
+            corpusId,
             transitionType: 'created',
             subjectEntityId: subjectId,
             predicate: f.predicate,
@@ -518,6 +519,7 @@ export async function applyPromotion(
         mintedCausalEventIds.push(
           await mintCausalEvent(tx, {
             factId: ex.factId,
+            corpusId,
             transitionType: 'expired',
             subjectEntityId: expired.subjectEntityId,
             predicate: expired.predicate ?? '',
@@ -558,6 +560,7 @@ export async function applyPromotion(
           mintedCausalEventIds.push(
             await mintCausalEvent(tx, {
               factId: c.priorFactId,
+              corpusId,
               transitionType: 'strengthened',
               subjectEntityId: row.subjectEntityId,
               predicate: row.predicate ?? '',

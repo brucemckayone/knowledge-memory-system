@@ -171,6 +171,19 @@ export interface MintCausalEventParams {
   transitionType: CausalTransitionType;
   subjectEntityId: string;
   predicate: string;
+  /**
+   * The corpus the described fact lives in. REQUIRED, not optional with a
+   * default, so the compiler forces every call site to supply it.
+   *
+   * This insert previously omitted corpus_id entirely and the column default
+   * took over, so ALL 7,004 causal_events rows read corpus_id='default' -
+   * including events describing facts in arxiv-nlp, arxiv-cv and dal-nlp.
+   * Migration 052 gave the table a corpus column, an index AND an immutability
+   * trigger, all guarding a value no code set, and the trigger means a wrong
+   * value cannot be corrected in place afterwards. Silently wrong is worse than
+   * absent, which is why this is required rather than defaulted.
+   */
+  corpusId: string;
   deltaConfidence?: number | null;
   sourceMemoryId?: string | null;
   sourceText?: string | null;
@@ -197,6 +210,7 @@ export async function mintCausalEvent(tx: Tx, params: MintCausalEventParams): Pr
       transitionType: params.transitionType,
       subjectEntityId: params.subjectEntityId,
       predicate: params.predicate,
+      corpusId: params.corpusId,
       deltaConfidence: params.deltaConfidence ?? null,
       sourceMemoryId: params.sourceMemoryId ?? null,
       sourceText: params.sourceText ?? null,
