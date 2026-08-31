@@ -365,6 +365,13 @@ export async function findSimilarEntities(
 ): Promise<Array<Entity & { similarity: number }>> {
   const { limit = 10, threshold = 0.5, type, corpusId = 'default' } = options;
 
+  // The corpus/type filters below are POST-filters on an HNSW index scan: the
+  // walk finds the ef_search nearest candidates globally and Postgres discards
+  // the ones that fail the filter, without resuming the walk. Correct results
+  // depend on `hnsw.iterative_scan = strict_order` (migration 058, asserted by
+  // startup-validation's hnsw_iterative_scan validator). Without it a
+  // corpus-scoped search measured recall@10 0.715 and returned ZERO rows on 10%
+  // of queries.
   return rawQuery<Entity & { similarity: number }>(sql`
     SELECT
       e.*,

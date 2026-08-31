@@ -218,6 +218,8 @@ export async function recallAcrossCorpus(
 ): Promise<CrossCorpusRecallHit[]> {
   const { targetCorpusId, kind, k = 5 } = opts;
   const queryVector = sql.raw(`'[${queryEmbedding.join(',')}]'::vector`);
+  // corpus_id + kind are POST-filters on the HNSW scan — correctness depends on
+  // `hnsw.iterative_scan = strict_order` (migration 058).
   return rawQuery<CrossCorpusRecallHit>(sql`
     SELECT
       element_ref::text AS element_ref,

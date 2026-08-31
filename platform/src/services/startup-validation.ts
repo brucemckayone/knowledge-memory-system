@@ -35,6 +35,8 @@ import { config } from '../config.js';
 import { ensureCollections } from './qdrant.js';
 import { ml } from './ml-client.js';
 import { checkGraphMcpHealth } from './causal-agent.js';
+import { rawQuery } from '../db/raw.js';
+import { sql } from 'drizzle-orm';
 
 export interface ValidatorResult {
   name: string;
@@ -149,6 +151,39 @@ const portsValidator: Validator = {
   },
 };
 
+const hnswIterativeScanValidator: Validator = {
+  name: 'hnsw_iterative_scan',
+  run: async () => {
+    // Every filtered vector search in the codebase reads
+    //   WHERE corpus_id = ... ORDER BY embedding <=> ... LIMIT k
+    // and pgvector's HNSW index cannot apply that WHERE during the graph walk:
+    // it returns the ef_search nearest candidates GLOBALLY and the filter drops
+    // them afterwards, without going back for more. Measured on a 5,714-fact
+    // corpus: recall@10 0.715 with 6 of 60 queries returning ZERO rows.
+    // Migration 058 sets this at database level; this asserts it, because a
+    // database-level guarantee nothing verifies is how the arc lost measurements
+    // before (blocker 6 in the single-graph keep list).
+    // current_setting with missing_ok=true rather than SHOW: SHOW names its
+    // column after the full GUC ('hnsw.iterative_scan'), which is awkward to read
+    // back, and plain current_setting ERRORS on an unknown GUC instead of
+    // reporting it. This returns NULL and produces a clear message.
+    const rows = await rawQuery<{ setting: string | null }>(
+      sql`SELECT current_setting('hnsw.iterative_scan', true) AS setting`,
+    );
+    const setting = rows[0]?.setting;
+    if (setting !== 'strict_order') {
+      return {
+        ok: false,
+        detail:
+          `hnsw.iterative_scan='${setting ?? 'unset'}' (expected 'strict_order'). ` +
+          'Filtered vector search silently truncates or returns zero rows. Run migration 058, ' +
+          "or: ALTER DATABASE <db> SET hnsw.iterative_scan = 'strict_order' (new sessions only).",
+      };
+    }
+    return { ok: true };
+  },
+};
+
 /** The active validator list. Hand-maintained. Per-boundary fix beads
  *  (.121 .126 .127 .112) own the underlying check; new boundaries get a
  *  validator entry alongside their initial PR. */
@@ -157,6 +192,7 @@ const VALIDATORS: Validator[] = [
   mlServicesValidator,
   transportValidator,
   portsValidator,
+  hnswIterativeScanValidator,
 ];
 
 /** Run every validator (no short-circuit) and return the result list.

@@ -99,11 +99,12 @@ async function stageEntity(
   name: string,
   type: string,
   anchorCanonicalId?: string,
+  summary?: string,
 ): Promise<string> {
   const handle = randomUUID();
   await testDb`
-    INSERT INTO staging_proposed_entities (handle, epoch_id, name, entity_type, anchor_canonical_id)
-    VALUES (${handle}::uuid, ${epochId}::uuid, ${name}, ${type}, ${anchorCanonicalId ?? null}::uuid)
+    INSERT INTO staging_proposed_entities (handle, epoch_id, name, entity_type, anchor_canonical_id, summary)
+    VALUES (${handle}::uuid, ${epochId}::uuid, ${name}, ${type}, ${anchorCanonicalId ?? null}::uuid, ${summary ?? null})
   `;
   return handle;
 }
@@ -318,6 +319,7 @@ describe('promotion against testDb (nmemo-vpz.3 / E3)', () => {
       droppedOrphanEntities: [],
       entityMerges: [],
       sameAsLinks: [],
+      entityDescriptionFills: [],
     };
 
     await expect(applyPromotion(randomUUID(), plan)).rejects.toThrow();
@@ -426,6 +428,96 @@ describe('epoch-v2 bug-fix scenarios — named harness cases (nmemo-vpz.8 / E8 c
     expect(rows).toHaveLength(1);
     expect((rows[0] as { present: boolean }).present).toBe(true);
     expect((rows[0] as { dims: number }).dims).toBe(768);
+  });
+
+  it('nmemo-vga: every promoted fact carries a 768-dim fact_embedding, flag-independent', async () => {
+    // The write end of the fact-vector defect. This embedding used to be gated on
+    // config.EMBED_DESCRIPTIONS, which defaults to false and was set nowhere, so
+    // facts.fact_embedding was NULL on the whole epoch path (measured: 0 of 136
+    // on the default corpus) while the serial createFact path always populated
+    // it. EMBED_DESCRIPTIONS is off in this test env, which is exactly the
+    // configuration that used to produce NULL — so this test fails on the old code.
+    const epoch = randomUUID();
+    const org = await stageEntity(epoch, `${TAG} FactVec Co`, 'organization');
+    await stageFact(epoch, org, 'headquartered_in', {
+      objectValue: 'Reykjavik',
+      validAt: new Date('2021-06-01'),
+    });
+    const result = await promote(epoch);
+    expect(result.insertedFactIds).toHaveLength(1);
+
+    const rows = await testDb`
+      SELECT fact_embedding IS NOT NULL AS present, vector_dims(fact_embedding) AS dims
+      FROM facts WHERE id = ${result.insertedFactIds[0]!}::uuid
+    `;
+    expect((rows[0] as { present: boolean }).present).toBe(true);
+    expect((rows[0] as { dims: number }).dims).toBe(768);
+  });
+});
+
+/**
+ * nmemo-86z — the proposer-authored entity summary must survive promotion.
+ * promotion-plan hardcoded `summary: null`, so entities.description was NULL on
+ * all 3,406 canonical rows and every entity vector embedded a bare name even
+ * with EMBED_DESCRIPTIONS on.
+ */
+describe('entity descriptions survive promotion (nmemo-86z)', () => {
+  beforeEach(async () => {
+    await clearCausalForTag();
+    await clean();
+  });
+  afterAll(async () => {
+    await clearCausalForTag();
+    await clean();
+  });
+
+  const SUMMARY = 'Diffusion models trained on 2D image data';
+
+  it('carries the staged summary into entities.description', async () => {
+    const epoch = randomUUID();
+    const e = await stageEntity(epoch, `${TAG} Descr Co`, 'organization', undefined, SUMMARY);
+    await stageFact(epoch, e, 'headquartered_in', { objectValue: 'Oslo', validAt: new Date('2022-02-02') });
+    const result = await promote(epoch);
+    const id = Object.values(result.mintedEntityIds)[0]!;
+    const rows = await testDb`SELECT description FROM entities WHERE id = ${id}::uuid`;
+    expect((rows[0] as { description: string | null }).description).toBe(SUMMARY);
+  });
+
+  it('fills a NULL description on reuse-by-name, and does not overwrite an existing one', async () => {
+    // Epoch 1: no summary at all → description stays NULL (nothing to write).
+    const e1 = randomUUID();
+    const h1 = await stageEntity(e1, `${TAG} Reuse Co`, 'organization');
+    await stageFact(e1, h1, 'headquartered_in', { objectValue: 'Lima', validAt: new Date('2022-03-03') });
+    const r1 = await promote(e1);
+    const id = Object.values(r1.mintedEntityIds)[0]!;
+    let rows = await testDb`SELECT description FROM entities WHERE id = ${id}::uuid`;
+    expect((rows[0] as { description: string | null }).description).toBeNull();
+
+    // Epoch 2: same name, now WITH a summary → reuse-by-name fills the null.
+    const e2 = randomUUID();
+    const h2 = await stageEntity(e2, `${TAG} Reuse Co`, 'organization', undefined, SUMMARY);
+    await stageFact(e2, h2, 'headquartered_in', { objectValue: 'Quito', validAt: new Date('2023-04-04') });
+    await promote(e2);
+    // The planner binds the handle straight to the existing canonical, so this
+    // path produces NO mintedEntityIds entry at all — which is exactly why the
+    // fill has to be planned separately (plan.entityDescriptionFills) rather
+    // than ride on entitiesToMint. Assert no second row was created instead.
+    // lower() because promotion canonicalises the staged name (normalizeName
+    // lowercases), so an exact name match is brittle here.
+    const sameName = await testDb`
+      SELECT id FROM entities WHERE lower(canonical_name) = ${`${TAG} Reuse Co`.toLowerCase()}
+    `;
+    expect(sameName).toHaveLength(1);
+    rows = await testDb`SELECT description FROM entities WHERE id = ${id}::uuid`;
+    expect((rows[0] as { description: string | null }).description).toBe(SUMMARY);
+
+    // Epoch 3: same name, a DIFFERENT summary → first-write-wins, no thrash.
+    const e3 = randomUUID();
+    const h3 = await stageEntity(e3, `${TAG} Reuse Co`, 'organization', undefined, 'A completely different and much longer replacement summary');
+    await stageFact(e3, h3, 'headquartered_in', { objectValue: 'Bogota', validAt: new Date('2024-05-05') });
+    await promote(e3);
+    rows = await testDb`SELECT description FROM entities WHERE id = ${id}::uuid`;
+    expect((rows[0] as { description: string | null }).description).toBe(SUMMARY);
   });
 });
 

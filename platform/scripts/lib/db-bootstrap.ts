@@ -37,6 +37,11 @@ export async function dropAndRecreateDatabase(target: ConnInfo): Promise<void> {
     await adminSql.unsafe(
       `ALTER DATABASE ${target.database} SET search_path = ag_catalog, public, "$user"`
     );
+    // Filtered vector search silently drops rows without this — see migration
+    // 058. Set at create time so a bootstrapped DB is correct before migrations.
+    await adminSql.unsafe(
+      `ALTER DATABASE ${target.database} SET hnsw.iterative_scan = 'strict_order'`
+    );
   } finally {
     await adminSql.end();
   }

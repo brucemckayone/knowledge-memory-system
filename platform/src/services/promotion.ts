@@ -18,7 +18,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { stagingProposedEntities, stagingProposedFacts, entities, facts, sameAsLinks } from '../db/schema.js';
 import { embedForWrite } from './embed.js';
@@ -30,6 +30,7 @@ import {
   type PriorCanonical,
   type PriorEntity,
   type PriorFact,
+  type PlannedDescriptionFill,
   type PromotionPlan,
   type ResolvedRef,
   type StagedEntity,
@@ -238,21 +239,59 @@ export async function applyPromotion(
     entityEmbeddings.set(e.clusterKey, await embedForWrite(entityEmbedTextFor(e.name, e.summary, embedMode)));
   }
 
-  // Fact embeddings (keyed by a pre-minted fact id) ONLY when EMBED_DESCRIPTIONS
-  // is on. `facts.fact_embedding` exists and the serial createFact path always
-  // populated it; the epoch path historically left it NULL (nmemo-uhp.14
-  // inconsistency), making epoch-minted edges invisible to vector recall — which
-  // the full-graph cross-corpus substrate depends on. Same text convention as
-  // createFact (factEmbedTextFor), so the two paths cannot drift. Pre-minted ids
-  // let us embed outside the tx and still UPDATE the right row inside it.
+  // Fact embeddings, keyed by a pre-minted fact id. UNCONDITIONAL (nmemo-vga):
+  // this used to be gated on EMBED_DESCRIPTIONS, which defaults to false and was
+  // set nowhere, so `facts.fact_embedding` was NULL on the epoch path — measured
+  // 0 of 136 on the default corpus. That gate contradicted the serial path's own
+  // stated contract: createFact (facts.ts:239-244) embeds unconditionally with
+  // embedForWrite precisely so "a fact must not commit with a NULL
+  // fact_embedding (silently invisible to vector recall)". A feature flag about
+  // ENTITY description text was silently deciding whether FACT edges were
+  // retrievable at all. The two paths now agree, and the flag means only what
+  // its name says. Same text convention as createFact (factEmbedTextFor), so the
+  // two cannot drift. Pre-minted ids let us embed outside the tx and still
+  // UPDATE the right row inside it.
   const factIdByIndex: string[] = [];
   const factEmbeddings = new Map<string, number[]>();
-  if (config.EMBED_DESCRIPTIONS) {
-    for (let i = 0; i < plan.factsToInsert.length; i++) {
-      const f = plan.factsToInsert[i]!;
-      const id = randomUUID();
-      factIdByIndex[i] = id;
-      factEmbeddings.set(id, await embedForWrite(factEmbedTextFor(f.reasoning, f.predicate, f.objectValue)));
+  for (let i = 0; i < plan.factsToInsert.length; i++) {
+    const f = plan.factsToInsert[i]!;
+    const id = randomUUID();
+    factIdByIndex[i] = id;
+    factEmbeddings.set(id, await embedForWrite(factEmbedTextFor(f.reasoning, f.predicate, f.objectValue)));
+  }
+
+  // Description fills for handles that bound to an EXISTING canonical entity
+  // (nmemo-86z). Two steps outside the tx:
+  //  (1) read which targets actually have no description, so the ML calls in (2)
+  //      are bounded by real fills rather than by every resolved handle — on a
+  //      built graph most epochs resolve to canonicals that already have one;
+  //  (2) embed only those, and only when the flag makes the vector depend on the
+  //      description at all (off ⇒ the composite text is name-only, so the
+  //      existing vector is already correct and re-embedding is pure waste).
+  // The UPDATE inside the tx re-checks the null itself, so a concurrent writer
+  // between (1) and the tx cannot cause an overwrite — worst case a computed
+  // vector goes unused.
+  const fillTargets: PlannedDescriptionFill[] = [];
+  const fillEmbeddings = new Map<string, number[]>();
+  if (plan.entityDescriptionFills.length > 0) {
+    const ids = plan.entityDescriptionFills.map((f) => f.canonicalId);
+    const needy = await db
+      .select({ id: entities.id, name: entities.canonicalName })
+      .from(entities)
+      .where(and(
+        inArray(entities.id, ids),
+        or(isNull(entities.description), eq(sql`btrim(${entities.description})`, '')),
+      ));
+    const nameById = new Map(needy.map((r) => [r.id, r.name]));
+    for (const f of plan.entityDescriptionFills) {
+      if (!nameById.has(f.canonicalId)) continue;
+      fillTargets.push(f);
+      if (config.EMBED_DESCRIPTIONS) {
+        fillEmbeddings.set(
+          f.canonicalId,
+          await embedForWrite(entityEmbedTextFor(nameById.get(f.canonicalId)!, f.summary, embedMode)),
+        );
+      }
     }
   }
 
@@ -355,6 +394,30 @@ export async function applyPromotion(
       mintedEntityIds[e.clusterKey] = id;
     }
 
+    // (a2) Fill descriptions on entities that already existed (nmemo-86z). The
+    // `IS NULL` re-check lives in the UPDATE itself, so this is fill-if-null
+    // atomically — never an overwrite, and idempotent on replay.
+    for (const f of fillTargets) {
+      const filled = await tx.execute(sql`
+        UPDATE public.entities
+           SET description = ${f.summary}
+         WHERE id = ${f.canonicalId}::uuid
+           AND (description IS NULL OR btrim(description) = '')
+        RETURNING id
+      `);
+      // Re-embed ONLY when the UPDATE actually landed. RETURNING rather than the
+      // driver's row count because the fallback direction matters: if the fill
+      // did not land, the row's description is something else, and writing a
+      // vector composed from OUR summary would decouple the vector from the text
+      // it claims to represent. `fillEmbeddings` is empty unless the flag makes
+      // the vector description-dependent, so this is a no-op when it is off.
+      const landed = (filled as unknown as unknown[]).length > 0;
+      const vec = fillEmbeddings.get(f.canonicalId);
+      if (landed && vec && vec.length > 0) {
+        await tx.execute(sql`UPDATE public.entities SET embedding = ${vectorLiteral(vec)}::vector WHERE id = ${f.canonicalId}::uuid`);
+      }
+    }
+
     const resolveId = (ref: ResolvedRef): string =>
       ref.kind === 'canonical' ? ref.id : mintedEntityIds[ref.key]!;
 
@@ -363,9 +426,12 @@ export async function applyPromotion(
     // a 'created' and a 'superseded' audit row so history is truthful.
     for (let i = 0; i < plan.factsToInsert.length; i++) {
       const f = plan.factsToInsert[i]!;
-      // Use the pre-minted id (populated only when EMBED_DESCRIPTIONS is on) so the
-      // out-of-tx embedding maps to the row we insert; else a fresh id, unchanged.
-      const factId = factIdByIndex[i] ?? randomUUID();
+      // Use the pre-minted id so the out-of-tx embedding maps to the row we
+      // insert. Every index is populated now that embedding is unconditional, so
+      // there is deliberately no `?? randomUUID()` fallback: that fallback would
+      // silently mint a fact with a NULL fact_embedding — the exact failure
+      // nmemo-vga was about — instead of failing.
+      const factId = factIdByIndex[i]!;
       const subjectId = resolveId(f.subjectRef);
       const objectId = f.objectRef ? resolveId(f.objectRef) : null;
       const expiredAt = f.active ? null : new Date();

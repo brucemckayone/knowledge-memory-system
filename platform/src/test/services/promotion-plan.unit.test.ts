@@ -599,3 +599,56 @@ describe('planPromotion — staged summaries reach entitiesToMint (nmemo-86z)', 
     expect(forward.entitiesToMint).toEqual(reverse.entitiesToMint);
   });
 });
+
+describe('planPromotion — description fills for existing canonicals (nmemo-86z)', () => {
+  const PRIOR: PriorCanonical = {
+    entities: [{ id: 'c-1', name: 'Helix Robotics', type: 'organization' }],
+    activeFacts: [],
+  };
+
+  it('plans a fill when a handle binds to an existing canonical', () => {
+    // This is the case entitiesToMint CANNOT cover: the name is already in the
+    // graph, so the planner binds straight to c-1 and mints nothing.
+    const e = { ...ent('Helix Robotics'), summary: 'A robotics company' };
+    const plan = planPromotion(PRIOR, {
+      entities: [e],
+      facts: [fact(e.handle, 'has_property', { objectValue: 'x' })],
+    });
+    expect(plan.entitiesToMint).toHaveLength(0);
+    expect(plan.entityDescriptionFills).toEqual([{ canonicalId: 'c-1', summary: 'A robotics company' }]);
+  });
+
+  it('plans no fill when the binding proposals carry no summary', () => {
+    const e = ent('Helix Robotics');
+    const plan = planPromotion(PRIOR, {
+      entities: [e],
+      facts: [fact(e.handle, 'has_property', { objectValue: 'x' })],
+    });
+    expect(plan.entityDescriptionFills).toEqual([]);
+  });
+
+  it('two handles binding to the same canonical yield ONE fill, longest summary', () => {
+    const a = { ...ent('Helix Robotics'), summary: 'Short' };
+    const b = { ...ent('Helix'), summary: 'A robotics company building humanoid arms' };
+    const facts = [
+      fact(a.handle, 'has_property', { objectValue: 'x' }),
+      fact(b.handle, 'has_property', { objectValue: 'y' }),
+    ];
+    const plan = planPromotion(PRIOR, { entities: [a, b], facts });
+    expect(plan.entityDescriptionFills).toEqual([
+      { canonicalId: 'c-1', summary: 'A robotics company building humanoid arms' },
+    ]);
+  });
+
+  it('fills stay order-independent (doc 38 litmus)', () => {
+    const a = { ...ent('Helix Robotics'), summary: 'Short' };
+    const b = { ...ent('Helix'), summary: 'A robotics company building humanoid arms' };
+    const facts = [
+      fact(a.handle, 'has_property', { objectValue: 'x' }),
+      fact(b.handle, 'has_property', { objectValue: 'y' }),
+    ];
+    const forward = planPromotion(PRIOR, { entities: [a, b], facts });
+    const reverse = planPromotion(PRIOR, { entities: [b, a], facts: [...facts].reverse() });
+    expect(forward.entityDescriptionFills).toEqual(reverse.entityDescriptionFills);
+  });
+});

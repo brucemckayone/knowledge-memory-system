@@ -91,6 +91,8 @@ export interface PredicateMatch {
 export async function searchPredicates(query: string, limit = 8): Promise<PredicateMatch[]> {
   const vec = await embedPredicateText(query);
   const lit = sql.raw(`'${toVectorLiteral(vec)}'::vector`);
+  // `status <> 'rejected'` is a POST-filter on the HNSW scan (migration 058).
+  // Weakly selective, so the exposure is small, but it is the same shape.
   const rows = await rawQuery<{ predicate: string; description: string | null; similarity: number }>(sql`
     SELECT predicate, description, 1 - (embedding <=> ${lit}) AS similarity
     FROM public.fact_predicates

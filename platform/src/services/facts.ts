@@ -891,13 +891,32 @@ export async function getEntityFacts(
 }
 
 /**
- * Search facts by semantic similarity
+ * Search facts by semantic similarity over `facts.fact_embedding`.
+ *
+ * The only reader of that column. Three defects fixed under nmemo-vga, all of
+ * which mattered the moment the column started being populated on the epoch path:
+ *
+ *  - **No corpus predicate.** It read every corpus, so it was a cross-graph
+ *    read-path leak by construction — the same defect `recallByConcept` was
+ *    dropped for. `corpusId` now defaults to `'default'`, matching the
+ *    convention in entities.ts and promotion.ts. Pass `corpusId: null` to search
+ *    every corpus, which is then an explicit choice at the call site.
+ *  - **No bi-temporal filter.** It checked `expired_at IS NULL` but not
+ *    `invalid_at`, so a fact whose validity window had closed still ranked. The
+ *    sibling query in `getEntityFacts` already filtered both.
+ *  - **No predicate filter**, which every caller of a fact index wants.
  */
 export async function searchFacts(
   query: string,
-  options: { limit?: number; threshold?: number } = {},
+  options: {
+    corpusId?: string | null;
+    limit?: number;
+    threshold?: number;
+    predicate?: string;
+  } = {},
 ): Promise<FactSearchResult[]> {
-  const { limit = 10, threshold = 0.5 } = options;
+  const { limit = 10, threshold = 0.5, predicate } = options;
+  const corpusId = options.corpusId === undefined ? 'default' : options.corpusId;
 
   // READ/query path — embedForQuery returns [] on an ML failure so a search degrades to
   // no results rather than throwing (nmemo-avd: only write paths fail loud).
@@ -906,15 +925,19 @@ export async function searchFacts(
     return [];
   }
 
+  const vec = sql.raw(`'[${embedding.join(',')}]'::vector`);
   const rows = await rawQuery<Fact & { similarity: number }>(sql`
     SELECT
       f.*,
-      1 - (fact_embedding <=> ${sql.raw(`'[${embedding.join(',')}]'::vector`)}) as similarity
-    FROM facts f
-    WHERE fact_embedding IS NOT NULL
-      AND expired_at IS NULL
-      AND 1 - (fact_embedding <=> ${sql.raw(`'[${embedding.join(',')}]'::vector`)}) > ${threshold}
-    ORDER BY fact_embedding <=> ${sql.raw(`'[${embedding.join(',')}]'::vector`)}
+      1 - (f.fact_embedding <=> ${vec}) as similarity
+    FROM public.facts f
+    WHERE f.fact_embedding IS NOT NULL
+      AND f.expired_at IS NULL
+      AND (f.invalid_at IS NULL OR f.invalid_at > NOW())
+      ${corpusId === null ? sql`` : sql`AND f.corpus_id = ${corpusId}`}
+      ${predicate === undefined ? sql`` : sql`AND f.predicate = ${predicate}`}
+      AND 1 - (f.fact_embedding <=> ${vec}) > ${threshold}
+    ORDER BY f.fact_embedding <=> ${vec}
     LIMIT ${limit}
   `);
 

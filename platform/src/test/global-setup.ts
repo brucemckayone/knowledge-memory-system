@@ -111,6 +111,13 @@ export async function setup() {
     }
     // Ensure ag_catalog is in search_path so cypher() resolves on all connections
     await adminSql.unsafe(`ALTER DATABASE ${TEST_DB_NAME} SET search_path = ag_catalog, public, "$user"`);
+    // Filtered vector search (WHERE corpus_id = ... ORDER BY embedding <=> ...)
+    // silently drops rows without this: the HNSW walk returns the ef_search
+    // nearest candidates GLOBALLY and the filter removes them afterwards, so a
+    // corpus-scoped search measured recall@10 0.715 with 6/60 queries returning
+    // NOTHING. See migration 058. Set here too so a freshly created DB is correct
+    // before migrations run.
+    await adminSql.unsafe(`ALTER DATABASE ${TEST_DB_NAME} SET hnsw.iterative_scan = 'strict_order'`);
   } catch (error) {
     console.error('❌ Failed to create test database:', error);
     throw error;

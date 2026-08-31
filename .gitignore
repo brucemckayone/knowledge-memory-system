@@ -86,3 +86,6 @@ platform/benchmark-results/*.png
 platform/benchmark-results/*.py
 platform/benchmark-results/runs/**/*.canonical.json
 platform/benchmark-results/runs/**/*.rich.json
+
+# Local run logs and DB backups (large binary dumps)
+.run-logs/

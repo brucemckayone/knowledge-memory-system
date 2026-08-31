@@ -293,6 +293,23 @@ export interface PromotionPlan {
   entityMerges: PlannedEntityMerge[];
   /** same_as links from identity verdicts (executed by applyPromotion). */
   sameAsLinks: PlannedSameAsLink[];
+  /**
+   * Proposer-authored summaries for handles that resolved to an EXISTING
+   * canonical entity rather than a fresh mint (nmemo-86z). Without this the fix
+   * only reached newly minted entities: once a name is in the graph the planner
+   * binds straight to its canonical id, the handle never enters
+   * `entitiesToMint`, and the summary was dropped — which is the common case on
+   * a graph that is already built (all 2,512 arXiv entities). The applier fills
+   * these fill-if-null. Sorted by `canonicalId` so the plan stays comparable
+   * under the order-independence litmus.
+   */
+  entityDescriptionFills: PlannedDescriptionFill[];
+}
+
+/** A summary to write onto an already-existing canonical entity, if it has none. */
+export interface PlannedDescriptionFill {
+  canonicalId: string;
+  summary: string;
 }
 
 // ============================================
@@ -365,6 +382,7 @@ interface EntityResolution {
   escalations: Escalation[];
   entityMerges: PlannedEntityMerge[];
   sameAsLinks: PlannedSameAsLink[];
+  descriptionFills: PlannedDescriptionFill[];
 }
 
 /**
@@ -575,7 +593,28 @@ function resolveEntities(
     }
   }
 
-  return { byHandle, entitiesToMint, escalations, entityMerges, sameAsLinks };
+  // (5) Description fills for handles that bound to an EXISTING canonical
+  // (nmemo-86z). Derived from the FINAL byHandle map rather than collected inside
+  // each bind branch, so every path is covered by construction — anchor pin,
+  // exact-name match, word-prefix match, and arbiter verdict alike — and a new
+  // bind branch cannot forget to contribute. Order-independent: the grouping
+  // order varies with input order, but pickClusterSummary does not depend on it
+  // and the result is sorted by canonicalId.
+  const handlesByCanonical = new Map<string, string[]>();
+  for (const [handle, ref] of byHandle) {
+    if (ref.kind !== 'canonical') continue;
+    const list = handlesByCanonical.get(ref.id) ?? [];
+    list.push(handle);
+    handlesByCanonical.set(ref.id, list);
+  }
+  const descriptionFills: PlannedDescriptionFill[] = [];
+  for (const [canonicalId, handles] of handlesByCanonical) {
+    const summary = pickClusterSummary(handles, summaryByHandle);
+    if (summary) descriptionFills.push({ canonicalId, summary });
+  }
+  descriptionFills.sort((a, b) => (a.canonicalId < b.canonicalId ? -1 : a.canonicalId > b.canonicalId ? 1 : 0));
+
+  return { byHandle, entitiesToMint, escalations, entityMerges, sameAsLinks, descriptionFills };
 }
 
 // ============================================
@@ -612,7 +651,7 @@ export function planPromotion(
   }
 
   // (a) Entity resolution.
-  const { byHandle, entitiesToMint, escalations, entityMerges, sameAsLinks } = resolveEntities(
+  const { byHandle, entitiesToMint, escalations, entityMerges, sameAsLinks, descriptionFills } = resolveEntities(
     prior.entities,
     staged.entities,
     identityVerdicts,
@@ -883,6 +922,8 @@ export function planPromotion(
     droppedOrphanEntities: droppedOrphanEntities.sort(),
     entityMerges: entityMerges.sort((a, b) => (mergeKey(a) < mergeKey(b) ? -1 : 1)),
     sameAsLinks: sameAsLinks.sort((a, b) => (linkKey(a) < linkKey(b) ? -1 : 1)),
+    // Already sorted by canonicalId in resolveEntities.
+    entityDescriptionFills: descriptionFills,
   };
 }
 
