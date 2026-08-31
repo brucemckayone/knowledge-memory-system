@@ -1,4 +1,4 @@
-# Kickoff goal — single-graph retrieval and synthesis
+# Kickoff goal — single-graph retrieval
 
 ```
 git checkout -b feat/single-graph-retrieval
