@@ -1,4 +1,4 @@
-# Doc 42 — CARRY-FORWARD INVENTORY: what 214 commits built, and what survives into single-graph optimisation with many graphs per user
+# Doc 42 — CARRY-FORWARD INVENTORY: what this arc built, and what survives into single-graph optimisation with many graphs per user
 
 **Date:** 2026-08-31 · **Branch:** `feat/cross-corpus-audit`
 **Arc scope:** 140 commits over `feat/cognitive-platform-v2` (base `4d3c0b8`, 2026-06-30) — **not** the 214 commits over
