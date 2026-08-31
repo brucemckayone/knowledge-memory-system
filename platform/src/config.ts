@@ -5,6 +5,7 @@ if (process.env.NODE_ENV !== 'test') {
   dotenv.config();
 }
 import { z } from 'zod';
+import { envBool } from './config-env.js';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -32,7 +33,7 @@ const envSchema = z.object({
   // (which always did) so epoch-minted edges are visible to vector recall. The
   // knob is the master switch; per-corpus refinement (comparative corpora only)
   // rides on corpus_policies later. See services/embed-text.ts.
-  EMBED_DESCRIPTIONS: z.coerce.boolean().default(false),
+  EMBED_DESCRIPTIONS: envBool(false),
 
   // Anthropic API (Phase B: causal agent)
   ANTHROPIC_API_KEY: z.string().optional(),
@@ -127,7 +128,7 @@ const envSchema = z.object({
   CAUSAL_PROMOTION_STRENGTH: z.coerce.number().min(0).max(1).default(0.6),
   // Suppress the scheduler at startup (tests, scripts, one-off CLIs).
   // Set DISABLE_SCHEDULER=1 to skip startScheduler() registration.
-  DISABLE_SCHEDULER: z.coerce.boolean().default(false),
+  DISABLE_SCHEDULER: envBool(false),
 
   // Orphan entity detection threshold (bead nmemo-yh2). An entity is "aged
   // orphan" when entity_meta.fact_count = 0, mention_count > 0, and
