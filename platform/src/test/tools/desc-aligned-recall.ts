@@ -393,6 +393,58 @@ async function main(): Promise<void> {
     join(OUT, 'embed-cache.json'),
   );
 
+  // ---- 4b. Vector divergence + query truncation ---------------------------
+  //
+  // Both required unconditionally by doc 02 section 5, and divergence is ALSO
+  // kill condition 2 (VOID below 90%). Added after auditing the harness against
+  // the frozen pre-registration, which is what that audit step is for: without
+  // it, a run where the two arms were nearly identical vectors would have
+  // reported a tie as if it meant something about the lever.
+  let diverged = 0;
+  let comparedVectors = 0;
+  for (const corpusId of corpora) {
+    for (const e of entitiesByCorpus.get(corpusId)!) {
+      const nv = embeds.get(entityEmbedTextFor(e.name, e.description, 'name'))!;
+      const dv = embeds.get(entityEmbedTextFor(e.name, e.description, 'name_description'))!;
+      comparedVectors += 1;
+      if (dot(nv, dv) < 0.999) diverged += 1;
+    }
+  }
+  const divergence = comparedVectors ? diverged / comparedVectors : 0;
+  console.log('');
+  console.log(
+    `vector divergence: ${(divergence * 100).toFixed(1)}% of ${comparedVectors} entities have ` +
+    `cosine(name, name+description) < 0.999`,
+  );
+  if (divergence < 0.9) {
+    killed.push(
+      `VOID: vector divergence ${(divergence * 100).toFixed(1)}% < 90% — the two arms are not ` +
+      'meaningfully different vectors (doc 02 kill condition 2).',
+    );
+  }
+
+  // nomic-embed-text's context is 2048 tokens. There is no tokeniser here, so
+  // this is a CHARACTER-BASED estimate at ~4 chars/token — deliberately
+  // conservative, and reported as an estimate rather than a count. The model
+  // truncates silently, so a query over the limit is scored on a prefix.
+  const NOMIC_TOKEN_LIMIT = 2048;
+  const CHARS_PER_TOKEN = 4;
+  const charBudget = NOMIC_TOKEN_LIMIT * CHARS_PER_TOKEN;
+  const qLens = [...queryTexts].map((t) => t.length);
+  const overBudget = qLens.filter((l) => l > charBudget).length;
+  console.log(
+    `query text length: mean ${mean(qLens).toFixed(0)} chars, max ${Math.max(...qLens)}; ` +
+    `${overBudget}/${qLens.length} exceed the ~${charBudget}-char estimate of nomic's ` +
+    `${NOMIC_TOKEN_LIMIT}-token limit (silent truncation)`,
+  );
+
+  if (killed.length > 0) {
+    console.log('');
+    console.log('=== KILL CONDITIONS TRIPPED — reporting, NOT banking ===');
+    for (const k of killed) console.log(`  ${k}`);
+    process.exit(0);
+  }
+
   // ---- 5. Score every arm, per corpus ------------------------------------
   const arms = ['ARM-NAME', 'ARM-DESC', 'BM25', 'RRF-60', 'RRF-FULL-60'] as const;
   const perQuery: Record<string, PerQuery[]> = {};
