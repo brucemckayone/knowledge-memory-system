@@ -13,9 +13,8 @@ Nine defects are closed. Seven of them were **features reporting success while d
 the failure mode the keep list §2.6 told us to hunt specifically. Two results are large enough to change
 the plan:
 
-1. **Graph C was empty for a one-line reason, and now populates ~130x better per document.** 9 causal
-   edges from 294 documents (0.031/doc) became **120 edges from 30 documents** (4.0/doc) — a mid-ingest
-   snapshot, see §2. **[M]**
+1. **Graph C was empty for a one-line reason.** The identical 294 documents produced **9** causal edges
+   before the fix and **975** after — same denominator, ~108x per document, all with reasoning. **[M]**
 2. **Filtered vector search silently truncated or returned nothing** — a corpus-scoped fact search
    returned **zero rows** where the true nearest fact sat at similarity 0.732. This affects every
    filtered vector query in the codebase, not just the one being fixed. **[M]**
@@ -67,11 +66,12 @@ built so that only an untruncated prompt can pass.
 | date | edges | documents | edges/document |
 |---|---|---|---|
 | 2026-08-24 (pre-fix, the 294-doc run) | **9** | 294 | 0.031 |
-| 2026-08-31 (post-fix, this session) | **120** | 30 | **4.0** |
+| 2026-08-31 (post-fix, this session) | **975** | 294 | **3.3** |
 
-The post-fix row is a **snapshot taken mid-ingest**, not a final count — the re-ingest was still running
-when it was read, and the total had reached 166 edges a little later. The comparison that matters is the
-per-document rate against the pre-fix run, and that is what the last column reports.
+**Same denominator, so this is apples to apples:** the identical 294 documents produced 9 causal edges
+before the fix and **975 after** — a ~108x increase in edges per document. All 975 carry non-blank
+`reasoning`. (An earlier version of this table quoted 120 edges from 30 documents, a mid-ingest snapshot;
+the completed run supersedes it.)
 
 **This does not mean Graph C is good.** It means every prior impression of Graph C was an impression of
 a layer that was empty for mechanical reasons. The keep list §7.5 sequencing stands, and the second,
