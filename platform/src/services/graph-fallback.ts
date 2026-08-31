@@ -18,7 +18,7 @@
  * caller (and the eval bead) can count how often the path had to coarsen —
  * the exception, instrumented, not the default.
  *
- * Reuses, never rebuilds: findConnectedEntities (graph.ts — AGE neighbour walk),
+ * Reuses, never rebuilds: traverseFromEntities (graph.ts — SQL fact traversal),
  * getEntityFacts (facts.ts — active facts), the fact_units table (schema.ts),
  * Qdrant retrieve (qdrant.ts) for unit text. Predicate-relevance ranking (§3.3)
  * needs the query and so belongs to the re-rank in bead .3; this primitive's
@@ -31,7 +31,7 @@
 import { inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { factUnits, memoryEntities } from '../db/schema.js';
-import { findConnectedEntities } from './graph.js';
+import { traverseFromEntities } from './graph.js';
 import { getEntityFacts } from './facts.js';
 import { qdrant, COLLECTIONS, getMemoryVectors } from './qdrant.js';
 
@@ -150,9 +150,10 @@ async function fetchUnitPayloads(
  * evidence (doc 38 §3, §8.1).
  *
  * Steps:
- *  1. For each anchor, AGE-walk to neighbours within the (clamped) hop budget,
- *     tracking the hop at which each neighbour was first reached (proximity).
- *     A visited-set across anchors + neighbours prevents cycles and re-walking.
+ *  1. For each anchor, traverse to neighbours within the (clamped) hop budget via
+ *     SQL recursion over `public.facts` (graph.ts `traverseFromEntities`), which
+ *     returns each neighbour's first-reached hop (proximity) in one query. This
+ *     was an AGE walk re-issued once per depth level to recover those hops.
  *  2. Pull active facts for each (anchor, neighbour) pair and keep only the
  *     facts that actually connect the two — the fact edge IS the reason the
  *     neighbour is interesting (§3.1). Causal edges are out of scope.
@@ -180,17 +181,19 @@ export async function expandFromAnchors(
   const allNeighbourIds = new Set<string>();
 
   for (const anchorId of uniqueAnchors) {
-    // Reach neighbours at the full hop budget in one walk; the returned set is
-    // DISTINCT entities, so we recover each neighbour's first-reached hop by
-    // walking incrementally (depth 1, then depth 2) and recording the first
-    // depth that surfaces it. This keeps anchor-proximity ranking honest.
+    // First-reached hop per neighbour, in ONE query.
+    //
+    // This used to call findConnectedEntities once per depth level (1, then 2,
+    // ...) purely to recover each neighbour's hop, because the AGE walk returned
+    // a DISTINCT entity set with no depth. traverseFromEntities returns MIN(hops)
+    // per neighbour directly, so the re-walk is gone. The resulting map is
+    // identical by construction — "first depth at which a neighbour appears
+    // across incremental walks" and "minimum hop count" are the same quantity —
+    // so the candidate set and ranking are unchanged.
     const hopOf = new Map<string, number>();
-    for (let depth = 1; depth <= maxHops; depth++) {
-      const reached = await findConnectedEntities(anchorId, { maxDepth: depth });
-      for (const n of reached) {
-        if (n.entityId === anchorId) continue;
-        if (!hopOf.has(n.entityId)) hopOf.set(n.entityId, depth);
-      }
+    for (const n of await traverseFromEntities([anchorId], { maxHops })) {
+      if (n.entityId === anchorId) continue;
+      hopOf.set(n.entityId, n.hops);
     }
 
     for (const n of hopOf.keys()) allNeighbourIds.add(n);

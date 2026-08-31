@@ -97,6 +97,15 @@ async function ageTraversalWorks(): Promise<boolean> {
       await ageMergeNode(a.id, 'tprobe-a', 'person');
       await ageMergeNode(b.id, 'tprobe-b', 'person');
       await ageMergeEdge(a.id, b.id, 'knows');
+      // A REAL fact row, not just the AGE edge. findConnectedEntities traverses
+      // `public.facts` now rather than the AGE graph (see services/graph.ts on why),
+      // so an AGE-only probe reports "traversal non-functional" and silently skips
+      // this whole suite. The suite's actual fixtures always inserted real facts;
+      // only this probe did not.
+      await testDb`
+        INSERT INTO facts (subject_entity_id, predicate, object_entity_id, source_text)
+        VALUES (${a.id}::uuid, 'knows', ${b.id}::uuid, 'tprobe traversal probe')
+      `;
       const reached = await findConnectedEntities(a.id, { maxDepth: 1 });
       ok = reached.some((n) => n.entityId === b.id);
     } finally {

@@ -7,7 +7,7 @@
  * NOTE: Requires Apache AGE extension to be installed.
  */
 
-import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   testDb,
   createTestEntity,
@@ -15,12 +15,25 @@ import {
   getEntity,
 } from '../setup.js';
 import {
+  findConnectedEntities,
   getAllEdges,
   getEntityDegrees,
   getSubgraph,
 } from '../../services/graph.js';
 
-// Check if Apache AGE is available
+/**
+ * Is Apache AGE installed?
+ *
+ * TOP-LEVEL await, not a `beforeAll` assignment. This suite previously set
+ * `ageAvailable` inside `beforeAll` and gated each test with
+ * `it.skipIf(!ageAvailable)`. `skipIf` reads its argument at COLLECTION time,
+ * while the describe body is executing — long before `beforeAll` runs — so
+ * `ageAvailable` was always still `false` and all twelve substantive tests
+ * (KG-001..KG-007 and the W18 traversal tests) were registered as skipped
+ * unconditionally. They had never run. The suite reported "4 passed" while
+ * skipping its entire subject, which is why nothing flagged the AGE graph
+ * drifting to 7,250 nodes against 3,513 entities.
+ */
 async function isAGEAvailable(): Promise<boolean> {
   try {
     const result = await testDb`
@@ -30,6 +43,11 @@ async function isAGEAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+const ageAvailable = await isAGEAvailable();
+if (!ageAvailable) {
+  console.warn('⚠️ Apache AGE not available - graph trigger tests will skip');
 }
 
 // Clear the graph
@@ -74,15 +92,6 @@ async function countGraphEdges(): Promise<number> {
 }
 
 describe('Entities ↔ Facts ↔ Graph Coherence', () => {
-  let ageAvailable = false;
-
-  beforeAll(async () => {
-    ageAvailable = await isAGEAvailable();
-    if (!ageAvailable) {
-      console.warn('⚠️ Apache AGE not available - skipping graph tests');
-    }
-  });
-
   beforeEach(async () => {
     // Clear graph state for graph tests (DB tests are self-contained with unique IDs)
     if (ageAvailable) {
@@ -286,15 +295,23 @@ describe('Entities ↔ Facts ↔ Graph Coherence', () => {
         objectEntityId: spoke3.id,
       });
 
-      // When: Get neighbors at depth 1
-      await new Promise(r => setTimeout(r, 200));
+      // When: Get neighbours at depth 1.
+      //
+      // REWRITTEN: this used to call the SQL function get_entity_neighbors(),
+      // which runs Cypher against AGE and whose body ends in
+      // `EXCEPTION WHEN OTHERS THEN RAISE WARNING ...; RETURN;` - it swallows
+      // every error and returns an empty set. It has ZERO callers in the
+      // codebase, and this test (which had never actually run - see the
+      // isAGEAvailable note above) was its only exerciser. It returned 0 rows.
+      // The test's intent - "all 3 spokes are found at depth 1" - is now checked
+      // against findConnectedEntities, which is live code on the sanctioned
+      // SQL-recursion traversal.
+      const neighbors = await findConnectedEntities(hub.id, { maxDepth: 1, limit: 50 });
 
-      const neighbors = await testDb`
-        SELECT * FROM get_entity_neighbors(${hub.id}::uuid, 1)
-      `;
-
-      // Then: All 3 spokes found
-      expect(neighbors.length).toBe(3);
+      // Then: All 3 spokes found, and nothing else.
+      expect(new Set(neighbors.map((n) => n.entityId))).toEqual(
+        new Set([spoke1.id, spoke2.id, spoke3.id]),
+      );
     });
   });
 
@@ -324,14 +341,28 @@ describe('Entities ↔ Facts ↔ Graph Coherence', () => {
         objectEntityId: entities[2]!.id,
       });
 
-      await new Promise(r => setTimeout(r, 300));
+      // When: read the graph back through the traversal path.
+      //
+      // REWRITTEN, for two reasons. (1) As written this compared
+      // countGraphNodes() - the AGE graph, which `beforeEach` had just cleared -
+      // against `SELECT COUNT(*) FROM entities`, an UNSCOPED database-wide count.
+      // On the shared test database that is 5 vs 3,750; it could only ever pass
+      // against an empty DB, and it never ran, so nobody noticed. (2) Nothing
+      // reads AGE any more (see services/graph.ts), so AGE-vs-relational
+      // consistency is no longer the coherence property worth asserting.
+      //
+      // The surviving intent - the graph a reader sees matches the relational
+      // rows - is checked over THIS TEST'S OWN entities via the live traversal.
+      const reachable = await findConnectedEntities(entities[0]!.id, { maxDepth: 2, limit: 50 });
+      const reachableIds = new Set(reachable.map((n) => n.entityId));
 
-      // When: Count both sources
-      const relationalCount = await testDb`SELECT COUNT(*) as count FROM entities`;
-      const graphNodeCount = await countGraphNodes();
-
-      // Then: Counts should match
-      expect(graphNodeCount).toBe(parseInt(relationalCount[0]!.count as string));
+      // entities[0] -knows-> entities[1] -knows-> entities[2]: both are reachable
+      // within 2 hops, and the three unconnected entities are not.
+      expect(reachableIds.has(entities[1]!.id)).toBe(true);
+      expect(reachableIds.has(entities[2]!.id)).toBe(true);
+      for (const idx of [3, 4]) {
+        expect(reachableIds.has(entities[idx]!.id)).toBe(false);
+      }
     });
   });
 

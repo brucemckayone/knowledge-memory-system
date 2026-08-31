@@ -1325,7 +1325,16 @@ app.get('/api/hero', heroRoute);
 // discipline (kind == target.type, no blank fields, unique notificationId).
 app.get('/api/notifications', notificationsHandler);
 
-/** Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order. */
+/**
+ * Tables cleared by /api/viz/clear and /api/reset, in FK-safe deletion order.
+ *
+ * NOTE, hand-maintained and therefore drifting: this list does NOT include
+ * `fact_units`, the `staging_*` tables, `bridge_edges`, `element_*`,
+ * `arbiter_verdicts`, `causal_edge_corroborations`, `fact_sources` or
+ * `fact_predicates`, so those survive a "reset". Widening it changes what a
+ * destructive endpoint destroys, so it is left alone here deliberately rather
+ * than extended in passing.
+ */
 const CLEARABLE_TABLES = [
   'reasoning_reports', 'gardening_reports', 'same_as_links', 'extraction_reports',
   'merge_candidates', 'entity_meta', 'memory_entities', 'entity_aliases',
@@ -1335,10 +1344,36 @@ const CLEARABLE_TABLES = [
   'entity_merges', 'entities',
 ] as const;
 
+/**
+ * Prune the Apache AGE graph.
+ *
+ * Blocker 5 of the single-graph keep list: there is no DELETE trigger on
+ * entities/facts and neither /api/reset nor /api/viz/clear touched AGE, so its
+ * nodes and edges accumulated MONOTONICALLY across every reset. Measured
+ * 2026-08-31: 1,071 AGE nodes against 4 entities in `cognitive`, and 7,250 nodes
+ * against 3,513 entities in `cognitive_test` — the latter also MISSING real
+ * edges, so the drift ran both ways.
+ *
+ * Nothing reads AGE any more (services/graph.ts traverses `public.facts`), so
+ * this is hygiene rather than correctness: it stops the graph growing without
+ * bound while the sync triggers remain. Non-fatal — a reset must not fail
+ * because an optional traversal index would not clear.
+ */
+async function clearAgeGraph(): Promise<void> {
+  try {
+    await db.execute(sql`
+      SELECT * FROM cypher('knowledge_graph', $$ MATCH (n) DETACH DELETE n $$) as (n agtype)
+    `);
+  } catch (err) {
+    console.warn(`[reset] AGE prune skipped: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 async function clearGraphTables(): Promise<void> {
   for (const table of CLEARABLE_TABLES) {
     await db.execute(sql.raw(`DELETE FROM ${table}`));
   }
+  await clearAgeGraph();
 }
 
 app.post('/api/viz/clear', async (c) => {
