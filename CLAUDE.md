@@ -17,8 +17,23 @@ from the stale claim below.
    list, and the corrections of record. Detail in `single-graph/appendices/` (7 surveys).
 2. `single-graph/03-blocker-closeout-findings.md` — **what the blockers actually were once opened, and
    six corrections to the keep list itself.** Read this before trusting a keep-list number.
-3. `single-graph/02-prereg-*.md` and `04-prereg-*.md` — frozen pre-registrations. Append results; do
+3. `single-graph/05-results-description-aligned-and-hybrid.md` — **the retrieval result**, and the
+   record of two withdrawn mechanism claims. Read §7 (what changed between runs) and §9 (process notes)
+   before citing any number from it.
+4. `single-graph/02-prereg-*.md` and `04-prereg-*.md` — frozen pre-registrations. Append results; do
    not edit.
+
+**Retrieval findings that change what to build (details in doc 05):**
+
+- **Do NOT put descriptions inside the entity vector for a small-k read path.** Measured on the complete
+  294-document substrate, n=354: bare-name R@10 **0.201** vs name+description **0.138**, delta −0.0621,
+  CI [−0.1045, −0.0226]. Harmful through ~R@20; the composite WINS at R@200 (+0.0791, CI excludes zero)
+  and has better mean rank. It is a top-k precision effect, not lost retrievability.
+- **`nmemo-uhp.18` (hybrid BM25 + RRF) is NOT settled.** The pre-registered configuration ties, but the
+  configuration a hybrid would actually ship — dense-over-names + BM25-over-names — scores the best R@10
+  in the study (0.2260) with a CI lower bound of −0.0056. It needs its own pre-registered run.
+- **Docs 15 and 17's "BM25 beats dense" evidence does not replicate** on this task (BM25 − VEC = −0.0085,
+  CI spans zero).
 
 **Decided, do not relitigate:** the single graph is the design; `corpus_id` is sufficient partitioning;
 the concept super-graph is NOT a retrieval mechanism (settled across every configuration and oracle);
