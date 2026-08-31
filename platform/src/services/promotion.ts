@@ -119,12 +119,54 @@ export async function loadPromotionInputs(
     getCorpusPolicy(corpusId),
   ]);
 
+  // FUSION GUARD #5: drop an anchor that points OUTSIDE the corpus being promoted.
+  //
+  // resolveEntities binds `anchorCanonicalId` straight from the staged row -
+  // `byHandle.set(e.handle, { kind: 'canonical', id: e.anchorCanonicalId })` -
+  // without consulting the DB, because the planner is pure. So a proposal that
+  // anchors across corpora used to bind, and the fact written on that handle then
+  // hit migration 052's composite FK:
+  //
+  //   insert or update on table "facts" violates foreign key constraint
+  //   "facts_subject_corpus_fk"
+  //   Key (subject_entity_id, corpus_id)=(c80a8965-..., dal-nlp) is not present
+  //   in table "entities".
+  //
+  // That is the constraint working exactly as designed - it stopped a silent
+  // cross-corpus fusion - but it killed the whole epoch. Observed on the
+  // 2026-08-31 re-ingest: a proposer anchored a dal-nlp entity to
+  // 'User (stream default)', the self entity, which lives in corpus 'default'.
+  //
+  // Scoping here rather than in the planner keeps the planner DB-free and the
+  // order-independence litmus intact. An out-of-corpus anchor becomes null, so the
+  // handle is simply treated as unanchored and clusters normally - correct
+  // isolation instead of a hard failure. Mirrors fusion guard #2 on the
+  // word-prefix candidate load below.
+  const anchorIdsRaw = [...new Set(stagedEntityRows.map((r) => r.anchorCanonicalId).filter((v): v is string => !!v))];
+  const inCorpusAnchors = new Set<string>();
+  if (anchorIdsRaw.length > 0) {
+    const rows = await db
+      .select({ id: entities.id })
+      .from(entities)
+      .where(and(inArray(entities.id, anchorIdsRaw), eq(entities.corpusId, corpusId)));
+    for (const r of rows) inCorpusAnchors.add(r.id);
+  }
+  const droppedAnchors = anchorIdsRaw.filter((id) => !inCorpusAnchors.has(id));
+  if (droppedAnchors.length > 0) {
+    console.warn(
+      `[promotion] epoch=${epochId.slice(0, 8)} dropped ${droppedAnchors.length} out-of-corpus ` +
+      `anchor(s) for corpus '${corpusId}': ${droppedAnchors.join(', ')} ` +
+      '(fusion guard #5 — the handle clusters as unanchored instead)',
+    );
+  }
+
   const stagedEntities: StagedEntity[] = stagedEntityRows.map((r) => ({
     handle: r.handle,
     name: r.name,
     type: r.entityType,
     summary: r.summary,
-    anchorCanonicalId: r.anchorCanonicalId,
+    anchorCanonicalId:
+      r.anchorCanonicalId && inCorpusAnchors.has(r.anchorCanonicalId) ? r.anchorCanonicalId : null,
   }));
   const stagedFacts: StagedFact[] = stagedFactRows.map((r) => ({
     stagedFactId: r.stagedFactId,
@@ -165,10 +207,12 @@ export async function loadPromotionInputs(
       );
   }
   if (anchorIds.length > 0) {
+    // Corpus-scoped for the same reason as fusion guard #5 above: an anchor from
+    // another corpus must not enter this corpus's prior-entity set.
     const anchorRows = await db
       .select({ id: entities.id, canonicalName: entities.canonicalName, entityType: entities.entityType })
       .from(entities)
-      .where(inArray(entities.id, anchorIds));
+      .where(and(inArray(entities.id, anchorIds), eq(entities.corpusId, corpusId)));
     const seen = new Set(priorEntityRows.map((r) => r.id));
     for (const r of anchorRows) if (!seen.has(r.id)) priorEntityRows.push(r);
   }

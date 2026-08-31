@@ -867,6 +867,48 @@ describe('corpus-scoped promotion (doc 34 §6 step 1)', () => {
     expect(rows[0]!.ec).toBe(CA);
   });
 
+  it('fusion guard #5: an anchor pointing OUTSIDE the corpus is dropped, not bound', async () => {
+    // The real failure this prevents, from the 2026-08-31 re-ingest: a proposer
+    // anchored a dal-nlp entity to 'User (stream default)', the self entity, which
+    // lives in corpus 'default'. resolveEntities binds anchorCanonicalId straight
+    // from the staged row (the planner is pure and does not consult the DB), so the
+    // handle bound to a foreign-corpus id and the fact insert then hit migration
+    // 052's composite FK:
+    //   Key (subject_entity_id, corpus_id)=(..., dal-nlp) is not present in "entities"
+    // The constraint did its job - it stopped a silent cross-corpus fusion - but it
+    // killed the whole epoch. The guard turns that into correct isolation.
+    const foreign = await testDb`
+      INSERT INTO entities (canonical_name, entity_type, corpus_id)
+      VALUES (${`${TAG} Foreign Anchor`}, 'organization', ${CB})
+      RETURNING id
+    `;
+    const foreignId = (foreign[0] as { id: string }).id;
+
+    const epoch = randomUUID();
+    // Stage into corpus CA, anchored at an entity that lives in CB.
+    const handle = await stageEntity(epoch, `${TAG} Anchored Across`, 'organization', foreignId);
+    await stageFact(epoch, handle, 'located_in', { objectValue: 'Testville', validAt: new Date('2026-02-02') });
+
+    // Must NOT throw: previously this raised 23503 and took the epoch down.
+    const res = await promote(epoch, { corpusId: CA });
+
+    // The handle minted a FRESH entity in CA rather than binding across.
+    const mintedIds = Object.values(res.mintedEntityIds);
+    expect(mintedIds).toHaveLength(1);
+    expect(mintedIds[0]).not.toBe(foreignId);
+
+    const rows = await testDb.unsafe(
+      `SELECT corpus_id FROM entities WHERE id = '${mintedIds[0]}'`,
+    );
+    expect((rows[0] as unknown as { corpus_id: string }).corpus_id).toBe(CA);
+
+    // And the foreign entity is untouched in its own corpus.
+    const still = await testDb.unsafe(
+      `SELECT corpus_id FROM entities WHERE id = '${foreignId}'`,
+    );
+    expect((still[0] as unknown as { corpus_id: string }).corpus_id).toBe(CB);
+  });
+
   it('still reuses by name WITHIN one corpus (scoping did not disable dedup)', async () => {
     // Entity-only: re-staging the same fact would hit uniq_facts_active_triple (mig 037),
     // which is correct behaviour and not what this test is about.
