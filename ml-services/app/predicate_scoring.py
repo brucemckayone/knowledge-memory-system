@@ -9,9 +9,14 @@ Ollama pool; unit tests compute them directly), so this module has no Ollama or
 DB dependency and is trivially testable.
 
 The merge decision is:
-    combined = 0.50*cosine + 0.30*type_pair_overlap + 0.10*jaro_winkler + 0.10*conceptnet
-gated by two calibrated thresholds, with the inverse-predicate registry as a
-HARD veto applied before scoring (embeddings cannot see direction).
+    combined = W_COSINE*cosine + W_TYPE_PAIR*type_pair_overlap
+             + W_JARO*jaro_winkler + W_CONCEPTNET*conceptnet
+gated by two calibrated thresholds, with TWO hard vetoes applied before scoring:
+the inverse-predicate registry, and the polarity/direction/ordinal veto below
+(embeddings cannot see negation or direction).
+
+The docstring here previously stated 0.50/0.30/0.10/0.10, which never matched the
+code's 0.55/0.30/0.10/0.05. Reference the constants, not a copy of them.
 """
 
 from __future__ import annotations
@@ -183,3 +188,191 @@ def is_inverse(
     if query_inverse is not None and query_inverse == candidate:
         return True
     return False
+
+# ===========================================================================
+# The semantic-reachability invariant (bead nmemo-4g9)
+# ===========================================================================
+#
+# THE DEFECT THIS MAKES DETECTABLE. With the shipped weights (cosine 0.55,
+# type_pair 0.30, jaro 0.10, conceptnet 0.05) and MERGE_THRESHOLD 0.89, a pair
+# with a PERFECT semantic score - cosine 1.0, type_pair 1.0 - and no ConceptNet
+# entry (which fired 0 of 88 times; it is a 21-entry personal-domain stub) maxes
+# out at 0.85 < 0.89. So the weight-0.10 jaro-winkler term was ARITHMETICALLY
+# NECESSARY for any merge: every merge had to satisfy
+# jw >= (MERGE_THRESHOLD - W_COSINE*cos - W_TYPE_PAIR*tov) / W_JARO. Over 88 real
+# merges the minimum observed jw was 0.677 and the median 0.896.
+#
+# The consequence is not a tuning nit. The merge region WAS "near-identical
+# surface string AND high cosine" - a string-edit matcher with a semantic gate -
+# and negation, polarity, direction and ordinal distinctions ride on a single
+# token, so they MAXIMISE jaro-winkler while barely moving cosine. Adjudicated
+# merge precision was 0.43 on the decidable subset, with a 25-of-88 indefensible
+# floor (doc 41 sections 3.1c and 5).
+#
+# These functions do NOT pick new weights - that needs its own pre-registered
+# sweep, and merges are lossy and unrecoverable. They make the bad configuration
+# DETECTABLE, so a deployment can never again silently run one in which a
+# surface-string term is load-bearing.
+
+
+def semantic_legs_can_merge(
+    w_cosine: Optional[float] = None,
+    w_type_pair: Optional[float] = None,
+    merge_threshold: Optional[float] = None,
+) -> bool:
+    """True when a perfect semantic pair (cosine 1.0, type_pair 1.0) reaches
+    MERGE_THRESHOLD on the semantic legs ALONE - without help from jaro-winkler
+    or the ConceptNet stub.
+
+    False means the surface-string term is arithmetically necessary for every
+    merge, which is the nmemo-4g9 defect."""
+    wc = W_COSINE if w_cosine is None else w_cosine
+    wt = W_TYPE_PAIR if w_type_pair is None else w_type_pair
+    mt = MERGE_THRESHOLD if merge_threshold is None else merge_threshold
+    return (wc + wt) >= mt
+
+
+def semantic_reachability_report() -> dict:
+    """Diagnostic for tests and startup logs: can the semantic legs carry a merge
+    in this configuration, and if not, by how much do they fall short?"""
+    headroom = (W_COSINE + W_TYPE_PAIR) - MERGE_THRESHOLD
+    return {
+        "w_cosine": W_COSINE,
+        "w_type_pair": W_TYPE_PAIR,
+        "w_jaro": W_JARO,
+        "w_conceptnet": W_CONCEPTNET,
+        "merge_threshold": MERGE_THRESHOLD,
+        "semantic_max": W_COSINE + W_TYPE_PAIR,
+        "headroom": headroom,
+        "semantic_legs_can_merge": headroom >= 0.0,
+        # The jaro-winkler value a PERFECT semantic pair must still reach.
+        "required_jw_at_perfect_semantics": (
+            max(0.0, -headroom / W_JARO) if W_JARO > 0 else float("inf")
+        ),
+    }
+
+
+# ===========================================================================
+# Polarity / direction / ordinal veto (bead nmemo-4g9)
+# ===========================================================================
+#
+# A deterministic, model-free HARD veto, analogous to the inverse-predicate
+# registry and applied the same way: before scoring, regardless of score.
+#
+# It exists because the damage was concentrated and structural. Of the 25-merge
+# indefensible floor in doc 41 section 5, twelve were exactly this shape - 2
+# negation, 3 polarity, 1 direction, 6 ordinal - plus 1 relation-inverse. These
+# pairs differ by ONE token that inverts the claim, which is the worst case for
+# both signals the scorer trusts: jaro-winkler is maximised (0.87-0.97 observed)
+# while cosine barely moves (0.95-0.98 observed).
+#
+# SCOPE, stated so this is not read as a fix for merge precision generally: the
+# veto addresses truth-conditional inversions ONLY. The other 12 floor merges are
+# REFERENTIAL - different dataset, task, metric or modality, e.g.
+# metric_fid_score_on_coco vs metric_fid_score_on_cc3m - and cannot be decided
+# from token polarity without a domain vocabulary. This veto does not fire on
+# those, and should not.
+
+_NEGATION_TOKENS = frozenset(
+    {"no", "not", "non", "never", "without", "absent", "lacks", "lacking"}
+)
+
+# Antonym pairs, stored as frozensets so lookup is order-free.
+_ANTONYM_PAIRS = frozenset(
+    frozenset(p)
+    for p in [
+        ("with", "without"),
+        ("better", "worse"), ("best", "worst"), ("improved", "degraded"),
+        ("more", "less"), ("higher", "lower"), ("upper", "lower"),
+        ("increase", "decrease"), ("increased", "decreased"),
+        ("increases", "decreases"), ("gain", "loss"), ("gains", "losses"),
+        ("faster", "slower"), ("larger", "smaller"), ("bigger", "smaller"),
+        ("longer", "shorter"), ("stronger", "weaker"), ("strong", "weak"),
+        ("max", "min"), ("maximum", "minimum"), ("maximise", "minimise"),
+        ("internal", "external"), ("positive", "negative"),
+        ("supported", "unsupported"), ("enabled", "disabled"),
+        ("before", "after"), ("pre", "post"), ("prior", "post"),
+        ("baseline", "optimized"), ("baseline", "optimised"),
+        ("in", "out"), ("input", "output"), ("inbound", "outbound"),
+        ("up", "down"), ("upstream", "downstream"),
+        ("success", "failure"), ("succeeds", "fails"),
+        ("presence", "absence"), ("present", "absent"),
+    ]
+)
+
+# Direction-flipping tokens: swapping these reverses a directed edge.
+_DIRECTION_PAIRS = frozenset(
+    frozenset(p)
+    for p in [
+        ("from", "to"), ("source", "target"), ("src", "dst"),
+        ("forward", "backward"), ("sender", "receiver"),
+        ("parent", "child"), ("ancestor", "descendant"),
+        ("cause", "effect"), ("subject", "object"),
+    ]
+)
+
+_ORDINAL_WORDS = {
+    "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+    "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+}
+
+
+def _ordinal_value(token: str) -> Optional[int]:
+    """The numeric value a token denotes, or None. Digits and small number words
+    only - deliberately narrow, so a token that merely CONTAINS a digit
+    (cc3m, gpt4, coco) is not treated as an ordinal."""
+    if token.isdigit():
+        return int(token)
+    return _ORDINAL_WORDS.get(token)
+
+
+def polarity_veto(pred_a: str, pred_b: str) -> Optional[str]:
+    """Hard veto on a truth-conditional inversion. Returns a reason string when
+    the two predicates must NOT merge, else None.
+
+    Deterministic and model-free: pure token comparison, no embedding, no LLM, no
+    network. Symmetric in its arguments."""
+    if pred_a == pred_b:
+        return None
+    a = [t for t in pred_a.split("_") if t]
+    b = [t for t in pred_b.split("_") if t]
+    if not a or not b:
+        return None
+
+    # (1) has_X / is_X_of - a relation merged with its own inverse. This is the
+    # class the inverse registry exists to stop and structurally cannot reach: it
+    # fires only when the query base equals one of 9 registered seed names, and
+    # only 2 of 2,240 corpus predicate strings are within its reach at all.
+    for first, second in ((a, b), (b, a)):
+        if first[0] == "has" and second[0] == "is" and second[-1] == "of":
+            if set(first[1:]) == set(second[1:-1]):
+                return "relation_inverse:has_X/is_X_of"
+
+    # (2) One side carries a negation token the other does not, and the two are
+    # otherwise the same tokens: requires_fine_tuning vs requires_no_fine_tuning.
+    sa, sb = set(a), set(b)
+    neg_only_a = (sa & _NEGATION_TOKENS) - sb
+    neg_only_b = (sb & _NEGATION_TOKENS) - sa
+    if (neg_only_a or neg_only_b) and (sa - _NEGATION_TOKENS) == (sb - _NEGATION_TOKENS):
+        tok = sorted(neg_only_a | neg_only_b)[0]
+        return "negation:" + tok
+
+    # (3) Same length, differing in exactly one position: check that token pair
+    # for antonymy, direction reversal, or a differing ordinal.
+    if len(a) == len(b):
+        diffs = [(x, y) for x, y in zip(a, b) if x != y]
+        if len(diffs) == 1:
+            x, y = diffs[0]
+            pair = frozenset((x, y))
+            if pair in _ANTONYM_PAIRS:
+                return "polarity:" + x + "/" + y
+            if pair in _DIRECTION_PAIRS:
+                return "direction:" + x + "/" + y
+            va, vb = _ordinal_value(x), _ordinal_value(y)
+            if va is not None and vb is not None and va != vb:
+                return "ordinal:" + x + "/" + y
+
+    return None
+

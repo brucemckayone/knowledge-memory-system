@@ -31,6 +31,7 @@ from .predicate_normalization import normalize_tense
 from .predicate_scoring import (
     multi_signal_score,
     is_inverse,
+    polarity_veto,
     MERGE_THRESHOLD,
     DISTINCT_THRESHOLD,
 )
@@ -153,7 +154,29 @@ async def resolve_predicate(request: ResolveRequest):
         scored: List[ScoredCandidate] = []
         for c in scorable:
             cand_emb = np.array(c.embedding, dtype=float)
-            blocked = is_inverse(base, c.predicate, c.inverse_predicate, query_inverse)
+            # Two hard vetoes, both applied the same way the inverse registry
+            # always was: zero the combined score so the pair cannot merge, no
+            # matter how it scores.
+            #
+            # The polarity veto is bead nmemo-4g9. The scorer's merge region was
+            # "near-identical surface string AND high cosine" - by arithmetic,
+            # since a perfect semantic pair maxes at 0.85 under a 0.89 threshold,
+            # so jaro-winkler was NECESSARY for every merge. Negation, polarity,
+            # direction and ordinal distinctions ride on a single token, which
+            # maximises jaro-winkler while barely moving cosine, and 13 of the 25
+            # indefensible merges in doc 41 section 5 were exactly that shape.
+            # The registry could not help: it fires only when the query base
+            # equals one of 9 registered seed names, and only 2 of 2,240 corpus
+            # predicate strings are within its reach.
+            veto_reason = polarity_veto(base, c.predicate)
+            blocked = (
+                is_inverse(base, c.predicate, c.inverse_predicate, query_inverse)
+                or veto_reason is not None
+            )
+            if veto_reason is not None:
+                logger.info(
+                    "polarity veto: %s vs %s blocked (%s)", base, c.predicate, veto_reason
+                )
             sig = multi_signal_score(
                 base, query_tp, query_emb,
                 c.predicate, _type_pair(c.subject_type, c.object_type), cand_emb,
