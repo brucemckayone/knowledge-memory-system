@@ -126,3 +126,45 @@ say so and treat it as fragile.
 - **Blind adversary** before banking, tasked in **both** directions.
 - Deterministic set arithmetic; no LLM in the measurement path.
 - Production build (`nmemo-uhp.18`) happens only **after** a result, not alongside it.
+
+---
+
+## APPENDED BEFORE ANY NUMBER WAS COMPUTED — substrate deviations
+
+Recorded here, in the frozen document, **before the harness was run**, so that neither deviation can be
+presented as a footnote after the fact. Both reduce coverage; neither can create a false query pair,
+because every pair still comes from a true attribution.
+
+**Deviation 1 — corpus B is 110 of 147 documents (74.8%).** The re-ingest stopped on an external
+blocker: the Claude API returned `429` with *"You've hit your org's monthly spend limit"*. The harness is
+resumable and did not mark the batch done, so the remaining 37 documents can be ingested whenever credit
+is available. Documents are processed in corpus-file order (OpenAlex work ids, effectively arbitrary with
+respect to topic), so a 74.8% prefix is not systematically biased by subject — but it is a prefix, not a
+random sample, and that is the honest characterisation.
+
+**Deviation 2 — 10 of corpus A's 147 documents have no attribution.** Self-inflicted: while the ingest
+was running I ran `promotion.test.ts` against the same database, and its cleanup contained three
+unscoped `DELETE FROM staging_proposed_*` statements. That removed the in-flight batch's staging rows
+before the harness could snapshot paper-level attribution from them, and staging is transient by design
+so it could not be reconstructed. Ledger positions 60–69. All three suites carrying that pattern are now
+scoped. Details in `03-blocker-closeout-findings.md` §9.5.
+
+**Not repaired, deliberately.** Re-ingesting those 10 documents would extract them a second time, making
+10 of 294 documents non-uniform in a substrate whose whole purpose is a controlled comparison. With
+n = 300 the power is not the binding constraint, so the loss is left in place rather than traded for
+an inhomogeneity.
+
+**State at run time [M]:**
+
+| | corpus A (`dal-nlp`) | corpus B (`dal-cv`) |
+|---|---|---|
+| documents ingested | 147 / 147 | **110 / 147** |
+| documents with attribution | 137 | 110 |
+| multi-attributed entities | 87 | 68 |
+| query pairs contributed | 177 | 123 |
+| entities | 1,133 | 960 |
+| description coverage | **98.9%** | **99.4%** |
+
+**n = 300 query pairs**, against the pre-registered kill threshold of 100. Description coverage is far
+above the 50% VOID threshold in both corpora. So the run proceeds, and its headline is reported for the
+substrate described above rather than for a complete 294-document one.
