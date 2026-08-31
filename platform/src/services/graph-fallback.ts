@@ -19,7 +19,7 @@
  * the exception, instrumented, not the default.
  *
  * Reuses, never rebuilds: traverseFromEntities (graph.ts — SQL fact traversal),
- * getEntityFacts (facts.ts — active facts), the fact_units table (schema.ts),
+ * getFactsForEntities (facts.ts — active facts, batched), the fact_units table (schema.ts),
  * Qdrant retrieve (qdrant.ts) for unit text. Predicate-relevance ranking (§3.3)
  * needs the query and so belongs to the re-rank in bead .3; this primitive's
  * signature is query-free (§8.1), so it ranks on the signals it has on hand —
@@ -32,7 +32,7 @@ import { inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { factUnits, memoryEntities } from '../db/schema.js';
 import { traverseFromEntities } from './graph.js';
-import { getEntityFacts } from './facts.js';
+import { getFactsForEntities } from './facts.js';
 import { qdrant, COLLECTIONS, getMemoryVectors } from './qdrant.js';
 
 /** A single piece of unit-grained evidence behind a neighbour fact (doc 38 §3.4). */
@@ -209,8 +209,15 @@ export async function expandFromAnchors(
     const reachable = new Map<string, number>([[anchorId, 0], ...hopOf]);
     const candidates: NeighbourCandidate[] = [];
     const seenFact = new Set<string>();
-    for (const entId of reachable.keys()) {
-      const facts = await getEntityFacts(entId);
+    // ONE query for every reachable entity, not one per entity. Measured on the
+    // 1,230-entity arxiv-nlp graph at 10 anchors / 2 hops: this loop was 421 ms
+    // of a 487 ms total across 434 sequential round-trips (86%), while the
+    // traversal was 60 ms. The fact SET is unchanged — getFactsForEntities uses
+    // the same active + bi-temporal predicates and `seenFact` still dedups —
+    // and `neighbourId` never depended on which entity was being iterated, only
+    // on (subject, object, anchorId, hopOf).
+    {
+      const facts = await getFactsForEntities([...reachable.keys()]);
       for (const f of facts) {
         if (seenFact.has(f.id)) continue;
         const s = f.subjectEntityId;
@@ -244,7 +251,12 @@ export async function expandFromAnchors(
       if (pw !== 0) return pw;
       if (a.hop !== b.hop) return a.hop - b.hop; // closer anchors first
       const pr = (pageranks.get(b.neighbourEntityId) ?? 0) - (pageranks.get(a.neighbourEntityId) ?? 0);
-      return pr; // pagerank tie-break only
+      if (pr !== 0) return pr;
+      // Final tie-break on factId so the cap below is DETERMINISTIC. Previously
+      // ties were resolved by whatever order the per-entity fact queries
+      // happened to return, i.e. by Map iteration order — so which candidates
+      // survived `slice(0, maxNeighbours)` was not reproducible.
+      return a.factId < b.factId ? -1 : a.factId > b.factId ? 1 : 0;
     });
     ranked.push(...candidates.slice(0, maxNeighbours));
   }

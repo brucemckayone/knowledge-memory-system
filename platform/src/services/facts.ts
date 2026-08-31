@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { db, type Tx } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
 import { facts, factPredicates, entities, causalEvents, factSources, type Fact, type FactSource } from '../db/schema.js';
-import { eq, and, or, gt, isNull, sql, desc } from 'drizzle-orm';
+import { eq, and, or, gt, inArray, isNull, sql, desc } from 'drizzle-orm';
 import { recordPredicateUsage } from './predicates.js';
 import { resolveExclusiveGroup, compareFactPrecedence, type FactPrecedence } from './exclusive-groups.js';
 import { recordFactChange, type Actor } from './audit.js';
@@ -888,6 +888,36 @@ export async function getEntityFacts(
   }
 
   return [];
+}
+
+/**
+ * Active facts incident to ANY of the given entities, in one query.
+ *
+ * The batched form of {@link getEntityFacts}. `expandFromAnchors` called the
+ * single-entity version once per reachable entity per anchor; measured on the
+ * 1,230-entity arxiv-nlp graph that loop was 421 ms of a 487 ms total at 10
+ * anchors / 2 hops — 86% of the cost, across 434 sequential round-trips — while
+ * the traversal itself was 60 ms. This replaces N queries with one.
+ *
+ * Same predicates as getEntityFacts (both directions, active, bi-temporally
+ * valid), so results are identical to concatenating the per-entity calls, minus
+ * duplicates where a fact joins two entities in the set.
+ */
+export async function getFactsForEntities(entityIds: string[]): Promise<Fact[]> {
+  const ids = [...new Set(entityIds.filter(Boolean))];
+  if (ids.length === 0) return [];
+  return db
+    .select()
+    .from(facts)
+    .where(and(
+      or(
+        inArray(facts.subjectEntityId, ids),
+        inArray(facts.objectEntityId, ids),
+      ),
+      isNull(facts.expiredAt),
+      or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`)),
+    ))
+    .orderBy(desc(facts.createdAt));
 }
 
 /**
