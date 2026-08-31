@@ -41,9 +41,24 @@ const ALL_ACTORS: Actor[] = [
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Every epoch id this suite stages into. Staging cleanup is scoped to these.
+ *
+ * A bare `DELETE FROM staging_proposed_*` with no WHERE clause deletes OTHER
+ * writers' rows on the shared test database. On 2026-08-31 that cost real data:
+ * a 294-document ingest was running against cognitive_test and a sibling suite's
+ * unscoped cleanup wiped the in-flight batch's staging before the ingest could
+ * snapshot paper-level attribution from it, leaving 10 documents in the graph
+ * with none. Staging is transient by design, so it could not be reconstructed.
+ */
+const stagedEpochIds = new Set<string>();
+
+
 async function cleanStaging(): Promise<void> {
-  await testDb.unsafe('DELETE FROM staging_proposed_facts');
-  await testDb.unsafe('DELETE FROM staging_proposed_entities');
+  if (stagedEpochIds.size === 0) return;
+  const ids = [...stagedEpochIds].map((e) => `'${e}'::uuid`).join(',');
+  await testDb.unsafe(`DELETE FROM staging_proposed_facts WHERE epoch_id IN (${ids})`);
+  await testDb.unsafe(`DELETE FROM staging_proposed_entities WHERE epoch_id IN (${ids})`);
 }
 
 // createTestEntity uses real-world canonical names (not a TAG). The original
@@ -81,6 +96,7 @@ async function cleanAll(): Promise<void> {
 }
 
 function proposerCtx(epochId: string, extra?: Partial<ToolCallContext>): ToolCallContext {
+  stagedEpochIds.add(epochId);
   return { agent: 'extraction_proposer', epochId, sourceId: null, chunkIndex: null, ...extra };
 }
 

@@ -19,16 +19,33 @@ import { searchPredicates } from '../../services/predicate-resolve.js';
 const TAG = 'predfold';
 const MINTED = 'enjoys_hiking_with';
 
+/**
+ * Every epoch id this suite stages into. Staging cleanup is scoped to these.
+ *
+ * A bare `DELETE FROM staging_proposed_*` with no WHERE clause deletes OTHER
+ * writers' rows on the shared test database. On 2026-08-31 that cost real data:
+ * a 294-document ingest was running against cognitive_test and a sibling suite's
+ * unscoped cleanup wiped the in-flight batch's staging before the ingest could
+ * snapshot paper-level attribution from it, leaving 10 documents in the graph
+ * with none. Staging is transient by design, so it could not be reconstructed.
+ */
+const stagedEpochIds = new Set<string>();
+
+
 async function clean(): Promise<void> {
   await testDb.unsafe(`DELETE FROM fact_history WHERE fact_id IN (SELECT id FROM facts WHERE source_text LIKE '${TAG}%')`);
   await testDb.unsafe(`DELETE FROM causal_events WHERE fact_id IN (SELECT id FROM facts WHERE source_text LIKE '${TAG}%')`);
   await testDb.unsafe(`DELETE FROM facts WHERE source_text LIKE '${TAG}%'`);
   await testDb.unsafe(`DELETE FROM entities WHERE canonical_name LIKE '${TAG}%'`);
-  await testDb.unsafe('DELETE FROM staging_proposed_facts');
-  await testDb.unsafe('DELETE FROM staging_proposed_entities');
+  if (stagedEpochIds.size > 0) {
+    const ids = [...stagedEpochIds].map((e) => `'${e}'::uuid`).join(',');
+    await testDb.unsafe(`DELETE FROM staging_proposed_facts WHERE epoch_id IN (${ids})`);
+    await testDb.unsafe(`DELETE FROM staging_proposed_entities WHERE epoch_id IN (${ids})`);
+  }
 }
 
 async function stageEntity(epochId: string, name: string, type: string): Promise<string> {
+  stagedEpochIds.add(epochId);
   const handle = randomUUID();
   await testDb`
     INSERT INTO staging_proposed_entities (handle, epoch_id, name, entity_type)
