@@ -22,6 +22,23 @@ import { resolveEscalations, type ArbiterInvoker, type EscalationDossier } from 
 
 const TAG = 'promtest';
 
+/**
+ * Every epoch id this suite has staged into. `clean()` deletes staging ONLY for
+ * these.
+ *
+ * It used to run bare `DELETE FROM staging_proposed_facts`,
+ * `DELETE FROM staging_proposed_entities` and `DELETE FROM arbiter_verdicts` with
+ * no WHERE clause at all, on a SHARED test database. That wiped every other
+ * writer's staging rows too. It cost real data on 2026-08-31: a 294-document
+ * ingest was running against cognitive_test, and running this suite deleted the
+ * in-flight batch's staging before the ingest harness could snapshot its
+ * paper-level attribution from it — so 10 documents landed in the graph with NO
+ * attribution, silently, reported only as `attributed 0 facts / 0 entities` in a
+ * log line. Staging is transient by design (cleanupAbandonedStaging GCs it), so
+ * nothing could reconstruct it afterwards.
+ */
+const stagedEpochIds = new Set<string>();
+
 interface MintedEventRow {
   transition_type: string;
   fact_id: string;
@@ -72,9 +89,14 @@ async function clean(): Promise<void> {
   );
   await testDb.unsafe(`DELETE FROM entity_aliases WHERE entity_id IN (${tagEntities})`);
   await testDb.unsafe(`DELETE FROM entities WHERE canonical_name LIKE '${TAG}%'`);
-  await testDb.unsafe('DELETE FROM staging_proposed_facts');
-  await testDb.unsafe('DELETE FROM staging_proposed_entities');
-  await testDb.unsafe('DELETE FROM arbiter_verdicts');
+  // SCOPED to this suite's own epochs — see stagedEpochIds above for what an
+  // unscoped delete cost. A no-op when the suite has staged nothing yet.
+  if (stagedEpochIds.size > 0) {
+    const ids = [...stagedEpochIds].map((e) => `'${e}'::uuid`).join(',');
+    await testDb.unsafe(`DELETE FROM staging_proposed_facts WHERE epoch_id IN (${ids})`);
+    await testDb.unsafe(`DELETE FROM staging_proposed_entities WHERE epoch_id IN (${ids})`);
+    await testDb.unsafe(`DELETE FROM arbiter_verdicts WHERE epoch_id IN (${ids})`);
+  }
 }
 
 /** Insert a canonical entity directly (a prior-canonical row for E5 escalations). */
@@ -101,6 +123,7 @@ async function stageEntity(
   anchorCanonicalId?: string,
   summary?: string,
 ): Promise<string> {
+  stagedEpochIds.add(epochId);
   const handle = randomUUID();
   await testDb`
     INSERT INTO staging_proposed_entities (handle, epoch_id, name, entity_type, anchor_canonical_id, summary)
@@ -123,6 +146,7 @@ async function stageFact(
     supersedesFactId?: string;
   },
 ): Promise<string> {
+  stagedEpochIds.add(epochId);
   const id = randomUUID();
   const validAt = opts.validAt ?? null;
   await testDb`
