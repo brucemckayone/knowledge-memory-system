@@ -8,19 +8,18 @@ git checkout -b feat/single-graph-retrieval
 measure. Learn what works and what does not, and write it down.
 
 **Read first:** `single-graph/00-consolidated-keep-list.md` in full — it supersedes every earlier
-synthesis. Detail in `appendices/01`–`07`.
+synthesis; detail in `appendices/`.
 
 **Decided, do not relitigate:** single graph is the design; the concept super-graph is not a retrieval
-mechanism (settled on every config and oracle); iOS is stripped; LongMemEval is parked; do not turn on
+mechanism (settled everywhere); iOS is stripped; LongMemEval is parked; do not turn on
 the predicate fold (3.7% collapse at 0.43 merge precision, and merges are unrecoverable).
 
 **Why this order:** the write path starves the read path. Every Tier 0 primitive is built and its inputs
 are empty, so no retrieval measurement is meaningful yet.
 
-1. `nmemo-vga` (P0) — fact vectors broken at both ends: `fact_embedding` NULL on the epoch path
-   (`promotion.ts:250`), and `searchFacts` (`facts.ts:896`) is its only reader with **zero callers**.
-2. `nmemo-9b4` — `EMBED_DESCRIPTIONS=false` turns the flag **on** (`z.coerce.boolean()`;
-   `Boolean("false") === true`).
+1. `nmemo-vga` (P0) — fact vectors broken at both ends: `fact_embedding` NULL on epoch
+   (`promotion.ts:250`), and `searchFacts` (`facts.ts:896`) is its only reader, with **zero callers**.
+2. `nmemo-9b4` — `EMBED_DESCRIPTIONS=false` turns the flag **on** (`Boolean("false") === true`).
 3. `nmemo-86z` (P0) — `promotion-plan.ts:534` hardcodes `summary: null`, so every entity vector embeds
    a bare name.
 4. `nmemo-ajm` + `nmemo-31k` — `migrate.ts` swallows failures and exits 0; `promote()` dies with `42P01`
@@ -32,8 +31,8 @@ are empty, so no retrieval measurement is meaningful yet.
    control, new corpus ids. The one untested lever — items 2–3 are why it was silently unavailable.
 7. AGE prune-or-retire (~1,071 nodes vs 4 entities; `/api/reset` skips it). Until then use SQL recursion
    over `public.facts` — the only expiry-correct traversal.
-8. **Hybrid BM25 + retrieved-set RRF** (`nmemo-uhp.18`, P1) with a pre-registered bar. Four independent
-   results back it; the 0.648-vs-0.467 figure is post-hoc and needs the clean run.
+8. **Hybrid BM25 + retrieved-set RRF** (`nmemo-uhp.18`, P1) with a pre-registered bar. Four results
+   back it; the 0.648-vs-0.467 figure is post-hoc and needs the clean run.
 9. `nmemo-5co.1` — measure `/api/reason/query` latency; the tiered design is motivated by it and none
    exists. Then `.2`/`.3` (fact-query API, constraint extractor) — the real greenfield.
 10. `nmemo-4g9` (P0) — predicate scorer recalibration before any predicate backfill.
