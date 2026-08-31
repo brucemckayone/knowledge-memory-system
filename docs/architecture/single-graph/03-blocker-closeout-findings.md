@@ -298,6 +298,42 @@ all — worth knowing before anyone concludes anything about entity-vector recal
 
 ---
 
+## 9.5 An incident, recorded because it affects the measurement
+
+While the 294-document re-ingest was running against `cognitive_test`, I ran
+`promotion.test.ts` against the same database several times. Its `clean()` contained
+
+```
+DELETE FROM staging_proposed_facts      -- no WHERE
+DELETE FROM staging_proposed_entities   -- no WHERE
+DELETE FROM arbiter_verdicts            -- no WHERE
+```
+
+**unscoped, database-wide**, from `beforeEach` and `afterAll`. That deleted the in-flight batch's staging
+rows before the ingest harness could snapshot paper-level attribution from them. Staging is transient by
+design (`cleanupAbandonedStaging` GCs it), so nothing could reconstruct it.
+
+**Damage, exactly [M]:** ledger positions 60–69 — all 10 documents of one batch — are in the graph with
+**no attribution**. 70 of the 80 documents ingested at that point carry it. The only symptom at the time
+was a single log line reading `attributed 0 facts / 0 entities` between two batches reporting 152 and
+179, which is why it went unnoticed until the artifact was counted.
+
+This is the trap the kickoff goal names explicitly — *"check what a suite's cleanup deletes unscoped
+before running it against the shared DB"*. I checked `truncateAllTables`, `deleteFromTables` and the
+TAG-scoped deletes, and missed these three inside the suite's own `clean()`.
+
+**Effect on the measurement, stated here rather than discovered in the results.** The loss cannot create
+FALSE query pairs — every pair the attribution artifact holds is still a true attribution. But it is
+**non-random** (one contiguous batch), it reduces `n`, and it mildly biases which entities reach the
+two-attribution threshold the held-out constraint requires. The 10 documents will be re-ingested once
+both corpora finish, so the repair is isolated and recorded.
+
+All three suites carrying this pattern (`promotion.test.ts`, `predicate-fold.test.ts`,
+`epoch-propose-tools.test.ts`) are now scoped to the epoch ids they stage into. Each fix was verified
+both ways: the tests still pass, **and** a concurrent ingest's staging rows survive the run.
+
+---
+
 ## 10. What is still open
 
 - **`fact_units` / `facts.source_memory_id`** — §1. Graph-anchored retrieval returns textless evidence
