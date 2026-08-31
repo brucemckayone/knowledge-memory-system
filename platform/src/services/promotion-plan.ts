@@ -331,6 +331,24 @@ function isWordPrefix(short: string, long: string): boolean {
 }
 
 const clusterKeyFor = (normName: string, type: string): string => `cluster:${type}|${normName}`;
+
+/**
+ * Deterministic summary for a minted cluster (nmemo-86z): the longest non-blank
+ * member summary, ties broken lexicographically. Order-independent by
+ * construction — the input is a set of handles and the winner does not depend on
+ * their order — which the doc-38 replay litmus requires. Exported for the unit
+ * test; pure, no DB.
+ */
+export function pickClusterSummary(
+  handles: string[],
+  summaryByHandle: Map<string, string>,
+): string | null {
+  const candidates = handles
+    .map((h) => summaryByHandle.get(h))
+    .filter((v): v is string => v !== undefined && v.trim() !== '');
+  if (candidates.length === 0) return null;
+  return [...candidates].sort((a, b) => b.length - a.length || (a < b ? -1 : 1))[0]!;
+}
 const refKey = (ref: ResolvedRef): string =>
   ref.kind === 'canonical' ? `c:${ref.id}` : `k:${ref.key}`;
 const objectKeyOf = (ref: ResolvedRef | null, objectValue: string | null): string =>
@@ -389,6 +407,21 @@ function resolveEntities(
     const list = priorByType.get(e.type) ?? [];
     list.push({ id: e.id, norm: normalizeName(e.name) });
     priorByType.set(e.type, list);
+  }
+
+  // Staged summaries by handle. The proposer agents author these ("2D diffusion
+  // models" → "Diffusion models trained on 2D image data") and 92% of surviving
+  // proposals on the 294-doc run carried one. Before nmemo-86z this map did not
+  // exist and the component loop below hardcoded `summary: null`, so
+  // `entities.description` was NULL on all 3,406 canonical rows — and the worse
+  // effect: promotion.ts embeds `entityEmbedTextFor(name, summary, mode)`, so
+  // EVERY entity vector embedded a BARE NAME even with EMBED_DESCRIPTIONS on.
+  // The one retrieval lever the arc kept calling untested was silently
+  // unavailable. Blank summaries are dropped here so downstream sees null, not "".
+  const summaryByHandle = new Map<string, string>();
+  for (const e of staged) {
+    const trimmed = e.summary?.trim();
+    if (trimmed) summaryByHandle.set(e.handle, trimmed);
   }
 
   // Anchored proposals pin (norm,type) → canonicalId so peers align (rule 1).
@@ -531,7 +564,13 @@ function resolveEntities(
       // Display name = the most specific (longest) member name, ties broken
       // lexicographically — deterministic and the friendliest canonical label.
       const name = [...comp.norms].sort((a, b) => b.length - a.length || (a < b ? -1 : 1))[0]!;
-      entitiesToMint.push({ clusterKey: key, name, type, summary: null, memberHandles: comp.handles.sort() });
+      // Summary = the longest non-blank member summary, ties broken
+      // lexicographically — the same rule as the display name above, so it is
+      // order-independent (the doc-38 litmus: planPromotion(forward)
+      // deep-equals planPromotion(reverse)). Longest wins because it is the
+      // most informative text to embed.
+      const summary = pickClusterSummary(comp.handles, summaryByHandle);
+      entitiesToMint.push({ clusterKey: key, name, type, summary, memberHandles: comp.handles.sort() });
       for (const h of comp.handles) byHandle.set(h, { kind: 'cluster', key });
     }
   }

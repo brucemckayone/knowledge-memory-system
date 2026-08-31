@@ -308,7 +308,7 @@ export async function applyPromotion(
     // second row for an existing canonical name+type.
     for (const e of plan.entitiesToMint) {
       const existing = await tx
-        .select({ id: entities.id })
+        .select({ id: entities.id, description: entities.description })
         .from(entities)
         // corpus-scoped (doc 34 §6): without eq(corpusId) this reuse-by-name lookup is a
         // cross-corpus fusion path — two separately-ingested corpora sharing an entity name
@@ -320,6 +320,7 @@ export async function applyPromotion(
         ))
         .limit(1);
       let id = existing[0]?.id;
+      const vec = entityEmbeddings.get(e.clusterKey);
       if (!id) {
         id = randomUUID();
         await tx.insert(entities).values({
@@ -329,7 +330,24 @@ export async function applyPromotion(
           description: e.summary ?? undefined,
           corpusId,
         });
-        const vec = entityEmbeddings.get(e.clusterKey);
+        if (vec && vec.length > 0) {
+          await tx.execute(sql`UPDATE public.entities SET embedding = ${vectorLiteral(vec)}::vector WHERE id = ${id}::uuid`);
+        }
+      } else if (e.summary && !existing[0]?.description?.trim()) {
+        // Reuse-by-name, and the existing row has no description while this
+        // epoch's proposals do (nmemo-86z's open decision, decided FILL-IF-NULL):
+        //  - never overwrite a description that exists  → first-write-wins for
+        //    content, so repeated epochs do not thrash the text or the vector;
+        //  - fill one that is absent                    → an entity minted before
+        //    this fix, or reused before any proposal carried a summary, is not
+        //    permanently stuck with a bare-name vector.
+        // Monotone and idempotent: once set, later epochs take neither branch.
+        // The vector is already computed out-of-tx for every entitiesToMint row,
+        // so the re-embed costs no extra ML call.
+        await tx
+          .update(entities)
+          .set({ description: e.summary })
+          .where(eq(entities.id, id));
         if (vec && vec.length > 0) {
           await tx.execute(sql`UPDATE public.entities SET embedding = ${vectorLiteral(vec)}::vector WHERE id = ${id}::uuid`);
         }

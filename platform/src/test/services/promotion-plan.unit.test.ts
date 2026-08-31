@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   planPromotion,
+  pickClusterSummary,
   normalizeName,
   escalationKey,
   type PriorCanonical,
@@ -527,5 +528,74 @@ describe('planPromotion — verdict re-plan stays order-independent (litmus)', (
     rev.entities.reverse();
     const revPlan = planPromotion(TWO_HELIX_PRIORS, rev, [verdict]);
     expect(revPlan).toEqual(fwd);
+  });
+});
+
+describe('planPromotion — staged summaries reach entitiesToMint (nmemo-86z)', () => {
+  // The defect: the component loop hardcoded `summary: null`, so
+  // entities.description was NULL on all 3,406 canonical rows and — worse —
+  // promotion.ts embeds entityEmbedTextFor(name, summary, mode), so every
+  // entity vector embedded a BARE NAME even with EMBED_DESCRIPTIONS on.
+
+  it('pickClusterSummary takes the longest non-blank summary, ties lexicographic', () => {
+    const m = new Map([
+      ['a', 'short'],
+      ['b', 'a considerably longer description'],
+      ['c', '  '],
+    ]);
+    expect(pickClusterSummary(['a', 'b', 'c'], m)).toBe('a considerably longer description');
+    // Equal length → lexicographically smallest, so the winner cannot depend on order.
+    const tie = new Map([['a', 'bbbb'], ['b', 'aaaa']]);
+    expect(pickClusterSummary(['a', 'b'], tie)).toBe('aaaa');
+    expect(pickClusterSummary(['b', 'a'], tie)).toBe('aaaa');
+    // No candidate at all → null, not ''.
+    expect(pickClusterSummary(['x'], m)).toBeNull();
+    expect(pickClusterSummary(['c'], m)).toBeNull();
+  });
+
+  it('a fresh mint carries the proposer-authored summary', () => {
+    const e = { ...ent('2D Diffusion Models'), summary: 'Diffusion models trained on 2D image data' };
+    const plan = planPromotion(EMPTY_PRIOR, {
+      entities: [e],
+      facts: [fact(e.handle, 'has_property', { objectValue: 'generative' })],
+    });
+    expect(plan.entitiesToMint).toHaveLength(1);
+    expect(plan.entitiesToMint[0]!.summary).toBe('Diffusion models trained on 2D image data');
+  });
+
+  it('folded word-prefix duplicates keep the most informative summary', () => {
+    // 'helix' and 'helix robotics' fold into one entity (rule 4); the summaries differ.
+    const a = { ...ent('Helix'), summary: 'A robot' };
+    const b = { ...ent('Helix Robotics'), summary: 'A robotics company building humanoid arms' };
+    const plan = planPromotion(EMPTY_PRIOR, {
+      entities: [a, b],
+      facts: [
+        fact(a.handle, 'has_property', { objectValue: 'x' }),
+        fact(b.handle, 'has_property', { objectValue: 'y' }),
+      ],
+    });
+    expect(plan.entitiesToMint).toHaveLength(1);
+    expect(plan.entitiesToMint[0]!.summary).toBe('A robotics company building humanoid arms');
+  });
+
+  it('all-blank member summaries still yield null (no empty-string descriptions)', () => {
+    const e = { ...ent('Acme'), summary: '   ' };
+    const plan = planPromotion(EMPTY_PRIOR, {
+      entities: [e],
+      facts: [fact(e.handle, 'has_property', { objectValue: 'z' })],
+    });
+    expect(plan.entitiesToMint[0]!.summary).toBeNull();
+  });
+
+  it('summary selection is order-independent (doc 38 litmus still holds)', () => {
+    const a = { ...ent('Helix'), summary: 'A robot' };
+    const b = { ...ent('Helix Robotics'), summary: 'A robotics company building humanoid arms' };
+    const facts = [
+      fact(a.handle, 'has_property', { objectValue: 'x' }),
+      fact(b.handle, 'has_property', { objectValue: 'y' }),
+    ];
+    const forward = planPromotion(EMPTY_PRIOR, { entities: [a, b], facts });
+    const reverse = planPromotion(EMPTY_PRIOR, { entities: [b, a], facts: [...facts].reverse() });
+    expect(forward.entitiesToMint).toEqual(reverse.entitiesToMint);
   });
 });
