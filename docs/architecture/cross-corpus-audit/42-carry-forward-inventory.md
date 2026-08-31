@@ -1,11 +1,47 @@
 # Doc 42 — CARRY-FORWARD INVENTORY: what 214 commits built, and what survives into single-graph optimisation with many graphs per user
 
-**Date:** 2026-08-31 · **Branch:** `feat/cross-corpus-audit` (214 commits over `feat/cognitive-platform-v1`)
+**Date:** 2026-08-31 · **Branch:** `feat/cross-corpus-audit`
+**Arc scope:** 140 commits over `feat/cognitive-platform-v2` (base `4d3c0b8`, 2026-06-30) — **not** the 214 commits over
+`feat/cognitive-platform-v1`. See §0.
 **Purpose:** the multi-graph *retrieval* thesis is dropped (doc 37, doc 39 §5). This document takes
 inventory of everything the arc actually built and asks a different question of each piece: **does it
 serve a system of single, well-optimised graphs — several per user, isolated from each other?**
 
 Tags as doc 39: **[M]** measured · **[C]** read off code · **[I]** inferred · **[U]** untested.
+
+## 0. PROVENANCE CORRECTION (added 2026-08-31, after the first draft)
+
+The first draft of this document diffed against `feat/cognitive-platform-v1` and attributed all 214
+commits to this arc. **That was wrong and it mis-credited a large amount of work.** The branch topology:
+
+```
+feat/cognitive-platform-v1  --f3de174-->  (215 commits to HEAD)   <- what the first draft diffed
+      \_ feat/parallel-ingestion  --78f67e6-->  (184)
+            \_ feat/cognitive-platform-v2  --4d3c0b8-->  (140)   <- the real arc base, 2026-06-30
+                  \_ feat/ios-api-v1  (diverged at the same point; NOT an ancestor of HEAD,
+                                        but its work reached us through v2)
+```
+
+**The cross-corpus arc is 140 commits, 2026-06-30 to 2026-08-31.** Roughly 75 commits are inherited.
+
+| | migrations | contents |
+|---|---|---|
+| **Arc-owned** | 051-057 | corpus scoping + policies, bridge_edges + entity endpoints, element catalogs, concept layer, causal corroboration idempotency |
+| **Inherited** | 037-050 | fact uniqueness/FK/canonical predicates, **the epoch-v2 propose/promote architecture (040-043)**, causal pass, **predicate enrichment (045)**, stream participants, fact units, AGE sync, **iOS milestone 1 (049)**, **LLM token-usage & cost tracking (050)** |
+
+**Consequence for §3 below:** the propose/promote split, deterministic disposal, the predicate machinery,
+resumable ingest, cost tracking and the LongMemEval harness are all **inherited**, not built here. They
+are still the right things to keep — the recommendation is unchanged — but this arc did not build them,
+and the first draft's framing of them as "the largest and healthiest body of work on the branch" was
+attributing another branch's work to this one.
+
+**What this arc actually produced:** 24 service files, 7 migrations, and **201 doc + artifact files** —
+about seven documents or artifacts per source file. It was primarily an *investigation*, with graph
+isolation as its shipped engineering deliverable. Read the rest of this document with that ratio in mind.
+
+**Also not ours:** the LongMemEval result (`overall_accuracy 0.524`, `abstention_rate 0.667`, n=21,
+2026-06-02) predates `4d3c0b8`. It remains the only end-to-end capability measurement of the system, and
+it is a smoke-scale sample, not a capability claim.
 
 **The headline reframe.** `corpus_id` was built to let two corpora be *compared*. Structurally it is
 graph **isolation**, which is what per-user multi-graph and multi-tenant both need. The machinery is
@@ -79,8 +115,9 @@ second axis.
 
 ## 3. KEEP — single-graph quality machinery, independent of graph count
 
-This is the largest and healthiest body of work on the branch, and none of it depends on the multi-graph
-thesis.
+**Almost all of this is INHERITED, not arc-owned (see §0).** It is still what to keep, and none of it
+depends on the multi-graph thesis — but the credit belongs to `feat/cognitive-platform-v2`,
+`feat/parallel-ingestion` and `feat/ios-api-v1`, not here.
 
 **Ingestion architecture (mig 040-043).** The epoch-v2 propose/promote split: parallel agents write
 candidates into staging with no canonical writes, then **one deterministic writer, one transaction**.
