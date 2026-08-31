@@ -337,17 +337,40 @@ class ClaudeCodeProvider:
 
     def _build_cmd(
         self,
-        prompt: str,
         options: Optional[Dict] = None,
         json_schema: Optional[Dict] = None,
-    ) -> list:
-        """Build the claude CLI command list."""
+    ) -> tuple:
+        """Build the claude CLI command list, plus temp files to clean up.
+
+        The USER PROMPT IS NOT IN THIS LIST (bead nmemo-8rm). It used to be
+        passed as an argv element -- `cmd = ["claude", "-p", prompt, ...]` --
+        and Windows CreateProcess caps the whole command line at 32,767
+        characters. `_build_causal_prompt` renders every scope event, predicate
+        and source text into one string, so at production batch sizes it never
+        fit: every batch of the 294-document run logged
+        `[WinError 206] The filename or extension is too long`, the causal pass
+        is non-fatal by design, the epoch reported success, and 147 papers
+        produced 9 causal edges. At batch=1 the scope is small enough to fit, so
+        single-document tests passed and every real run failed silently.
+
+        The prompt now goes to the CLI on STDIN (`_run` passes `input=`), which
+        `claude -p` reads when no prompt argument is given. Verified against the
+        real CLI: a 57,651-character prompt whose answer sits at offset 57,580
+        is answered correctly, where the same prompt via argv raises WinError 206.
+
+        The codebase already knew about this limit and had already solved it for
+        the SYSTEM prompt via --system-prompt-file (below); the user prompt never
+        got the same treatment.
+
+        Returns (cmd, temp_paths) -- the caller must delete temp_paths.
+        """
         opts = options or {}
         model = self._resolve("model", opts)
         effort = self._resolve("effort", opts)
+        temp_paths: list = []
 
         cmd = [
-            "claude", "-p", prompt,
+            "claude", "-p",
             "--output-format", "json",
             "--model", model,
             "--effort", effort,
@@ -370,6 +393,8 @@ class ClaudeCodeProvider:
             prompt_file.write(system_prompt)
             prompt_file.close()
             cmd.extend(["--system-prompt-file", prompt_file.name])
+            # delete=False leaked one temp file per invocation; _run removes it.
+            temp_paths.append(prompt_file.name)
 
         # Tools: None → disabled (""), "mcp" → omit (MCP tools come via --mcp-config),
         # explicit value passed through
@@ -404,9 +429,15 @@ class ClaudeCodeProvider:
         max_turns = str(opts.get("max_turns", default_turns))
         cmd.extend(["--max-turns", max_turns])
 
-        return cmd
+        return cmd, temp_paths
 
-    def _run(self, cmd: list, options: Optional[Dict] = None) -> Dict[str, Any]:
+    def _run(
+        self,
+        cmd: list,
+        options: Optional[Dict] = None,
+        prompt: str = "",
+        temp_paths: Optional[list] = None,
+    ) -> Dict[str, Any]:
         """Execute CLI command and return the parsed JSON envelope.
 
         Bead nmemo-klv.10: when the CLI exits non-zero, surface a structured
@@ -425,8 +456,11 @@ class ClaudeCodeProvider:
         logger.info("Claude CLI cmd: %s", cmd_summary)
 
         try:
+            # `input=prompt` is the nmemo-8rm fix: the user prompt goes on STDIN
+            # rather than as an argv element, so it is not subject to the Windows
+            # 32,767-character command-line cap. See _build_cmd.
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=timeout,
+                cmd, input=prompt, capture_output=True, text=True, timeout=timeout,
                 encoding="utf-8", errors="replace",
             )
         except subprocess.TimeoutExpired:
@@ -434,6 +468,12 @@ class ClaudeCodeProvider:
                 status_code=504,
                 detail=f"Claude CLI timed out after {timeout}s",
             )
+        finally:
+            for path in (temp_paths or []):
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
 
         logger.info("Claude CLI rc=%d stdout=%d stderr=%d",
                     result.returncode, len(result.stdout or ''), len(result.stderr or ''))
@@ -546,8 +586,8 @@ class ClaudeCodeProvider:
         accumulator: Optional["UsageAccumulator"] = None,
     ) -> str:
         """Generate a text response."""
-        cmd = self._build_cmd(prompt, options)
-        data = self._run(cmd, options)
+        cmd, temp_paths = self._build_cmd(options)
+        data = self._run(cmd, options, prompt=prompt, temp_paths=temp_paths)
         _safe_capture(accumulator, lambda: self._parse_usage_record(data, options), "claude")
         return data.get("result", "")
 
@@ -591,8 +631,8 @@ class ClaudeCodeProvider:
         if response_model:
             json_schema = response_model.model_json_schema()
 
-        cmd = self._build_cmd(prompt, options, json_schema=json_schema)
-        data = self._run(cmd, options)
+        cmd, temp_paths = self._build_cmd(options, json_schema=json_schema)
+        data = self._run(cmd, options, prompt=prompt, temp_paths=temp_paths)
         _safe_capture(accumulator, lambda: self._parse_usage_record(data, options), "claude")
 
         # When --json-schema was used, prefer structured_output
