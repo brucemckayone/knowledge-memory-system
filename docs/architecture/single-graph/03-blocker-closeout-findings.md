@@ -259,7 +259,41 @@ per-iteration MCP round-trip and synthesis need LLM invocations. `nmemo-5co.1` i
 
 ---
 
-## 9. What is still open
+## 9. Later findings — the Graph C follow-up
+
+Found after §2, while checking that the newly-populating causal layer was sound.
+
+**9.1 The new causal edges are well-formed, not just numerous. [M]** Of the edges created today:
+**100% carry non-blank `reasoning`** (mean 336 characters) and **100% carry `source_references`** (2
+each), and the reasoning is specific and grounded — e.g. *"BLIP-2 has 54x fewer trainable parameters than
+Flamingo80B, achieving this efficiency through its lightweight Query Transformer design."* So the fix
+produces traceable content, not volume. It still says **nothing** about whether the layer is useful; that
+needs the `plan.md:221` no-memory-baseline comparison, which has never been written.
+
+**9.2 `causal_events.corpus_id` was silently WRONG, not merely absent. [M]** Keep list §7.4 says
+`mintCausalEvent` omits the column. The consequence is worse than the omission: the column **default**
+took over, so **all 7,004 rows read `corpus_id='default'`** — including every event describing a fact in
+`arxiv-nlp`, `arxiv-cv` or `dal-nlp`. Migration 052 gave the table a corpus column, an index *and* an
+immutability trigger, all guarding a value no code set, and that trigger means a wrong value **cannot be
+corrected in place**. `corpusId` is now a REQUIRED parameter so the compiler forces every call site.
+The 7,004 existing rows are **not** backfilled — that needs the trigger dropped or a re-derivation from
+`facts.corpus_id` via `fact_id`, which is a data migration and a separate decision.
+
+**9.3 Correction: the dead-embedding-column cost is OVERSTATED. [M]** Keep list §7.4 says
+`event_embedding` and `pattern_embedding` are "dead columns carrying live HNSW indexes — so every causal
+insert pays write amplification for nothing". The columns are indeed dead (0 of 7,004 populated), but the
+cost claim is wrong: **pgvector's HNSW does not index NULLs**, so both indexes are **16 kB** against
+**26 MB** for the live `idx_facts_embedding`. Dropping them is not worth a schema change, and they are
+left in place.
+
+**9.4 The entity vector index has never been scanned. [M]** `pg_stat_user_indexes` reports
+`idx_entities_embedding` `idx_scan = 0` across this database's whole lifetime, against 138 for
+`idx_facts_embedding` (this session's `searchFacts` work). Entity vector search is not exercised at
+all — worth knowing before anyone concludes anything about entity-vector recall.
+
+---
+
+## 10. What is still open
 
 - **`fact_units` / `facts.source_memory_id`** — §1. Graph-anchored retrieval returns textless evidence
   until promotion records a per-fact source memory link. Write-path feature, unbuilt.
