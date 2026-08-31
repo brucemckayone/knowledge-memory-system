@@ -7,12 +7,41 @@ A dual-graph knowledge system: Graph S (temporal state graph — entities, bi-te
 **Optimising retrieval and knowledge synthesis on a SINGLE graph.** Deep refinement; learn what works
 and what does not.
 
-**Start here:** `docs/architecture/single-graph/00-consolidated-keep-list.md` — the keep/park/drop list,
-the blocker list, and the corrections of record. Detail is in `single-graph/appendices/` (7 surveys).
+**Branch:** `feat/single-graph-retrieval`, created from `feat/cross-corpus-audit`. Its real base is
+`feat/cognitive-platform-v2` at `4d3c0b8` (2026-06-30) — verified with `git merge-base`, not inherited
+from the stale claim below.
+
+**Read in this order:**
+
+1. `docs/architecture/single-graph/00-consolidated-keep-list.md` — the keep/park/drop list, the blocker
+   list, and the corrections of record. Detail in `single-graph/appendices/` (7 surveys).
+2. `single-graph/03-blocker-closeout-findings.md` — **what the blockers actually were once opened, and
+   six corrections to the keep list itself.** Read this before trusting a keep-list number.
+3. `single-graph/02-prereg-*.md` and `04-prereg-*.md` — frozen pre-registrations. Append results; do
+   not edit.
 
 **Decided, do not relitigate:** the single graph is the design; `corpus_id` is sufficient partitioning;
 the concept super-graph is NOT a retrieval mechanism (settled across every configuration and oracle);
-the iOS surface is being stripped; LongMemEval is parked.
+the iOS surface is stripped (done — its span-attribution pattern lives on in
+`platform/src/services/sourced-prose.ts`); LongMemEval is parked; the predicate fold stays OFF.
+
+**Load-bearing facts established 2026-08-31 (details in doc 03):**
+
+- The 294-document substrate lives in **`cognitive_test`**, not `cognitive`.
+- **Apache AGE is retired from the read path.** `services/graph.ts` traverses `public.facts` by
+  recursive CTE (`traverseFromEntities` is the sanctioned primitive). AGE drifted to 7,250 nodes against
+  3,513 entities *and* was missing real edges. The sync triggers remain; nothing reads them.
+- **Filtered vector search needs `hnsw.iterative_scan = strict_order`** (migration 058, asserted by
+  `startup-validation`). Without it a corpus-scoped search silently returned ZERO rows.
+- `facts.source_memory_id` is **NULL on every fact**, and `fact_units` is empty, so graph-anchored
+  retrieval returns evidence with no text. Still open.
+
+**Two traps that cost time here, beyond the doc-numbering one below:**
+
+- **`platform/src/index.ts` is invisible to ripgrep.** It contains NUL bytes used deliberately as a
+  composite-key delimiter, so grep treats the HTTP entry point as binary and skips it. Use `grep -a`.
+- **`rawQuery` (`db/raw.ts`) rewrites every result key snake_case → camelCase.** Reading `row.entity_id`
+  returns `undefined` — the query succeeds and the field is silently empty.
 
 **Two traps that have already cost real time:**
 
@@ -27,11 +56,12 @@ the iOS surface is being stripped; LongMemEval is parked.
 ## Branch & State (historical — see CURRENT DIRECTION above)
 
 - **Branch:** `feat/sparse-truth-graph` (created from `feat/cognitive-platform-v1`)
-  — **STALE.** Later work ran on `feat/cross-corpus-audit`, whose real base is
-  `feat/cognitive-platform-v2` at `4d3c0b8` (2026-06-30), *not* `feat/cognitive-platform-v1`. That
-  mis-statement caused ~75 commits of inherited work (epoch-v2, the predicate machinery, the iOS
-  milestone, cost tracking) to be attributed to the wrong branch during the 2026-08-31 survey. Verify
-  the base with `git merge-base` before attributing anything.
+  — **STALE, superseded.** See CURRENT DIRECTION above for the live branch and its verified base. The
+  old claim that work descended from `feat/cognitive-platform-v1` is WRONG: the real base is
+  `feat/cognitive-platform-v2` at `4d3c0b8` (2026-06-30). That mis-statement caused ~75 commits of
+  inherited work (epoch-v2, the predicate machinery, the iOS milestone, cost tracking) to be attributed
+  to the wrong branch during the 2026-08-31 survey. **Verify with `git merge-base` before attributing
+  anything to a branch.**
 - **Beads tool path:** `C:/Users/bruce.mckay/AppData/Local/Programs/bd/bd.exe`
 - **Run `bd prime` first** to load workflow context
 - **Run `bd ready`** to see available work items
