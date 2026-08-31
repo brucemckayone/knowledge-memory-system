@@ -89,3 +89,6 @@ platform/benchmark-results/runs/**/*.rich.json
 
 # Local run logs and DB backups (large binary dumps)
 .run-logs/
+
+# Regenerable embedding cache (96MB) — rebuild with desc-aligned-recall.ts
+docs/architecture/single-graph/prereg-artifacts/embed-cache.json
