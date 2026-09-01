@@ -92,3 +92,4 @@ platform/benchmark-results/runs/**/*.rich.json
 
 # Regenerable embedding cache (96MB) — rebuild with desc-aligned-recall.ts
 docs/architecture/single-graph/prereg-artifacts/embed-cache.json
+docs/architecture/single-graph/prereg-artifacts/arxiv-embed-cache.json

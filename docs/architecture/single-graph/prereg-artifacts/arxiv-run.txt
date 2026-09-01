@@ -1,0 +1,44 @@
+query cache: 7003 vectors; arxiv name cache: 2192
+query pairs: 387
+embedding 54 arxiv entity-name texts (Ollama)
+arxiv-nlp: 2862 active embedded facts, 1230/1230 entities with >=1 fact
+arxiv-cv: 2852 active embedded facts, 1282/1282 entities with >=1 fact
+
+integrity: dim violations 0; mean RAW fact norm 20.492 (expect !=1); self-dot violations 0
+
+n=387  held-out guard fired on 387/387 pairs  retrievability 100.0%  FACTMAX==NAME top10 0.0%
+
+| arm | strict R@10 | condensed R@10 |
+| NAME     | 0.1912 | 0.2429 |
+| FACTMAX  | 0.2222 | 0.2455 |
+| FACTNAME | 0.2636 | 0.2920 |
+
+=== PRIMARY (strict): FACTNAME R@10 - ARM-NAME R@10 ===
+  
+      pair +0.0724 CI [0.0413, 0.1034]  ABOVE 0
+      entity +0.0724 CI [0.0213, 0.1259]  ABOVE 0
+      doc +0.0724 CI [0.0410, 0.1058]  ABOVE 0
+      => ALL-THREE-ABOVE-0: YES (DEMONSTRATED)
+
+=== CO-PRIMARY (condensed): FACTNAME R@10 - ARM-NAME R@10 ===
+  
+      pair +0.0491 CI [0.0155, 0.0801]  ABOVE 0
+      entity +0.0491 CI [-0.0027, 0.1073]  SPANS 0
+      doc +0.0491 CI [0.0180, 0.0812]  ABOVE 0
+      => ALL-THREE-ABOVE-0: NO
+
+=== secondaries ===
+  FACTMAX - NAME (strict): +0.0310 CI [-0.0103, 0.0749]  SPANS 0 (pair)
+  complementarity (strict hits): NAME 74  FACTMAX 86  FACTNAME 102  (fusion>max(components)? true)
+
+=== per corpus (FACTNAME - NAME, strict R@10) ===
+  arxiv-nlp: n=181  NAME 0.105  FACTNAME 0.177  +0.0718 CI [0.0276, 0.1160]  ABOVE 0
+  arxiv-cv: n=206  NAME 0.267  FACTNAME 0.340  +0.0728 CI [0.0291, 0.1165]  ABOVE 0
+
+=== k-ladder (strict / condensed) ===
+  R@1   NAME 0.026/0.067  FACTNAME 0.070/0.106
+  R@5   NAME 0.124/0.186  FACTNAME 0.191/0.227
+  R@10  NAME 0.191/0.243  FACTNAME 0.264/0.292
+  R@20  NAME 0.284/0.326  FACTNAME 0.331/0.380
+
+artifact: C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\arxiv-fusion-results.json
