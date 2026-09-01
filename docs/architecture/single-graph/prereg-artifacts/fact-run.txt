@@ -1,0 +1,47 @@
+embed cache: 7003 vectors
+query pairs: 354 (target 354)
+dal-nlp: 2612 active embedded facts, 1133/1133 entities with >=1 fact
+dal-cv: 2565 active embedded facts, 1262/1262 entities with >=1 fact
+
+=== integrity / normalisation sanity ===
+  fact vectors: dim/finite violations 0; mean RAW norm 20.479 (expect != 1); post-normalise self-dot violations 0
+
+=== STRICT REGRESSION GATE ===
+  ARM-NAME strict R@10 = 0.20056497175141244  (target 0.20056497175141244);  n = 354 (target 354)
+  GATE PASSED.
+
+held-out fact guard: 354/354 pairs excluded >=1 d-sourced fact
+fact-arm retrievability ceiling: 100.0% of targets have >=1 eligible fact (0 unretrievable)
+arm-identity degeneracy: FACTMAX top-10 == NAME top-10 for 0.0% of pairs
+
+| arm | strict R@10 | condensed R@10 |
+|-----|-------------|----------------|
+| NAME     | 0.2006 | 0.2429 |
+| FACTMAX  | 0.1780 | 0.2090 |
+| FACTMEAN | 0.1045 | 0.1158 |
+| FACTNAME | 0.2429 | 0.2966 |
+
+=== PRIMARY (strict): FACTMAX R@10 - ARM-NAME R@10 ===
+  byPair     -0.0226 CI [-0.0678, 0.0226]  SPANS 0
+  byEntity   -0.0226 CI [-0.0756, 0.0308]  SPANS 0
+  byDocument -0.0226 CI [-0.0690, 0.0231]  SPANS 0
+
+=== secondaries ===
+  FACTMAX - NAME (condensed): -0.0339 CI [-0.0819, 0.0113]  SPANS 0
+  FACTMEAN - NAME (strict):   -0.0960 CI [-0.1356, -0.0593]  BELOW 0
+  FACTNAME(RRF) - NAME (strict): +0.0424 CI [0.0056, 0.0791]  ABOVE 0
+  FACTNAME(RRF) - NAME (condensed): +0.0537 CI [0.0198, 0.0876]  ABOVE 0
+
+=== k-ladder (strict / condensed) ===
+  R@1   NAME 0.042/0.093  FACTMAX 0.025/0.031  (strict/condensed)
+  R@5   NAME 0.153/0.189  FACTMAX 0.116/0.133  (strict/condensed)
+  R@10  NAME 0.201/0.243  FACTMAX 0.178/0.209  (strict/condensed)
+  R@20  NAME 0.282/0.316  FACTMAX 0.291/0.322  (strict/condensed)
+
+=== per corpus (FACTMAX - NAME, strict R@10) ===
+  dal-nlp: n=177  NAME 0.113  FACTMAX 0.096  -0.0169 CI [-0.0678, 0.0339]  SPANS 0
+  dal-cv: n=177  NAME 0.288  FACTMAX 0.260  -0.0282 CI [-0.1017, 0.0452]  SPANS 0
+
+degree diagnostic: target fact-count (eligible) — FACTMAX hits mean 12.7 vs misses mean 10.9
+
+artifact: C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\fact-level-results.json
