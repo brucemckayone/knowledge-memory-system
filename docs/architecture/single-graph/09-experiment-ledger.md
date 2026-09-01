@@ -124,3 +124,9 @@ adversary condition).
   `public.facts` traversal signal into the read path.** Closes queue #5 (our own graph substrate) as
   measured-negative; scopes only this spreading-activation design (learned/path-constrained/Graph-C =
   queue #6, untested). R4 fusion untouched.
+- **nmemo-u8j.3 / doc 24 (generalization) → PRE-REGISTERED ONLY (ingest ATTENDED-pending).** Frozen prereg
+  for the new-domain + sparse-graph stress test: ingest ~300 arXiv **q-bio** abstracts (corpus_id `qbio`,
+  disjoint domain) via `corpus-graph-ingest --corpus=C --corpusId=qbio`, then re-measure `FACTNAME − NAME`
+  strict R@10 (bar = all-3-bootstraps > 0 = generalizes) with a fact-degree-stratified lift curve (tests
+  R4's degree-concentration caveat). The ingest is multi-hour + shared-DB write, so it is ATTENDED-ONLY
+  and was NOT run overnight. Bead stays OPEN; next attended session runs §3→§4→§8 of doc 24.
