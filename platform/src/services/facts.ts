@@ -920,40 +920,44 @@ export async function getFactsForEntities(entityIds: string[]): Promise<Fact[]> 
     .orderBy(desc(facts.createdAt));
 }
 
+export interface FactVectorSearchOptions {
+  corpusId?: string | null;
+  limit?: number;
+  threshold?: number;
+  predicate?: string;
+}
+
 /**
- * Search facts by semantic similarity over `facts.fact_embedding`.
+ * Search facts by semantic similarity over `facts.fact_embedding` from a
+ * pre-computed query vector — the vector-taking core of {@link searchFacts}.
  *
- * The only reader of that column. Three defects fixed under nmemo-vga, all of
- * which mattered the moment the column started being populated on the epoch path:
+ * Split out (bead nmemo-u8j.1) so the fusion read path
+ * (`retrieval.ts::recallEntitiesFused`) can embed the query ONCE and drive both
+ * the entity-name and the fact signal from the same vector; that read path (via
+ * recallEntitiesByFactSimilarity) is now `fact_embedding`'s first real reader.
  *
+ * Three defects fixed under nmemo-vga, all of which mattered the moment the column
+ * started being populated on the epoch path:
  *  - **No corpus predicate.** It read every corpus, so it was a cross-graph
  *    read-path leak by construction — the same defect `recallByConcept` was
- *    dropped for. `corpusId` now defaults to `'default'`, matching the
- *    convention in entities.ts and promotion.ts. Pass `corpusId: null` to search
- *    every corpus, which is then an explicit choice at the call site.
+ *    dropped for. `corpusId` defaults to `'default'`, matching the convention in
+ *    entities.ts and promotion.ts. Pass `corpusId: null` to search every corpus,
+ *    an explicit choice at the call site.
  *  - **No bi-temporal filter.** It checked `expired_at IS NULL` but not
- *    `invalid_at`, so a fact whose validity window had closed still ranked. The
- *    sibling query in `getEntityFacts` already filtered both.
+ *    `invalid_at`, so a fact whose validity window had closed still ranked.
  *  - **No predicate filter**, which every caller of a fact index wants.
+ *
+ * The corpus/bi-temporal/predicate filters are POST-filters on the HNSW index
+ * scan, so correct results depend on `hnsw.iterative_scan = strict_order`
+ * (migration 058, asserted by startup-validation).
  */
-export async function searchFacts(
-  query: string,
-  options: {
-    corpusId?: string | null;
-    limit?: number;
-    threshold?: number;
-    predicate?: string;
-  } = {},
+export async function searchFactsByVector(
+  embedding: number[],
+  options: FactVectorSearchOptions = {},
 ): Promise<FactSearchResult[]> {
   const { limit = 10, threshold = 0.5, predicate } = options;
   const corpusId = options.corpusId === undefined ? 'default' : options.corpusId;
-
-  // READ/query path — embedForQuery returns [] on an ML failure so a search degrades to
-  // no results rather than throwing (nmemo-avd: only write paths fail loud).
-  const embedding = await embedForQuery(query);
-  if (!embedding || embedding.length === 0) {
-    return [];
-  }
+  if (!embedding || embedding.length === 0) return [];
 
   const vec = sql.raw(`'[${embedding.join(',')}]'::vector`);
   const rows = await rawQuery<Fact & { similarity: number }>(sql`
@@ -967,7 +971,7 @@ export async function searchFacts(
       ${corpusId === null ? sql`` : sql`AND f.corpus_id = ${corpusId}`}
       ${predicate === undefined ? sql`` : sql`AND f.predicate = ${predicate}`}
       AND 1 - (f.fact_embedding <=> ${vec}) > ${threshold}
-    ORDER BY f.fact_embedding <=> ${vec}
+    ORDER BY f.fact_embedding <=> ${vec}, f.id
     LIMIT ${limit}
   `);
 
@@ -975,6 +979,19 @@ export async function searchFacts(
     fact: row,
     similarity: row.similarity,
   }));
+}
+
+export async function searchFacts(
+  query: string,
+  options: FactVectorSearchOptions = {},
+): Promise<FactSearchResult[]> {
+  // READ/query path — embedForQuery returns [] on an ML failure so a search degrades to
+  // no results rather than throwing (nmemo-avd: only write paths fail loud).
+  const embedding = await embedForQuery(query);
+  if (!embedding || embedding.length === 0) {
+    return [];
+  }
+  return searchFactsByVector(embedding, options);
 }
 
 /**

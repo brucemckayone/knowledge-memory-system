@@ -57,15 +57,10 @@ export function rerank(pool: number[], scores: number[]): number[] {
   return [...pool].sort((a, b) => (scores[b]! - scores[a]!) || (a - b));
 }
 
-/** RRF over the RETRIEVED SETS (rank position within each input ranking).
- *  Indices absent from an input contribute nothing from that input. */
-export function rrfRetrievedSet(rankings: number[][], K: number, universe: number): number[] {
-  const s = new Array<number>(universe).fill(0);
-  for (const r of rankings) for (let i = 0; i < r.length; i++) s[r[i]!] = s[r[i]!]! + 1 / (K + i + 1);
-  return s;
-}
-
-/** RRF over the FULL ranking: an index missing from an input is treated as
+/** Retrieved-set RRF lives in services/fusion.ts (reciprocalRankFusion) so the
+ *  eval and the production read path share one definition; the arms import it.
+ *
+ *  RRF over the FULL ranking: an index missing from an input is treated as
  *  ranked at r.length (the tail), so every input contributes to every index. */
 export function rrfFullRanking(rankings: number[][], K: number, universe: number): number[] {
   const s = new Array<number>(universe).fill(0);

@@ -13,7 +13,11 @@
  *
  * bead nmemo-u8j.2
  */
-import { rankByScore, rerank, rrfRetrievedSet, rrfFullRanking } from './core.js';
+import { rankByScore, rerank, rrfFullRanking } from './core.js';
+import { reciprocalRankFusion } from '../../../services/fusion.js';
+
+/** Eval tie-break: ascending entity index, reproducing the frozen rankByScore order. */
+const byIndex = (a: number, b: number): number => a - b;
 
 /** Which optional base signals an arm depends on. `name` is always available. */
 export type Signal = 'desc' | 'bm25' | 'facts';
@@ -37,7 +41,7 @@ export function resolveArm(name: string): ArmDef {
     case 'FACTMAX': return { fn: (d) => d.rFactMax!, needs: ['facts'] };
     case 'FACTMEAN': return { fn: (d) => d.rFactMean!, needs: ['facts'] };
     case 'FACTNAME':
-      return { fn: (d) => rankByScore(rrfRetrievedSet([d.rName, d.rFactMax!], FACTNAME_K, d.U), 0), needs: ['facts'] };
+      return { fn: (d) => reciprocalRankFusion([d.rName, d.rFactMax!], { k: FACTNAME_K, tieBreak: byIndex }), needs: ['facts'] };
     default: break;
   }
   let m = /^B(\d+)$/.exec(name);
@@ -47,6 +51,6 @@ export function resolveArm(name: string): ArmDef {
   m = /^HFULL(\d+)$/.exec(name);
   if (m) { const K = Number(m[1]); return { fn: (d) => rankByScore(rrfFullRanking([d.rName, d.rBm25!], K, d.U)), needs: ['bm25'] }; }
   m = /^H(\d+)$/.exec(name);
-  if (m) { const K = Number(m[1]); return { fn: (d) => rankByScore(rrfRetrievedSet([d.rName, d.rBm25!], K, d.U), 0), needs: ['bm25'] }; }
+  if (m) { const K = Number(m[1]); return { fn: (d) => reciprocalRankFusion([d.rName, d.rBm25!], { k: K, tieBreak: byIndex }), needs: ['bm25'] }; }
   throw new Error(`unknown arm: ${name}`);
 }
