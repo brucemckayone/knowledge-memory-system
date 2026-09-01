@@ -27,10 +27,14 @@ arm-identity degeneracy: FACTMAX top-10 == NAME top-10 for 0.0% of pairs
   byDocument -0.0226 CI [-0.0690, 0.0231]  SPANS 0
 
 === secondaries ===
-  FACTMAX - NAME (condensed): -0.0339 CI [-0.0819, 0.0113]  SPANS 0
-  FACTMEAN - NAME (strict):   -0.0960 CI [-0.1356, -0.0593]  BELOW 0
-  FACTNAME(RRF) - NAME (strict): +0.0424 CI [0.0056, 0.0791]  ABOVE 0
-  FACTNAME(RRF) - NAME (condensed): +0.0537 CI [0.0198, 0.0876]  ABOVE 0
+  FACTMAX - NAME (condensed):  pair -0.0339 CI [-0.0819, 0.0113]  SPANS 0
+  FACTMEAN - NAME (strict):    pair -0.0960 CI [-0.1356, -0.0593]  BELOW 0
+  FACTNAME(RRF) - NAME (strict):    pair +0.0424 CI [0.0056, 0.0791]  ABOVE 0
+                                   entity +0.0424 CI [0.0000, 0.0831]  SPANS 0
+                                   doc +0.0424 CI [0.0063, 0.0776]  ABOVE 0
+  FACTNAME(RRF) - NAME (condensed): pair +0.0537 CI [0.0198, 0.0876]  ABOVE 0
+                                   entity +0.0537 CI [0.0097, 0.0972]  ABOVE 0
+                                   doc +0.0537 CI [0.0196, 0.0866]  ABOVE 0
 
 === k-ladder (strict / condensed) ===
   R@1   NAME 0.042/0.093  FACTMAX 0.025/0.031  (strict/condensed)

@@ -270,15 +270,27 @@ async function main(): Promise<void> {
 
   console.log('');
   console.log('=== secondaries ===');
+  // prereg §5 commits to cluster bootstraps by entity AND document for the
+  // pre-registered analyses, not byPair alone. Compute all three for the
+  // load-bearing secondaries (the pre-adversary run reported byPair only).
+  const tri = (a: number[], b: number[]): { byPair: any; byEntity: any; byDocument: any } => ({
+    byPair: clusteredBootstrap(a, b, pairKeys),
+    byEntity: clusteredBootstrap(a, b, entityOf),
+    byDocument: clusteredBootstrap(a, b, docOf),
+  });
   const sec: Record<string, unknown> = {};
-  sec.factmaxCond = clusteredBootstrap(hitCond('FACTMAX', 10), hitCond('NAME', 10), pairKeys);
-  console.log(`  FACTMAX - NAME (condensed): ${ciStr(sec.factmaxCond as any)}`);
+  sec.factmaxCond = tri(hitCond('FACTMAX', 10), hitCond('NAME', 10));
+  console.log(`  FACTMAX - NAME (condensed):  pair ${ciStr((sec.factmaxCond as any).byPair)}`);
   sec.factmeanStrict = clusteredBootstrap(hitStrict('FACTMEAN', 10), hitStrict('NAME', 10), pairKeys);
-  console.log(`  FACTMEAN - NAME (strict):   ${ciStr(sec.factmeanStrict as any)}`);
-  sec.factnameStrict = clusteredBootstrap(hitStrict('FACTNAME', 10), hitStrict('NAME', 10), pairKeys);
-  console.log(`  FACTNAME(RRF) - NAME (strict): ${ciStr(sec.factnameStrict as any)}`);
-  sec.factnameCond = clusteredBootstrap(hitCond('FACTNAME', 10), hitCond('NAME', 10), pairKeys);
-  console.log(`  FACTNAME(RRF) - NAME (condensed): ${ciStr(sec.factnameCond as any)}`);
+  console.log(`  FACTMEAN - NAME (strict):    pair ${ciStr(sec.factmeanStrict as any)}`);
+  sec.factnameStrict = tri(hitStrict('FACTNAME', 10), hitStrict('NAME', 10));
+  console.log(`  FACTNAME(RRF) - NAME (strict):    pair ${ciStr((sec.factnameStrict as any).byPair)}`);
+  console.log(`                                   entity ${ciStr((sec.factnameStrict as any).byEntity)}`);
+  console.log(`                                   doc ${ciStr((sec.factnameStrict as any).byDocument)}`);
+  sec.factnameCond = tri(hitCond('FACTNAME', 10), hitCond('NAME', 10));
+  console.log(`  FACTNAME(RRF) - NAME (condensed): pair ${ciStr((sec.factnameCond as any).byPair)}`);
+  console.log(`                                   entity ${ciStr((sec.factnameCond as any).byEntity)}`);
+  console.log(`                                   doc ${ciStr((sec.factnameCond as any).byDocument)}`);
   report.secondaries = sec;
 
   console.log('');
