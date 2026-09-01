@@ -97,3 +97,17 @@ adversary condition).
   so 50/200 is the floor. Adversary CONFIRMED bit-for-bit. Caveat: the dal pass is condensed-oracle-
   dependent (dal strict spans 0); arxiv passes both oracles. **The shipped implementation delivers the
   confirmed lever at production breadth — no default change.**
+- **nmemo-u8j.9 / doc 20 (substrate hygiene) → BAR 1 PASS.** Duplicate-name rate quantified per corpus
+  (8–13% dup_rate; 14–20% of entities in a shared-name group; 67–71% of query targets tie exactly on
+  name cosine). BAR 1: the confirmed R4 fusion delta (FACTNAME − NAME) is **tie-break-robust** — condensed
+  byPair ABOVE 0 under asc/desc/rand on both corpora (arxiv +0.0491/+0.0413/+0.0439), strict too; anchor
+  reproduces frozen R4 bit-for-bit. BAR 2 **refines the keep-list**: only the **strict** absolute level
+  rides the tie-break (~1.3–1.7%); the promotable **condensed** level is tie-break-invariant (≤0.28%),
+  because same-name twins are co-relevant under Tier-B and invisible to `condensedRankOf`. So "every
+  absolute R@10 rides the tie-break" is OVERCLAIMED — true for strict, false for the gated oracle.
+  **Read-path decision: NO change** — canonical_name dedup is a safe, lossy, optional presentation
+  collapse; its +0.08 apparent gain is 87% oracle-relaxation (adversary), not a retrieval improvement,
+  and the promotable metric needs no stabilization. Pre-registered decision criterion (b) "swing < half"
+  was **tautological** (a collapse is tie-break-invariant by construction) — future dedup/normalization
+  gates need an exact-id-preserving metric, not a swing test. Adversary CONFIRMED all three claims
+  (SHA1-identical re-run, desc delta re-derived 16/387 by hand).

@@ -130,3 +130,14 @@ condensed-primary choice predates this (nmemo-u8j.10), not picked post-hoc.
 ---
 
 <!-- RESULTS APPENDED BELOW THIS LINE -->
+
+## RESULT (2026-09-01) — BAR 1 PASS, see doc 20
+
+The R4 fusion delta (FACTNAME − NAME) is tie-break-robust: condensed byPair ABOVE 0 under asc/desc/rand
+on arxiv (+0.0491/+0.0413/+0.0439) and dal (+0.0537/+0.0480/+0.0508), strict too. Integrity anchor
+reproduces frozen R4 bit-for-bit. BAR 2 refined: only the **strict** absolute level rides the tie-break
+(~1.3–1.7%); the promotable **condensed** level is invariant (twins co-relevant under Tier-B). Read-path
+decision: **NO change** — dedup is a safe, lossy, optional presentation collapse whose +0.08 apparent
+gain is 87% oracle-relaxation (adversary), not a retrieval improvement; the promotable metric needs no
+stabilization. Pre-registered decision criterion (b) was tautological (disclosed). Blind adversary
+**CONFIRMED** all three claims bit-for-bit. Full numbers + caveats in `20-results-substrate-hygiene.md`.
