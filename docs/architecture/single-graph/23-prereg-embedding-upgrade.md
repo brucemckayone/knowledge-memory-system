@@ -99,3 +99,16 @@ before the bge scoring.
 ---
 
 <!-- RESULTS APPENDED BELOW THIS LINE -->
+
+## RESULT (2026-09-01) — PRIMARY PASS (condensed, DEMONSTRATED), see doc 25
+
+bge-m3 lifts the confirmed fusion: `FACTNAME_bge − FACTNAME_nomic` condensed R@10 **+0.0930, above 0 on
+all three bootstraps** (149 vs 113 hits). NAME_bge − NAME_nomic condensed +0.0724 (all 3); lever
+FACTNAME_bge − NAME_bge +0.0698 (all 3) — R4's fusion holds under a different embedder. Strict deltas are
+positive point estimates but span 0 (condensed-oracle-dependent, like candidate-breadth's dal). Integrity
+anchor bit-for-bit; frozen caches untouched; bge 1024-dim unit-norm; identical fact ids both arms. Adversary
+CONFIRMED, decomposing the lift 72% genuine target-finding / 28% relevant-set rescue (not an artifact).
+**Decision: bge worth a gated production swap** (dim 768→1024 migration + full re-embed + HNSW rebuild +
+second-substrate re-measure) — filed as a follow-up bead; NOT swapped here. Caveats: single substrate;
+strict not significant; the exact-dot eval is an upper bound (HNSW could erode). Full numbers in
+`25-results-embedding-upgrade.md`.

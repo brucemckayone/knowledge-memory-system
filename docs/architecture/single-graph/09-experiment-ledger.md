@@ -130,3 +130,16 @@ adversary condition).
   strict R@10 (bar = all-3-bootstraps > 0 = generalizes) with a fact-degree-stratified lift curve (tests
   R4's degree-concentration caveat). The ingest is multi-hour + shared-DB write, so it is ATTENDED-ONLY
   and was NOT run overnight. Bead stays OPEN; next attended session runs §3→§4→§8 of doc 24.
+- **nmemo-u8j.5 / doc 25 (embedding upgrade bge-m3 vs nomic, arxiv A/B) → PRIMARY PASS (condensed,
+  DEMONSTRATED).** bge-m3 (1024-dim) lifts the confirmed fusion on the promotable oracle:
+  `FACTNAME_bge − FACTNAME_nomic` condensed R@10 **+0.0930, above 0 on all three bootstraps** (149 vs 113
+  hits/387). Name signal lifts too (NAME_bge−NAME_nomic condensed +0.0724, all 3), and the R4 fusion lever
+  is PRESERVED under a different embedder (FACTNAME_bge−NAME_bge +0.0698, all 3 — a cross-embedder
+  robustness confirmation of R4). **Strict deltas are positive but span 0** (condensed-oracle-dependent,
+  same shape as candidate-breadth's dal). Integrity anchor bit-for-bit; frozen caches untouched; bge
+  1024-dim unit-norm; identical fact ids both arms. Adversary CONFIRMED, decomposing the +36 condensed
+  win as 72% genuine target-finding / 28% relevant-set rescue (majority real). **Decision: bge is worth a
+  GATED production swap** — filed follow-up bead nmemo-u8j.12 (dim 768→1024 pgvector migration + full-DB
+  re-embed + HNSW rebuild + second-substrate re-measure before any default flip). Caveats: single arxiv
+  substrate; strict not significant; the exact-dot eval is an UPPER BOUND (approximate HNSW could erode
+  the gap). No production swap done overnight.
