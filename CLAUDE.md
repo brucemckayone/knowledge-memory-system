@@ -43,10 +43,19 @@ from the stale claim below.
 - **Every absolute R@10 (doc 05's included) rides on the index-asc tie-break** — 14–18% duplicate
   `canonical_name`s make 250/354 targets tie exactly; index-desc voids doc 05's gate. **Deltas are
   robust; absolute levels are not.**
-- **META: the binding constraint is now the task/oracle definition, not the retriever.** Target-finding
-  is saturated at R@10 ≈ 0.20–0.23 across name/desc/pool/hybrid; separation appears only under the
-  relevance-set task. Which task matters is a product decision (see the ledger's next-step fork). Untested
-  retrieval *substrates* remain: fact-level `fact_embedding`, traversal-augmented, Graph C (queue #4–6).
+- **THE ONE CONFIRMED LEVER — build a two-signal read path (doc 16, R4).** After 3 single-substrate ties,
+  fusing **dense-over-names ⊕ dense-over-facts** (retrieved-set RRF-60) is the only thing that beats
+  name-only. Confirmed on the independent arxiv extraction: strict R@10 fusion − name = **+0.0724, above 0
+  on all 3 bootstraps** (the pre-registered DEMONSTRATED bar), both corpora, every k; adversary re-embedded
+  the names (30/30 cos 1.0) and reproduced it bit-for-bit. Genuine complementarity (name & fact top-10s
+  share 0%; fusion keeps 24 name-only + 20 fact-only + 15 emergent hits). `fact_embedding` (was read by
+  nothing) is the second signal. **Caveats:** gain is degree-concentrated (may shrink on sparse graphs);
+  independence is extraction-only (same 294 papers), so a new-domain + sparse-graph test is the honest
+  pre-ship confirmation; "robust" = byPair/byDoc (entity-cluster CI is the fragile one).
+- **META: for a SINGLE retriever the binding constraint is the task/oracle, not the retriever.**
+  Single-substrate target-finding is saturated at R@10 ≈ 0.20–0.23 (name/desc/pool/hybrid/fact-max all
+  tie); separation comes from FUSING substrates (above) or from changing the task to relevance-set. Untested
+  substrates remain: traversal-augmented, Graph C (queue #5–6).
 - **Docs 15 and 17's "BM25 beats dense" evidence does not replicate** on this task (BM25 − VEC = −0.0085,
   CI spans zero).
 

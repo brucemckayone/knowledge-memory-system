@@ -12,26 +12,28 @@ adversary condition).
 
 ---
 
-## Loop state
+## Loop state — retrieval track CONCLUDED with one confirmed lever
 
-- **Retrieval-track consecutive PRIMARY ties = 3** (R1 pool-then-re-rank, R2 hybrid@K60, R3 fact-max) ⇒
-  **the single-substrate entity-retrieval track is CONCLUDED** per the convergence rule. Name /
-  description / pool-re-rank / hybrid / fact-max all tie for target-finding at R@10 ≈ 0.20–0.23.
-- **The one lever that separates: cross-substrate FUSION** (entity-name ⊕ fact-level, RRF-60). R3
-  secondary FACTNAME − NAME = **+0.0537 condensed (robust to all 3 bootstraps)**, **+0.0424 strict
-  (byPair/byDoc above 0, entity-cluster borderline — lo +0.0000)**. Genuine complementarity (the two
-  substrates share 0% of top-10; fusion 86 hits > NAME 71 > FACT-MAX 63), leak-free, reproduced. A
-  pre-registered **secondary** whose primary tied ⇒ a **LEAD, not a demonstration**.
-- **Both stop signals now agree:** single retrievers are saturated (3 ties), and the verdict depends on
-  task (strict target-finding vs condensed relevance-set). The productive move is no longer "another
-  single retriever."
-- **Oracle status:** condensed oracle (E0) adopted, but NOT arm-neutral — it credits relevance-set
-  (lexical/hybrid/fusion) retrieval more than dense (R2 §3, R3).
-- **Decision now with the user (R4 fork):** (i) **confirm the fusion lead** with a fresh pre-registration
-  (FACTNAME as primary) on the **independent `arxiv-nlp`/`arxiv-cv` corpora** — real out-of-sample
-  evidence, since re-running on the same 354 pairs is circular; or (ii) **pin down the task** (find-the-
-  entity vs find-the-relevant-set), the product call that gates every verdict; or (iii) pivot to the
-  bug-hunt / other substrates (traversal #5, Graph C #6).
+- **Three single-substrate PRIMARY ties** (R1 pool-then-re-rank, R2 hybrid@K60, R3 fact-max) — name /
+  description / pool-re-rank / hybrid / fact-max all tie for target-finding at R@10 ≈ 0.20–0.23. The
+  single-substrate track is exhausted.
+- **The one confirmed lever: cross-substrate FUSION** (entity-name ⊕ fact-level, RRF-60). R3 secondary
+  found it (dal); **R4 CONFIRMED it as a primary on the independent arxiv extraction** — strict
+  FACTNAME − NAME = **+0.0724, above 0 on all three bootstraps** (the pre-registered DEMONSTRATED bar),
+  both corpora, every k; genuine complementarity (keeps 24 name-only + 20 fact-only + 15 emergent hits),
+  embeddings adversary-verified genuine. **Two qualifications:** the gain is degree-concentrated (may
+  shrink on sparse graphs); "robust" = byPair/byDoc everywhere, entity-cluster CI is the fragile one that
+  migrates between oracles.
+- **Build direction (the loop's positive output):** a **two-signal read path** — dense-over-names ⊕
+  dense-over-facts fused by retrieved-set RRF — not a single entity vector. `fact_embedding` earns its
+  keep as the second signal. Honest limit: independence is extraction-only (same 294 papers); a
+  new-corpus/new-domain test and a sparse-graph stress test are the next confirmations before shipping.
+- **Oracle status:** condensed oracle (E0) adopted; NOT arm-neutral (credits relevance-set retrieval
+  more than dense). Both oracles reported throughout.
+- **Retrieval track status: CONCLUDED** — 3 ties settled saturation, and the one separating lever (fusion)
+  is confirmed. Remaining untested substrates (traversal #5, Graph C #6) and the task-definition question
+  are the open avenues if the track is reopened; the immediate build follow-up is to productionise and
+  measure the two-signal path.
 - **Bug-hunt findings (BH-1, done):** signature bug class (silent NULL-embedding on write) verified
   **CLOSED**. One new confirmed dead path: `entity_type_history` dead end-to-end (table + index + the
   reclassification feature that would fill it) — filed **`nmemo-r51`** (P2). #2/#3 (`setCorpusPolicy`
@@ -50,6 +52,7 @@ adversary condition).
 | R1 | retrieval | `08` | `10` | B(P=100 DESC-pool→NAME-rerank) − ARM-NAME = **−0.0056 [−0.0169,+0.0056]**, spans 0 — **TIE**. B≈NAME (0.1949 vs 0.2006); control B′ worse (−0.0508); B beats DESC (+0.0565) | PASS — HOLDS (bit-exact repro; mechanism prose softened: indistinguishable at every P, not "unbeatable") | ✅ |
 | R2 | retrieval | `11` | `12` | H(RRF-60 dense-names + BM25-names) − ARM-NAME = **+0.0254 [−0.0056,+0.0565]**, spans 0 — **TIE at K=60**. Small-K lead real but thin (K=10 +0.0339 CI>0, McNemar p=0.043) = a LEAD not a demo. Condensed +0.1102 = different task (relevance-set), Tier-A-driven | PASS — HOLDS (bit-exact repro; 2 fixes: condensed mechanism is Tier-A not Tier-B; absolute levels ride on index-asc tie-break, delta robust) | ✅ |
 | R3 | retrieval | `13` | `14` | FACT-MAX − ARM-NAME = **−0.0226 [−0.0678,+0.0226]**, spans 0 — **TIE (3rd)**. FACT-MEAN worse (−0.096). SECONDARY **FACTNAME (name⊕fact fusion)**: condensed +0.0537 (all 3 bootstraps>0), strict +0.0424 (pair/doc>0, entity-cluster borderline). R@10 0.2429 best in study | PASS — HOLDS (bit-exact repro; guard leak-free, stricter guard strengthens; fusion genuine 86>71>63). Forced a harness fix: §5 cluster bootstraps were omitted for secondaries → strict lead downgraded to borderline | ✅ |
+| R4 | retrieval (confirm) | `15` | `16` | FACTNAME − ARM-NAME strict = **+0.0724, all 3 bootstraps ABOVE 0** on the independent arxiv extraction — **fusion DEMONSTRATED** (larger than dal, clears the entity bar R3 missed). Both corpora >0, every k. Condensed +0.0491 (pair/doc>0, entity borderline) | PASS — HOLDS (embeddings re-embedded 30/30 cos 1.0, genuine; primary bit-for-bit; guard exact bijection). Quals: gain degree-concentrated; "robust"=pair/doc, entity-CI fragile | ✅ |
 | BH-1 | bug hunt | — | (ledger + bead) | `entity_type_history` dead end-to-end; signature NULL-embedding bug verified closed; no new bool/fallback/filter bug | independent-method sweep (371 exported symbols; index.ts NUL trap defeated) | ✅ |
 
 ## What each result changes for the build
@@ -71,3 +74,9 @@ adversary condition).
   (condensed) task, borderline on target-finding (strict). Build direction if confirmed: a two-signal
   read path (entity-vector ⊕ fact-vector via RRF), not a single vector. Confirm on independent corpora
   (R4) before shipping. `fact_embedding` earns its keep as the second signal, not standalone.
+- **R4 (fusion confirmation) →** CONFIRMED on the independent arxiv extraction: strict fusion win
+  DEMONSTRATED (all 3 bootstraps, +0.0724), both corpora, every k, embeddings genuine. **Build the
+  two-signal read path** (dense-over-names ⊕ dense-over-facts, retrieved-set RRF) and measure it in
+  production. Caveats to carry: gain is degree-concentrated (dense-graph entities benefit most);
+  independence is extraction-only (same papers) so a new-domain + sparse-graph test is the honest
+  pre-ship confirmation.
