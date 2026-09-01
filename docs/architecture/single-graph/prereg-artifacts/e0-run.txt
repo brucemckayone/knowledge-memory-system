@@ -1,0 +1,44 @@
+embed cache: 7003 vectors
+query pairs: 354 (target n=354)
+Tier-B size / doc: mean 18.2   mean |relevant|/|corpus|: 2.3%
+
+=== STRICT REGRESSION GATE (must reproduce doc 05 bit-exact) ===
+  ARM-NAME strict R@10 = 0.20056497175141244   target 0.20056497175141244
+  ARM-DESC strict R@10 = 0.1384180790960452   target 0.1384180790960452
+  n = 354   target 354
+  GATE PASSED — strict rankings are byte-identical to doc 05.
+
+=== HEADLINE: Δ = ARM-DESC minus ARM-NAME, R@10, strict vs condensed(min3) ===
+  ARM-NAME  strict R@10 0.2006  condensed R@10 0.2429
+  ARM-DESC  strict R@10 0.1384  condensed R@10 0.1977
+  Δstrict    (byPair) -0.0621 CI [-0.1045, -0.0226]  BELOW 0
+  Δcondensed (byPair) -0.0452 CI [-0.0904, 0.0000]  SPANS 0
+  SHIFT = Δcond − Δstrict (byPair) +0.0169 CI [-0.0141, 0.0480]  SPANS 0
+  SHIFT (byEntity) +0.0169 CI [-0.0136, 0.0484]  SPANS 0
+  SHIFT (byDocument) +0.0169 CI [-0.0118, 0.0476]  SPANS 0
+
+=== per corpus (R@10, min3) ===
+  dal-nlp: n=177  NAME s0.113/c0.158  DESC s0.085/c0.119  Δstrict -0.0282 CI [-0.0791, 0.0169]  SPANS 0  Δcond -0.0395 CI [-0.0960, 0.0169]  SPANS 0  shift -0.0113 CI [-0.0508, 0.0226]  SPANS 0
+  dal-cv: n=177  NAME s0.288/c0.328  DESC s0.192/c0.277  Δstrict -0.0960 CI [-0.1638, -0.0282]  BELOW 0  Δcond -0.0508 CI [-0.1186, 0.0169]  SPANS 0  shift +0.0452 CI [0.0000, 0.0904]  SPANS 0
+
+=== per-k pooled (strict R@k -> condensed R@k) ===
+  R@1   NAME 0.042->0.093  DESC 0.003->0.048
+  R@5   NAME 0.153->0.189  DESC 0.082->0.150
+  R@10  NAME 0.201->0.243  DESC 0.138->0.198
+  R@20  NAME 0.282->0.316  DESC 0.226->0.319
+
+=== miss-mass: for STRICT R@10 misses, mean top-10 composition (min3) ===
+  NAME/dal-nlp strict-misses=157  top10: TierA(other) 1.6  TierB 2.7  TierC 5.7  | recovered by condensation 8/157
+  NAME/dal-cv  strict-misses=126  top10: TierA(other) 1.8  TierB 1.8  TierC 6.5  | recovered by condensation 7/126
+  DESC/dal-nlp strict-misses=162  top10: TierA(other) 2.5  TierB 2.0  TierC 5.6  | recovered by condensation 6/162
+  DESC/dal-cv  strict-misses=143  top10: TierA(other) 3.0  TierB 1.5  TierC 5.5  | recovered by condensation 15/143
+
+=== Tier-B sensitivity: SHIFT (byPair) at each config ===
+  min3   (meanTierB/doc 18.2)  NAMEcond 0.243  DESCcond 0.198  shift +0.0169 CI [-0.0141, 0.0480]  SPANS 0
+  min5   (meanTierB/doc 17.3)  NAMEcond 0.243  DESCcond 0.198  shift +0.0169 CI [-0.0141, 0.0480]  SPANS 0
+  min8   (meanTierB/doc 13.1)  NAMEcond 0.243  DESCcond 0.198  shift +0.0169 CI [-0.0141, 0.0480]  SPANS 0
+  multi  (meanTierB/doc 11.3)  NAMEcond 0.240  DESCcond 0.195  shift +0.0169 CI [-0.0113, 0.0452]  SPANS 0
+
+target-verbatim rate: 82.2%
+
+artifact: C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\e0-oracle-results.json
