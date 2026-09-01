@@ -1,46 +1,58 @@
-# HANDOVER — 2026-09-01 · branch feat/single-graph-retrieval · HEAD a73f5e9
+# HANDOVER — 2026-09-01 · branch feat/single-graph-retrieval · HEAD e8764f2
 
 ## Source of truth (read these, in order)
-- **Ledger:** `docs/architecture/single-graph/09-experiment-ledger.md` — loop state + one row per experiment (E0, R1–R4, BH-1).
-- **Epic:** `nmemo-u8j` — `bd show nmemo-u8j`, `bd ready`. 10 children (.1–.10) with the measure-first gate in the epic notes.
-- **Direction:** `CLAUDE.md` "CURRENT DIRECTION" (updated this session with the confirmed fusion result).
-- **Results docs:** `docs/architecture/single-graph/` 07 (E0 oracle), 10 (pool-re-rank), 12 (hybrid), 14 (fact-level), 16 (fusion confirmed). Frozen preregs: 06/08/11/13/15.
-- **Memory:** `memory/project_retrieval_loop.md` (this session's durable findings), `memory/nmemo_silent_data_traps.md`.
+- **Ledger:** `docs/architecture/single-graph/09-experiment-ledger.md` — loop state + the new
+  "Epic nmemo-u8j — build + prove (post-loop)" section (the `.10` decision + `.1`/`.11` outcomes).
+- **Epic:** `nmemo-u8j` — `bd show nmemo-u8j`, `bd ready`. Children `.1`–`.11`.
+- **Direction:** `CLAUDE.md` "CURRENT DIRECTION".
+- **Prereg/results pattern to copy:** docs 17 (prereg) + 18 (results) — the model for every experiment.
+- **Harness:** `platform/src/test/tools/retrieval-eval/` (engine) + `candidate-breadth.ts` (a config that
+  reuses it). `services/fusion.ts` = the shipped RRF the eval also measures.
+- **Memory:** `memory/project_retrieval_loop.md`, `memory/feedback_verify_empirical_gates.md`,
+  `memory/reference_nmemo_silent_data_traps.md`.
 
 ## What changed this session
-- Ran a full pre-register→run→blind-adversary→bank loop. All results banked post-adversary.
-- **E0** (`07`): the oracle is not the binding constraint (shift +0.0169, spans 0). Added the condensed oracle; both oracles reported downstream.
-- **R1 pool-then-re-rank** (`10`): TIE. **R2 shippable hybrid** (`12`): TIE at K=60. **R3 fact-max** (`14`): TIE — 3rd consecutive primary tie.
-- **R4** (`16`, commits `0bb3e0e`/`b3c569e`): **entity+fact FUSION CONFIRMED** on the independent arxiv extraction — strict R@10 +0.0724, above 0 on all three bootstraps; adversary re-embedded and reproduced bit-for-bit.
-- **BH-1** bug hunt: signature NULL-embedding bug verified CLOSED; filed `nmemo-r51` (`entity_type_history` dead end-to-end).
-- Filed epic **`nmemo-u8j`** (+10 children, dependency-wired) for the improvements + research-backed levers.
-- Added `/handover` + `/pickup` skills (`590f5ac`); dogfooded `/handover` → this file (`a73f5e9`).
+- `0ddd212` `.2` DONE — folded 5 one-off harnesses into one reusable eval engine (bit-for-bit reproduces docs 07/10/12/14/16).
+- `1679c7f` `.1` DONE — shipped `recallEntitiesFused` = RRF-60(dense-names, dense-facts); `services/fusion.ts` shared with the eval.
+- `.10` DONE (closed, no commit) — DECISION: task = **find-the-relevant-set**, **condensed** oracle promotes (recorded in the ledger + bead).
+- `9d05990` + `e8764f2` `.11` DONE — candidate-breadth PASS: shipped default (candidateLimit=50, factLimit=200) preserves the R4 lever, adversary-CONFIRMED bit-for-bit. Caveat banked: dal pass is condensed-oracle-dependent.
+- Lessons appended to `docs/architecture/truth-graph/33-implementation-lessons.md` (2026-09-01).
 
 ## Loop / epic state (verbatim from the ledger)
-- Retrieval track **CONCLUDED**: 3 single-substrate primary ties settled saturation (R@10 ≈ 0.20–0.23); the one confirmed lever is cross-substrate **fusion** (dense-names ⊕ dense-facts, RRF).
-- Epic `nmemo-u8j` ready beads: **.1** (build fusion path), **.2** (eval harness — blocks .3–.7), **.10** (pin-the-task decision), .8, .9. Blocked behind .2: .3 .4 .5 .6 .7. `.3`↔`.4`,`.3`↔`.5` linked.
+- Retrieval loop CONCLUDED at R4; the one confirmed lever (entity+fact fusion) is now BUILT (`.1`) and
+  PROVEN to survive production top-N candidate breadth (`.11`).
+- Epic `nmemo-u8j`: closed `.1 .2 .10 .11`. Open/ready: `.3 .4 .5 .6 .7 .8 .9` (all unblocked — `.2` closed).
 
 ## IN-FLIGHT — not yet verified/banked
-- **None outstanding.** All 4 adversary reviews (E0/R1+R2 grouped, R3, R4) and the BH-1 sweep completed and are banked; no background agent is mid-flight (a fresh session need not wait for or hunt any subagent result).
-- **Uncommitted / untracked (NOT from this session — ignore):** `.claude/scheduled_tasks.lock` (M, env), `viz-arxiv-nlp.png` (untracked). Present at session start; unrelated.
-- **Regenerable, gitignored (needed to re-run harnesses without re-embedding):** `docs/architecture/single-graph/prereg-artifacts/embed-cache.json` (114MB), `arxiv-embed-cache.json` (36MB). If absent, the harnesses re-embed via Ollama (minutes).
-- **Open user-decisions:** none pending. (Epic scope was answered "file all 9 + measure-first gate"; skills request is done.)
-- **Stale in-progress beads (NOT this session):** `bd list --status in_progress` shows `nmemo-eue`, `nmemo-uhp.6`, `nmemo-rcy`, `nmemo-uhp.1`, `nmemo-uhp.17` — all from earlier phases (LongMemEval, cross-corpus E1, doc-32). None belong to the `nmemo-u8j` epic or this session; do not treat them as active work. Close/park at your discretion.
+- **None mid-flight.** The `.11` blind adversary completed and banked; no background agent is running.
+- **Overnight QUEUE (decided this session, not yet started):** run in order, each full-cycle
+  (pre-reg commit-before-compute → run on the harness → blind adversary subagent → bank ONLY if it clears
+  → halt-and-report on any surprise), score on **condensed** (promotable), report BOTH oracles:
+  1. **`.9`** substrate hygiene (duplicate `canonical_name`s) — pure DB analysis, no infra.
+  2. **`.6`** traversal-augmented retrieval (vector recall → traverse `public.facts` → re-score) — pure harness.
+  3. **`.5`** embedding upgrade — pull **bge-m3** via Ollama, re-embed one corpus, re-measure NAME + fusion vs nomic-embed-text.
+  4. **`.3`** generalization — **PRE-REGISTER ONLY** (frozen prereg + a staged one-command ingest); **do NOT ingest** (multi-hour, shared-DB risk — attended only).
+- **DEFERRED to attended (NOT overnight):** `.4` cross-encoder reranker (serving not Ollama-native),
+  `.7` Graph C baseline (needs a substrate check), `.8` community summaries, and the `.3` ingest itself.
+- **Untracked, does not matter:** `prereg-artifacts/candidate-breadth-results.json` (regenerable; banked via doc 18). Pre-existing/unrelated: `.claude/scheduled_tasks.lock` (M), `viz-arxiv-nlp.png` (??).
+- **Open user-decisions:** none — the 3 overnight-scope questions are answered (defer .3 ingest; .5 embedding only; auto-bank after adversary).
 
 ## Next action
-- **Start the epic.** Natural first pair: `nmemo-u8j.2` (reusable retrieval-eval harness — the instrument that makes the measure-first gate enforceable) → `nmemo-u8j.1` (ship the proven fusion read path). `nmemo-u8j.10` (pin-the-task decision) is a cheap parallel unblock and gates how .3–.8 score.
-- Claim with `bd update nmemo-u8j.2 --claim` (or `.1`), then follow `epic-cycle-implementation` if driving bead-by-bead.
-- **Alternatives:** `.3` new-domain/sparse confirmation (needs .2 first); or reopen the loop on an untested substrate (.6 traversal, .7 Graph C).
+- **Launch the overnight queue** via the goal prompt (see the session's final message / clipboard).
+  Start with `/pickup` to verify state, then drive `.9 → .6 → .5 → .3(prereg-only)`.
+- Claim: `bd update nmemo-u8j.9 --claim`. Copy doc 17/18 as the prereg/results template.
+- Alternative if redirecting: do `.5` first (longest, model download) so it runs while you sleep.
 
 ## Active traps (right now)
-- **Infra UP:** postgres :5433 (`nmemo-postgres-1`) + qdrant :6335 (docker), ML :8000 (provider=claude), Ollama :11434 (nomic-embed-text). Substrate in `cognitive_test`: dal-nlp 1133 / dal-cv 1262 / arxiv-nlp 1230 / arxiv-cv 1282 entities.
-- Standing repo traps still live: **tsc baseline = 69 errors** (compare, don't "fix"; run `npx tsc` from `platform/`); `platform/src/index.ts` NUL bytes → `grep -a`; `rawQuery` rewrites snake_case→camelCase; **absolute R@10 rides on the index-asc tie-break** (dedup off, ~70% duplicate-name targets) → measure DELTAS; never run an integration suite against `cognitive_test` during an ingest (unscoped DELETEs cost data once).
-- Literature levers (.4 reranker, .5 embedding, .8 community) are gated: measure-first on a well-populated graph, blind adversary, before any implementation (epic notes).
+- **Infra UP:** postgres :5433 (`nmemo-postgres-1`, healthy) + qdrant :6335 (docker); ML :8000 (provider=claude); Ollama :11434 (only `nomic-embed-text` present — **`.5` must `ollama pull bge-m3` first**).
+- Substrate in `cognitive_test`: dal-nlp 1133 / dal-cv 1262 / arxiv-nlp 1230 / arxiv-cv 1282 entities.
+- Standing repo traps: **tsc baseline = 69** (`cd platform && npx tsc --noEmit`; compare, don't "fix" — and use `--noEmit` or tsc litters `.js`/`.d.ts` under `scripts/`); `platform/src/index.ts` NUL bytes → `grep -a`; `rawQuery` rewrites snake_case→camelCase; **measure DELTAS not absolute R@10** (tie-break sensitive); **NEVER DELETE / unscoped-write `cognitive_test`** (holds the load-bearing substrate — corpus-scoped reads only; this is why `.3` ingest is attended-only).
+- Discipline (do not relitigate): task = find-the-relevant-set, **condensed promotes** (`.10`); every result reports both oracles + all 3 bootstraps (pair/entity/doc, seed 20260831); blind adversary before any bank.
 
 ## Verification checklist for /pickup
-- [ ] branch == feat/single-graph-retrieval, HEAD == a73f5e9 (else commits landed since — read them)
-- [ ] infra up (postgres/qdrant/ml/ollama) as recorded
-- [ ] substrate counts match (dal/arxiv entity counts above)
-- [ ] `bd ready` still shows .1/.2/.10 open and unclaimed; nmemo-u8j not restructured
-- [ ] embed caches present (else expect a re-embed on first harness run)
-- [ ] tsc baseline still 69 before any code work
+- [ ] branch == feat/single-graph-retrieval, HEAD == e8764f2 (else commits landed — reconcile)
+- [ ] infra up (postgres/qdrant/ml/ollama); `bge-m3` pulled before `.5`
+- [ ] substrate counts match (dal/arxiv above)
+- [ ] `bd ready` shows `.9 .6 .5 .3` open; `.1 .2 .10 .11` closed; `nmemo-u8j` not restructured
+- [ ] tsc baseline still 69 (`npx tsc --noEmit` from `platform/`) before any code work
+- [ ] no background agent assumed — re-launch any experiment's blind adversary fresh
