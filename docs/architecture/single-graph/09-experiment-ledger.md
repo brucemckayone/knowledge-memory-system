@@ -111,3 +111,16 @@ adversary condition).
   was **tautological** (a collapse is tie-break-invariant by construction) — future dedup/normalization
   gates need an exact-id-preserving metric, not a swing test. Adversary CONFIRMED all three claims
   (SHA1-identical re-run, desc delta re-derived 16/387 by hand).
+- **nmemo-u8j.6 / doc 22 (traversal-augmented) → NEGATIVE.** Vector recall → traverse `public.facts`
+  (spreading activation from top-Ks name-cosine seeds, decay 0.5, ≤H hops = the in-process
+  `traverseFromEntities`) → fuse RRF-60(NAME, FACT, TRAV) does NOT beat the R4 fusion RRF-60(NAME, FACT).
+  PRIMARY FACTNAMETRAV(25,1) − FACTNAME condensed byPair: arxiv −0.0078 (spans 0), dal −0.0339 (BELOW 0,
+  hurts); no grid cell clears. **Root cause = redundancy + zero-sum displacement:** the seeds ARE the
+  name-head (traversal redundant with NAME already in the fusion), and it displaces more real fusion hits
+  than it adds (arxiv 10 vs 7 with 0/7 non-seed; dal 18 vs 6). Not a decay/wiring artifact — adversary's
+  decay sweep {0.5,0.9,1.0} tops out at a TIE (net 0 dal / −1 arxiv), the RRF rank budget is zero-sum.
+  Not sparsity (avg degree 3.42; 60/70 targets reached via genuine non-seed paths). Held-out guard
+  load-bearing. Integrity anchor bit-for-bit; adversary **CONFIRMED-NEGATIVE**. **Decision: do NOT build a
+  `public.facts` traversal signal into the read path.** Closes queue #5 (our own graph substrate) as
+  measured-negative; scopes only this spreading-activation design (learned/path-constrained/Graph-C =
+  queue #6, untested). R4 fusion untouched.

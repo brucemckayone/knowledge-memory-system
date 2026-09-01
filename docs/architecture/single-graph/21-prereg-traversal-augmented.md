@@ -116,3 +116,15 @@ decay were fixed a priori, not tuned to the outcome.
 ---
 
 <!-- RESULTS APPENDED BELOW THIS LINE -->
+
+## RESULT (2026-09-01) — NEGATIVE, see doc 22
+
+Traversal adds no recall over the confirmed name⊕fact fusion. PRIMARY FACTNAMETRAV(25,1) − FACTNAME
+condensed byPair: arxiv −0.0078 [−0.0284, 0.0129] SPANS 0; dal −0.0339 [−0.0621, −0.0085] BELOW 0 (hurts).
+No grid config clears. Mechanism: traversal seeds ARE the name-head (redundant), and it displaces more
+real fusion hits than it adds (arxiv 10 vs 7, 0/7 non-seed; dal 18 vs 6). Adversary decay sweep {0.5,0.9,
+1.0} shows the ceiling is a TIE — the RRF rank budget is zero-sum, so no wiring crosses 0; the negative is
+NOT a decay/suppression artifact. Held-out guard load-bearing (~1/4 targets reachable only via a query-doc
+edge). SECONDARY (NAMETRAV−NAME) is a definitional no-op at Ks≥25. Integrity anchor bit-for-bit. Blind
+adversary **CONFIRMED-NEGATIVE**. Decision: **do NOT build a public.facts traversal signal**; R4 fusion
+stands. Full numbers + caveats in `22-results-traversal-augmented.md`.
