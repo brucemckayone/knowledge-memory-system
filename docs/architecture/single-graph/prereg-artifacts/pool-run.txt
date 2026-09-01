@@ -1,0 +1,47 @@
+embed cache: 7003 vectors
+query pairs: 354 (target 354)
+
+=== STRICT REGRESSION GATE ===
+  ARM-NAME strict R@10 = 0.20056497175141244  (target 0.20056497175141244)
+  ARM-DESC strict R@10 = 0.1384180790960452  (target 0.1384180790960452)
+  n = 354  (target 354)
+  GATE PASSED.
+
+arm-identity degeneracy: B(P=100) top-10 == NAME top-10 for 68.1% of pairs
+
+=== ceilings: ARM-DESC R@P (null = re-rank cannot recover what the pool missed) ===
+  DESC R@50 = 0.4040
+  DESC R@100 = 0.5254
+  DESC R@200 = 0.7119
+
+| arm | strict R@10 | condensed R@10 |
+|-----|-------------|----------------|
+| NAME   | 0.2006 | 0.2429 |
+| DESC   | 0.1384 | 0.1977 |
+| B50    | 0.1949 | 0.2316 |
+| B100   | 0.1949 | 0.2345 |
+| B200   | 0.1949 | 0.2316 |
+| Bp50   | 0.1525 | 0.2147 |
+| Bp100  | 0.1497 | 0.2232 |
+| Bp200  | 0.1497 | 0.2147 |
+
+=== PRIMARY (strict): B(P=100) R@10 - ARM-NAME R@10 ===
+  byPair     -0.0056 CI [-0.0169, 0.0056]  SPANS 0
+  byEntity   -0.0056 CI [-0.0208, 0.0059]  SPANS 0
+  byDocument -0.0056 CI [-0.0172, 0.0055]  SPANS 0
+
+=== secondary (condensed): B(P=100) R@10 - ARM-NAME R@10 ===
+  byPair     -0.0085 CI [-0.0254, 0.0085]  SPANS 0
+
+=== secondaries: B - ARM-DESC, control B' - NAME, pool-size sensitivity ===
+  B(100) - DESC (strict): +0.0565 CI [0.0169, 0.0960]  ABOVE 0
+  B'(100) control - NAME (strict): -0.0508 CI [-0.0876, -0.0141]  BELOW 0
+  B(P=50 ) - NAME  strict -0.0056 CI [-0.0282, 0.0169]  SPANS 0   condensed -0.0113 CI [-0.0395, 0.0169]  SPANS 0
+  B(P=100) - NAME  strict -0.0056 CI [-0.0169, 0.0056]  SPANS 0   condensed -0.0085 CI [-0.0254, 0.0085]  SPANS 0
+  B(P=200) - NAME  strict -0.0056 CI [-0.0141, 0.0000]  SPANS 0   condensed -0.0113 CI [-0.0226, -0.0028]  BELOW 0
+
+=== per corpus (B P=100 - NAME, strict R@10) ===
+  dal-nlp: n=177  NAME 0.113  B 0.102  -0.0113 CI [-0.0282, 0.0000]  SPANS 0
+  dal-cv: n=177  NAME 0.288  B 0.288  +0.0000 CI [-0.0169, 0.0169]  SPANS 0
+
+artifact: C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\pool-rerank-results.json
