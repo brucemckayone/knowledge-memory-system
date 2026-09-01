@@ -80,3 +80,20 @@ adversary condition).
   production. Caveats to carry: gain is degree-concentrated (dense-graph entities benefit most);
   independence is extraction-only (same papers) so a new-domain + sparse-graph test is the honest
   pre-ship confirmation.
+
+## Epic nmemo-u8j — build + prove (post-loop)
+
+- **DECISION nmemo-u8j.10 (2026-09-01) →** primary retrieval task = **find-the-relevant-set**; the
+  **condensed** oracle is the promotable one (strict reported alongside; deltas robust, absolute levels
+  ride the tie-break). The condensed oracle is not arm-neutral (doc 12 §3), so every lever result reports
+  BOTH oracles. Experiment children .3–.8 are scored + promoted on condensed, both-oracle reported,
+  blind-adversary gated.
+- **BUILT nmemo-u8j.1 →** shipped the two-signal fusion read path `recallEntitiesFused` = RRF-60(
+  dense-over-names, dense-over-facts-max), corpus-scoped; the fusion primitive `reciprocalRankFusion`
+  (services/fusion.ts) is shared with the eval so the harness measures shipped code.
+- **nmemo-u8j.11 / doc 18 (candidate-breadth) → PASS.** The shipped default (candidateLimit=50,
+  factLimit=200) HNSW top-N candidate lists PRESERVE the R4 lever: condensed R@10 fusion − name > 0 on
+  both corpora (arxiv +0.0491, dal +0.0395), indistinguishable from full-ranking fusion; (25,100) fails,
+  so 50/200 is the floor. Adversary CONFIRMED bit-for-bit. Caveat: the dal pass is condensed-oracle-
+  dependent (dal strict spans 0); arxiv passes both oracles. **The shipped implementation delivers the
+  confirmed lever at production breadth — no default change.**

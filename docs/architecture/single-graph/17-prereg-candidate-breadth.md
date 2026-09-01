@@ -90,3 +90,12 @@ the top-Kf facts (not all facts) — the whole point of the experiment.
 ---
 
 <!-- RESULTS APPENDED BELOW THIS LINE -->
+
+## RESULT (2026-09-01) — PASS, see doc 18
+
+Shipped default (50,200) clears the primary condensed bar on BOTH substrates (arxiv +0.0491
+[0.0181,0.0801]; dal +0.0395 [0.0085,0.0706], both ABOVE 0); (25,100) fails on both, so (50,200) is the
+floor. Integrity anchor reproduces frozen FACTNAME bit-for-bit; 0.0% degeneracy. Blind adversary
+CONFIRMED bit-for-bit. Two banked caveats: dal PASS is condensed-oracle-dependent (dal strict spans 0);
+"indistinguishable from full" is power-limited on dal, clean on arxiv. Decision: **no default change**.
+Full numbers + caveats in `18-results-candidate-breadth.md`.
