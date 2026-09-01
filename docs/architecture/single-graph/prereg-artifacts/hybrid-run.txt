@@ -1,0 +1,45 @@
+embed cache: 7003 vectors
+query pairs: 354 (target 354)
+
+=== STRICT REGRESSION GATE ===
+  ARM-NAME strict R@10 = 0.20056497175141244  (target 0.20056497175141244)
+  BM25n    strict R@10 = 0.18926553672316385  (target 0.18926553672316385)
+  n = 354  (target 354)
+  GATE PASSED.
+
+arm-identity degeneracy: H(K=60) top-10 == NAME top-10 for 1.1% of pairs
+component top-10 Jaccard (dense-names vs BM25-names): 0.129
+
+| arm | strict R@10 | condensed R@10 |
+|-----|-------------|----------------|
+| NAME     | 0.2006 | 0.2429 |
+| BM25n    | 0.1893 | 0.3644 |
+| H10      | 0.2345 | 0.3729 |
+| H30      | 0.2345 | 0.3446 |
+| H60      | 0.2260 | 0.3531 |
+| H100     | 0.2203 | 0.3446 |
+| HFULL60  | 0.2260 | 0.3531 |
+
+=== PRIMARY (strict): H(K=60) R@10 - ARM-NAME R@10 ===
+  byPair     +0.0254 CI [-0.0056, 0.0565]  SPANS 0
+  byEntity   +0.0254 CI [-0.0085, 0.0600]  SPANS 0
+  byDocument +0.0254 CI [-0.0053, 0.0557]  SPANS 0
+
+=== secondary (condensed): H(K=60) R@10 - ARM-NAME R@10 ===
+  byPair     +0.1102 CI [0.0734, 0.1469]  ABOVE 0
+
+=== secondaries ===
+  H(60) - BM25n (strict): +0.0367 CI [-0.0141, 0.0876]  SPANS 0
+  K-robustness (H(K) - NAME, strict):
+    K=10  H R@10 0.2345  +0.0339 CI [0.0056, 0.0650]  ABOVE 0
+    K=30  H R@10 0.2345  +0.0339 CI [0.0056, 0.0621]  ABOVE 0
+    K=60  H R@10 0.2260  +0.0254 CI [-0.0056, 0.0565]  SPANS 0
+    K=100 H R@10 0.2203  +0.0198 CI [-0.0113, 0.0537]  SPANS 0
+  full-ranking RRF(60) - NAME (strict): H R@10 0.2260  +0.0254 CI [-0.0056, 0.0565]  SPANS 0
+  (retrieved-set H60 R@10 0.2260 vs full-ranking 0.2260)
+
+=== per corpus (H K=60 - NAME, strict R@10) ===
+  dal-nlp: n=177  NAME 0.113  H 0.136  +0.0226 CI [-0.0169, 0.0621]  SPANS 0
+  dal-cv: n=177  NAME 0.288  H 0.316  +0.0282 CI [-0.0169, 0.0734]  SPANS 0
+
+artifact: C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\hybrid-names-results.json
