@@ -13,25 +13,40 @@ from the stale claim below.
 
 **Read in this order:**
 
-1. `docs/architecture/single-graph/00-consolidated-keep-list.md` — the keep/park/drop list, the blocker
+1. `single-graph/09-experiment-ledger.md` — **the live loop record**: one row per experiment, the
+   convergence-rule state, and the next-step fork. Start here; it points to every result doc.
+2. `docs/architecture/single-graph/00-consolidated-keep-list.md` — the keep/park/drop list, the blocker
    list, and the corrections of record. Detail in `single-graph/appendices/` (7 surveys).
-2. `single-graph/03-blocker-closeout-findings.md` — **what the blockers actually were once opened, and
+3. `single-graph/03-blocker-closeout-findings.md` — **what the blockers actually were once opened, and
    six corrections to the keep list itself.** Read this before trusting a keep-list number.
-3. `single-graph/05-results-description-aligned-and-hybrid.md` — **the retrieval result**, and the
-   record of two withdrawn mechanism claims. Read §7 (what changed between runs) and §9 (process notes)
-   before citing any number from it.
-4. `single-graph/02-prereg-*.md` and `04-prereg-*.md` — frozen pre-registrations. Append results; do
-   not edit.
+4. `single-graph/05-results-description-aligned-and-hybrid.md` — the first retrieval result; then `07`
+   (E0 oracle), `10` (pool-then-re-rank), `12` (shippable hybrid). Read each result's §-on-what-changed
+   and the adversary section before citing any number.
+5. `single-graph/{02,04,06,08,11}-prereg-*.md` — frozen pre-registrations. Append results; do not edit.
 
-**Retrieval findings that change what to build (details in doc 05):**
+**Retrieval findings that change what to build (2026-09-01 loop; details in the ledger + docs 07/10/12):**
 
-- **Do NOT put descriptions inside the entity vector for a small-k read path.** Measured on the complete
-  294-document substrate, n=354: bare-name R@10 **0.201** vs name+description **0.138**, delta −0.0621,
-  CI [−0.1045, −0.0226]. Harmful through ~R@20; the composite WINS at R@200 (+0.0791, CI excludes zero)
-  and has better mean rank. It is a top-k precision effect, not lost retrievability.
-- **`nmemo-uhp.18` (hybrid BM25 + RRF) is NOT settled.** The pre-registered configuration ties, but the
-  configuration a hybrid would actually ship — dense-over-names + BM25-over-names — scores the best R@10
-  in the study (0.2260) with a CI lower bound of −0.0056. It needs its own pre-registered run.
+- **Do NOT put descriptions inside the entity vector for a small-k read path.** n=354: bare-name R@10
+  **0.201** vs name+description **0.138** (doc 05). E0 (doc 07) softens this to a **borderline** harm
+  under the completed "condensed" oracle (Δ −0.0452, CI upper bound on 0.0), but the direction (name ≥
+  name+desc at small k) holds under both oracles.
+- **E0 (doc 07): the oracle is NOT the binding constraint.** Completing it with a verbatim-name tier +
+  condensed rank moves the arm gap by shift +0.0169 (CI spans 0); most strict misses are genuine, not
+  unlabelled. Downstream results report **both** oracles. The condensed oracle is **not arm-neutral** —
+  it credits relevance-set (lexical/hybrid) retrieval far more than dense (doc 12 §3).
+- **Pool-then-re-rank is a TIE (doc 10).** DESC-pool → NAME-rerank ≈ ARM-NAME; the head/tail asymmetry is
+  not exploitable because the only re-ranker that improves the head *is* the head.
+- **`nmemo-uhp.18` shippable hybrid is a TIE at the standard config (doc 12).** RRF-60(dense-names,
+  BM25-names) − ARM-NAME = +0.0254, CI spans 0. It clears at small K (K=10/30, thin, McNemar p=0.043) —
+  a **lead, not a demonstration**; promote only via a fresh pre-registration, not a re-label. Its large
+  condensed win (+0.11) is relevance-set retrieval, a **different task**.
+- **Every absolute R@10 (doc 05's included) rides on the index-asc tie-break** — 14–18% duplicate
+  `canonical_name`s make 250/354 targets tie exactly; index-desc voids doc 05's gate. **Deltas are
+  robust; absolute levels are not.**
+- **META: the binding constraint is now the task/oracle definition, not the retriever.** Target-finding
+  is saturated at R@10 ≈ 0.20–0.23 across name/desc/pool/hybrid; separation appears only under the
+  relevance-set task. Which task matters is a product decision (see the ledger's next-step fork). Untested
+  retrieval *substrates* remain: fact-level `fact_embedding`, traversal-augmented, Graph C (queue #4–6).
 - **Docs 15 and 17's "BM25 beats dense" evidence does not replicate** on this task (BM25 − VEC = −0.0085,
   CI spans zero).
 
