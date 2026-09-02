@@ -192,3 +192,21 @@ adversary condition).
   register a lexical-baseline + not-in-query control arm. Wiring anchor bit-for-bit; froze first; ~18–22s/query
   CPU. Nearly banked as "first lever since R4" — the blind adversary caught the launder (see
   [[verify-empirical-gates]]).
+- **nmemo-u8j.8 / doc 29 (community-structure retrieval, DETERMINISTIC no-Claude) → real but SCOPED lever:
+  relevant-set only, strict TIE. Adversary-cleared of the .4 artifact. Deterministic FLOOR PASSED; LLM-summary
+  follow-up gated. Bead OPEN.** Louvain communities (seed 20260831, doc 28: arxiv modularity 0.91), centroid =
+  mean member NAME vector; arms NAME/FACTNAME/COMM/COMMFUSE=RRF-60(FACTNAME,COMM). **arxiv (n=387): strict
+  COMMFUSE−FACTNAME = +0.0026 SPANS 0 (no specific-target gain); condensed = +0.0439 (+17/387) ABOVE 0 all 3
+  (thin, byDoc lo 0.0027) → community structure helps RELEVANT-SET/thematic retrieval.** Adversary attacked it
+  as the .4 name-in-query artifact and it SURVIVED the decisive singleton control (RRF-60(FACTNAME,NAME) gives
+  condensed −0.0181 spans 0; COMMFUSE−singleton = +0.0620 all-3; floated relevant = Tier-A 67 vs Tier-B 56, not
+  name-dominated; singletons only 2.5%) → GENUINE multi-member community structure. **CAVEATS (adopted):**
+  (i) condensed-only, not target-finding (strict tie); (ii) **un-held-out-edge LEAK** — the Louvain graph
+  includes each query paper's own facts (unlike the held-out fact signal), so part of the gain is the community
+  having seen the query paper (dilution-limited on arxiv — COMM strict ≈ NAME strict; the whole story on qbio);
+  (iii) high churn. **qbio +0.2021 dismissed** as a fragmented-graph artifact (5.6-entity communities ≈ query
+  paper). **Decision: clears the deterministic FLOOR for the condensed co-primary ⇒ LLM community summaries
+  worth a GATED follow-up — gate MUST use a HELD-OUT community assignment (exclude query-doc edges) + a
+  strict/independent oracle, NOT another condensed run (else the .4 pattern re-enters).** Frozen assignment
+  `communities-*.json` + `export_communities.py` committed; wiring anchor bit-for-bit; froze first (6b8949e).
+  (tool `community-fusion.ts`)

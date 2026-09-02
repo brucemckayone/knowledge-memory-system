@@ -78,3 +78,72 @@ oracle/tie-break artifact; is a null underpowered.
 ---
 
 <!-- RESULTS APPENDED BELOW THIS LINE -->
+
+## RESULTS (2026-09-02) — community structure is a REAL but SCOPED deterministic lever (relevant-set only), adversary-cleared of the .4 artifact
+
+**Outcome:** PRIMARY (strict) is a TIE; CO-PRIMARY (condensed / relevant-set) DEMONSTRATED on arxiv. Per the
+§5 decision rule (strict fails, condensed clears all three) → community routing helps **relevant-set /
+thematic** retrieval, not specific-target. The blind adversary attacked this as the nmemo-u8j.4 name-in-query
+artifact and it **survived the decisive singleton control** — it is genuine multi-member community structure.
+Banked with the caveats below.
+
+### Numbers (arxiv n=387, reproduced bit-for-bit; wiring anchor FACTNAME strict 0.2636 = R4)
+| arm | strict R@10 | condensed R@10 |
+|---|---|---|
+| NAME | 0.1912 | 0.2429 |
+| FACTNAME (the head) | 0.2636 | 0.2920 |
+| COMM (community routing) | 0.1938 | 0.2248 |
+| COMMFUSE = RRF-60(FACTNAME, COMM) | 0.2661 | 0.3359 |
+
+- **PRIMARY strict COMMFUSE − FACTNAME = +0.0026, SPANS 0** all three (103 vs 102 hits) → no specific-target
+  gain. COMM − NAME strict = +0.0026 spans 0 → community routing alone ≈ name on strict.
+- **CO-PRIMARY condensed COMMFUSE − FACTNAME = +0.0439 (+17/387), ABOVE 0 all three** (byDoc lo 0.0027 —
+  thin) → community structure adds on the relevant-set / thematic task.
+
+### Adversary (§7) — verdict: (a) genuine structure, NOT (b) the .4 artifact; all checks PASS
+The decisive control the adversary built — **singleton** (centroid == own name everywhere, i.e.
+COMMFUSE = RRF-60(FACTNAME, NAME)):
+| variant | condensed Δ vs FACTNAME |
+|---|---|
+| COMMFUSE (real communities) | **+0.0439** (all-3 above 0) |
+| SINGLETON (RRF-60(FACTNAME, NAME)) | **−0.0181** (spans 0, leans negative) |
+| COMMFUSE − SINGLETON | **+0.0620** (all-3 above 0) |
+The pure-name signal does NOT reproduce the win (it slightly hurts) — so this is not the .4
+name+condensed-forgiveness artifact. Corroboration: singletons are only 2.5% of entities (not
+singleton-dominated); the relevant entities floated above the target split Tier-A 67 (attribution/
+co-occurrence) vs Tier-B 56 (verbatim name-in-query) — NOT Tier-B-dominated, so a `query.includes(name)`
+reranker would not reproduce it. Wiring anchor bit-for-bit; froze first (`git show 6b8949e` = prereg only);
+integer re-derivation exact (+17/387 cond, +1/387 strict).
+
+### Caveats the adversary requires (adopted)
+1. **Condensed-only, a different task from target-finding.** Strict is a true tie; re-adding the name signal
+   even hurts strict (−0.0258). No specific-target capability is claimed.
+2. **Un-held-out-edge LEAK (methodological).** The Louvain community graph is built from ALL active facts
+   **including each query paper's own co-occurrence edges** — it is NOT held out, unlike the fact signal
+   (harness excludes query-doc facts). So a portion of the thematic gain is the community having *seen* the
+   query paper. On arxiv this is dilution-limited (large 50–70-member communities; COMM strict ≈ NAME strict,
+   i.e. no strict advantage; ~140 non-relevant entities also float above the target — it routes broad
+   thematic clusters, not a memorised query set). On qbio it is the whole story (below).
+3. **High rank-churn** (38 condensed gains, 21 losses): the condensed win is community-coherent churn — when
+   it demotes a target, the replacements are co-relevant community-mates that condensed forgives.
+
+### qbio (n=94) — dismissed as a fragmented-graph artifact (adversary-confirmed honest)
+COMMFUSE − FACTNAME = +0.2021 all three (strict == condensed; COMM strict 0.543 vs NAME 0.362). This is
+18/20 strict target-promotion, Tier-A-dominated (31 vs 5), driven by qbio's ~5.6-entity communities (654
+communities / giant component 2.6%) whose centroid ≈ the query paper's own entity cluster (query IS that
+paper) — the un-held-out-edge leak at its extreme. NOT a generalisable capability; not banked.
+
+### Disposition (per §5: strict fails, condensed clears)
+**Community structure is a real, scoped, DETERMINISTIC lever for relevant-set / thematic retrieval** (arxiv
+condensed +0.0439, adversary-cleared), **not for specific-target** (strict tie). This clears the deterministic
+FLOOR for the condensed co-primary ⇒ **LLM community summaries (richer than a name centroid) are worth a
+GATED follow-up** — BUT the gate MUST use (i) a **held-out community assignment** (exclude each query paper's
+edges) to remove the leak, and (ii) a **strict or independent oracle**, NOT another condensed run — else the
+u8j.4 pattern re-enters. Bead nmemo-u8j.8 stays OPEN for that gated LLM-summary follow-up. The
+`communities-*.json` frozen assignment + `export_communities.py` generator are committed (owed item 1); the
+leak is stated (owed item 2); sizing the leak via a held-out per-query assignment is deferred to the
+follow-up gate.
+
+### Artifacts
+`prereg-artifacts/community-results-{arxiv,qbio}.json`, `prereg-artifacts/communities-{arxiv-nlp,arxiv-cv,qbio}.json`
+(frozen Louvain assignment, seed 20260831). Tools: `community-fusion.ts`, `export_communities.py`.
