@@ -92,8 +92,12 @@ async function main(): Promise<void> {
     factTextsByEnt.set(c, perEnt);
   }
 
+  // --candidate=namefacts (default, prereg-26) | name (prereg-27: bare entity name, no facts).
+  const candidateMode = arg('candidate', 'namefacts');
+  if (candidateMode !== 'namefacts' && candidateMode !== 'name') throw new Error(`--candidate must be namefacts or name, got ${candidateMode}`);
   const candidateText = (c: string, ei: number, docId: string): string => {
     const name = entName.get(c)![ei] ?? '';
+    if (candidateMode === 'name') return name;
     const facts = (factTextsByEnt.get(c)!.get(ei) ?? []).filter((f) => f.paper !== docId).slice(0, MAX_FACTS);
     return facts.length ? `${name}. ${facts.map((f) => f.text).join(' ')}` : name;
   };
@@ -125,11 +129,13 @@ async function main(): Promise<void> {
     });
   }
 
-  const meta = { substrate, corpora: cfg.corpora, K, maxFacts: MAX_FACTS, n, factnameK: 60 };
-  const outPath = join(OUT, `rerank-pool-${substrate}.json`);
+  const tag = candidateMode === 'name' ? `${substrate}-name` : substrate;
+  const meta = { substrate, tag, candidate: candidateMode, corpora: cfg.corpora, K, maxFacts: MAX_FACTS, n, factnameK: 60 };
+  const outPath = join(OUT, `rerank-pool-${tag}.json`);
   writeFileSync(outPath, JSON.stringify({ meta, pairs }, null, 2));
   const ceiling = pairs.filter((p) => (p as { targetInPool: boolean }).targetInPool).length / n;
-  console.log(`dumped ${n} pairs (${substrate}); pool K=${K}; pool-recall ceiling (target in pool) = ${(ceiling * 100).toFixed(1)}%`);
+  console.log(`dumped ${n} pairs (${substrate}, candidate=${candidateMode}); pool K=${K}; pool-recall ceiling (target in pool) = ${(ceiling * 100).toFixed(1)}%`);
+  console.log(`tag=${tag}  (pass this as --substrate to rerank_score.py / rerank-eval.ts)`);
   console.log(`artifact: ${outPath}`);
   process.exit(0);
 }

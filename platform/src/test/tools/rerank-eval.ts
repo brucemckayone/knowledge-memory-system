@@ -13,7 +13,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clusteredBootstrap, ciStr, triStr, mean, type TriResult } from './retrieval-eval/core.js';
+import { clusteredBootstrap, triStr, mean, type TriResult } from './retrieval-eval/core.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '../../../../docs/architecture/single-graph/prereg-artifacts');
