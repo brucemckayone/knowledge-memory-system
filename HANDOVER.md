@@ -1,4 +1,4 @@
-# HANDOVER — 2026-09-02 · branch feat/single-graph-retrieval · HEAD b3b32f2
+# HANDOVER — 2026-09-02 · branch feat/single-graph-retrieval · HEAD aefbf3f
 
 ## Source of truth (read these, in order)
 - **Ledger:** `docs/architecture/single-graph/09-experiment-ledger.md` — loop state + per-experiment rows;
@@ -22,8 +22,14 @@
   transfer nil. NO shippable reranker; fusion stays the head. Docs 26+27. **I nearly banked the name-only
   result as "first lever since R4" — the blind adversary caught the launder** (logged to
   `feedback_verify_empirical_gates`).
+- `aefbf3f` **`.8` community-structure retrieval → real but SCOPED lever (deterministic, no Claude). Bead
+  OPEN for LLM follow-up.** Louvain communities (modularity 0.91) + centroid routing. arxiv n=387: strict
+  +0.0026 spans 0 (no target-finding gain); **condensed +0.0439 all 3 → helps relevant-set/thematic**.
+  Adversary CLEARED it of the `.4` name-in-query artifact (singleton control RRF-60(FACTNAME,NAME) = −0.0181).
+  Caveat: un-held-out-edge leak + condensed-only + thin. Docs 28 (feasibility) + 29 (prereg+results).
 - New code: `DISABLE_CAUSAL_PASS` env kill switch (config.ts + pipeline.ts; Graph-S-neutral, default off);
-  tools `qbio-fusion.ts`, `arxiv-degree.ts`, `rerank-{dump,eval,lexcheck}.ts`, `rerank_score.py`. tsc = 69.
+  tools `qbio-fusion.ts`, `arxiv-degree.ts`, `rerank-{dump,eval,lexcheck}.ts`, `rerank_score.py`,
+  `community-fusion.ts`, `export_communities.py`. tsc = 69 throughout.
 
 ## Loop / epic state (verbatim from the ledger)
 - Retrieval track: one confirmed lever = two-signal fusion (R4). This session: `.3` bounds it as
@@ -32,7 +38,8 @@
 - **META (load-bearing): this eval's target-finding is ~80% name-presence detection** (papers-as-queries —
   target's name is verbatim in the query). Bounds what "target-finding" means; future retrieval preregs must
   register a `query-contains-name` control + a not-in-query subgroup. Does NOT overturn R4's deltas.
-- Epic `nmemo-u8j` children: closed `.1 .2 .3 .4 .5 .6 .9 .10 .11`; **open `.7 .8 .12`**.
+- Epic `nmemo-u8j` children: closed `.1 .2 .3 .4 .5 .6 .9 .10 .11`; **open `.7 .8 .12`** — but `.8` now has
+  a banked deterministic-FLOOR result (scoped condensed win), OPEN only for the gated LLM-summary follow-up.
 
 ## IN-FLIGHT — not yet verified/banked
 - **None mid-flight.** `.3` and `.4` both passed blind adversary and are committed + closed. No background
@@ -51,14 +58,17 @@
 - **Pre-existing/unrelated:** `.claude/scheduled_tasks.lock` (M), `viz-arxiv-nlp.png` (??).
 
 ## Next action
-- **Get the user's pick among `.7 / .8 / .12`** (they paused for exactly this; feasibility now measured in
-  doc 28 — arxiv has NO Graph C so `.7` needs the benchmarks-epic oracle; `.8` is structurally viable on
-  arxiv, modularity 0.91). Then:
-  - `.12`: needs explicit go-ahead (irreversible). If given: dim 768→1024 migration + re-embed + HNSW rebuild
-    + second-substrate/end-to-end re-measure before any default flip (see `.5`/doc 25 caveats).
-  - `.7`: first resolve the substrate (causal_edges corpus_id gap + `nmemo-umf` scoping), design a
-    causal-query oracle, pre-register; the run is Claude-heavy (confirm spend headroom first).
-  - `.8`: design a global-query oracle, pre-register.
+- **Get the user's pick among the remaining three** (they paused for exactly this). All need a decision
+  autonomous work cannot substitute for (irreversible migration / Claude spend against a live org cap):
+  - `.8` **LLM-summary follow-up** (the deterministic FLOOR passed, doc 29): does an LLM community *summary*
+    beat the name-centroid on the relevant-set task? **The gate the adversary set: use a HELD-OUT community
+    assignment (exclude each query paper's edges) + a strict/independent oracle, NOT another condensed run**
+    — else the `.4` name-in-query pattern re-enters. Needs Claude (small, ~110 summaries — low spend risk).
+    Closest to a real win of the three.
+  - `.7` **Graph C baseline**: arxiv has NO causal layer (doc 28); the real test is the benchmarks-epic
+    Corr2Cause reality-check (`nmemo-4fd`) — needs a causal oracle + Claude judge + the `nmemo-umf` scoping.
+  - `.12` **bge-m3 migration**: needs explicit go-ahead (irreversible: dim 768→1024 + full re-embed + HNSW
+    rebuild + second-substrate re-measure before any default flip; `.5`/doc 25 caveats).
 
 ## Active traps (right now)
 - **Infra UP:** postgres :5433 (`nmemo-postgres-1`, healthy), qdrant :6335, ml :8000 (provider=claude),
