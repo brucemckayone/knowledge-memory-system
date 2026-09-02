@@ -177,3 +177,18 @@ adversary condition).
   name-only BEATS the fusion. This is a LEAD not a win (n=60, no bootstrap, not pre-registered). **Next:
   fresh prereg (doc 27) runs name-only at full scale (n=387, both oracles, all-3 bootstraps, adversary)
   before any claim.** (tools `rerank-dump.ts` / `rerank_score.py` / `rerank-eval.ts`)
+- **nmemo-u8j.4 continued / doc 27 (name-only rerank full scale) → clears the naive bar but is a NAME-IN-QUERY
+  LEXICAL ARTIFACT, NOT a lever. Experiment COMPLETE, no shippable reranker. Bead CLOSED.** Name-only rerank
+  clears the pre-registered PRIMARY (arxiv strict +0.0724 all 3; qbio +0.1915 all 3; 102→130 / 33→51 hits) —
+  BUT the bar was blind to an artifact: **~80% of targets appear verbatim in the query** (313/387 arxiv /
+  74/94 qbio), and a trivial **`query.includes(canonical_name)` reranker BEATS the cross-encoder** (LEX arxiv
+  +0.1189 = 164% of the CE gain; qbio +0.2128 = 111%). The CE does NOT improve target-specific ranking (R@1
+  REGRESSES 0.062<0.070 arxiv, 0.064<0.128 qbio — it floats the name-present cluster mid-pool) and does NOT
+  transfer off-query (not-in-query subgroup: CE +5/74 arxiv thin, +0/20 qbio; LEX −7/74 hurts). Adversary
+  ruled (b) real-but-artifact; reproduced independently via `rerank-lexcheck.ts`. **NET for .4: cross-encoder
+  reranking (name+facts hurts, name-only = name-in-query artifact) yields NO shippable lever; the fusion stays
+  the head. Do NOT build a CE reranker.** META-diagnostic to carry: this eval's target-finding is ~80%
+  name-presence detection (papers-as-queries limitation affecting the whole loop); future rerank preregs MUST
+  register a lexical-baseline + not-in-query control arm. Wiring anchor bit-for-bit; froze first; ~18–22s/query
+  CPU. Nearly banked as "first lever since R4" — the blind adversary caught the launder (see
+  [[verify-empirical-gates]]).
