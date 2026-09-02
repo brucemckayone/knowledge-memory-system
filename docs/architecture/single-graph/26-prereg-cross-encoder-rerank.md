@@ -97,3 +97,88 @@ the spec froze before the numbers; (g) attack the direction of any framing (a nu
 ---
 
 <!-- RESULTS APPENDED BELOW THIS LINE -->
+
+## RESULTS (2026-09-02) — cross-encoder reranking does NOT beat the fusion (NEGATIVE; hurts arxiv, ties qbio) — but a name-only variant REOPENS it
+
+**Outcome:** the pre-registered PRIMARY fails both substrates. Reranking the top-K=50 fusion pool with an
+off-the-shelf cross-encoder (`BAAI/bge-reranker-v2-m3`) using the frozen `name + ≤10 held-out facts`
+candidate HURTS on arxiv (strict R@10 Δ **−0.1059, below 0 all three bootstraps**) and TIES on qbio (Δ
+−0.0106, spans 0). Blind adversary reproduced everything bit-for-bit and confirmed the negative is a real
+reordering failure (not a truncation/leak/ceiling artifact). **BUT** an exploratory name-only slice shows the
+candidate REPRESENTATION was decisive — a bare-name cross-encoder BEATS the fusion (+0.133 on n=60) —
+reopening the question. Banked NEGATIVE for the frozen config; name-only pursued under a fresh prereg (doc 27).
+
+### Setup
+- Model **BAAI/bge-reranker-v2-m3** (open, multilingual, 568M), local CPU, isolated venv (torch 2.13.0+cpu,
+  transformers 5.16.1, sentence-transformers 6.0.1). No external API, no Claude. max_length=512.
+- Pool K=50 from the shipped fusion `FACTNAME=RRF-60(names,facts)`; candidate_text = `"{name}. "` + up to 10
+  HELD-OUT fact source_texts (query-doc facts excluded); query = title+abstract. Two-stage TS-dump →
+  Python-score → TS-score, so the metric stays in the frozen engine. Wiring anchor PASSES bit-for-bit
+  (FACTNAME reproduces R4 on both substrates).
+
+### PRIMARY (§5) — FAILS both
+| substrate | n | FACTNAME strict R@10 | RERANK strict R@10 | Δ strict (pair/entity/doc) | condensed Δ | ceiling R@50 |
+|---|---|---|---|---|---|---|
+| arxiv | 387 | 0.2636 | 0.1576 | **−0.1059 BELOW 0 all 3** | −0.0698 BELOW 0 all 3 | 50.9% |
+| qbio  | 94  | 0.3511 | 0.3404 | −0.0106 SPANS 0 | +0.0106 SPANS 0 | 57.4% |
+
+Integer hits @10: arxiv FACTNAME 102 → RERANK 61 (−41); qbio 33 → 32 (−1). On arxiv RERANK is worse at every
+k (R@1 0.016 vs 0.070).
+
+### Not ceiling-bound (the strongest point FOR the finding)
+The K=50 pool contained the target for **50.9%** of arxiv queries (== FACTNAME R@50, adversary-verified
+197/387) — nearly 2× the fusion R@10 (26.4%) and 3× RERANK (15.8%). Ample headroom existed; the reranker used
+it to push correct targets DOWN (demoted targets land at median rerank position 23). A genuine reordering
+failure, not the VOID(ceiling-bound) escape hatch.
+
+### Mechanism (evidenced, not asserted)
+Of the 65 targets FACTNAME had in top-10 that RERANK ejected, **64/65 were scored on the FULL, untruncated
+candidate** (median 173 tokens < 512) and still scored low — 36/65 below 0.5, 15/65 below 0.1. Candidate
+tokens are short (median 65, p99 313, name always first); truncation, when it happens (18.7% of arxiv pairs),
+trims the ABSTRACT tail, never the name/facts. So "the fact-blob drowns the name" and "the name gets
+truncated" are both false. The cross-encoder reorders by query↔passage **topical relevance**, which is not
+the same objective as **cross-paper target identity**, so it confidently demotes the correct recurring
+target the fusion surfaced. Reinforces doc 10 (dense re-rank tie: "the only re-ranker that improves the head
+is the head").
+
+### Name-only sensitivity — the surprise: representation is decisive; a name-only reranker is a LEAD
+Exploratory, **n=60 random arxiv slice** (seed 20260901), NOT pre-registered:
+| arm | strict R@10 hits (of 60) | vs fusion |
+|---|---|---|
+| FACTNAME (fusion) | 13/60 = 0.217 | — |
+| RERANK name+facts (the prereg config) | 13/60 = 0.217 | +0/60 (tie on this slice; −0.106 on full 387) |
+| **RERANK name-only** | **21/60 = 0.350** | **+8/60 = +0.133** |
+
+The candidate REPRESENTATION is decisive: the concatenated fact-blob MISLEADS the cross-encoder (pulls its
+topical judgement toward the facts' content, away from name-identity), and with the **bare entity name** the
+cross-encoder BEATS the fusion on this slice. This is the one result the adversary flagged as able to reopen
+the scoping — and it did. It is a genuine **LEAD, not a banked win**: n=60, single point estimate, no
+bootstrap, not pre-registered (the doc-12 "small-K hybrid = lead not demonstration" precedent). Confirm only
+via a full-scale (n=387), both-oracle, all-3-bootstrap, adversary-checked run under a fresh pre-registration
+(doc 27). The pre-registered PRIMARY here (name+facts) stays negative.
+
+### Adversary (§7) — verdict SUPPORTED (for the frozen config); all checks PASS
+(1) wiring anchor bit-for-bit (NAME 0.1912 / FACTNAME 0.2636, n=387); (2) both substrates reproduced exactly,
+integer hits independently re-derived (gained 24 − lost 65 = −41/387); (3) same pair set, 0 degenerate
+scores, every pool exactly 50; (4) held-out guard correct (candidate uses the same factToPaper map the fusion
+uses; a leak would only HELP rerank, so its absence makes the negative conservative); (5) scores real +
+discriminating (full sigmoid range, strong per-query spread); (6) ceiling honest and NOT ceiling-bound;
+(7) froze before numbers (`git show d487842` adds only the prereg; committed doc == working tree). Check 8:
+the frozen-config negative is a real reordering failure, not truncation/leak/representation-drowning/ceiling.
+The adversary's mandatory scope (this model + this candidate + full-abstract query, NOT "cross-encoders in
+general"; "impractical" is CPU-specific) is adopted. The adversary explicitly predicted the name-only variant
+would NOT beat fusion and asked to confirm — the confirmation instead FALSIFIED that prediction (+0.133 on
+the slice), which is why the name-only lead is now the live thread.
+
+### Disposition (per §5: PRIMARY fails both — but the door is NOT closed)
+**The pre-registered config (name+facts candidate) is a BANKED NEGATIVE** — it does not beat the fusion
+(hurts arxiv, ties qbio). **Do NOT read this as "cross-encoders can't help this task":** the name-only slice
+(+0.133 on n=60) shows the *representation* was the culprit, and a name-only cross-encoder is a live LEAD.
+**Next step: a fresh pre-registration (doc 27) runs name-only reranking at full scale (n=387, both oracles,
+all-3 bootstraps, blind adversary)** before any build/claim. Bead nmemo-u8j.4 stays OPEN pending that.
+**Cost:** ~22 s/query at K=50 on CPU (~445 ms/candidate) — CPU-specific; a GPU would be far faster.
+
+### Artifacts
+`prereg-artifacts/rerank-results-{arxiv,qbio}.json`, `rerank-scores-{arxiv,qbio}.json`,
+`rerank-pool-{arxiv,qbio}.json`. Tools: `rerank-dump.ts`, `rerank_score.py`, `rerank-eval.ts`. Model cached
+at `~/.cache/huggingface/hub/models--BAAI--bge-reranker-v2-m3` (2.2 GB), scored in an isolated scratch venv.

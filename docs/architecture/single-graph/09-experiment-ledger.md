@@ -161,3 +161,19 @@ adversary condition).
   re-embed + HNSW rebuild + second-substrate re-measure before any default flip). Caveats: single arxiv
   substrate; strict not significant; the exact-dot eval is an UPPER BOUND (approximate HNSW could erode
   the gap). No production swap done overnight.
+- **nmemo-u8j.4 / doc 26 (cross-encoder rerank) → pre-registered config NEGATIVE; name-only variant is a
+  LEAD that REOPENS it. Bead OPEN.** Reranked the top-K=50 fusion pool with an open cross-encoder
+  (`BAAI/bge-reranker-v2-m3`, local CPU, no Claude) scoring query title+abstract against a
+  `name + ≤10 held-out fact-sentence` candidate. **PRIMARY fails both:** arxiv strict R@10
+  RERANK−FACTNAME = **−0.1059, below 0 all 3 bootstraps** (it HURTS; 102→61 hits), qbio −0.0106 spans 0
+  (tie). NOT ceiling-bound (pool holds the target 50.9% vs RERANK 15.8% — headroom wasted; targets demoted
+  to median position 23). Mechanism (evidenced): 64/65 demoted targets scored on the FULL untruncated
+  candidate and still rejected (15 below 0.1) — the cross-encoder reorders by query↔passage TOPICAL
+  RELEVANCE, not cross-paper TARGET IDENTITY. Reinforces doc 10 (fusion is already the head). Wiring anchor
+  bit-for-bit; adversary reproduced everything + scoped it (this model + this candidate, NOT "cross-encoders
+  in general"; "impractical @22s/query" is CPU-specific). **THE SURPRISE:** an exploratory name-only slice
+  (n=60) — candidate = bare entity NAME, no facts — gives RERANK **21/60 = 0.350 vs fusion 13/60 = 0.217
+  (+0.133)**, while name+facts ties fusion on the same slice. The fact-blob MISLEADS the cross-encoder;
+  name-only BEATS the fusion. This is a LEAD not a win (n=60, no bootstrap, not pre-registered). **Next:
+  fresh prereg (doc 27) runs name-only at full scale (n=387, both oracles, all-3 bootstraps, adversary)
+  before any claim.** (tools `rerank-dump.ts` / `rerank_score.py` / `rerank-eval.ts`)
