@@ -1,11 +1,14 @@
-# 34 — Query-intent set (PROPOSED) + benchmark mapping — Phase 2 of nmemo-asf
+# 34 — Query-intent set (COMMITTED) + benchmark mapping — Phase 2 of nmemo-asf
 
-**Status: PROPOSAL awaiting a product-fit sanity check.** Per the doc-32 correction: the model proposes this
-set (from the vision + doc-31 literature + the benchmarks that already encode intents); it is labelled a
-**PROXY for real usage, not validated ground truth** (there are no real users/queries yet, so real-query
-grounding is currently impossible — the discipline is to *label* the proxy, not to block on a human authoring
-intents). The only human input needed is: **do these intents match what the system is FOR, and is the
-priority right?** Answering that "commits" the set and unlocks Phase 3/4.
+**Status: COMMITTED 2026-09-02** (user product-fit check passed). Final set = **I1–I5 as proposed**;
+priority = **I3 → I1 → I2 → I4 → I5** (recommended, confirmed). The set remains a **PROXY for real usage,
+not validated ground truth** (no real users/queries yet — the proxy caveat below still binds). See
+"The human decision (recorded)" at the end for the answer verbatim and the one framing addition it produced
+(a composite-reasoning layer that is *agent-composed over the five primitives*, not a sixth substrate).
+
+Per the doc-32 correction: the model proposed this set (from the vision + doc-31 literature + the benchmarks
+that already encode intents); the human role was a product-fit sanity check + prioritisation, not authoring.
+Committing unlocks Phase 3/4.
 
 ## The proposed intents
 This is a memory/knowledge-graph system (CLAUDE.md), queried by an agent over MCP. Five intents cover what an
@@ -80,7 +83,36 @@ Committing the set (after the product-fit check) selects which doc-31 rows becom
 (harness + flat baseline) and Phase 4 (per-intent ingestion experiments) children be created against a clear
 target — top of the priority list first.
 
-## The one question for the human
-1. Do these five intents match what the system is *for* (anything missing, anything that isn't really a goal)?
-2. Is the priority right — is a **memory** system's core really temporal+local (my ranking), or is the
-   product more about reasoning (causal/multi-hop) or synthesis (global), which would re-order the work?
+## The human decision (recorded, 2026-09-02)
+Both questions were put to the user; both are now answered.
+
+**Q1 — do the five intents match what the system is FOR?** → **Yes** ("it seems to fit pretty well"). No
+intent dropped or merged. One substantive addition surfaced (see below).
+
+**Q2 — is the priority right?** → **Yes, I3 → I1 → I2 → I4 → I5 as recommended.** Temporal+local first.
+
+### The one framing addition — a composite-reasoning layer (agent-composed, NOT a sixth substrate)
+The user flagged a real class of query that the five *atomic* intents do not each name on their own: **reasoning
+efforts that run over the graph as a combination of I1–I5.** In the user's own examples:
+- **Causal trajectory / progression**, not just point causation — "where things are moving", direction of change
+  over time (a blend of **I4 causal × I3 temporal**).
+- **Meta / "why is it the way it is"** — why a person or thing is as it is; not only *how* two things are
+  connected (I2) but *why* they are connected (**I2 × I4**).
+- **Causal-chain failure analysis** — "at what point in our chain of causes did things start to go down" (a
+  *when-in-the-causal-chain* query, **I4 × I3** over a traversal).
+- **Thematic reasoning over time** — "the main themes of cause and progression throughout time" (**I5 × I4 ×
+  I3**).
+
+**Disposition:** these are **composite queries handled by the client agent composing the five primitive
+retrieval intents** — consistent with the settled design (MCP tools are primitives; routing = client model +
+skills; the agent is the client). They are **not** a new atomic intent with its own substrate to build. The
+user themselves noted the open question — "I'm not sure how much of that is offloaded to the agent, though.
+It'd be hard to test" — so we do **not** commit a buildable I6; instead:
+- The five primitives (I1–I5) are what we build substrate + per-intent benchmarks for (Phase 3/4).
+- Composition into these reasoning queries is an **agent/orchestration concern**, deferred and explicitly
+  **flagged as untested / hard-to-test** until (a) the primitives are individually solid and (b) real
+  composite queries exist to evaluate against. When that evaluation becomes possible it is a *composition*
+  test (does the agent chain the primitives correctly), not a new-substrate test.
+
+This addition changes neither the atomic set nor the priority; it records *where* reasoning queries live in the
+architecture (the composition layer) so Phase 3/4 stay scoped to the primitives.
