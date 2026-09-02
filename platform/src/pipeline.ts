@@ -1066,19 +1066,23 @@ async function runEpochBatch(
   // by the one agent that reads live canonical correctly (it runs when the graph is
   // clean). Best-effort — promotion already committed, so a causal-pass failure must
   // never fail the epoch (doc 41 §12 #9). runCausalPass self-skips when no trigger fires.
-  try {
-    const causal = await runCausalPass(epochId, result);
-    if (causal.ran) {
-      console.log(
-        `[epoch ${epochId.slice(0, 8)}] causal pass ran (${causal.decision.reasons.join('; ')}): ` +
-          `${causal.promotion?.created.length ?? 0} edge(s) promoted, ${causal.promotion?.dropped.length ?? 0} dropped`,
+  if (config.DISABLE_CAUSAL_PASS) {
+    console.log(`[epoch ${epochId.slice(0, 8)}] causal pass SKIPPED (DISABLE_CAUSAL_PASS)`);
+  } else {
+    try {
+      const causal = await runCausalPass(epochId, result);
+      if (causal.ran) {
+        console.log(
+          `[epoch ${epochId.slice(0, 8)}] causal pass ran (${causal.decision.reasons.join('; ')}): ` +
+            `${causal.promotion?.created.length ?? 0} edge(s) promoted, ${causal.promotion?.dropped.length ?? 0} dropped`,
+        );
+      }
+    } catch (err) {
+      console.warn(
+        `[epoch ${epochId.slice(0, 8)}] causal pass failed (non-fatal):`,
+        err instanceof Error ? err.message : err,
       );
     }
-  } catch (err) {
-    console.warn(
-      `[epoch ${epochId.slice(0, 8)}] causal pass failed (non-fatal):`,
-      err instanceof Error ? err.message : err,
-    );
   }
 
   // Epoch-wide summary. Per-chunk attribution is gone (promotion is epoch-wide);

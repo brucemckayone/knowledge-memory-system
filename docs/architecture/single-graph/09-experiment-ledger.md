@@ -28,6 +28,14 @@ adversary condition).
   dense-over-facts fused by retrieved-set RRF — not a single entity vector. `fact_embedding` earns its
   keep as the second signal. Honest limit: independence is extraction-only (same 294 papers); a
   new-corpus/new-domain test and a sparse-graph stress test are the next confirmations before shipping.
+- **New-domain test DONE (nmemo-u8j.3 / doc 24, 2026-09-02): fusion is a DEGREE-GATED lever.** On a
+  genuinely disjoint domain (arXiv q-bio, 3670 entities / 6955 facts) the aggregate `FACTNAME − NAME` is a
+  TIE (strict −0.0106, spans 0), so R4's win does NOT reproduce in aggregate — but the **per-degree lift
+  curve replicates arxiv** (degree-8+ lift +0.167 q-bio vs +0.158 arxiv; both negative at degree 1). The
+  difference is purely a **query-degree mixture** (q-bio targets 73% degree 1–3 vs arxiv 36%). So the
+  degree-concentration caveat is **SUPPORTED** (cross-domain), and the shipping rule is: **fuse only where
+  retrieval targets are well-connected (degree ≳ 8); expect a wash on sparse-query corpora.** Not
+  domain/vocabulary-specific. Tie-break invariant. Sparse-graph stress = this same result (low-degree bins).
 - **Oracle status:** condensed oracle (E0) adopted; NOT arm-neutral (credits relevance-set retrieval
   more than dense). Both oracles reported throughout.
 - **Retrieval track status: CONCLUDED** — 3 ties settled saturation, and the one separating lever (fusion)
@@ -124,12 +132,22 @@ adversary condition).
   `public.facts` traversal signal into the read path.** Closes queue #5 (our own graph substrate) as
   measured-negative; scopes only this spreading-activation design (learned/path-constrained/Graph-C =
   queue #6, untested). R4 fusion untouched.
-- **nmemo-u8j.3 / doc 24 (generalization) → PRE-REGISTERED ONLY (ingest ATTENDED-pending).** Frozen prereg
-  for the new-domain + sparse-graph stress test: ingest ~300 arXiv **q-bio** abstracts (corpus_id `qbio`,
-  disjoint domain) via `corpus-graph-ingest --corpus=C --corpusId=qbio`, then re-measure `FACTNAME − NAME`
-  strict R@10 (bar = all-3-bootstraps > 0 = generalizes) with a fact-degree-stratified lift curve (tests
-  R4's degree-concentration caveat). The ingest is multi-hour + shared-DB write, so it is ATTENDED-ONLY
-  and was NOT run overnight. Bead stays OPEN; next attended session runs §3→§4→§8 of doc 24.
+- **nmemo-u8j.3 / doc 24 (generalization to q-bio) → PRIMARY FAILS both oracles; NEGATIVE, but the failure
+  is a query-degree MIXTURE effect, not a domain effect. CLOSED.** Built a genuinely disjoint domain (320
+  arXiv **q-bio** abstracts, corpus_id `qbio`, 3670 entities / 6955 facts; 0 id-overlap, vocab-disjoint).
+  `FACTNAME − NAME` strict R@10 = **−0.0106, SPANS 0** all 3 bootstraps (condensed +0.0000, spans 0) — R4's
+  fusion win does NOT reproduce in aggregate here (n=94; no complementarity — FACTMAX 24 < NAME 34, fusion
+  33 dilutes names). **BUT the per-degree lift curve replicates arxiv:** degree-8+ lift +0.167 (q-bio, n=12,
+  CI touches 0) vs +0.158 (arxiv, n=164, ABOVE 0); both negative at degree 1. The aggregate differs only by
+  **query-mix** — q-bio targets are degree-poor (73% degree 1–3 / 13% degree 8+) vs arxiv degree-rich
+  (36% / 42%). So the lever is **query-degree-mix-specific, not CS/vocabulary-specific.** Caveat 2
+  (degree-concentration) SUPPORTED by the cross-domain replication (not "confirmed" off the single
+  touch-0 q-bio bin); caveat 1 partially closed. Delta is **tie-break invariant** (index-asc == index-desc,
+  33/94 dup-name targets). Wiring anchor bit-for-bit; ingest = production epoch path with the causal pass
+  disabled (new `DISABLE_CAUSAL_PASS`, Graph-S-neutral). Adversary reproduced everything + rewrote the
+  framing (both corrections adopted). **Decision: fusion is a degree-gated lever — deploy it where query
+  targets are well-connected (degree ≳ 8), expect a wash on sparse-query corpora.** (harness `qbio-fusion.ts`
+  + supporting `arxiv-degree.ts`)
 - **nmemo-u8j.5 / doc 25 (embedding upgrade bge-m3 vs nomic, arxiv A/B) → PRIMARY PASS (condensed,
   DEMONSTRATED).** bge-m3 (1024-dim) lifts the confirmed fusion on the promotable oracle:
   `FACTNAME_bge − FACTNAME_nomic` condensed R@10 **+0.0930, above 0 on all three bootstraps** (149 vs 113

@@ -32,6 +32,8 @@ const OUT = join(DOCS, 'multihop-artifacts');
 const CORPORA = {
   A: { file: 'convergence-artifacts/corpus-A.json', corpusId: 'arxiv-nlp' },
   B: { file: 'convergence-artifacts/corpus-B.json', corpusId: 'arxiv-cv' },
+  // prereg-24 (nmemo-u8j.3): new-domain generalization corpus — arXiv q-bio abstracts.
+  C: { file: 'convergence-artifacts/corpus-C.json', corpusId: 'qbio' },
 } as const;
 
 interface Doc { id: string; title: string; abstract: string }
@@ -123,7 +125,7 @@ async function graphStats(corpusId: string): Promise<{ entities: number; facts: 
 async function main(): Promise<void> {
   mkdirSync(OUT, { recursive: true });
   const which = (arg('corpus', 'A') ?? 'A').toUpperCase() as keyof typeof CORPORA;
-  if (!CORPORA[which]) throw new Error(`--corpus must be A or B, got '${which}'`);
+  if (!CORPORA[which]) throw new Error(`--corpus must be one of ${Object.keys(CORPORA).join('/')}, got '${which}'`);
   // --corpusId overrides the default id so the SAME source documents can be
   // ingested into a fresh graph without touching an existing one. The ledger and
   // attribution artifacts are already keyed by corpusId, so a new id gets its own

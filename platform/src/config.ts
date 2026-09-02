@@ -126,6 +126,14 @@ const envSchema = z.object({
   CAUSAL_PASS_FACT_THRESHOLD: z.coerce.number().int().positive().default(5),
   CAUSAL_PASS_SCOPE_CAP: z.coerce.number().int().positive().default(200),
   CAUSAL_PROMOTION_STRENGTH: z.coerce.number().min(0).max(1).default(0.6),
+  // Hard kill switch for the post-promotion causal pass (Graph C). The pass is
+  // best-effort and writes ONLY Graph C (causal_events/causal_edges) — it never
+  // touches the Graph S substrate (entities/facts/fact_embedding) that promotion
+  // already committed. Set DISABLE_CAUSAL_PASS=1 for Graph-S-only bulk ingests
+  // (e.g. building a retrieval corpus) where the causal pass is measurement-neutral
+  // but dominates wall-clock + LLM cost. Default off (the pass runs) so production
+  // is unchanged.
+  DISABLE_CAUSAL_PASS: envBool(false),
   // Suppress the scheduler at startup (tests, scripts, one-off CLIs).
   // Set DISABLE_SCHEDULER=1 to skip startScheduler() registration.
   DISABLE_SCHEDULER: envBool(false),
