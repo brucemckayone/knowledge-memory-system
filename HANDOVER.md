@@ -5,7 +5,8 @@
   `.3` and `.4` rows added this session (bottom of the "Epic nmemo-u8j" section) + loop-state updated.
 - **Epic:** `nmemo-u8j` — `bd show nmemo-u8j`, `bd ready`. Children `.1`–`.12`.
 - **Direction:** `CLAUDE.md` "CURRENT DIRECTION".
-- **Preregs/results this session:** doc 24 (.3 generalization), docs 26+27 (.4 cross-encoder rerank).
+- **Preregs/results this session:** doc 24 (.3 generalization), docs 26+27 (.4 cross-encoder rerank),
+  **doc 28 (feasibility of the 3 remaining levers .7/.8/.12 — no-Claude MEASURE-FIRST; read before deciding)**.
 - **Memory:** `memory/project_retrieval_loop.md`, `memory/feedback_verify_empirical_gates.md`.
 
 ## What changed this session (two clean experiments, both banked NEGATIVE, both closed)
@@ -50,7 +51,9 @@
 - **Pre-existing/unrelated:** `.claude/scheduled_tasks.lock` (M), `viz-arxiv-nlp.png` (??).
 
 ## Next action
-- **Get the user's pick among `.7 / .8 / .12`** (they paused for exactly this). Then:
+- **Get the user's pick among `.7 / .8 / .12`** (they paused for exactly this; feasibility now measured in
+  doc 28 — arxiv has NO Graph C so `.7` needs the benchmarks-epic oracle; `.8` is structurally viable on
+  arxiv, modularity 0.91). Then:
   - `.12`: needs explicit go-ahead (irreversible). If given: dim 768→1024 migration + re-embed + HNSW rebuild
     + second-substrate/end-to-end re-measure before any default flip (see `.5`/doc 25 caveats).
   - `.7`: first resolve the substrate (causal_edges corpus_id gap + `nmemo-umf` scoping), design a
