@@ -192,21 +192,20 @@ adversary condition).
   register a lexical-baseline + not-in-query control arm. Wiring anchor bit-for-bit; froze first; ~18–22s/query
   CPU. Nearly banked as "first lever since R4" — the blind adversary caught the launder (see
   [[verify-empirical-gates]]).
-- **nmemo-u8j.8 / doc 29 (community-structure retrieval, DETERMINISTIC no-Claude) → real but SCOPED lever:
-  relevant-set only, strict TIE. Adversary-cleared of the .4 artifact. Deterministic FLOOR PASSED; LLM-summary
-  follow-up gated. Bead OPEN.** Louvain communities (seed 20260831, doc 28: arxiv modularity 0.91), centroid =
-  mean member NAME vector; arms NAME/FACTNAME/COMM/COMMFUSE=RRF-60(FACTNAME,COMM). **arxiv (n=387): strict
-  COMMFUSE−FACTNAME = +0.0026 SPANS 0 (no specific-target gain); condensed = +0.0439 (+17/387) ABOVE 0 all 3
-  (thin, byDoc lo 0.0027) → community structure helps RELEVANT-SET/thematic retrieval.** Adversary attacked it
-  as the .4 name-in-query artifact and it SURVIVED the decisive singleton control (RRF-60(FACTNAME,NAME) gives
-  condensed −0.0181 spans 0; COMMFUSE−singleton = +0.0620 all-3; floated relevant = Tier-A 67 vs Tier-B 56, not
-  name-dominated; singletons only 2.5%) → GENUINE multi-member community structure. **CAVEATS (adopted):**
-  (i) condensed-only, not target-finding (strict tie); (ii) **un-held-out-edge LEAK** — the Louvain graph
-  includes each query paper's own facts (unlike the held-out fact signal), so part of the gain is the community
-  having seen the query paper (dilution-limited on arxiv — COMM strict ≈ NAME strict; the whole story on qbio);
-  (iii) high churn. **qbio +0.2021 dismissed** as a fragmented-graph artifact (5.6-entity communities ≈ query
-  paper). **Decision: clears the deterministic FLOOR for the condensed co-primary ⇒ LLM community summaries
-  worth a GATED follow-up — gate MUST use a HELD-OUT community assignment (exclude query-doc edges) + a
-  strict/independent oracle, NOT another condensed run (else the .4 pattern re-enters).** Frozen assignment
-  `communities-*.json` + `export_communities.py` committed; wiring anchor bit-for-bit; froze first (6b8949e).
-  (tool `community-fusion.ts`)
+- **nmemo-u8j.8 / doc 29 (community-structure retrieval, DETERMINISTIC no-Claude) → BANKED NEGATIVE: the
+  condensed "win" was an UN-HELD-OUT-EDGE LEAK; held-out, community routing HURTS. Bead CLOSED.** Louvain
+  communities (seed 20260831, arxiv modularity 0.91), centroid = mean member NAME vector; COMMFUSE =
+  RRF-60(FACTNAME, COMM). The LEAKY global assignment showed arxiv strict +0.0026 spans 0 / condensed +0.0439
+  (+17/387) above 0 — and the first adversary cleared it of the .4 name-in-query artifact via the singleton
+  control (RRF-60(FACTNAME,NAME) cond −0.0181) but explicitly DEFERRED the leak test. **Sizing the leak
+  (held-out: Louvain rebuilt per query doc EXCLUDING that doc's edges, `--heldout`) FLIPS THE SIGN: condensed
+  −0.0620, strict −0.0775, both BELOW 0 all 3 — a ~0.106 swing.** (Global regression reproduces +0.0439
+  exactly, so the refactor is faithful.) The apparent win was 100% the community having SEEN the query paper's
+  own co-occurrence edges; held-out, COMM (0.121) is worse than NAME (0.191) and drags the fusion down
+  (COMMFUSE 0.186 < FACTNAME 0.264). qbio +0.20 was the same leak at its extreme. **Decision: community
+  structure does NOT add to the fusion; LLM community summaries are a HARD SELL (bounded by the same
+  held-out-useless structure); do NOT pursue as a retrieval lever — consistent with the concept-layer
+  negatives (docs 28–32).** Frozen assignments + `export_communities.py` + `heldout_communities.py`
+  committed. **LESSON: I banked the "scoped win" (commit aefbf3f) BEFORE sizing the leak; the held-out test
+  (the adversary's owed item) overturned it — SIZE the leak before banking, don't just state it.** (tool
+  `community-fusion.ts --heldout`)

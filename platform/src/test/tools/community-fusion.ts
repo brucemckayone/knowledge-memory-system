@@ -56,18 +56,16 @@ async function main(): Promise<void> {
   const { sub, rel, store, baseRankings, corpusOf, docOf, entityOf, targetIdx, strictRank, condRank } = r;
   const rName = baseRankings!.rName; const rFactMax = baseRankings!.rFactMax!;
 
-  // Per corpus: entity name vectors + community assignment + community centroids.
+  // --heldout=1: use a per-query-doc community assignment (Louvain rebuilt EXCLUDING that doc's own edges,
+  // heldout-communities-<corpus>.json) to size the un-held-out-edge leak. Default: the frozen global assignment.
+  const heldout = arg('heldout', '') === '1';
   const vNameOf = new Map<string, number[][]>();
-  const commIdOf = new Map<string, string[]>();          // entity index -> community id
-  const centroidByComm = new Map<string, Map<string, number[]>>();
-  for (const c of cfg.corpora) {
-    const ents = sub.entsByCorpus.get(c)!;
-    const vName = ents.map((e) => store.getEntity(entityEmbedTextFor(e.name, e.description, 'name')));
-    vNameOf.set(c, vName);
-    const assign = JSON.parse(readFileSync(join(OUT, `communities-${c}.json`), 'utf8')) as Record<string, string>;
-    const commId = ents.map((e) => assign[e.id] ?? `${c}#singleton#${e.id}`); // edgeless -> own singleton
-    commIdOf.set(c, commId);
-    // centroid = normalise(mean of member name vectors)
+  const globalAssign = new Map<string, { commId: string[]; cent: Map<string, number[]> }>();
+  const heldoutMaps = new Map<string, Record<string, Record<string, string>>>(); // corpus -> docId -> {entityId: commId}
+
+  const buildAssign = (c: string, assign: Record<string, string>): { commId: string[]; cent: Map<string, number[]> } => {
+    const ents = sub.entsByCorpus.get(c)!; const vName = vNameOf.get(c)!;
+    const commId = ents.map((e) => assign[e.id] ?? `${c}#singleton#${e.id}`); // absent -> own singleton (centroid == own name)
     const members = new Map<string, number[]>(); const counts = new Map<string, number>();
     const dim = vName[0]!.length;
     for (let i = 0; i < ents.length; i++) {
@@ -77,10 +75,26 @@ async function main(): Promise<void> {
     }
     const cent = new Map<string, number[]>();
     for (const [k, acc] of members) cent.set(k, normalise(acc.map((x) => x / counts.get(k)!)));
-    centroidByComm.set(c, cent);
-    const sizes = [...counts.values()].sort((a, b) => b - a);
-    console.log(`${c}: ${cent.size} communities (top sizes ${sizes.slice(0, 5).join(',')}; singletons ${sizes.filter((s) => s === 1).length})`);
+    return { commId, cent };
+  };
+  for (const c of cfg.corpora) {
+    const ents = sub.entsByCorpus.get(c)!;
+    vNameOf.set(c, ents.map((e) => store.getEntity(entityEmbedTextFor(e.name, e.description, 'name'))));
+    if (heldout) {
+      heldoutMaps.set(c, JSON.parse(readFileSync(join(OUT, `heldout-communities-${c}.json`), 'utf8')));
+      console.log(`${c}: HELD-OUT mode (${Object.keys(heldoutMaps.get(c)!).length} per-doc assignments)`);
+    } else {
+      globalAssign.set(c, buildAssign(c, JSON.parse(readFileSync(join(OUT, `communities-${c}.json`), 'utf8'))));
+      console.log(`${c}: ${globalAssign.get(c)!.cent.size} communities (global)`);
+    }
   }
+  const assignCache = new Map<string, { commId: string[]; cent: Map<string, number[]> }>();
+  const assignFor = (c: string, docId: string): { commId: string[]; cent: Map<string, number[]> } => {
+    if (!heldout) return globalAssign.get(c)!;
+    const key = `${c}#${docId}`; let a = assignCache.get(key);
+    if (!a) { a = buildAssign(c, heldoutMaps.get(c)![docId] ?? {}); assignCache.set(key, a); }
+    return a;
+  };
 
   const n = corpusOf.length;
   const commStrict: number[] = []; const commCond: number[] = [];
@@ -88,7 +102,7 @@ async function main(): Promise<void> {
   for (let i = 0; i < n; i++) {
     const c = corpusOf[i]!; const t = targetIdx[i]!;
     const ents = sub.entsByCorpus.get(c)!; const U = ents.length;
-    const vName = vNameOf.get(c)!; const commId = commIdOf.get(c)!; const cent = centroidByComm.get(c)!;
+    const vName = vNameOf.get(c)!; const { commId, cent } = assignFor(c, docOf[i]!);
     const d = sub.docsById.get(docOf[i]!)!;
     const qv = store.getQuery(`${d.title} ${d.abstract}`);
     const commScoreCache = new Map<string, number>();
@@ -115,7 +129,8 @@ async function main(): Promise<void> {
   const fnC = condRank['FACTNAME']!.map((x) => (x <= 10 ? 1 : 0));
   const nmS = strictRank['NAME']!.map((x) => (x <= 10 ? 1 : 0));
 
-  console.log(`\n=== prereg-29 community retrieval: ${substrate}  n=${n} ===`);
+  const tag = heldout ? `${substrate}-heldout` : substrate;
+  console.log(`\n=== prereg-29 community retrieval: ${tag}  n=${n} ===`);
   console.log('| arm | strict R@10 | condensed R@10 |');
   console.log('|-----|-------------|----------------|');
   console.log(`| NAME     | ${mean(nmS).toFixed(4)} | ${mean(condRank['NAME']!.map((x) => (x <= 10 ? 1 : 0))).toFixed(4)} |`);
@@ -138,8 +153,8 @@ async function main(): Promise<void> {
     commHits: hit(commStrict, 10).filter((x) => x === 1).length, fuseHits: hit(fuseStrict, 10).filter((x) => x === 1).length,
     factnameHits: fnS.filter((x) => x === 1).length,
   };
-  writeFileSync(join(OUT, `community-results-${substrate}.json`), JSON.stringify(report, null, 2));
-  console.log(`\nartifact: ${join(OUT, `community-results-${substrate}.json`)}`);
+  writeFileSync(join(OUT, `community-results-${tag}.json`), JSON.stringify(report, null, 2));
+  console.log(`\nartifact: ${join(OUT, `community-results-${tag}.json`)}`);
   process.exit(0);
 }
 main();

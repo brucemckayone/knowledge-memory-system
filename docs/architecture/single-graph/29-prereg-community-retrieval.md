@@ -79,13 +79,18 @@ oracle/tie-break artifact; is a null underpowered.
 
 <!-- RESULTS APPENDED BELOW THIS LINE -->
 
-## RESULTS (2026-09-02) — community structure is a REAL but SCOPED deterministic lever (relevant-set only), adversary-cleared of the .4 artifact
+## RESULTS (2026-09-02) — BANKED NEGATIVE: the condensed "win" was an UN-HELD-OUT-EDGE LEAK; held-out, community routing HURTS
 
-**Outcome:** PRIMARY (strict) is a TIE; CO-PRIMARY (condensed / relevant-set) DEMONSTRATED on arxiv. Per the
-§5 decision rule (strict fails, condensed clears all three) → community routing helps **relevant-set /
-thematic** retrieval, not specific-target. The blind adversary attacked this as the nmemo-u8j.4 name-in-query
-artifact and it **survived the decisive singleton control** — it is genuine multi-member community structure.
-Banked with the caveats below.
+> **CORRECTION (2026-09-02, supersedes the "scoped win" reading below).** The condensed +0.0439 reported
+> below used a community assignment built from ALL facts **including each query paper's own edges**. Sizing
+> that leak (the adversary's owed item 2) with a HELD-OUT assignment — Louvain rebuilt per query doc,
+> EXCLUDING that doc's edges — flips the sign: **condensed −0.0620, strict −0.0775, both BELOW 0**. The entire
+> apparent win was the leak (the community having seen the query paper). **Community structure does NOT add to
+> the fusion. Banked NEGATIVE.** The "genuine multi-member structure" ruling (singleton control) ruled out the
+> .4 name artifact but not this leak; the held-out test is decisive. See §Held-out leak-sizing.
+
+**Outcome (leaky global assignment — DO NOT read as a win, see the correction):** PRIMARY (strict) TIE;
+CO-PRIMARY (condensed) apparently +0.0439 — but this is 100% the un-held-out-edge leak (below).
 
 ### Numbers (arxiv n=387, reproduced bit-for-bit; wiring anchor FACTNAME strict 0.2636 = R4)
 | arm | strict R@10 | condensed R@10 |
@@ -133,16 +138,34 @@ COMMFUSE − FACTNAME = +0.2021 all three (strict == condensed; COMM strict 0.54
 communities / giant component 2.6%) whose centroid ≈ the query paper's own entity cluster (query IS that
 paper) — the un-held-out-edge leak at its extreme. NOT a generalisable capability; not banked.
 
-### Disposition (per §5: strict fails, condensed clears)
-**Community structure is a real, scoped, DETERMINISTIC lever for relevant-set / thematic retrieval** (arxiv
-condensed +0.0439, adversary-cleared), **not for specific-target** (strict tie). This clears the deterministic
-FLOOR for the condensed co-primary ⇒ **LLM community summaries (richer than a name centroid) are worth a
-GATED follow-up** — BUT the gate MUST use (i) a **held-out community assignment** (exclude each query paper's
-edges) to remove the leak, and (ii) a **strict or independent oracle**, NOT another condensed run — else the
-u8j.4 pattern re-enters. Bead nmemo-u8j.8 stays OPEN for that gated LLM-summary follow-up. The
-`communities-*.json` frozen assignment + `export_communities.py` generator are committed (owed item 1); the
-leak is stated (owed item 2); sizing the leak via a held-out per-query assignment is deferred to the
-follow-up gate.
+### Held-out leak-sizing (the decisive test — `community-fusion.ts --heldout=1`, `heldout_communities.py`)
+For each query doc, communities were rebuilt with Louvain (seed 20260831) EXCLUDING that doc's own
+fact-edges (`heldout-communities-<corpus>.json`, 145 nlp / 147 cv per-doc assignments), then re-scored. The
+global run reproduces +0.0439 exactly (regression clean), so the refactor is faithful; the held-out run:
+| arm | strict R@10 | condensed R@10 |
+|---|---|---|
+| NAME | 0.1912 | 0.2429 |
+| FACTNAME | 0.2636 | 0.2920 |
+| COMM (held-out) | 0.1214 | 0.1266 |
+| COMMFUSE (held-out) | 0.1860 | 0.2300 |
+- **COMMFUSE − FACTNAME condensed = −0.0620, BELOW 0 all three** (vs +0.0439 leaky — a ~0.106 swing).
+- strict = −0.0775 BELOW 0; COMM − NAME strict = −0.0698 BELOW 0.
+So the entire condensed "win" was the leak: with the query paper's edges held out, community routing is
+strictly WORSE than name and drags the fusion DOWN. (Mechanism: held-out communities fragment — a target's
+grouping often depended on the query paper's own co-occurrence — so the centroid signal is noisier than the
+name signal and adds harmful noise to the fusion.)
+
+### Disposition — BANKED NEGATIVE
+**Deterministic community structure does NOT add to the two-signal fusion.** The apparent condensed win was
+100% an un-held-out-edge leak; held-out, COMMFUSE hurts on both oracles (condensed −0.0620, strict −0.0775).
+The strict result was a tie even leaky. qbio's +0.20 was the same leak at its extreme (fragmented per-paper
+communities). **LLM community summaries are now a HARD SELL** — they are bounded by the same graph structure
+that, held-out, does not help retrieval, and a fair LLM test would need the same held-out discipline (the
+leak that flattered the centroid would not exist). Recommend NOT pursuing the LLM-summary follow-up as a
+retrieval lever; community summaries' value, if any, is non-retrieval (structure/navigation), consistent with
+the cross-corpus concept-layer negatives (docs 28–32). Bead nmemo-u8j.8 CLOSED as measured-negative. Owed
+items addressed: frozen assignments + generators (`export_communities.py`, `heldout_communities.py`)
+committed; the leak is not just stated but SIZED (it was the whole effect).
 
 ### Artifacts
 `prereg-artifacts/community-results-{arxiv,qbio}.json`, `prereg-artifacts/communities-{arxiv-nlp,arxiv-cv,qbio}.json`
