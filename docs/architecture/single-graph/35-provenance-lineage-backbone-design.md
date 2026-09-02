@@ -136,8 +136,16 @@ one-shot, since the fix is forward-only — new ingests get lineage, old rows ne
    chunker name+version stamped (`sliding-window` / `v1:128/64`). Proven by `frag-probe.ts`: parent
    chain, offsets, transitive unit→window→document resolve, idempotent re-run; self-cleaning. (Entity-
    mention offsets still to wire — `link_entity_to_memory` tool schema lacks `mention_start/end`.)
-4. **1d — round-trip test + citation surface (TODO).** `entity/edge → proof_fragment_ids → source_document`
-   round-trip test; per-claim citation reads through it. Also: entity-mention offsets on the tool schema.
+4. **1d — round-trip test + citation surface. ✅ CORE DONE 2026-09-02 (deterministic proof green).**
+   `services/provenance.ts::getFactCitation(factId)` joins `fact_sources` + (`fact_units` → `fragment` →
+   `source_document`) into a per-claim citation. Proven by `citation-probe.ts`: fact → 1 supporting source
+   + offset_overlap proof fragments → the SAME `source_document` (right corpus + `external_source_id` =
+   ingested `sourceId`), offsets cover the fact span, text at the resolved offsets contains the verbatim
+   span; self-cleaning. **Remaining (follow-ups, not blockers):** (a) entity-mention offsets — add
+   `mention_start`/`mention_end` to the `link_entity_to_memory` tool schema (`causal-agent.ts:427`) +
+   pass-through (`causal-agent.ts:2091`); entity→source already resolves at WINDOW granularity via
+   `memory_entities` (the window is a fragment), so this only refines the span and needs a live ingest to
+   verify. (b) the optional full live epoch ingest.
 
 ## 6. Verification (acceptance)
 - Lineage round-trip test: create a fact + entity from a known text, resolve each to `proof_fragment_ids`,
