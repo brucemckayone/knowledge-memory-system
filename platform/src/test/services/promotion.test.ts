@@ -326,6 +326,7 @@ describe('promotion against testDb (nmemo-vpz.3 / E3)', () => {
           objectRef: null,
           objectValue: '1999',
           validAt: null,
+          sourceId: null,
           chunkIndex: null,
           confidence: 0.9,
           reasoning: `${TAG} atomic`,
@@ -830,7 +831,7 @@ describe('corpus-scoped promotion (doc 34 §6 step 1)', () => {
         ? [{
           stagedFactId: randomUUID(), subjectHandle: handle, predicate: 'located_in',
           objectHandle: null, objectValue: 'Testville', validAt: new Date('2026-01-01'),
-          undated: false, chunkIndex: 0, confidence: 0.9, reasoning: `${TAG} corpus scope`,
+          undated: false, sourceId: null, chunkIndex: 0, confidence: 0.9, reasoning: `${TAG} corpus scope`,
           exclusiveGroup: null, supersedesFactId: null,
         }]
         : [],

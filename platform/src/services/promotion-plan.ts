@@ -90,6 +90,10 @@ export interface StagedFact {
   objectValue: string | null;
   validAt: Date | null;
   undated: boolean;
+  /** Batch source boundary (staging_proposed_facts.source_id). With chunkIndex it
+   * reconstructs the fact's window id — windowPointId(sourceId, chunkIndex) — for
+   * source_memory_id / fact_sources on the epoch path (doc 35 §2). */
+  sourceId: string | null;
   chunkIndex: number | null;
   confidence: number | null;
   reasoning: string | null;
@@ -145,6 +149,9 @@ export interface PlannedFact {
   objectRef: ResolvedRef | null;
   objectValue: string | null;
   validAt: Date | null;
+  /** Batch source boundary; with chunkIndex reconstructs the fact's window id for
+   * epoch-path provenance (doc 35 §2). */
+  sourceId: string | null;
   chunkIndex: number | null;
   confidence: number;
   reasoning: string | null;
@@ -864,6 +871,7 @@ export function planPromotion(
       objectRef: rep.r.objectRef,
       objectValue: rep.r.objectRef ? null : rep.r.f.objectValue,
       validAt: validAtOverrides.get(rep.r.f.stagedFactId) ?? rep.r.f.validAt,
+      sourceId: rep.r.f.sourceId,
       chunkIndex: rep.r.f.chunkIndex,
       confidence: rep.confidence,
       reasoning: rep.r.f.reasoning,

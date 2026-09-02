@@ -6,7 +6,7 @@
  * ingest(text)  → store + extract (the default entry point)
  */
 
-import { randomUUID, createHash } from 'crypto';
+import { randomUUID } from 'crypto';
 import { ml } from './services/ml-client.js';
 import { storeMemoryWithUnits, getMemory } from './services/qdrant.js';
 import { config } from './config.js';
@@ -289,66 +289,17 @@ export function splitIntoUnits(
   return units;
 }
 
-// The RFC-4122 v5 URL namespace, used as the fixed namespace for unit point
-// ids. Any stable UUID works as the namespace — the per-window uniqueness comes
-// from feeding the memoryId into the name. Constant here so the scheme is
-// reproducible across processes.
-const UNIT_ID_NAMESPACE = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
-// Distinct fixed namespace for deterministic memory (window) point ids, so a
-// window id can never collide with a unit id derived from the same name string.
-const WINDOW_ID_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+// Deterministic point-id helpers live in a leaf module (./services/point-ids.ts)
+// so promotion.ts can derive the same window id without a pipeline<->promotion
+// cycle. Re-exported here for existing importers (doc-attribution.ts, the probes).
+import { unitPointId, windowPointId, sourceDocumentId } from './services/point-ids.js';
+export { unitPointId, windowPointId, sourceDocumentId };
 
-/**
- * Hand-rolled RFC-4122 v5 (SHA-1 of namespace||name) — no dependency, since the
- * `uuid` package is not installed and CLAUDE.md sanctions `crypto`. Output is a
- * canonical lowercase UUID string.
- */
-function uuidV5(namespace: string, name: string): string {
-  const nsBytes = Buffer.from(namespace.replace(/-/g, ''), 'hex');
-  const nameBytes = Buffer.from(name, 'utf8');
-  const hash = createHash('sha1').update(nsBytes).update(nameBytes).digest();
-  const bytes = hash.subarray(0, 16);
-  // Set version (5) and RFC-4122 variant bits.
-  bytes[6] = (bytes[6]! & 0x0f) | 0x50;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = bytes.toString('hex');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
-}
-
-/**
- * Deterministic unit satellite point id (nmemo-yxj.6 enabler).
- *
- * yxj.2 originally minted unit ids with randomUUID(), so they lived ONLY in the
- * Qdrant payload and could not be reconstructed offline. extract() needs the
- * real unit ids to write fact_units links, which would otherwise force a read
- * of the shared Qdrant 'memories' collection. Deriving the id as
- * uuidv5(memoryId, unitIndex) instead makes it a pure function of
- * (memoryId, index): store() writes the same payload under this id, and
- * extract() recomputes the identical id from the window text + splitIntoUnits
- * index with ZERO Qdrant reads. Re-storing/re-extracting the same window is now
- * idempotent at the id level.
- *
- * Implemented as a hand-rolled RFC-4122 v5 (SHA-1 of namespace||name) so we add
- * no dependency — the `uuid` package is not installed and CLAUDE.md sanctions
- * `crypto`. Output is a canonical lowercase UUID string, matching the TEXT
- * shape Qdrant accepts and fact_units.unit_point_id stores.
- */
-export function unitPointId(memoryId: string, unitIndex: number): string {
-  return uuidV5(UNIT_ID_NAMESPACE, `${memoryId}:${unitIndex}`);
-}
-
-/**
- * Deterministic memory (window) point id for batched ingest. When a chunk
- * carries a stable (sourceId, chunkIndex) — true for every batch arm
- * (prepareBatch sets both) — the memoryId becomes a pure function of them, so
- * re-storing the same chunk UPSERTS the same Qdrant parent + unit points
- * instead of minting duplicates. The motivating case: a resumable-driver
- * sub-batch retried after a session-limit pause re-runs store() for its chunks;
- * without this, every retry leaked a fresh set of orphan memory points. Single
- * ingest (no sourceId) keeps randomUUID().
- */
-export function windowPointId(sourceId: string, chunkIndex: number): string {
-  return uuidV5(WINDOW_ID_NAMESPACE, `${sourceId}:${chunkIndex}`);
+/** Chunker identity stamped onto fragment rows so char offsets are reproducible
+ * (doc 35 §4). Bump the version if splitIntoUnits' segmentation changes. */
+const CHUNKER_NAME = 'sliding-window';
+function chunkerVersion(unitChars: number, overlap: number): string {
+  return `v1:${unitChars}/${overlap}`;
 }
 
 /** A computed fact->unit evidentiary link (pre-persist shape for fact_units). */
@@ -410,6 +361,58 @@ export function mapFactToUnits(
   return links.length > 0 ? links : windowFallback();
 }
 
+/** Optional lineage context threaded into recordFragments/store (mig 059). */
+export interface FragmentMeta {
+  corpusId?: string;
+  sourceId?: string;
+  contentType?: string;
+}
+
+/**
+ * Record the first-class lineage rows (source_document + fragment; mig 059 /
+ * doc 35 §4) for a stored window. Given the same (memoryId, text, units) that
+ * store() persisted to Qdrant, it writes one source_document (upsert) plus one
+ * fragment per window+unit, keyed by the SAME deterministic point ids so the
+ * Postgres lineage and the Qdrant vector store can never diverge. Idempotent via
+ * ON CONFLICT DO NOTHING (a re-store is a no-op). Returns the source_document id.
+ * Zero Qdrant reads, zero embeddings.
+ */
+export async function recordFragments(
+  memoryId: string,
+  text: string,
+  units: EmbeddingUnit[],
+  meta?: FragmentMeta,
+): Promise<string> {
+  const corpusId = meta?.corpusId ?? 'default';
+  const sourceKey = meta?.sourceId ?? memoryId;
+  const docId = sourceDocumentId(corpusId, sourceKey);
+  const cVer = chunkerVersion(config.EMBED_UNIT_CHARS, config.EMBED_UNIT_OVERLAP);
+
+  await db.execute(sql`
+    INSERT INTO public.source_document (id, corpus_id, external_source_id, content_type, chunker_name, chunker_version)
+    VALUES (${docId}::uuid, ${corpusId}, ${meta?.sourceId ?? null}, ${meta?.contentType ?? 'prose'}, ${CHUNKER_NAME}, ${cVer})
+    ON CONFLICT (id) DO NOTHING
+  `);
+
+  // window fragment (parent) — spans the whole window text
+  await db.execute(sql`
+    INSERT INTO public.fragment (id, source_document_id, parent_id, kind, char_start, char_end, chunker_name, chunker_version)
+    VALUES (${memoryId}::uuid, ${docId}::uuid, NULL, 'window', 0, ${text.length}, ${CHUNKER_NAME}, ${cVer})
+    ON CONFLICT (id) DO NOTHING
+  `);
+
+  // unit fragments (children of the window)
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i]!;
+    await db.execute(sql`
+      INSERT INTO public.fragment (id, source_document_id, parent_id, kind, char_start, char_end, chunker_name, chunker_version)
+      VALUES (${unitPointId(memoryId, i)}::uuid, ${docId}::uuid, ${memoryId}::uuid, 'unit', ${u.charStart}, ${u.charEnd}, ${CHUNKER_NAME}, ${cVer})
+      ON CONFLICT (id) DO NOTHING
+    `);
+  }
+  return docId;
+}
+
 /**
  * Store raw text in Qdrant with embedding. Fast — just embed + store.
  * Returns the memoryId which can be used for later extraction.
@@ -436,7 +439,7 @@ export function mapFactToUnits(
  */
 export async function store(
   text: string,
-  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string; sourceId?: string; chunkIndex?: number }
+  metadata?: { source?: string; timestamp?: Date; contentType?: ContentType; streamId?: string; sourceId?: string; chunkIndex?: number; corpusId?: string }
 ): Promise<string> {
   // Deterministic memory id when the chunk carries a stable (sourceId,
   // chunkIndex) — true for every batch arm — so a re-store (e.g. a
@@ -502,6 +505,21 @@ export async function store(
       },
     })),
   });
+
+  // doc 35 §4 / mig 059: first-class lineage (source_document + fragment). Both
+  // arms reach here (serial + epoch call store()), so populating here covers every
+  // ingest uniformly. Best-effort — a failure logs but never blocks the Qdrant
+  // store above; idempotent, so a re-store is a no-op.
+  try {
+    await recordFragments(memoryId, text, units, {
+      corpusId: metadata?.corpusId,
+      sourceId: metadata?.sourceId,
+      contentType: metadata?.contentType,
+    });
+  } catch (err) {
+    console.warn('[pipeline] failed to record fragment lineage (continuing):', err instanceof Error ? err.message : err);
+  }
+
   return memoryId;
 }
 
@@ -1030,6 +1048,9 @@ async function runEpochBatch(
       chunkIndex: item.chunkIndex,
       contentType: item.contentType,
       streamId: item.streamId,
+      // doc 35 §4: so the epoch arm's fragments/source_document land in the
+      // ingested corpus, not 'default'.
+      corpusId,
     }), {
       retries: 4,
       isRetryable: isRetryableAgentError,

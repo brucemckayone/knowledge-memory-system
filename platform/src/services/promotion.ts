@@ -23,6 +23,8 @@ import { db } from '../db/index.js';
 import { stagingProposedEntities, stagingProposedFacts, entities, facts, sameAsLinks } from '../db/schema.js';
 import { embedForWrite } from './embed.js';
 import { recordFactChange } from './audit.js';
+import { recordFactSource } from './facts.js';
+import { windowPointId } from './point-ids.js';
 import { mergeEntities } from './entities.js';
 import { mintCausalEvent } from './causal.js';
 import {
@@ -176,6 +178,7 @@ export async function loadPromotionInputs(
     objectValue: r.objectValue,
     validAt: r.validAt,
     undated: r.undated,
+    sourceId: r.sourceId,
     chunkIndex: r.chunkIndex,
     confidence: r.confidence,
     reasoning: r.reasoning,
@@ -479,6 +482,13 @@ export async function applyPromotion(
       const subjectId = resolveId(f.subjectRef);
       const objectId = f.objectRef ? resolveId(f.objectRef) : null;
       const expiredAt = f.active ? null : new Date();
+      // doc 35 §2: reconstruct the fact's parent window id from the staged
+      // (source_id, chunk_index) — pure windowPointId, no Qdrant read — so the
+      // epoch path stamps source_memory_id + a fact_sources row like the serial
+      // path did once its injection was fixed. null when the source boundary was
+      // not staged (leaves source_memory_id NULL, exactly as before).
+      const windowId =
+        f.sourceId != null && f.chunkIndex != null ? windowPointId(f.sourceId, f.chunkIndex) : null;
       await tx.insert(facts).values({
         id: factId,
         subjectEntityId: subjectId,
@@ -488,6 +498,7 @@ export async function applyPromotion(
         validAt: f.validAt,
         confidence: f.confidence,
         sourceText: f.reasoning,
+        sourceMemoryId: windowId,
         extractionMethod: 'llm',
         expiredAt,
         expireReason: f.expireReason,
@@ -495,6 +506,12 @@ export async function applyPromotion(
         // match the entities minted above or the insert is rejected (23503).
         corpusId,
       });
+      // doc 35 §2: per-source evidentiary row (fact -> window). No-ops when
+      // windowId is null. source_text is the proposer's reasoning here (the epoch
+      // path emits no verbatim span), so unit-grained fact_units offset spans stay
+      // a Phase-4 extraction change; fact_sources + source_memory_id are the
+      // Phase-1 lineage this path gains.
+      await recordFactSource(tx, factId, windowId, f.reasoning, f.confidence);
       // nmemo-uhp.14: populate fact_embedding on the epoch path too (aligns with
       // the serial createFact path). Guarded ⇒ NULL exactly as before when off.
       const factVec = factEmbeddings.get(factId);

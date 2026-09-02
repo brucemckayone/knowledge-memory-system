@@ -40,6 +40,7 @@ function fact(
     objectValue: 'objectValue' in opts ? opts.objectValue ?? null : null,
     validAt,
     undated: validAt == null,
+    sourceId: opts.sourceId ?? null,
     chunkIndex: opts.chunkIndex ?? null,
     confidence: opts.confidence ?? 0.9,
     reasoning: opts.reasoning ?? 'r',

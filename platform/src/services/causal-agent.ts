@@ -1441,6 +1441,17 @@ export interface ToolCallContext {
    * corpus, matching `findSimilarEntities`.
    */
   corpusId?: string | null;
+  /**
+   * The parent WINDOW point id (= facts.source_memory_id) of the memory being
+   * extracted. INJECTED BY THE HARNESS (env MNEMO_MEMORY_ID via getMcpEnv), never
+   * by the agent (doc 35 §2). The MCP transport calls handleToolCall without a
+   * context, so env is the carrier — mirrors sourceId/chunkIndex above. create_fact
+   * stamps this instead of trusting the LLM to echo the extraction-context
+   * memory_id, which it did not — leaving source_memory_id NULL and the
+   * fact_sources / fact_units lineage empty. Null on paths with no single memory
+   * (gardener, reconciliation) or when the env is unset.
+   */
+  memoryId?: string | null;
 }
 
 /**
@@ -1643,6 +1654,7 @@ function resolveContext(ctx?: ToolCallContext): ToolCallContext {
     chunkIndex: Number.isFinite(chunkIndex) ? chunkIndex : null,
     invocationId: process.env.MNEMO_INVOCATION_ID || null,
     corpusId: process.env.MNEMO_CORPUS_ID || null,
+    memoryId: process.env.MNEMO_MEMORY_ID || null,
   };
 }
 
@@ -1992,7 +2004,12 @@ async function _handleToolCallInner(
         objectValue: toolInput.object_value as string | undefined,
         confidence: toolInput.confidence as number,
         sourceText: toolInput.source_text as string,
-        sourceMemoryId: toolInput.source_memory_id as string | undefined,
+        // doc 35 §2: prefer the harness-injected window id (context.memoryId, from
+        // MNEMO_MEMORY_ID) over the LLM-supplied arg. The model was trusted to echo
+        // the extraction-context memory_id and did not, leaving source_memory_id
+        // NULL and the fact_sources / fact_units lineage empty. Server wins;
+        // toolInput stays a fallback for any path that doesn't set the env.
+        sourceMemoryId: context.memoryId ?? (toolInput.source_memory_id as string | undefined),
         validAt: toolInput.valid_at ? new Date(toolInput.valid_at as string) : undefined,
         invalidAt: toolInput.invalid_at ? new Date(toolInput.invalid_at as string) : undefined,
         actor: context.agent,
@@ -3672,7 +3689,7 @@ export interface EpochContext {
   corpusId?: string;
 }
 
-export function getMcpEnv(actor: Actor, epoch?: EpochContext): Record<string, string> {
+export function getMcpEnv(actor: Actor, epoch?: EpochContext, memoryId?: string): Record<string, string> {
   const platformRoot = path.resolve(__dirname, '..', '..');
   const envFile = dotenv.config({ path: path.resolve(platformRoot, '.env') });
   const env: Record<string, string> = { MNEMO_AGENT_ACTOR: actor };
@@ -3685,10 +3702,14 @@ export function getMcpEnv(actor: Actor, epoch?: EpochContext): Record<string, st
   if (epoch?.chunkIndex != null) env.MNEMO_CHUNK_INDEX = String(epoch.chunkIndex);
   if (epoch?.invocationId) env.MNEMO_INVOCATION_ID = epoch.invocationId;
   if (epoch?.corpusId) env.MNEMO_CORPUS_ID = epoch.corpusId;
+  // Serial/optimistic extract (doc 35 §2): stamp the parent window id so
+  // create_fact sets facts.source_memory_id server-side instead of trusting the
+  // LLM to echo it (which left the fact_sources / fact_units lineage empty).
+  if (memoryId) env.MNEMO_MEMORY_ID = memoryId;
   return env;
 }
 
-export function getMcpConfigPath(actor: Actor = 'graph_agent', epoch?: EpochContext): string {
+export function getMcpConfigPath(actor: Actor = 'graph_agent', epoch?: EpochContext, memoryId?: string): string {
   const platformRoot = path.resolve(__dirname, '..', '..');
   // One config file per actor so invoke* calls don't clobber each other's
   // MNEMO_AGENT_ACTOR when running concurrently (e.g., a patrol kicked off
@@ -3699,7 +3720,13 @@ export function getMcpConfigPath(actor: Actor = 'graph_agent', epoch?: EpochCont
   const suffix =
     (epoch?.epochId != null && epoch?.chunkIndex != null
       ? `.${epoch.epochId}.c${epoch.chunkIndex}`
-      : '') + (epoch?.invocationId != null ? `.${epoch.invocationId}` : '');
+      : '') + (epoch?.invocationId != null ? `.${epoch.invocationId}` : '') +
+    // Serial/optimistic: disambiguate the config file per memory so concurrent
+    // extracts (optimistic batch) don't clobber each other's MNEMO_MEMORY_ID.
+    // Skipped when an epoch chunk suffix already uniquely names the file.
+    (memoryId != null && !(epoch?.epochId != null && epoch?.chunkIndex != null)
+      ? `.m${memoryId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)}`
+      : '');
   const configPath = path.resolve(platformRoot, `.graph-mcp-config.${actor}${suffix}.json`);
 
   // Use absolute path to the MCP server script — Claude Code does not
@@ -3713,7 +3740,7 @@ export function getMcpConfigPath(actor: Actor = 'graph_agent', epoch?: EpochCont
         command: 'npx',
         args: ['tsx', serverScript],
         cwd: platformRoot,
-        env: getMcpEnv(actor, epoch),
+        env: getMcpEnv(actor, epoch, memoryId),
       },
     },
   };
@@ -4216,7 +4243,7 @@ export async function invokeGraphAgent(params: ExtractionAgentParams): Promise<G
   // The actor's identity (audit stamp + tool allow-list) rides the MCP config
   // env; agentFetch's `agent` is only a telemetry/timeout label, so the narrow
   // 'graph_agent' label is kept for the proposer (same endpoint + timeout).
-  const mcpConfigPath = getMcpConfigPath(actor, params.epoch);
+  const mcpConfigPath = getMcpConfigPath(actor, params.epoch, params.memoryId);
 
   return agentFetch<GraphAgentResult>({
     agent: 'graph_agent',
