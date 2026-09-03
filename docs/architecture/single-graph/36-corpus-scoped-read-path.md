@@ -50,9 +50,10 @@ corpus. Verified on `cognitive_test`:
 The epoch/promotion path stamps correctly; the serial path did not. Without the fix the causal read-scoping
 above is inert/wrong on existing data (an `arxiv-nlp` causal query returns zero; a `default` one leaks
 arxiv). Fix: `createCausalEvent` now **requires** `corpusId` and stamps it; all three callers (create,
-expire, invalidate) pass the fact's corpus (expire/invalidate now select `corpus_id`). **Forward-only** —
-the ~7,300 existing mis-stamped rows are backfilled by follow-up **`nmemo-asf.10`** (which must first drop
-the `trg_corpus_immutable` BEFORE-UPDATE trigger from migration 052, or the UPDATE is rejected).
+expire, invalidate) pass the fact's corpus (expire/invalidate now select `corpus_id`). The 7,299 existing
+mis-stamped rows were backfilled by **`nmemo-asf.10`** (DONE — `platform/src/db/backfills/backfill-causal-event-corpus.sql`,
+run in one transaction that DISABLE/ENABLEs `trg_corpus_immutable` around the UPDATE; 0 mis-stamped remain,
+distribution fully aligned).
 
 **Increment 3 — proof.** `platform/src/test/tools/corpus-isolation-probe.ts` (deterministic, no Claude,
 self-cleaning scratch corpora `_iso_probe_a`/`_iso_probe_b`). Seeds a same-named alpha entity with an
@@ -65,7 +66,7 @@ isolates. Also asserts the mirror now stamps the fact's corpus. tsc held at the 
 
 ## 3. Limits / follow-ups
 
-- **Causal reads are correct only on newly-written data until `nmemo-asf.10` backfills** the existing rows.
+- **Causal reads are now correct on the full substrate** — `nmemo-asf.10` backfilled the existing rows (DONE).
 - **`findSimilarEntities` has no cross-corpus mode** — it defaults `corpusId` to `'default'`, so an
   unscoped reasoning query against a non-default corpus still under-returns from this one helper. Aligning
   it with the `null = every corpus` convention (as `getEntityFacts`/`traverseFromEntities` use) is a
