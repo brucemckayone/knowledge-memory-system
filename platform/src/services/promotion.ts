@@ -399,11 +399,23 @@ export async function applyPromotion(
         // corpus-scoped (doc 34 §6): without eq(corpusId) this reuse-by-name lookup is a
         // cross-corpus fusion path — two separately-ingested corpora sharing an entity name
         // would collapse onto one node. Default corpus behaviour is unchanged.
+        //
+        // nmemo-asf.5: reuse by (name, corpus) only — entity_type is a first-seen attribute,
+        // NOT identity. Two staged clusters for one name under different types (the planner
+        // still partitions clusters by (type, norm)) converge HERE onto a single canonical
+        // row: mintedEntityIds is keyed by clusterKey, so both keys map to the same id and
+        // every fact from either handle resolves to it. Kills the type-fragmentation ratchet
+        // (nmemo-x4s) on the epoch arm without restructuring the pure planner. (Existing
+        // fragments already on disk are collapsed by the separate backfill-merge bead.)
         .where(and(
           sql`lower(${entities.canonicalName}) = ${e.name.toLowerCase()}`,
-          eq(entities.entityType, e.type),
           eq(entities.corpusId, corpusId),
         ))
+        // Deterministic pick when several same-name rows exist (the pre-backfill fragments):
+        // earliest-created wins, ties broken by id — so a promotion re-run reuses the SAME
+        // canonical id every time (idempotency, doc 41 §12 #9). Before dropping the type
+        // predicate the (name,type) match was effectively unique; now it may not be.
+        .orderBy(entities.createdAt, entities.id)
         .limit(1);
       let id = existing[0]?.id;
       const vec = entityEmbeddings.get(e.clusterKey);

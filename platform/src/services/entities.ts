@@ -243,8 +243,15 @@ const THRESHOLD_LLM_VERIFY = 0.75;
  * Create a new entity with embedding
  */
 export async function createEntity(params: CreateEntityParams): Promise<{ id: string; existed: boolean }> {
-  // Advisory lock on (canonical_name, entity_type) to prevent concurrent duplicates.
-  await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${params.name.toLowerCase() + '||' + params.type}))`);
+  // nmemo-asf.5: identity is (name, corpus) — entity_type is a first-seen ATTRIBUTE, not
+  // part of the key. Keying on type fragmented one real entity into many rows (ChatGPT ->
+  // 21 rows, one per extractor-chosen type string; doc 38 §2). The lookup is also now
+  // corpus-scoped (nmemo-cki): without the corpus predicate a matching name in ANOTHER
+  // corpus was silently reused, ignoring the caller's corpusId (and, under the mig-052
+  // composite FK, later surfacing as a 23503 when a fact tried to reference it). Both the
+  // advisory lock and the existence check key on (lower(name), corpus).
+  const corpusId = params.corpusId ?? 'default';
+  await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${params.name.toLowerCase() + '||' + corpusId}))`);
 
   // Check if entity already exists (inside the lock)
   const existing = await db
@@ -252,7 +259,7 @@ export async function createEntity(params: CreateEntityParams): Promise<{ id: st
     .from(entities)
     .where(and(
       sql`lower(canonical_name) = ${params.name.toLowerCase()}`,
-      eq(entities.entityType, params.type),
+      eq(entities.corpusId, corpusId),
     ))
     .limit(1);
 
@@ -287,7 +294,7 @@ export async function createEntity(params: CreateEntityParams): Promise<{ id: st
       description: params.description,
       properties: params.properties || {},
       confidence: params.confidence || 1.0,
-      corpusId: params.corpusId ?? 'default',
+      corpusId,
     })
     .returning({ id: entities.id });
 

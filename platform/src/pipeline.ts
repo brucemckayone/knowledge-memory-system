@@ -715,7 +715,17 @@ export async function extract(memoryId: string, opts?: { contentType?: ContentTy
     const tMeta = Date.now();
     try {
       await updateEntityMeta(entityIds);
-      const newCandidates = await detectMergeCandidates(entityIds);
+      // nmemo-asf.5: scope merge-candidate detection to these entities' own corpus rather
+      // than the 'default' the arg silently defaulted to. Serial-arm entities for one
+      // memory share a corpus; resolve it so a non-default corpus is not enumerated under
+      // 'default' (and the cross-corpus-pair guard in detectMergeCandidates gets the right
+      // partition). All-default ingests (the common case today, nmemo-81k) are unchanged.
+      const corpusRows = (await db.execute(sql`
+        SELECT DISTINCT corpus_id FROM public.entities
+        WHERE id = ANY(${sql.raw(`ARRAY[${entityIds.map((id) => `'${id}'`).join(',')}]::uuid[]`)})
+      `)) as unknown as Array<{ corpus_id: string }>;
+      const mergeCorpus = corpusRows.length === 1 ? corpusRows[0]!.corpus_id : 'default';
+      const newCandidates = await detectMergeCandidates(entityIds, mergeCorpus);
       if (newCandidates > 0) {
         console.log(`[graph-meta] ${newCandidates} merge candidate(s) detected`);
       }
