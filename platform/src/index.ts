@@ -1494,7 +1494,7 @@ async function computeQueryFallbackEvidence(question: string): Promise<unknown[]
 app.post('/api/reason/query', async (c) => {
   // Audit attribution (nmemo-2yv.35 sweep): same dispatch as /api/reason —
   // invokeReasoningAgent threads MNEMO_AGENT_ACTOR='reasoning_agent'.
-  const body = await c.req.json<{ question: string }>();
+  const body = await c.req.json<{ question: string; corpusId?: string }>();
   if (!body.question) return c.json({ error: 'question is required' }, 400);
   logReasonRequest(c, 'query', body.question);
   // Bead nmemo-2yv.77 — invocation_id idempotency key (see /api/reason).
@@ -1512,7 +1512,7 @@ app.post('/api/reason/query', async (c) => {
     return undefined;
   });
   try {
-    const result = await invokeReasoningAgent({ mode: 'query', question: body.question, invocationId, fallbackEvidence });
+    const result = await invokeReasoningAgent({ mode: 'query', question: body.question, invocationId, fallbackEvidence, corpusId: body.corpusId ?? null });
     return c.json({ triggered: true, result: result.result, usage: result.usage, durationMs: Date.now() - start });
   } catch (err) {
     // Bead nmemo-2yv.76: 504 on timeout (see /api/reason for rationale).

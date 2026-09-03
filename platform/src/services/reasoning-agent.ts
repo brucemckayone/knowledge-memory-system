@@ -52,6 +52,14 @@ export interface ReasoningAgentParams {
    * retrieval succeeded or nothing anchored — the no-regression / no-anchor cases.
    */
   fallbackEvidence?: unknown[];
+  /**
+   * Corpus partition this query reads within (nmemo-asf.3 / doc 35). Carried into
+   * the reasoning agent's MCP server env as MNEMO_CORPUS_ID (via getMcpConfigPath's
+   * EpochContext.corpusId carrier), so resolveContext().corpusId is populated and
+   * the read tools scope their queries to this corpus instead of leaking across
+   * corpora. Omitted ⇒ null ⇒ the pre-existing cross-corpus behaviour.
+   */
+  corpusId?: string | null;
 }
 
 export interface ReasoningAgentResult {
@@ -62,7 +70,14 @@ export interface ReasoningAgentResult {
 }
 
 export async function invokeReasoningAgent(params: ReasoningAgentParams): Promise<ReasoningAgentResult> {
-  const mcpConfigPath = getMcpConfigPath('reasoning_agent');
+  // nmemo-asf.3 / doc 35: carry the query's corpus into the MCP server env
+  // (MNEMO_CORPUS_ID) via the EpochContext.corpusId carrier, so the read tools
+  // scope to it. A per-corpus config filename keeps concurrent queries on
+  // different corpora from clobbering each other's env. Omitted ⇒ unscoped.
+  const mcpConfigPath = getMcpConfigPath(
+    'reasoning_agent',
+    params.corpusId ? { corpusId: params.corpusId } : undefined,
+  );
 
   // Bead nmemo-2yv.72 decoupled pattern-detection + graph-stats cadences
   // from the reasoning-patrol success edge. Both now react directly to fact

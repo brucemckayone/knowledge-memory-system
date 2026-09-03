@@ -832,6 +832,13 @@ export interface CausalChainNode {
 export interface TraceOptions {
   maxDepth?: number;
   minStrength?: number;
+  /**
+   * Restrict the walk to one corpus (nmemo-asf.3 read-path scoping). When
+   * supplied, both the base event and every recursive parent must share the
+   * corpus, so a chain cannot cross into another corpus's events. Omitting it
+   * keeps the prior cross-corpus behaviour.
+   */
+  corpusId?: string | null;
 }
 
 /**
@@ -852,7 +859,9 @@ export async function traceCauses(
   factId: string,
   options: TraceOptions = {},
 ): Promise<CausalChainNode[]> {
-  const { maxDepth = 10, minStrength = 0 } = options;
+  const { maxDepth = 10, minStrength = 0, corpusId } = options;
+  const baseCorpusFilter = corpusId != null ? sql`AND ce.corpus_id = ${corpusId}` : sql``;
+  const parentCorpusFilter = corpusId != null ? sql`AND parent.corpus_id = ${corpusId}` : sql``;
 
   const rows = await rawQuery<{
     eventId: string;
@@ -892,6 +901,7 @@ export async function traceCauses(
         ARRAY[ce.id] AS path
       FROM causal_events ce
       WHERE ce.fact_id = ${factId}
+        ${baseCorpusFilter}
 
       UNION ALL
 
@@ -915,6 +925,7 @@ export async function traceCauses(
         AND edge.expired_at IS NULL
         AND edge.strength >= ${minStrength}
       JOIN causal_events parent ON parent.id = edge.cause_event_id
+        ${parentCorpusFilter}
       WHERE chain.depth < ${maxDepth}
         AND NOT (parent.id = ANY(chain.path))
     )
@@ -965,7 +976,9 @@ export async function projectTrajectory(
   factId: string,
   options: TraceOptions = {},
 ): Promise<CausalChainNode[]> {
-  const { maxDepth = 10, minStrength = 0 } = options;
+  const { maxDepth = 10, minStrength = 0, corpusId } = options;
+  const baseCorpusFilter = corpusId != null ? sql`AND ce.corpus_id = ${corpusId}` : sql``;
+  const childCorpusFilter = corpusId != null ? sql`AND child.corpus_id = ${corpusId}` : sql``;
 
   const rows = await rawQuery<{
     eventId: string;
@@ -1005,6 +1018,7 @@ export async function projectTrajectory(
         ARRAY[ce.id] AS path
       FROM causal_events ce
       WHERE ce.fact_id = ${factId}
+        ${baseCorpusFilter}
 
       UNION ALL
 
@@ -1028,6 +1042,7 @@ export async function projectTrajectory(
         AND edge.expired_at IS NULL
         AND edge.strength >= ${minStrength}
       JOIN causal_events child ON child.id = edge.effect_event_id
+        ${childCorpusFilter}
       WHERE chain.depth < ${maxDepth}
         AND NOT (child.id = ANY(chain.path))
     )
@@ -1067,14 +1082,24 @@ export async function projectTrajectory(
 /**
  * Get all causal events and edges involving an entity.
  */
-export async function getEntityCausalHistory(entityId: string): Promise<{
+export async function getEntityCausalHistory(
+  entityId: string,
+  options: { corpusId?: string | null } = {},
+): Promise<{
   events: CausalEvent[];
   edges: CausalEdge[];
 }> {
+  const { corpusId } = options;
+  // nmemo-asf.3 read-path scoping: restrict events to one corpus when supplied.
+  // Edges are then bounded by the scoped event ids below, so they need no
+  // separate filter. Omitting corpusId keeps the prior cross-corpus behaviour.
   const events = await db
     .select()
     .from(causalEvents)
-    .where(eq(causalEvents.subjectEntityId, entityId))
+    .where(and(
+      eq(causalEvents.subjectEntityId, entityId),
+      corpusId != null ? eq(causalEvents.corpusId, corpusId) : undefined,
+    ))
     .orderBy(causalEvents.occurredAt);
 
   if (events.length === 0) {

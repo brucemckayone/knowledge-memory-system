@@ -378,6 +378,7 @@ export async function createFact(params: CreateFactParams): Promise<string> {
   // Create causal event for this fact creation
   const causalEventId = await createCausalEvent({
     factId,
+    corpusId,
     transitionType: 'created',
     subjectEntityId,
     predicate,
@@ -567,6 +568,7 @@ export async function expireFact(params: ExpireFactParams): Promise<void> {
       confidence: facts.confidence,
       sourceMemoryId: facts.sourceMemoryId,
       sourceText: facts.sourceText,
+      corpusId: facts.corpusId,
     })
     .from(facts)
     .where(and(eq(facts.id, factId), isNull(facts.expiredAt)))
@@ -637,6 +639,7 @@ export async function expireFact(params: ExpireFactParams): Promise<void> {
 
   await createCausalEvent({
     factId,
+    corpusId: existing[0]!.corpusId,
     transitionType: 'expired',
     subjectEntityId: existing[0]!.subjectEntityId,
     predicate: existing[0]!.predicate,
@@ -691,6 +694,7 @@ export async function invalidateFact(params: InvalidateFactParams): Promise<void
       sourceMemoryId: facts.sourceMemoryId,
       sourceText: facts.sourceText,
       invalidAt: facts.invalidAt,
+      corpusId: facts.corpusId,
     })
     .from(facts)
     .where(and(eq(facts.id, factId), isNull(facts.invalidAt)))
@@ -727,6 +731,7 @@ export async function invalidateFact(params: InvalidateFactParams): Promise<void
 
   await createCausalEvent({
     factId,
+    corpusId: existing[0]!.corpusId,
     transitionType: 'invalidated',
     subjectEntityId: existing[0]!.subjectEntityId,
     predicate: existing[0]!.predicate,
@@ -846,9 +851,13 @@ export async function restoreFact(params: RestoreFactParams): Promise<void> {
  */
 export async function getEntityFacts(
   entityId: string,
-  options: { asSubject?: boolean; asObject?: boolean } = {},
+  options: { asSubject?: boolean; asObject?: boolean; corpusId?: string | null } = {},
 ): Promise<Fact[]> {
-  const { asSubject = true, asObject = true } = options;
+  const { asSubject = true, asObject = true, corpusId } = options;
+  // nmemo-asf.3 read-path scoping: restrict to one corpus only when a corpusId
+  // is supplied. `undefined` conditions are dropped by drizzle's `and()`, so the
+  // many callers that omit it stay cross-corpus exactly as before.
+  const corpusFilter = corpusId != null ? eq(facts.corpusId, corpusId) : undefined;
 
   if (asSubject && asObject) {
     return db
@@ -861,6 +870,7 @@ export async function getEntityFacts(
         ),
         isNull(facts.expiredAt),
         or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`)),
+        corpusFilter,
       ))
       .orderBy(desc(facts.createdAt));
   }
@@ -873,6 +883,7 @@ export async function getEntityFacts(
         eq(facts.subjectEntityId, entityId),
         isNull(facts.expiredAt),
         or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`)),
+        corpusFilter,
       ));
   }
 
@@ -884,6 +895,7 @@ export async function getEntityFacts(
         eq(facts.objectEntityId, entityId),
         isNull(facts.expiredAt),
         or(isNull(facts.invalidAt), gt(facts.invalidAt, sql`NOW()`)),
+        corpusFilter,
       ));
   }
 
@@ -1050,6 +1062,11 @@ export async function getFactById(factId: string): Promise<(Fact & {
  */
 async function createCausalEvent(params: {
   factId: string;
+  // nmemo-asf.3: the corpus this event belongs to (the mirrored fact's corpus).
+  // Required so the event is stamped with the right corpus rather than silently
+  // taking the column default 'default' — the bug that left the serial-arm
+  // causal_events mis-labelled and made corpus-scoped causal reads unreliable.
+  corpusId: string;
   transitionType: 'created' | 'strengthened' | 'weakened' | 'expired' | 'invalidated';
   subjectEntityId: string;
   predicate: string;
@@ -1062,6 +1079,7 @@ async function createCausalEvent(params: {
       .insert(causalEvents)
       .values({
         factId: params.factId,
+        corpusId: params.corpusId,
         transitionType: params.transitionType,
         subjectEntityId: params.subjectEntityId,
         predicate: params.predicate,

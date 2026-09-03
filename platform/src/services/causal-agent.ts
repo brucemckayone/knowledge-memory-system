@@ -1719,7 +1719,9 @@ async function _handleToolCallInner(
   switch (toolName) {
     case 'query_entity_facts': {
       const entityId = toolInput.entity_id as string;
-      const facts = await getEntityFacts(entityId);
+      // nmemo-asf.3: scope to the invocation's corpus when one was injected
+      // (context.corpusId from MNEMO_CORPUS_ID); null = cross-corpus as before.
+      const facts = await getEntityFacts(entityId, { corpusId: context.corpusId });
       // Include entity summary and aliases
       const metaRows = await db
         .select({ summary: entityMeta.summary, summaryUpdatedAt: entityMeta.summaryUpdatedAt })
@@ -1764,6 +1766,9 @@ async function _handleToolCallInner(
         {
           relationshipType: toolInput.relationship_type as string | undefined,
           maxDepth: toolInput.max_depth as number | undefined,
+          // nmemo-asf.3: forwarded to traverseFromEntities, which applies the
+          // corpus filter; null keeps the walk cross-corpus as before.
+          corpusId: context.corpusId,
         },
       );
       return JSON.stringify(neighbours);
@@ -1775,7 +1780,9 @@ async function _handleToolCallInner(
         threshold: (toolInput.threshold as number) ?? 0.5,
         limit: (toolInput.limit as number) ?? 10,
         type: toolInput.entity_type as string | undefined,
-        corpusId: toolInput.corpus_id as string | undefined,
+        // nmemo-asf.3: the injected corpus (if any) wins over the tool arg;
+        // findSimilarEntities still defaults to 'default' when both are absent.
+        corpusId: context.corpusId ?? (toolInput.corpus_id as string | undefined),
       });
       return JSON.stringify(similar.map(e => ({
         id: e.id,
@@ -1824,11 +1831,16 @@ async function _handleToolCallInner(
       // Query-side entity seed (§4.1.2): search_similar_entities over the query.
       const seedEntities = await findSimilarEntities(
         (await ml.embed(query)).vector,
-        { threshold: 0.5, limit: MAX_QUERY_SEED_ENTITIES },
+        // nmemo-asf.3: scope the query-side entity seeds to the injected corpus.
+        { threshold: 0.5, limit: MAX_QUERY_SEED_ENTITIES, corpusId: context.corpusId ?? undefined },
       );
       const ranked = await recallViaGraph(embedResult.vector, flatHits, {
         seedEntityIds: seedEntities.map((e) => e.id),
         limit: (toolInput.limit as number) ?? 5,
+        // nmemo-asf.3: scope the graph expansion (traverseFromEntities). The
+        // searchMemoriesByUnit flat search above is the Qdrant path — OUT OF
+        // SCOPE for this pass (payload carries no corpus_id).
+        corpusId: context.corpusId,
       });
       return JSON.stringify({
         triggered: flatRetrievalFailed(flatHits),
@@ -1861,7 +1873,10 @@ async function _handleToolCallInner(
     }
 
     case 'get_causal_history': {
-      const history = await getEntityCausalHistory(toolInput.entity_id as string);
+      // nmemo-asf.3: scope causal events to the injected corpus (edges follow).
+      const history = await getEntityCausalHistory(toolInput.entity_id as string, {
+        corpusId: context.corpusId,
+      });
       return JSON.stringify({
         events: history.events.map(e => ({
           id: e.id,
@@ -1893,6 +1908,8 @@ async function _handleToolCallInner(
       const chain = await traceCauses(toolInput.fact_id as string, {
         maxDepth: toolInput.max_depth as number | undefined,
         minStrength: toolInput.min_strength as number | undefined,
+        // nmemo-asf.3: keep the causal walk inside the injected corpus.
+        corpusId: context.corpusId,
       });
       return JSON.stringify({
         chain: chain.map(node => ({
@@ -3726,6 +3743,13 @@ export function getMcpConfigPath(actor: Actor = 'graph_agent', epoch?: EpochCont
     // Skipped when an epoch chunk suffix already uniquely names the file.
     (memoryId != null && !(epoch?.epochId != null && epoch?.chunkIndex != null)
       ? `.m${memoryId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)}`
+      : '') +
+    // Reasoning read path (nmemo-asf.3): a corpus-only context (no epoch) gets a
+    // per-corpus filename so concurrent /api/reason/query calls on different
+    // corpora don't clobber each other's MNEMO_CORPUS_ID. Epoch paths are already
+    // uniquely suffixed by epochId above.
+    (epoch?.corpusId != null && epoch?.epochId == null
+      ? `.k${epoch.corpusId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}`
       : '');
   const configPath = path.resolve(platformRoot, `.graph-mcp-config.${actor}${suffix}.json`);
 

@@ -69,6 +69,11 @@ export interface ExpandOptions {
   /** Max expansion candidates kept per anchor before the fetch (§3.3). Default 20. */
   maxNeighbours?: number;
   /**
+   * Restrict the neighbour walk to one corpus (nmemo-asf.3 read-path scoping).
+   * Forwarded to traverseFromEntities; omitting it walks every corpus as before.
+   */
+  corpusId?: string | null;
+  /**
    * Optional query-driven predicate weight hook (§3.3 predicate relevance).
    * The query-free primitive cannot compute this itself; bead .3 injects it.
    * Higher = more relevant. Defaults to 0 for every predicate (hop + pagerank
@@ -191,7 +196,7 @@ export async function expandFromAnchors(
     // across incremental walks" and "minimum hop count" are the same quantity —
     // so the candidate set and ranking are unchanged.
     const hopOf = new Map<string, number>();
-    for (const n of await traverseFromEntities([anchorId], { maxHops })) {
+    for (const n of await traverseFromEntities([anchorId], { maxHops, corpusId: opts.corpusId })) {
       if (n.entityId === anchorId) continue;
       hopOf.set(n.entityId, n.hops);
     }
@@ -433,6 +438,8 @@ export interface RecallViaGraphOptions {
   maxNeighbours?: number;
   /** Top-N returned (defaults to env FALLBACK_RERANK_LIMIT). */
   limit?: number;
+  /** Restrict the traversal to one corpus (nmemo-asf.3 read-path scoping). */
+  corpusId?: string | null;
 }
 
 /**
@@ -467,6 +474,7 @@ export async function recallViaGraph(
     maxHops: opts.maxHops,
     maxNeighbours: opts.maxNeighbours,
     predicateWeight: opts.predicateWeight,
+    corpusId: opts.corpusId,
   });
   if (expanded.length === 0) return [];
 
