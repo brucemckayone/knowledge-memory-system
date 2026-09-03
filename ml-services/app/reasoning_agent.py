@@ -87,7 +87,15 @@ query_entity_neighbours(entity_id, relationship_type?, max_depth?)
   Traverse the graph to find connected entities.
 
 search_similar_entities(query, threshold?, limit?, entity_type?)
-  Semantic similarity search over all entities.
+  Semantic similarity search over all entities (name signal only).
+
+recall_entities_fused(query, threshold?, limit?)
+  Two-signal entity recall — PREFER THIS over search_similar_entities for a topical
+  query. Fuses similarity over entity NAMES with similarity over FACT text so it
+  surfaces entities the name signal alone misses (found via their facts) on top of
+  the direct name matches. Returns entities best-first with provenance: nameSimilarity
+  and factSimilarity (null = that signal did not surface the entity). Scoped to the
+  current corpus automatically.
 
 search_memories(query, limit?)
   Semantic search over source texts in the vector store.
@@ -339,7 +347,9 @@ QUERY MODE — Answer a Question by Reasoning Over the Graph
 
 PHASE 1: SCOPE (5-10 calls)
   Parse the user's question to identify relevant entities and concepts.
-  1. search_similar_entities — find entities related to the question
+  1. recall_entities_fused — find entities related to the question (PREFERRED: fuses
+     the name and fact signals, so it recovers entities the name alone misses).
+     Fall back to search_similar_entities only for a deliberately name-only lookup.
   2. search_memories — find source texts related to the question
   2a. If search_memories comes back THIN (empty, or nothing scoring above ~0.5),
       call recall_via_graph(question) before giving up — the answer may live one

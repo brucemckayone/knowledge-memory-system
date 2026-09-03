@@ -25,6 +25,7 @@ import { findConnectedEntities } from './graph.js';
 import { findSimilarEntities, resolveEntity, linkMemoryToEntity, mergeEntities } from './entities.js';
 import { searchMemoriesByUnit, getMemory } from './qdrant.js';
 import { recallViaGraph, flatRetrievalFailed, type FlatHit } from './graph-fallback.js';
+import { recallEntitiesFused } from './retrieval.js';
 import { db } from '../db/index.js';
 import { insertUsageRows, type EchoedUsageCall, type UsageEcho } from './usage.js';
 import { memoryEntities, facts as factsTable, entityMeta, entityAliases, entities as entitiesTable, sameAsLinks, extractionReports, entities, reasoningReports, stagingProposedEntities, stagingProposedFacts, arbiterVerdicts, causalEvents } from '../db/schema.js';
@@ -200,6 +201,30 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         limit: {
           type: 'number',
           description: 'Maximum number of ranked fallback units to return (default: 5).',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'recall_entities_fused',
+    description:
+      'Two-signal entity recall — the confirmed retrieval lever (nmemo-u8j.1). Fuses dense similarity over entity NAMES with dense similarity over FACT text (reciprocal-rank fusion) so it surfaces entities the name signal alone misses, found via their facts, on top of the direct name matches. Corpus-scoped to the current query. Returns entities best-first (array order = fused rank) with per-hit provenance: nameSimilarity and factSimilarity, where null means that signal did not surface the entity. Reach for this as the primary entity-recall step for a topical query.',
+    mutates: false,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Query text. Embedded once and compared against both entity-name vectors and fact vectors.',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of fused entities to return (default: 10).',
+        },
+        threshold: {
+          type: 'number',
+          description: 'Cosine floor for both signals, 0.0-1.0 (default: 0 — keep the full candidate lists; RRF only rewards the head).',
         },
       },
       required: ['query'],
@@ -1857,6 +1882,27 @@ async function _handleToolCallInner(
           source: 'graph_fallback',
         })),
       });
+    }
+
+    case 'recall_entities_fused': {
+      // nmemo-asf.4: the one PROVEN retrieval lever (nmemo-u8j.1) — RRF-60 fusion of
+      // dense-over-names + dense-over-facts. Corpus comes from the invocation context
+      // (nmemo-asf.3), not a tool arg, so the read stays inside the query's corpus.
+      // recallEntitiesFused embeds the query itself and degrades to [] on ML failure
+      // (never throws), so the tool safely surfaces "no results" rather than erroring.
+      const fused = await recallEntitiesFused(toolInput.query as string, {
+        corpusId: context.corpusId ?? undefined,
+        limit: (toolInput.limit as number) ?? 10,
+        threshold: (toolInput.threshold as number) ?? 0,
+      });
+      return JSON.stringify(fused.map((e) => ({
+        id: e.id,
+        canonicalName: e.canonicalName,
+        entityType: e.entityType,
+        corpusId: e.corpusId,
+        nameSimilarity: e.nameSimilarity,
+        factSimilarity: e.factSimilarity,
+      })));
     }
 
     case 'get_memory_text': {
