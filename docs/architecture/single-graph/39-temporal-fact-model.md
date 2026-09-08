@@ -153,11 +153,10 @@ PASS, self-cleaning; tsc held at the 69 baseline throughout):
   case (corpus-scoped via `context.corpusId`) + reasoning-agent prompt (I3 primitive). Proven via the real
   `handleToolCall` dispatch in the probe.
 
-**OWED (one item):** the probe's `createFact` write-path section SKIPS when the embed service (:8000) is
-down (it was, this session). The `createFact` gating is proven-by-construction + tsc-clean and the index
-it relies on is proven, but exercising the write path end-to-end (a recurring stint via `createFact` stays
-distinct, not merged/superseded) needs Ollama :11434 + ml :8000 up. Re-run the same probe with the service
-up to close it.
+**CLOSED (2026-09-08):** the `createFact` write-path was exercised end-to-end with Ollama :11434 + ml
+:8000 up — the probe's write-path section PASSES: a recurring stint via `createFact` (same s,p,o, new
+valid_at) is inserted as a NEW fact (not corroborate-merged), and both stints stay active (none
+superseded). Every part of `.12` is now proven end-to-end.
 
 ## 6. MCP tooling notes (the load-bearing product surface)
 
