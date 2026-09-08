@@ -1,0 +1,61 @@
+{
+  "benchmark": "cronqa-flat-baseline",
+  "cut": "test / answer_type=entity / seeded n=2000",
+  "prereg": "docs/architecture/single-graph/40-cronqa-flat-baseline-prereg.md",
+  "timestamp": "2026-09-08T11:35:30.172Z",
+  "seed": 20260908,
+  "n": 2000,
+  "candidates": 12162,
+  "arm": "NAME (dense question vs entity-name, nomic-embed-text)",
+  "scores": {
+    "hits_at_1": 0.0245,
+    "hits_at_1_ci": [
+      0.018,
+      0.0315
+    ],
+    "recall_at_10": 0.076,
+    "recall_at_10_ci": [
+      0.0645,
+      0.088
+    ],
+    "per_bucket_hits_at_1": {
+      "simple_entity": {
+        "n": 808,
+        "mean": 0.006188118811881188
+      },
+      "first_last": {
+        "n": 593,
+        "mean": 0.07251264755480608
+      },
+      "time_join": {
+        "n": 391,
+        "mean": 0.0025575447570332483
+      },
+      "before_after": {
+        "n": 208,
+        "mean": 0
+      }
+    },
+    "per_bucket_recall_at_10": {
+      "simple_entity": {
+        "n": 808,
+        "mean": 0.05816831683168317
+      },
+      "first_last": {
+        "n": 593,
+        "mean": 0.15177065767284992
+      },
+      "time_join": {
+        "n": 391,
+        "mean": 0.005115089514066497
+      },
+      "before_after": {
+        "n": 208,
+        "mean": 0.0625
+      }
+    }
+  },
+  "leakage_rate": 0.096,
+  "tiebreak_hits_at_1_delta": 0.0020000000000000018,
+  "notes": "Time-BLIND floor for I3. The as-of temporal arm (nmemo-asf.8) must beat this on the temporal buckets."
+}
