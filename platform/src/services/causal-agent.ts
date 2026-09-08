@@ -20,7 +20,7 @@ import { writeFileSync } from 'node:fs';
 import { spawn } from 'child_process';
 import { Agent } from 'undici';
 import dotenv from 'dotenv';
-import { getEntityFacts, createFact, expireFact, invalidateFact, updateFactConfidence, restoreFact, getFactSources } from './facts.js';
+import { getEntityFacts, getEntityFactsAsOf, createFact, expireFact, invalidateFact, updateFactConfidence, restoreFact, getFactSources } from './facts.js';
 import { findConnectedEntities } from './graph.js';
 import { findSimilarEntities, resolveEntity, linkMemoryToEntity, mergeEntities } from './entities.js';
 import { searchMemoriesByUnit, getMemory } from './qdrant.js';
@@ -108,6 +108,30 @@ export const GRAPH_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['entity_id'],
+    },
+  },
+  {
+    name: 'query_entity_facts_as_of',
+    description:
+      'Get the bi-temporal facts about an entity that were TRUE IN REALITY as of a given date (I3 temporal / as-of-state, nmemo-asf.12). Unlike query_entity_facts (which returns only what is true NOW), this filters by the validity window: valid_at <= as_of < invalid_at. In a temporal corpus this resolves recurring truth — a statement true, then untrue, then true again returns the fact only for the dates it held. Answers "what was the state of X on date D".',
+    mutates: false,
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        entity_id: {
+          type: 'string',
+          description: 'UUID of the entity to query facts for',
+        },
+        as_of: {
+          type: 'string',
+          description: 'The as-of date (ISO 8601, e.g. "2011-07-01"). Facts whose validity window contains this instant are returned.',
+        },
+        predicate: {
+          type: 'string',
+          description: 'Optional predicate filter (e.g. "plays_for").',
+        },
+      },
+      required: ['entity_id', 'as_of'],
     },
   },
   {
@@ -1771,6 +1795,35 @@ async function _handleToolCallInner(
         summary: delimitForPrompt(summary, { kind: 'summary', attrs: { entity_id: entityId } }),
         summary_updated_at: summaryUpdatedAt,
         aliases: aliases.map(a => ({ alias: a.alias, type: a.aliasType })),
+        facts: facts.map(f => ({
+          id: f.id,
+          subjectEntityId: f.subjectEntityId,
+          predicate: f.predicate,
+          objectEntityId: f.objectEntityId,
+          objectValue: f.objectValue,
+          confidence: f.confidence,
+          validAt: f.validAt,
+          invalidAt: f.invalidAt,
+          sourceText: f.sourceText,
+        })),
+      });
+    }
+
+    case 'query_entity_facts_as_of': {
+      const entityId = toolInput.entity_id as string;
+      const asOfRaw = toolInput.as_of as string;
+      const asOf = new Date(asOfRaw);
+      if (Number.isNaN(asOf.getTime())) {
+        return JSON.stringify({ error: `invalid as_of date: ${JSON.stringify(asOfRaw)} (expected ISO 8601)` });
+      }
+      // nmemo-asf.12 (R1): as-of-VALIDITY read, transaction time pinned to NOW.
+      // Corpus-scoped by context (MNEMO_CORPUS_ID); null = cross-corpus as before.
+      const facts = await getEntityFactsAsOf(entityId, asOf, {
+        predicate: toolInput.predicate as string | undefined,
+        corpusId: context.corpusId,
+      });
+      return JSON.stringify({
+        as_of: asOf.toISOString(),
         facts: facts.map(f => ({
           id: f.id,
           subjectEntityId: f.subjectEntityId,

@@ -144,6 +144,12 @@ export const facts = pgTable('facts', {
 
   // Cross-corpus partition (nmemo-uhp.7)
   corpusId: text('corpus_id').notNull().default('default'),
+
+  // Temporal-corpus mode (nmemo-asf.12, mig 060): denormalised copy of the
+  // corpus's corpus_policies.recurring_facts. When true this row's identity is
+  // (s,p,o,valid_at) so recurring truth (A->B->A) coexists as active; when false
+  // it is (s,p,o) exactly as before. Stamped by createFact on insert.
+  temporalCorpus: boolean('temporal_corpus').notNull().default(false),
 });
 
 export const factsRelations = relations(facts, ({ one }) => ({
@@ -966,6 +972,10 @@ export const arbiterVerdicts = pgTable(
 export const corpusPolicies = pgTable('corpus_policies', {
   corpusId: text('corpus_id').primaryKey(),
   mode: varchar('mode', { length: 16 }).notNull().default('assimilating'),
+  // Temporal-corpus mode (nmemo-asf.12, mig 060): when true, facts in this corpus
+  // may hold recurring truth — same (s,p,o) across disjoint validity windows.
+  // Orthogonal to `mode` (a temporal-identity knob, not a fuse-stance).
+  recurringFacts: boolean('recurring_facts').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

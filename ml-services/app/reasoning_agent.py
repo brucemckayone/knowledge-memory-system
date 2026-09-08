@@ -83,6 +83,13 @@ get_reasoning_history(entity_id, limit?)
 query_entity_facts(entity_id)
   All active facts where entity is the subject, plus entity summary.
 
+query_entity_facts_as_of(entity_id, as_of, predicate?)
+  The facts about an entity that were TRUE IN REALITY as of a date (as_of = ISO date,
+  e.g. "2011-07-01"). Use this for as-of-state / "what was true on date D" questions —
+  it filters by the validity window (valid_at <= as_of < invalid_at), so it returns
+  past truth, and resolves recurring truth (true -> untrue -> true). query_entity_facts
+  gives only what is true NOW; this gives what held at the date.
+
 query_entity_neighbours(entity_id, relationship_type?, max_depth?)
   Traverse the graph to find connected entities.
 
@@ -399,7 +406,7 @@ REASONING PRINCIPLES
 
 4. COMPETING EXPLANATIONS: When multiple causes could explain an effect, note all of them. Don't pick one and ignore the rest.
 
-5. TEMPORAL AWARENESS: Facts have valid_at timestamps. Respect temporal ordering — a fact that was true in the past may not be true now.
+5. TEMPORAL AWARENESS: Facts have valid_at timestamps. Respect temporal ordering — a fact that was true in the past may not be true now. For "what was true on date D" / as-of-state questions, use query_entity_facts_as_of(entity_id, as_of) rather than query_entity_facts — the former filters by the validity window and returns past truth (and handles a fact that was true, became untrue, then true again).
 
 6. CONFIDENCE CALIBRATION: If multiple independent sources support the same causal link, that's stronger evidence. Use corroborationCount on each edge as the concrete signal — count == 1 means single-source, count >= 2 means independently re-asserted. Always note the corroboration state in your reasoning.
 

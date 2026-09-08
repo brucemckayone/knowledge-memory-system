@@ -13,8 +13,8 @@
 import { randomUUID } from 'node:crypto';
 import { db, type Tx } from '../db/index.js';
 import { rawQuery } from '../db/raw.js';
-import { facts, factPredicates, entities, causalEvents, factSources, type Fact, type FactSource } from '../db/schema.js';
-import { eq, and, or, gt, inArray, isNull, sql, desc } from 'drizzle-orm';
+import { facts, factPredicates, entities, causalEvents, factSources, corpusPolicies, type Fact, type FactSource } from '../db/schema.js';
+import { eq, and, or, gt, lte, inArray, isNull, sql, desc } from 'drizzle-orm';
 import { recordPredicateUsage } from './predicates.js';
 import { resolveExclusiveGroup, compareFactPrecedence, type FactPrecedence } from './exclusive-groups.js';
 import { recordFactChange, type Actor } from './audit.js';
@@ -22,6 +22,33 @@ import { cascadeFactExpiry } from './causal.js';
 import { factEmbedTextFor } from './embed-text.js';
 import { embedForWrite, embedForQuery } from './embed.js';
 import type { SeveritySummary } from './impact.js';
+
+/**
+ * Per-corpus TEMPORAL mode (nmemo-asf.12, mig 060). True when the corpus is
+ * flagged `corpus_policies.recurring_facts` — the same (subject, predicate,
+ * object) may recur across disjoint validity windows (A -> B -> A), so a
+ * re-assertion at a NEW valid_at is distinct data, not a correction. Cached per
+ * corpus: createFact is on the hot extraction path and must not add a DB round
+ * trip per fact for the common (non-temporal) case. The flag is set-once per
+ * corpus in practice; call clearCorpusTemporalCache() if a policy changes at
+ * runtime (probes/tests do).
+ */
+const corpusTemporalCache = new Map<string, boolean>();
+export function clearCorpusTemporalCache(): void {
+  corpusTemporalCache.clear();
+}
+async function corpusAllowsRecurring(corpusId: string): Promise<boolean> {
+  const cached = corpusTemporalCache.get(corpusId);
+  if (cached !== undefined) return cached;
+  const rows = await db
+    .select({ recurringFacts: corpusPolicies.recurringFacts })
+    .from(corpusPolicies)
+    .where(eq(corpusPolicies.corpusId, corpusId))
+    .limit(1);
+  const allowed = rows[0]?.recurringFacts ?? false;
+  corpusTemporalCache.set(corpusId, allowed);
+  return allowed;
+}
 
 export interface CreateFactParams {
   subjectEntityId: string;
@@ -160,9 +187,16 @@ export async function createFact(params: CreateFactParams): Promise<string> {
   // after the dedup fast path AND the insert (below), so (a) an identical
   // re-assertion corroborates instead of churning the group, and (b) the
   // LATEST-VALID fact — not the last-COMMITTED one — stays active (nmemo-bsb).
+  // Temporal-corpus mode (nmemo-asf.12): in a recurring-facts corpus a repeat of
+  // the same (s,p,o) at a new valid_at is DATA (a new stint), so we neither
+  // supersede the prior window nor corroborate-merge into it, and the row is
+  // stamped temporal_corpus=true so the functional index (mig 060) keys it on
+  // valid_at. Non-temporal corpora are byte-identical to before.
+  const temporalCorpus = await corpusAllowsRecurring(corpusId);
   const group = resolveExclusiveGroup(predicate);
   const predicateInfo = await getPredicateInfo(predicate);
-  const participatesInExclusiveGroup = group != null || predicateInfo?.isExclusive === true;
+  const participatesInExclusiveGroup =
+    !temporalCorpus && (group != null || predicateInfo?.isExclusive === true);
   const supersedeCandidates = participatesInExclusiveGroup
     ? await findSupersedingFacts(subjectEntityId, predicate, validAt, invalidAt)
     : [];
@@ -181,6 +215,10 @@ export async function createFact(params: CreateFactParams): Promise<string> {
             ? eq(facts.objectEntityId, objectEntityId)
             : eq(facts.objectValue, objectValue ?? ''),
           isNull(facts.expiredAt),
+          // Temporal corpus: the active triple is keyed on valid_at too, so a new
+          // stint (same s,p,o, new valid_at) is NOT treated as the same fact and
+          // is inserted rather than corroborated (nmemo-asf.12).
+          ...(temporalCorpus ? [eq(facts.validAt, validAt)] : []),
         ))
         .limit(1)
     )[0];
@@ -276,6 +314,7 @@ export async function createFact(params: CreateFactParams): Promise<string> {
           extractionMethod,
           confidence,
           corpusId,
+          temporalCorpus,
         })
         .returning({ id: facts.id });
 
@@ -900,6 +939,48 @@ export async function getEntityFacts(
   }
 
   return [];
+}
+
+/**
+ * As-of-validity read (nmemo-asf.12 / R1, doc 39). Facts about `entityId` that
+ * were true IN REALITY at `asOf`, per today's knowledge:
+ *   valid_at <= asOf AND (invalid_at IS NULL OR invalid_at > asOf) AND expired_at IS NULL.
+ * Transaction time is pinned to NOW (expired_at IS NULL = current belief) — this
+ * answers "what was true at asOf as we understand it now", NOT the doubly-
+ * historical `facts_at_time()` SQL fn (which ties the as-of instant to created_at
+ * too and so returns nothing for a KG loaded after the queried year; doc 39 §2).
+ * A NULL valid_at never matches (undocumented / error state — see
+ * test/plans/temporal-boundary-precision.md). Corpus-scoped like getEntityFacts.
+ *
+ * For a TEMPORAL corpus (corpus_policies.recurring_facts, mig 060) this is the
+ * read that resolves recurring truth: at an `asOf` inside a stint it returns that
+ * stint's fact; in a gap between stints it returns none for that (s,p,o).
+ */
+export async function getEntityFactsAsOf(
+  entityId: string,
+  asOf: Date,
+  options: { asSubject?: boolean; asObject?: boolean; predicate?: string; corpusId?: string | null } = {},
+): Promise<Fact[]> {
+  const { asSubject = true, asObject = true, predicate, corpusId } = options;
+  const corpusFilter = corpusId != null ? eq(facts.corpusId, corpusId) : undefined;
+  const predicateFilter = predicate != null ? eq(facts.predicate, predicate) : undefined;
+  const dir = asSubject && asObject
+    ? or(eq(facts.subjectEntityId, entityId), eq(facts.objectEntityId, entityId))
+    : asObject
+      ? eq(facts.objectEntityId, entityId)
+      : eq(facts.subjectEntityId, entityId);
+  return db
+    .select()
+    .from(facts)
+    .where(and(
+      dir,
+      isNull(facts.expiredAt),
+      lte(facts.validAt, asOf),
+      or(isNull(facts.invalidAt), gt(facts.invalidAt, asOf)),
+      predicateFilter,
+      corpusFilter,
+    ))
+    .orderBy(desc(facts.validAt));
 }
 
 /**

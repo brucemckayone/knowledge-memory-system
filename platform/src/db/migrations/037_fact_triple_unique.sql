@@ -11,10 +11,15 @@
 -- highest-confidence / newest) so the unique index can be created. Same ranking
 -- as the entity-merge dedup (entities.ts mergeEntities step 6). No-op on a
 -- fresh DB and on every re-run once the index exists.
+--
+-- valid_at IS in the PARTITION BY (mig 060): a TEMPORAL corpus legitimately holds
+-- the same (s,p,o) across disjoint validity windows, and this re-runs every
+-- migrate — without valid_at here it would expire those windows on every run. For
+-- non-temporal data this is a no-op (0/18,084 (s,p,o) groups recur, doc 39 §7).
 WITH ranked AS (
   SELECT id, ROW_NUMBER() OVER (
     PARTITION BY subject_entity_id, predicate,
-      COALESCE(object_entity_id::text, ''), COALESCE(object_value, '')
+      COALESCE(object_entity_id::text, ''), COALESCE(object_value, ''), valid_at
     ORDER BY confidence DESC NULLS LAST, created_at DESC
   ) AS rn
   FROM public.facts
