@@ -1,3 +1,6 @@
 [submodule "benchmarks/longmemeval/upstream"]
 	path = benchmarks/longmemeval/upstream
 	url = https://github.com/xiaowu0162/LongMemEval.git
+[submodule "benchmarks/cronqa/upstream"]
+	path = benchmarks/cronqa/upstream
+	url = https://github.com/apoorvumang/CronKGQA.git
