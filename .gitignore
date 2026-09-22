@@ -101,3 +101,11 @@ docs/architecture/single-graph/prereg-artifacts/*-embed-cache.json
 docs/architecture/single-graph/prereg-artifacts/rerank-pool-*.json
 docs/architecture/single-graph/prereg-artifacts/rerank-scores-*.json
 docs/architecture/single-graph/prereg-artifacts/heldout-communities-*.json
+
+# Oversized regenerable experiment artifacts stripped from history 2026-09-22
+# (GitHub rejects any blob over 100MB, and these three blocked the first push of
+# feat/single-graph-retrieval). All are byproducts of the DROPPED cross-corpus
+# arc; the pre-strip history is kept locally at tag backup/pre-blob-strip-bcb95a7
+# and the two tree-resident files at ../nmemo-bigartifact-backup/.
+docs/architecture/cross-corpus-audit/multihop-artifacts/multihop-raw-pairs.json
+docs/architecture/cross-corpus-audit/convergence-artifacts/cc-labelemb-dense.json

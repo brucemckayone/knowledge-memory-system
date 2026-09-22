@@ -5,11 +5,12 @@
  * embeds that description so cross-corpus recall (recallCrossCorpusCandidates over
  * entities.embedding) can align the two corpora.
  *
- * WHY a bespoke upsert instead of createEntity(): createEntity dedups on
- * (lower(canonical_name), entity_type) GLOBALLY — it ignores corpus_id — so the same
- * symbol name in two corpora would collapse onto one entity, exactly the cross-corpus
- * fusion the corpus_id partition (nmemo-uhp.7) exists to prevent. This path dedups
- * corpus-SCOPED (corpus_id, name, type), and always embeds name\ndescription
+ * WHY a bespoke upsert instead of createEntity(): the original reason was that
+ * createEntity deduped GLOBALLY on (lower(canonical_name), entity_type), collapsing the
+ * same symbol name in two corpora onto one entity. That is NO LONGER TRUE — 029f653
+ * (nmemo-cki) made createEntity's lookup and advisory lock key on (lower(name),
+ * corpus_id), so the fusion risk is gone. What still justifies this path is the second
+ * half: it dedups on (corpus_id, name, TYPE) and always embeds name\ndescription
  * (entityEmbedTextFor 'name_description') regardless of the global EMBED_DESCRIPTIONS
  * flag — cross-corpus recall is meaningless without the description in the vector.
  *
