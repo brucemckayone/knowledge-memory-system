@@ -185,3 +185,69 @@ pairs and all four corpora, roughly doubling R4's gain over name-only, and survi
 mechanism is "a third, lexically-distinct substrate," not "fact text" specifically. **Recommended
 follow-up:** wire a BM25 index over `facts.source_text` into the production read path
 (`recallEntitiesFused`) — which closes doc 34 §I1's recorded **"lexical index MISSING"** gap.
+
+---
+
+## ADVERSARY VERDICT (2026-09-22) — **NARROW.** The headline survives; the mechanism claim does not.
+
+Blind adversary run at §8's requirement. Full report: `scratch-doc46-adversary.md`. Harness:
+`platform/src/test/tools/doc46adv-controls.ts` (the original `lexical-fact-signal.ts` is untouched).
+Artifacts: `prereg-artifacts/doc46adv-{dal,arxiv}-{asc,desc}.json`. Every number below was
+re-checked by the main session against those artifacts, and the degree base rates were reproduced
+independently by SQL.
+
+**Reproduction first.** Re-running the banked harness rewrote `lexical-fact-signal-results-arxiv.json`
+byte-identically except `run_at`. The ARM-NAME regression gate is exact (0.20056497175141244, n=354).
+So none of what follows is a harness bug.
+
+### What SURVIVES
+- **Not an RRF artifact.** 120 draws across three random/shuffled third-arm families x 10 seeds x 4
+  configs: **0 clear the bar**. Uniform-permutation and score-multiset-shuffled arms are never positive.
+  The tightest control — permuting per-fact BM25 scores across facts, preserving both the score
+  distribution *and* every entity's fact-degree — means +0.0098…+0.0215, against a real +0.0763/+0.0801.
+  `L3 − L3fshuf` is above 0 on all three bootstraps in all four configs.
+- **Index-DESC tie-break.** `L3 − FACTNAME` goes +0.0763 → **+0.0960** (dal) and +0.0801 → **+0.0749**
+  (arxiv), above 0 on all three bootstraps under both tie-breaks. Absolute levels move as the standing
+  caveat predicts (dal NAME 0.2006 → 0.1836).
+- **The held-out guard is sound and load-bearing.** Removing it takes BM25f to R@10 0.7175/0.7132 (from
+  0.2288/0.1886), so the audit mattered. dal's 3.5% unmapped hole traces to 10 papers missing from
+  `attribution-dal-nlp.json`, and those papers can never be a query doc, so no query text can leak
+  through it. All 169 duplicate-`source_text` groups map to a single paper (0 split), closing a channel
+  the guard structurally could not catch.
+
+### What FAILS — a query-free popularity prior reproduces the gain
+- Targets carry **4.08x** (dal) / **4.73x** (arxiv) the corpus mean fact-degree **by construction** — a
+  pair only exists if the entity appears in >=2 papers. Verified independently by SQL: corpus mean
+  fact-degree dal-nlp 3.470, dal-cv 3.193, arxiv-nlp 3.585, arxiv-cv 3.429.
+- Spearman rho(BM25f entity score, eligible fact degree) = **0.501 / 0.509**.
+- **`L3deg` — a third arm that is pure eligible-fact COUNT, with zero query input, and biased *against*
+  the target because the guard strips the query doc's own facts — gives `L3deg − FACTNAME` = +0.0650
+  (dal), above 0 on all three bootstraps: byPair [0.0311, 0.0989], byEntity [0.0087, 0.1244], byDoc
+  [0.0319, 0.0977]. That is the identical house DEMONSTRATED bar the headline claims.** On arxiv it is
+  +0.0517 with byEntity [0.0000, 0.1058] spanning 0. DEG *alone* is a weak retriever (R@10
+  0.1243/0.1783, at or below NAME) — it only bites when injected as a third RRF arm, which is exactly
+  this doc's move.
+- **`L3 − L3deg` SPANS 0 in all four configs** (+0.0113, +0.0311, +0.0284, +0.0258). At this n the real
+  lexical arm is statistically indistinguishable from a query-free degree prior.
+- **MAX is what carries it.** `L3mean − FACTNAME` spans 0 in every config (+0.0254, +0.0311, +0.0129,
+  0.0000). The win rides on the max-over-facts order statistic, which is itself degree-driven.
+- **Not fact text.** Stripping endpoint canonical names from `source_text` drops BM25f from 0.2288 to
+  0.1158 (dal) and `L3x − FACTNAME` to +0.0311, spanning 0. The target name is verbatim in BM25f's argmax
+  fact **79.4% / 78.3%** of the time. Combined with this doc's own `L3n` tie, "lexical over fact text" is
+  not separated from "lexical over names".
+
+### CORRECTIONS OF RECORD to the sections above
+1. **§"Engineering note (the shippable shape)" is RETRACTED to a LEAD.** Under index-DESC on arxiv,
+   `L2 − FACTNAME` = +0.0413 with byEntity **[0.0000, 0.0841] — lower bound exactly 0, so it does not
+   clear** "above 0 on all three bootstraps". L2 must NOT be wired into `recallEntitiesFused` on this
+   evidence.
+2. **§"Banked disposition"'s recommended follow-up is WITHDRAWN.** Doc 34 §I1's recorded "lexical index
+   MISSING" gap is **NOT closed** by this result.
+3. The surviving demonstrated claim is narrower than the headline: **adding a third MAX-over-facts RRF-60
+   arm beats R4** by +0.076/+0.080 (+0.096/+0.075 index-DESC), all three bootstraps, both pairs. **Why**
+   it works is unproven, and the leading explanation is now an artifact of how the task selects targets.
+
+### OWED settling experiment (degree was never pre-registered here)
+Pre-register either a degree-residualised / degree-stratified BM25f, or a degree-balanced pair
+construction, and require **`L3 − L3deg`** — not `L3 − FACTNAME` — to clear all three bootstraps. Until
+that runs, `nmemo-v3g` is a pre-registration task, not a ship.
