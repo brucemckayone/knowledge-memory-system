@@ -48,6 +48,17 @@ Entity embedding coverage 100% on all five. Inline `facts.source_text` 100% popu
 
 4. **Graph C exists only on dal + default; arxiv has none, qbio is near-empty.** causal_edges: dal-cv 521,
    default 296, dal-nlp 175, qbio 51 (0.7% event→edge density), **arxiv-cv/nlp 0**. Reasoning +
+
+   > **CORRECTION OF RECORD (2026-09-17, verified by SQL twice — doc 44).** The per-corpus split above is
+   > **STALE**. A one-shot hand-run backfill (`platform/src/db/backfills/backfill-causal-event-corpus.sql`,
+   > nmemo-asf.10) re-stamped the ~7,299 mis-stamped `default`-corpus events onto their facts' real
+   > corpora *after* this doc was verified. Nothing was minted or deleted — only re-attributed (the old
+   > numbers sum to today's 17,847 total). **Truth now: dal-cv 521 · dal-nlp 454 · qbio 51 · arxiv-nlp 17
+   > · arxiv-cv 0 · default 0.** So "dal-cv 521" and "qbio 51" still hold, but **dal-nlp is 454 (2.6x the
+   > 175 above)**, **`default` has 0 edges and 0 events**, and **"arxiv has none" is half wrong —
+   > arxiv-nlp has 17.** The `causal events / edges` column of the table above is stale for the same
+   > reason. Doc 34 §I4 inherited these figures and is corrected there too.
+
    source_references 100% non-empty (NOT NULL enforced). **Implication:** the causal intent (Phase 4) must run
    on **dal-cv** (richest), never arxiv; confirms the `.7` feasibility finding (doc 28).
 

@@ -25,8 +25,12 @@ import { dot, norm, normalise, parseVec, nameMatcher, mean } from './core.js';
 export interface Doc { id: string; title: string; abstract: string }
 export interface Ent { id: string; name: string; description: string | null }
 export interface Pair { entityId: string; docId: string; corpusId: string }
-export interface FactRow { id: string; subj: string; obj: string; emb: string }
-export interface FactState { vecs: number[][]; paper: string[]; entFacts: Map<number, number[]> }
+export interface FactRow { id: string; subj: string; obj: string; emb: string; txt: string | null }
+/** `texts` is the fact's authored source_text, index-aligned with `vecs` — the
+ *  lexical counterpart of the dense fact signal. Added for the BM25-over-facts
+ *  arm (doc 46); existing consumers ignore it. Aliased `txt` in the SELECT
+ *  because `rawQuery` rewrites snake_case keys to camelCase. */
+export interface FactState { vecs: number[][]; paper: string[]; entFacts: Map<number, number[]>; texts: string[] }
 
 export interface SubstratePaths {
   arcDir: string;       // attribution-*.json + ingest-ledger-*.json
@@ -161,20 +165,20 @@ export async function loadFactStates(
     const ents = entsByCorpus.get(c)!;
     const idxOf = new Map(ents.map((e, i) => [e.id, i]));
     const rows = await rawQuery<FactRow>(sql`
-      SELECT id::text AS id, subject_entity_id::text AS subj, object_entity_id::text AS obj, fact_embedding::text AS emb
+      SELECT id::text AS id, subject_entity_id::text AS subj, object_entity_id::text AS obj, fact_embedding::text AS emb, source_text AS txt
       FROM public.facts WHERE corpus_id = ${c} AND expired_at IS NULL AND invalid_at IS NULL AND fact_embedding IS NOT NULL`);
     const f2p = factToPaperByCorpus.get(c)!;
-    const vecs: number[][] = []; const paper: string[] = []; const entFacts = new Map<number, number[]>();
+    const vecs: number[][] = []; const paper: string[] = []; const entFacts = new Map<number, number[]>(); const texts: string[] = [];
     for (const row of rows) {
       const raw = parseVec(row.emb);
       if (raw.length !== 768 || raw.some((x) => !Number.isFinite(x))) { dimViol += 1; continue; }
       rawNormSum += norm(raw); rawNormCount += 1;
       const nv = normalise(raw);
       if (Math.abs(dot(nv, nv) - 1) > 1e-6) selfDotViol += 1;
-      const fi = vecs.length; vecs.push(nv); paper.push(f2p[row.id] ?? '');
+      const fi = vecs.length; vecs.push(nv); paper.push(f2p[row.id] ?? ''); texts.push(row.txt ?? '');
       for (const eid of [row.subj, row.obj]) { const ei = idxOf.get(eid); if (ei !== undefined) { const l = entFacts.get(ei) ?? []; l.push(fi); entFacts.set(ei, l); } }
     }
-    factStateByCorpus.set(c, { vecs, paper, entFacts });
+    factStateByCorpus.set(c, { vecs, paper, entFacts, texts });
     console.log(`${c}: ${rows.length} active embedded facts, ${entFacts.size}/${ents.length} entities with >=1 fact`);
   }
   return { factStateByCorpus, dimViol, meanRawNorm: rawNormSum / Math.max(1, rawNormCount), selfDotViol };

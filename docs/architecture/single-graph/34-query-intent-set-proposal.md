@@ -22,6 +22,22 @@ agent asks such a graph, from cheapest/most-central to hardest:
 - **Ground truth:** ranked relevance (clean).
 - **Current fit:** fusion HAVE (proven, R4); **lexical index MISSING**; real-query eval MISSING.
 
+> **UPDATE (2026-09-17 — doc 46, pending adversary).** The "lexical index MISSING" item is now backed by a
+> **measured gain, not just literature**. Adding **BM25 over `facts.source_text`, MAX-aggregated to
+> entities**, as a THIRD signal to the R4 fusion clears the house DEMONSTRATED bar on **both** corpus
+> pairs: `L3 − FACTNAME` = **+0.0763 (dal)** and **+0.0801 (arxiv)** strict R@10, above 0 on all three
+> bootstraps in both, with **all four corpora improving**; total gain over name-only is +0.1186 / +0.1525,
+> roughly **double R4's own +0.0724**. Validations: the ARM-NAME regression gate passes exactly, R4
+> reproduces its banked +0.0724 on arxiv, and doc 12's tie reproduces on dal. Survives leak-hardening.
+> **Mechanism is narrower than the headline:** swapping the lexical component to entity *names* is not
+> distinguishable in the three-way (`L3 − L3n` spans 0 both pairs), so the claim is **"add a lexical
+> substrate,"** not "fact text specifically" — though in the two-way, fact text wins decisively
+> (`L2 − H60` above 0 on all three bootstraps in both pairs). **`L2` = RRF-60(dense-names, BM25-over-fact-
+> text) needs NO fact embeddings at all** and still beats R4, so it is cheaper than the current read path.
+> Standing caveats: papers-as-queries proxy, strict metric only, deltas-not-levels. Also **retracted
+> there**: docs 44/45's "lexical beats dense at fact level" does NOT generalise — `BM25f − FACTMAX` flips
+> sign across corpus pairs.
+
 ### I2 — Relational / multi-hop ("how are X and Y connected", "A→B→C")
 - **Example queries:** "what connects X and Y", "what did X influence that influenced Z".
 - **Substrate:** canonicalized traversable graph, typed edges (or PPR). (doc 31)
@@ -47,6 +63,35 @@ agent asks such a graph, from cheapest/most-central to hardest:
 - **Ground truth:** clean for the reasoning question.
 - **Current fit:** substrate only on **dal-cv (521 edges)** and default; **arxiv has none, qbio 0.7%** (doc
   33). Runs on dal-cv, not arxiv. Edges not corpus-partitioned (a fix). Never evaluated.
+
+> **CORRECTIONS OF RECORD (2026-09-17 — docs 44/45, both adversary-reviewed).**
+> 1. **The Corr2Cause / CLadder plan is WITHDRAWN as INVALID.** Both are verified **100% self-contained in
+>    the prompt** (CLadder's own text: all causal structures and probabilities are supplied per item, no
+>    external retrieval required; Corr2Cause premises are abstract letters — *"Suppose there is a closed
+>    system of 3 variables, A, B and C…"*). There is nothing to retrieve, so the graph cannot contribute,
+>    and `docs/benchmarks/plan.md:157`'s design (ingest the question's own preamble, then ask the question)
+>    is **storing the answer key and reading it back**. Both datasets are additionally *engineered* to be
+>    retrieval-proof. Two further defects: variables are literally `A`/`B`/`C` so every item's "A" collides
+>    onto one node (CLadder reuses 10 graph structures across hundreds of items with **opposite gold
+>    answers**), and the fact-count trigger would fire on nearly every item, spending 1.1k-10k agentic
+>    calls building contaminating edges. Corr2Cause's eval split is **1,162 items**, not the "200K+" in
+>    `plan.md:151` (that is the *train* split: 205,734/1,076/1,162). See `scratch-asf-i4-benchmarks.md`.
+> 2. **Per-corpus figures above are STALE** (see the correction in doc 33 §4): truth is dal-cv 521 ·
+>    **dal-nlp 454** · qbio 51 · **arxiv-nlp 17** · arxiv-cv 0 · **default 0**.
+> 3. **"Edges not corpus-partitioned" is true of the table but is NOT a read-path blocker** — `traceCauses`
+>    scopes via `causal_events.corpus_id`, which is populated on all 17,847 events.
+> 4. **"Never evaluated" is now false.** Doc 44 (pass-through) and doc 45 (asymmetric re-rank) both
+>    evaluated it; both returned **nulls**. Graph C is well-built provenance infrastructure (1043/1043
+>    distinct reasoning strings, 99.83% resolving references, ~100% source_text on cited facts vs 5.20%
+>    graph-wide) but **structurally thin as a retrieval substrate**: 86.3% of answerable effects are
+>    single-hop, largest connected component 7 nodes, `event_embedding` NULL on all 17,847 and read by
+>    nothing, every entry point keyed by id not query, `temporal_span` NULL on all 1043 (so the I4×I3
+>    composite has no substrate). **I4-as-retrieval is open and unresolved**; the direction-blindness route
+>    is closed (doc 45).
+> 5. **There is no valid external oracle** for cross-document causal retrieval — MAVEN-ERE's own
+>    Limitations section says the field has none, EventStoryLine's gold is not causality (`PLOT_LINK` is
+>    "a loose causal and temporal relation"; explicit causality is set on only 117/5,625 pairs), and the
+>    area's critique paper requires benchmarks be *"non-retrievable."*
 
 ### I5 — Global / thematic / sensemaking ("main themes", "summarize area Z")
 - **Example queries:** "what are the main themes across the corpus", "summarize what we know about Z".
