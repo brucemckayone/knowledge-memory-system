@@ -26,6 +26,76 @@ export const COLLECTIONS = {
   },
 } as const;
 
+// ============================================
+// Corpus scoping for the raw-source read path (bead nmemo-mdc)
+// ============================================
+
+/**
+ * Sentinel written by `scripts/backfill-qdrant-corpus-id.ts` onto points whose
+ * corpus could NOT be determined from the live payload. It is deliberately not
+ * a corpus: no ingest path writes it, and `corpusScopeClause` REFUSES it as a
+ * search scope. So an unattributable point keeps a present `corpus_id` (which
+ * is what `assertCorpusScopeReady` checks for) while remaining unreachable from
+ * every corpus-scoped search — as opposed to guessing it into a real corpus.
+ */
+export const UNATTRIBUTED_CORPUS_ID = '__unattributed__';
+
+/** Cleared only by the module reloading; success is sticky (see below). */
+let corpusScopeReady = false;
+
+/**
+ * Gate a corpus-scoped read on `corpus_id` actually being present on every
+ * point.
+ *
+ * Why this exists: a Qdrant `match` on a payload key that is ABSENT matches
+ * nothing. The 20,395 points written before nmemo-mdc carry no `corpus_id`, so
+ * simply adding the filter clause would have turned every scoped search into a
+ * silent zero-row answer — the same failure shape as the filtered-pgvector /
+ * `hnsw.iterative_scan` bug (migration 058). The two alternatives to this gate
+ * are both worse: an `is_empty` OR-clause would silently fall BACK to unscoped
+ * (i.e. keep the leak), and returning zero rows silently loses data.
+ *
+ * So: fail loudly and name the fix. Throws until the backfill has run.
+ * Unscoped callers are untouched — they never reach here.
+ *
+ * Success is cached per process: once no point is missing the key, every later
+ * write goes through `store()`, which now always stamps it.
+ */
+export async function assertCorpusScopeReady(): Promise<void> {
+  if (corpusScopeReady) return;
+  const { count } = await qdrant.count(COLLECTIONS.MEMORIES, {
+    filter: { must: [{ is_empty: { key: 'corpus_id' } }] } as any,
+    exact: true,
+  });
+  if (count > 0) {
+    throw new Error(
+      `Qdrant collection "${COLLECTIONS.MEMORIES}" has ${count} point(s) with no corpus_id in ` +
+        `their payload, so a corpus-scoped search cannot be honoured (a filter on an absent key ` +
+        `matches ZERO points). Run the backfill first: ` +
+        `\`cd platform && npx tsx scripts/backfill-qdrant-corpus-id.ts --apply\`. ` +
+        `Refusing to answer a scoped read rather than returning an empty result or falling back ` +
+        `to an UNSCOPED search across every corpus (bead nmemo-mdc).`,
+    );
+  }
+  corpusScopeReady = true;
+}
+
+/** Reject the sentinel as a search scope (see `UNATTRIBUTED_CORPUS_ID`). */
+function assertSearchableCorpus(corpusId: string): void {
+  if (corpusId === UNATTRIBUTED_CORPUS_ID) {
+    throw new Error(
+      `'${UNATTRIBUTED_CORPUS_ID}' is not a corpus — it marks the points the nmemo-mdc backfill ` +
+        `could not attribute. Scoping a search to it is always a mistake.`,
+    );
+  }
+}
+
+/** The `must` clause that scopes a search to one corpus. */
+function corpusScopeClause(corpusId: string): Record<string, unknown> {
+  assertSearchableCorpus(corpusId);
+  return { key: 'corpus_id', match: { value: corpusId } };
+}
+
 /**
  * Ensure collections exist; throw on dimension mismatch against EMBED_DIMENSIONS.
  */
@@ -201,16 +271,32 @@ export async function searchMemoriesByUnit(
   options: {
     limit?: number;
     streamId?: string;
+    /**
+     * Corpus scope (bead nmemo-mdc). Supplied ⇒ the search is restricted to
+     * points stamped with this `corpus_id`, on BOTH the unit search and the
+     * window fallback. Omitted ⇒ the search spans every corpus, unchanged.
+     * A scoped call first passes `assertCorpusScopeReady`, which THROWS if any
+     * point still lacks the key (rather than silently matching nothing).
+     */
+    corpusId?: string;
     /** Candidate over-fetch multiplier before dedup. Default 5. */
     overFetch?: number;
   } = {},
 ): Promise<UnitGroupedHit[]> {
-  const { limit = 5, streamId, overFetch = 5 } = options;
+  const { limit = 5, streamId, corpusId, overFetch = 5 } = options;
+
+  if (corpusId) {
+    // Sentinel rejection first (synchronous, cheap) so a bad scope reports the
+    // bad scope rather than the backfill message.
+    assertSearchableCorpus(corpusId);
+    await assertCorpusScopeReady();
+  }
 
   const must: Array<Record<string, unknown>> = [
     { key: 'point_type', match: { value: 'unit' } },
   ];
   if (streamId) must.push({ key: 'stream_id', match: { value: streamId } });
+  if (corpusId) must.push(corpusScopeClause(corpusId));
 
   const candidates = await qdrant.search(COLLECTIONS.MEMORIES, {
     vector,
@@ -256,6 +342,10 @@ export async function searchMemoriesByUnit(
       { key: 'point_type', match: { value: 'window' } },
     ];
     if (streamId) windowMust.push({ key: 'stream_id', match: { value: streamId } });
+    // Same corpus scope as the unit search above — otherwise the fallback would
+    // be the leak: a scoped search that found no in-corpus units would answer
+    // with windows from EVERY corpus (bead nmemo-mdc).
+    if (corpusId) windowMust.push(corpusScopeClause(corpusId));
     const windows = await qdrant.search(COLLECTIONS.MEMORIES, {
       vector,
       limit,

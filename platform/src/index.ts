@@ -221,7 +221,7 @@ app.get('/ingest/queue/status', (c) => {
 // baseline control), epoch (Approach A), optimistic (Approach B). epoch and
 // optimistic return 501 until their orchestrators land (Stage 3/4).
 async function handleBatch(c: Context, mode: IngestMode) {
-  const body = await c.req.json<{ chunks?: string[]; source?: string; sourceId?: string; contentType?: string; concurrency?: number; stream_id?: string }>();
+  const body = await c.req.json<{ chunks?: string[]; source?: string; sourceId?: string; contentType?: string; concurrency?: number; stream_id?: string; corpusId?: string }>();
   if (!Array.isArray(body.chunks) || body.chunks.length === 0) {
     return c.json({ error: 'chunks (non-empty array) is required' }, 400);
   }
@@ -246,6 +246,12 @@ async function handleBatch(c: Context, mode: IngestMode) {
       // store()/extract()/propose() resolves the same per-stream USER/ASSISTANT
       // speakers across all three arms (one batch = one stream).
       streamId: body.stream_id,
+      // nmemo-81k: batch-level corpus scope. Omitted => undefined, so
+      // ingestBatch/store default it to 'default' exactly as before. Supplied
+      // with a non-'epoch' mode, ingestBatch THROWS (it is the only arm that
+      // routes through promote()) and that surfaces here as a 500 with the
+      // reason, rather than silently writing the batch into 'default'.
+      corpusId: body.corpusId,
     });
     return c.json(result);
   } catch (err) {
@@ -1453,13 +1459,21 @@ app.post('/api/reason', async (c) => {
  * extra work — the §6 no-regression constraint) or nothing anchored (§4.2).
  * Single fire per query (§6.3). Lazy imports keep the hot module graph lean.
  */
-async function computeQueryFallbackEvidence(question: string): Promise<unknown[] | undefined> {
+async function computeQueryFallbackEvidence(
+  question: string,
+  corpusId?: string,
+): Promise<unknown[] | undefined> {
   const { searchMemoriesByUnit } = await import('./services/qdrant.js');
   const { flatRetrievalFailed, recallViaGraph } = await import('./services/graph-fallback.js');
   const { findSimilarEntities } = await import('./services/entities.js');
 
   const queryVector = (await ml.embedQuery(question)).vector;
-  const flat = await searchMemoriesByUnit(queryVector, { limit: 5 });
+  // nmemo-mdc: the Qdrant read is corpus-scoped when the caller scoped the
+  // query. Previously this flat search spanned EVERY corpus even on a
+  // /api/reason/query that named one, so raw source text leaked across the
+  // partition. Scoped searches throw (rather than answer thin) until the
+  // backfill has stamped corpus_id on the legacy points.
+  const flat = await searchMemoriesByUnit(queryVector, { limit: 5, corpusId });
   const flatHits = flat.map((m) => ({ id: m.id, score: m.score }));
 
   // §6.1 trigger: only proceed on flat-retrieval FAILURE. Success returns early
@@ -1470,9 +1484,14 @@ async function computeQueryFallbackEvidence(question: string): Promise<unknown[]
   const seedEntities = await findSimilarEntities((await ml.embed(question)).vector, {
     threshold: 0.5,
     limit: 5,
+    // Scope the seeds and the graph walk to the same corpus as the Qdrant read
+    // above; both stay unscoped when the caller named none, which is the
+    // pre-nmemo-mdc behaviour.
+    corpusId,
   });
   const ranked = await recallViaGraph(queryVector, flatHits, {
     seedEntityIds: seedEntities.map((e) => e.id),
+    corpusId,
   });
   if (ranked.length === 0) {
     // §4.2 no-anchor / no-evidence: surface the original flat result unchanged.
@@ -1507,7 +1526,7 @@ app.post('/api/reason/query', async (c) => {
   // agent alongside the question. Single fire per query (§6.3): the boundary
   // evaluates the trigger at most once and never re-anchors its own hits.
   // Fails open — any error here must not block the normal query path.
-  const fallbackEvidence = await computeQueryFallbackEvidence(body.question).catch((err) => {
+  const fallbackEvidence = await computeQueryFallbackEvidence(body.question, body.corpusId).catch((err) => {
     console.error(`[reason/query] fallback boundary check failed (continuing without): ${err}`);
     return undefined;
   });

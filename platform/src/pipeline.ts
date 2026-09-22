@@ -60,6 +60,15 @@ export interface ExtractResult {
 // pre-3f9 single-user behaviour is preserved (back-compat).
 const DEFAULT_STREAM_ID = 'default';
 
+// corpus_id partitions canonical entities/facts (nmemo-uhp.7) and, since
+// nmemo-mdc, the raw-source points in Qdrant too. A caller that omits it lands
+// in the same implicit 'default' corpus the Postgres side already defaults to
+// (recordFragments / source_document.corpus_id DEFAULT 'default'). It is
+// resolved to a concrete string at store() time and ALWAYS written to the
+// payload: a Qdrant filter on an absent key matches zero points, so an omitted
+// corpus_id would make the point invisible to every scoped read.
+const DEFAULT_CORPUS_ID = 'default';
+
 // Assistant-role labels ride in the source text (e.g. "ASSISTANT: ..."), they
 // are never declared on /ingest. We only seed an assistant speaker when such a
 // label actually appears — the Frankenstein narrative path (no role labels)
@@ -383,7 +392,7 @@ export async function recordFragments(
   units: EmbeddingUnit[],
   meta?: FragmentMeta,
 ): Promise<string> {
-  const corpusId = meta?.corpusId ?? 'default';
+  const corpusId = meta?.corpusId ?? DEFAULT_CORPUS_ID;
   const sourceKey = meta?.sourceId ?? memoryId;
   const docId = sourceDocumentId(corpusId, sourceKey);
   const cVer = chunkerVersion(config.EMBED_UNIT_CHARS, config.EMBED_UNIT_OVERLAP);
@@ -451,6 +460,7 @@ export async function store(
       ? windowPointId(metadata.sourceId, metadata.chunkIndex)
       : randomUUID();
   const streamId = metadata?.streamId ?? DEFAULT_STREAM_ID;
+  const corpusId = metadata?.corpusId ?? DEFAULT_CORPUS_ID;
 
   // Embed the whole window (parent point) and each small unit (satellites) in
   // parallel. nomic caps at ~2048 tokens; units are far below the cap by
@@ -479,6 +489,12 @@ export async function store(
         // source/content_type so standalone re-extraction (extract(memoryId))
         // recovers it, and so query-time metadata-scoped retrieval can filter.
         stream_id: streamId,
+        // nmemo-mdc: corpus scope for the RAW SOURCE TEXT. Without it a
+        // semantic search over memories returned text from every corpus
+        // regardless of the caller's scope (the one real isolation leak).
+        // Written unconditionally (never spread-omitted) because a filter on an
+        // absent payload key matches nothing.
+        corpus_id: corpusId,
         // Batch provenance (doc 38 §1): source_id groups all chunks of one
         // batched source; chunk_index is the narration-order key the reconcile
         // step uses for temporal alignment. Omitted for single-chunk ingest
@@ -502,6 +518,9 @@ export async function store(
         // Carry stream_id so unit-grained retrieval can apply the same
         // metadata scope filter as the parent without a join back.
         stream_id: streamId,
+        // Same for corpus_id (nmemo-mdc): units are what the read path actually
+        // searches, so the scope filter has to be applicable on the unit itself.
+        corpus_id: corpusId,
       },
     })),
   });
@@ -512,7 +531,7 @@ export async function store(
   // store above; idempotent, so a re-store is a no-op.
   try {
     await recordFragments(memoryId, text, units, {
-      corpusId: metadata?.corpusId,
+      corpusId,
       sourceId: metadata?.sourceId,
       contentType: metadata?.contentType,
     });
