@@ -1,0 +1,87 @@
+{
+  "benchmark": "longmemeval-i1-local",
+  "path": "B (session-as-document)",
+  "prereg": "docs/architecture/single-graph/42-longmemeval-i1-local-prereg.md",
+  "timestamp": "2026-09-08T17:42:43.498Z",
+  "n": 150,
+  "limit": null,
+  "embed_convention": "nomic asymmetric (search_document/search_query, nmemo-1cp); dense unit = 256/64-char chunk (splitIntoUnits), session=MAX; bm25 over whole turns",
+  "arms": {
+    "DENSE-FLAT": {
+      "sess_recall_at_10": 1,
+      "sess_recall_at_5": 0.9466666666666667,
+      "ndcg_at_10": 0.9139584148517438,
+      "per_type_recall_at_10": {
+        "single-session-user": {
+          "n": 64,
+          "mean": 1
+        },
+        "single-session-preference": {
+          "n": 30,
+          "mean": 1
+        },
+        "single-session-assistant": {
+          "n": 56,
+          "mean": 1
+        }
+      }
+    },
+    "BM25-FLAT": {
+      "sess_recall_at_10": 0.9666666666666667,
+      "sess_recall_at_5": 0.9333333333333333,
+      "ndcg_at_10": 0.9015088733211493,
+      "per_type_recall_at_10": {
+        "single-session-user": {
+          "n": 64,
+          "mean": 1
+        },
+        "single-session-preference": {
+          "n": 30,
+          "mean": 0.8333333333333334
+        },
+        "single-session-assistant": {
+          "n": 56,
+          "mean": 1
+        }
+      }
+    },
+    "DENSE+BM25": {
+      "sess_recall_at_10": 0.9866666666666667,
+      "sess_recall_at_5": 0.9666666666666667,
+      "ndcg_at_10": 0.9277923493500456,
+      "per_type_recall_at_10": {
+        "single-session-user": {
+          "n": 64,
+          "mean": 1
+        },
+        "single-session-preference": {
+          "n": 30,
+          "mean": 0.9333333333333333
+        },
+        "single-session-assistant": {
+          "n": 56,
+          "mean": 1
+        }
+      }
+    }
+  },
+  "turn_recall_at_10_dense": 0.8666666666666667,
+  "h1_fused_minus_dense_recall_at_10": {
+    "delta": -0.013333333333333308,
+    "ci": [
+      -0.033333333333333326,
+      0
+    ],
+    "verdict": "SPANS 0",
+    "mcnemar_fused_only": 0,
+    "mcnemar_dense_only": 2,
+    "per_type_delta": {
+      "single-session-user": 0,
+      "single-session-preference": -0.06666666666666665,
+      "single-session-assistant": 0
+    },
+    "all_types_positive": false,
+    "demonstrated": false
+  },
+  "tiebreak_dense_recall_at_10_delta": 0
+}

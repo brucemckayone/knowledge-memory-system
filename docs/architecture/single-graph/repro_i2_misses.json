@@ -1,0 +1,273 @@
+{
+  "dense_misses": [
+    {
+      "qi": 1,
+      "qid": "6d550036",
+      "question": "How many projects have I led or am currently leading?",
+      "n_gold": 4,
+      "gold_idx": [
+        6,
+        16,
+        24,
+        39
+      ],
+      "gold_dense_ranks": {
+        "16": 22,
+        "24": 6,
+        "6": 14,
+        "39": 8
+      },
+      "missed": {
+        "16": 22,
+        "6": 14
+      },
+      "gold_session_ids": [
+        "answer_ec904b3c_1",
+        "answer_ec904b3c_4",
+        "answer_ec904b3c_3",
+        "answer_ec904b3c_2"
+      ]
+    },
+    {
+      "qi": 9,
+      "qid": "dd2973ad",
+      "question": "What time did I go to bed on the day before I had a doctor's appointment?",
+      "n_gold": 2,
+      "gold_idx": [
+        22,
+        44
+      ],
+      "gold_dense_ranks": {
+        "44": 11,
+        "22": 1
+      },
+      "missed": {
+        "44": 11
+      },
+      "gold_session_ids": [
+        "answer_f9de4602_2",
+        "answer_f9de4602_1"
+      ]
+    },
+    {
+      "qi": 19,
+      "qid": "88432d0a",
+      "question": "How many times did I bake something in the past two weeks?",
+      "n_gold": 4,
+      "gold_idx": [
+        8,
+        22,
+        37,
+        39
+      ],
+      "gold_dense_ranks": {
+        "8": 4,
+        "37": 3,
+        "22": 1,
+        "39": 25
+      },
+      "missed": {
+        "39": 25
+      },
+      "gold_session_ids": [
+        "answer_733e443a_3",
+        "answer_733e443a_4",
+        "answer_733e443a_2",
+        "answer_733e443a_1"
+      ]
+    },
+    {
+      "qi": 30,
+      "qid": "00ca467f",
+      "question": "How many doctor's appointments did I go to in March?",
+      "n_gold": 3,
+      "gold_idx": [
+        1,
+        12,
+        40
+      ],
+      "gold_dense_ranks": {
+        "40": 10,
+        "1": 11,
+        "12": 12
+      },
+      "missed": {
+        "1": 11,
+        "12": 12
+      },
+      "gold_session_ids": [
+        "answer_39900a0a_3",
+        "answer_39900a0a_2",
+        "answer_39900a0a_1"
+      ]
+    },
+    {
+      "qi": 50,
+      "qid": "1a8a66a6",
+      "question": "How many magazine subscriptions do I currently have?",
+      "n_gold": 4,
+      "gold_idx": [
+        1,
+        10,
+        11,
+        39
+      ],
+      "gold_dense_ranks": {
+        "1": 2,
+        "10": 8,
+        "11": 24,
+        "39": 1
+      },
+      "missed": {
+        "11": 24
+      },
+      "gold_session_ids": [
+        "answer_2bd23659_3",
+        "answer_2bd23659_2",
+        "answer_2bd23659_4",
+        "answer_2bd23659_1"
+      ]
+    },
+    {
+      "qi": 97,
+      "qid": "ba358f49",
+      "question": "How many years will I be when my friend Rachel gets married?",
+      "n_gold": 2,
+      "gold_idx": [
+        7,
+        28
+      ],
+      "gold_dense_ranks": {
+        "28": 22,
+        "7": 1
+      },
+      "missed": {
+        "28": 22
+      },
+      "gold_session_ids": [
+        "answer_cbd08e3c_1",
+        "answer_cbd08e3c_2"
+      ]
+    }
+  ],
+  "rrf_losses": [
+    {
+      "qi": 8,
+      "qid": "gpt4_f2262a51",
+      "question": "How many different doctors did I visit?",
+      "n_gold": 3,
+      "gold_dense_ranks": {
+        "2": 5,
+        "12": 4,
+        "5": 3
+      },
+      "gold_fused_ranks": {
+        "2": 18,
+        "12": 15,
+        "5": 14
+      }
+    },
+    {
+      "qi": 16,
+      "qid": "gpt4_2f8be40d",
+      "question": "How many weddings have I attended in this year?",
+      "n_gold": 3,
+      "gold_dense_ranks": {
+        "9": 3,
+        "6": 1,
+        "41": 5
+      },
+      "gold_fused_ranks": {
+        "9": 4,
+        "6": 1,
+        "41": 11
+      }
+    },
+    {
+      "qi": 18,
+      "qid": "gpt4_15e38248",
+      "question": "How many pieces of furniture did I buy, assemble, sell, or fix in the past few months?",
+      "n_gold": 4,
+      "gold_dense_ranks": {
+        "32": 2,
+        "42": 1,
+        "27": 3,
+        "6": 8
+      },
+      "gold_fused_ranks": {
+        "32": 3,
+        "42": 1,
+        "27": 9,
+        "6": 19
+      }
+    },
+    {
+      "qi": 39,
+      "qid": "gpt4_194be4b3",
+      "question": "How many musical instruments do I currently own?",
+      "n_gold": 5,
+      "gold_dense_ranks": {
+        "1": 7,
+        "35": 1,
+        "6": 2,
+        "8": 4,
+        "9": 5
+      },
+      "gold_fused_ranks": {
+        "1": 15,
+        "35": 1,
+        "6": 2,
+        "8": 5,
+        "9": 11
+      }
+    },
+    {
+      "qi": 55,
+      "qid": "81507db6",
+      "question": "How many graduation ceremonies have I attended in the past three months?",
+      "n_gold": 5,
+      "gold_dense_ranks": {
+        "3": 7,
+        "10": 1,
+        "16": 2,
+        "27": 4,
+        "31": 3
+      },
+      "gold_fused_ranks": {
+        "3": 15,
+        "10": 4,
+        "16": 1,
+        "27": 3,
+        "31": 2
+      }
+    },
+    {
+      "qi": 79,
+      "qid": "a1cc6108",
+      "question": "How old was I when Alex was born?",
+      "n_gold": 2,
+      "gold_dense_ranks": {
+        "9": 4,
+        "20": 3
+      },
+      "gold_fused_ranks": {
+        "9": 1,
+        "20": 14
+      }
+    },
+    {
+      "qi": 107,
+      "qid": "c18a7dc8",
+      "question": "How many years older am I than when I graduated from college?",
+      "n_gold": 2,
+      "gold_dense_ranks": {
+        "26": 3,
+        "34": 1
+      },
+      "gold_fused_ranks": {
+        "26": 14,
+        "34": 1
+      }
+    }
+  ]
+}

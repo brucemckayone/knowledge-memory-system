@@ -1,0 +1,61 @@
+{
+  "benchmark": "longmemeval-i1-local",
+  "path": "B (session-as-document)",
+  "prereg": "docs/architecture/single-graph/42-longmemeval-i1-local-prereg.md",
+  "timestamp": "2026-09-08T14:07:57.084Z",
+  "n": 3,
+  "limit": 3,
+  "embed_convention": "nomic asymmetric (search_document/search_query, nmemo-1cp); dense unit = 256/64-char chunk (splitIntoUnits), session=MAX; bm25 over whole turns",
+  "arms": {
+    "DENSE-FLAT": {
+      "sess_recall_at_10": 1,
+      "sess_recall_at_5": 1,
+      "ndcg_at_10": 1,
+      "per_type_recall_at_10": {
+        "single-session-user": {
+          "n": 3,
+          "mean": 1
+        }
+      }
+    },
+    "BM25-FLAT": {
+      "sess_recall_at_10": 1,
+      "sess_recall_at_5": 1,
+      "ndcg_at_10": 0.8769765845238192,
+      "per_type_recall_at_10": {
+        "single-session-user": {
+          "n": 3,
+          "mean": 1
+        }
+      }
+    },
+    "DENSE+BM25": {
+      "sess_recall_at_10": 1,
+      "sess_recall_at_5": 1,
+      "ndcg_at_10": 1,
+      "per_type_recall_at_10": {
+        "single-session-user": {
+          "n": 3,
+          "mean": 1
+        }
+      }
+    }
+  },
+  "turn_recall_at_10_dense": 1,
+  "h1_fused_minus_dense_recall_at_10": {
+    "delta": 0,
+    "ci": [
+      0,
+      0
+    ],
+    "verdict": "SPANS 0",
+    "mcnemar_fused_only": 0,
+    "mcnemar_dense_only": 0,
+    "per_type_delta": {
+      "single-session-user": 0
+    },
+    "all_types_positive": false,
+    "demonstrated": false
+  },
+  "tiebreak_dense_recall_at_10_delta": 0
+}

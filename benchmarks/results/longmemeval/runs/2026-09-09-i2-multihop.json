@@ -1,0 +1,95 @@
+{
+  "benchmark": "longmemeval-i2-multihop",
+  "path": "B (session-as-document)",
+  "prereg": "docs/architecture/single-graph/43-longmemeval-i2-multihop-prereg.md",
+  "timestamp": "2026-09-09T18:16:02.998Z",
+  "n": 121,
+  "limit": null,
+  "metric": "session recall_ALL@k (every gold session in top-k)",
+  "embed_convention": "nomic asymmetric; dense unit=256/64-char chunk, session=MAX; bm25 over whole turns",
+  "dense_flat_recall_all_at_10": 0.9504132231404959,
+  "saturated": false,
+  "arms": {
+    "DENSE-FLAT": {
+      "recall_all_at_10": 0.9504132231404959,
+      "recall_all_at_5": 0.8347107438016529,
+      "recall_any_at_10": 1,
+      "frac_gold_at_10": 0.977961432506887,
+      "ndcg_at_10": 0.938137429900735,
+      "per_stratum_recall_all_at_10": {
+        "2": {
+          "n": 75,
+          "mean": 0.9733333333333334
+        },
+        "3": {
+          "n": 24,
+          "mean": 0.9583333333333334
+        },
+        "4-5": {
+          "n": 22,
+          "mean": 0.8636363636363636
+        }
+      }
+    },
+    "BM25-FLAT": {
+      "recall_all_at_10": 0.7851239669421488,
+      "recall_all_at_5": 0.5950413223140496,
+      "recall_any_at_10": 0.9917355371900827,
+      "frac_gold_at_10": 0.9061983471074381,
+      "ndcg_at_10": 0.8388481668479918,
+      "per_stratum_recall_all_at_10": {
+        "2": {
+          "n": 75,
+          "mean": 0.9066666666666666
+        },
+        "3": {
+          "n": 24,
+          "mean": 0.75
+        },
+        "4-5": {
+          "n": 22,
+          "mean": 0.4090909090909091
+        }
+      }
+    },
+    "DENSE+BM25": {
+      "recall_all_at_10": 0.9090909090909091,
+      "recall_all_at_5": 0.768595041322314,
+      "recall_any_at_10": 0.9917355371900827,
+      "frac_gold_at_10": 0.9612947658402203,
+      "ndcg_at_10": 0.9205685744212428,
+      "per_stratum_recall_all_at_10": {
+        "2": {
+          "n": 75,
+          "mean": 0.96
+        },
+        "3": {
+          "n": 24,
+          "mean": 0.9166666666666666
+        },
+        "4-5": {
+          "n": 22,
+          "mean": 0.7272727272727273
+        }
+      }
+    }
+  },
+  "h1_fused_minus_dense_recall_all_at_10": {
+    "delta": -0.04132231404958686,
+    "ci": [
+      -0.09090909090909094,
+      0.008264462809917328
+    ],
+    "verdict": "SPANS 0",
+    "mcnemar_fused_only": 2,
+    "mcnemar_dense_only": 7,
+    "per_stratum_delta": {
+      "2": -0.01333333333333342,
+      "3": -0.04166666666666674,
+      "4-5": -0.13636363636363635
+    },
+    "all_strata_positive": false,
+    "demonstrated": false
+  },
+  "tiebreak_dense_recall_all_at_10_delta": 0
+}

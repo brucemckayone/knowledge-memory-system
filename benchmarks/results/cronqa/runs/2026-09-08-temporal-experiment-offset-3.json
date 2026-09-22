@@ -1,0 +1,37 @@
+{
+  "benchmark": "cronqa-temporal-experiment",
+  "bead": "nmemo-asf.8",
+  "prereg": "docs/architecture/single-graph/41-cronqa-temporal-experiment-prereg.md",
+  "timestamp": "2026-09-08T12:02:22.073Z",
+  "corpus": "_cronqa",
+  "metric": "Hits@1, shared most-recent-window pick rule; as-of (time-aware) vs structural time-blind",
+  "report": {
+    "overall": {
+      "n": 7812,
+      "asof": 0.3107,
+      "structural": 0.4442,
+      "lift": -0.1335
+    },
+    "forward": {
+      "n": 6282,
+      "asof": 0.223,
+      "structural": 0.5252,
+      "lift": -0.3021
+    },
+    "reverse": {
+      "n": 1530,
+      "asof": 0.6706,
+      "structural": 0.1118,
+      "lift": 0.5588
+    },
+    "ambiguous": {
+      "n": 6136,
+      "asof": 0.3299,
+      "structural": 0.2924,
+      "lift": 0.0375
+    },
+    "missing_anchor": 0
+  },
+  "bar_met": false,
+  "notes": "Gold is a deterministic function of the loaded KG -> as-of ceiling is 100% by construction. Measures load+read faithfulness + the temporal lift, NOT reasoning. Slots held constant across arms (oracle anchor/pid/year from annotation)."
+}

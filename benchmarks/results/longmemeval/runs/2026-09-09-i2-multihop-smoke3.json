@@ -1,0 +1,82 @@
+{
+  "benchmark": "longmemeval-i2-multihop",
+  "path": "B (session-as-document)",
+  "prereg": "docs/architecture/single-graph/43-longmemeval-i2-multihop-prereg.md",
+  "timestamp": "2026-09-09T15:49:32.628Z",
+  "n": 3,
+  "limit": 3,
+  "metric": "session recall_ALL@k (every gold session in top-k)",
+  "embed_convention": "nomic asymmetric; dense unit=256/64-char chunk, session=MAX; bm25 over whole turns",
+  "dense_flat_recall_all_at_10": 0.6666666666666666,
+  "saturated": false,
+  "arms": {
+    "DENSE-FLAT": {
+      "recall_all_at_10": 0.6666666666666666,
+      "recall_all_at_5": 0.6666666666666666,
+      "recall_any_at_10": 1,
+      "frac_gold_at_10": 0.8333333333333334,
+      "ndcg_at_10": 0.7432251191234366,
+      "per_stratum_recall_all_at_10": {
+        "3": {
+          "n": 1,
+          "mean": 1
+        },
+        "4-5": {
+          "n": 2,
+          "mean": 0.5
+        }
+      }
+    },
+    "BM25-FLAT": {
+      "recall_all_at_10": 0.3333333333333333,
+      "recall_all_at_5": 0.3333333333333333,
+      "recall_any_at_10": 1,
+      "frac_gold_at_10": 0.6666666666666666,
+      "ndcg_at_10": 0.6544326507705555,
+      "per_stratum_recall_all_at_10": {
+        "3": {
+          "n": 1,
+          "mean": 1
+        },
+        "4-5": {
+          "n": 2,
+          "mean": 0
+        }
+      }
+    },
+    "DENSE+BM25": {
+      "recall_all_at_10": 0.6666666666666666,
+      "recall_all_at_5": 0.3333333333333333,
+      "recall_any_at_10": 1,
+      "frac_gold_at_10": 0.8333333333333334,
+      "ndcg_at_10": 0.7473910867670769,
+      "per_stratum_recall_all_at_10": {
+        "3": {
+          "n": 1,
+          "mean": 1
+        },
+        "4-5": {
+          "n": 2,
+          "mean": 0.5
+        }
+      }
+    }
+  },
+  "h1_fused_minus_dense_recall_all_at_10": {
+    "delta": 0,
+    "ci": [
+      0,
+      0
+    ],
+    "verdict": "SPANS 0",
+    "mcnemar_fused_only": 0,
+    "mcnemar_dense_only": 0,
+    "per_stratum_delta": {
+      "3": 0,
+      "4-5": 0
+    },
+    "all_strata_positive": false,
+    "demonstrated": false
+  },
+  "tiebreak_dense_recall_all_at_10_delta": 0
+}
