@@ -1883,8 +1883,12 @@ async function _handleToolCallInner(
       // parent_window_id, and returns the PARENT window content — never the raw
       // unit fragment, and a parent surfaces once even if several of its units
       // match. Pre-yxj.2 window-only data is handled by the function's fallback.
+      // nmemo-mdc: scope the Qdrant read to the injected corpus. The payload now
+      // carries corpus_id; a scoped call refuses rather than silently returning
+      // nothing if the backfill has not stamped the collection.
       const memories = await searchMemoriesByUnit(embedResult.vector, {
         limit: (toolInput.limit as number) ?? 5,
+        corpusId: context.corpusId ?? undefined,
       });
       return JSON.stringify(memories.map((m) => ({
         id: m.id,
@@ -1904,7 +1908,10 @@ async function _handleToolCallInner(
       // flat hits + a query-side entity match (§4.1), expands, and re-ranks.
       const query = toolInput.query as string;
       const embedResult = await ml.embedQuery(query);
-      const flat = await searchMemoriesByUnit(embedResult.vector, { limit: 5 });
+      // nmemo-mdc: the flat Qdrant seed is now corpus-scopable too, so the whole
+      // tool stays inside one corpus (it used to leak here while the graph
+      // expansion below was already scoped).
+      const flat = await searchMemoriesByUnit(embedResult.vector, { limit: 5, corpusId: context.corpusId ?? undefined });
       const flatHits: FlatHit[] = flat.map((m) => ({ id: m.id, score: m.score }));
       // Query-side entity seed (§4.1.2): search_similar_entities over the query.
       const seedEntities = await findSimilarEntities(
@@ -1916,8 +1923,7 @@ async function _handleToolCallInner(
         seedEntityIds: seedEntities.map((e) => e.id),
         limit: (toolInput.limit as number) ?? 5,
         // nmemo-asf.3: scope the graph expansion (traverseFromEntities). The
-        // searchMemoriesByUnit flat search above is the Qdrant path — OUT OF
-        // SCOPE for this pass (payload carries no corpus_id).
+        // searchMemoriesByUnit flat search above is now scoped too (nmemo-mdc).
         corpusId: context.corpusId,
       });
       return JSON.stringify({
@@ -2039,6 +2045,8 @@ async function _handleToolCallInner(
       const chain = await projectTrajectory(toolInput.fact_id as string, {
         maxDepth: toolInput.max_depth as number | undefined,
         minStrength: toolInput.min_strength as number | undefined,
+        // nmemo-bju: keep the causal walk inside the injected corpus (as trace_causes does).
+        corpusId: context.corpusId,
       });
       return JSON.stringify({
         chain: chain.map(node => ({
@@ -2918,10 +2926,31 @@ async function _handleToolCallInner(
     case 'get_neighbourhood_profile': {
       const entityId = toolInput.entity_id as string;
 
+      // nmemo-asf.3: all seven reads are scoped to the injected corpus, as in
+      // query_entity_facts / query_entity_neighbours / get_causal_history.
+      // Unscoped (null) keeps the prior cross-corpus behaviour.
+      // `entity_meta` and `memory_entities` carry no corpus_id of their own, so
+      // their filter comes from the owning entity via a join — same pattern as
+      // the alias lookup in resolve_anchor.
+      const corpusId = context.corpusId;
+      const entityCorpusFilter = corpusId != null ? eq(entities.corpusId, corpusId) : undefined;
+
       const [entityRows, metaRows, subjectFacts, objectFacts, neighbours, causalHistory, mentions] = await Promise.all([
-        db.select().from(entities).where(eq(entities.id, entityId)).limit(1),
-        db.select().from(entityMeta).where(eq(entityMeta.entityId, entityId)).limit(1),
-        getEntityFacts(entityId),
+        db.select().from(entities).where(and(eq(entities.id, entityId), entityCorpusFilter)).limit(1),
+        db.select({
+          mentionCount: entityMeta.mentionCount,
+          sourceMemoryCount: entityMeta.sourceMemoryCount,
+          factCount: entityMeta.factCount,
+          spread: entityMeta.spread,
+          summary: entityMeta.summary,
+          summaryUpdatedAt: entityMeta.summaryUpdatedAt,
+          firstMentionedAt: entityMeta.firstMentionedAt,
+          lastMentionedAt: entityMeta.lastMentionedAt,
+          lastReasonedAt: entityMeta.lastReasonedAt,
+        }).from(entityMeta)
+          .innerJoin(entities, eq(entityMeta.entityId, entities.id))
+          .where(and(eq(entityMeta.entityId, entityId), entityCorpusFilter)).limit(1),
+        getEntityFacts(entityId, { corpusId }),
         db.select({
           id: factsTable.id,
           subjectEntityId: factsTable.subjectEntityId,
@@ -2929,10 +2958,16 @@ async function _handleToolCallInner(
           objectValue: factsTable.objectValue,
           confidence: factsTable.confidence,
           sourceText: factsTable.sourceText,
-        }).from(factsTable).where(and(eq(factsTable.objectEntityId, entityId), isNull(factsTable.expiredAt))),
-        findConnectedEntities(entityId, { maxDepth: 1 }),
-        getEntityCausalHistory(entityId),
-        db.select({ memoryId: memoryEntities.memoryId }).from(memoryEntities).where(eq(memoryEntities.entityId, entityId)),
+        }).from(factsTable).where(and(
+          eq(factsTable.objectEntityId, entityId),
+          isNull(factsTable.expiredAt),
+          corpusId != null ? eq(factsTable.corpusId, corpusId) : undefined,
+        )),
+        findConnectedEntities(entityId, { maxDepth: 1, corpusId }),
+        getEntityCausalHistory(entityId, { corpusId }),
+        db.select({ memoryId: memoryEntities.memoryId }).from(memoryEntities)
+          .innerJoin(entities, eq(memoryEntities.entityId, entities.id))
+          .where(and(eq(memoryEntities.entityId, entityId), entityCorpusFilter)),
       ]);
 
       const entity = entityRows[0];
