@@ -144,6 +144,22 @@ def _load_runs(benchmark: str) -> list[dict[str, Any]]:
     return runs
 
 
+def is_dry_run(run: dict[str, Any]) -> bool:
+    """True when the envelope was produced by the stub scorer, not a real judge.
+
+    `--dry-run` stamps `judge_prompt_version="dry-run"` and scores every item
+    with `score = 1.0 if idx % 2 == 0 else 0.0` (longmemeval/run.py). The
+    resulting `overall_accuracy` is the fraction of even indices — an artifact
+    of the loop, not a measurement. The 2026-06-02 longmemeval row read
+    `overall_accuracy=0.524` (= 11/21) for two years because nothing rendered
+    this field. Anything downstream that shows an accuracy MUST mark these.
+    """
+    if "dry-run" in (run.get("judge_prompt_version") or "").lower():
+        return True
+    # Belt-and-braces for envelopes written by run_dry() after this change.
+    return bool(run.get("scores", {}).get("stub_scorer_dry_run"))
+
+
 def _format_score_summary(scores: dict[str, Any]) -> str:
     """Flatten the benchmark-specific scores dict into a "k=v, k=v" string."""
     pieces: list[str] = []
@@ -178,6 +194,24 @@ def regenerate_markdown(benchmark: str) -> Path:
         "[`docs/benchmarks/plan.md`](../plan.md) §1.4."
     )
     lines.append("")
+    # Dry-run rows carry a stub-scorer accuracy that is NOT a measurement. Say so
+    # at the top of the page, not just in the row — a reader scanning the table
+    # sees the number first.
+    if any(is_dry_run(r) for r in runs):
+        lines.append(
+            "> **NO ACCURACY HAS BEEN MEASURED ON THIS BENCHMARK BY ANY RUN MARKED "
+            "`DRY-RUN` BELOW.** A dry run is a plumbing test of the "
+            "dataset/score/envelope/markdown pipeline. It calls neither Mnemo nor "
+            "the judge: it builds synthetic questions and scores them with an "
+            "alternating stub, `score = 1.0 if idx % 2 == 0 else 0.0` "
+            "(`benchmarks/longmemeval/run.py`). Every figure such a row reports is "
+            "an artifact of that loop — the `overall_accuracy=0.524` on the "
+            "2026-06-02 row is just the fraction of even indices in 21 items "
+            "(11/21 = 0.5238), and its `sanity_pass=True` / `abstention_rate=0.667` "
+            "are 2/3 of three synthetic abstention stubs. Treat these rows as "
+            "evidence the harness runs, and as nothing else."
+        )
+        lines.append("")
     lines.append("| Date | Mnemo SHA | Cut | Model | Judge | N | Scores | Notes |")
     lines.append("|------|-----------|-----|-------|-------|---|--------|-------|")
     for run in runs:
@@ -188,9 +222,13 @@ def regenerate_markdown(benchmark: str) -> Path:
         judge = run.get("judge_model", "?")
         size = run.get("dataset_size", "?")
         scores = _format_score_summary(run.get("scores", {}))
+        if is_dry_run(run):
+            scores = f"**DRY-RUN — STUB SCORER, NOT A MEASUREMENT:** {scores}"
         notes = (run.get("notes", "") or "").replace("\n", " ").replace("|", "\\|")
         if len(notes) > 80:
             notes = notes[:77] + "..."
+        if is_dry_run(run):
+            notes = f"**DRY RUN (`idx % 2` stub judge)** — {notes}"
         lines.append(f"| {date} | {sha} | {cut} | {model} | {judge} | {size} | {scores} | {notes} |")
 
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -239,6 +277,8 @@ def regenerate_dashboard() -> Path:
         cut = latest.get("cut", "?")
         size = latest.get("dataset_size", "?")
         scores = _format_score_summary(latest.get("scores", {}))
+        if is_dry_run(latest):
+            scores = f"**DRY-RUN — STUB SCORER, NOT A MEASUREMENT:** {scores}"
         notes = (latest.get("notes", "") or "").replace("\n", " ").replace("|", "\\|")
         if len(notes) > 60:
             notes = notes[:57] + "..."

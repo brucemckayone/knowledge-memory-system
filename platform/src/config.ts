@@ -35,6 +35,17 @@ const envSchema = z.object({
   // rides on corpus_policies later. See services/embed-text.ts.
   EMBED_DESCRIPTIONS: envBool(false),
 
+  // Promote-time predicate fold (doc 42 / nmemo-213 machinery). OFF by default,
+  // and off is the DECISION OF RECORD, not a default awaiting a setup step:
+  // cross-corpus-audit doc 41 §7 measured the fold at a 3.7% predicate reduction
+  // against a 60% PASS bar, with 0.43 merge precision on the decidable subset
+  // over a 28.4% indefensible floor. A bad merge is lossy and unrecoverable
+  // where over-minting is gardener-recoverable, so enabling it as calibrated is
+  // net-harmful. The gate exists because the fold used to run unconditionally
+  // and doc 39 told readers to arm it. Do not flip this to re-run the fold
+  // without a fresh pre-registration and a recalibrated score.
+  PREDICATE_FOLD_ENABLED: envBool(false),
+
   // Anthropic API (Phase B: causal agent)
   ANTHROPIC_API_KEY: z.string().optional(),
 

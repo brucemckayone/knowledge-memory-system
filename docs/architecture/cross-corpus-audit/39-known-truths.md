@@ -45,7 +45,15 @@ the candidate list is empty and the function takes its documented graceful-no-op
 (`stats.deferred = facts.length`). Every epoch logs `predicates: reused=0 minted=0 deferred=ALL`.
 **The entire `nmemo-213` machinery — doc 42, `/resolve-predicate`, the promote-time fold, stale-canonical
 demotion — is built, shipped and inert for want of a setup step.**
-**Fix: run `platform/scripts/backfill-predicate-embeddings.ts`.** (Bead P0.)
+**Do NOT "fix" this by running `platform/scripts/backfill-predicate-embeddings.ts`.** That is what this
+line said until doc 41 went and measured it. Removing the no-op buys a **3.7%** predicate reduction
+against a 60% PASS / 30% PARTIAL bar, at **0.43 merge precision** on the decidable subset over a 28.4%
+indefensible floor — and a merge is lossy and unrecoverable where over-minting is gardener-recoverable,
+so turning the fold on as calibrated is **net-harmful**. **Decision of record: the fold stays OFF** —
+[`41-predicate-fold-results.md`](41-predicate-fold-results.md) §7, and CLAUDE.md ("the predicate fold
+stays OFF"). The machinery stays inert deliberately; it is not a missing setup step. Both the backfill
+script and the promote-time fold now refuse to act without an explicit `PREDICATE_FOLD_ENABLED=true`.
+(Bead P0 — superseded.)
 
 **3.2 Entity descriptions are discarded.** [C][M] `promotion-plan.ts:534` hardcodes `summary: null`
 when building `entitiesToMint`, with no comment justifying it. The plan type declares
@@ -157,8 +165,9 @@ separates **nothing** (S0 0.6126 / M1 0.6179 / E 0.6171, all CIs spanning zero).
 ## 7. How to operate it best — practical checklist
 
 **Before any ingest**
-1. **Run `platform/scripts/backfill-predicate-embeddings.ts`** or predicate canonicalisation is a
-   silent no-op (§3.1).
+1. **Do NOT run `platform/scripts/backfill-predicate-embeddings.ts`.** It leaves predicate
+   canonicalisation a silent no-op, and per doc 41 that is the wanted state — 3.7% reduction at 0.43
+   merge precision, fold OFF by decision of record (§3.1).
 2. **Set `QDRANT_COLLECTION` explicitly** — `NODE_ENV=test` does not isolate Qdrant (§3.9).
 3. `NODE_ENV=test` **skips dotenv**, so `QDRANT_URL` and `ML_SERVICES_URL` must be passed explicitly or
    they fall back to wrong ports.

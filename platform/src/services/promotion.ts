@@ -57,6 +57,13 @@ export interface PromoteOptions {
    * exist to prevent.
    */
   corpusId?: string;
+  /**
+   * Deliberate per-call opt-in to the predicate fold, for the suites whose whole
+   * subject IS the fold. Defaults to `config.PREDICATE_FOLD_ENABLED`, which is
+   * false by decision of record (doc 41 §7 — 3.7% reduction against a 60% bar at
+   * 0.43 merge precision). Production callers should not set this.
+   */
+  foldPredicates?: boolean;
 }
 
 const PROMOTION_ACTOR = 'promotion' as const;
@@ -711,12 +718,25 @@ export async function promote(epochId: string, opts: PromoteOptions = {}): Promi
   // so tripleKey, the prior-canonical index, exclusive-group supersession, and the
   // written facts.predicate all key on the canonical predicate. Deterministic and
   // ml-down safe (keeps raw predicates if resolve is unreachable).
-  const predStats = await canonicalizeStagedPredicates(staged.facts, staged.entities);
-  if (predStats.reused + predStats.minted + predStats.deferred > 0) {
+  //
+  // Gated OFF by default (doc 41 §7: 3.7% reduction vs a 60% bar, 0.43 merge
+  // precision — net-harmful as calibrated). Until then the fold was called
+  // unconditionally and only stayed harmless because the registry had no
+  // embeddings; running the backfill silently armed it. The skip is logged, not
+  // silent, so a reader of the epoch log can see the fold did not run.
+  if (!(opts.foldPredicates ?? config.PREDICATE_FOLD_ENABLED)) {
     console.log(
-      `[promotion] epoch=${epochId.slice(0, 8)} predicates: reused=${predStats.reused} ` +
-        `minted=${predStats.minted} deferred=${predStats.deferred}`,
+      `[promotion] epoch=${epochId.slice(0, 8)} predicates: fold SKIPPED ` +
+        `(PREDICATE_FOLD_ENABLED=false; doc 41 §7 — predicates kept raw)`,
     );
+  } else {
+    const predStats = await canonicalizeStagedPredicates(staged.facts, staged.entities);
+    if (predStats.reused + predStats.minted + predStats.deferred > 0) {
+      console.log(
+        `[promotion] epoch=${epochId.slice(0, 8)} predicates: reused=${predStats.reused} ` +
+          `minted=${predStats.minted} deferred=${predStats.deferred}`,
+      );
+    }
   }
 
   // Pass 1: deterministic plan that SURFACES escalations (conservative defaults).

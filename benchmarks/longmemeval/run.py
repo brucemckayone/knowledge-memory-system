@@ -160,6 +160,14 @@ def run_dry(config: RunConfig, notes: str) -> int:
     results = make_synthetic_results(questions)
     scores = aggregate(results)
 
+    # Stamp the stub scorer into the envelope's own score dict. Without this the
+    # only dry-run signal was `judge_prompt_version`, which no report rendered —
+    # so the 2026-06-02 run's `overall_accuracy=0.524` (just 11/21 even indices)
+    # sat in docs/benchmarks/results/longmemeval.md as if it were measured. The
+    # key rides through _format_score_summary into every table, and is_dry_run()
+    # keys off it. NO ACCURACY HERE IS A MEASUREMENT.
+    scores["stub_scorer_dry_run"] = True
+
     # Verify every expected category is represented — a missing key would
     # mean the dataset/score wiring is broken before we ever hit real data.
     missing_categories = [c for c in CATEGORIES if c not in scores["by_category"]]
@@ -175,7 +183,11 @@ def run_dry(config: RunConfig, notes: str) -> int:
         judge_model=JUDGE_MODEL,
         dataset_size=len(questions),
         scores=scores,
-        notes=notes or "DRY RUN — synthetic dataset, no Mnemo/Sonnet calls.",
+        # PREFIX, not a fallback. `--notes "nmemo-3f9.4 smoke"` used to replace
+        # the DRY RUN wording entirely, which is how the 2026-06-02 row lost its
+        # only human-readable marker. Operator notes now append to it.
+        notes="DRY RUN — stub scorer (idx % 2), no Mnemo/Sonnet calls."
+        + (f" {notes}" if notes else ""),
         harness_commit=submodule_sha(UPSTREAM_DIR),
         judge_prompt_version="dry-run",
     )
@@ -186,7 +198,7 @@ def run_dry(config: RunConfig, notes: str) -> int:
     print(f"  json:      {json_path}")
     print(f"  markdown:  {md_path}")
     print(f"  dashboard: {dash_path}")
-    print(f"  overall:   {scores['overall_accuracy']:.3f}")
+    print(f"  overall:   {scores['overall_accuracy']:.3f}  <-- STUB SCORER, NOT A MEASUREMENT")
     print(f"  sanity:    {'PASS' if scores['sanity_pass'] else 'FAIL'} "
           f"(abstention_rate={scores['abstention_rate']})")
     return 0

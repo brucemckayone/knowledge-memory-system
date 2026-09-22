@@ -116,7 +116,9 @@ describe('PC4 — promote-time predicate fold', () => {
     await stageFact(epochId, alice, 'employed_at', { objectHandle: acme, validAt: new Date('2020-01-01') });
     await stageFact(epochId, alice, 'works_at', { objectHandle: acme, validAt: new Date('2021-01-01') });
 
-    await promote(epochId);
+    // Explicit opt-in: the fold is OFF by default (doc 41 §7). This suite's
+    // subject IS the fold, so it arms it per call rather than globally.
+    await promote(epochId, { foldPredicates: true });
 
     const facts = await aliceFacts();
     // Both canonicalized to works_at -> identical triple -> one active fact.
@@ -131,7 +133,9 @@ describe('PC4 — promote-time predicate fold', () => {
     await stageFact(epochId, alice, 'title', { objectValue: 'Engineer', validAt: new Date('2020-01-01') });
     await stageFact(epochId, alice, 'job_title', { objectValue: 'Senior Engineer', validAt: new Date('2021-01-01') });
 
-    await promote(epochId);
+    // Explicit opt-in: the fold is OFF by default (doc 41 §7). This suite's
+    // subject IS the fold, so it arms it per call rather than globally.
+    await promote(epochId, { foldPredicates: true });
 
     const facts = await aliceFacts();
     // 'title' canonicalizes to job_title; same exclusive group, different value ->
@@ -159,7 +163,9 @@ describe('PC4 — promote-time predicate fold', () => {
     const bob = await stageEntity(epochId, `${TAG} Bob`, 'person');
     await stageFact(epochId, alice, MINTED, { objectHandle: bob });
 
-    await promote(epochId);
+    // Explicit opt-in: the fold is OFF by default (doc 41 §7). This suite's
+    // subject IS the fold, so it arms it per call rather than globally.
+    await promote(epochId, { foldPredicates: true });
 
     const pred = await testDb`SELECT status, is_canonical FROM fact_predicates WHERE predicate = ${MINTED}`;
     expect(pred.length).toBe(1);
