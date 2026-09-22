@@ -87,9 +87,29 @@ export async function loadSnapshot(name: string): Promise<{
   }
 
   if (entry.files.qdrant_memories) {
-    const qdrantCollection = entry.name === 'empty' ? 'memories' : 'memories';
+    // BUG FIX (bead nmemo-doso): this was
+    //   entry.name === 'empty' ? 'memories' : 'memories'
+    // — a ternary whose BOTH branches named the PRODUCTION collection, so
+    // loading any snapshot that carries a qdrant_memories file would DELETE
+    // the live `memories` collection (20,395 points of raw source text). It
+    // never fired only because no manifest entry populates that optional field
+    // yet, so this was a latent landmine rather than an active one. The test
+    // flow must target the isolated collection that src/test/setup.ts routes
+    // everything to; refuse the production name outright.
+    const qdrantCollection = process.env.QDRANT_COLLECTION || 'memories_test';
+    if (qdrantCollection === 'memories') {
+      throw new Error(
+        `Refusing to drop the production Qdrant collection "memories" while loading ` +
+        `snapshot "${name}". Set QDRANT_COLLECTION to an isolated collection ` +
+        `(the test suite uses "memories_test").`
+      );
+    }
     console.log(`  → drop Qdrant collection "${qdrantCollection}"`);
     await deleteCollection(qdrantCollection);
+    // NOTE: this drops but never RESTORES the collection — entry.files
+    // .qdrant_memories is written by nothing and read only here. Whoever first
+    // populates that field has to add the reload, or a snapshot load will leave
+    // the suite with no vectors at all.
   }
 
   const rowCounts = await countEntitiesAndFacts(conn);

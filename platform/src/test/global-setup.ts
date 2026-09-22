@@ -20,15 +20,25 @@
 
 // CRITICAL: Set environment variables BEFORE any imports
 // This ensures all modules (including config.ts) use the test database
-process.env.DATABASE_URL = 'postgres://cognitive:cognitive@127.0.0.1:5433/cognitive_test';
+//
+// MNEMO_TEST_DB_NAME redirects the whole suite to a different database
+// (bead nmemo-doso). It exists because this file used to assign DATABASE_URL
+// UNCONDITIONALLY, so there was no way to point the tests away from
+// `cognitive_test` — and `cognitive_test` is also where the research substrate
+// lives (CLAUDE.md). On 2026-09-22 a snapshot test's `pg_restore --clean`
+// destroyed 135k entities / 343k facts / 1043 causal edges because of exactly
+// that collision. The DEFAULT IS UNCHANGED, so no existing caller or CI
+// invocation behaves differently; set the var to get an isolated DB:
+//   MNEMO_TEST_DB_NAME=cognitive_vitest npm test
+const TEST_DB_NAME = process.env.MNEMO_TEST_DB_NAME || 'cognitive_test';
+
+process.env.DATABASE_URL = `postgres://cognitive:cognitive@127.0.0.1:5433/${TEST_DB_NAME}`;
 process.env.NODE_ENV = 'test';
 process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://127.0.0.1:8000';
 
 import postgres from 'postgres';
 import { writeFileSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-
-const TEST_DB_NAME = 'cognitive_test';
 
 // Isolated Qdrant collection for the test suite (bead nmemo-wow). MUST match
 // the QDRANT_COLLECTION default set in src/test/setup.ts. Hard-coded here (this

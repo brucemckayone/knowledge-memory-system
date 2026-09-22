@@ -11,7 +11,11 @@
 // IMPORTANT: Set environment variables BEFORE any imports that might use them
 // This ensures the db module from services uses the test database
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://cognitive:cognitive@127.0.0.1:5433/cognitive_test';
+// MNEMO_TEST_DB_NAME lets the suite be pointed at a throwaway database so a
+// destructive test cannot reach the research substrate, which also lives in
+// `cognitive_test` (bead nmemo-doso). Default unchanged.
+const TEST_DB_NAME = process.env.MNEMO_TEST_DB_NAME || 'cognitive_test';
+process.env.DATABASE_URL = process.env.DATABASE_URL || `postgres://cognitive:cognitive@127.0.0.1:5433/${TEST_DB_NAME}`;
 process.env.ML_SERVICES_URL = process.env.ML_SERVICES_URL || 'http://127.0.0.1:8000';
 process.env.QDRANT_URL = process.env.QDRANT_URL || 'http://127.0.0.1:6335';
 // Route ALL Qdrant ops to an isolated collection under test (bead nmemo-wow).
@@ -55,7 +59,7 @@ export const hasTrgmExtension = extensions.pg_trgm;
 
 // Test database connection
 const TEST_DB_URL = process.env.TEST_DATABASE_URL ||
-  `postgres://${process.env.PGUSER || 'cognitive'}:${process.env.PGPASSWORD || 'cognitive'}@${process.env.PGHOST || '127.0.0.1'}:${process.env.PGPORT || '5433'}/cognitive_test`;
+  `postgres://${process.env.PGUSER || 'cognitive'}:${process.env.PGPASSWORD || 'cognitive'}@${process.env.PGHOST || '127.0.0.1'}:${process.env.PGPORT || '5433'}/${TEST_DB_NAME}`;
 
 const POSTGRES_OPTIONS = {
   connection: {

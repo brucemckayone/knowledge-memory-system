@@ -465,6 +465,25 @@ export async function loadMinimalSeed(): Promise<MinimalSeedData> {
  * Clear all minimal seed data
  */
 export async function clearMinimalSeed(): Promise<void> {
+  // GUARD (bead nmemo-doso). This TRUNCATE has no corpus predicate and no
+  // WHERE clause: it empties the entire graph. It currently has zero callers,
+  // but it is one import away from destroying a real substrate — which is
+  // exactly what happened to `cognitive_test` on 2026-09-22 via the snapshot
+  // loader's DROP DATABASE. The test database and the 294-document research
+  // substrate are the same database (CLAUDE.md), so "it's only the test DB" is
+  // not a safety argument here.
+  const rows = await testDb<Array<{ n: string }>>`
+    SELECT CASE WHEN to_regclass('public.entities') IS NULL THEN '0'
+                ELSE (SELECT count(*)::text FROM public.entities) END AS n
+  `;
+  const count = Number(rows[0]?.n ?? 0);
+  if (count > 20_000) {
+    throw new Error(
+      `clearMinimalSeed() refuses to TRUNCATE: the target database holds ${count.toLocaleString()} ` +
+      `entities, which is a real substrate rather than a minimal-seed fixture. Point the suite at a ` +
+      `throwaway database (MNEMO_TEST_DB_NAME=cognitive_vitest) before calling this.`
+    );
+  }
   await testDb`TRUNCATE TABLE
     memory_entities,
     entity_aliases,
