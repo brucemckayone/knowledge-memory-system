@@ -1,0 +1,42 @@
+
+================ arxiv (arxiv-nlp, arxiv-cv) ================
+query pairs: 387
+arxiv-nlp: 2862 active embedded facts, 1230/1230 entities with >=1 fact
+arxiv-cv: 2852 active embedded facts, 1282/1282 entities with >=1 fact
+n=387  NAME 0.1912/0.2429  FACT 0.2222/0.2455  FACTNAME 0.2636/0.2920 (strict/cond)
+PRIMARY(25,1) mechanism: reachedFrac=0.069 targetReached=0.522 targetInSeeds=0.302 heldOutSkipped=3152
+  cond added(FT hit,FN miss)=7 (nonSeed=0)  displaced(FT miss,FN hit)=10
+
+-- grid: FACTNAMETRAV - FACTNAME (cond byPair) | NAMETRAV - NAME (cond byPair) --
+  (10,1): FT-FN -0.0207 CI [-0.0543, 0.0129]  SPANS 0 | NT-N +0.0052 CI [-0.0258, 0.0388]  SPANS 0 | TRAV cond 0.2145  FACTNAMETRAV cond 0.2713
+  (10,2): FT-FN +0.0000 CI [-0.0310, 0.0310]  SPANS 0 | NT-N +0.0207 CI [-0.0103, 0.0517]  SPANS 0 | TRAV cond 0.2145  FACTNAMETRAV cond 0.2920
+  (25,1) <PRIMARY>: FT-FN -0.0078 CI [-0.0284, 0.0129]  SPANS 0 | NT-N +0.0000 CI [0.0000, 0.0000]  SPANS 0 | TRAV cond 0.2429  FACTNAMETRAV cond 0.2842
+  (25,2): FT-FN -0.0052 CI [-0.0258, 0.0155]  SPANS 0 | NT-N +0.0000 CI [0.0000, 0.0000]  SPANS 0 | TRAV cond 0.2429  FACTNAMETRAV cond 0.2868
+  (50,1): FT-FN -0.0052 CI [-0.0233, 0.0129]  SPANS 0 | NT-N +0.0000 CI [0.0000, 0.0000]  SPANS 0 | TRAV cond 0.2429  FACTNAMETRAV cond 0.2868
+  (50,2): FT-FN -0.0052 CI [-0.0233, 0.0129]  SPANS 0 | NT-N +0.0000 CI [0.0000, 0.0000]  SPANS 0 | TRAV cond 0.2429  FACTNAMETRAV cond 0.2868
+
+================ dal (dal-nlp, dal-cv) ================
+query pairs: 354
+dal-nlp: 2612 active embedded facts, 1133/1133 entities with >=1 fact
+dal-cv: 2565 active embedded facts, 1262/1262 entities with >=1 fact
+n=354  NAME 0.2006/0.2429  FACT 0.1780/0.2090  FACTNAME 0.2429/0.2966 (strict/cond)
+PRIMARY(25,1) mechanism: reachedFrac=0.074 targetReached=0.554 targetInSeeds=0.299 heldOutSkipped=2508
+  cond added(FT hit,FN miss)=6 (nonSeed=2)  displaced(FT miss,FN hit)=18
+
+-- grid: FACTNAMETRAV - FACTNAME (cond byPair) | NAMETRAV - NAME (cond byPair) --
+  (10,1): FT-FN +0.0028 CI [-0.0395, 0.0452]  SPANS 0 | NT-N +0.0339 CI [0.0000, 0.0678]  SPANS 0 | TRAV cond 0.2486  FACTNAMETRAV cond 0.2994
+  (10,2): FT-FN +0.0254 CI [-0.0113, 0.0650]  SPANS 0 | NT-N +0.0565 CI [0.0282, 0.0876]  ABOVE 0 | TRAV cond 0.2486  FACTNAMETRAV cond 0.3220
+  (25,1) <PRIMARY>: FT-FN -0.0339 CI [-0.0621, -0.0085]  BELOW 0 | NT-N +0.0000 CI [0.0000, 0.0000]  SPANS 0 | TRAV cond 0.2429  FACTNAMETRAV cond 0.2627
+  (25,2): FT-FN -0.0339 CI [-0.0621, -0.0085]  BELOW 0 | NT-N +0.0000 CI [0.0000, 0.0000]  SPANS 0 | TRAV cond 0.2429  FACTNAMETRAV cond 0.2627
+  (50,1): FT-FN -0.0367 CI [-0.0621, -0.0113]  BELOW 0 | NT-N +0.0000 CI [0.0000, 0.0000]  SPANS 0 | TRAV cond 0.2429  FACTNAMETRAV cond 0.2599
+  (50,2): FT-FN -0.0367 CI [-0.0621, -0.0113]  BELOW 0 | NT-N +0.0000 CI [0.0000, 0.0000]  SPANS 0 | TRAV cond 0.2429  FACTNAMETRAV cond 0.2599
+
+=== INTEGRITY ANCHOR (arxiv NAME/FACTNAME vs frozen R4) ===
+  NAME strict: 0.19121447028423771 vs frozen 0.19121447028423771  MATCH
+  NAME cond: 0.24289405684754523 vs frozen 0.24289405684754523  MATCH
+  FACTNAME strict: 0.26356589147286824 vs frozen 0.26356589147286824  MATCH
+  FACTNAME cond: 0.29198966408268734 vs frozen 0.29198966408268734  MATCH
+  FACTNAME-NAME strict (point): 0.07235142118863053 vs frozen 0.07235142118863053  MATCH
+  ANCHOR OK — NAME/FACTNAME reproduce frozen R4.
+
+artifact: C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\traversal-augmented-results.json

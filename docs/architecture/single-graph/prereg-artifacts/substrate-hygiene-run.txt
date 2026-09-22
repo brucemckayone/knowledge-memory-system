@@ -1,0 +1,61 @@
+
+================ arxiv (arxiv-nlp, arxiv-cv) ================
+query pairs: 387
+arxiv-nlp: 2862 active embedded facts, 1230/1230 entities with >=1 fact
+arxiv-cv: 2852 active embedded facts, 1282/1282 entities with >=1 fact
+n=387  distinctNames=2239  tiePairs=258/387  dedupVoid=0
+groups/corpus: {"arxiv-nlp":1070,"arxiv-cv":1169}
+
+-- BAR 1: FACTNAME - NAME per tie-break (condensed byPair) --
+  asc: cond +0.0491 CI [0.0155, 0.0801]  ABOVE 0 | strict +0.0724 CI [0.0413, 0.1034]  ABOVE 0
+  desc: cond +0.0413 CI [0.0078, 0.0749]  ABOVE 0 | strict +0.0827 CI [0.0517, 0.1163]  ABOVE 0
+  rand: cond +0.0439 CI [0.0103, 0.0775]  ABOVE 0 | strict +0.0801 CI [0.0491, 0.1111]  ABOVE 0
+
+-- BAR 2: NAME level swing across {asc,desc,rand} --
+  strict: 0.1912 / 0.1783 / 0.1809  swing=0.0129
+  cond:   0.2429 / 0.2429 / 0.2429  swing=0.0000
+
+-- DECISION: dedup --
+  lever preserved (FACTNAMEded-NAMEded, cond byPair): asc +0.1111 CI [0.0775, 0.1447]  ABOVE 0 | desc +0.1137 CI [0.0801, 0.1473]  ABOVE 0
+  dedup impact (FACTNAMEded-FACTNAME, cond byPair): +0.0801 CI [0.0543, 0.1085]  ABOVE 0
+  NAME asc-vs-desc swing strict: 0.0129 -> dedup 0.0000  (< half? true)
+  NAME asc-vs-desc swing cond:   0.0000 -> dedup 0.0000  (< half? false)
+  dedup abs (cond) NAMEded asc/desc: 0.2610/0.2610  FACTNAMEded asc/desc: 0.3721/0.3747
+
+================ dal (dal-nlp, dal-cv) ================
+query pairs: 354
+dal-nlp: 2612 active embedded facts, 1133/1133 entities with >=1 fact
+dal-cv: 2565 active embedded facts, 1262/1262 entities with >=1 fact
+n=354  distinctNames=2158  tiePairs=250/354  dedupVoid=0
+groups/corpus: {"dal-nlp":1001,"dal-cv":1157}
+
+-- BAR 1: FACTNAME - NAME per tie-break (condensed byPair) --
+  asc: cond +0.0537 CI [0.0198, 0.0876]  ABOVE 0 | strict +0.0424 CI [0.0056, 0.0791]  ABOVE 0
+  desc: cond +0.0480 CI [0.0141, 0.0819]  ABOVE 0 | strict +0.0537 CI [0.0169, 0.0904]  ABOVE 0
+  rand: cond +0.0508 CI [0.0169, 0.0847]  ABOVE 0 | strict +0.0424 CI [0.0056, 0.0791]  ABOVE 0
+
+-- BAR 2: NAME level swing across {asc,desc,rand} --
+  strict: 0.2006 / 0.1836 / 0.1949  swing=0.0169
+  cond:   0.2429 / 0.2401 / 0.2401  swing=0.0028
+
+-- DECISION: dedup --
+  lever preserved (FACTNAMEded-NAMEded, cond byPair): asc +0.0932 CI [0.0565, 0.1299]  ABOVE 0 | desc +0.0876 CI [0.0508, 0.1243]  ABOVE 0
+  dedup impact (FACTNAMEded-FACTNAME, cond byPair): +0.0763 CI [0.0480, 0.1045]  ABOVE 0
+  NAME asc-vs-desc swing strict: 0.0169 -> dedup 0.0000  (< half? true)
+  NAME asc-vs-desc swing cond:   0.0028 -> dedup 0.0000  (< half? true)
+  dedup abs (cond) NAMEded asc/desc: 0.2797/0.2797  FACTNAMEded asc/desc: 0.3729/0.3672
+
+=== INTEGRITY ANCHOR (arxiv asc vs frozen R4) ===
+  NAME strict: 0.19121447028423771 vs frozen 0.19121447028423771  MATCH
+  NAME cond: 0.24289405684754523 vs frozen 0.24289405684754523  MATCH
+  FACTNAME strict: 0.26356589147286824 vs frozen 0.26356589147286824  MATCH
+  FACTNAME cond: 0.29198966408268734 vs frozen 0.29198966408268734  MATCH
+  FACTNAME-NAME strict byPair: 0.07235142118863053 vs frozen 0.07235142118863053  MATCH
+  FACTNAME-NAME cond byPair: 0.049095607235142114 vs frozen 0.049095607235142114  MATCH
+  groups[arxiv-nlp]=1070 vs SQL 1070 MATCH
+  groups[arxiv-cv]=1169 vs SQL 1169 MATCH
+  groups[dal-nlp]=1001 vs SQL 1001 MATCH
+  groups[dal-cv]=1157 vs SQL 1157 MATCH
+  ANCHOR OK — asc reproduces frozen R4; dedup collapses exactly by canonical_name.
+
+artifact: C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\substrate-hygiene-results.json

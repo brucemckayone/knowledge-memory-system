@@ -1,0 +1,57 @@
+frozen cache: 7003 vectors; writable cache: 0
+query pairs: 94
+embedding 3552 texts (Ollama) -> C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\qbio-embed-cache.json
+   500/3552
+   1000/3552
+   1500/3552
+   2000/3552
+   2500/3552
+   3000/3552
+   3500/3552
+embedding 72 texts (Ollama) -> C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\qbio-embed-cache.json
+Tier-B/doc mean 5.1; mean |relevant|/|corpus| 0.5%
+qbio: 6955 active embedded facts, 3670/3670 entities with >=1 fact
+
+fact integrity: dim/finite violations 0; mean RAW norm 20.450 (expect != 1); self-dot violations 0
+
+| arm | strict R@10 | condensed R@10 |
+|-----|-------------|----------------|
+| NAME     | 0.3617 | 0.3723 |
+| FACTMAX  | 0.2553 | 0.2660 |
+| FACTNAME | 0.3511 | 0.3723 |
+
+arm-identity degeneracy: FACTMAX top-10 == NAME top-10 for 0.0% of pairs
+
+n=94  held-out guard fired on 94/94 pairs  retrievability 100.0% (>=1 held-out fact)
+
+=== PRIMARY (strict): FACTNAME R@10 - NAME R@10 ===
+  
+      pair -0.0106 CI [-0.0745, 0.0532]  SPANS 0
+      entity -0.0106 CI [-0.0778, 0.0485]  SPANS 0
+      doc -0.0106 CI [-0.0745, 0.0526]  SPANS 0
+      => ALL-THREE-ABOVE-0: NO
+
+=== CO-PRIMARY (condensed): FACTNAME R@10 - NAME R@10 ===
+  
+      pair +0.0000 CI [-0.0638, 0.0638]  SPANS 0
+      entity +0.0000 CI [-0.0612, 0.0568]  SPANS 0
+      doc +0.0000 CI [-0.0588, 0.0581]  SPANS 0
+      => ALL-THREE-ABOVE-0: NO
+
+=== complementarity (strict hits @10) ===
+  NAME 34  FACTMAX 24  FACTNAME 33  (fusion>max(components)? false)
+
+=== SECONDARY: degree-stratified lift (FACTNAME - NAME, R@10) on HELD-OUT fact-degree ===
+  degree 0 (no held-out fact; fusion has no fact signal): n=0
+  bin 1   : n=29    strict -0.0345 CI [-0.1724, 0.0690]  SPANS 0   |  condensed +0.0000 CI [-0.1379, 0.1379]  SPANS 0
+  bin 2-3 : n=40    strict -0.0500 CI [-0.1250, 0.0000]  SPANS 0   |  condensed -0.0250 CI [-0.0750, 0.0000]  SPANS 0
+  bin 4-7 : n=13    strict +0.0000 CI [-0.2308, 0.2308]  SPANS 0   |  condensed +0.0000 CI [-0.2308, 0.2308]  SPANS 0
+  bin 8+  : n=12    strict +0.1667 CI [0.0000, 0.4167]  SPANS 0   |  condensed +0.0833 CI [0.0000, 0.2500]  SPANS 0
+
+=== k-ladder (strict / condensed) ===
+  R@1   NAME 0.096/0.213  FACTNAME 0.128/0.138
+  R@5   NAME 0.298/0.309  FACTNAME 0.287/0.309
+  R@10  NAME 0.362/0.372  FACTNAME 0.351/0.372
+  R@20  NAME 0.426/0.457  FACTNAME 0.415/0.415
+
+artifact: C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\qbio-fusion-results.json

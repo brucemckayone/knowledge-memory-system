@@ -1,0 +1,53 @@
+query pairs: 387
+arxiv-nlp: 2862 active embedded facts, 1230/1230 entities with >=1 fact
+arxiv-cv: 2852 active embedded facts, 1282/1282 entities with >=1 fact
+bge-m3: embedding 7975 texts via http://localhost:11434 -> C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\bge-m3-embed-cache.json
+   16/7975
+   336/7975
+   656/7975
+   976/7975
+   1296/7975
+   1616/7975
+   1936/7975
+   2256/7975
+   2576/7975
+   2896/7975
+   3216/7975
+   3536/7975
+   3856/7975
+   4176/7975
+   4496/7975
+   4816/7975
+   5136/7975
+   5456/7975
+   5776/7975
+   6096/7975
+   6416/7975
+   6736/7975
+   7056/7975
+   7376/7975
+   7696/7975
+bge cache size 7975 (newly embedded 7975)
+
+n=387  (bge fact-set size matches nomic: {"arxiv-nlp":true,"arxiv-cv":true})
+arm            strictR10  condR10
+  NAME_nomic     0.1912   0.2429
+  FACTNAME_nomic 0.2636   0.2920
+  NAME_bge       0.2145   0.3152
+  FACTNAME_bge   0.2997   0.3850
+
+-- deltas (condensed byPair) --
+  PRIMARY  FACTNAME_bge - FACTNAME_nomic: +0.0930 CI [0.0491, 0.1395]  ABOVE 0  | strict +0.0362 CI [-0.0078, 0.0801]  SPANS 0
+  SEC name NAME_bge - NAME_nomic:         +0.0724 CI [0.0336, 0.1137]  ABOVE 0  | strict +0.0233 CI [-0.0129, 0.0594]  SPANS 0
+  SEC lever FACTNAME_bge - NAME_bge:      +0.0698 CI [0.0336, 0.1085]  ABOVE 0
+
+=== INTEGRITY ANCHOR (nomic vs frozen R4) ===
+  NAME strict: 0.19121447028423771 vs 0.19121447028423771  MATCH
+  NAME cond: 0.24289405684754523 vs 0.24289405684754523  MATCH
+  FACTNAME strict: 0.26356589147286824 vs 0.26356589147286824  MATCH
+  FACTNAME cond: 0.29198966408268734 vs 0.29198966408268734  MATCH
+  FACTNAME-NAME strict (point): 0.07235142118863053 vs 0.07235142118863053  MATCH
+  frozen caches unchanged: true
+  ANCHOR OK — nomic reproduces R4; frozen caches untouched; bge 1024-dim unit-norm.
+
+artifact: C:\Users\bruce.mckay\dev\nmemo\docs\architecture\single-graph\prereg-artifacts\embedding-upgrade-results.json
